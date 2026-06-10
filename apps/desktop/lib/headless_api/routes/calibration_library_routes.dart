@@ -13,14 +13,22 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [CalibrationLibraryHandlers].
 List<HeadlessRoute> buildCalibrationLibraryRoutes(
-        CalibrationLibraryHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(
-          HttpMethod.get, '/api/calibration-library', h.handleList),
-      HeadlessRoute(
-          HttpMethod.post, '/api/calibration-library/match', h.handleMatch),
-      HeadlessRoute(HttpMethod.put,
-          '/api/calibration-library/<type>/<id>/tags', h.handleSetTags),
-      HeadlessRoute(HttpMethod.delete,
-          '/api/calibration-library/<type>/<id>', h.handleDelete),
-    ];
+  CalibrationLibraryHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(HttpMethod.get, '/api/calibration-library', h.handleList),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration-library/match',
+    h.handleMatch,
+  ),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/calibration-library/<type>/<id>/tags',
+    h.handleSetTags,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/calibration-library/<type>/<id>',
+    h.handleDelete,
+  ),
+];

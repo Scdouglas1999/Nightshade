@@ -255,7 +255,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   children: [
                     Text('Status',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Container(
@@ -277,11 +278,12 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                               : isError
                                   ? 'Error'
                                   : 'Idle',
-                          style: NightshadeTypography.labelSm.copyWith(color: isRunning
-                                ? widget.colors.success
-                                : isError
-                                    ? widget.colors.error
-                                    : widget.colors.textSecondary),
+                          style: NightshadeTypography.labelSm.copyWith(
+                              color: isRunning
+                                  ? widget.colors.success
+                                  : isError
+                                      ? widget.colors.error
+                                      : widget.colors.textSecondary),
                         ),
                       ],
                     ),
@@ -459,7 +461,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   children: [
                     Text('Enabled',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textSecondary)),
                     NightshadeSwitch(
                       value: config.sigmaClipEnabled,
                       onChanged: (value) {

@@ -64,8 +64,11 @@ void main() {
       );
 
       final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'Test Sequence', forceUnsupported: false);
+      final res = mapper.map(
+        root,
+        sequenceName: 'Test Sequence',
+        forceUnsupported: false,
+      );
 
       expect(res.unsupported, isEmpty);
       expect(res.totalNodes, 3);
@@ -81,8 +84,9 @@ void main() {
       expect(targetNode.raHours, closeTo(5.5882, 1e-4));
       expect(targetNode.decDegrees, closeTo(-5.391, 1e-4));
 
-      final exposure =
-          res.sequence.nodes.values.whereType<ExposureNode>().single;
+      final exposure = res.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .single;
       expect(exposure.durationSecs, 120.0);
       expect(exposure.count, 30);
       expect(exposure.gain, 100);
@@ -94,91 +98,108 @@ void main() {
       // Mapping table should record the source -> nightshade pairings.
       final mappingByType = {for (final m in res.mappingTable) m.sourceType: m};
       expect(mappingByType['TakeExposure']?.nightshadeType, 'TakeExposure');
-      expect(mappingByType['DeepSkyObjectContainer']?.nightshadeType,
-          'TargetHeader');
-    });
-
-    test('drops annotation nodes as decorative without surfacing as unsupported',
-        () {
-      final root = _container(
-        'Container',
-        children: [
-          _container(
-            'Annotation',
-            name: 'Note',
-            kind: CanonicalKind.annotation,
-          ),
-          _container(
-            'TakeExposure',
-            kind: CanonicalKind.exposure,
-            attrs: {'exposureTime': 60.0, 'count': 1, 'imageType': 'LIGHT'},
-          ),
-        ],
+      expect(
+        mappingByType['DeepSkyObjectContainer']?.nightshadeType,
+        'TargetHeader',
       );
-      final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'x', forceUnsupported: false);
-      expect(res.unsupported, isEmpty);
-      expect(res.dropped, hasLength(1));
-      expect(res.dropped.single.reason, DropReason.decorative);
-      // One annotation + one exposure + container.
-      expect(res.totalNodes, 3);
-      // Only the exposure becomes a real Nightshade node (plus the root).
-      expect(res.sequence.nodes.values.whereType<ExposureNode>(), hasLength(1));
     });
 
     test(
-        'records unsupported nodes in strict mode without inserting them into the tree',
-        () {
-      final root = _container(
-        'Container',
-        children: [
-          _container(
-            'TakeExposure',
-            kind: CanonicalKind.exposure,
-            attrs: {'exposureTime': 60.0, 'count': 1, 'imageType': 'LIGHT'},
-          ),
-          _container(
-            'VendorVoodooNode',
-            name: 'Custom',
-            kind: CanonicalKind.unsupported,
-          ),
-        ],
-      );
-      final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'x', forceUnsupported: false);
-
-      expect(res.unsupported, hasLength(1));
-      expect(res.unsupported.single.sourceType, 'VendorVoodooNode');
-      // Strict mode does not move the unsupported into the dropped list - the
-      // importer is responsible for raising; mapper records only.
-      expect(res.dropped, isEmpty);
-      // Tree contains root + exposure only (unsupported was excluded).
-      expect(res.sequence.nodes.values.whereType<ExposureNode>(), hasLength(1));
-    });
+      'drops annotation nodes as decorative without surfacing as unsupported',
+      () {
+        final root = _container(
+          'Container',
+          children: [
+            _container(
+              'Annotation',
+              name: 'Note',
+              kind: CanonicalKind.annotation,
+            ),
+            _container(
+              'TakeExposure',
+              kind: CanonicalKind.exposure,
+              attrs: {'exposureTime': 60.0, 'count': 1, 'imageType': 'LIGHT'},
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(
+          root,
+          sequenceName: 'x',
+          forceUnsupported: false,
+        );
+        expect(res.unsupported, isEmpty);
+        expect(res.dropped, hasLength(1));
+        expect(res.dropped.single.reason, DropReason.decorative);
+        // One annotation + one exposure + container.
+        expect(res.totalNodes, 3);
+        // Only the exposure becomes a real Nightshade node (plus the root).
+        expect(
+          res.sequence.nodes.values.whereType<ExposureNode>(),
+          hasLength(1),
+        );
+      },
+    );
 
     test(
-        'force-import surfaces unsupported nodes and ALSO records them as dropped',
-        () {
-      final root = _container(
-        'Container',
-        children: [
-          _container(
-            'VendorVoodooNode',
-            name: 'Custom',
-            kind: CanonicalKind.unsupported,
-          ),
-        ],
-      );
-      final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'x', forceUnsupported: true);
+      'records unsupported nodes in strict mode without inserting them into the tree',
+      () {
+        final root = _container(
+          'Container',
+          children: [
+            _container(
+              'TakeExposure',
+              kind: CanonicalKind.exposure,
+              attrs: {'exposureTime': 60.0, 'count': 1, 'imageType': 'LIGHT'},
+            ),
+            _container(
+              'VendorVoodooNode',
+              name: 'Custom',
+              kind: CanonicalKind.unsupported,
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(
+          root,
+          sequenceName: 'x',
+          forceUnsupported: false,
+        );
 
-      expect(res.unsupported, hasLength(1));
-      expect(res.dropped, hasLength(1));
-      expect(res.dropped.single.reason, DropReason.unsupported);
-    });
+        expect(res.unsupported, hasLength(1));
+        expect(res.unsupported.single.sourceType, 'VendorVoodooNode');
+        // Strict mode does not move the unsupported into the dropped list - the
+        // importer is responsible for raising; mapper records only.
+        expect(res.dropped, isEmpty);
+        // Tree contains root + exposure only (unsupported was excluded).
+        expect(
+          res.sequence.nodes.values.whereType<ExposureNode>(),
+          hasLength(1),
+        );
+      },
+    );
+
+    test(
+      'force-import surfaces unsupported nodes and ALSO records them as dropped',
+      () {
+        final root = _container(
+          'Container',
+          children: [
+            _container(
+              'VendorVoodooNode',
+              name: 'Custom',
+              kind: CanonicalKind.unsupported,
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(root, sequenceName: 'x', forceUnsupported: true);
+
+        expect(res.unsupported, hasLength(1));
+        expect(res.dropped, hasLength(1));
+        expect(res.dropped.single.reason, DropReason.unsupported);
+      },
+    );
 
     test('disabled nodes are dropped with DropReason.disabled', () {
       final root = _container(
@@ -197,8 +218,7 @@ void main() {
         ],
       );
       final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'x', forceUnsupported: false);
+      final res = mapper.map(root, sequenceName: 'x', forceUnsupported: false);
 
       expect(res.unsupported, isEmpty);
       expect(res.dropped, hasLength(1));
@@ -221,10 +241,12 @@ void main() {
         ],
       );
       final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'loopy', forceUnsupported: false);
-      final loop =
-          res.sequence.nodes.values.whereType<LoopNode>().single;
+      final res = mapper.map(
+        root,
+        sequenceName: 'loopy',
+        forceUnsupported: false,
+      );
+      final loop = res.sequence.nodes.values.whereType<LoopNode>().single;
       expect(loop.conditionType, LoopConditionType.count);
       expect(loop.repeatCount, 7);
       expect(loop.childIds, hasLength(1));
@@ -244,8 +266,11 @@ void main() {
         ],
       );
       final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'forever', forceUnsupported: false);
+      final res = mapper.map(
+        root,
+        sequenceName: 'forever',
+        forceUnsupported: false,
+      );
       final loop = res.sequence.nodes.values.whereType<LoopNode>().single;
       expect(loop.conditionType, LoopConditionType.forever);
     });
@@ -262,8 +287,7 @@ void main() {
         ],
       );
       final mapper = CanonicalNodeMapper();
-      final res = mapper.map(root,
-          sequenceName: 'x', forceUnsupported: false);
+      final res = mapper.map(root, sequenceName: 'x', forceUnsupported: false);
       // The mapper's _construct returns null for filter-change with no name;
       // that path surfaces the node as unsupported.
       expect(res.unsupported, hasLength(1));

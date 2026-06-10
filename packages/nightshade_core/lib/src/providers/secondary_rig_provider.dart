@@ -26,14 +26,14 @@ enum SecondaryDitherPolicy {
   abortImmediately;
 
   String get wire => switch (this) {
-        SecondaryDitherPolicy.completeIfShort => 'complete_if_short',
-        SecondaryDitherPolicy.abortImmediately => 'abort_immediately',
-      };
+    SecondaryDitherPolicy.completeIfShort => 'complete_if_short',
+    SecondaryDitherPolicy.abortImmediately => 'abort_immediately',
+  };
 
   String get label => switch (this) {
-        SecondaryDitherPolicy.completeIfShort => 'Finish short subs',
-        SecondaryDitherPolicy.abortImmediately => 'Abort immediately',
-      };
+    SecondaryDitherPolicy.completeIfShort => 'Finish short subs',
+    SecondaryDitherPolicy.abortImmediately => 'Abort immediately',
+  };
 }
 
 /// User-editable secondary-rig configuration. Immutable; mutate via copyWith on
@@ -127,8 +127,8 @@ class SecondaryRigConfigNotifier extends StateNotifier<SecondaryRigConfig> {
 
 final secondaryRigConfigProvider =
     StateNotifierProvider<SecondaryRigConfigNotifier, SecondaryRigConfig>(
-  (ref) => SecondaryRigConfigNotifier(),
-);
+      (ref) => SecondaryRigConfigNotifier(),
+    );
 
 /// Metadata the primary supplies so secondary frames inherit target identity +
 /// save location. Provide the active target name + save base when arming so the
@@ -208,16 +208,16 @@ final secondaryRigControllerProvider = Provider<SecondaryRigController>(
 /// Polls every 2s while watched; UI rebuilds on each tick.
 final secondaryRigStatusProvider =
     StreamProvider.autoDispose<bridge_api.SecondaryRigStatusApi?>((ref) async* {
-  while (true) {
-    bridge_api.SecondaryRigStatusApi status;
-    try {
-      status = await bridge_api.apiSecondaryRigGetStatus();
-    } catch (_) {
-      yield null;
-      await Future<void>.delayed(const Duration(seconds: 2));
-      continue;
-    }
-    yield status.armed ? status : null;
-    await Future<void>.delayed(const Duration(seconds: 2));
-  }
-});
+      while (true) {
+        bridge_api.SecondaryRigStatusApi status;
+        try {
+          status = await bridge_api.apiSecondaryRigGetStatus();
+        } catch (_) {
+          yield null;
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        yield status.armed ? status : null;
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    });

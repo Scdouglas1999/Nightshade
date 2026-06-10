@@ -48,7 +48,9 @@ class DefaultScienceBackend implements ScienceBackend {
 
   @override
   Future<WcsSolution?> solveForScience(
-      String imagePath, SolveOptions options) async {
+    String imagePath,
+    SolveOptions options,
+  ) async {
     try {
       final result = await _backend.plateSolve(
         imagePath: imagePath,
@@ -92,11 +94,18 @@ class DefaultScienceBackend implements ScienceBackend {
         minSnr: options.minSnr,
         maxSharpness: 100.0,
       );
-      final result =
-          await apiDetectStarsInFile(filePath: imagePath, config: config);
+      final result = await apiDetectStarsInFile(
+        filePath: imagePath,
+        config: config,
+      );
       return result.stars
-          .where((s) =>
-              s.snr >= options.minSnr && s.flux > 0 && s.fwhm > 0 && s.hfr > 0)
+          .where(
+            (s) =>
+                s.snr >= options.minSnr &&
+                s.flux > 0 &&
+                s.fwhm > 0 &&
+                s.hfr > 0,
+          )
           .map(
             (s) => StarMeasurement(
               x: s.x,
@@ -147,8 +156,10 @@ class DefaultScienceBackend implements ScienceBackend {
     }
     final exposureSeconds = rawExposureSeconds.clamp(0.001, double.infinity);
 
-    final stars =
-        await measureStars(imagePath, const PhotometryOptions(minSnr: 5.0));
+    final stars = await measureStars(
+      imagePath,
+      const PhotometryOptions(minSnr: 5.0),
+    );
     // WHY: writing a sentinel-RMS isCalibrated:false row would let downstream
     // aggregations (transparency confidence, observation reports) treat the
     // row as data. Returning null instead means no DB row is inserted —
@@ -170,8 +181,10 @@ class DefaultScienceBackend implements ScienceBackend {
 
     final zpSamples = matches
         .map((m) {
-          final normalizedFlux =
-              (m.detected.flux / exposureSeconds).clamp(1e-9, double.infinity);
+          final normalizedFlux = (m.detected.flux / exposureSeconds).clamp(
+            1e-9,
+            double.infinity,
+          );
           return m.catalogMag + 2.5 * math.log(normalizedFlux) / math.ln10;
         })
         .where((v) => v.isFinite)
@@ -223,9 +236,11 @@ class DefaultScienceBackend implements ScienceBackend {
           .sqrt(aperturePixels * (bg + readNoise * readNoise))
           .clamp(1e-6, double.infinity);
       lim5 =
-          zeroPoint - 2.5 * math.log((5.0 * noise) / exposureSeconds) / math.ln10;
+          zeroPoint -
+          2.5 * math.log((5.0 * noise) / exposureSeconds) / math.ln10;
       lim3 =
-          zeroPoint - 2.5 * math.log((3.0 * noise) / exposureSeconds) / math.ln10;
+          zeroPoint -
+          2.5 * math.log((3.0 * noise) / exposureSeconds) / math.ln10;
     } else {
       _logger.warning(
         'Limiting magnitude omitted for $imagePath: camera read noise is not configured.',
@@ -258,11 +273,16 @@ class DefaultScienceBackend implements ScienceBackend {
     List<FramePhotometricCalibration> recentCalibrations,
     TransparencyOptions options,
   ) async {
-    final calibrations = recentCalibrations
-        .where((c) =>
-            c.isCalibrated && c.zeroPoint != null && c.zeroPoint!.isFinite)
-        .toList(growable: false)
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final calibrations =
+        recentCalibrations
+            .where(
+              (c) =>
+                  c.isCalibrated &&
+                  c.zeroPoint != null &&
+                  c.zeroPoint!.isFinite,
+            )
+            .toList(growable: false)
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     if (calibrations.length < options.minimumSampleCount) return null;
 
     final window = calibrations.length > options.rollingWindowSize
@@ -289,8 +309,9 @@ class DefaultScienceBackend implements ScienceBackend {
       final fitData = withAirmass.sublist(0, withAirmass.length - 1);
       final x = fitData.map((c) => c.airmass!).toList(growable: false);
       final y = fitData.map((c) => c.zeroPoint!).toList(growable: false);
-      final allZps =
-          withAirmass.map((c) => c.zeroPoint!).toList(growable: false);
+      final allZps = withAirmass
+          .map((c) => c.zeroPoint!)
+          .toList(growable: false);
       final yScatter = _robustStdDev(allZps);
       final span = (x.reduce(math.max) - x.reduce(math.min)).abs();
       if (span < options.minAirmassSpan) {
@@ -325,8 +346,8 @@ class DefaultScienceBackend implements ScienceBackend {
           .clamp(0.0, 100.0)
           .toDouble();
 
-      final sampleFactor =
-          (withAirmass.length / options.rollingWindowSize).clamp(0.25, 1.0);
+      final sampleFactor = (withAirmass.length / options.rollingWindowSize)
+          .clamp(0.25, 1.0);
       final fitPenalty = math.exp(-(fit.rms / 0.12).clamp(0.0, 4.0));
       final scatterPenalty = math.exp(-(yScatter / 0.2).clamp(0.0, 4.0));
       confidence = (sampleFactor * fitPenalty * scatterPenalty)
@@ -347,17 +368,18 @@ class DefaultScienceBackend implements ScienceBackend {
           .clamp(0.2, 1.0)
           .toDouble();
       final stabilityPenalty = math.exp(-(scatter / 0.25).clamp(0.0, 4.0));
-      confidence =
-          (sampleFactor * stabilityPenalty).clamp(0.15, 1.0).toDouble();
+      confidence = (sampleFactor * stabilityPenalty)
+          .clamp(0.15, 1.0)
+          .toDouble();
     }
 
     final quality = transparency >= 95
         ? 'Excellent'
         : transparency >= 85
-            ? 'Good'
-            : transparency >= 70
-                ? 'Fair'
-                : 'Poor';
+        ? 'Good'
+        : transparency >= 70
+        ? 'Fair'
+        : 'Poor';
 
     return TransparencySample(
       capturedImageId: window.last.capturedImageId,
@@ -376,15 +398,19 @@ class DefaultScienceBackend implements ScienceBackend {
     WcsSolution? wcs,
     PsfMapOptions options,
   ) async {
-    final stars =
-        await measureStars(imagePath, const PhotometryOptions(minSnr: 4.0));
+    final stars = await measureStars(
+      imagePath,
+      const PhotometryOptions(minSnr: 4.0),
+    );
     final usable = stars
-        .where((s) =>
-            s.snr >= 4 &&
-            s.eccentricity <= 0.98 &&
-            s.fwhm.isFinite &&
-            s.hfr.isFinite &&
-            s.peak < 65535)
+        .where(
+          (s) =>
+              s.snr >= 4 &&
+              s.eccentricity <= 0.98 &&
+              s.fwhm.isFinite &&
+              s.hfr.isFinite &&
+              s.peak < 65535,
+        )
         .toList(growable: false);
     if (usable.isEmpty) {
       return PsfFieldMap(
@@ -409,34 +435,43 @@ class DefaultScienceBackend implements ScienceBackend {
       for (var col = 0; col < options.gridCols; col++) {
         final bucket = buckets[(row, col)] ?? const <StarMeasurement>[];
         if (bucket.isEmpty) {
-          tiles.add(PsfTileMetric(
-            row: row,
-            col: col,
-            starCount: 0,
-            medianFwhm: 0,
-            medianHfr: 0,
-            medianEccentricity: 0,
-            roundness: 0,
-          ));
+          tiles.add(
+            PsfTileMetric(
+              row: row,
+              col: col,
+              starCount: 0,
+              medianFwhm: 0,
+              medianHfr: 0,
+              medianEccentricity: 0,
+              roundness: 0,
+            ),
+          );
           continue;
         }
         final fwhm = _trimmedMedian(bucket.map((s) => s.fwhm).toList(), 0.15);
         final hfr = _trimmedMedian(bucket.map((s) => s.hfr).toList(), 0.15);
-        final ecc =
-            _trimmedMedian(bucket.map((s) => s.eccentricity).toList(), 0.15);
-        tiles.add(PsfTileMetric(
-          row: row,
-          col: col,
-          starCount: bucket.length,
-          medianFwhm: fwhm,
-          medianHfr: hfr,
-          medianEccentricity: ecc,
-          roundness: (1.0 - ecc).clamp(0.0, 1.0),
-        ));
+        final ecc = _trimmedMedian(
+          bucket.map((s) => s.eccentricity).toList(),
+          0.15,
+        );
+        tiles.add(
+          PsfTileMetric(
+            row: row,
+            col: col,
+            starCount: bucket.length,
+            medianFwhm: fwhm,
+            medianHfr: hfr,
+            medianEccentricity: ecc,
+            roundness: (1.0 - ecc).clamp(0.0, 1.0),
+          ),
+        );
       }
     }
     return PsfFieldMap(
-        gridRows: options.gridRows, gridCols: options.gridCols, tiles: tiles);
+      gridRows: options.gridRows,
+      gridCols: options.gridCols,
+      tiles: tiles,
+    );
   }
 
   @override
@@ -445,8 +480,10 @@ class DefaultScienceBackend implements ScienceBackend {
     WcsSolution wcs,
     AstrometryOptions options,
   ) async {
-    final stars =
-        await measureStars(imagePath, const PhotometryOptions(minSnr: 4.0));
+    final stars = await measureStars(
+      imagePath,
+      const PhotometryOptions(minSnr: 4.0),
+    );
     if (stars.isEmpty) return null;
     final matches = await _catalogMatches(
       imagePath: imagePath,
@@ -458,22 +495,29 @@ class DefaultScienceBackend implements ScienceBackend {
     if (matches.length < 6) return null;
 
     final scale = wcs.pixelScaleArcsecPerPixel;
-    final vectors = matches.take(options.sampleCount).map((m) {
-      final dx = (m.detected.x - m.catalogX) * scale;
-      final dy = (m.detected.y - m.catalogY) * scale;
-      return ResidualVectorSample(
-        x: m.detected.x,
-        y: m.detected.y,
-        dxArcsec: dx,
-        dyArcsec: dy,
-        magnitudeArcsec: math.sqrt(dx * dx + dy * dy),
-      );
-    }).toList(growable: false);
+    final vectors = matches
+        .take(options.sampleCount)
+        .map((m) {
+          final dx = (m.detected.x - m.catalogX) * scale;
+          final dy = (m.detected.y - m.catalogY) * scale;
+          return ResidualVectorSample(
+            x: m.detected.x,
+            y: m.detected.y,
+            dxArcsec: dx,
+            dyArcsec: dy,
+            magnitudeArcsec: math.sqrt(dx * dx + dy * dy),
+          );
+        })
+        .toList(growable: false);
     if (vectors.isEmpty) return null;
 
-    final rms = math.sqrt(vectors.fold<double>(
-            0.0, (s, v) => s + v.magnitudeArcsec * v.magnitudeArcsec) /
-        vectors.length);
+    final rms = math.sqrt(
+      vectors.fold<double>(
+            0.0,
+            (s, v) => s + v.magnitudeArcsec * v.magnitudeArcsec,
+          ) /
+          vectors.length,
+    );
     final meanX =
         vectors.fold<double>(0.0, (s, v) => s + v.dxArcsec) / vectors.length;
     final meanY =
@@ -481,14 +525,17 @@ class DefaultScienceBackend implements ScienceBackend {
     final suggestion = rms > 2.0
         ? 'check_polar_alignment'
         : meanX.abs() > 0.5 && meanY.abs() > 0.5
-            ? 'possible_field_rotation'
-            : meanX.abs() > 0.5
-                ? 'possible_cone_error'
-                : meanY.abs() > 0.5
-                    ? 'possible_flexure'
-                    : null;
+        ? 'possible_field_rotation'
+        : meanX.abs() > 0.5
+        ? 'possible_cone_error'
+        : meanY.abs() > 0.5
+        ? 'possible_flexure'
+        : null;
     return AstrometricResidualMap(
-        vectors: vectors, rmsArcsec: rms, suggestionCode: suggestion);
+      vectors: vectors,
+      rmsArcsec: rms,
+      suggestionCode: suggestion,
+    );
   }
 
   @override
@@ -500,29 +547,39 @@ class DefaultScienceBackend implements ScienceBackend {
     if (imagePaths.length < 2) return const [];
     final firstPath = imagePaths.first;
     final lastPath = imagePaths.last;
-    final first =
-        await measureStars(firstPath, const PhotometryOptions(minSnr: 5.0));
-    final last =
-        await measureStars(lastPath, const PhotometryOptions(minSnr: 5.0));
+    final first = await measureStars(
+      firstPath,
+      const PhotometryOptions(minSnr: 5.0),
+    );
+    final last = await measureStars(
+      lastPath,
+      const PhotometryOptions(minSnr: 5.0),
+    );
     if (first.isEmpty || last.isEmpty) return const [];
 
     final firstFits = await apiReadFitsFile(filePath: firstPath);
     final lastFits = await apiReadFitsFile(filePath: lastPath);
-    final dtMin =
-        _deltaMinutes(firstFits.dateObs, lastFits.dateObs, imagePaths.length);
+    final dtMin = _deltaMinutes(
+      firstFits.dateObs,
+      lastFits.dateObs,
+      imagePaths.length,
+    );
 
     // When 3+ frames are available, measure the middle frame for linear
     // motion validation — a candidate must also appear near the
     // interpolated position in this frame.
     final midIndex = imagePaths.length ~/ 2;
-    final bool hasMiddleFrame = imagePaths.length >= 3 &&
+    final bool hasMiddleFrame =
+        imagePaths.length >= 3 &&
         midIndex > 0 &&
         midIndex < imagePaths.length - 1;
     List<StarMeasurement>? midStars;
     double midFraction = 0.5; // interpolation factor (0 = first, 1 = last)
     if (hasMiddleFrame) {
       midStars = await measureStars(
-          imagePaths[midIndex], const PhotometryOptions(minSnr: 5.0));
+        imagePaths[midIndex],
+        const PhotometryOptions(minSnr: 5.0),
+      );
       midFraction = midIndex / (imagePaths.length - 1);
     }
 
@@ -594,28 +651,32 @@ class DefaultScienceBackend implements ScienceBackend {
       );
       if (mid == null) continue;
 
-      final snrScore =
-          (((star.snr + matched.snr) * 0.5) / 20.0).clamp(0.2, 1.0).toDouble();
-      final motionScore = ((bestDist - options.minMotionPixels) /
-              (options.maxMotionPixels - options.minMotionPixels))
-          .clamp(0.0, 1.0)
+      final snrScore = (((star.snr + matched.snr) * 0.5) / 20.0)
+          .clamp(0.2, 1.0)
           .toDouble();
+      final motionScore =
+          ((bestDist - options.minMotionPixels) /
+                  (options.maxMotionPixels - options.minMotionPixels))
+              .clamp(0.0, 1.0)
+              .toDouble();
       // Boost confidence only when 3-frame validation actually passed.
       final validationBonus = passedMiddleValidation ? 0.10 : 0.0;
       final confidence =
           (0.65 * snrScore + 0.35 * motionScore + validationBonus)
               .clamp(0.15, 0.98)
               .toDouble();
-      matches.add(MovingObjectMatch(
-        candidateId:
-            'mo_${mid.ra.toStringAsFixed(5)}_${mid.dec.toStringAsFixed(5)}_${matches.length + 1}',
-        raDegrees: mid.ra,
-        decDegrees: mid.dec,
-        motionArcsecPerMinute: motion,
-        positionAngleDegrees: pa,
-        confidence: confidence,
-        isKnownObject: false,
-      ));
+      matches.add(
+        MovingObjectMatch(
+          candidateId:
+              'mo_${mid.ra.toStringAsFixed(5)}_${mid.dec.toStringAsFixed(5)}_${matches.length + 1}',
+          raDegrees: mid.ra,
+          decDegrees: mid.dec,
+          motionArcsecPerMinute: motion,
+          positionAngleDegrees: pa,
+          confidence: confidence,
+          isKnownObject: false,
+        ),
+      );
     }
     matches.sort((a, b) => b.confidence.compareTo(a.confidence));
     return matches.take(40).toList(growable: false);
@@ -623,7 +684,7 @@ class DefaultScienceBackend implements ScienceBackend {
 
   @override
   Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
-      computeLastCaptureQualityMaps({
+  computeLastCaptureQualityMaps({
     required String deviceId,
     required int gridRows,
     required int gridCols,
@@ -665,9 +726,7 @@ class DefaultScienceBackend implements ScienceBackend {
     }
     final expected = lastImage.width * lastImage.height;
     if (raw.length < expected) {
-      throw StateError(
-        'Last raw buffer too small: ${raw.length} < $expected',
-      );
+      throw StateError('Last raw buffer too small: ${raw.length} < $expected');
     }
 
     final result = _computeQualityMetricsFromBuffer(
@@ -685,15 +744,12 @@ class DefaultScienceBackend implements ScienceBackend {
     );
     final processingMs = stopwatch.elapsedMilliseconds;
 
-    return (
-      result.frame.copyWith(processingMs: processingMs),
-      result.tiles,
-    );
+    return (result.frame.copyWith(processingMs: processingMs), result.tiles);
   }
 
   @override
   Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
-      computeFitsQualityMaps({
+  computeFitsQualityMaps({
     required String filePath,
     required int gridRows,
     required int gridCols,
@@ -753,10 +809,7 @@ class DefaultScienceBackend implements ScienceBackend {
     );
     final processingMs = stopwatch.elapsedMilliseconds;
 
-    return (
-      result.frame.copyWith(processingMs: processingMs),
-      result.tiles,
-    );
+    return (result.frame.copyWith(processingMs: processingMs), result.tiles);
   }
 
   @override
@@ -771,7 +824,8 @@ class DefaultScienceBackend implements ScienceBackend {
     // BPT diagrams and any downstream classification. Throw a structured
     // error so the UI/handler renders an explicit error tile and the row is
     // never inserted.
-    final dimsOk = ha.width == oiii.width &&
+    final dimsOk =
+        ha.width == oiii.width &&
         ha.width == sii.width &&
         ha.height == oiii.height &&
         ha.height == sii.height;
@@ -851,14 +905,15 @@ class DefaultScienceBackend implements ScienceBackend {
     final siiThreshold = options.snrFloor * siiNoise / siiExp;
 
     for (var i = 0; i < len; i += stride) {
-      var h = ((ha.linearData[i] - haBackground).clamp(0.0, double.infinity)) /
+      var h =
+          ((ha.linearData[i] - haBackground).clamp(0.0, double.infinity)) /
           haExp;
       var o =
           ((oiii.linearData[i] - oiiiBackground).clamp(0.0, double.infinity)) /
-              oiiiExp;
+          oiiiExp;
       var s =
           ((sii.linearData[i] - siiBackground).clamp(0.0, double.infinity)) /
-              siiExp;
+          siiExp;
       if (options.continuumCorrection) {
         final c = math.min(h, math.min(o, s)) * 0.2;
         h = (h - c).clamp(0.0, double.infinity);
@@ -902,14 +957,23 @@ class DefaultScienceBackend implements ScienceBackend {
           previewOffset += 4;
           continue;
         }
-        final h = ((ha.linearData[index] - haBackground)
-                .clamp(0.0, double.infinity)) /
+        final h =
+            ((ha.linearData[index] - haBackground).clamp(
+              0.0,
+              double.infinity,
+            )) /
             haExp;
-        final o = ((oiii.linearData[index] - oiiiBackground)
-                .clamp(0.0, double.infinity)) /
+        final o =
+            ((oiii.linearData[index] - oiiiBackground).clamp(
+              0.0,
+              double.infinity,
+            )) /
             oiiiExp;
-        final s = ((sii.linearData[index] - siiBackground)
-                .clamp(0.0, double.infinity)) /
+        final s =
+            ((sii.linearData[index] - siiBackground).clamp(
+              0.0,
+              double.infinity,
+            )) /
             siiExp;
         preview[previewOffset] = ((h / hn).clamp(0.0, 1.0) * 255).round();
         preview[previewOffset + 1] = ((o / on).clamp(0.0, 1.0) * 255).round();

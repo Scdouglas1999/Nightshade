@@ -32,8 +32,7 @@ String _rustErrorJson({
 
 void main() {
   group('NightshadeException.fromError — structured JSON round-trip', () {
-    test('connection category maps to ConnectionException with all fields',
-        () {
+    test('connection category maps to ConnectionException with all fields', () {
       final payload = _rustErrorJson(
         category: 'connection',
         message: 'Device disconnected: ZWO ASI2600MC',
@@ -96,7 +95,8 @@ void main() {
     test('validation category produces ValidationException', () {
       final payload = _rustErrorJson(
         category: 'validation',
-        message: 'Parameter out of range: exposure_seconds = 7200 (valid: 0 to 3600)',
+        message:
+            'Parameter out of range: exposure_seconds = 7200 (valid: 0 to 3600)',
         userMessage: 'exposure_seconds value 7200 is out of range (0 to 3600)',
       );
 
@@ -231,8 +231,7 @@ void main() {
       expect(ex.errorCode, isNull);
     });
 
-    test('all 11 Rust categories round-trip without losing the category',
-        () {
+    test('all 11 Rust categories round-trip without losing the category', () {
       // The full set listed in error.rs::error_category() at lines 600-649.
       const categories = <String>[
         'connection',
@@ -255,12 +254,21 @@ void main() {
           userMessage: '$cat-user',
         );
         final ex = NightshadeException.fromError(payload);
-        expect(ex.category, cat,
-            reason: 'category $cat should round-trip via fromError');
-        expect(ex.message, '$cat-message',
-            reason: 'message for $cat should survive fromError');
-        expect(ex.userMessage, '$cat-user',
-            reason: 'user_message for $cat should survive fromError');
+        expect(
+          ex.category,
+          cat,
+          reason: 'category $cat should round-trip via fromError',
+        );
+        expect(
+          ex.message,
+          '$cat-message',
+          reason: 'message for $cat should survive fromError',
+        );
+        expect(
+          ex.userMessage,
+          '$cat-user',
+          reason: 'user_message for $cat should survive fromError',
+        );
       }
     });
   });
@@ -273,20 +281,25 @@ void main() {
       expect(ex.isTimeout, true);
     });
 
-    test('non-JSON connection message is classified as ConnectionException',
-        () {
-      final ex =
-          NightshadeException.fromError('Device disconnected unexpectedly');
-      expect(ex, isA<ConnectionException>());
-      expect(ex.category, 'connection');
-    });
+    test(
+      'non-JSON connection message is classified as ConnectionException',
+      () {
+        final ex = NightshadeException.fromError(
+          'Device disconnected unexpectedly',
+        );
+        expect(ex, isA<ConnectionException>());
+        expect(ex.category, 'connection');
+      },
+    );
 
-    test('non-JSON validation message is classified as ValidationException',
-        () {
-      final ex = NightshadeException.fromError('Invalid parameter: foo');
-      expect(ex, isA<ValidationException>());
-      expect(ex.category, 'validation');
-    });
+    test(
+      'non-JSON validation message is classified as ValidationException',
+      () {
+        final ex = NightshadeException.fromError('Invalid parameter: foo');
+        expect(ex, isA<ValidationException>());
+        expect(ex.category, 'validation');
+      },
+    );
 
     test('non-JSON unsupported message is classified correctly', () {
       final ex = NightshadeException.fromError('Operation not supported');
@@ -338,11 +351,8 @@ void main() {
     });
 
     test('leading whitespace before { is still detected', () {
-      final payload = '  ${_rustErrorJson(
-        category: 'hardware',
-        message: 'sensor failure',
-        userMessage: 'Sensor failed',
-      )}';
+      final payload =
+          '  ${_rustErrorJson(category: 'hardware', message: 'sensor failure', userMessage: 'Sensor failed')}';
       final ex = NightshadeException.fromError(payload);
       expect(ex, isA<HardwareException>());
       expect(ex.category, 'hardware');

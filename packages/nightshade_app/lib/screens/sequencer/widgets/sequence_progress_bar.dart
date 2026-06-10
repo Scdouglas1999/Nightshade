@@ -10,7 +10,8 @@ class SequenceProgressBar extends ConsumerStatefulWidget {
   const SequenceProgressBar({super.key, required this.colors});
 
   @override
-  ConsumerState<SequenceProgressBar> createState() => SequenceProgressBarState();
+  ConsumerState<SequenceProgressBar> createState() =>
+      SequenceProgressBarState();
 }
 
 /// Static alpha value used to tint the progress bar background when the
@@ -70,7 +71,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     final hours = (seconds / 3600).floor();
     final minutes = ((seconds % 3600) / 60).floor();
     final secs = (seconds % 60).floor();
-    
+
     if (hours > 0) {
       return '${hours}h ${minutes}m ${secs}s';
     }
@@ -83,7 +84,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
   @override
   Widget build(BuildContext context) {
     final progress = ref.watch(sequenceProgressProvider);
-    final isPaused = ref.watch(sequenceExecutionStateProvider) == SequenceExecutionState.paused;
+    final isPaused = ref.watch(sequenceExecutionStateProvider) ==
+        SequenceExecutionState.paused;
 
     // React to isPaused flips by starting/stopping the pulse controller.
     // Doing this in build() keeps it in lockstep with the watched provider
@@ -115,11 +117,13 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                   children: [
                     if (isPaused)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         margin: const EdgeInsets.only(right: 12),
                         decoration: NightshadeDecorations.statusChip(
                           widget.colors.warning,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           bordered: false,
                         ),
                         child: Row(
@@ -145,9 +149,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                       )
                     else
                       _PulsingIndicator(colors: widget.colors),
-                    
                     const SizedBox(width: 12),
-                    
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +160,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                                 (isPaused
                                     ? 'Paused — no active node'
                                     : 'Starting...'),
-                            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                            style: NightshadeTypography.labelStrong
+                                .copyWith(color: widget.colors.textPrimary),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -180,7 +183,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
               ),
 
               // Target and filter
-              if (progress.currentTarget != null || progress.currentFilter != null) ...[
+              if (progress.currentTarget != null ||
+                  progress.currentFilter != null) ...[
                 Container(
                   width: 1,
                   height: 30,
@@ -265,15 +269,19 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                                 fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
                                 color: widget.colors.textSecondary,
-                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
                               ),
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: NightshadeDecorations.statusChip(
                                 widget.colors.primary,
-                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusInline4),
                                 bordered: false,
                               ),
                               child: Text(
@@ -282,7 +290,9 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                                   fontSize: NightshadeTypography.fontSize10,
                                   fontWeight: FontWeight.w700,
                                   color: widget.colors.primary,
-                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ],
                                 ),
                               ),
                             ),
@@ -298,7 +308,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           height: 8,
                           decoration: BoxDecoration(
                             color: widget.colors.surfaceAlt,
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4),
                           ),
                         ),
                         FractionallySizedBox(
@@ -307,20 +318,24 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             height: 8,
                             decoration: BoxDecoration(
                               color: widget.colors.primary,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                           ),
                         ),
                         // Integration progress overlay
                         if (progress.totalIntegrationSecs > 0)
                           FractionallySizedBox(
-                            widthFactor: (progress.completedIntegrationSecs / progress.totalIntegrationSecs).clamp(0.0, 1.0),
+                            widthFactor: (progress.completedIntegrationSecs /
+                                    progress.totalIntegrationSecs)
+                                .clamp(0.0, 1.0),
                             child: Container(
                               height: 8,
                               decoration: BoxDecoration(
                                 // absolute: lightening sheen over the filled progress bar
                                 color: Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusInline4),
                               ),
                             ),
                           ),
@@ -438,6 +453,3 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
     );
   }
 }
-
-
-

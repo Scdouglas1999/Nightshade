@@ -118,13 +118,15 @@ class _FlatWizardCaptureBackend extends MockBackend {
     this.binX = binX;
     this.binY = binY;
     Timer.run(() {
-      _events.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.imaging,
-        eventType: 'ExposureComplete',
-        data: const {},
-      ));
+      _events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureComplete',
+          data: const {},
+        ),
+      );
     });
   }
 
@@ -155,30 +157,38 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Residual service fixes', () {
-    test('searchCatalog applies offset exactly once across streamed pages',
-        () async {
-      final tempDir = await Directory.systemTemp.createTemp('catalog_service_');
-      addTearDown(() async {
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
+    test(
+      'searchCatalog applies offset exactly once across streamed pages',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'catalog_service_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
 
-      final catalogFile =
-          File('${tempDir.path}${Platform.pathSeparator}catalog.csv');
-      final rows = <String>[
-        'id,name,ra,dec',
-        for (int i = 1; i <= 10; i++)
-          'M$i,Object $i,${i.toDouble()},${i.toDouble()}',
-      ];
-      await catalogFile.writeAsString(rows.join('\n'));
+        final catalogFile = File(
+          '${tempDir.path}${Platform.pathSeparator}catalog.csv',
+        );
+        final rows = <String>[
+          'id,name,ra,dec',
+          for (int i = 1; i <= 10; i++)
+            'M$i,Object $i,${i.toDouble()},${i.toDouble()}',
+        ];
+        await catalogFile.writeAsString(rows.join('\n'));
 
-      final service = CatalogService(catalogFile.path);
-      final results =
-          await service.searchCatalog(query: '', offset: 5, limit: 3);
+        final service = CatalogService(catalogFile.path);
+        final results = await service.searchCatalog(
+          query: '',
+          offset: 5,
+          limit: 3,
+        );
 
-      expect(results.map((entry) => entry.id).toList(), ['M6', 'M7', 'M8']);
-    });
+        expect(results.map((entry) => entry.id).toList(), ['M6', 'M7', 'M8']);
+      },
+    );
 
     test('loadDarkPixels rejects truncated FITS pixel payloads', () async {
       final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
@@ -192,10 +202,12 @@ void main() {
         }
       });
 
-      final truncatedFits =
-          File('${tempDir.path}${Platform.pathSeparator}truncated.fit');
+      final truncatedFits = File(
+        '${tempDir.path}${Platform.pathSeparator}truncated.fit',
+      );
       await truncatedFits.writeAsBytes(
-          _buildFitsFileBytes(width: 2, height: 1, dataBytes: [0, 1, 2]));
+        _buildFitsFileBytes(width: 2, height: 1, dataBytes: [0, 1, 2]),
+      );
 
       expect(
         service.loadDarkPixels(truncatedFits.path),
@@ -203,302 +215,323 @@ void main() {
       );
     });
 
-    test('notification requests time out instead of hanging indefinitely',
-        () async {
-      final client = MockClient((request) async {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        return http.Response('{}', 200);
-      });
-
-      final service = NotificationService.testing(
-        settingsReader: () => const AppSettingsState(
-          notificationsEnabled: true,
-          discordWebhook: 'https://example.com/webhook',
-        ),
-        httpClient: client,
-        requestTimeout: const Duration(milliseconds: 10),
-      );
-
-      final sent = await service.notify(
-        event: NotificationEvent.custom,
-        title: 'Test',
-        message: 'Timeout test',
-      );
-
-      expect(sent, isFalse);
-    });
-
     test(
-        'calibrateFilterWithRateTracking reports maxIterations on non-convergence',
-        () async {
-      final service = _TestFlatWizardService([5000, 5000]);
-      final tracker = SkyBrightnessTracker();
+      'notification requests time out instead of hanging indefinitely',
+      () async {
+        final client = MockClient((request) async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          return http.Response('{}', 200);
+        });
 
-      final result = await service.calibrateFilterWithRateTracking(
-        deviceId: 'camera-1',
-        filter: 'L',
-        gain: 100,
-        offset: 50,
-        targetAdu: 20000,
-        tolerance: 5,
-        minExposure: 1,
-        maxExposure: 100,
-        brightnessTracker: tracker,
-        maxIterations: 2,
-      );
-
-      expect(result.success, isFalse);
-      expect(result.iterations, 2);
-    });
-
-    test('captureTestFrame forwards supplied gain and offset to the camera',
-        () async {
-      final backend = _FlatWizardCaptureBackend();
-      addTearDown(backend.close);
-
-      final service = FlatWizardService(backend);
-      final adu = await service.captureTestFrame(
-        deviceId: 'camera-1',
-        exposureTime: 1.5,
-        gain: 137,
-        offset: 42,
-        binX: 2,
-        binY: 2,
-      );
-
-      expect(adu, 1234);
-      expect(backend.gain, 137);
-      expect(backend.offset, 42);
-      expect(backend.binX, 2);
-      expect(backend.binY, 2);
-    });
-
-    test(
-        'quick start propagates storage failures instead of returning empty state',
-        () async {
-      final sessionsDao = _MockSessionsDao();
-      when(() => sessionsDao.getActiveSessions())
-          .thenThrow(StateError('db corrupt'));
-
-      final service = QuickStartService(
-        sessionsDao: sessionsDao,
-        profilesDao: _MockEquipmentProfilesDao(),
-        targetsDao: _MockTargetsDao(),
-        sequencesDao: _MockSequencesDao(),
-        checkpointsDao: _MockSequenceCheckpointsDao(),
-      );
-
-      expect(
-        service.getQuickStartContext(),
-        throwsA(isA<StateError>()),
-      );
-    });
-
-    test('paginated image loader updates paging state for explicit page loads',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
-
-      final imagesDao = ImagesDao(database);
-      for (int i = 0; i < 3; i++) {
-        await imagesDao.createImage(
-          DatabaseTestFixtures.sampleImageCompanion(
-            filePath: '/tmp/image_$i.fit',
-            fileName: 'image_$i.fit',
-            capturedAt: DateTime.utc(2026, 1, 1, 0, i),
+        final service = NotificationService.testing(
+          settingsReader: () => const AppSettingsState(
+            notificationsEnabled: true,
+            discordWebhook: 'https://example.com/webhook',
           ),
+          httpClient: client,
+          requestTimeout: const Duration(milliseconds: 10),
         );
-      }
 
-      final loader = PaginatedImageLoader(imagesDao: imagesDao, pageSize: 2);
-      final page = await loader.loadPage(2);
+        final sent = await service.notify(
+          event: NotificationEvent.custom,
+          title: 'Test',
+          message: 'Timeout test',
+        );
 
-      expect(page, hasLength(1));
-      expect(loader.currentPage, 2);
-      expect(loader.hasMore, isFalse);
-      expect(loader.loadedCount, 1);
-    });
+        expect(sent, isFalse);
+      },
+    );
 
     test(
-        'backup restore coerces legacy non-string setting values instead of crashing',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
+      'calibrateFilterWithRateTracking reports maxIterations on non-convergence',
+      () async {
+        final service = _TestFlatWizardService([5000, 5000]);
+        final tracker = SkyBrightnessTracker();
 
-      final tempDir = await Directory.systemTemp.createTemp('backup_restore_');
-      addTearDown(() async {
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
+        final result = await service.calibrateFilterWithRateTracking(
+          deviceId: 'camera-1',
+          filter: 'L',
+          gain: 100,
+          offset: 50,
+          targetAdu: 20000,
+          tolerance: 5,
+          minExposure: 1,
+          maxExposure: 100,
+          brightnessTracker: tracker,
+          maxIterations: 2,
+        );
+
+        expect(result.success, isFalse);
+        expect(result.iterations, 2);
+      },
+    );
+
+    test(
+      'captureTestFrame forwards supplied gain and offset to the camera',
+      () async {
+        final backend = _FlatWizardCaptureBackend();
+        addTearDown(backend.close);
+
+        final service = FlatWizardService(backend);
+        final adu = await service.captureTestFrame(
+          deviceId: 'camera-1',
+          exposureTime: 1.5,
+          gain: 137,
+          offset: 42,
+          binX: 2,
+          binY: 2,
+        );
+
+        expect(adu, 1234);
+        expect(backend.gain, 137);
+        expect(backend.offset, 42);
+        expect(backend.binX, 2);
+        expect(backend.binY, 2);
+      },
+    );
+
+    test(
+      'quick start propagates storage failures instead of returning empty state',
+      () async {
+        final sessionsDao = _MockSessionsDao();
+        when(
+          () => sessionsDao.getActiveSessions(),
+        ).thenThrow(StateError('db corrupt'));
+
+        final service = QuickStartService(
+          sessionsDao: sessionsDao,
+          profilesDao: _MockEquipmentProfilesDao(),
+          targetsDao: _MockTargetsDao(),
+          sequencesDao: _MockSequencesDao(),
+          checkpointsDao: _MockSequenceCheckpointsDao(),
+        );
+
+        expect(service.getQuickStartContext(), throwsA(isA<StateError>()));
+      },
+    );
+
+    test(
+      'paginated image loader updates paging state for explicit page loads',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+
+        final imagesDao = ImagesDao(database);
+        for (int i = 0; i < 3; i++) {
+          await imagesDao.createImage(
+            DatabaseTestFixtures.sampleImageCompanion(
+              filePath: '/tmp/image_$i.fit',
+              fileName: 'image_$i.fit',
+              capturedAt: DateTime.utc(2026, 1, 1, 0, i),
+            ),
+          );
         }
-      });
 
-      final backupFile =
-          File('${tempDir.path}${Platform.pathSeparator}legacy.nsbackup');
-      await backupFile.writeAsString(jsonEncode({
-        'version': '2.0',
-        'createdAt': DateTime.now().toIso8601String(),
-        'appVersion': '2.5.0',
-        'platform': 'windows',
-        'settings': {
-          'notifications_enabled': true,
-          'plate_solve_timeout': 45,
-        },
-        'equipmentProfiles': const [],
-        'targets': const [],
-      }));
+        final loader = PaginatedImageLoader(imagesDao: imagesDao, pageSize: 2);
+        final page = await loader.loadPage(2);
 
-      final service = BackupService(
-        database: database,
-        sequenceRepository: _MockSequenceRepository(),
-        logger: LoggingService(),
-      );
+        expect(page, hasLength(1));
+        expect(loader.currentPage, 2);
+        expect(loader.hasMore, isFalse);
+        expect(loader.loadedCount, 1);
+      },
+    );
 
-      final result = await service.restoreBackup(filePath: backupFile.path);
-      final settings = await SettingsDao(database).getAllSettings();
+    test(
+      'backup restore coerces legacy non-string setting values instead of crashing',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
 
-      expect(result.success, isTrue);
-      expect(settings['notifications_enabled'], 'true');
-      expect(settings['plate_solve_timeout'], '45');
-    });
+        final tempDir = await Directory.systemTemp.createTemp(
+          'backup_restore_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
 
-    test('backup metadata reads nested category counts from v2 backups',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
-
-      final tempDir = await Directory.systemTemp.createTemp('backup_metadata_');
-      addTearDown(() async {
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
-
-      final backupFile =
-          File('${tempDir.path}${Platform.pathSeparator}metadata.nsbackup');
-      await backupFile.writeAsString(jsonEncode({
-        'version': '2.0',
-        'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
-        'appVersion': '2.5.0',
-        'platform': 'windows',
-        'metadata': {
-          'settingsCount': 2,
-          'profilesCount': 3,
-          'sequencesCount': 4,
-          'targetsCount': 5,
-        },
-        'settings': const {},
-        'equipmentProfiles': const [],
-        'sequences': const [],
-        'targets': const [],
-      }));
-
-      final service = BackupService(
-        database: database,
-        sequenceRepository: _MockSequenceRepository(),
-        logger: LoggingService(),
-      );
-
-      final metadata = await service.readBackupMetadata(backupFile.path);
-
-      expect(metadata?.settingsCount, 2);
-      expect(metadata?.profilesCount, 3);
-      expect(metadata?.sequencesCount, 4);
-      expect(metadata?.targetsCount, 5);
-    });
-
-    test('backup restore accepts current TargetHeader sequence nodes',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
-
-      final tempDir =
-          await Directory.systemTemp.createTemp('backup_sequence_restore_');
-      addTearDown(() async {
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
-
-      final backupFile =
-          File('${tempDir.path}${Platform.pathSeparator}sequence.nsbackup');
-      await backupFile.writeAsString(jsonEncode({
-        'version': '2.0',
-        'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
-        'appVersion': '2.5.0',
-        'platform': 'windows',
-        'settings': const {},
-        'equipmentProfiles': const [],
-        'sequences': [
-          {
-            'name': 'Restored Sequence',
-            'description': 'TargetHeader restore coverage',
-            'rootNodeId': 'target-1',
-            'isTemplate': false,
-            'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
-            'modifiedAt': DateTime.utc(2026, 5, 5).toIso8601String(),
-            'nodes': {
-              'target-1': {
-                'id': 'target-1',
-                'nodeType': 'TargetHeader',
-                'name': 'M31',
-                'parentId': null,
-                'childIds': const [],
-                'orderIndex': 0,
-                'isEnabled': true,
-                'targetName': 'M31',
-                'raHours': 0.712,
-                'decDegrees': 41.269,
-                'rotation': 15.0,
-                'minAltitude': 30.0,
-                'maxAltitude': 80.0,
-                'priority': 2,
-              },
+        final backupFile = File(
+          '${tempDir.path}${Platform.pathSeparator}legacy.nsbackup',
+        );
+        await backupFile.writeAsString(
+          jsonEncode({
+            'version': '2.0',
+            'createdAt': DateTime.now().toIso8601String(),
+            'appVersion': '2.5.0',
+            'platform': 'windows',
+            'settings': {
+              'notifications_enabled': true,
+              'plate_solve_timeout': 45,
             },
-          },
-        ],
-        'targets': const [],
-      }));
+            'equipmentProfiles': const [],
+            'targets': const [],
+          }),
+        );
 
-      final repository = SequenceRepository(SequencesDao(database));
-      final service = BackupService(
-        database: database,
-        sequenceRepository: repository,
-        logger: LoggingService(),
-      );
+        final service = BackupService(
+          database: database,
+          sequenceRepository: _MockSequenceRepository(),
+          logger: LoggingService(),
+        );
 
-      final result = await service.restoreBackup(filePath: backupFile.path);
-      final restoredSequences = await repository.loadAllSequences();
-      final targetNode = restoredSequences.single.nodes['target-1'];
+        final result = await service.restoreBackup(filePath: backupFile.path);
+        final settings = await SettingsDao(database).getAllSettings();
 
-      expect(result.success, isTrue);
-      expect(result.categoryCounts['sequences'], 1);
-      expect(targetNode, isA<seq_models.TargetHeaderNode>());
-      expect(
-        (targetNode! as seq_models.TargetHeaderNode).targetName,
-        'M31',
-      );
-    });
+        expect(result.success, isTrue);
+        expect(settings['notifications_enabled'], 'true');
+        expect(settings['plate_solve_timeout'], '45');
+      },
+    );
 
-    test('profile import tolerates numeric legacy values and float offsets',
-        () {
-      final data = ProfileExportData.fromJson({
-        'name': 'Test Profile',
-        'defaultGain': 100.9,
-        'defaultOffset': 50.1,
-        'defaultBinX': 2.0,
-        'defaultBinY': 3.0,
-        'filterFocusOffsets': {
-          'L': 1.9,
-          'R': -2.2,
-        },
-      });
+    test(
+      'backup metadata reads nested category counts from v2 backups',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
 
-      expect(data.defaultGain, 100);
-      expect(data.defaultOffset, 50);
-      expect(data.defaultBinX, 2);
-      expect(data.defaultBinY, 3);
-      expect(data.filterFocusOffsets, {'L': 1, 'R': -2});
-    });
+        final tempDir = await Directory.systemTemp.createTemp(
+          'backup_metadata_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+
+        final backupFile = File(
+          '${tempDir.path}${Platform.pathSeparator}metadata.nsbackup',
+        );
+        await backupFile.writeAsString(
+          jsonEncode({
+            'version': '2.0',
+            'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
+            'appVersion': '2.5.0',
+            'platform': 'windows',
+            'metadata': {
+              'settingsCount': 2,
+              'profilesCount': 3,
+              'sequencesCount': 4,
+              'targetsCount': 5,
+            },
+            'settings': const {},
+            'equipmentProfiles': const [],
+            'sequences': const [],
+            'targets': const [],
+          }),
+        );
+
+        final service = BackupService(
+          database: database,
+          sequenceRepository: _MockSequenceRepository(),
+          logger: LoggingService(),
+        );
+
+        final metadata = await service.readBackupMetadata(backupFile.path);
+
+        expect(metadata?.settingsCount, 2);
+        expect(metadata?.profilesCount, 3);
+        expect(metadata?.sequencesCount, 4);
+        expect(metadata?.targetsCount, 5);
+      },
+    );
+
+    test(
+      'backup restore accepts current TargetHeader sequence nodes',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+
+        final tempDir = await Directory.systemTemp.createTemp(
+          'backup_sequence_restore_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+
+        final backupFile = File(
+          '${tempDir.path}${Platform.pathSeparator}sequence.nsbackup',
+        );
+        await backupFile.writeAsString(
+          jsonEncode({
+            'version': '2.0',
+            'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
+            'appVersion': '2.5.0',
+            'platform': 'windows',
+            'settings': const {},
+            'equipmentProfiles': const [],
+            'sequences': [
+              {
+                'name': 'Restored Sequence',
+                'description': 'TargetHeader restore coverage',
+                'rootNodeId': 'target-1',
+                'isTemplate': false,
+                'createdAt': DateTime.utc(2026, 5, 5).toIso8601String(),
+                'modifiedAt': DateTime.utc(2026, 5, 5).toIso8601String(),
+                'nodes': {
+                  'target-1': {
+                    'id': 'target-1',
+                    'nodeType': 'TargetHeader',
+                    'name': 'M31',
+                    'parentId': null,
+                    'childIds': const [],
+                    'orderIndex': 0,
+                    'isEnabled': true,
+                    'targetName': 'M31',
+                    'raHours': 0.712,
+                    'decDegrees': 41.269,
+                    'rotation': 15.0,
+                    'minAltitude': 30.0,
+                    'maxAltitude': 80.0,
+                    'priority': 2,
+                  },
+                },
+              },
+            ],
+            'targets': const [],
+          }),
+        );
+
+        final repository = SequenceRepository(SequencesDao(database));
+        final service = BackupService(
+          database: database,
+          sequenceRepository: repository,
+          logger: LoggingService(),
+        );
+
+        final result = await service.restoreBackup(filePath: backupFile.path);
+        final restoredSequences = await repository.loadAllSequences();
+        final targetNode = restoredSequences.single.nodes['target-1'];
+
+        expect(result.success, isTrue);
+        expect(result.categoryCounts['sequences'], 1);
+        expect(targetNode, isA<seq_models.TargetHeaderNode>());
+        expect((targetNode! as seq_models.TargetHeaderNode).targetName, 'M31');
+      },
+    );
+
+    test(
+      'profile import tolerates numeric legacy values and float offsets',
+      () {
+        final data = ProfileExportData.fromJson({
+          'name': 'Test Profile',
+          'defaultGain': 100.9,
+          'defaultOffset': 50.1,
+          'defaultBinX': 2.0,
+          'defaultBinY': 3.0,
+          'filterFocusOffsets': {'L': 1.9, 'R': -2.2},
+        });
+
+        expect(data.defaultGain, 100);
+        expect(data.defaultOffset, 50);
+        expect(data.defaultBinX, 2);
+        expect(data.defaultBinY, 3);
+        expect(data.filterFocusOffsets, {'L': 1, 'R': -2});
+      },
+    );
 
     test('equipment snapshot rejects malformed JSON schema', () {
       expect(
@@ -527,51 +560,50 @@ void main() {
         ),
       );
 
-      expect(
-        repository.loadSequence(sequenceId),
-        throwsA(isA<StateError>()),
-      );
+      expect(repository.loadSequence(sequenceId), throwsA(isA<StateError>()));
     });
 
-    test('sequence repository preserves Smart Exposure loop-until-stopped',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
+    test(
+      'sequence repository preserves Smart Exposure loop-until-stopped',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
 
-      final repository = SequenceRepository(SequencesDao(database));
-      final sequenceId = await repository.saveSequence(
-        seq_models.Sequence.create(
-          name: 'Smart Exposure Persistence',
-          rootNodeId: 'root',
-          nodes: {
-            'root': seq_models.InstructionSetNode(
-              id: 'root',
-              childIds: const ['smart'],
-            ),
-            'smart': seq_models.SmartExposureNode(
-              id: 'smart',
-              parentId: 'root',
-              loopUntilStopped: true,
-              integrationBudgetSecs: 5400,
-              plans: const [
-                seq_models.FilterPlan(
-                  filterName: 'L',
-                  count: 3,
-                  durationSecs: 180,
-                ),
-              ],
-            ),
-          },
-        ),
-      );
+        final repository = SequenceRepository(SequencesDao(database));
+        final sequenceId = await repository.saveSequence(
+          seq_models.Sequence.create(
+            name: 'Smart Exposure Persistence',
+            rootNodeId: 'root',
+            nodes: {
+              'root': seq_models.InstructionSetNode(
+                id: 'root',
+                childIds: const ['smart'],
+              ),
+              'smart': seq_models.SmartExposureNode(
+                id: 'smart',
+                parentId: 'root',
+                loopUntilStopped: true,
+                integrationBudgetSecs: 5400,
+                plans: const [
+                  seq_models.FilterPlan(
+                    filterName: 'L',
+                    count: 3,
+                    durationSecs: 180,
+                  ),
+                ],
+              ),
+            },
+          ),
+        );
 
-      final restored = await repository.loadSequence(sequenceId);
-      final smart = restored!.nodes['smart'] as seq_models.SmartExposureNode;
+        final restored = await repository.loadSequence(sequenceId);
+        final smart = restored!.nodes['smart'] as seq_models.SmartExposureNode;
 
-      expect(smart.loopUntilStopped, isTrue);
-      expect(smart.integrationBudgetSecs, 5400);
-      expect(smart.plans.single.filterName, 'L');
-    });
+        expect(smart.loopUntilStopped, isTrue);
+        expect(smart.integrationBudgetSecs, 5400);
+        expect(smart.plans.single.filterName, 'L');
+      },
+    );
 
     test('saving sequence clears legacy recovery config references', () async {
       final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
@@ -616,10 +648,7 @@ void main() {
           name: 'Legacy Recovery Sequence',
           rootNodeId: 'root',
           nodes: {
-            'root': seq_models.RecoveryNode(
-              id: 'root',
-              childIds: const [],
-            ),
+            'root': seq_models.RecoveryNode(id: 'root', childIds: const []),
           },
         ),
       );
@@ -633,8 +662,9 @@ void main() {
     test('plate solve fallback preserves backend error details', () async {
       final backend = MockBackend();
       when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-      when(() => backend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => backend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
       when(
         () => backend.plateSolve(
           imagePath: any(named: 'imagePath'),
@@ -733,9 +763,7 @@ void main() {
       addTearDown(database.close);
 
       final sessionId = await database.sessionsDao.createSession(
-        ImagingSessionsCompanion.insert(
-          startTime: DateTime.utc(2026, 1, 1),
-        ),
+        ImagingSessionsCompanion.insert(startTime: DateTime.utc(2026, 1, 1)),
       );
 
       await database.scienceDao.upsertSessionConfig(
@@ -751,33 +779,35 @@ void main() {
         ),
       );
 
-      final rows = await (database.select(database.scienceSessionConfig)
-            ..where((tbl) => tbl.sessionId.equals(sessionId)))
-          .get();
+      final rows = await (database.select(
+        database.scienceSessionConfig,
+      )..where((tbl) => tbl.sessionId.equals(sessionId))).get();
 
       expect(rows, hasLength(1));
       expect(rows.single.photometryEnabled, isFalse);
     });
 
-    test('weather settings DAO collapses duplicate rows into a singleton',
-        () async {
-      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
+    test(
+      'weather settings DAO collapses duplicate rows into a singleton',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
 
-      final dao = WeatherSettingsDao(database);
-      await database.into(database.weatherSettings).insert(
-            WeatherSettingsCompanion.insert(id: const Value(1)),
-          );
-      await database.into(database.weatherSettings).insert(
-            WeatherSettingsCompanion.insert(id: const Value(2)),
-          );
+        final dao = WeatherSettingsDao(database);
+        await database
+            .into(database.weatherSettings)
+            .insert(WeatherSettingsCompanion.insert(id: const Value(1)));
+        await database
+            .into(database.weatherSettings)
+            .insert(WeatherSettingsCompanion.insert(id: const Value(2)));
 
-      final settings = await dao.getOrCreateSettings();
-      final rows = await database.select(database.weatherSettings).get();
+        final settings = await dao.getOrCreateSettings();
+        final rows = await database.select(database.weatherSettings).get();
 
-      expect(settings.id, 1);
-      expect(rows, hasLength(1));
-    });
+        expect(settings.id, 1);
+        expect(rows, hasLength(1));
+      },
+    );
   });
 }
 
@@ -801,6 +831,8 @@ Uint8List _buildFitsFileBytes({
 }
 
 String _fitsCard(String keyword, String value) {
-  return '${keyword.padRight(8)}= ${value.toString().padLeft(20)}'
-      .padRight(80, ' ');
+  return '${keyword.padRight(8)}= ${value.toString().padLeft(20)}'.padRight(
+    80,
+    ' ',
+  );
 }

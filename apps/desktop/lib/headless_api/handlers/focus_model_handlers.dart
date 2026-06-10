@@ -53,29 +53,27 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final profileData = service.getProfileData(profileId);
     if (profileData == null) {
-      return jsonOk({
-        "profileId": profileId,
-        "dataPoints": [],
-        "count": 0,
-      });
+      return jsonOk({"profileId": profileId, "dataPoints": [], "count": 0});
     }
 
     final dataPoints = profileData.dataPoints
-        .map((p) => {
-              'timestamp': p.timestamp.toIso8601String(),
-              'timestampEpoch': p.timestamp.millisecondsSinceEpoch,
-              'temperature': p.temperatureCelsius,
-              'position': p.focusPosition,
-              'hfr': p.hfr,
-              'filter': p.filterName,
-            })
+        .map(
+          (p) => {
+            'timestamp': p.timestamp.toIso8601String(),
+            'timestampEpoch': p.timestamp.millisecondsSinceEpoch,
+            'temperature': p.temperatureCelsius,
+            'position': p.focusPosition,
+            'hfr': p.hfr,
+            'filter': p.filterName,
+          },
+        )
         .toList();
 
     return jsonOk({
@@ -98,9 +96,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final payload = await readJsonObject(request);
@@ -142,9 +140,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     await service.clearProfileData(profileId);
@@ -168,9 +166,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final profileData = service.getProfileData(profileId);
@@ -226,9 +224,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     // Parse temperature
@@ -297,9 +295,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final profileData = service.getProfileData(profileId);
@@ -348,9 +346,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final payload = await readJsonObject(request);
@@ -414,9 +412,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     // Parse parameters
@@ -498,9 +496,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final exportJson = service.exportData(profileId);
@@ -524,9 +522,9 @@ class FocusModelHandlers {
     final profileId = _getActiveProfileId();
 
     if (profileId == null) {
-      return jsonBadRequest(
-        {"error": "No active equipment profile. Load a profile first."},
-      );
+      return jsonBadRequest({
+        "error": "No active equipment profile. Load a profile first.",
+      });
     }
 
     final jsonData = await request.readAsString();

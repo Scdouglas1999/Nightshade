@@ -49,31 +49,33 @@ void main() {
     expect(frames.first.title, 'Sequence Aborted');
   });
 
-  test('receiver drops a frame whose HMAC was computed with a different key',
-      () async {
-    final injectorController = StreamController<Uint8List>();
-    final receiver = LanPushNotificationReceiver(
-      serverFingerprint: fingerprint,
-      injector: LanPushTestInjector(injectorController.stream),
-    );
-    addTearDown(() async {
-      await receiver.dispose();
-      await injectorController.close();
-    });
+  test(
+    'receiver drops a frame whose HMAC was computed with a different key',
+    () async {
+      final injectorController = StreamController<Uint8List>();
+      final receiver = LanPushNotificationReceiver(
+        serverFingerprint: fingerprint,
+        injector: LanPushTestInjector(injectorController.stream),
+      );
+      addTearDown(() async {
+        await receiver.dispose();
+        await injectorController.close();
+      });
 
-    await receiver.start();
-    final received = <PushNotificationFrame>[];
-    final sub = receiver.incoming.listen(received.add);
+      await receiver.start();
+      final received = <PushNotificationFrame>[];
+      final sub = receiver.incoming.listen(received.add);
 
-    final wrongKey = derivePushHmacKey('00' * 32);
-    final bytes = encodePushFrame(buildFrame(), hmacKey: wrongKey);
-    injectorController.add(bytes);
+      final wrongKey = derivePushHmacKey('00' * 32);
+      final bytes = encodePushFrame(buildFrame(), hmacKey: wrongKey);
+      injectorController.add(bytes);
 
-    // Give the listener a chance to run.
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(received, isEmpty);
-    await sub.cancel();
-  });
+      // Give the listener a chance to run.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(received, isEmpty);
+      await sub.cancel();
+    },
+  );
 
   test('receiver drops a frame claiming the wrong fingerprint', () async {
     final injectorController = StreamController<Uint8List>();
@@ -106,8 +108,7 @@ void main() {
     await sub.cancel();
   });
 
-  test('receiver deduplicates against an id seen via the WebSocket',
-      () async {
+  test('receiver deduplicates against an id seen via the WebSocket', () async {
     final injectorController = StreamController<Uint8List>();
     final receiver = LanPushNotificationReceiver(
       serverFingerprint: fingerprint,

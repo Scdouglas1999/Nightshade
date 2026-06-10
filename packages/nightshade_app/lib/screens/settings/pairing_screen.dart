@@ -187,23 +187,23 @@ class PairingScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (state.error != null) ...[
-              _PairingErrorBanner(
-                message: state.error!,
-                onDismiss: () =>
-                    ref.read(pairingProvider.notifier).clearError(),
-              ),
-              const SizedBox(height: 16),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (state.error != null) ...[
+                _PairingErrorBanner(
+                  message: state.error!,
+                  onDismiss: () =>
+                      ref.read(pairingProvider.notifier).clearError(),
+                ),
+                const SizedBox(height: 16),
+              ],
+              _buildPairingSection(context, ref, state),
+              const SizedBox(height: 32),
+              _buildPairedDevicesSection(context, ref, state),
             ],
-            _buildPairingSection(context, ref, state),
-            const SizedBox(height: 32),
-            _buildPairedDevicesSection(context, ref, state),
-          ],
-        ),
+          ),
         ),
       ),
     );
@@ -415,7 +415,8 @@ class PairingScreen extends ConsumerWidget {
             height: 44,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               _getDeviceIcon(device.deviceType),
@@ -443,11 +444,13 @@ class PairingScreen extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusFull),
                       ),
                       child: Text(
                         statusText,
-                        style: NightshadeTypography.labelStrongSm.copyWith(color: statusColor),
+                        style: NightshadeTypography.labelStrongSm
+                            .copyWith(color: statusColor),
                       ),
                     ),
                   ],
@@ -455,7 +458,8 @@ class PairingScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   _deviceTypeLabel(device.deviceType),
-                  style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
+                  style: NightshadeTypography.labelSm
+                      .copyWith(color: colors.textMuted),
                 ),
                 const SizedBox(height: 8),
                 Text(

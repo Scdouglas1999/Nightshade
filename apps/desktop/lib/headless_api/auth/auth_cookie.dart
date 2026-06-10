@@ -48,8 +48,8 @@ class AuthCookieManager {
   final Map<String, _CookieSession> _sessions = {};
 
   AuthCookieManager({Random? random, DateTime Function()? now})
-      : _random = random ?? Random.secure(),
-        _now = now ?? DateTime.now;
+    : _random = random ?? Random.secure(),
+      _now = now ?? DateTime.now;
 
   /// Mint a new session for [bearerToken]. Returns the pair of values the
   /// caller must hand back to the browser: the cookie value (which the
@@ -190,7 +190,10 @@ class AuthCookieManager {
   /// isolation. The grammar we accept is the standard `name=value; name2=v2`
   /// pair form — values with `=` inside are not used by the dashboard so we
   /// split on the first `=` only.
-  static String? extractCookie(String? cookieHeader, {String name = cookieName}) {
+  static String? extractCookie(
+    String? cookieHeader, {
+    String name = cookieName,
+  }) {
     if (cookieHeader == null || cookieHeader.isEmpty) {
       return null;
     }

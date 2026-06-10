@@ -270,7 +270,8 @@ class ImagingHistorySection extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Text(
           'Failed to load imaging history: $error',
-          style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.error, fontSize: NightshadeTypography.fontSize12),
         ),
       ),
       data: (history) {
@@ -293,7 +294,8 @@ class ImagingHistorySection extends ConsumerWidget {
               color: colors.textMuted.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
-            child: Icon(NightshadeIcons.camera, size: 14, color: colors.textMuted),
+            child:
+                Icon(NightshadeIcons.camera, size: 14, color: colors.textMuted),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -336,15 +338,17 @@ class ImagingHistorySection extends ConsumerWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
-                child:
-                    Icon(NightshadeIcons.camera, size: 14, color: colors.primary),
+                child: Icon(NightshadeIcons.camera,
+                    size: 14, color: colors.primary),
               ),
               const SizedBox(width: 10),
               Text(
                 'Imaging History',
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -544,7 +548,8 @@ class ImagingHistorySection extends ConsumerWidget {
             height: 8,
             decoration: BoxDecoration(
               color: _filterColor(filterName),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
           const SizedBox(width: 8),

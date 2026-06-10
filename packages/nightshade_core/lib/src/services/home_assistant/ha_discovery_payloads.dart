@@ -20,7 +20,8 @@ String haSlugify(String input) {
   var lastWasUnderscore = true; // suppress leading underscore
   for (final rune in lowered.runes) {
     final ch = String.fromCharCode(rune);
-    final isValid = (ch.codeUnitAt(0) >= 0x61 && ch.codeUnitAt(0) <= 0x7a) ||
+    final isValid =
+        (ch.codeUnitAt(0) >= 0x61 && ch.codeUnitAt(0) <= 0x7a) ||
         (ch.codeUnitAt(0) >= 0x30 && ch.codeUnitAt(0) <= 0x39);
     if (isValid) {
       buffer.write(ch);
@@ -75,36 +76,35 @@ class HaDiscoveryPayloadBuilder {
 
   /// The `device` block that groups all entities under one HA device.
   Map<String, dynamic> get deviceBlock => {
-        'identifiers': [_deviceId],
-        'name': deviceName,
-        'manufacturer': 'Nightshade',
-        'model': 'Nightshade Observatory',
-        if (swVersion != null) 'sw_version': swVersion,
-      };
+    'identifiers': [_deviceId],
+    'name': deviceName,
+    'manufacturer': 'Nightshade',
+    'model': 'Nightshade Observatory',
+    if (swVersion != null) 'sw_version': swVersion,
+  };
 
   Map<String, dynamic> _base(String key, String name) => {
-        'name': name,
-        'unique_id': '${_deviceId}_$key',
-        'availability_topic': availabilityTopic,
-        'payload_available': 'online',
-        'payload_not_available': 'offline',
-        'device': deviceBlock,
-      };
+    'name': name,
+    'unique_id': '${_deviceId}_$key',
+    'availability_topic': availabilityTopic,
+    'payload_available': 'online',
+    'payload_not_available': 'offline',
+    'device': deviceBlock,
+  };
 
   Map<String, dynamic> binarySensorConfig({
     required String key,
     required String name,
     String? deviceClass,
     String? icon,
-  }) =>
-      {
-        ..._base(key, name),
-        'state_topic': stateTopic(key),
-        'payload_on': 'ON',
-        'payload_off': 'OFF',
-        if (deviceClass != null) 'device_class': deviceClass,
-        if (icon != null) 'icon': icon,
-      };
+  }) => {
+    ..._base(key, name),
+    'state_topic': stateTopic(key),
+    'payload_on': 'ON',
+    'payload_off': 'OFF',
+    if (deviceClass != null) 'device_class': deviceClass,
+    if (icon != null) 'icon': icon,
+  };
 
   Map<String, dynamic> sensorConfig({
     required String key,
@@ -113,41 +113,38 @@ class HaDiscoveryPayloadBuilder {
     String? deviceClass,
     String? stateClass,
     String? icon,
-  }) =>
-      {
-        ..._base(key, name),
-        'state_topic': stateTopic(key),
-        if (unit != null) 'unit_of_measurement': unit,
-        if (deviceClass != null) 'device_class': deviceClass,
-        if (stateClass != null) 'state_class': stateClass,
-        if (icon != null) 'icon': icon,
-      };
+  }) => {
+    ..._base(key, name),
+    'state_topic': stateTopic(key),
+    if (unit != null) 'unit_of_measurement': unit,
+    if (deviceClass != null) 'device_class': deviceClass,
+    if (stateClass != null) 'state_class': stateClass,
+    if (icon != null) 'icon': icon,
+  };
 
   Map<String, dynamic> switchConfig({
     required String key,
     required String name,
     String? icon,
-  }) =>
-      {
-        ..._base(key, name),
-        'state_topic': stateTopic(key),
-        'command_topic': commandTopic(key),
-        'payload_on': 'ON',
-        'payload_off': 'OFF',
-        if (icon != null) 'icon': icon,
-      };
+  }) => {
+    ..._base(key, name),
+    'state_topic': stateTopic(key),
+    'command_topic': commandTopic(key),
+    'payload_on': 'ON',
+    'payload_off': 'OFF',
+    if (icon != null) 'icon': icon,
+  };
 
   Map<String, dynamic> buttonConfig({
     required String key,
     required String name,
     String? icon,
-  }) =>
-      {
-        ..._base(key, name),
-        'command_topic': commandTopic(key),
-        'payload_press': 'PRESS',
-        if (icon != null) 'icon': icon,
-      };
+  }) => {
+    ..._base(key, name),
+    'command_topic': commandTopic(key),
+    'payload_press': 'PRESS',
+    if (icon != null) 'icon': icon,
+  };
 }
 
 /// One discovery entry: where to publish (`topic`) and what (`payload`,
@@ -208,202 +205,242 @@ List<HaDiscoveryEntry> buildHaDiscoveryEntries(
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.safety),
       // HA `safety` device class: ON = unsafe.
-      enc(b.binarySensorConfig(
-        key: HaEntityKeys.safety,
-        name: 'Safety',
-        deviceClass: 'safety',
-      )),
+      enc(
+        b.binarySensorConfig(
+          key: HaEntityKeys.safety,
+          name: 'Safety',
+          deviceClass: 'safety',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.sequenceRunning),
-      enc(b.binarySensorConfig(
-        key: HaEntityKeys.sequenceRunning,
-        name: 'Sequence Running',
-        deviceClass: 'running',
-        icon: 'mdi:play-circle',
-      )),
+      enc(
+        b.binarySensorConfig(
+          key: HaEntityKeys.sequenceRunning,
+          name: 'Sequence Running',
+          deviceClass: 'running',
+          icon: 'mdi:play-circle',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.guiding),
-      enc(b.binarySensorConfig(
-        key: HaEntityKeys.guiding,
-        name: 'Guiding Active',
-        deviceClass: 'running',
-        icon: 'mdi:crosshairs-gps',
-      )),
+      enc(
+        b.binarySensorConfig(
+          key: HaEntityKeys.guiding,
+          name: 'Guiding Active',
+          deviceClass: 'running',
+          icon: 'mdi:crosshairs-gps',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.roofOpen),
       includeDome
-          ? enc(b.binarySensorConfig(
-              key: HaEntityKeys.roofOpen,
-              name: 'Roof Open',
-              deviceClass: 'door',
-              icon: 'mdi:garage-open',
-            ))
+          ? enc(
+              b.binarySensorConfig(
+                key: HaEntityKeys.roofOpen,
+                name: 'Roof Open',
+                deviceClass: 'door',
+                icon: 'mdi:garage-open',
+              ),
+            )
           // Empty retained payload removes a previously-discovered entity.
           : '',
     ),
     HaDiscoveryEntry(
       b.configTopic('binary_sensor', HaEntityKeys.cameraCooling),
-      enc(b.binarySensorConfig(
-        key: HaEntityKeys.cameraCooling,
-        name: 'Camera Cooling',
-        deviceClass: 'running',
-        icon: 'mdi:snowflake',
-      )),
+      enc(
+        b.binarySensorConfig(
+          key: HaEntityKeys.cameraCooling,
+          name: 'Camera Cooling',
+          deviceClass: 'running',
+          icon: 'mdi:snowflake',
+        ),
+      ),
     ),
 
     // ---- Sensors ---------------------------------------------------------
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.currentTarget),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.currentTarget,
-        name: 'Current Target',
-        icon: 'mdi:telescope',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.currentTarget,
+          name: 'Current Target',
+          icon: 'mdi:telescope',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.sequenceProgress),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.sequenceProgress,
-        name: 'Sequence Progress',
-        unit: '%',
-        stateClass: 'measurement',
-        icon: 'mdi:progress-clock',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.sequenceProgress,
+          name: 'Sequence Progress',
+          unit: '%',
+          stateClass: 'measurement',
+          icon: 'mdi:progress-clock',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.framesTonight),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.framesTonight,
-        name: 'Frames Captured Tonight',
-        stateClass: 'measurement',
-        icon: 'mdi:image-multiple',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.framesTonight,
+          name: 'Frames Captured Tonight',
+          stateClass: 'measurement',
+          icon: 'mdi:image-multiple',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.lastHfr),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.lastHfr,
-        name: 'Last HFR',
-        unit: 'px',
-        stateClass: 'measurement',
-        icon: 'mdi:image-filter-center-focus',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.lastHfr,
+          name: 'Last HFR',
+          unit: 'px',
+          stateClass: 'measurement',
+          icon: 'mdi:image-filter-center-focus',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.guideRms),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.guideRms,
-        name: 'Guide RMS',
-        unit: '″',
-        stateClass: 'measurement',
-        icon: 'mdi:chart-line-variant',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.guideRms,
+          name: 'Guide RMS',
+          unit: '″',
+          stateClass: 'measurement',
+          icon: 'mdi:chart-line-variant',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.cameraTemperature),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.cameraTemperature,
-        name: 'Camera Temperature',
-        unit: '°C',
-        deviceClass: 'temperature',
-        stateClass: 'measurement',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.cameraTemperature,
+          name: 'Camera Temperature',
+          unit: '°C',
+          deviceClass: 'temperature',
+          stateClass: 'measurement',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.ambientTemperature),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.ambientTemperature,
-        name: 'Ambient Temperature',
-        unit: '°C',
-        deviceClass: 'temperature',
-        stateClass: 'measurement',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.ambientTemperature,
+          name: 'Ambient Temperature',
+          unit: '°C',
+          deviceClass: 'temperature',
+          stateClass: 'measurement',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.humidity),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.humidity,
-        name: 'Humidity',
-        unit: '%',
-        deviceClass: 'humidity',
-        stateClass: 'measurement',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.humidity,
+          name: 'Humidity',
+          unit: '%',
+          deviceClass: 'humidity',
+          stateClass: 'measurement',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.dewPoint),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.dewPoint,
-        name: 'Dew Point',
-        unit: '°C',
-        deviceClass: 'temperature',
-        stateClass: 'measurement',
-        icon: 'mdi:water-thermometer',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.dewPoint,
+          name: 'Dew Point',
+          unit: '°C',
+          deviceClass: 'temperature',
+          stateClass: 'measurement',
+          icon: 'mdi:water-thermometer',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.windSpeed),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.windSpeed,
-        name: 'Wind Speed',
-        unit: 'km/h',
-        deviceClass: 'wind_speed',
-        stateClass: 'measurement',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.windSpeed,
+          name: 'Wind Speed',
+          unit: 'km/h',
+          deviceClass: 'wind_speed',
+          stateClass: 'measurement',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.cloudCover),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.cloudCover,
-        name: 'Cloud Cover',
-        unit: '%',
-        stateClass: 'measurement',
-        icon: 'mdi:cloud-percent',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.cloudCover,
+          name: 'Cloud Cover',
+          unit: '%',
+          stateClass: 'measurement',
+          icon: 'mdi:cloud-percent',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.skyTemperature),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.skyTemperature,
-        name: 'Sky Temperature',
-        unit: '°C',
-        deviceClass: 'temperature',
-        stateClass: 'measurement',
-        icon: 'mdi:weather-night',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.skyTemperature,
+          name: 'Sky Temperature',
+          unit: '°C',
+          deviceClass: 'temperature',
+          stateClass: 'measurement',
+          icon: 'mdi:weather-night',
+        ),
+      ),
     ),
     HaDiscoveryEntry(
       b.configTopic('sensor', HaEntityKeys.sunAltitude),
-      enc(b.sensorConfig(
-        key: HaEntityKeys.sunAltitude,
-        name: 'Sun Altitude',
-        unit: '°',
-        stateClass: 'measurement',
-        icon: 'mdi:weather-sunset',
-      )),
+      enc(
+        b.sensorConfig(
+          key: HaEntityKeys.sunAltitude,
+          name: 'Sun Altitude',
+          unit: '°',
+          stateClass: 'measurement',
+          icon: 'mdi:weather-sunset',
+        ),
+      ),
     ),
 
     // ---- Commands ----------------------------------------------------------
     HaDiscoveryEntry(
       b.configTopic('switch', HaEntityKeys.sequencePaused),
       includeControls
-          ? enc(b.switchConfig(
-              key: HaEntityKeys.sequencePaused,
-              name: 'Sequence Paused',
-              icon: 'mdi:pause-circle',
-            ))
+          ? enc(
+              b.switchConfig(
+                key: HaEntityKeys.sequencePaused,
+                name: 'Sequence Paused',
+                icon: 'mdi:pause-circle',
+              ),
+            )
           : '',
     ),
     HaDiscoveryEntry(
       b.configTopic('button', HaEntityKeys.abortSequence),
       includeControls
-          ? enc(b.buttonConfig(
-              key: HaEntityKeys.abortSequence,
-              name: 'Abort Sequence',
-              icon: 'mdi:stop-circle',
-            ))
+          ? enc(
+              b.buttonConfig(
+                key: HaEntityKeys.abortSequence,
+                name: 'Abort Sequence',
+                icon: 'mdi:stop-circle',
+              ),
+            )
           : '',
     ),
   ];

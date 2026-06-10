@@ -14,8 +14,7 @@ import 'package:nightshade_core/src/models/framing_plate_scale.dart';
 
 void main() {
   group('FramingPlateScale.pixelsPerDegree', () {
-    test(
-        'is identical whether the image is letterboxed horizontally or '
+    test('is identical whether the image is letterboxed horizontally or '
         'vertically relative to the canvas', () {
       // A square survey cutout: 2.0deg x 2.0deg, 800x800px. Because the FOV
       // aspect equals the pixel aspect, the angular scale must be isotropic and
@@ -121,30 +120,32 @@ void main() {
       expect(rect.height, closeTo(1000.0, 1e-9));
     });
 
-    test('matches FramingSurveyImagePainter draw math for a non-square image',
-        () {
-      // imageAspect = 800/400 = 2.0; canvasAspect = 1000/1000 = 1.0.
-      // imageAspect > canvasAspect -> drawWidth = 1000 * zoom, drawHeight =
-      // drawWidth / imageAspect.
-      const scale = FramingPlateScale(
-        surveyFovWidthDeg: 2.0,
-        surveyFovHeightDeg: 1.0,
-        imagePixelWidth: 800,
-        imagePixelHeight: 400,
-      );
-      const canvas = Size(1000, 1000);
-      const zoom = 1.5;
-      const pan = Offset(10, 20);
+    test(
+      'matches FramingSurveyImagePainter draw math for a non-square image',
+      () {
+        // imageAspect = 800/400 = 2.0; canvasAspect = 1000/1000 = 1.0.
+        // imageAspect > canvasAspect -> drawWidth = 1000 * zoom, drawHeight =
+        // drawWidth / imageAspect.
+        const scale = FramingPlateScale(
+          surveyFovWidthDeg: 2.0,
+          surveyFovHeightDeg: 1.0,
+          imagePixelWidth: 800,
+          imagePixelHeight: 400,
+        );
+        const canvas = Size(1000, 1000);
+        const zoom = 1.5;
+        const pan = Offset(10, 20);
 
-      final rect = scale.drawRectFor(canvas, zoom, pan);
+        final rect = scale.drawRectFor(canvas, zoom, pan);
 
-      const expectedWidth = 1000 * zoom; // 1500
-      const expectedHeight = expectedWidth / 2.0; // 750
-      expect(rect.width, closeTo(expectedWidth, 1e-9));
-      expect(rect.height, closeTo(expectedHeight, 1e-9));
-      expect(rect.center.dx, closeTo(500.0 + 10, 1e-9));
-      expect(rect.center.dy, closeTo(500.0 + 20, 1e-9));
-    });
+        const expectedWidth = 1000 * zoom; // 1500
+        const expectedHeight = expectedWidth / 2.0; // 750
+        expect(rect.width, closeTo(expectedWidth, 1e-9));
+        expect(rect.height, closeTo(expectedHeight, 1e-9));
+        expect(rect.center.dx, closeTo(500.0 + 10, 1e-9));
+        expect(rect.center.dy, closeTo(500.0 + 20, 1e-9));
+      },
+    );
   });
 
   group('FramingPlateScale value semantics', () {

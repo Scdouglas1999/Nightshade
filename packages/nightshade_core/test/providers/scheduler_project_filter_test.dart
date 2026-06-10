@@ -51,7 +51,9 @@ void main() {
     double dec = -5.4,
     int priority = 5,
   }) {
-    return database.into(database.targets).insert(
+    return database
+        .into(database.targets)
+        .insert(
           TargetsCompanion.insert(
             name: name,
             ra: ra,
@@ -68,7 +70,9 @@ void main() {
     double exposureSeconds = 60.0,
   }) async {
     for (var i = 0; i < count; i++) {
-      await database.into(database.capturedImages).insert(
+      await database
+          .into(database.capturedImages)
+          .insert(
             CapturedImagesCompanion.insert(
               filePath: 'frame_${filter}_$i.fits',
               fileName: 'frame_${filter}_$i.fits',
@@ -84,9 +88,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(database),
-      ],
+      overrides: [databaseProvider.overrideWithValue(database)],
     );
     addTearDown(container.dispose);
     return container;
@@ -94,60 +96,53 @@ void main() {
 
   group('SchedulerCandidateLoader.load(projectId:)', () {
     test(
-        'returns only the project members, with the priority override applied',
-        () async {
-      final container = makeContainer();
+      'returns only the project members, with the priority override applied',
+      () async {
+        final container = makeContainer();
 
-      // Two catalog targets at different global priorities.
-      final inProjectId =
-          await insertTarget(name: 'In Project', priority: 3);
-      final outOfProjectId =
-          await insertTarget(name: 'Out Of Project', priority: 9);
+        // Two catalog targets at different global priorities.
+        final inProjectId = await insertTarget(name: 'In Project', priority: 3);
+        final outOfProjectId = await insertTarget(
+          name: 'Out Of Project',
+          priority: 9,
+        );
 
-      // A project containing only the first target, with a priority override
-      // that differs from both the target's own priority (3) and the other
-      // target's (9), so we can prove the override — not either raw priority —
-      // is what surfaces.
-      final projectService = container.read(projectServiceProvider);
-      final projectId = await projectService.createProject(name: 'Campaign');
-      await projectService.addTarget(
-        projectId: projectId,
-        targetId: inProjectId,
-        priorityOverride: 7,
-      );
+        // A project containing only the first target, with a priority override
+        // that differs from both the target's own priority (3) and the other
+        // target's (9), so we can prove the override — not either raw priority —
+        // is what surfaces.
+        final projectService = container.read(projectServiceProvider);
+        final projectId = await projectService.createProject(name: 'Campaign');
+        await projectService.addTarget(
+          projectId: projectId,
+          targetId: inProjectId,
+          priorityOverride: 7,
+        );
 
-      final loader = container.read(schedulerCandidateLoaderProvider);
-      final scoped = await loader.load(projectId: projectId);
+        final loader = container.read(schedulerCandidateLoaderProvider);
+        final scoped = await loader.load(projectId: projectId);
 
-      expect(scoped, hasLength(1));
-      expect(scoped.single.targetId, inProjectId);
-      expect(scoped.single.name, 'In Project');
-      // Override (7) beats the target's own global priority (3).
-      expect(scoped.single.userPriority, 7);
-      expect(
-        scoped.map((c) => c.targetId),
-        isNot(contains(outOfProjectId)),
-      );
-    });
+        expect(scoped, hasLength(1));
+        expect(scoped.single.targetId, inProjectId);
+        expect(scoped.single.name, 'In Project');
+        // Override (7) beats the target's own global priority (3).
+        expect(scoped.single.userPriority, 7);
+        expect(scoped.map((c) => c.targetId), isNot(contains(outOfProjectId)));
+      },
+    );
 
-    test(
-        'falls back to the target priority when no override is set',
-        () async {
+    test('falls back to the target priority when no override is set', () async {
       final container = makeContainer();
       final targetId = await insertTarget(name: 'No Override', priority: 4);
 
       final projectService = container.read(projectServiceProvider);
       final projectId = await projectService.createProject(name: 'Campaign');
       // No priorityOverride argument → COALESCE falls through to t.priority.
-      await projectService.addTarget(
-        projectId: projectId,
-        targetId: targetId,
-      );
+      await projectService.addTarget(projectId: projectId, targetId: targetId);
 
-      final scoped =
-          await container.read(schedulerCandidateLoaderProvider).load(
-                projectId: projectId,
-              );
+      final scoped = await container
+          .read(schedulerCandidateLoaderProvider)
+          .load(projectId: projectId);
 
       expect(scoped, hasLength(1));
       expect(scoped.single.userPriority, 4);
@@ -173,103 +168,114 @@ void main() {
     });
 
     test(
-        'an empty project loads no candidates (not the full catalog)',
-        () async {
-      final container = makeContainer();
-      await insertTarget(name: 'Lonely', priority: 5);
+      'an empty project loads no candidates (not the full catalog)',
+      () async {
+        final container = makeContainer();
+        await insertTarget(name: 'Lonely', priority: 5);
 
-      final projectService = container.read(projectServiceProvider);
-      final projectId = await projectService.createProject(name: 'Empty');
+        final projectService = container.read(projectServiceProvider);
+        final projectId = await projectService.createProject(name: 'Empty');
 
-      final scoped = await container
-          .read(schedulerCandidateLoaderProvider)
-          .load(projectId: projectId);
+        final scoped = await container
+            .read(schedulerCandidateLoaderProvider)
+            .load(projectId: projectId);
 
-      expect(scoped, isEmpty);
-    });
+        expect(scoped, isEmpty);
+      },
+    );
   });
 
   group('carry-forward: completed member targets drop in the engine', () {
     test(
-        'a project member whose goals are all met is rejected by scoreCandidate',
-        () async {
-      final container = makeContainer();
+      'a project member whose goals are all met is rejected by scoreCandidate',
+      () async {
+        final container = makeContainer();
 
-      final completeId = await insertTarget(name: 'Complete', priority: 6);
-      final incompleteId = await insertTarget(name: 'Incomplete', priority: 6);
+        final completeId = await insertTarget(name: 'Complete', priority: 6);
+        final incompleteId = await insertTarget(
+          name: 'Incomplete',
+          priority: 6,
+        );
 
-      final goalService = container.read(integrationGoalServiceProvider);
-      // "Complete" target: a 5-frame goal that has been fully imaged.
-      await goalService.upsert(IntegrationGoal(
-        targetId: completeId,
-        filter: 'L',
-        exposureSeconds: 60,
-        frameCount: 5,
-        createdAt: DateTime(2026, 5, 1),
-      ));
-      await insertCaptures(targetId: completeId, filter: 'L', count: 5);
+        final goalService = container.read(integrationGoalServiceProvider);
+        // "Complete" target: a 5-frame goal that has been fully imaged.
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: completeId,
+            filter: 'L',
+            exposureSeconds: 60,
+            frameCount: 5,
+            createdAt: DateTime(2026, 5, 1),
+          ),
+        );
+        await insertCaptures(targetId: completeId, filter: 'L', count: 5);
 
-      // "Incomplete" target: a 5-frame goal with only 1 frame captured.
-      await goalService.upsert(IntegrationGoal(
-        targetId: incompleteId,
-        filter: 'L',
-        exposureSeconds: 60,
-        frameCount: 5,
-        createdAt: DateTime(2026, 5, 1),
-      ));
-      await insertCaptures(targetId: incompleteId, filter: 'L', count: 1);
+        // "Incomplete" target: a 5-frame goal with only 1 frame captured.
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: incompleteId,
+            filter: 'L',
+            exposureSeconds: 60,
+            frameCount: 5,
+            createdAt: DateTime(2026, 5, 1),
+          ),
+        );
+        await insertCaptures(targetId: incompleteId, filter: 'L', count: 1);
 
-      // Both targets belong to the active project.
-      final projectService = container.read(projectServiceProvider);
-      final projectId = await projectService.createProject(name: 'Campaign');
-      await projectService.addTarget(
-          projectId: projectId, targetId: completeId);
-      await projectService.addTarget(
-          projectId: projectId, targetId: incompleteId);
+        // Both targets belong to the active project.
+        final projectService = container.read(projectServiceProvider);
+        final projectId = await projectService.createProject(name: 'Campaign');
+        await projectService.addTarget(
+          projectId: projectId,
+          targetId: completeId,
+        );
+        await projectService.addTarget(
+          projectId: projectId,
+          targetId: incompleteId,
+        );
 
-      final scoped = await container
-          .read(schedulerCandidateLoaderProvider)
-          .load(projectId: projectId);
+        final scoped = await container
+            .read(schedulerCandidateLoaderProvider)
+            .load(projectId: projectId);
 
-      // The loader keeps both members in scope — completion is decided by the
-      // engine, not the loader.
-      expect(scoped, hasLength(2));
+        // The loader keeps both members in scope — completion is decided by the
+        // engine, not the loader.
+        expect(scoped, hasLength(2));
 
-      // Build a pure engine instance and score each member. The completed one
-      // must hard-fail on "all integration goals complete"; the incomplete one
-      // must not carry that rejection (it may carry an altitude rejection
-      // depending on the chosen `now`, which is irrelevant to this assertion).
-      final engine = SchedulerEngine(
-        site: const SchedulerSite(
-          latitudeDegrees: 47.6,
-          longitudeDegrees: -122.3,
-          localOffset: Duration(hours: -8),
-        ),
-        sequenceSink: _NoopSink(),
-      );
-      addTearDown(engine.dispose);
+        // Build a pure engine instance and score each member. The completed one
+        // must hard-fail on "all integration goals complete"; the incomplete one
+        // must not carry that rejection (it may carry an altitude rejection
+        // depending on the chosen `now`, which is irrelevant to this assertion).
+        final engine = SchedulerEngine(
+          site: const SchedulerSite(
+            latitudeDegrees: 47.6,
+            longitudeDegrees: -122.3,
+            localOffset: Duration(hours: -8),
+          ),
+          sequenceSink: _NoopSink(),
+        );
+        addTearDown(engine.dispose);
 
-      final now = DateTime.utc(2026, 5, 13, 6, 0);
+        final now = DateTime.utc(2026, 5, 13, 6, 0);
 
-      final complete =
-          scoped.firstWhere((c) => c.targetId == completeId);
-      final incomplete =
-          scoped.firstWhere((c) => c.targetId == incompleteId);
+        final complete = scoped.firstWhere((c) => c.targetId == completeId);
+        final incomplete = scoped.firstWhere((c) => c.targetId == incompleteId);
 
-      final completeScore = engine.scoreCandidate(complete, now);
-      final incompleteScore = engine.scoreCandidate(incomplete, now);
+        final completeScore = engine.scoreCandidate(complete, now);
+        final incompleteScore = engine.scoreCandidate(incomplete, now);
 
-      expect(completeScore.hardConstraintFailed, isTrue);
-      expect(
-        completeScore.rejectionReasons,
-        contains('all integration goals complete'),
-      );
+        expect(completeScore.hardConstraintFailed, isTrue);
+        expect(
+          completeScore.rejectionReasons,
+          contains('all integration goals complete'),
+        );
 
-      expect(
-        incompleteScore.rejectionReasons,
-        isNot(contains('all integration goals complete')),
-      );
-    });
+        expect(
+          incompleteScore.rejectionReasons,
+          isNot(contains('all integration goals complete')),
+        );
+      },
+    );
   });
 }
 

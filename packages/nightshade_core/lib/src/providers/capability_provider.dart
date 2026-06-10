@@ -1,46 +1,54 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/backend/device_capabilities.dart';
 import 'backend_provider.dart';
 
 /// Provider to fetch camera capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
-final cameraCapabilitiesProvider = FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getCameraCapabilities(deviceId);
-});
+final cameraCapabilitiesProvider =
+    FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getCameraCapabilities(deviceId);
+    });
 
 /// Provider to fetch mount capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
-final mountCapabilitiesProvider = FutureProvider.family<MountCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getMountCapabilities(deviceId);
-});
+final mountCapabilitiesProvider =
+    FutureProvider.family<MountCapabilities?, String>((ref, deviceId) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getMountCapabilities(deviceId);
+    });
 
 /// Provider to fetch focuser capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
-final focuserCapabilitiesProvider = FutureProvider.family<FocuserCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getFocuserCapabilities(deviceId);
-});
+final focuserCapabilitiesProvider =
+    FutureProvider.family<FocuserCapabilities?, String>((ref, deviceId) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getFocuserCapabilities(deviceId);
+    });
 
 /// Provider to fetch filter wheel capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
-final filterWheelCapabilitiesProvider = FutureProvider.family<FilterWheelCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getFilterWheelCapabilities(deviceId);
-});
+final filterWheelCapabilitiesProvider =
+    FutureProvider.family<FilterWheelCapabilities?, String>((
+      ref,
+      deviceId,
+    ) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getFilterWheelCapabilities(deviceId);
+    });
 
 /// Provider to fetch rotator capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
-final rotatorCapabilitiesProvider = FutureProvider.family<RotatorCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getRotatorCapabilities(deviceId);
-});
+final rotatorCapabilitiesProvider =
+    FutureProvider.family<RotatorCapabilities?, String>((ref, deviceId) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getRotatorCapabilities(deviceId);
+    });
 
 /// Default binning options when no capabilities are available
 const List<String> defaultBinningOptions = ['1x1', '2x2', '3x3', '4x4'];
@@ -50,7 +58,9 @@ const List<String> defaultBinningOptions = ['1x1', '2x2', '3x3', '4x4'];
 /// If capabilities are null or canBin is false, returns default options.
 /// Otherwise, generates options up to maxBinX/maxBinY.
 /// If canAsymmetricBin is true, includes asymmetric options (e.g., 1x2, 2x1).
-List<String> getBinningOptionsFromCapabilities(CameraCapabilities? capabilities) {
+List<String> getBinningOptionsFromCapabilities(
+  CameraCapabilities? capabilities,
+) {
   // If no capabilities or binning not supported, return defaults
   if (capabilities == null || !capabilities.canBin) {
     return defaultBinningOptions;
@@ -91,7 +101,10 @@ List<String> getBinningOptionsFromCapabilities(CameraCapabilities? capabilities)
 
 /// Provider to get available binning options for a camera
 /// Watches camera capabilities and returns appropriate binning options
-final cameraBinningOptionsProvider = Provider.family<List<String>, String>((ref, deviceId) {
+final cameraBinningOptionsProvider = Provider.family<List<String>, String>((
+  ref,
+  deviceId,
+) {
   if (deviceId.isEmpty) return defaultBinningOptions;
 
   final capabilitiesAsync = ref.watch(cameraCapabilitiesProvider(deviceId));

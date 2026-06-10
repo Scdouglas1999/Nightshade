@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/services/sequence_diff_service.dart';
 
@@ -45,10 +45,7 @@ void main() {
         count: 10,
         filter: 'Lum',
       );
-      final current = buildSequence(
-        name: 'M31',
-        nodes: [target, newExposure],
-      );
+      final current = buildSequence(name: 'M31', nodes: [target, newExposure]);
       final result = diff.diff(previous: previous, current: current);
       expect(result.added.length, 1);
       expect(result.added.single.nodeId, newExposure.id);
@@ -69,10 +66,7 @@ void main() {
         count: 10,
         filter: 'Lum',
       );
-      final previous = buildSequence(
-        name: 'M31',
-        nodes: [target, exposure],
-      );
+      final previous = buildSequence(name: 'M31', nodes: [target, exposure]);
       final current = buildSequence(name: 'M31', nodes: [target]);
       final result = diff.diff(previous: previous, current: current);
       expect(result.removed.length, 1);
@@ -109,8 +103,9 @@ void main() {
       expect(result.modified.length, 1);
       final entry = result.modified.single;
       expect(entry.nodeId, 'exp-1');
-      final field =
-          entry.changes.firstWhere((c) => c.field == 'Exposure duration');
+      final field = entry.changes.firstWhere(
+        (c) => c.field == 'Exposure duration',
+      );
       expect(field.oldValue, '180.0s');
       expect(field.newValue, '240.0s');
       expect(result.summary, '~1');
@@ -147,8 +142,9 @@ void main() {
         current: buildSequence(name: 'a', nodes: [after]),
       );
       expect(result.modified.length, 1);
-      final kindChange = result.modified.single.changes
-          .firstWhere((c) => c.field == 'Node kind');
+      final kindChange = result.modified.single.changes.firstWhere(
+        (c) => c.field == 'Node kind',
+      );
       expect(kindChange.oldValue, 'TakeExposure');
       expect(kindChange.newValue, 'Dither');
     });
@@ -161,10 +157,8 @@ void main() {
       );
       final removed = ExposureNode(durationSecs: 60.0);
       final added = ExposureNode(durationSecs: 120.0);
-      final modBefore = ExposureNode(
-          id: 'mod', durationSecs: 60.0, count: 10);
-      final modAfter = ExposureNode(
-          id: 'mod', durationSecs: 60.0, count: 20);
+      final modBefore = ExposureNode(id: 'mod', durationSecs: 60.0, count: 10);
+      final modAfter = ExposureNode(id: 'mod', durationSecs: 60.0, count: 20);
       final previous = buildSequence(
         name: 'M31',
         nodes: [target, removed, modBefore],

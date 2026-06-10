@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -19,20 +19,24 @@ class AuxiliaryHandlers {
   }
 
   Future<Map<String, dynamic>> _readSwitchStatus(
-      String deviceId, String deviceName) async {
+    String deviceId,
+    String deviceName,
+  ) async {
     final caps = await bridge.apiGetSwitchCapabilities(deviceId: deviceId);
     final switches = caps.switches
-        .map((s) => {
-              'id': s.index,
-              'name': s.name,
-              'type': s.isBoolean ? 'boolean' : 'analog',
-              'value': s.isBoolean ? (s.value > 0.5) : s.value,
-              'minValue': s.isBoolean ? null : s.minValue,
-              'maxValue': s.isBoolean ? null : s.maxValue,
-              'step': s.isBoolean ? null : s.step,
-              'canWrite': s.canWrite,
-              'description': s.description,
-            })
+        .map(
+          (s) => {
+            'id': s.index,
+            'name': s.name,
+            'type': s.isBoolean ? 'boolean' : 'analog',
+            'value': s.isBoolean ? (s.value > 0.5) : s.value,
+            'minValue': s.isBoolean ? null : s.minValue,
+            'maxValue': s.isBoolean ? null : s.maxValue,
+            'step': s.isBoolean ? null : s.step,
+            'canWrite': s.canWrite,
+            'description': s.description,
+          },
+        )
         .toList();
 
     return {
@@ -132,13 +136,11 @@ class AuxiliaryHandlers {
 
     final matchingSwitches = switchDevices.where((d) => d.id == deviceId);
     if (matchingSwitches.isEmpty) {
-      return jsonNotFound(
-        {
-          'connected': false,
-          'deviceId': deviceId,
-          'error': 'Switch device not connected'
-        },
-      );
+      return jsonNotFound({
+        'connected': false,
+        'deviceId': deviceId,
+        'error': 'Switch device not connected',
+      });
     }
     final switchDevice = matchingSwitches.first;
     return jsonOk(await _readSwitchStatus(switchDevice.id, switchDevice.name));
@@ -152,10 +154,7 @@ class AuxiliaryHandlers {
     final value = payload['value'];
 
     if (value == null) {
-      throw BadRequestError(
-        field: 'value',
-        expected: 'boolean or number',
-      );
+      throw BadRequestError(field: 'value', expected: 'boolean or number');
     }
 
     final connected = await _connectedDevicesByType(DeviceType.switch_);
@@ -188,10 +187,7 @@ class AuxiliaryHandlers {
         value: value.toDouble(),
       );
     } else {
-      throw BadRequestError(
-        field: 'value',
-        expected: 'boolean or number',
-      );
+      throw BadRequestError(field: 'value', expected: 'boolean or number');
     }
 
     return jsonOk({
@@ -216,13 +212,11 @@ class AuxiliaryHandlers {
     final covers = await _connectedDevicesByType(DeviceType.coverCalibrator);
     final matchingCovers = covers.where((d) => d.id == deviceId);
     if (matchingCovers.isEmpty) {
-      return jsonNotFound(
-        {
-          'connected': false,
-          'deviceId': deviceId,
-          'error': 'Cover calibrator not connected'
-        },
-      );
+      return jsonNotFound({
+        'connected': false,
+        'deviceId': deviceId,
+        'error': 'Cover calibrator not connected',
+      });
     }
     final device = matchingCovers.first;
 
@@ -269,9 +263,11 @@ class AuxiliaryHandlers {
       deviceId: deviceId,
       brightness: brightness,
     );
-    return jsonOk(
-      {'status': 'ok', 'deviceId': deviceId, 'brightness': brightness},
-    );
+    return jsonOk({
+      'status': 'ok',
+      'deviceId': deviceId,
+      'brightness': brightness,
+    });
   }
 
   /// POST /api/cover/calibrator-on
@@ -283,9 +279,11 @@ class AuxiliaryHandlers {
       deviceId: deviceId,
       brightness: brightness,
     );
-    return jsonOk(
-      {'status': 'on', 'deviceId': deviceId, 'brightness': brightness},
-    );
+    return jsonOk({
+      'status': 'on',
+      'deviceId': deviceId,
+      'brightness': brightness,
+    });
   }
 
   /// POST /api/cover/calibrator-off

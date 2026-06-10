@@ -15,10 +15,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 class UpdateManager extends ConsumerStatefulWidget {
   final Widget child;
 
-  const UpdateManager({
-    super.key,
-    required this.child,
-  });
+  const UpdateManager({super.key, required this.child});
 
   @override
   ConsumerState<UpdateManager> createState() => _UpdateManagerState();
@@ -142,7 +139,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
             content: Text('LAN push error: $error'),
             backgroundColor:
                 Theme.of(context).extension<NightshadeColors>()?.error ??
-                    Theme.of(context).colorScheme.error,
+                Theme.of(context).colorScheme.error,
           ),
         );
         break;
@@ -247,7 +244,8 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   void _showUpdateReadyDialog(UpdateState state) {
     // Check if a sequence is currently running
     final sequencerState = ref.read(sequenceExecutionStateProvider);
-    final isSessionActive = sequencerState == SequenceExecutionState.running ||
+    final isSessionActive =
+        sequencerState == SequenceExecutionState.running ||
         sequencerState == SequenceExecutionState.paused ||
         sequencerState == SequenceExecutionState.stopping ||
         sequencerState == SequenceExecutionState.recovering;
@@ -343,7 +341,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
                   content: Text('Update error: ${next.errorMessage}'),
                   backgroundColor:
                       Theme.of(context).extension<NightshadeColors>()?.error ??
-                          Theme.of(context).colorScheme.error,
+                      Theme.of(context).colorScheme.error,
                 ),
               );
             }

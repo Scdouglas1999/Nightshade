@@ -127,7 +127,8 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                     'remoteAccessTailscaleTitle',
                     'Reach this rig over Tailscale',
                   ),
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -180,7 +181,9 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'remoteAccessTailscaleStartHint',
                   'Start pairing to arm the Tailscale QR for this session.',
                 ),
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted),
               ),
             ] else if (widget.pairingCode != null && qrPayload != null) ...[
               Center(
@@ -235,7 +238,8 @@ class _TailscaleReachableRow extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: SelectableText(
               url,

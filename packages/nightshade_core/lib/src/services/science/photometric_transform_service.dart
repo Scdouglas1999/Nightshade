@@ -56,14 +56,16 @@ class PhotometricTransformService {
     }
 
     // Filter out saturated or very faint stars
-    final validStars = starMatches.where((star) {
-      return star.instrumentalFlux > 0 &&
-          star.snr >= 5.0 &&
-          star.catalogMagV.isFinite &&
-          star.catalogMagB.isFinite &&
-          star.airmass > 0 &&
-          star.airmass < 10.0;
-    }).toList(growable: false);
+    final validStars = starMatches
+        .where((star) {
+          return star.instrumentalFlux > 0 &&
+              star.snr >= 5.0 &&
+              star.catalogMagV.isFinite &&
+              star.catalogMagB.isFinite &&
+              star.airmass > 0 &&
+              star.airmass < 10.0;
+        })
+        .toList(growable: false);
 
     if (validStars.length < 4) {
       _logger.warning(
@@ -82,7 +84,9 @@ class PhotometricTransformService {
     for (var i = 0; i < n; i++) {
       final star = validStars[i];
       final instMag =
-          -2.5 * math.log(star.instrumentalFlux.clamp(1e-30, double.infinity)) / math.ln10;
+          -2.5 *
+          math.log(star.instrumentalFlux.clamp(1e-30, double.infinity)) /
+          math.ln10;
       y[i] = star.catalogMagV - instMag;
       x1[i] = star.airmass;
       x2[i] = star.colorIndex;
@@ -112,7 +116,8 @@ class PhotometricTransformService {
     // | s01 s11 s12 | | a1 | = | sy1 |
     // | s02 s12 s22 | | a2 |   | sy2 |
 
-    final det = s00 * (s11 * s22 - s12 * s12) -
+    final det =
+        s00 * (s11 * s22 - s12 * s12) -
         s01 * (s01 * s22 - s12 * s02) +
         s02 * (s01 * s12 - s11 * s02);
 
@@ -128,15 +133,18 @@ class PhotometricTransformService {
     final invDet = 1.0 / det;
 
     // Cofactors for each column
-    final a0 = invDet *
+    final a0 =
+        invDet *
         (sy0 * (s11 * s22 - s12 * s12) -
             s01 * (sy1 * s22 - s12 * sy2) +
             s02 * (sy1 * s12 - s11 * sy2));
-    final a1 = invDet *
+    final a1 =
+        invDet *
         (s00 * (sy1 * s22 - s12 * sy2) -
             sy0 * (s01 * s22 - s12 * s02) +
             s02 * (s01 * sy2 - sy1 * s02));
-    final a2 = invDet *
+    final a2 =
+        invDet *
         (s00 * (s11 * sy2 - sy1 * s12) -
             s01 * (s01 * sy2 - sy1 * s02) +
             sy0 * (s01 * s12 - s11 * s02));
@@ -153,17 +161,21 @@ class PhotometricTransformService {
       final predicted = a0 + a1 * x1[i] + a2 * x2[i];
       final residual = y[i] - predicted;
       sumSqResidual += residual * residual;
-      fitData.add(TransformStarMatch(
-        catalogMag: validStars[i].catalogMagV,
-        instrumentalMag: validStars[i].catalogMagV - y[i], // m_inst
-        colorIndex: x2[i],
-        airmass: x1[i],
-        residual: residual,
-      ));
+      fitData.add(
+        TransformStarMatch(
+          catalogMag: validStars[i].catalogMagV,
+          instrumentalMag: validStars[i].catalogMagV - y[i], // m_inst
+          colorIndex: x2[i],
+          airmass: x1[i],
+          residual: residual,
+        ),
+      );
     }
     final rmsResidual = math.sqrt(sumSqResidual / n);
 
-    if (!zeroPoint.isFinite || !extinctionCoefficient.isFinite || !colorTerm.isFinite) {
+    if (!zeroPoint.isFinite ||
+        !extinctionCoefficient.isFinite ||
+        !colorTerm.isFinite) {
       _logger.error(
         'Transform fit produced non-finite coefficients: '
         'zp=$zeroPoint, k=$extinctionCoefficient, T=$colorTerm',
@@ -222,7 +234,9 @@ class PhotometricTransformService {
   }
 
   /// Save computed coefficients to the database.
-  Future<int> saveTransform(PhotometricTransformCoefficients coefficients) async {
+  Future<int> saveTransform(
+    PhotometricTransformCoefficients coefficients,
+  ) async {
     final fitDataJson = jsonEncode(
       coefficients.fitData.map((match) => match.toJson()).toList(),
     );
@@ -269,7 +283,8 @@ class PhotometricTransformService {
   }
 
   PhotometricTransformCoefficients _rowToCoefficients(
-      db.PhotometricTransformRow row) {
+    db.PhotometricTransformRow row,
+  ) {
     List<TransformStarMatch> fitData = const [];
     if (row.fitDataJson != null && row.fitDataJson!.isNotEmpty) {
       try {
@@ -306,5 +321,5 @@ class PhotometricTransformService {
 
 final photometricTransformServiceProvider =
     Provider<PhotometricTransformService>((ref) {
-  return PhotometricTransformService(ref);
-});
+      return PhotometricTransformService(ref);
+    });

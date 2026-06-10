@@ -43,8 +43,7 @@ class _NoopSafeRigService extends SafeRigService {
     bool closeDome = false,
     bool closeCover = false,
     bool notify = true,
-  }) async =>
-      const SafeRigResult();
+  }) async => const SafeRigResult();
 }
 
 void main() {
@@ -58,21 +57,26 @@ void main() {
     setUp(() {
       backend = MockBackend();
       when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-      when(() => backend.sequencerUpdateWeatherVerdict(
-            unsafeOverride: any(named: 'unsafeOverride'),
-          )).thenAnswer((_) async {});
+      when(
+        () => backend.sequencerUpdateWeatherVerdict(
+          unsafeOverride: any(named: 'unsafeOverride'),
+        ),
+      ).thenAnswer((_) async {});
       // The constructor's cloud-motion / adaptive-conditions push loops also
       // touch the backend on their first microtask; stub them so they no-op
       // instead of throwing (which the provider would swallow anyway).
-      when(() => backend.sequencerUpdateCloudMotion(
-            currentCoverPercent: any(named: 'currentCoverPercent'),
-            predictedArrivalMinutes: any(named: 'predictedArrivalMinutes'),
-            predictedOpeningMinutes: any(named: 'predictedOpeningMinutes'),
-            predictedOpeningDurationSecs:
-                any(named: 'predictedOpeningDurationSecs'),
-            predictedClearSkyAlt: any(named: 'predictedClearSkyAlt'),
-            predictedClearSkyAz: any(named: 'predictedClearSkyAz'),
-          )).thenAnswer((_) async {});
+      when(
+        () => backend.sequencerUpdateCloudMotion(
+          currentCoverPercent: any(named: 'currentCoverPercent'),
+          predictedArrivalMinutes: any(named: 'predictedArrivalMinutes'),
+          predictedOpeningMinutes: any(named: 'predictedOpeningMinutes'),
+          predictedOpeningDurationSecs: any(
+            named: 'predictedOpeningDurationSecs',
+          ),
+          predictedClearSkyAlt: any(named: 'predictedClearSkyAlt'),
+          predictedClearSkyAz: any(named: 'predictedClearSkyAz'),
+        ),
+      ).thenAnswer((_) async {});
     });
 
     ProviderContainer buildContainer({
@@ -103,26 +107,29 @@ void main() {
       return container;
     }
 
-    test('reports UNSAFE when no data source is available (fail-closed)',
-        () async {
-      final container = buildContainer(safetyEnabled: true);
-      // Construct the notifier; the constructor runs an initial evaluation.
-      container.read(weatherSafetyProvider.notifier);
-      // Let the appSettings future + the evaluation's unawaited verdict push
-      // resolve.
-      await container.read(appSettingsProvider.future);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'reports UNSAFE when no data source is available (fail-closed)',
+      () async {
+        final container = buildContainer(safetyEnabled: true);
+        // Construct the notifier; the constructor runs an initial evaluation.
+        container.read(weatherSafetyProvider.notifier);
+        // Let the appSettings future + the evaluation's unawaited verdict push
+        // resolve.
+        await container.read(appSettingsProvider.future);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
 
-      // No connected weather device + no safety monitor + no API alert under
-      // fail-closed => the overall verdict is UNSAFE, so the executor must be
-      // told `unsafeOverride: true`.
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true))
-          .called(greaterThanOrEqualTo(1));
-      verifyNever(
-        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
-      );
-    });
+        // No connected weather device + no safety monitor + no API alert under
+        // fail-closed => the overall verdict is UNSAFE, so the executor must be
+        // told `unsafeOverride: true`.
+        verify(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+        ).called(greaterThanOrEqualTo(1));
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+        );
+      },
+    );
 
     test('ABSTAINS (pushes None) when weather safety is disabled', () async {
       // Architecture-unification 2026-06-05 (Subsystem 2 step 1): a disabled
@@ -139,8 +146,9 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
-          .called(greaterThanOrEqualTo(1));
+      verify(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null),
+      ).called(greaterThanOrEqualTo(1));
       verifyNever(
         () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
       );
@@ -149,58 +157,64 @@ void main() {
       );
     });
 
-    test('ABSTAINS (pushes None) under the failOpen no-data fail-mode',
-        () async {
-      // Permissive fail-mode means "treat missing data as safe" for the
-      // operator's UI, but the executor verdict must ABSTAIN, not assert SAFE,
-      // so the permissive policy can never gag a hardware-unsafe device.
-      final container = buildContainer(
-        safetyEnabled: true,
-        failMode: SafetyFailMode.failOpen,
-      );
-      final notifier = container.read(weatherSafetyProvider.notifier);
-      await container.read(appSettingsProvider.future);
-      // The construction-time evaluation runs before the async appSettings
-      // future resolves (failMode defaults to failClosed until then). Force a
-      // fresh evaluation now that the failOpen setting is loaded, then assert
-      // only on the post-load push.
-      clearInteractions(backend);
-      notifier.forceEvaluation();
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'ABSTAINS (pushes None) under the failOpen no-data fail-mode',
+      () async {
+        // Permissive fail-mode means "treat missing data as safe" for the
+        // operator's UI, but the executor verdict must ABSTAIN, not assert SAFE,
+        // so the permissive policy can never gag a hardware-unsafe device.
+        final container = buildContainer(
+          safetyEnabled: true,
+          failMode: SafetyFailMode.failOpen,
+        );
+        final notifier = container.read(weatherSafetyProvider.notifier);
+        await container.read(appSettingsProvider.future);
+        // The construction-time evaluation runs before the async appSettings
+        // future resolves (failMode defaults to failClosed until then). Force a
+        // fresh evaluation now that the failOpen setting is loaded, then assert
+        // only on the post-load push.
+        clearInteractions(backend);
+        notifier.forceEvaluation();
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
 
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
-          .called(greaterThanOrEqualTo(1));
-      verifyNever(
-        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
-      );
-      verifyNever(
-        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
-      );
-    });
+        verify(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null),
+        ).called(greaterThanOrEqualTo(1));
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+        );
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+        );
+      },
+    );
 
-    test('ABSTAINS (pushes None) under the warnOnly no-data fail-mode',
-        () async {
-      final container = buildContainer(
-        safetyEnabled: true,
-        failMode: SafetyFailMode.warnOnly,
-      );
-      final notifier = container.read(weatherSafetyProvider.notifier);
-      await container.read(appSettingsProvider.future);
-      clearInteractions(backend);
-      notifier.forceEvaluation();
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'ABSTAINS (pushes None) under the warnOnly no-data fail-mode',
+      () async {
+        final container = buildContainer(
+          safetyEnabled: true,
+          failMode: SafetyFailMode.warnOnly,
+        );
+        final notifier = container.read(weatherSafetyProvider.notifier);
+        await container.read(appSettingsProvider.future);
+        clearInteractions(backend);
+        notifier.forceEvaluation();
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
 
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
-          .called(greaterThanOrEqualTo(1));
-      verifyNever(
-        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
-      );
-      verifyNever(
-        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
-      );
-    });
+        verify(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null),
+        ).called(greaterThanOrEqualTo(1));
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+        );
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+        );
+      },
+    );
 
     test('ABSTAINS (pushes None) while snoozed', () async {
       // The abstain landmine, snooze variant: a snooze suppresses the operator
@@ -222,8 +236,9 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
-          .called(greaterThanOrEqualTo(1));
+      verify(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null),
+      ).called(greaterThanOrEqualTo(1));
       verifyNever(
         () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
       );

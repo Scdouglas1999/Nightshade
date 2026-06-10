@@ -277,7 +277,8 @@ class _UrlCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
+            style: NightshadeTypography.labelStrongSm
+                .copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: 8),
           Row(
@@ -329,7 +330,8 @@ class _UrlCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         'Copy',
-                        style: NightshadeTypography.labelSm.copyWith(color: colors.primary),
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.primary),
                       ),
                     ],
                   ),

@@ -61,7 +61,8 @@ class AnnotationMiniChips extends ConsumerWidget {
                 decoration: BoxDecoration(
                   // absolute: chip overlay scrim over the live image canvas
                   color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     // absolute: chip border over the live image canvas
                     color: Colors.white.withValues(alpha: 0.2),

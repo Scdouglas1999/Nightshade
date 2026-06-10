@@ -25,8 +25,8 @@ void main() {
         final c = ImmersiveChromeController()..enabled = true;
         c.onRouteChanged();
         expect(c.state, isTrue);
-        async.elapse(ImmersiveChromeController.idleTimeout +
-            const Duration(seconds: 1));
+        async.elapse(
+            ImmersiveChromeController.idleTimeout + const Duration(seconds: 1));
         expect(c.state, isFalse, reason: 'auto-hides once after idle');
         c.dispose();
       });
@@ -49,7 +49,8 @@ void main() {
         c.onRouteChanged(); // arms auto-hide
         c.show(); // user pins it visible
         async.elapse(const Duration(seconds: 60));
-        expect(c.state, isTrue, reason: 'pinned: no auto-hide after manual show');
+        expect(c.state, isTrue,
+            reason: 'pinned: no auto-hide after manual show');
         c.dispose();
       });
     });
@@ -70,7 +71,8 @@ void main() {
         c.hide();
         expect(c.state, isFalse);
         c.onRouteChanged();
-        expect(c.state, isTrue, reason: 'a new screen reveals the chrome again');
+        expect(c.state, isTrue,
+            reason: 'a new screen reveals the chrome again');
         c.dispose();
       });
     });

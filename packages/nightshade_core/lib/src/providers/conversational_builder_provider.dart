@@ -46,8 +46,9 @@ final llmProviderFactoryProvider = Provider<LlmProviderFactory>((ref) {
 /// service has a `changes` stream; we surface it through this stream
 /// provider so the Settings UI and the dialog stay in sync without
 /// manual invalidation.
-final llmAssistantSettingsProvider =
-    StreamProvider<LlmAssistantSettings>((ref) async* {
+final llmAssistantSettingsProvider = StreamProvider<LlmAssistantSettings>((
+  ref,
+) async* {
   final service = ref.watch(llmSettingsServiceProvider);
   yield await service.load();
   await for (final _ in service.changes) {
@@ -76,15 +77,15 @@ final llmAssistantConfiguredProvider = FutureProvider<bool>((ref) async {
 /// History service singleton.
 final conversationalHistoryServiceProvider =
     Provider<ConversationalHistoryService>((ref) {
-  final database = ref.watch(databaseProvider);
-  final service = ConversationalHistoryService(database);
-  ref.onDispose(service.dispose);
-  return service;
-});
+      final database = ref.watch(databaseProvider);
+      final service = ConversationalHistoryService(database);
+      ref.onDispose(service.dispose);
+      return service;
+    });
 
 /// Live history list for the Sequencer history tab.
 final conversationalHistoryProvider =
     StreamProvider<List<ConversationalHistoryEntry>>((ref) {
-  final service = ref.watch(conversationalHistoryServiceProvider);
-  return service.watch();
-});
+      final service = ref.watch(conversationalHistoryServiceProvider);
+      return service.watch();
+    });

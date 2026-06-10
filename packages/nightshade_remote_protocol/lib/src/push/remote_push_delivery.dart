@@ -79,10 +79,7 @@ Map<String, Object?> buildFcmMessage(
   PushNotificationFrame frame,
   String deviceToken,
 ) {
-  final data = <String, String>{
-    'id': frame.id,
-    'severity': frame.severity,
-  };
+  final data = <String, String>{'id': frame.id, 'severity': frame.severity};
   frame.data.forEach((k, v) {
     if (v != null) data[k] = v.toString();
   });
@@ -115,10 +112,7 @@ Map<String, Object?> buildFcmMessage(
 Map<String, Object?> buildApnsPayload(PushNotificationFrame frame) {
   final critical = frame.severity == 'critical';
   final aps = <String, Object?>{
-    'alert': <String, Object?>{
-      'title': frame.title,
-      'body': frame.body,
-    },
+    'alert': <String, Object?>{'title': frame.title, 'body': frame.body},
     if (critical)
       'sound': <String, Object?>{
         'critical': 1,
@@ -257,8 +251,8 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
     required this.account,
     required this.store,
     http.Client? httpClient,
-  })  : _http = httpClient ?? http.Client(),
-        _ownsClient = httpClient == null;
+  }) : _http = httpClient ?? http.Client(),
+       _ownsClient = httpClient == null;
 
   /// Construct from a [FcmPushConfig] by reading the service-account JSON.
   factory FcmRemotePushDelivery.fromConfig(
@@ -275,8 +269,8 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
   }
 
   Uri get _sendUri => Uri.parse(
-        'https://fcm.googleapis.com/v1/projects/${account.projectId}/messages:send',
-      );
+    'https://fcm.googleapis.com/v1/projects/${account.projectId}/messages:send',
+  );
 
   Future<String> _ensureAccessToken({DateTime? now}) async {
     final clock = (now ?? DateTime.now()).toUtc();
@@ -410,8 +404,7 @@ class SecureSocketApnsTransport implements ApnsHttp2Transport {
       Header.ascii(':scheme', 'https'),
       Header.ascii(':authority', host),
       Header.ascii(':path', '/3/device/$deviceToken'),
-      for (final entry in headers.entries)
-        Header.ascii(entry.key, entry.value),
+      for (final entry in headers.entries) Header.ascii(entry.key, entry.value),
     ];
     final stream = conn.makeRequest(h2Headers);
     stream.outgoingMessages.add(DataStreamMessage(body));
@@ -437,11 +430,15 @@ class SecureSocketApnsTransport implements ApnsHttp2Transport {
     if (conn != null) {
       try {
         await conn.finish();
-      } catch (_) {/* best effort */}
+      } catch (_) {
+        /* best effort */
+      }
     }
     try {
       await _socket?.close();
-    } catch (_) {/* best effort */}
+    } catch (_) {
+      /* best effort */
+    }
     _socket = null;
   }
 }
@@ -471,12 +468,13 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
     required this.privateKeyPem,
     required this.store,
     ApnsHttp2Transport? transport,
-  }) : _transport = transport ??
-            SecureSocketApnsTransport(
-              host: config.useSandbox
-                  ? 'api.sandbox.push.apple.com'
-                  : 'api.push.apple.com',
-            );
+  }) : _transport =
+           transport ??
+           SecureSocketApnsTransport(
+             host: config.useSandbox
+                 ? 'api.sandbox.push.apple.com'
+                 : 'api.push.apple.com',
+           );
 
   /// Construct from an [ApnsPushConfig] by reading the `.p8` key file.
   factory ApnsRemotePushDelivery.fromConfig(
@@ -507,10 +505,7 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
     final jwt = signEs256Jwt(
       privateKeyPem: privateKeyPem,
       keyId: config.keyId,
-      claims: <String, Object?>{
-        'iss': config.teamId,
-        'iat': iat,
-      },
+      claims: <String, Object?>{'iss': config.teamId, 'iat': iat},
     );
     _jwt = jwt;
     _jwtIssuedAt = clock;

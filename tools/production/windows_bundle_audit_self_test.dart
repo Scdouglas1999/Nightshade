@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/windows_bundle_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/windows_bundle_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Windows bundle audit not found: ${script.path}');
   }

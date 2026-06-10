@@ -25,18 +25,20 @@ class TargetSchedulerNoChildrenRule implements SequenceValidator {
       if (node is! TargetSchedulerNode) continue;
       if (!node.isEnabled) continue;
       if (node.childIds.isEmpty) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.structure,
-          title: 'Target Scheduler has no targets',
-          description:
-              'Target Scheduler "${node.name}" has no child targets. At '
-              'runtime the scheduler will return Skipped immediately.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Drag at least one TargetHeader under the scheduler so it has '
-              'something to choose from.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Target Scheduler has no targets',
+            description:
+                'Target Scheduler "${node.name}" has no child targets. At '
+                'runtime the scheduler will return Skipped immediately.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Drag at least one TargetHeader under the scheduler so it has '
+                'something to choose from.',
+          ),
+        );
       }
     }
     return issues;
@@ -63,20 +65,23 @@ class TargetSchedulerNonTargetChildRule implements SequenceValidator {
         final child = sequence.nodes[childId];
         if (child == null) continue;
         if (child is! TargetHeaderNode) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.structure,
-            title: 'Target Scheduler has a non-target child',
-            description: 'Target Scheduler "${node.name}" contains a '
-                '"${child.nodeType}" child ("${child.name}"). The scheduler '
-                'requires every child to be a Target Header — the Rust '
-                'executor will refuse to run an invalid tree.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Remove the child or move it outside the scheduler. To group '
-                'imaging steps under a target, put them inside the '
-                'TargetHeader instead.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Target Scheduler has a non-target child',
+              description:
+                  'Target Scheduler "${node.name}" contains a '
+                  '"${child.nodeType}" child ("${child.name}"). The scheduler '
+                  'requires every child to be a Target Header — the Rust '
+                  'executor will refuse to run an invalid tree.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Remove the child or move it outside the scheduler. To group '
+                  'imaging steps under a target, put them inside the '
+                  'TargetHeader instead.',
+            ),
+          );
         }
       }
     }
@@ -101,20 +106,22 @@ class TargetSchedulerWeightsRule implements SequenceValidator {
       if (node is! TargetSchedulerNode) continue;
       if (!node.isEnabled) continue;
       if (!node.weightsNormalised) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.structure,
-          title: 'Target Scheduler weights are not normalised',
-          description:
-              'Target Scheduler "${node.name}" has weights that sum to '
-              '${node.weightsSum.toStringAsFixed(2)} (expected ~1.00). The '
-              'scheduler still works, but the ranking may not match the '
-              'relative importance you intended.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Press the "Normalise" button in the properties panel, or '
-              'adjust the five weight sliders so they sum to 1.0.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.structure,
+            title: 'Target Scheduler weights are not normalised',
+            description:
+                'Target Scheduler "${node.name}" has weights that sum to '
+                '${node.weightsSum.toStringAsFixed(2)} (expected ~1.00). The '
+                'scheduler still works, but the ranking may not match the '
+                'relative importance you intended.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Press the "Normalise" button in the properties panel, or '
+                'adjust the five weight sliders so they sum to 1.0.',
+          ),
+        );
       }
     }
     return issues;

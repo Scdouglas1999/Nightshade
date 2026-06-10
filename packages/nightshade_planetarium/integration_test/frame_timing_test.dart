@@ -27,8 +27,9 @@ import '../benchmark/src/stress_fixture.dart';
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('planetarium real FrameTiming over the scripted timeline',
-      (tester) async {
+  testWidgets('planetarium real FrameTiming over the scripted timeline', (
+    tester,
+  ) async {
     final fixture = StressFixture.load();
     final timeline = buildBenchmarkTimeline(
       anchorRaHours: kAnchorRaHours,
@@ -61,8 +62,11 @@ void main() {
     // Let trailing FrameTiming callbacks flush.
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(timings, isNotEmpty,
-        reason: 'no FrameTiming captured — is this running on a real display?');
+    expect(
+      timings,
+      isNotEmpty,
+      reason: 'no FrameTiming captured — is this running on a real display?',
+    );
 
     double p(List<double> xs, double q) {
       final s = [...xs]..sort();
@@ -71,18 +75,20 @@ void main() {
     }
 
     final buildMs = [
-      for (final t in timings) t.buildDuration.inMicroseconds / 1000.0
+      for (final t in timings) t.buildDuration.inMicroseconds / 1000.0,
     ];
     final rasterMs = [
-      for (final t in timings) t.rasterDuration.inMicroseconds / 1000.0
+      for (final t in timings) t.rasterDuration.inMicroseconds / 1000.0,
     ];
 
     // ignore: avoid_print
-    print('FrameTiming over ${timings.length} frames:\n'
-        '  build  p50=${p(buildMs, 0.50).toStringAsFixed(2)}ms '
-        'p95=${p(buildMs, 0.95).toStringAsFixed(2)}ms\n'
-        '  raster p50=${p(rasterMs, 0.50).toStringAsFixed(2)}ms '
-        'p95=${p(rasterMs, 0.95).toStringAsFixed(2)}ms\n'
-        '  (60fps budget 16.7ms, 120fps budget 8.3ms)');
+    print(
+      'FrameTiming over ${timings.length} frames:\n'
+      '  build  p50=${p(buildMs, 0.50).toStringAsFixed(2)}ms '
+      'p95=${p(buildMs, 0.95).toStringAsFixed(2)}ms\n'
+      '  raster p50=${p(rasterMs, 0.50).toStringAsFixed(2)}ms '
+      'p95=${p(rasterMs, 0.95).toStringAsFixed(2)}ms\n'
+      '  (60fps budget 16.7ms, 120fps budget 8.3ms)',
+    );
   });
 }

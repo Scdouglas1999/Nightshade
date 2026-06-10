@@ -67,27 +67,28 @@ void main(List<String> args) async {
     );
     await _verifyHeadlessPreconditions(client, baseUri);
 
-    await _runAdb(adb, ['-s', deviceId, 'install', '-r', apk.absolute.path],
-        timeout: const Duration(minutes: 5));
+    await _runAdb(adb, [
+      '-s',
+      deviceId,
+      'install',
+      '-r',
+      apk.absolute.path,
+    ], timeout: const Duration(minutes: 5));
     await _runAdb(adb, ['-s', deviceId, 'logcat', '-c']);
     await _runAdb(adb, ['-s', deviceId, 'shell', 'pm', 'clear', _packageName]);
     // Android 13+ asks for notification permission on first launch. Grant it
     // in the smoke environment so the connection-screen automation is not
     // obscured by a platform dialog. Older Android versions may reject the
     // grant because the runtime permission does not exist there.
-    await _runAdb(
-      adb,
-      [
-        '-s',
-        deviceId,
-        'shell',
-        'pm',
-        'grant',
-        _packageName,
-        'android.permission.POST_NOTIFICATIONS',
-      ],
-      allowFailure: true,
-    );
+    await _runAdb(adb, [
+      '-s',
+      deviceId,
+      'shell',
+      'pm',
+      'grant',
+      _packageName,
+      'android.permission.POST_NOTIFICATIONS',
+    ], allowFailure: true);
     await _runAdb(adb, [
       '-s',
       deviceId,
@@ -102,7 +103,10 @@ void main(List<String> args) async {
     await _tapByDescriptionIfPresent(adb, deviceId, 'Close dialog');
     await Future<void>.delayed(const Duration(seconds: 1));
     await _dumpUi(
-        adb, deviceId, '$_evidenceDir/mobile-remote-window-initial.xml');
+      adb,
+      deviceId,
+      '$_evidenceDir/mobile-remote-window-initial.xml',
+    );
     await _tapByDescriptionWhenAvailable(
       adb,
       deviceId,
@@ -111,7 +115,10 @@ void main(List<String> args) async {
     );
     await Future<void>.delayed(const Duration(seconds: 1));
     await _dumpUi(
-        adb, deviceId, '$_evidenceDir/mobile-remote-window-manual.xml');
+      adb,
+      deviceId,
+      '$_evidenceDir/mobile-remote-window-manual.xml',
+    );
     await _tapEditText(adb, deviceId, 0);
     await _runAdb(adb, [
       '-s',
@@ -122,14 +129,7 @@ void main(List<String> args) async {
       '10.0.2.2:$port',
     ]);
     await _tapEditText(adb, deviceId, 1);
-    await _runAdb(adb, [
-      '-s',
-      deviceId,
-      'shell',
-      'input',
-      'text',
-      _adminToken,
-    ]);
+    await _runAdb(adb, ['-s', deviceId, 'shell', 'input', 'text', _adminToken]);
     await _runAdb(adb, ['-s', deviceId, 'shell', 'input', 'keyevent', '4']);
     await Future<void>.delayed(const Duration(seconds: 1));
     await _tapByDescription(adb, deviceId, 'Connect');
@@ -155,8 +155,9 @@ void main(List<String> args) async {
 
     final collaborationState = await _waitForMobileViewer(client, baseUri);
     final logcat = await _readAdbLogcat(adb, deviceId);
-    await File('$_evidenceDir/android-emulator-remote-smoke-log.txt')
-        .writeAsString(_renderMobileEvidence(collaborationState, logcat));
+    await File(
+      '$_evidenceDir/android-emulator-remote-smoke-log.txt',
+    ).writeAsString(_renderMobileEvidence(collaborationState, logcat));
     _assertLogcatClean(logcat);
 
     if (options.verifyReconnect) {
@@ -207,17 +208,13 @@ Future<Process> _startHeadlessProcess(
   int port,
   _ProcessLog processLog,
 ) async {
-  final process = await Process.start(
-    exe.absolute.path,
-    [
-      '--headless',
-      '--port=$port',
-      '--auth-token=$_adminToken',
-      '--view-token=$_viewToken',
-      '--control-token=$_controlToken',
-    ],
-    workingDirectory: exe.parent.absolute.path,
-  );
+  final process = await Process.start(exe.absolute.path, [
+    '--headless',
+    '--port=$port',
+    '--auth-token=$_adminToken',
+    '--view-token=$_viewToken',
+    '--control-token=$_controlToken',
+  ], workingDirectory: exe.parent.absolute.path);
   processLog.currentProcess = process;
   process.stdout
       .transform(utf8.decoder)
@@ -257,8 +254,9 @@ Future<void> _verifyMobileReconnect({
 
   final collaborationState = await _waitForMobileViewer(client, baseUri);
   final logcat = await _readAdbLogcat(adb, deviceId);
-  await File('$_evidenceDir/android-emulator-remote-reconnect-smoke-log.txt')
-      .writeAsString(_renderMobileEvidence(collaborationState, logcat));
+  await File(
+    '$_evidenceDir/android-emulator-remote-reconnect-smoke-log.txt',
+  ).writeAsString(_renderMobileEvidence(collaborationState, logcat));
   _assertLogcatClean(logcat);
 }
 
@@ -303,10 +301,13 @@ Future<Process> _startEmulator(String avdName) async {
     stderr.writeln('emulator not found on PATH.');
     exit(2);
   }
-  final process = await Process.start(
-    emulator,
-    ['-avd', avdName, '-no-window', '-no-audio', '-no-snapshot-save'],
-  );
+  final process = await Process.start(emulator, [
+    '-avd',
+    avdName,
+    '-no-window',
+    '-no-audio',
+    '-no-snapshot-save',
+  ]);
   unawaited(process.stdout.drain<void>());
   unawaited(process.stderr.drain<void>());
   return process;
@@ -382,11 +383,13 @@ Future<String> _waitForDevice(String adb) async {
 Future<void> _waitForBoot(String adb, String deviceId) async {
   final deadline = DateTime.now().add(const Duration(minutes: 4));
   while (DateTime.now().isBefore(deadline)) {
-    final result = await _runAdb(
-      adb,
-      ['-s', deviceId, 'shell', 'getprop', 'sys.boot_completed'],
-      allowFailure: true,
-    );
+    final result = await _runAdb(adb, [
+      '-s',
+      deviceId,
+      'shell',
+      'getprop',
+      'sys.boot_completed',
+    ], allowFailure: true);
     if (result.stdout.trim() == '1') {
       return;
     }
@@ -481,8 +484,9 @@ Future<bool> _waitForConnectedUi(String adb, String deviceId) async {
     }
     await Future<void>.delayed(const Duration(seconds: 1));
   }
-  await File('$_evidenceDir/mobile-remote-window-last.xml')
-      .writeAsString(lastXml);
+  await File(
+    '$_evidenceDir/mobile-remote-window-last.xml',
+  ).writeAsString(lastXml);
   return false;
 }
 
@@ -515,11 +519,13 @@ Future<void> _dumpUi(String adb, String deviceId, String outputPath) async {
 }
 
 Future<void> _screencap(String adb, String deviceId, String outputPath) async {
-  final result = await Process.run(
-    adb,
-    ['-s', deviceId, 'exec-out', 'screencap', '-p'],
-    stdoutEncoding: null,
-  ).timeout(const Duration(seconds: 30));
+  final result = await Process.run(adb, [
+    '-s',
+    deviceId,
+    'exec-out',
+    'screencap',
+    '-p',
+  ], stdoutEncoding: null).timeout(const Duration(seconds: 30));
   if (result.exitCode != 0) {
     throw StateError('adb screencap failed: ${result.stderr}');
   }
@@ -591,11 +597,12 @@ String _renderMobileEvidence(String collaborationState, String logcat) {
 }
 
 Future<String> _readAdbLogcat(String adb, String deviceId) async {
-  final result = await _runAdb(
-    adb,
-    ['-s', deviceId, 'logcat', '-d'],
-    timeout: const Duration(seconds: 30),
-  );
+  final result = await _runAdb(adb, [
+    '-s',
+    deviceId,
+    'logcat',
+    '-d',
+  ], timeout: const Duration(seconds: 30));
   return result.stdout;
 }
 
@@ -812,10 +819,12 @@ class _ExitTracker {
   int? _exitCode;
 
   _ExitTracker(Process process) {
-    unawaited(process.exitCode.then((code) {
-      _exited = true;
-      _exitCode = code;
-    }));
+    unawaited(
+      process.exitCode.then((code) {
+        _exited = true;
+        _exitCode = code;
+      }),
+    );
   }
 
   bool hasExited() => _exited;

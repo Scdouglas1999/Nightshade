@@ -28,10 +28,11 @@ import 'logging_service.dart';
 /// Function signature for converting a FITS path to JPEG bytes. The
 /// default production binding calls `bridge_api.apiGenerateFitsThumbnail`;
 /// tests inject a deterministic stub so they don't need the Rust runtime.
-typedef FitsThumbnailBytesGenerator = Future<Uint8List> Function({
-  required String filePath,
-  required int maxSize,
-});
+typedef FitsThumbnailBytesGenerator =
+    Future<Uint8List> Function({
+      required String filePath,
+      required int maxSize,
+    });
 
 /// Default sidecar max-edge in pixels. Mirrors the value baked into the
 /// existing on-demand path (`ffi_backend.dart::getImageThumbnail` calls
@@ -99,9 +100,9 @@ class ThumbnailSidecarService {
     FitsThumbnailBytesGenerator? generator,
     LoggingService? logger,
     int maxSize = defaultSidecarMaxSize,
-  })  : _generate = generator ?? defaultGenerateFitsThumbnail,
-        _logger = logger,
-        _maxSize = maxSize;
+  }) : _generate = generator ?? defaultGenerateFitsThumbnail,
+       _logger = logger,
+       _maxSize = maxSize;
 
   /// Generate JPEG bytes for [fitsPath] and write them to
   /// `{fitsPath}.thumb.jpg`. Idempotent — overwrites any existing
@@ -134,10 +135,7 @@ class ThumbnailSidecarService {
     }
 
     try {
-      final bytes = await _generate(
-        filePath: fitsPath,
-        maxSize: _maxSize,
-      );
+      final bytes = await _generate(filePath: fitsPath, maxSize: _maxSize);
       final sidecarPath = sidecarPathForFits(fitsPath);
       final sidecar = File(sidecarPath);
       // `flush: true` so we don't end up with a half-written sidecar if
@@ -181,8 +179,7 @@ class ThumbnailSidecarService {
           source: 'ThumbnailSidecarService',
         );
       }
-    } else if (result is SidecarSkipped &&
-        result.reason == 'missing_source') {
+    } else if (result is SidecarSkipped && result.reason == 'missing_source') {
       // Clear any stale stamp so the GET handler doesn't keep probing
       // a path that will never resolve.
       try {
@@ -203,10 +200,12 @@ class ThumbnailSidecarService {
     required String fitsPath,
     required ImagesDao imagesDao,
   }) {
-    unawaited(writeSidecarForRow(
-      imageId: imageId,
-      fitsPath: fitsPath,
-      imagesDao: imagesDao,
-    ));
+    unawaited(
+      writeSidecarForRow(
+        imageId: imageId,
+        fitsPath: fitsPath,
+        imagesDao: imagesDao,
+      ),
+    );
   }
 }

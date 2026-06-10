@@ -27,11 +27,11 @@ class AavsoExportService {
     required SettingsDao settingsDao,
     required ImagesDao imagesDao,
     Future<Directory> Function()? documentsDirectoryProvider,
-  })  : _scienceDao = scienceDao,
-        _settingsDao = settingsDao,
-        _imagesDao = imagesDao,
-        _documentsDirectoryProvider =
-            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+  }) : _scienceDao = scienceDao,
+       _settingsDao = settingsDao,
+       _imagesDao = imagesDao,
+       _documentsDirectoryProvider =
+           documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
 
   /// Export photometry data for a session to AAVSO Extended Format.
   ///
@@ -50,8 +50,9 @@ class AavsoExportService {
     String? filterBand,
     String? chartId,
   }) async {
-    final observerCode =
-        await _settingsDao.getSetting('science.aavso.observer_code');
+    final observerCode = await _settingsDao.getSetting(
+      'science.aavso.observer_code',
+    );
     if (observerCode == null || observerCode.trim().isEmpty) {
       throw const AavsoExportError(
         'AAVSO observer code is not set. '
@@ -153,9 +154,11 @@ class AavsoExportService {
       String cmag = 'na';
       if (compStars.isNotEmpty) {
         final compForFrame = measurements
-            .where((row) =>
-                row.role == 'comparison' &&
-                row.capturedImageId == m.capturedImageId)
+            .where(
+              (row) =>
+                  row.role == 'comparison' &&
+                  row.capturedImageId == m.capturedImageId,
+            )
             .toList();
         if (compForFrame.isNotEmpty &&
             compForFrame.first.differentialMagnitude != null) {
@@ -167,8 +170,11 @@ class AavsoExportService {
       String kmag = 'na';
       if (checkStars.isNotEmpty) {
         final checkForFrame = measurements
-            .where((row) =>
-                row.role == 'check' && row.capturedImageId == m.capturedImageId)
+            .where(
+              (row) =>
+                  row.role == 'check' &&
+                  row.capturedImageId == m.capturedImageId,
+            )
             .toList();
         if (checkForFrame.isNotEmpty &&
             checkForFrame.first.differentialMagnitude != null) {
@@ -231,8 +237,10 @@ class AavsoExportService {
     final content = buffer.toString();
 
     // Validate we produced at least one data line (header is 6 lines)
-    final lineCount =
-        content.split('\n').where((l) => l.trim().isNotEmpty).length;
+    final lineCount = content
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .length;
     if (lineCount <= 6) {
       throw const AavsoExportError(
         'No exportable measurements found. All target measurements lack '
@@ -242,10 +250,13 @@ class AavsoExportService {
 
     // Write to file
     final directory = await _getExportDirectory();
-    final sanitizedName =
-        targetStarName.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(' ', '_');
-    final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final sanitizedName = targetStarName
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .replaceAll(' ', '_');
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')[0];
     final fileName = 'AAVSO_${sanitizedName}_$timestamp.txt';
     final filePath = path.join(directory.path, fileName);
 
@@ -274,7 +285,8 @@ class AavsoExportService {
     final adjustedY = y + 4800 - a;
     final adjustedM = m + 12 * a - 3;
 
-    final jdn = d +
+    final jdn =
+        d +
         (153 * adjustedM + 2) ~/ 5 +
         365 * adjustedY +
         adjustedY ~/ 4 -

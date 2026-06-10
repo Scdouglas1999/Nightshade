@@ -13,10 +13,10 @@ enum SurveySource {
   sdss('SDSS', 'SDSS DR12'),
   wise('WISE', 'WISE 12'),
   galex('GALEX', 'GALEX Near UV');
-  
+
   final String displayName;
   final String surveyId;
-  
+
   const SurveySource(this.displayName, this.surveyId);
 }
 
@@ -24,25 +24,25 @@ enum SurveySource {
 class SurveyImageRequest {
   /// Right Ascension in degrees
   final double raDeg;
-  
+
   /// Declination in degrees
   final double decDeg;
-  
+
   /// Field of view width in degrees
   final double fovWidth;
-  
+
   /// Field of view height in degrees
   final double fovHeight;
-  
+
   /// Image pixel width
   final int pixelWidth;
-  
+
   /// Image pixel height
   final int pixelHeight;
-  
+
   /// Survey source
   final SurveySource source;
-  
+
   const SurveyImageRequest({
     required this.raDeg,
     required this.decDeg,
@@ -52,7 +52,7 @@ class SurveyImageRequest {
     this.pixelHeight = 1000,
     this.source = SurveySource.dss2Red,
   });
-  
+
   /// Generate SkyView API URL
   String get skyViewUrl {
     // STScI SkyView API
@@ -67,15 +67,18 @@ class SurveyImageRequest {
       'Coordinates': 'J2000',
       'Sampler': 'LI',
     };
-    
-    final queryString = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+
+    final queryString = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
     return '$baseUrl?$queryString';
   }
-  
+
   /// Generate Aladin Lite HiPS URL (alternative)
   String get aladinUrl {
     // CDS Aladin HiPS
-    final baseUrl = 'https://alasky.cds.unistra.fr/hips-image-services/hips2fits';
+    final baseUrl =
+        'https://alasky.cds.unistra.fr/hips-image-services/hips2fits';
     final params = {
       'ra': raDeg.toStringAsFixed(6),
       'dec': decDeg.toStringAsFixed(6),
@@ -85,11 +88,13 @@ class SurveyImageRequest {
       'format': 'jpg',
       'hips': _getHipsId(source),
     };
-    
-    final queryString = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+
+    final queryString = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
     return '$baseUrl?$queryString';
   }
-  
+
   static String _getHipsId(SurveySource source) {
     switch (source) {
       case SurveySource.dss2Red:
@@ -125,7 +130,7 @@ class SurveyImage {
   final double fovHeight;
   final SurveySource source;
   final DateTime fetchedAt;
-  
+
   SurveyImage({
     required this.bytes,
     required this.width,
@@ -137,7 +142,7 @@ class SurveyImage {
     required this.source,
     DateTime? fetchedAt,
   }) : fetchedAt = fetchedAt ?? DateTime.now();
-  
+
   /// Decode the image bytes to a Flutter Image
   Future<ui.Image?> decodeImage() async {
     final completer = Completer<ui.Image?>();
@@ -152,40 +157,41 @@ class SurveyImage {
 class SurveyImageService {
   final Map<String, SurveyImage> _cache = {};
   static const int _maxCacheSize = 50;
-  
+
   /// Generate a cache key for a request
   String _cacheKey(SurveyImageRequest request) {
     return '${request.source.name}_${request.raDeg.toStringAsFixed(4)}_'
-           '${request.decDeg.toStringAsFixed(4)}_${request.fovWidth.toStringAsFixed(4)}';
+        '${request.decDeg.toStringAsFixed(4)}_${request.fovWidth.toStringAsFixed(4)}';
   }
-  
+
   /// Check if an image is cached
   bool isCached(SurveyImageRequest request) {
     return _cache.containsKey(_cacheKey(request));
   }
-  
+
   /// Get cached image
   SurveyImage? getCached(SurveyImageRequest request) {
     return _cache[_cacheKey(request)];
   }
-  
+
   /// Cache an image
   void cacheImage(SurveyImageRequest request, SurveyImage image) {
     // Prune cache if needed
     while (_cache.length >= _maxCacheSize) {
-      final oldest = _cache.entries
-          .reduce((a, b) => a.value.fetchedAt.isBefore(b.value.fetchedAt) ? a : b);
+      final oldest = _cache.entries.reduce(
+        (a, b) => a.value.fetchedAt.isBefore(b.value.fetchedAt) ? a : b,
+      );
       _cache.remove(oldest.key);
     }
-    
+
     _cache[_cacheKey(request)] = image;
   }
-  
+
   /// Clear the cache
   void clearCache() {
     _cache.clear();
   }
-  
+
   /// Get available survey sources
   static List<SurveySource> get availableSources => SurveySource.values;
 }
@@ -193,11 +199,11 @@ class SurveyImageService {
 /// FOV Calculator for equipment
 class FOVCalculator {
   /// Calculate field of view for a given camera and telescope
-  /// 
+  ///
   /// [sensorWidthMm] - Camera sensor width in mm
   /// [sensorHeightMm] - Camera sensor height in mm
   /// [focalLengthMm] - Telescope focal length in mm
-  /// 
+  ///
   /// Returns (fovWidthDeg, fovHeightDeg)
   static (double, double) calculateFOV({
     required double sensorWidthMm,
@@ -207,19 +213,19 @@ class FOVCalculator {
     // FOV = 2 * atan(sensor_size / (2 * focal_length))
     final fovWidthRad = 2 * _atan(sensorWidthMm / (2 * focalLengthMm));
     final fovHeightRad = 2 * _atan(sensorHeightMm / (2 * focalLengthMm));
-    
+
     // Convert to degrees
     final fovWidthDeg = fovWidthRad * 180 / 3.14159265359;
     final fovHeightDeg = fovHeightRad * 180 / 3.14159265359;
-    
+
     return (fovWidthDeg, fovHeightDeg);
   }
-  
+
   /// Calculate image scale (arcseconds per pixel)
-  /// 
+  ///
   /// [pixelSizeMicrons] - Camera pixel size in microns
   /// [focalLengthMm] - Telescope focal length in mm
-  /// 
+  ///
   /// Returns arcseconds per pixel
   static double calculateImageScale({
     required double pixelSizeMicrons,
@@ -230,9 +236,9 @@ class FOVCalculator {
     final pixelSizeMm = pixelSizeMicrons / 1000;
     return (pixelSizeMm / focalLengthMm) * 206265;
   }
-  
+
   /// Calculate effective focal length with reducer/barlow
-  /// 
+  ///
   /// [focalLengthMm] - Base telescope focal length
   /// [multiplier] - Reducer (<1) or Barlow (>1) multiplier
   static double effectiveFocalLength({
@@ -241,9 +247,9 @@ class FOVCalculator {
   }) {
     return focalLengthMm * multiplier;
   }
-  
+
   /// Calculate focal ratio
-  /// 
+  ///
   /// [focalLengthMm] - Focal length in mm
   /// [apertureMm] - Aperture diameter in mm
   static double focalRatio({
@@ -252,7 +258,7 @@ class FOVCalculator {
   }) {
     return focalLengthMm / apertureMm;
   }
-  
+
   /// Check if equipment is well-matched (image scale between 1-3 arcsec/pixel for most DSO imaging)
   static String evaluateSampling({
     required double pixelSizeMicrons,
@@ -263,10 +269,10 @@ class FOVCalculator {
       pixelSizeMicrons: pixelSizeMicrons,
       focalLengthMm: focalLengthMm,
     );
-    
+
     // Nyquist sampling: optimal is ~2-3 pixels per FWHM
     final samplingRatio = typicalSeeingArcsec / imageScale;
-    
+
     if (samplingRatio < 1.5) {
       return 'Undersampled: Consider longer focal length or smaller pixels';
     } else if (samplingRatio > 4) {
@@ -279,7 +285,7 @@ class FOVCalculator {
       return 'Well-sampled for typical conditions';
     }
   }
-  
+
   static double _atan(double x) {
     // Simple atan implementation
     if (x.abs() < 1) {
@@ -290,11 +296,14 @@ class FOVCalculator {
       return sign * (3.14159265359 / 2 - _atanSmall(1 / x.abs()));
     }
   }
-  
+
   static double _atanSmall(double x) {
     // Taylor series for |x| < 1
     final x2 = x * x;
-    return x * (1 - x2 * (1/3 - x2 * (1/5 - x2 * (1/7 - x2 * (1/9 - x2/11)))));
+    return x *
+        (1 -
+            x2 *
+                (1 / 3 - x2 * (1 / 5 - x2 * (1 / 7 - x2 * (1 / 9 - x2 / 11)))));
   }
 }
 
@@ -306,7 +315,7 @@ class CameraSensorSpecs {
   final int pixelsX;
   final int pixelsY;
   final double pixelSizeMicrons;
-  
+
   const CameraSensorSpecs({
     required this.name,
     required this.widthMm,
@@ -315,7 +324,7 @@ class CameraSensorSpecs {
     required this.pixelsY,
     required this.pixelSizeMicrons,
   });
-  
+
   /// Full Frame (36x24mm)
   static const fullFrame = CameraSensorSpecs(
     name: 'Full Frame',
@@ -325,7 +334,7 @@ class CameraSensorSpecs {
     pixelsY: 4000,
     pixelSizeMicrons: 6.0,
   );
-  
+
   /// APS-C (23.5x15.6mm)
   static const apsC = CameraSensorSpecs(
     name: 'APS-C',
@@ -335,7 +344,7 @@ class CameraSensorSpecs {
     pixelsY: 4000,
     pixelSizeMicrons: 3.9,
   );
-  
+
   /// Micro Four Thirds (17.3x13mm)
   static const microFourThirds = CameraSensorSpecs(
     name: 'Micro Four Thirds',
@@ -345,7 +354,7 @@ class CameraSensorSpecs {
     pixelsY: 3888,
     pixelSizeMicrons: 3.3,
   );
-  
+
   /// ZWO ASI2600MM Pro
   static const asi2600mm = CameraSensorSpecs(
     name: 'ZWO ASI2600MM Pro',
@@ -355,7 +364,7 @@ class CameraSensorSpecs {
     pixelsY: 4176,
     pixelSizeMicrons: 3.76,
   );
-  
+
   /// ZWO ASI294MC Pro
   static const asi294mc = CameraSensorSpecs(
     name: 'ZWO ASI294MC Pro',
@@ -365,7 +374,7 @@ class CameraSensorSpecs {
     pixelsY: 2822,
     pixelSizeMicrons: 4.63,
   );
-  
+
   /// ZWO ASI533MC Pro
   static const asi533mc = CameraSensorSpecs(
     name: 'ZWO ASI533MC Pro',
@@ -375,7 +384,7 @@ class CameraSensorSpecs {
     pixelsY: 3008,
     pixelSizeMicrons: 3.76,
   );
-  
+
   /// ZWO ASI183MM Pro
   static const asi183mm = CameraSensorSpecs(
     name: 'ZWO ASI183MM Pro',
@@ -385,7 +394,7 @@ class CameraSensorSpecs {
     pixelsY: 3672,
     pixelSizeMicrons: 2.4,
   );
-  
+
   static List<CameraSensorSpecs> get commonCameras => [
     fullFrame,
     apsC,
@@ -402,36 +411,88 @@ class TelescopeSpecs {
   final String name;
   final double focalLengthMm;
   final double apertureMm;
-  
+
   const TelescopeSpecs({
     required this.name,
     required this.focalLengthMm,
     required this.apertureMm,
   });
-  
+
   double get focalRatio => focalLengthMm / apertureMm;
-  
+
   // Common refractors
-  static const ed80 = TelescopeSpecs(name: 'ED80', focalLengthMm: 480, apertureMm: 80);
-  static const ed102 = TelescopeSpecs(name: 'ED102', focalLengthMm: 714, apertureMm: 102);
-  static const fsq106 = TelescopeSpecs(name: 'FSQ-106', focalLengthMm: 530, apertureMm: 106);
-  static const toa130 = TelescopeSpecs(name: 'TOA-130', focalLengthMm: 1000, apertureMm: 130);
-  
+  static const ed80 = TelescopeSpecs(
+    name: 'ED80',
+    focalLengthMm: 480,
+    apertureMm: 80,
+  );
+  static const ed102 = TelescopeSpecs(
+    name: 'ED102',
+    focalLengthMm: 714,
+    apertureMm: 102,
+  );
+  static const fsq106 = TelescopeSpecs(
+    name: 'FSQ-106',
+    focalLengthMm: 530,
+    apertureMm: 106,
+  );
+  static const toa130 = TelescopeSpecs(
+    name: 'TOA-130',
+    focalLengthMm: 1000,
+    apertureMm: 130,
+  );
+
   // Common reflectors
-  static const newton8 = TelescopeSpecs(name: '8" f/4 Newt', focalLengthMm: 800, apertureMm: 203);
-  static const newton10 = TelescopeSpecs(name: '10" f/4 Newt', focalLengthMm: 1000, apertureMm: 254);
-  static const rc8 = TelescopeSpecs(name: 'RC8', focalLengthMm: 1624, apertureMm: 203);
-  static const rc10 = TelescopeSpecs(name: 'RC10', focalLengthMm: 2000, apertureMm: 254);
-  
+  static const newton8 = TelescopeSpecs(
+    name: '8" f/4 Newt',
+    focalLengthMm: 800,
+    apertureMm: 203,
+  );
+  static const newton10 = TelescopeSpecs(
+    name: '10" f/4 Newt',
+    focalLengthMm: 1000,
+    apertureMm: 254,
+  );
+  static const rc8 = TelescopeSpecs(
+    name: 'RC8',
+    focalLengthMm: 1624,
+    apertureMm: 203,
+  );
+  static const rc10 = TelescopeSpecs(
+    name: 'RC10',
+    focalLengthMm: 2000,
+    apertureMm: 254,
+  );
+
   // Common SCTs
-  static const sct8 = TelescopeSpecs(name: '8" SCT', focalLengthMm: 2032, apertureMm: 203);
-  static const sct11 = TelescopeSpecs(name: '11" SCT', focalLengthMm: 2800, apertureMm: 280);
-  static const sct14 = TelescopeSpecs(name: '14" SCT', focalLengthMm: 3910, apertureMm: 356);
-  
+  static const sct8 = TelescopeSpecs(
+    name: '8" SCT',
+    focalLengthMm: 2032,
+    apertureMm: 203,
+  );
+  static const sct11 = TelescopeSpecs(
+    name: '11" SCT',
+    focalLengthMm: 2800,
+    apertureMm: 280,
+  );
+  static const sct14 = TelescopeSpecs(
+    name: '14" SCT',
+    focalLengthMm: 3910,
+    apertureMm: 356,
+  );
+
   // RASA
-  static const rasa8 = TelescopeSpecs(name: 'RASA 8', focalLengthMm: 400, apertureMm: 203);
-  static const rasa11 = TelescopeSpecs(name: 'RASA 11', focalLengthMm: 620, apertureMm: 280);
-  
+  static const rasa8 = TelescopeSpecs(
+    name: 'RASA 8',
+    focalLengthMm: 400,
+    apertureMm: 203,
+  );
+  static const rasa11 = TelescopeSpecs(
+    name: 'RASA 11',
+    focalLengthMm: 620,
+    apertureMm: 280,
+  );
+
   static List<TelescopeSpecs> get commonTelescopes => [
     ed80,
     ed102,
@@ -448,4 +509,3 @@ class TelescopeSpecs {
     rasa11,
   ];
 }
-

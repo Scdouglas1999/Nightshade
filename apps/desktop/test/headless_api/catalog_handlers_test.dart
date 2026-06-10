@@ -56,8 +56,9 @@ void main() {
     late StreamSubscription<CatalogEvent> evtSub;
 
     setUp(() async {
-      tempCatalogDir = await Directory.systemTemp
-          .createTemp('ns_catalog_handlers_test_');
+      tempCatalogDir = await Directory.systemTemp.createTemp(
+        'ns_catalog_handlers_test_',
+      );
       await CatalogManager.instance.initialize(tempCatalogDir.path);
 
       emittedEvents = [];
@@ -88,9 +89,11 @@ void main() {
     // GET /api/catalog/status
     // -------------------------------------------------------------------
     test('returns missing entries when nothing installed', () async {
-      final response = await translateHandlerErrors(handlers.handleStatus(
-        Request('GET', Uri.parse('http://localhost/api/catalog/status')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleStatus(
+          Request('GET', Uri.parse('http://localhost/api/catalog/status')),
+        ),
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       final catalogs = body['catalogs'] as List;
@@ -116,9 +119,11 @@ void main() {
       );
       await src.delete(recursive: true);
 
-      final response = await translateHandlerErrors(handlers.handleStatus(
-        Request('GET', Uri.parse('http://localhost/api/catalog/status')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleStatus(
+          Request('GET', Uri.parse('http://localhost/api/catalog/status')),
+        ),
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       final catalogs = body['catalogs'] as List;
@@ -133,9 +138,11 @@ void main() {
     // GET /api/catalog/available
     // -------------------------------------------------------------------
     test('lists known catalogs and caches the response', () async {
-      final response1 = await translateHandlerErrors(handlers.handleAvailable(
-        Request('GET', Uri.parse('http://localhost/api/catalog/available')),
-      ));
+      final response1 = await translateHandlerErrors(
+        handlers.handleAvailable(
+          Request('GET', Uri.parse('http://localhost/api/catalog/available')),
+        ),
+      );
       final body1 = jsonDecode(await response1.readAsString()) as Map;
       expect(body1['cache'], 'miss');
       final available = body1['available'] as List;
@@ -144,9 +151,11 @@ void main() {
         equals(CatalogManager.knownCatalogs.keys.toSet()),
       );
 
-      final response2 = await translateHandlerErrors(handlers.handleAvailable(
-        Request('GET', Uri.parse('http://localhost/api/catalog/available')),
-      ));
+      final response2 = await translateHandlerErrors(
+        handlers.handleAvailable(
+          Request('GET', Uri.parse('http://localhost/api/catalog/available')),
+        ),
+      );
       final body2 = jsonDecode(await response2.readAsString()) as Map;
       expect(body2['cache'], 'hit');
     });
@@ -155,14 +164,16 @@ void main() {
     // POST /api/catalog/download
     // -------------------------------------------------------------------
     test('returns a jobId and starts a job', () async {
-      final response = await translateHandlerErrors(handlers.handleDownload(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/catalog/download'),
-          body: jsonEncode({'name': 'dso'}),
-          headers: {'content-type': 'application/json'},
+      final response = await translateHandlerErrors(
+        handlers.handleDownload(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/catalog/download'),
+            body: jsonEncode({'name': 'dso'}),
+            headers: {'content-type': 'application/json'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['jobId'], isA<String>());
@@ -179,46 +190,50 @@ void main() {
     });
 
     test('rejects unknown catalog names', () async {
-      final response = await translateHandlerErrors(handlers.handleDownload(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/catalog/download'),
-          body: jsonEncode({'name': 'not-a-catalog'}),
-          headers: {'content-type': 'application/json'},
+      final response = await translateHandlerErrors(
+        handlers.handleDownload(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/catalog/download'),
+            body: jsonEncode({'name': 'not-a-catalog'}),
+            headers: {'content-type': 'application/json'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 400);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['code'], 'invalid_request');
       expect(body['field'], 'name');
     });
 
-    test('install via installFromFile emits CatalogDownloadComplete event',
-        () async {
-      // This proves the event-emission path used by the download job
-      // works end-to-end. We exercise it via the upload code path so
-      // the test stays offline.
-      final csv = _miniNgcCsvBody();
-      final csvBytes = utf8.encode(csv);
-      final expectedSha = sha256.convert(csvBytes).toString();
-      final src = await Directory.systemTemp.createTemp('ns_src_');
-      final srcFile = File('${src.path}/source.csv');
-      await srcFile.writeAsString(csv);
+    test(
+      'install via installFromFile emits CatalogDownloadComplete event',
+      () async {
+        // This proves the event-emission path used by the download job
+        // works end-to-end. We exercise it via the upload code path so
+        // the test stays offline.
+        final csv = _miniNgcCsvBody();
+        final csvBytes = utf8.encode(csv);
+        final expectedSha = sha256.convert(csvBytes).toString();
+        final src = await Directory.systemTemp.createTemp('ns_src_');
+        final srcFile = File('${src.path}/source.csv');
+        await srcFile.writeAsString(csv);
 
-      await CatalogManager.instance.installFromFile(
-        name: 'dso',
-        source: srcFile,
-        expectedSha256: expectedSha,
-      );
+        await CatalogManager.instance.installFromFile(
+          name: 'dso',
+          source: srcFile,
+          expectedSha256: expectedSha,
+        );
 
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(
-        emittedEvents.map((e) => e.eventType),
-        contains('CatalogDownloadComplete'),
-      );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(
+          emittedEvents.map((e) => e.eventType),
+          contains('CatalogDownloadComplete'),
+        );
 
-      await src.delete(recursive: true);
-    });
+        await src.delete(recursive: true);
+      },
+    );
 
     // -------------------------------------------------------------------
     // POST /api/catalog/upload
@@ -228,15 +243,18 @@ void main() {
       final csvBytes = utf8.encode(csv);
       final expectedSha = sha256.convert(csvBytes).toString();
 
-      final response = await translateHandlerErrors(handlers.handleUpload(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/catalog/upload?name=dso&sha256=$expectedSha'),
-          body: csvBytes,
-          headers: {'content-type': 'application/octet-stream'},
+      final response = await translateHandlerErrors(
+        handlers.handleUpload(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/catalog/upload?name=dso&sha256=$expectedSha',
+            ),
+            body: csvBytes,
+            headers: {'content-type': 'application/octet-stream'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       final installed = body['installed'] as Map;
@@ -250,15 +268,18 @@ void main() {
       final csvBytes = utf8.encode(csv);
       final wrongSha = 'a' * 64;
 
-      final response = await translateHandlerErrors(handlers.handleUpload(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/catalog/upload?name=dso&sha256=$wrongSha'),
-          body: csvBytes,
-          headers: {'content-type': 'application/octet-stream'},
+      final response = await translateHandlerErrors(
+        handlers.handleUpload(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/catalog/upload?name=dso&sha256=$wrongSha',
+            ),
+            body: csvBytes,
+            headers: {'content-type': 'application/octet-stream'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 400);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'sha256_mismatch');
@@ -266,15 +287,18 @@ void main() {
     });
 
     test('rejects malformed sha256 query param', () async {
-      final response = await translateHandlerErrors(handlers.handleUpload(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/catalog/upload?name=dso&sha256=not-hex'),
-          body: [0x01, 0x02, 0x03],
-          headers: {'content-type': 'application/octet-stream'},
+      final response = await translateHandlerErrors(
+        handlers.handleUpload(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/catalog/upload?name=dso&sha256=not-hex',
+            ),
+            body: [0x01, 0x02, 0x03],
+            headers: {'content-type': 'application/octet-stream'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 400);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['field'], 'sha256');
@@ -282,61 +306,71 @@ void main() {
 
     test('rejects missing name', () async {
       final csv = _miniNgcCsvBody();
-      final response = await translateHandlerErrors(handlers.handleUpload(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/catalog/upload'),
-          body: utf8.encode(csv),
-          headers: {'content-type': 'application/octet-stream'},
+      final response = await translateHandlerErrors(
+        handlers.handleUpload(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/catalog/upload'),
+            body: utf8.encode(csv),
+            headers: {'content-type': 'application/octet-stream'},
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, 400);
     });
 
     // -------------------------------------------------------------------
     // POST /api/catalog/verify
     // -------------------------------------------------------------------
-    test('returns per-catalog SHA-256 result for an installed catalog',
-        () async {
-      final csv = _miniNgcCsvBody();
-      final csvBytes = utf8.encode(csv);
-      final expectedSha = sha256.convert(csvBytes).toString();
-      final src = await Directory.systemTemp.createTemp('ns_src_v_');
-      final srcFile = File('${src.path}/source.csv');
-      await srcFile.writeAsString(csv);
-      await CatalogManager.instance.installFromFile(
-        name: 'dso',
-        source: srcFile,
-        expectedSha256: expectedSha,
-      );
-      await src.delete(recursive: true);
+    test(
+      'returns per-catalog SHA-256 result for an installed catalog',
+      () async {
+        final csv = _miniNgcCsvBody();
+        final csvBytes = utf8.encode(csv);
+        final expectedSha = sha256.convert(csvBytes).toString();
+        final src = await Directory.systemTemp.createTemp('ns_src_v_');
+        final srcFile = File('${src.path}/source.csv');
+        await srcFile.writeAsString(csv);
+        await CatalogManager.instance.installFromFile(
+          name: 'dso',
+          source: srcFile,
+          expectedSha256: expectedSha,
+        );
+        await src.delete(recursive: true);
 
-      final response = await translateHandlerErrors(handlers.handleVerify(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/catalog/verify'),
-          body: jsonEncode({'name': 'dso'}),
-          headers: {'content-type': 'application/json'},
-        ),
-      ));
-      expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      final verified = body['verified'] as Map;
-      final dsoResult = verified['dso'] as Map;
-      expect(dsoResult['ok'], isTrue);
-      expect(dsoResult['expectedHash'], expectedSha);
-      expect(dsoResult['actualHash'], expectedSha);
-    });
+        final response = await translateHandlerErrors(
+          handlers.handleVerify(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/catalog/verify'),
+              body: jsonEncode({'name': 'dso'}),
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        expect(response.statusCode, 200);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final verified = body['verified'] as Map;
+        final dsoResult = verified['dso'] as Map;
+        expect(dsoResult['ok'], isTrue);
+        expect(dsoResult['expectedHash'], expectedSha);
+        expect(dsoResult['actualHash'], expectedSha);
+      },
+    );
 
     test('with empty body verifies all catalogs', () async {
-      final response = await translateHandlerErrors(handlers.handleVerify(
-        Request('POST', Uri.parse('http://localhost/api/catalog/verify')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleVerify(
+          Request('POST', Uri.parse('http://localhost/api/catalog/verify')),
+        ),
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       final verified = body['verified'] as Map;
-      expect(verified.keys.toSet(),
-          equals(CatalogManager.knownCatalogs.keys.toSet()));
+      expect(
+        verified.keys.toSet(),
+        equals(CatalogManager.knownCatalogs.keys.toSet()),
+      );
       for (final v in verified.values) {
         final m = v as Map;
         expect(m['ok'], isFalse);
@@ -361,10 +395,12 @@ void main() {
       );
       await src.delete(recursive: true);
 
-      final response = await translateHandlerErrors(handlers.handleDelete(
-        Request('DELETE', Uri.parse('http://localhost/api/catalog/dso')),
-        'dso',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDelete(
+          Request('DELETE', Uri.parse('http://localhost/api/catalog/dso')),
+          'dso',
+        ),
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['status'], 'uninstalled');
@@ -373,18 +409,22 @@ void main() {
     });
 
     test('returns 404 when catalog not installed', () async {
-      final response = await translateHandlerErrors(handlers.handleDelete(
-        Request('DELETE', Uri.parse('http://localhost/api/catalog/dso')),
-        'dso',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDelete(
+          Request('DELETE', Uri.parse('http://localhost/api/catalog/dso')),
+          'dso',
+        ),
+      );
       expect(response.statusCode, 404);
     });
 
     test('rejects unknown name', () async {
-      final response = await translateHandlerErrors(handlers.handleDelete(
-        Request('DELETE', Uri.parse('http://localhost/api/catalog/bogus')),
-        'bogus',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDelete(
+          Request('DELETE', Uri.parse('http://localhost/api/catalog/bogus')),
+          'bogus',
+        ),
+      );
       expect(response.statusCode, 400);
     });
 
@@ -392,9 +432,11 @@ void main() {
     // POST /api/catalog/reload
     // -------------------------------------------------------------------
     test('reload triggers CatalogManager.reload and emits event', () async {
-      final response = await translateHandlerErrors(handlers.handleReload(
-        Request('POST', Uri.parse('http://localhost/api/catalog/reload')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleReload(
+          Request('POST', Uri.parse('http://localhost/api/catalog/reload')),
+        ),
+      );
       expect(response.statusCode, 200);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['status'], 'reloaded');

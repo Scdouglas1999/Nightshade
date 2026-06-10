@@ -28,9 +28,10 @@ class TokenResolver {
     this.maxFailuresPerWindow = 30,
     this.failureWindow = const Duration(minutes: 1),
     DateTime Function()? now,
-  })  : _tokensByValue =
-            UnmodifiableMapView<String, HeadlessTokenScope>(tokensByValue),
-        _now = now ?? DateTime.now;
+  }) : _tokensByValue = UnmodifiableMapView<String, HeadlessTokenScope>(
+         tokensByValue,
+       ),
+       _now = now ?? DateTime.now;
 
   bool get isEmpty => _tokensByValue.isEmpty;
   bool get isNotEmpty => _tokensByValue.isNotEmpty;
@@ -86,8 +87,7 @@ class TokenResolver {
     for (final scope in _tokensByValue.values) {
       seen.add(scope);
     }
-    return seen.toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
+    return seen.toList()..sort((a, b) => a.index.compareTo(b.index));
   }
 }
 

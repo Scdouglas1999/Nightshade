@@ -42,8 +42,9 @@ void main() {
     late DeviceHandlers handlers;
 
     setUp(() async {
-      loggerTempDir =
-          await Directory.systemTemp.createTemp('ns_device_handlers_test_');
+      loggerTempDir = await Directory.systemTemp.createTemp(
+        'ns_device_handlers_test_',
+      );
       logger = LoggingService(
         applicationSupportDirectoryProvider: () async => loggerTempDir,
         nativeInitWithLogging: ({logDirectory}) {},
@@ -71,69 +72,88 @@ void main() {
       }
     });
 
-    test('camera expose malformed payload returns JSON internal error',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleCameraExpose(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/camera/expose'),
-          body: jsonEncode({}),
-        ),
-      ));
+    test(
+      'camera expose malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleCameraExpose(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/camera/expose'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
     test('mount slew malformed payload returns JSON internal error', () async {
-      final response = await translateHandlerErrors(handlers.handleMountSlew(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/mount/slew'),
-          body: jsonEncode({'deviceId': 'mount-1'}),
+      final response = await translateHandlerErrors(
+        handlers.handleMountSlew(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/mount/slew'),
+            body: jsonEncode({'deviceId': 'mount-1'}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
     test('last image jpeg missing deviceId returns bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCameraGetLastImageJpeg(
-        Request('GET', Uri.parse('http://localhost/api/camera/last-image/jpeg')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleCameraGetLastImageJpeg(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/camera/last-image/jpeg'),
+          ),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
-    test('rotator halt malformed payload returns JSON internal error',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleRotatorHalt(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/rotator/halt'),
-          body: '{',
-        ),
-      ));
-
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
-
     test(
-        'filter wheel get position returns 200 with null fields when '
+      'rotator halt malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleRotatorHalt(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/rotator/halt'),
+              body: '{',
+            ),
+          ),
+        );
+
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
+
+    test('filter wheel get position returns 200 with null fields when '
         'disconnected', () async {
       // Why: with no driver connected (the bare ProviderContainer state),
       // FilterWheelStateNotifier reports

@@ -10,8 +10,9 @@ final observationLogsDaoProvider = Provider<ObservationLogsDao>((ref) {
 });
 
 /// Reactive stream of all observation log entries (newest first).
-final observationLogsProvider =
-    StreamProvider<List<ObservationLogEntry>>((ref) {
+final observationLogsProvider = StreamProvider<List<ObservationLogEntry>>((
+  ref,
+) {
   return ref.watch(observationLogsDaoProvider).watchAllLogs();
 });
 
@@ -21,8 +22,9 @@ final observedCatalogIdsProvider = StreamProvider<Set<String>>((ref) {
 });
 
 /// Observation log statistics (refreshes when logs change).
-final observationLogStatsProvider =
-    FutureProvider<ObservationLogStats>((ref) async {
+final observationLogStatsProvider = FutureProvider<ObservationLogStats>((
+  ref,
+) async {
   // Depend on the logs stream so stats refresh on any change
   ref.watch(observationLogsProvider);
   return ref.read(observationLogsDaoProvider).getStats();
@@ -31,8 +33,8 @@ final observationLogStatsProvider =
 /// StateNotifier for managing observation log UI interactions.
 final observationLogNotifierProvider =
     StateNotifierProvider<ObservationLogNotifier, ObservationLogUiState>((ref) {
-  return ObservationLogNotifier(ref);
-});
+      return ObservationLogNotifier(ref);
+    });
 
 /// UI state for observation log management.
 class ObservationLogUiState {
@@ -196,27 +198,27 @@ class ObservationLogNotifier extends StateNotifier<ObservationLogUiState> {
 /// Filtered observation logs based on current UI filter state.
 final filteredObservationLogsProvider =
     FutureProvider<List<ObservationLogEntry>>((ref) async {
-  final uiState = ref.watch(observationLogNotifierProvider);
-  final dao = ref.read(observationLogsDaoProvider);
+      final uiState = ref.watch(observationLogNotifierProvider);
+      final dao = ref.read(observationLogsDaoProvider);
 
-  // If we have a date range filter, use it
-  if (uiState.filterStartDate != null && uiState.filterEndDate != null) {
-    return dao.getLogsByDateRange(
-      start: uiState.filterStartDate!,
-      end: uiState.filterEndDate!,
-    );
-  }
+      // If we have a date range filter, use it
+      if (uiState.filterStartDate != null && uiState.filterEndDate != null) {
+        return dao.getLogsByDateRange(
+          start: uiState.filterStartDate!,
+          end: uiState.filterEndDate!,
+        );
+      }
 
-  // If we have a text query filter, use it
-  if (uiState.filterQuery != null && uiState.filterQuery!.isNotEmpty) {
-    return dao.getLogsByObject(uiState.filterQuery!);
-  }
+      // If we have a text query filter, use it
+      if (uiState.filterQuery != null && uiState.filterQuery!.isNotEmpty) {
+        return dao.getLogsByObject(uiState.filterQuery!);
+      }
 
-  // If we have a rating filter, use it
-  if (uiState.filterMinRating != null) {
-    return dao.getLogsByMinRating(uiState.filterMinRating!);
-  }
+      // If we have a rating filter, use it
+      if (uiState.filterMinRating != null) {
+        return dao.getLogsByMinRating(uiState.filterMinRating!);
+      }
 
-  // Default: all logs
-  return dao.getAllLogs();
-});
+      // Default: all logs
+      return dao.getAllLogs();
+    });

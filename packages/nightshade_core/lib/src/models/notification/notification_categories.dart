@@ -184,13 +184,13 @@ class NotificationResult extends Equatable {
   final DateTime timestamp;
 
   NotificationResult.ok({this.statusCode})
-      : success = true,
-        error = null,
-        timestamp = DateTime.now();
+    : success = true,
+      error = null,
+      timestamp = DateTime.now();
 
   NotificationResult.fail(this.error, {this.statusCode})
-      : success = false,
-        timestamp = DateTime.now();
+    : success = false,
+      timestamp = DateTime.now();
 
   @override
   List<Object?> get props => [success, error, statusCode, timestamp];
@@ -258,23 +258,25 @@ class NotificationRoutingRule extends Equatable {
       minSeverity: minSeverity ?? this.minSeverity,
       maxPerHour: maxPerHour ?? this.maxPerHour,
       debounceSeconds: debounceSeconds ?? this.debounceSeconds,
-      titleTemplate:
-          clearTitleTemplate ? null : (titleTemplate ?? this.titleTemplate),
-      bodyTemplate:
-          clearBodyTemplate ? null : (bodyTemplate ?? this.bodyTemplate),
+      titleTemplate: clearTitleTemplate
+          ? null
+          : (titleTemplate ?? this.titleTemplate),
+      bodyTemplate: clearBodyTemplate
+          ? null
+          : (bodyTemplate ?? this.bodyTemplate),
       enabled: enabled ?? this.enabled,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'transports': transports.map((t) => t.storageKey).toList(),
-        'minSeverity': minSeverity.name,
-        'maxPerHour': maxPerHour,
-        'debounceSeconds': debounceSeconds,
-        'titleTemplate': titleTemplate,
-        'bodyTemplate': bodyTemplate,
-        'enabled': enabled,
-      };
+    'transports': transports.map((t) => t.storageKey).toList(),
+    'minSeverity': minSeverity.name,
+    'maxPerHour': maxPerHour,
+    'debounceSeconds': debounceSeconds,
+    'titleTemplate': titleTemplate,
+    'bodyTemplate': bodyTemplate,
+    'enabled': enabled,
+  };
 
   factory NotificationRoutingRule.fromJson(Map<String, dynamic> json) {
     final transportsRaw = json['transports'];
@@ -307,14 +309,14 @@ class NotificationRoutingRule extends Equatable {
 
   @override
   List<Object?> get props => [
-        transports,
-        minSeverity,
-        maxPerHour,
-        debounceSeconds,
-        titleTemplate,
-        bodyTemplate,
-        enabled,
-      ];
+    transports,
+    minSeverity,
+    maxPerHour,
+    debounceSeconds,
+    titleTemplate,
+    bodyTemplate,
+    enabled,
+  ];
 }
 
 /// The full per-category routing table.
@@ -330,10 +332,7 @@ class NotificationRoutingMatrix extends Equatable {
 
   final Map<NotificationCategory, NotificationRoutingRule> rules;
 
-  const NotificationRoutingMatrix({
-    this.enabled = true,
-    this.rules = const {},
-  });
+  const NotificationRoutingMatrix({this.enabled = true, this.rules = const {}});
 
   NotificationRoutingRule ruleFor(NotificationCategory category) {
     return rules[category] ?? _defaultRuleFor(category);
@@ -359,12 +358,12 @@ class NotificationRoutingMatrix extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
-        'rules': {
-          for (final entry in rules.entries)
-            entry.key.storageKey: entry.value.toJson(),
-        },
-      };
+    'enabled': enabled,
+    'rules': {
+      for (final entry in rules.entries)
+        entry.key.storageKey: entry.value.toJson(),
+    },
+  };
 
   factory NotificationRoutingMatrix.fromJson(Map<String, dynamic> json) {
     final rulesRaw = json['rules'];

@@ -121,9 +121,7 @@ class _PlateSolveParametersSectionState
               trailing: SettingsSwitch(
                 value: settings.blindSolve,
                 onChanged: (value) {
-                  ref
-                      .read(appSettingsProvider.notifier)
-                      .setBlindSolve(value);
+                  ref.read(appSettingsProvider.notifier).setBlindSolve(value);
                 },
               ),
               isLast: true,

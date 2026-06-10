@@ -122,9 +122,8 @@ class CockpitNowImaging extends ConsumerWidget {
 Color _altitudeColor(RunDashboardSkyStats sky, NightshadeColors colors) {
   final horizon = sky.horizonDeg;
   if (sky.altitudeDeg <= horizon) return colors.error;
-  final margin = (90.0 - horizon) * 0.25 < 15.0
-      ? (90.0 - horizon) * 0.25
-      : 15.0;
+  final margin =
+      (90.0 - horizon) * 0.25 < 15.0 ? (90.0 - horizon) * 0.25 : 15.0;
   if (sky.altitudeDeg < horizon + margin) return colors.warning;
   return colors.success;
 }
@@ -248,9 +247,8 @@ class _FrameChip extends ConsumerWidget {
     if (!hasFrame && !exposure.isDownloading) return const SizedBox.shrink();
 
     final exposurePct = exposure.percent.clamp(0.0, 100.0) / 100.0;
-    final valueText = hasFrame
-        ? formatSeconds(exposure.remaining)
-        : 'Downloading…';
+    final valueText =
+        hasFrame ? formatSeconds(exposure.remaining) : 'Downloading…';
     final valueColor = hasFrame ? colors.primary : colors.warning;
 
     return SizedBox(
@@ -363,7 +361,9 @@ class _SequenceChip extends ConsumerWidget {
               Text(
                 '~${formatSeconds(seq.estimatedRemainingSecs!)}',
                 style: NightshadeTypography.withTabular(
-                  TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
               ),
             ],

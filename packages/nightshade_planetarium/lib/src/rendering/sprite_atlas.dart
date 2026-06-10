@@ -74,8 +74,7 @@ class SkySpriteAtlas {
   static const double starCoreFraction = 0.16;
 
   /// Source rect covering the entire plain/spiked star sprite.
-  Rect get starSrcRect =>
-      Rect.fromLTWH(0, 0, starSpriteSize, starSpriteSize);
+  Rect get starSrcRect => Rect.fromLTWH(0, 0, starSpriteSize, starSpriteSize);
 
   /// Source rect (within [dsoSheet]) for the glyph that represents [type].
   Rect dsoSrcRect(DsoType type) =>
@@ -152,7 +151,11 @@ class SkySpriteAtlas {
   /// All channels are white; alpha carries the profile. When [withSpikes] is
   /// set, 4 cardinal diffraction spikes plus faint 45-degree secondaries are
   /// added, matching `_drawDiffractionSpikes` / `_drawSecondarySpikes`.
-  static ui.Image _bakeStarSprite(int px, double softness, {required bool withSpikes}) {
+  static ui.Image _bakeStarSprite(
+    int px,
+    double softness, {
+    required bool withSpikes,
+  }) {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final size = px.toDouble();
@@ -222,9 +225,7 @@ class SkySpriteAtlas {
       );
     canvas.drawCircle(c, coreR * 2.0, corePaint);
 
-    return recorder
-        .endRecording()
-        .toImageSync(px, px);
+    return recorder.endRecording().toImageSync(px, px);
   }
 
   /// Bake 4 cardinal diffraction spikes plus faint 45-degree secondaries into
@@ -250,14 +251,10 @@ class SkySpriteAtlas {
         c.dx + math.cos(rad) * spikeLen,
         c.dy + math.sin(rad) * spikeLen,
       );
-      primary.shader = ui.Gradient.linear(
-        c,
-        end,
-        [
-          Colors.white.withValues(alpha: 0.55),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      );
+      primary.shader = ui.Gradient.linear(c, end, [
+        Colors.white.withValues(alpha: 0.55),
+        Colors.white.withValues(alpha: 0.0),
+      ]);
       canvas.drawLine(c, end, primary);
     }
 
@@ -269,14 +266,10 @@ class SkySpriteAtlas {
         c.dx + math.cos(rad) * secLen,
         c.dy + math.sin(rad) * secLen,
       );
-      secondary.shader = ui.Gradient.linear(
-        c,
-        end,
-        [
-          Colors.white.withValues(alpha: 0.22),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      );
+      secondary.shader = ui.Gradient.linear(c, end, [
+        Colors.white.withValues(alpha: 0.22),
+        Colors.white.withValues(alpha: 0.0),
+      ]);
       canvas.drawLine(c, end, secondary);
     }
   }
@@ -307,7 +300,11 @@ class SkySpriteAtlas {
       final glyph = _glyphOrder[i];
       final cellLeft = (i * glyphPx).toDouble();
       final cellRect = Rect.fromLTWH(
-          cellLeft, 0, glyphPx.toDouble(), glyphPx.toDouble());
+        cellLeft,
+        0,
+        glyphPx.toDouble(),
+        glyphPx.toDouble(),
+      );
       rects[glyph.type] = cellRect;
 
       canvas.save();
@@ -368,13 +365,9 @@ class SkySpriteAtlas {
             ..shader = ui.Gradient.radial(
               Offset(math.cos(a) * d, math.sin(a) * d),
               pr,
-              [
-                white.withValues(alpha: 0.20),
-                white.withValues(alpha: 0.0),
-              ],
+              [white.withValues(alpha: 0.20), white.withValues(alpha: 0.0)],
             );
-          canvas.drawCircle(
-              Offset(math.cos(a) * d, math.sin(a) * d), pr, puff);
+          canvas.drawCircle(Offset(math.cos(a) * d, math.sin(a) * d), pr, puff);
         }
         break;
 
@@ -409,8 +402,7 @@ class SkySpriteAtlas {
         for (var i = 0; i < 7; i++) {
           final a = rng.nextDouble() * 2 * math.pi;
           final d = rng.nextDouble() * r * 0.7;
-          dot.color =
-              white.withValues(alpha: 0.55 + rng.nextDouble() * 0.4);
+          dot.color = white.withValues(alpha: 0.55 + rng.nextDouble() * 0.4);
           canvas.drawCircle(
             Offset(math.cos(a) * d, math.sin(a) * d),
             math.max(1.0, r * 0.08),
@@ -470,14 +462,10 @@ class SkySpriteAtlas {
       case _DsoGlyph.generic:
         // Plain soft disc.
         final disc = Paint()
-          ..shader = ui.Gradient.radial(
-            Offset.zero,
-            r,
-            [
-              white.withValues(alpha: 0.5),
-              white.withValues(alpha: 0.0),
-            ],
-          );
+          ..shader = ui.Gradient.radial(Offset.zero, r, [
+            white.withValues(alpha: 0.5),
+            white.withValues(alpha: 0.0),
+          ]);
         canvas.drawCircle(Offset.zero, r, disc);
         break;
     }

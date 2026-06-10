@@ -124,7 +124,9 @@ class _GuideStarViewState extends State<GuideStarView> {
                       bottom: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: colors.surface.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(6),
@@ -169,9 +171,7 @@ class _GuideStarViewState extends State<GuideStarView> {
         if (snapshot.hasData) {
           return CustomPaint(
             size: Size(constraints.maxWidth, constraints.maxHeight),
-            painter: _ImagePainter(
-              image: snapshot.data!,
-            ),
+            painter: _ImagePainter(image: snapshot.data!),
           );
         }
         return _buildEmptyState(constraints, colors);
@@ -310,23 +310,11 @@ class _CrosshairsPainter extends CustomPainter {
     final y = (starY / imageHeight) * size.height;
 
     // Draw crosshairs
-    canvas.drawLine(
-      Offset(x, 0),
-      Offset(x, size.height),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(0, y),
-      Offset(size.width, y),
-      paint,
-    );
+    canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
 
     // Draw small circle at intersection
-    canvas.drawCircle(
-      Offset(x, y),
-      4,
-      paint..style = PaintingStyle.stroke,
-    );
+    canvas.drawCircle(Offset(x, y), 4, paint..style = PaintingStyle.stroke);
   }
 
   @override
@@ -354,7 +342,11 @@ class _ImagePainter extends CustomPainter {
     final dstRect = Rect.fromLTWH(0, 0, size.width, size.height);
 
     canvas.drawImageRect(
-        image, srcRect, dstRect, Paint()..filterQuality = FilterQuality.low);
+      image,
+      srcRect,
+      dstRect,
+      Paint()..filterQuality = FilterQuality.low,
+    );
   }
 
   @override

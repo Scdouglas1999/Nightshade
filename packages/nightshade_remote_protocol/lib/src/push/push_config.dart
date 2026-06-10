@@ -31,8 +31,10 @@ class FcmPushConfig {
     required this.serviceAccountPath,
   });
 
-  static const FcmPushConfig disabled =
-      FcmPushConfig(enabled: false, serviceAccountPath: '');
+  static const FcmPushConfig disabled = FcmPushConfig(
+    enabled: false,
+    serviceAccountPath: '',
+  );
 
   factory FcmPushConfig.fromJson(Map<String, Object?> json) {
     return FcmPushConfig(
@@ -100,11 +102,7 @@ class PushConfig {
   /// Operator opted into the in-memory mock delivery (cloudless dev).
   final bool mock;
 
-  const PushConfig({
-    required this.fcm,
-    required this.apns,
-    required this.mock,
-  });
+  const PushConfig({required this.fcm, required this.apns, required this.mock});
 
   /// Everything off — the natural state when no config file exists.
   static const PushConfig disabled = PushConfig(
@@ -168,10 +166,12 @@ class PushConfig {
   /// Disable any channel whose referenced secret file is missing, so a
   /// half-configured deployment still runs LAN + WS push.
   PushConfig validated() {
-    final fcmOk = fcm.enabled &&
+    final fcmOk =
+        fcm.enabled &&
         fcm.serviceAccountPath.isNotEmpty &&
         File(fcm.serviceAccountPath).existsSync();
-    final apnsOk = apns.enabled &&
+    final apnsOk =
+        apns.enabled &&
         apns.p8KeyPath.isNotEmpty &&
         apns.keyId.isNotEmpty &&
         apns.teamId.isNotEmpty &&

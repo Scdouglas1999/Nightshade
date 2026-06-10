@@ -115,9 +115,7 @@ Future<void> main(List<String> args) async {
     docReports.add(_auditDoc(root, doc));
   }
 
-  final issues = [
-    for (final report in docReports) ...report.issues,
-  ];
+  final issues = [for (final report in docReports) ...report.issues];
   final passed = issues.isEmpty;
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -131,15 +129,13 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    docReports: docReports,
-    issues: issues,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(passed: passed, docReports: docReports, issues: issues),
+  );
 
   stdout.writeln('Release docs audit complete.');
   stdout.writeln('Passed: $passed');
@@ -269,12 +265,12 @@ class _DocReport {
   }
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'label': label,
-        'exists': exists,
-        'sizeBytes': sizeBytes,
-        'missingText': missingText,
-        'missingTextCount': missingText.length,
-        'passed': exists && missingText.isEmpty,
-      };
+    'path': path,
+    'label': label,
+    'exists': exists,
+    'sizeBytes': sizeBytes,
+    'missingText': missingText,
+    'missingTextCount': missingText.length,
+    'passed': exists && missingText.isEmpty,
+  };
 }

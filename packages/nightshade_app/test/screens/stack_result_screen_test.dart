@@ -90,7 +90,8 @@ class _FakeStackAndShareNotifier extends StackAndShareNotifier {
   StackAndShareConfig? lastConfig;
 
   @override
-  Future<void> runForSession(int sessionId, {StackAndShareConfig? config}) async {
+  Future<void> runForSession(int sessionId,
+      {StackAndShareConfig? config}) async {
     runCount++;
     lastSessionId = sessionId;
     lastConfig = config;
@@ -152,7 +153,8 @@ Future<void> _pumpScreen(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        stackResultViewerProvider(result.id!).overrideWith((ref) async => result),
+        stackResultViewerProvider(result.id!)
+            .overrideWith((ref) async => result),
         stackAndShareProvider.overrideWith(
           (ref) => _FakeStackAndShareNotifier(ref, effectiveLive),
         ),
@@ -251,9 +253,12 @@ void main() {
     testWidgets('renders all export action buttons', (tester) async {
       await _pumpScreen(tester, result: _cannedResult());
 
-      expect(find.widgetWithText(NightshadeButton, 'Export PNG'), findsOneWidget);
-      expect(find.widgetWithText(NightshadeButton, 'Export JPEG'), findsOneWidget);
-      expect(find.widgetWithText(NightshadeButton, 'Share Card'), findsOneWidget);
+      expect(
+          find.widgetWithText(NightshadeButton, 'Export PNG'), findsOneWidget);
+      expect(
+          find.widgetWithText(NightshadeButton, 'Export JPEG'), findsOneWidget);
+      expect(
+          find.widgetWithText(NightshadeButton, 'Share Card'), findsOneWidget);
       expect(find.widgetWithText(NightshadeButton, 'AstroBin'), findsOneWidget);
     });
 
@@ -269,7 +274,8 @@ void main() {
       expect(find.text('Auto (STF)'), findsOneWidget);
     });
 
-    testWidgets('colour result (channels==3) auto-stretches via the colour STF '
+    testWidgets(
+        'colour result (channels==3) auto-stretches via the colour STF '
         'branch', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(1400, 1000);
@@ -330,7 +336,8 @@ void main() {
         ProviderScope(
           overrides: [
             stackResultViewerProvider(99).overrideWith(
-              (ref) async => throw StateError('No stacked result found for id 99'),
+              (ref) async =>
+                  throw StateError('No stacked result found for id 99'),
             ),
           ],
           child: MaterialApp(
@@ -360,8 +367,7 @@ void main() {
       );
     }
 
-    testWidgets('renders switches, quality field, and Start',
-        (tester) async {
+    testWidgets('renders switches, quality field, and Start', (tester) async {
       await _pumpDialog(tester, selection: buildSelection());
 
       // Title + summary.

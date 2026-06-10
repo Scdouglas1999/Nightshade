@@ -474,9 +474,7 @@ abstract final class NightshadeTypography {
 
   /// Enable tabular figures so updating numeric values do not shift layout.
   static TextStyle withTabular(TextStyle style) {
-    return style.copyWith(
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
+    return style.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
   }
 
   /// Add underline to any style

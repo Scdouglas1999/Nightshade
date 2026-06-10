@@ -22,8 +22,8 @@ void main() {
           jsonEncode({
             'choices': [
               {
-                'message': {'role': 'assistant', 'content': '{"ok":true}'}
-              }
+                'message': {'role': 'assistant', 'content': '{"ok":true}'},
+              },
             ],
             'usage': {
               'prompt_tokens': 12,
@@ -48,8 +48,10 @@ void main() {
         userPrompt: 'user',
       );
 
-      expect(seen.url.toString(),
-          'https://api.openai.example/v1/chat/completions');
+      expect(
+        seen.url.toString(),
+        'https://api.openai.example/v1/chat/completions',
+      );
       expect(seen.method, 'POST');
       expect(seen.headers['Authorization'], 'Bearer sk-test');
       final body = jsonDecode(seen.body) as Map<String, dynamic>;
@@ -66,7 +68,7 @@ void main() {
       final client = MockClient((req) async {
         return http.Response(
           jsonEncode({
-            'error': {'message': 'Invalid API key'}
+            'error': {'message': 'Invalid API key'},
           }),
           401,
         );
@@ -82,7 +84,11 @@ void main() {
       expect(
         () => provider.generate(systemPrompt: 's', userPrompt: 'u'),
         throwsA(
-          isA<LlmProviderException>().having((e) => e.statusCode, 'status', 401),
+          isA<LlmProviderException>().having(
+            (e) => e.statusCode,
+            'status',
+            401,
+          ),
         ),
       );
       provider.close();
@@ -110,45 +116,52 @@ void main() {
   });
 
   group('AnthropicProvider', () {
-    test('sends a /v1/messages POST with x-api-key and version headers',
-        () async {
-      late http.Request seen;
-      final client = MockClient((req) async {
-        seen = req;
-        return http.Response(
-          jsonEncode({
-            'content': [
-              {'type': 'text', 'text': '{"ok":true}'}
-            ],
-            'usage': {'input_tokens': 10, 'output_tokens': 4},
-          }),
-          200,
+    test(
+      'sends a /v1/messages POST with x-api-key and version headers',
+      () async {
+        late http.Request seen;
+        final client = MockClient((req) async {
+          seen = req;
+          return http.Response(
+            jsonEncode({
+              'content': [
+                {'type': 'text', 'text': '{"ok":true}'},
+              ],
+              'usage': {'input_tokens': 10, 'output_tokens': 4},
+            }),
+            200,
+          );
+        });
+        final provider = AnthropicProvider(
+          httpClient: client,
+          config: const LlmProviderConfig(
+            baseUrl: 'https://api.anthropic.example',
+            model: 'claude-opus-4',
+            apiKey: 'anth-test',
+            anthropicVersion: '2024-01-01',
+          ),
         );
-      });
-      final provider = AnthropicProvider(
-        httpClient: client,
-        config: const LlmProviderConfig(
-          baseUrl: 'https://api.anthropic.example',
-          model: 'claude-opus-4',
-          apiKey: 'anth-test',
-          anthropicVersion: '2024-01-01',
-        ),
-      );
-      final res = await provider.generate(systemPrompt: 'sys', userPrompt: 'u');
+        final res = await provider.generate(
+          systemPrompt: 'sys',
+          userPrompt: 'u',
+        );
 
-      expect(seen.url.toString(),
-          'https://api.anthropic.example/v1/messages');
-      expect(seen.headers['x-api-key'], 'anth-test');
-      expect(seen.headers['anthropic-version'], '2024-01-01');
-      final body = jsonDecode(seen.body) as Map<String, dynamic>;
-      expect(body['system'], 'sys');
-      expect((body['messages'] as List).single['role'], 'user');
-      expect(res.text, '{"ok":true}');
-      expect(res.usage?.promptTokens, 10);
-      expect(res.usage?.completionTokens, 4);
-      expect(res.usage?.totalTokens, 14);
-      provider.close();
-    });
+        expect(
+          seen.url.toString(),
+          'https://api.anthropic.example/v1/messages',
+        );
+        expect(seen.headers['x-api-key'], 'anth-test');
+        expect(seen.headers['anthropic-version'], '2024-01-01');
+        final body = jsonDecode(seen.body) as Map<String, dynamic>;
+        expect(body['system'], 'sys');
+        expect((body['messages'] as List).single['role'], 'user');
+        expect(res.text, '{"ok":true}');
+        expect(res.usage?.promptTokens, 10);
+        expect(res.usage?.completionTokens, 4);
+        expect(res.usage?.totalTokens, 14);
+        provider.close();
+      },
+    );
 
     test('isConfigured requires API key', () {
       expect(
@@ -206,14 +219,20 @@ void main() {
         httpClientFactory: () =>
             MockClient((_) async => http.Response('', 200)),
       );
-      final openAi = factory.create(LlmProviderKind.openAiCompatible,
-          const LlmProviderConfig(baseUrl: 'x', model: 'm'));
+      final openAi = factory.create(
+        LlmProviderKind.openAiCompatible,
+        const LlmProviderConfig(baseUrl: 'x', model: 'm'),
+      );
       expect(openAi, isA<OpenAiCompatibleProvider>());
-      final claude = factory.create(LlmProviderKind.anthropic,
-          const LlmProviderConfig(baseUrl: 'x', model: 'm', apiKey: 'k'));
+      final claude = factory.create(
+        LlmProviderKind.anthropic,
+        const LlmProviderConfig(baseUrl: 'x', model: 'm', apiKey: 'k'),
+      );
       expect(claude, isA<AnthropicProvider>());
-      final ollama = factory.create(LlmProviderKind.ollama,
-          const LlmProviderConfig(baseUrl: 'x', model: 'm'));
+      final ollama = factory.create(
+        LlmProviderKind.ollama,
+        const LlmProviderConfig(baseUrl: 'x', model: 'm'),
+      );
       expect(ollama, isA<OllamaLocalProvider>());
       openAi.close();
       claude.close();

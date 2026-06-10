@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/autofocus_progress.dart';
 import '../models/backend/autofocus_result.dart';
@@ -112,13 +112,16 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   void _listenToEvents() {
-    _eventSubscription = _ref.read(diagnosticsBackendProvider).eventStream.listen((event) {
-      if (!mounted) return;
-      if (event.category == EventCategory.equipment &&
-          event.eventType == 'AutofocusProgress') {
-        _handleAutofocusProgress(event);
-      }
-    });
+    _eventSubscription = _ref
+        .read(diagnosticsBackendProvider)
+        .eventStream
+        .listen((event) {
+          if (!mounted) return;
+          if (event.category == EventCategory.equipment &&
+              event.eventType == 'AutofocusProgress') {
+            _handleAutofocusProgress(event);
+          }
+        });
   }
 
   void _handleAutofocusProgress(NightshadeEvent event) {
@@ -146,8 +149,8 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
     final newBestHfr = progressData.vcurvePoints.isEmpty
         ? 0.0
         : progressData.vcurvePoints
-            .map((p) => p.hfr)
-            .reduce((a, b) => a < b ? a : b);
+              .map((p) => p.hfr)
+              .reduce((a, b) => a < b ? a : b);
 
     state = state.copyWith(
       isRunning: true,
@@ -160,7 +163,8 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
       starCount: progressData.starCount,
       focusRange: progressData.focusRange,
       starCrops: progressData.starCrops,
-      status: 'Measuring point ${progressData.point}/${progressData.totalPoints}',
+      status:
+          'Measuring point ${progressData.point}/${progressData.totalPoints}',
     );
   }
 
@@ -180,7 +184,8 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
       isRunning: false,
       hasError: false,
       result: result,
-      status: 'Complete - HFR: ${result.bestHfr.toStringAsFixed(2)} '
+      status:
+          'Complete - HFR: ${result.bestHfr.toStringAsFixed(2)} '
           'at position ${result.bestPosition}',
     );
   }
@@ -217,7 +222,8 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
 
 /// Provider for the autofocus progress overlay state
 final autofocusOverlayProvider =
-    StateNotifierProvider<AutofocusOverlayNotifier, AutofocusOverlayState>(
-        (ref) {
-  return AutofocusOverlayNotifier(ref);
-});
+    StateNotifierProvider<AutofocusOverlayNotifier, AutofocusOverlayState>((
+      ref,
+    ) {
+      return AutofocusOverlayNotifier(ref);
+    });

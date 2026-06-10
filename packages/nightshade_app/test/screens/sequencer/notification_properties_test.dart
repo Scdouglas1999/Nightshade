@@ -67,8 +67,7 @@ void main() {
       expect(
         find.byKey(ValueKey('notif_transport_${kind.storageKey}')),
         findsOneWidget,
-        reason:
-            'Missing chip for ${kind.label}; the multi-select must render '
+        reason: 'Missing chip for ${kind.label}; the multi-select must render '
             'one chip per NotificationTransportKind so the user can opt '
             'in / out per transport.',
       );
@@ -84,8 +83,7 @@ void main() {
     expect(
       find.text('Telegram (not configured)'),
       findsOneWidget,
-      reason:
-          'Telegram has no credentials in the default in-memory harness, '
+      reason: 'Telegram has no credentials in the default in-memory harness, '
           'so the chip must annotate that fact rather than silently '
           'render as if Telegram were ready.',
     );
@@ -100,8 +98,7 @@ void main() {
     await pumpNode(tester,
         node: NotificationNode(title: 'Hello', message: 'Body line'));
     expect(find.text('Preview'), findsOneWidget,
-        reason:
-            'The NotificationNode property panel must surface a Preview '
+        reason: 'The NotificationNode property panel must surface a Preview '
             'box so the user can see the rendered template before run time.');
   });
 }

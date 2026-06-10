@@ -97,10 +97,8 @@ TargetScore scoreFor({
     targetName: name,
     totalScore: total,
     factors: const [
-      ScoreFactor(
-          name: 'altitude', value: 0.7, weight: 1.0, weighted: 0.7),
-      ScoreFactor(
-          name: 'meridian', value: 0.5, weight: 1.0, weighted: 0.5),
+      ScoreFactor(name: 'altitude', value: 0.7, weight: 1.0, weighted: 0.7),
+      ScoreFactor(name: 'meridian', value: 0.5, weight: 1.0, weighted: 0.5),
     ],
     hardConstraintFailed: hardFail,
     rejectionReasons: rejections,
@@ -148,10 +146,8 @@ RejectedCandidate rejectionFor({
     hardConstraintFailures: hardConstraintFailures,
     factors: factors ??
         const [
-          ScoreFactor(
-              name: 'altitude', value: 0.5, weight: 1.0, weighted: 0.5),
-          ScoreFactor(
-              name: 'meridian', value: 0.3, weight: 1.0, weighted: 0.3),
+          ScoreFactor(name: 'altitude', value: 0.5, weight: 1.0, weighted: 0.5),
+          ScoreFactor(name: 'meridian', value: 0.3, weight: 1.0, weighted: 0.3),
         ],
   );
 }

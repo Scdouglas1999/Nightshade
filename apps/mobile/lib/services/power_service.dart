@@ -4,12 +4,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'notification_service.dart';
 
-enum BatteryWarningLevel {
-  normal,
-  low,
-  veryLow,
-  critical,
-}
+enum BatteryWarningLevel { normal, low, veryLow, critical }
 
 class PowerService {
   static final PowerService _instance = PowerService._internal();
@@ -97,11 +92,7 @@ class PowerService {
     try {
       await WakelockPlus.disable();
       _wakeLockActive = false;
-      developer.log(
-        'Wake lock released',
-        name: 'PowerService',
-        level: 800,
-      );
+      developer.log('Wake lock released', name: 'PowerService', level: 800);
     } catch (e, st) {
       // Caught + degraded: wake lock stays held until process exit. This
       // leaks battery; severe so it surfaces in the log file.
@@ -218,21 +209,13 @@ class PowerService {
   }
 
   Future<void> startImagingSession() async {
-    developer.log(
-      'Starting imaging session',
-      name: 'PowerService',
-      level: 800,
-    );
+    developer.log('Starting imaging session', name: 'PowerService', level: 800);
     await acquireWakeLock();
     startBatteryMonitoring();
   }
 
   Future<void> stopImagingSession() async {
-    developer.log(
-      'Stopping imaging session',
-      name: 'PowerService',
-      level: 800,
-    );
+    developer.log('Stopping imaging session', name: 'PowerService', level: 800);
     stopBatteryMonitoring();
     await releaseWakeLock();
   }
@@ -248,13 +231,13 @@ class PowerService {
 
   bool shouldPauseForBattery() {
     return _currentBatteryLevel <= 10 &&
-           _currentBatteryState != BatteryState.charging &&
-           _currentBatteryState != BatteryState.full;
+        _currentBatteryState != BatteryState.charging &&
+        _currentBatteryState != BatteryState.full;
   }
 
   bool shouldWarnForBattery() {
     return _currentBatteryLevel <= 15 &&
-           _currentBatteryState != BatteryState.charging &&
-           _currentBatteryState != BatteryState.full;
+        _currentBatteryState != BatteryState.charging &&
+        _currentBatteryState != BatteryState.full;
   }
 }

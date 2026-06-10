@@ -32,8 +32,8 @@ import 'notification_transport.dart';
 /// Strategy hook so tests can swap the socket layer for an in-memory
 /// fake. Defaults to real TCP / TLS sockets from `dart:io`.
 typedef SmtpSocketOpener = Future<Socket> Function(String host, int port);
-typedef SmtpSocketUpgrader = Future<SecureSocket> Function(Socket socket,
-    {String? host});
+typedef SmtpSocketUpgrader =
+    Future<SecureSocket> Function(Socket socket, {String? host});
 
 Future<Socket> _defaultOpenSocket(String host, int port) =>
     Socket.connect(host, port);
@@ -52,10 +52,10 @@ class EmailTransport extends NotificationTransport {
     Duration timeout = const Duration(seconds: 20),
     SmtpSocketOpener? openSocket,
     SmtpSocketUpgrader? upgradeSocket,
-  })  : _config = config,
-        _timeout = timeout,
-        _open = openSocket ?? _defaultOpenSocket,
-        _upgrade = upgradeSocket ?? _defaultUpgradeSocket;
+  }) : _config = config,
+       _timeout = timeout,
+       _open = openSocket ?? _defaultOpenSocket,
+       _upgrade = upgradeSocket ?? _defaultUpgradeSocket;
 
   @override
   NotificationTransportKind get kind => NotificationTransportKind.email;
@@ -82,15 +82,23 @@ class EmailTransport extends NotificationTransport {
       return NotificationResult.fail('Email not configured');
     }
     try {
-      final result = await _runSmtpSession(category, title, body)
-          .timeout(_timeout);
+      final result = await _runSmtpSession(
+        category,
+        title,
+        body,
+      ).timeout(_timeout);
       return result;
     } on TimeoutException {
       return NotificationResult.fail(
-          'SMTP session timed out after ${_timeout.inSeconds}s');
+        'SMTP session timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/Email] SMTP failed: $e',
-          name: 'EmailTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/Email] SMTP failed: $e',
+        name: 'EmailTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }
@@ -117,10 +125,14 @@ class EmailTransport extends NotificationTransport {
 
       if (_config.username.isNotEmpty) {
         await session.command('AUTH LOGIN', expectedCodes: const [334]);
-        await session.command(base64.encode(utf8.encode(_config.username)),
-            expectedCodes: const [334]);
-        await session.command(base64.encode(utf8.encode(_config.password)),
-            expectedCodes: const [235]);
+        await session.command(
+          base64.encode(utf8.encode(_config.username)),
+          expectedCodes: const [334],
+        );
+        await session.command(
+          base64.encode(utf8.encode(_config.password)),
+          expectedCodes: const [235],
+        );
       }
 
       await session.command('MAIL FROM:<${_config.fromAddress}>');
@@ -143,17 +155,17 @@ class EmailTransport extends NotificationTransport {
     } catch (e) {
       try {
         await raw.close();
-      } catch (_) {/* socket already closed */}
+      } catch (_) {
+        /* socket already closed */
+      }
       rethrow;
     }
   }
 
-  String _buildMime(
-      NotificationCategory category, String title, String body) {
+  String _buildMime(NotificationCategory category, String title, String body) {
     final date = HttpDate.format(DateTime.now().toUtc());
     final subject = title.isEmpty ? '[Nightshade] ${category.label}' : title;
-    final escapedSubject =
-        subject.replaceAll('\r', ' ').replaceAll('\n', ' ');
+    final escapedSubject = subject.replaceAll('\r', ' ').replaceAll('\n', ' ');
     final buf = StringBuffer()
       ..writeln('From: ${_config.fromAddress}')
       ..writeln('To: ${_config.toAddress}')
@@ -189,15 +201,21 @@ class _SmtpSession {
   Object? _streamError;
 
   _SmtpSession(this._socket) {
-    _subscription = _socket.listen(_onData,
-        onError: _onStreamError, onDone: _onStreamDone);
+    _subscription = _socket.listen(
+      _onData,
+      onError: _onStreamError,
+      onDone: _onStreamDone,
+    );
   }
 
   void swapSocket(Socket newSocket) {
     _subscription.cancel();
     _socket = newSocket;
-    _subscription = _socket.listen(_onData,
-        onError: _onStreamError, onDone: _onStreamDone);
+    _subscription = _socket.listen(
+      _onData,
+      onError: _onStreamError,
+      onDone: _onStreamDone,
+    );
   }
 
   void _onData(List<int> bytes) {

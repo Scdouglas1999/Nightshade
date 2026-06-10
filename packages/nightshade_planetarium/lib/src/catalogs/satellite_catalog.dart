@@ -110,22 +110,26 @@ class TleSource {
   static const List<TleSource> defaultSources = [
     TleSource(
       name: 'Brightest',
-      url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle',
+      url:
+          'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle',
       description: 'Visually bright satellites (~160)',
     ),
     TleSource(
       name: 'Space Stations',
-      url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
+      url:
+          'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
       description: 'ISS and other stations',
     ),
     TleSource(
       name: 'Active Satellites',
-      url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
+      url:
+          'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
       description: 'All active satellites (~8000)',
     ),
     TleSource(
       name: 'Starlink',
-      url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
+      url:
+          'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
       description: 'SpaceX Starlink constellation',
     ),
   ];
@@ -147,30 +151,44 @@ class TleParser {
   /// Returns list of parsed orbital elements. Lines that fail to parse
   /// are skipped with a debug message.
   static List<OrbitalElements> parse(String tleText) {
-    final lines = tleText.split('\n').map((l) => l.trimRight()).where((l) => l.isNotEmpty).toList();
+    final lines = tleText
+        .split('\n')
+        .map((l) => l.trimRight())
+        .where((l) => l.isNotEmpty)
+        .toList();
     final elements = <OrbitalElements>[];
 
     int i = 0;
     while (i < lines.length) {
       // Determine if current line is line 0 (name), line 1, or line 2
-      if (i + 2 < lines.length && _isLine1(lines[i + 1]) && _isLine2(lines[i + 2])) {
+      if (i + 2 < lines.length &&
+          _isLine1(lines[i + 1]) &&
+          _isLine2(lines[i + 2])) {
         // Three-line format: name + line1 + line2
         final parsed = _parseThreeLines(lines[i], lines[i + 1], lines[i + 2]);
         if (parsed != null) {
           elements.add(parsed);
         } else {
-          developer.log('[TLE] Failed to parse: ${lines[i].trim()}',
-              name: 'SatelliteCatalog', level: 900);
+          developer.log(
+            '[TLE] Failed to parse: ${lines[i].trim()}',
+            name: 'SatelliteCatalog',
+            level: 900,
+          );
         }
         i += 3;
-      } else if (i + 1 < lines.length && _isLine1(lines[i]) && _isLine2(lines[i + 1])) {
+      } else if (i + 1 < lines.length &&
+          _isLine1(lines[i]) &&
+          _isLine2(lines[i + 1])) {
         // Two-line format: line1 + line2 (no name line)
         final parsed = _parseTwoLines(lines[i], lines[i + 1]);
         if (parsed != null) {
           elements.add(parsed);
         } else {
-          developer.log('[TLE] Failed to parse 2-line at index $i',
-              name: 'SatelliteCatalog', level: 900);
+          developer.log(
+            '[TLE] Failed to parse 2-line at index $i',
+            name: 'SatelliteCatalog',
+            level: 900,
+          );
         }
         i += 2;
       } else {
@@ -190,7 +208,11 @@ class TleParser {
     return line.length >= 69 && line[0] == '2' && line[1] == ' ';
   }
 
-  static OrbitalElements? _parseThreeLines(String name, String line1, String line2) {
+  static OrbitalElements? _parseThreeLines(
+    String name,
+    String line1,
+    String line2,
+  ) {
     final cleanName = name.trim();
     return _parseTwoLinesWithName(cleanName, line1, line2);
   }
@@ -201,12 +223,19 @@ class TleParser {
     return _parseTwoLinesWithName('SAT $catStr', line1, line2);
   }
 
-  static OrbitalElements? _parseTwoLinesWithName(String name, String line1, String line2) {
+  static OrbitalElements? _parseTwoLinesWithName(
+    String name,
+    String line1,
+    String line2,
+  ) {
     try {
       // Verify checksums
       if (!_verifyChecksum(line1) || !_verifyChecksum(line2)) {
-        developer.log('[TLE] Checksum mismatch for $name',
-            name: 'SatelliteCatalog', level: 900);
+        developer.log(
+          '[TLE] Checksum mismatch for $name',
+          name: 'SatelliteCatalog',
+          level: 900,
+        );
         // Continue anyway - some sources have bad checksums
       }
 
@@ -255,8 +284,12 @@ class TleParser {
         revolutionNumber: revolutionNumber,
       );
     } catch (e) {
-      developer.log('[TLE] Parse error for "$name": $e',
-          name: 'SatelliteCatalog', level: 900, error: e);
+      developer.log(
+        '[TLE] Parse error for "$name": $e',
+        name: 'SatelliteCatalog',
+        level: 900,
+        error: e,
+      );
       return null;
     }
   }
@@ -341,7 +374,10 @@ class SatelliteCatalog {
   /// Get the cache file path for a TLE source.
   String _cacheFilePath(String sourceName) {
     final dir = cacheDirectory ?? CatalogManager.instance.catalogDirectory;
-    return path.join(dir, 'tle_${sourceName.toLowerCase().replaceAll(' ', '_')}.txt');
+    return path.join(
+      dir,
+      'tle_${sourceName.toLowerCase().replaceAll(' ', '_')}.txt',
+    );
   }
 
   /// Download TLE data from a source URL.
@@ -386,17 +422,19 @@ class SatelliteCatalog {
             _cachedGroups[source.name] = elements;
             _lastDownloadTime = stat.modified;
             developer.log(
-                '[Satellite] Loaded ${elements.length} TLEs from cache for ${source.name}',
-                name: 'SatelliteCatalog',
-                level: 800);
+              '[Satellite] Loaded ${elements.length} TLEs from cache for ${source.name}',
+              name: 'SatelliteCatalog',
+              level: 800,
+            );
             return elements;
           }
         } catch (e) {
           developer.log(
-              '[Satellite] Cache read error for ${source.name}: $e',
-              name: 'SatelliteCatalog',
-              level: 900,
-              error: e);
+            '[Satellite] Cache read error for ${source.name}: $e',
+            name: 'SatelliteCatalog',
+            level: 900,
+            error: e,
+          );
         }
       }
     }
@@ -407,7 +445,9 @@ class SatelliteCatalog {
       final elements = TleParser.parse(text);
 
       if (elements.isEmpty) {
-        throw FormatException('Downloaded TLE data for ${source.name} contained no valid elements');
+        throw FormatException(
+          'Downloaded TLE data for ${source.name} contained no valid elements',
+        );
       }
 
       // Save to disk cache
@@ -419,18 +459,20 @@ class SatelliteCatalog {
         await cacheFile.writeAsString(text);
       } catch (e) {
         developer.log(
-            '[Satellite] Cache write error for ${source.name}: $e',
-            name: 'SatelliteCatalog',
-            level: 900,
-            error: e);
+          '[Satellite] Cache write error for ${source.name}: $e',
+          name: 'SatelliteCatalog',
+          level: 900,
+          error: e,
+        );
       }
 
       _cachedGroups[source.name] = elements;
       _lastDownloadTime = DateTime.now();
       developer.log(
-          '[Satellite] Downloaded ${elements.length} TLEs for ${source.name}',
-          name: 'SatelliteCatalog',
-          level: 800);
+        '[Satellite] Downloaded ${elements.length} TLEs for ${source.name}',
+        name: 'SatelliteCatalog',
+        level: 800,
+      );
       return elements;
     } catch (e) {
       // If download fails, try stale cache as last resort
@@ -441,9 +483,10 @@ class SatelliteCatalog {
           if (elements.isNotEmpty) {
             _cachedGroups[source.name] = elements;
             developer.log(
-                '[Satellite] Using stale cache for ${source.name} (${elements.length} TLEs)',
-                name: 'SatelliteCatalog',
-                level: 900);
+              '[Satellite] Using stale cache for ${source.name} (${elements.length} TLEs)',
+              name: 'SatelliteCatalog',
+              level: 900,
+            );
             return elements;
           }
         } catch (e) {
@@ -469,7 +512,10 @@ class SatelliteCatalog {
     final results = <OrbitalElements>[];
     final seen = <int>{};
 
-    for (final source in [TleSource.defaultSources[0], TleSource.defaultSources[1]]) {
+    for (final source in [
+      TleSource.defaultSources[0],
+      TleSource.defaultSources[1],
+    ]) {
       try {
         final elements = await loadSource(source);
         for (final elem in elements) {
@@ -478,13 +524,19 @@ class SatelliteCatalog {
           }
         }
       } catch (e) {
-        developer.log('[Satellite] Failed to load ${source.name}: $e',
-            name: 'SatelliteCatalog', level: 900, error: e);
+        developer.log(
+          '[Satellite] Failed to load ${source.name}: $e',
+          name: 'SatelliteCatalog',
+          level: 900,
+          error: e,
+        );
       }
     }
 
     if (results.isEmpty) {
-      throw StateError('Failed to load any satellite TLE data. Check network connection.');
+      throw StateError(
+        'Failed to load any satellite TLE data. Check network connection.',
+      );
     }
 
     return results;
@@ -571,16 +623,18 @@ class SatelliteCatalog {
       if (!isAbove && wasAboveHorizon && riseTime != null) {
         // Satellite just set below horizon - record pass
         if (maxEl >= minElevation) {
-          passes.add(SatellitePass(
-            elements: elements,
-            riseTime: riseTime,
-            riseAzimuth: riseAz,
-            maxElevationTime: maxElTime,
-            maxElevation: maxEl,
-            maxElevationAzimuth: maxElAz,
-            setTime: currentTime,
-            setAzimuth: look.azimuth,
-          ));
+          passes.add(
+            SatellitePass(
+              elements: elements,
+              riseTime: riseTime,
+              riseAzimuth: riseAz,
+              maxElevationTime: maxElTime,
+              maxElevation: maxEl,
+              maxElevationAzimuth: maxElAz,
+              setTime: currentTime,
+              setAzimuth: look.azimuth,
+            ),
+          );
         }
         riseTime = null;
         maxEl = 0;
@@ -628,16 +682,18 @@ class SatelliteCatalog {
       final eclipsed = Sgp4.isEclipsed(result.position, sunEci);
       final (raHours, decDeg) = Sgp4.eciToRaDec(result.position, gmst);
 
-      results.add(SatelliteData(
-        elements: elem,
-        ra: raHours,
-        dec: decDeg,
-        altitudeKm: geodetic.altitude,
-        rangeKm: look.range,
-        isEclipsed: eclipsed,
-        elevation: look.elevation,
-        azimuth: look.azimuth,
-      ));
+      results.add(
+        SatelliteData(
+          elements: elem,
+          ra: raHours,
+          dec: decDeg,
+          altitudeKm: geodetic.altitude,
+          rangeKm: look.range,
+          isEclipsed: eclipsed,
+          elevation: look.elevation,
+          azimuth: look.azimuth,
+        ),
+      );
     }
 
     return results;

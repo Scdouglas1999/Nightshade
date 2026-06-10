@@ -17,9 +17,9 @@ Future<void> main() async {
     final bundle = Directory('${temp.path}/bundle');
     await bundle.create(recursive: true);
     await File('${bundle.path}/nightshade').writeAsString('binary fixture\n');
-    await File('${bundle.path}/data/flutter_assets/AssetManifest.json')
-        .create(recursive: true)
-        .then((file) => file.writeAsString('{}\n'));
+    await File(
+      '${bundle.path}/data/flutter_assets/AssetManifest.json',
+    ).create(recursive: true).then((file) => file.writeAsString('{}\n'));
     final smokeLog = File('${temp.path}/linux-runtime-smoke.log');
     await smokeLog.writeAsString('Linux runtime smoke passed\n');
 
@@ -51,13 +51,17 @@ Future<void> main() async {
       );
     }
 
-    final metadata = jsonDecode(File(metadataPath).readAsStringSync())
-        as Map<String, dynamic>;
-    final evidence = jsonDecode(File(evidencePath).readAsStringSync())
-        as Map<String, dynamic>;
+    final metadata =
+        jsonDecode(File(metadataPath).readAsStringSync())
+            as Map<String, dynamic>;
+    final evidence =
+        jsonDecode(File(evidencePath).readAsStringSync())
+            as Map<String, dynamic>;
 
     _expect(
-        metadata['platform'] == 'linux', 'metadata platform should be linux');
+      metadata['platform'] == 'linux',
+      'metadata platform should be linux',
+    );
     _expect(
       metadata['metadataSchemaVersion'] == 2,
       'metadata should record schema version',
@@ -148,9 +152,11 @@ Future<void> main() async {
       'evidence should name all required runtime smoke checks',
     );
     _expect(
-      runtimeSmokeChecks.every((check) =>
-          check['passed'] == true &&
-          (check['evidence']?.toString().isNotEmpty ?? false)),
+      runtimeSmokeChecks.every(
+        (check) =>
+            check['passed'] == true &&
+            (check['evidence']?.toString().isNotEmpty ?? false),
+      ),
       'evidence should mark every runtime smoke check passed with evidence',
     );
     _expect(
@@ -158,9 +164,9 @@ Future<void> main() async {
       'evidence package hash should match metadata',
     );
     _expect(
-      File(evidence['packageSha256Path'] as String)
-          .readAsStringSync()
-          .contains(evidence['packageSha256'] as String),
+      File(
+        evidence['packageSha256Path'] as String,
+      ).readAsStringSync().contains(evidence['packageSha256'] as String),
       'evidence package hash sidecar should contain the package hash',
     );
 

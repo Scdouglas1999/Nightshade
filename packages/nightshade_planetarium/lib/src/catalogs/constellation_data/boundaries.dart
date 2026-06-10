@@ -35,7 +35,10 @@ class ConstellationBoundaries {
   /// RA is in hours (0-24), Dec in degrees (-90 to +90).
   /// Handles RA wraparound at the 0h/24h boundary.
   static bool _pointInPolygon(
-      double ra, double dec, List<BoundaryVertex> polygon) {
+    double ra,
+    double dec,
+    List<BoundaryVertex> polygon,
+  ) {
     if (polygon.length < 3) return false;
 
     // Convert RA to degrees for the algorithm (0-360)

@@ -45,10 +45,14 @@ void main() {
     final headers = await reader.readPrimaryHeader(file.path);
     expect(FitsHeaderReader.stringValue(headers, 'INSTRUME'), 'ASI2600MC Pro');
     expect(FitsHeaderReader.intValue(headers, 'GAIN'), 100);
-    expect(FitsHeaderReader.doubleValue(headers, 'CCD-TEMP'), closeTo(-10.5, 1e-9));
     expect(
-        FitsHeaderReader.firstDouble(headers, const ['EXPOSURE', 'EXPTIME']),
-        closeTo(300.0, 1e-9));
+      FitsHeaderReader.doubleValue(headers, 'CCD-TEMP'),
+      closeTo(-10.5, 1e-9),
+    );
+    expect(
+      FitsHeaderReader.firstDouble(headers, const ['EXPOSURE', 'EXPTIME']),
+      closeTo(300.0, 1e-9),
+    );
     expect(FitsHeaderReader.stringValue(headers, 'FILTER'), 'Ha');
   });
 
@@ -57,15 +61,18 @@ void main() {
       "OBJECT  = 'NGC 7000 / pelican' / nickname",
     ]);
     final headers = await reader.readPrimaryHeader(file.path);
-    expect(FitsHeaderReader.stringValue(headers, 'OBJECT'),
-        'NGC 7000 / pelican');
+    expect(
+      FitsHeaderReader.stringValue(headers, 'OBJECT'),
+      'NGC 7000 / pelican',
+    );
   });
 
   test('a non-FITS file throws FormatException', () async {
     final file = File('${dir.path}/notfits.bin');
     file.writeAsBytesSync(Uint8List(2880));
     expect(
-        () => reader.readPrimaryHeader(file.path),
-        throwsA(isA<FormatException>()));
+      () => reader.readPrimaryHeader(file.path),
+      throwsA(isA<FormatException>()),
+    );
   });
 }

@@ -95,8 +95,7 @@ void main() {
             profileFiltersProvider
                 .overrideWithValue(const ['L', 'R', 'G', 'B']),
             activeEquipmentProfileProvider.overrideWithValue(profile),
-            smartNightExposureContextProvider
-                .overrideWith((ref) async => null),
+            smartNightExposureContextProvider.overrideWith((ref) async => null),
           ],
           child: MaterialApp(
             theme: NightshadeTheme.dark,
@@ -132,8 +131,7 @@ void main() {
 
       // The "Using your saved defaults" hint is shown because the
       // profile's cooling temp diverged from the wizard's fallback.
-      expect(
-          find.textContaining('Using your saved defaults'), findsOneWidget);
+      expect(find.textContaining('Using your saved defaults'), findsOneWidget);
     },
   );
 }

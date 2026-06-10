@@ -233,7 +233,8 @@ class _EditIconButton extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   icon,
@@ -325,7 +326,9 @@ class DashboardLayoutError extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             error.toString(),
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
           Align(

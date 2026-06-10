@@ -16,9 +16,9 @@ class RelayCredentials {
   const RelayCredentials({required this.applianceId, required this.secret});
 
   Map<String, dynamic> toJson() => {
-        'applianceId': applianceId,
-        'secret': secret,
-      };
+    'applianceId': applianceId,
+    'secret': secret,
+  };
 
   static RelayCredentials? fromJson(Map<String, dynamic> json) {
     final id = json['applianceId'];

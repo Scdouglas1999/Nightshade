@@ -213,9 +213,7 @@ Future<void> main(List<String> args) async {
   final fileReports = [
     for (final required in _requiredFiles) _auditFile(root, required),
   ];
-  final issues = [
-    for (final report in fileReports) ...report.issues,
-  ];
+  final issues = [for (final report in fileReports) ...report.issues];
   final passed = issues.isEmpty;
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -229,15 +227,13 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    fileReports: fileReports,
-    issues: issues,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(passed: passed, fileReports: fileReports, issues: issues),
+  );
 
   stdout.writeln('Platform capability audit complete.');
   stdout.writeln('Passed: $passed');
@@ -366,12 +362,12 @@ class _FileReport {
   }
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'label': label,
-        'exists': exists,
-        'sizeBytes': sizeBytes,
-        'missingText': missingText,
-        'missingTextCount': missingText.length,
-        'passed': exists && missingText.isEmpty,
-      };
+    'path': path,
+    'label': label,
+    'exists': exists,
+    'sizeBytes': sizeBytes,
+    'missingText': missingText,
+    'missingTextCount': missingText.length,
+    'passed': exists && missingText.isEmpty,
+  };
 }

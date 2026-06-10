@@ -34,7 +34,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
         : 0.0;
 
     // Parallax effect: offset dim stars during pan for depth illusion
-    final doParallax = qualityConfig.enableParallax &&
+    final doParallax =
+        qualityConfig.enableParallax &&
         parallaxPanDelta != null &&
         parallaxPanDelta!.distance > 0.5;
 
@@ -132,8 +133,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
           lstHours: lst,
         );
         if (alt < 30) {
-          final (extinctionFactor, redShift) =
-              AtmosphericExtinctionLUT.lookup(alt);
+          final (extinctionFactor, redShift) = AtmosphericExtinctionLUT.lookup(
+            alt,
+          );
           brightness *= extinctionFactor;
           color = Color.lerp(color, const Color(0xFFFFAA88), redShift)!;
         }
@@ -188,7 +190,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       canvas.drawRawAtlas(
         atlas.starPlain,
         Float32List.sublistView(
-            SkyCanvasPainter._atlasTransforms, 0, baseCount * 4),
+          SkyCanvasPainter._atlasTransforms,
+          0,
+          baseCount * 4,
+        ),
         Float32List.sublistView(SkyCanvasPainter._atlasRects, 0, baseCount * 4),
         Int32List.sublistView(SkyCanvasPainter._atlasColors, 0, baseCount),
         BlendMode.modulate,
@@ -203,9 +208,15 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       canvas.drawRawAtlas(
         qualityConfig.useDiffractionSpikes ? atlas.starSpiked : atlas.starPlain,
         Float32List.sublistView(
-            SkyCanvasPainter._atlasTransforms2, 0, brightCount * 4),
+          SkyCanvasPainter._atlasTransforms2,
+          0,
+          brightCount * 4,
+        ),
         Float32List.sublistView(
-            SkyCanvasPainter._atlasRects2, 0, brightCount * 4),
+          SkyCanvasPainter._atlasRects2,
+          0,
+          brightCount * 4,
+        ),
         Int32List.sublistView(SkyCanvasPainter._atlasColors2, 0, brightCount),
         BlendMode.modulate,
         null,
@@ -257,8 +268,14 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   /// Lay out and paint bright-star name labels. Separated from the atlas pass so
   /// the hot sprite loop stays allocation-free; this walks the (short) prefix of
   /// the magnitude-sorted list down to mag 2.0 and places non-overlapping names.
-  void _drawBrightStarLabels(Canvas canvas, Size size, Offset center,
-      double scale, int maxStars, double magLimit) {
+  void _drawBrightStarLabels(
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+    int maxStars,
+    double magLimit,
+  ) {
     var processed = 0;
     for (final star in stars) {
       if (processed >= maxStars) break;
@@ -310,7 +327,11 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   /// Ultra-minimal star rendering: all stars as raw points in a single draw call.
   /// No circles, no PSF, no glow. Designed for Raspberry Pi at 30fps.
   void _drawStarsMinimal(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     final maxStars = qualityConfig.maxStarsToRender;
     final magLimit = qualityConfig.starMagnitudeLimit;
 
@@ -345,7 +366,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
     canvas.drawRawPoints(
-        ui.PointMode.points, Float32List.fromList(points), paint);
+      ui.PointMode.points,
+      Float32List.fromList(points),
+      paint,
+    );
 
     // Draw labels for only the very brightest stars (mag < 1.0) even in minimal
     // mode. The list is magnitude-sorted, so stop at the first star >= mag 1.0.
@@ -407,8 +431,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     // Calculate pop-in animation values
     // Phase goes from 0 to 1; use easeOutCubic for smooth deceleration
     final popinPhase = dsoPopinAnimationPhase ?? 1.0;
-    final easedPhase =
-        Curves.easeOutCubic.transform(popinPhase.clamp(0.0, 1.0));
+    final easedPhase = Curves.easeOutCubic.transform(
+      popinPhase.clamp(0.0, 1.0),
+    );
     // Scale from 80% to 100%
     final popinScale = 0.8 + 0.2 * easedPhase;
     // Alpha from 0 to 1
@@ -486,8 +511,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // falloff, so we pass the full effective alpha here. `_dsoTintColor`
       // reproduces the old per-subtype nebula colors (emission red, reflection
       // blue, dark grey, planetary teal) that the deleted shape methods used.
-      final tint = _dsoTintColor(dso.type)
-          .withValues(alpha: effectiveAlpha.clamp(0.0, 1.0));
+      final tint = _dsoTintColor(
+        dso.type,
+      ).withValues(alpha: effectiveAlpha.clamp(0.0, 1.0));
       final argb = tint.toARGB32();
 
       final srcRect = atlas.dsoSrcRect(dso.type);
@@ -519,7 +545,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
           final fontSize = _getLabelFontSize(dsoMag, 'dso');
           final fontWeight = _getLabelFontWeight(dsoMag);
           final labelAlpha = dsoMag < 10.0
-              ? 0.85 * effectiveAlpha // Bright DSOs get prominent labels
+              ? 0.85 *
+                    effectiveAlpha // Bright DSOs get prominent labels
               : 0.6 * effectiveAlpha; // Fainter DSOs get subtler labels
           final textStyle = TextStyle(
             color: _dsoTypeColor(dso.type).withValues(alpha: labelAlpha),
@@ -561,7 +588,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       canvas.drawRawAtlas(
         atlas.dsoSheet,
         Float32List.sublistView(
-            SkyCanvasPainter._atlasTransforms, 0, dsoCount * 4),
+          SkyCanvasPainter._atlasTransforms,
+          0,
+          dsoCount * 4,
+        ),
         Float32List.sublistView(SkyCanvasPainter._atlasRects, 0, dsoCount * 4),
         Int32List.sublistView(SkyCanvasPainter._atlasColors, 0, dsoCount),
         BlendMode.modulate,
@@ -650,7 +680,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   /// Draw a small amber bookmark marker at the top-right of a DSO.
   void _drawListedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
     final markerSize = math.max(4.0, dsoSize * 0.3);
-    final markerPos = dsoCenter +
+    final markerPos =
+        dsoCenter +
         Offset(dsoSize / 2 + markerSize * 0.5, -dsoSize / 2 - markerSize * 0.5);
 
     final fillPaint = Paint()
@@ -712,10 +743,14 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
         ..strokeCap = StrokeCap.round;
       final checkPath = Path()
         ..moveTo(markerPos.dx - markerRadius * 0.35, markerPos.dy)
-        ..lineTo(markerPos.dx - markerRadius * 0.05,
-            markerPos.dy + markerRadius * 0.3)
-        ..lineTo(markerPos.dx + markerRadius * 0.35,
-            markerPos.dy - markerRadius * 0.3);
+        ..lineTo(
+          markerPos.dx - markerRadius * 0.05,
+          markerPos.dy + markerRadius * 0.3,
+        )
+        ..lineTo(
+          markerPos.dx + markerRadius * 0.35,
+          markerPos.dy - markerRadius * 0.3,
+        );
       canvas.drawPath(checkPath, checkPaint);
     }
   }

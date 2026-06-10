@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,7 +98,9 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         child: Center(
           child: Text(
             'No images captured in this session',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -155,13 +157,16 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
               ? Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: Center(
                     child: Text(
                       'No frames match "${_filterLabel(_qualityFilter)}"',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted),
                     ),
                   ),
                 )
@@ -175,8 +180,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                     return _ImageThumbnail(
                       image: image,
                       assessment: assessments[image.id],
-                      calibration:
-                          widget.calibrationByImageId?[image.id],
+                      calibration: widget.calibrationByImageId?[image.id],
                       onTap: widget.onImageTap != null
                           ? () => widget.onImageTap!(image)
                           : null,
@@ -353,7 +357,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               ),
                               decoration: BoxDecoration(
                                 color: qualityColor.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusInline4),
                               ),
                               child: Text(
                                 widget.assessment!.label.toUpperCase(),
@@ -467,7 +472,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             decoration: BoxDecoration(
                               color: _getHfrColor(widget.image.hfr!, colors)
                                   .withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               widget.image.hfr!.toStringAsFixed(1),
@@ -521,7 +527,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             ),
                             decoration: BoxDecoration(
                               color: colors.error,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'REJECTED',
@@ -693,9 +700,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       color: colors.surface,
       items: <PopupMenuEntry<_FrameMenuAction>>[
         PopupMenuItem(
-          value: isAccepted
-              ? _FrameMenuAction.reject
-              : _FrameMenuAction.accept,
+          value: isAccepted ? _FrameMenuAction.reject : _FrameMenuAction.accept,
           child: Row(
             children: [
               Icon(
@@ -706,7 +711,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
               const SizedBox(width: 8),
               Text(
                 isAccepted ? 'Flag as poor quality' : 'Restore as good',
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
             ],
           ),
@@ -720,7 +727,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                 const SizedBox(width: 8),
                 Text(
                   'Show calibration details',
-                  style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                  style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
             ),
@@ -767,7 +776,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text('Frame ${widget.image.fileName}',
-            style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize15)),
+            style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: NightshadeTypography.fontSize15)),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
             context,
@@ -775,32 +786,32 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
             designMaxHeight: 360,
           ),
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
-            _DetailRow(
-              'Zero point',
-              c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
-              colors,
-            ),
-            _DetailRow(
-                'Matched stars', c.matchedStarCount.toString(), colors),
-            _DetailRow(
-              'Fit RMS',
-              '${c.calibrationRms.toStringAsFixed(3)} mag',
-              colors,
-            ),
-            _DetailRow('Catalog', c.catalogSource, colors),
-            _DetailRow('Solver', c.solverId, colors),
-            if (c.limitingMag5Sigma != null)
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
               _DetailRow(
-                'Lim mag (5Ïƒ)',
-                c.limitingMag5Sigma!.toStringAsFixed(2),
+                'Zero point',
+                c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
                 colors,
               ),
-          ],
-        ),
+              _DetailRow(
+                  'Matched stars', c.matchedStarCount.toString(), colors),
+              _DetailRow(
+                'Fit RMS',
+                '${c.calibrationRms.toStringAsFixed(3)} mag',
+                colors,
+              ),
+              _DetailRow('Catalog', c.catalogSource, colors),
+              _DetailRow('Solver', c.solverId, colors),
+              if (c.limitingMag5Sigma != null)
+                _DetailRow(
+                  'Lim mag (5Ïƒ)',
+                  c.limitingMag5Sigma!.toStringAsFixed(2),
+                  colors,
+                ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -873,7 +884,9 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ),
           Expanded(

@@ -137,7 +137,8 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
             padding: EdgeInsets.symmetric(horizontal: searchPadding),
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: widget.colors.border),
             ),
             child: Row(
@@ -294,7 +295,8 @@ class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
                   height: badgeSize,
                   decoration: NightshadeDecorations.statusChip(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                     bordered: false,
                   ),
                   child: Icon(
@@ -465,7 +467,8 @@ class _DraggableNodeItemCompactState
                   height: iconBoxSize,
                   decoration: NightshadeDecorations.tintedBadge(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: Icon(
                     widget.getIcon(widget.item.icon),

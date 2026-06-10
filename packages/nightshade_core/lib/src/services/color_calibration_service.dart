@@ -15,11 +15,12 @@ import 'wcs_overlay.dart';
 /// Mirrors `HygStarCatalog.getStarsNear`. Injected as a closure so the service
 /// is exercisable with an in-memory catalog stub (no on-disk HYG CSV) in tests,
 /// while production binds the real catalog.
-typedef StarConeSearch = Future<List<Star>> Function(
-  CelestialCoordinate center,
-  double radiusDegrees, {
-  double? maxMagnitude,
-});
+typedef StarConeSearch =
+    Future<List<Star>> Function(
+      CelestialCoordinate center,
+      double radiusDegrees, {
+      double? maxMagnitude,
+    });
 
 /// One detected star cross-matched to a catalog star with a known colour index,
 /// carrying the per-channel aperture flux the native solver consumes.
@@ -41,9 +42,9 @@ class MatchedColorStar {
 
   /// The `{channelFlux, catalogBv}` map the native `apiColorCalibrate` consumes.
   Map<String, dynamic> toSeamJson() => {
-        'channelFlux': channelFlux,
-        'catalogBv': catalogBv,
-      };
+    'channelFlux': channelFlux,
+    'catalogBv': catalogBv,
+  };
 }
 
 /// Orchestrates **catalog-powered (SPCC-grade) colour calibration** of a
@@ -72,8 +73,8 @@ class ColorCalibrationService {
   ColorCalibrationService({
     required PostSessionSeam seam,
     required StarConeSearch starSearch,
-  })  : _seam = seam,
-        _starSearch = starSearch;
+  }) : _seam = seam,
+       _starSearch = starSearch;
 
   final PostSessionSeam _seam;
   final StarConeSearch _starSearch;
@@ -182,7 +183,8 @@ class ColorCalibrationService {
     StarPhotometryResult photometry,
     WcsOverlay wcs,
   ) {
-    final halfDiagDeg = 0.5 *
+    final halfDiagDeg =
+        0.5 *
         math.sqrt(
           math.pow(photometry.width * wcs.cdelt1, 2) +
               math.pow(photometry.height * wcs.cdelt2, 2),
@@ -221,12 +223,16 @@ class ColorCalibrationService {
     required int channels,
     double matchToleranceArcsec = defaultMatchToleranceArcsec,
   }) {
-    final colored = [for (final s in catalog) if (s.colorIndex != null) s];
+    final colored = [
+      for (final s in catalog)
+        if (s.colorIndex != null) s,
+    ];
     if (colored.isEmpty) return const [];
 
     // Usable detections, paired with their projected sky position and a stable
     // index. Order-independence below relies on these indices, not list order.
-    final detections = <({int idx, DetectedStarPhotometry star, double ra, double dec})>[];
+    final detections =
+        <({int idx, DetectedStarPhotometry star, double ra, double dec})>[];
     for (final star in photometry.stars) {
       if (!_isUsableDetection(star, channels)) continue;
       final (ra, dec) = wcs.pixelToCelestial(star.x, star.y);
@@ -237,8 +243,7 @@ class ColorCalibrationService {
     // All within-tolerance candidate pairs, plus a per-detection partner count
     // so we can drop ambiguous blends (a detection with >1 catalog star in
     // range — we cannot say which colour it is).
-    final candidates =
-        <({int detIdx, int catIdx, double sep})>[];
+    final candidates = <({int detIdx, int catIdx, double sep})>[];
     final detPartnerCount = List<int>.filled(detections.length, 0);
     for (final d in detections) {
       for (var c = 0; c < colored.length; c++) {
@@ -284,11 +289,13 @@ class ColorCalibrationService {
       }
       usedDet[pair.detIdx] = true;
       usedCat[pair.catIdx] = true;
-      matches.add(MatchedColorStar(
-        channelFlux: detections[pair.detIdx].star.channelFlux,
-        catalogBv: colored[pair.catIdx].colorIndex!,
-        separationArcsec: pair.sep,
-      ));
+      matches.add(
+        MatchedColorStar(
+          channelFlux: detections[pair.detIdx].star.channelFlux,
+          catalogBv: colored[pair.catIdx].colorIndex!,
+          separationArcsec: pair.sep,
+        ),
+      );
     }
 
     return matches;
@@ -347,7 +354,8 @@ class ColorCalibrationService {
     final dDec = (dec2Deg - dec1Deg) * deg2rad;
     final lat1 = dec1Deg * deg2rad;
     final lat2 = dec2Deg * deg2rad;
-    final a = math.sin(dDec / 2) * math.sin(dDec / 2) +
+    final a =
+        math.sin(dDec / 2) * math.sin(dDec / 2) +
         math.cos(lat1) * math.cos(lat2) * math.sin(dRa / 2) * math.sin(dRa / 2);
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return c / deg2rad * 3600.0;
@@ -357,8 +365,9 @@ class ColorCalibrationService {
 /// Provider for the [ColorCalibrationService]. The star cone search binds the
 /// real on-disk HYG catalog; tests override [postSessionSeamProvider] and may
 /// construct the service directly with an in-memory [StarConeSearch] stub.
-final colorCalibrationServiceProvider =
-    Provider<ColorCalibrationService>((ref) {
+final colorCalibrationServiceProvider = Provider<ColorCalibrationService>((
+  ref,
+) {
   final catalog = HygStarCatalog();
   return ColorCalibrationService(
     seam: ref.watch(postSessionSeamProvider),

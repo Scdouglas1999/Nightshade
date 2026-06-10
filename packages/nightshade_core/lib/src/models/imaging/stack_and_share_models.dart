@@ -105,10 +105,10 @@ class StackAndShareConfig {
   /// guarantees the Stack-and-Share-level colour intent always reaches the
   /// engine, regardless of what defaults the wrapped [stackingConfig] carried.
   LiveStackingConfig get resolvedStackingConfig => stackingConfig.copyWith(
-        sensorMode: sensorMode,
-        bayerPattern: bayerPatternOverride,
-        demosaicQuality: demosaicQuality,
-      );
+    sensorMode: sensorMode,
+    bayerPattern: bayerPatternOverride,
+    demosaicQuality: demosaicQuality,
+  );
 
   StackAndShareConfig copyWith({
     LiveStackingConfig? stackingConfig,
@@ -148,15 +148,15 @@ class StackAndShareConfig {
 
   @override
   int get hashCode => Object.hash(
-        stackingConfig,
-        applyCalibration,
-        autoStretch,
-        minQualityScore,
-        rejectUnaccepted,
-        sensorMode,
-        bayerPatternOverride,
-        demosaicQuality,
-      );
+    stackingConfig,
+    applyCalibration,
+    autoStretch,
+    minQualityScore,
+    rejectUnaccepted,
+    sensorMode,
+    bayerPatternOverride,
+    demosaicQuality,
+  );
 }
 
 /// Lifecycle phases of a Stack-and-Share run, in execution order.
@@ -267,12 +267,12 @@ class StackAndShareProgress {
 
   @override
   int get hashCode => Object.hash(
-        phase,
-        framesTotal,
-        framesProcessed,
-        framesRejected,
-        currentFile,
-      );
+    phase,
+    framesTotal,
+    framesProcessed,
+    framesRejected,
+    currentFile,
+  );
 }
 
 /// A single light frame considered for a Stack-and-Share run.
@@ -400,18 +400,16 @@ class StackSelectionSummary {
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAll(selected),
-        Object.hashAll(excluded),
-        referencePath,
-        Object.hashAll(
-          perFilterCounts.entries
-              .map((e) => Object.hash(e.key, e.value))
-              .toList()
-            ..sort(),
-        ),
-        totalIntegrationSecs,
-        targetName,
-      );
+    Object.hashAll(selected),
+    Object.hashAll(excluded),
+    referencePath,
+    Object.hashAll(
+      perFilterCounts.entries.map((e) => Object.hash(e.key, e.value)).toList()
+        ..sort(),
+    ),
+    totalIntegrationSecs,
+    targetName,
+  );
 }
 
 /// Final result of a completed Stack-and-Share run. Persisted alongside the
@@ -562,24 +560,24 @@ class StackAndShareResult {
 
   @override
   int get hashCode => Object.hashAll([
-        id,
-        sessionId,
-        targetId,
-        targetName,
-        width,
-        height,
-        framesStacked,
-        framesAttempted,
-        integrationSecs,
-        avgAlignmentResidual,
-        avgHfr,
-        filter,
-        isColor,
-        channels,
-        createdAt,
-        exportedImagePath,
-        stats,
-      ]);
+    id,
+    sessionId,
+    targetId,
+    targetName,
+    width,
+    height,
+    framesStacked,
+    framesAttempted,
+    integrationSecs,
+    avgAlignmentResidual,
+    avgHfr,
+    filter,
+    isColor,
+    channels,
+    createdAt,
+    exportedImagePath,
+    stats,
+  ]);
 }
 
 /// Layout options for the annotated share card.
@@ -713,14 +711,14 @@ class ShareCardSpec {
 
   @override
   int get hashCode => Object.hash(
-        title,
-        Object.hashAll(stats),
-        watermark,
-        targetWidth,
-        targetHeight,
-        layout,
-        fontScale,
-      );
+    title,
+    Object.hashAll(stats),
+    watermark,
+    targetWidth,
+    targetHeight,
+    layout,
+    fontScale,
+  );
 }
 
 /// Output format for a Stack-and-Share export.
@@ -839,9 +837,7 @@ class AstroBinExportMetadata {
     }
 
     buf.writeln('**Subject type:** $subjectType');
-    buf.writeln(
-      '**Frames:** $frames x ${_trimNum(perFrameExposureSecs)}s',
-    );
+    buf.writeln('**Frames:** $frames x ${_trimNum(perFrameExposureSecs)}s');
     buf.writeln('**Integration:** $integrationHms');
 
     final tele = telescope?.trim();
@@ -922,16 +918,16 @@ class AstroBinExportMetadata {
 
   @override
   int get hashCode => Object.hash(
-        title,
-        subjectType,
-        integrationSecs,
-        frames,
-        telescope,
-        camera,
-        filter,
-        focalLength,
-        aperture,
-      );
+    title,
+    subjectType,
+    integrationSecs,
+    frames,
+    telescope,
+    camera,
+    filter,
+    focalLength,
+    aperture,
+  );
 }
 
 /// Formats a duration in seconds as zero-padded `HH:MM:SS`.

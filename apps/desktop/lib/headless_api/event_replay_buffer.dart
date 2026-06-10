@@ -30,8 +30,8 @@ class EventReplayBuffer {
   final List<NightshadeEvent> _entries;
 
   EventReplayBuffer({this.capacity = 5000})
-      : _entries = <NightshadeEvent>[],
-        assert(capacity > 0, 'capacity must be positive');
+    : _entries = <NightshadeEvent>[],
+      assert(capacity > 0, 'capacity must be positive');
 
   /// Append [event] to the buffer. The caller must have already stamped
   /// `seq` on the event; passing an unstamped event is a programmer error.

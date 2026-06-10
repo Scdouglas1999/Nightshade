@@ -157,7 +157,8 @@ class _BannerContent extends StatelessWidget {
     final message = actions.reason ?? 'Adverse weather conditions detected';
     final isCritical = alertLevel == AlertLevel.critical;
 
-    final onAccent = isCritical ? accentColor : Theme.of(context).colorScheme.onError;
+    final onAccent =
+        isCritical ? accentColor : Theme.of(context).colorScheme.onError;
     final titleColor = isCritical ? colors.textPrimary : onAccent;
     final messageColor =
         isCritical ? colors.textSecondary : Colors.white.withValues(alpha: 0.9);
@@ -266,9 +267,8 @@ class _SnoozeButton extends StatelessWidget {
     final background = inverted
         ? colors.error.withValues(alpha: 0.12)
         : Colors.white.withValues(alpha: 0.2);
-    final foreground = inverted
-        ? colors.textPrimary
-        : Colors.white.withValues(alpha: 0.9);
+    final foreground =
+        inverted ? colors.textPrimary : Colors.white.withValues(alpha: 0.9);
 
     return Material(
       color: background,

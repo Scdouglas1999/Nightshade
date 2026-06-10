@@ -47,9 +47,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           framingImageCacheServiceProvider.overrideWithValue(
-            FramingImageCacheService(
-              supportDirProvider: () async => tempDir,
-            ),
+            FramingImageCacheService(supportDirProvider: () async => tempDir),
           ),
         ],
       );
@@ -88,8 +86,9 @@ void main() {
         source: key.source,
       );
 
-      final file =
-          await container.read(cachedSurveyImageFileProvider(key).future);
+      final file = await container.read(
+        cachedSurveyImageFileProvider(key).future,
+      );
 
       expect(file, isNotNull);
       expect(file!.path, saved.filePath);

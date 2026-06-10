@@ -62,10 +62,9 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                                   .watch(observedCatalogIdsProvider)
                                   .valueOrNull ??
                               {};
-                          final listedIds = ref
-                                  .watch(listedCatalogIdsProvider)
-                                  .valueOrNull ??
-                              {};
+                          final listedIds =
+                              ref.watch(listedCatalogIdsProvider).valueOrNull ??
+                                  {};
                           final bortleClass = ref.watch(bortleClassProvider);
                           final horizonProfile =
                               ref.watch(horizonProfileProvider);
@@ -76,8 +75,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                             observedObjectIds: observedIds,
                             listedObjectIds: listedIds,
                             bortleClass: bortleClass,
-                            measurementMode:
-                                ref.watch(measurementModeProvider),
+                            measurementMode: ref.watch(measurementModeProvider),
                             horizonAltitudes: horizonProfile.isFlat
                                 ? null
                                 : List<double>.generate(
@@ -173,12 +171,10 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                           rotation: viewState.rotation,
                           size: sizing.minimapSize,
                           onTap: (tapAz, tapAlt) {
-                            final location =
-                                ref.read(observerLocationProvider);
+                            final location = ref.read(observerLocationProvider);
                             final time = ref.read(observationTimeProvider);
-                            final lst =
-                                AstronomyCalculations.localSiderealTime(
-                                    time.time, location.longitude);
+                            final lst = AstronomyCalculations.localSiderealTime(
+                                time.time, location.longitude);
                             final (ra, dec) =
                                 AstronomyCalculations.horizontalToEquatorial(
                               altDeg: tapAlt,
@@ -202,8 +198,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     right: 0,
                     child: Center(
                       child: TimeControlPanel(
-                        backgroundColor:
-                            colors.surface.withValues(alpha: 0.9),
+                        backgroundColor: colors.surface.withValues(alpha: 0.9),
                         textColor: colors.textPrimary,
                         accentColor: colors.accent,
                         compact: isPhone,
@@ -248,8 +243,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                         child: _buildPlanPanelContent(
                           colors,
                           selectedObject,
-                          onClose: () =>
-                              _update(() => _planPanelOpen = false),
+                          onClose: () => _update(() => _planPanelOpen = false),
                         ),
                       ),
                     ),
@@ -283,8 +277,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 
                   if (_showHelpOverlay)
                     _KeyboardShortcutsOverlay(
-                      onDismiss: () =>
-                          _update(() => _showHelpOverlay = false),
+                      onDismiss: () => _update(() => _showHelpOverlay = false),
                     ),
                 ],
               ),

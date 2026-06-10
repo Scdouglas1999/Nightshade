@@ -63,7 +63,9 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
                   height: isMobile ? 32 : 24,
                   decoration: NightshadeDecorations.statusChip(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(isMobile ? NightshadeTokens.radiusInline8 : NightshadeTokens.radiusMd),
+                    borderRadius: BorderRadius.circular(isMobile
+                        ? NightshadeTokens.radiusInline8
+                        : NightshadeTokens.radiusMd),
                     bordered: false,
                   ),
                   child: Icon(
@@ -77,7 +79,9 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
                   child: Text(
                     widget.categoryName,
                     style: TextStyle(
-                      fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+                      fontSize: isMobile
+                          ? NightshadeTypography.fontSize14
+                          : NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: widget.colors.textPrimary,
                     ),
@@ -86,7 +90,9 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
                 Text(
                   '${widget.snippets.length}',
                   style: TextStyle(
-                    fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize10,
+                    fontSize: isMobile
+                        ? NightshadeTypography.fontSize12
+                        : NightshadeTypography.fontSize10,
                     color: widget.colors.textMuted,
                   ),
                 ),

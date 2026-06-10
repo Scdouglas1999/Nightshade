@@ -48,27 +48,33 @@ extension _DeviceServiceProfileConnections on DeviceService {
       ];
 
       for (final (deviceType, id, connect) in entries) {
-        onProgress?.call(DeviceConnectProgress(
-          deviceType: deviceType,
-          deviceId: id,
-          status: DeviceConnectProgressStatus.connecting,
-        ));
+        onProgress?.call(
+          DeviceConnectProgress(
+            deviceType: deviceType,
+            deviceId: id,
+            status: DeviceConnectProgressStatus.connecting,
+          ),
+        );
 
         try {
           await connect(id).timeout(DeviceService._connectProfileDeviceTimeout);
-          onProgress?.call(DeviceConnectProgress(
-            deviceType: deviceType,
-            deviceId: id,
-            status: DeviceConnectProgressStatus.connected,
-          ));
+          onProgress?.call(
+            DeviceConnectProgress(
+              deviceType: deviceType,
+              deviceId: id,
+              status: DeviceConnectProgressStatus.connected,
+            ),
+          );
         } catch (e) {
-          onProgress?.call(DeviceConnectProgress(
-            deviceType: deviceType,
-            deviceId: id,
-            status: DeviceConnectProgressStatus.failed,
-            error: e,
-            errorMessage: e.toString(),
-          ));
+          onProgress?.call(
+            DeviceConnectProgress(
+              deviceType: deviceType,
+              deviceId: id,
+              status: DeviceConnectProgressStatus.failed,
+              error: e,
+              errorMessage: e.toString(),
+            ),
+          );
           throw Exception('Profile connect aborted at $deviceType: $e');
         }
       }
@@ -138,7 +144,8 @@ extension _DeviceServiceProfileConnections on DeviceService {
   /// (see `record(event)`), which materializes the events into a
   /// `ref.watch`-able snapshot that any number of widgets can observe.
   Stream<DeviceConnectProgress> _connectAllFromProfile(
-      EquipmentProfileModel profile) {
+    EquipmentProfileModel profile,
+  ) {
     // (id, deviceType label, connector). Order is informational only —
     // every device is dispatched in parallel.
     final entries = <(String?, String, Future<void> Function(String))>[
@@ -186,34 +193,40 @@ extension _DeviceServiceProfileConnections on DeviceService {
       // bad device cannot abort the sweep.
       final futures = <Future<void>>[];
       for (final (id, deviceType, connect) in active) {
-        controller.add(DeviceConnectProgress(
-          deviceType: deviceType,
-          deviceId: id,
-          status: DeviceConnectProgressStatus.connecting,
-        ));
+        controller.add(
+          DeviceConnectProgress(
+            deviceType: deviceType,
+            deviceId: id,
+            status: DeviceConnectProgressStatus.connecting,
+          ),
+        );
 
         futures.add(
-          connect(id).then(
-            (_) {
-              if (!controller.isClosed) {
-                controller.add(DeviceConnectProgress(
-                  deviceType: deviceType,
-                  deviceId: id,
-                  status: DeviceConnectProgressStatus.connected,
-                ));
-              }
-            },
-          ).catchError((Object error, StackTrace stack) {
-            if (!controller.isClosed) {
-              controller.add(DeviceConnectProgress(
-                deviceType: deviceType,
-                deviceId: id,
-                status: DeviceConnectProgressStatus.failed,
-                error: error,
-                errorMessage: error.toString(),
-              ));
-            }
-          }),
+          connect(id)
+              .then((_) {
+                if (!controller.isClosed) {
+                  controller.add(
+                    DeviceConnectProgress(
+                      deviceType: deviceType,
+                      deviceId: id,
+                      status: DeviceConnectProgressStatus.connected,
+                    ),
+                  );
+                }
+              })
+              .catchError((Object error, StackTrace stack) {
+                if (!controller.isClosed) {
+                  controller.add(
+                    DeviceConnectProgress(
+                      deviceType: deviceType,
+                      deviceId: id,
+                      status: DeviceConnectProgressStatus.failed,
+                      error: error,
+                      errorMessage: error.toString(),
+                    ),
+                  );
+                }
+              }),
         );
       }
 
@@ -269,7 +282,8 @@ extension _DeviceServiceProfileConnections on DeviceService {
 
     if (errors.isNotEmpty) {
       throw Exception(
-          'Some devices failed to disconnect:\n${errors.join('\n')}');
+        'Some devices failed to disconnect:\n${errors.join('\n')}',
+      );
     }
   }
 }

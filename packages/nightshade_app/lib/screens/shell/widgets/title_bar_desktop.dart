@@ -44,5 +44,3 @@ void closeWindow() {
     windowManager.close();
   }
 }
-
-

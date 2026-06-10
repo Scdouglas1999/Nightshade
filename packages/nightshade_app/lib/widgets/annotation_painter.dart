@@ -20,7 +20,7 @@ class AnnotationPainter extends CustomPainter {
       if (!object.visible) continue;
 
       _drawObjectMarker(canvas, object);
-      
+
       if (showLabels) {
         _drawObjectLabel(canvas, object);
       }
@@ -131,7 +131,7 @@ class AnnotationPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant AnnotationPainter oldDelegate) {
     return oldDelegate.annotation != annotation ||
-           oldDelegate.zoomLevel != zoomLevel ||
-           oldDelegate.showLabels != showLabels;
+        oldDelegate.zoomLevel != zoomLevel ||
+        oldDelegate.showLabels != showLabels;
   }
 }

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -242,8 +242,7 @@ class _AdaptiveExposureInline extends StatelessWidget {
     final skyLabel = event.skyBrightnessMag != null
         ? '${event.skyBrightnessMag!.toStringAsFixed(2)} mag/arcsecÂ²'
         : 'sky brightness unavailable';
-    final filterLabel =
-        event.filter == null ? '' : '${event.filter} Â· ';
+    final filterLabel = event.filter == null ? '' : '${event.filter} Â· ';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -271,7 +270,7 @@ class _AdaptiveExposureInline extends StatelessWidget {
         const SizedBox(height: NightshadeTokens.spaceSm),
         Text(
           '$filterLabel${event.adaptedSecs.toStringAsFixed(0)}s '
-              '(nominal ${event.nominalSecs.toStringAsFixed(0)}s)',
+          '(nominal ${event.nominalSecs.toStringAsFixed(0)}s)',
           style: NightshadeTypography.withTabular(
             NightshadeTypography.label.copyWith(
               fontWeight: FontWeight.w600,
@@ -470,8 +469,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
     final nextSparklineAccepted = List<bool>.from(state.hfrSparklineAccepted);
     if (grade.hfr != null) {
       nextSparkline.add(grade.hfr!);
-      nextSparklineAccepted
-          .add(grade.decision == FrameGradeDecision.accepted);
+      nextSparklineAccepted.add(grade.decision == FrameGradeDecision.accepted);
       // Cap the sparkline to a reasonable window so memory + paint cost
       // stay bounded across long sessions.
       if (nextSparkline.length > 200) {
@@ -521,8 +519,7 @@ final runDashboardQualitySummaryProvider =
 // decision via a StateNotifierProvider so the dashboard panel can re-paint
 // without holding the backend reference itself.
 
-class _AdaptiveExposureNotifier
-    extends StateNotifier<AdaptiveExposureEvent?> {
+class _AdaptiveExposureNotifier extends StateNotifier<AdaptiveExposureEvent?> {
   _AdaptiveExposureNotifier(this._ref) : super(null) {
     _wireBackendEvents();
   }

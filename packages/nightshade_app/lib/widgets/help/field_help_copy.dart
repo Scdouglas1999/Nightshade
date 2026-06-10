@@ -100,16 +100,14 @@ const Map<FieldHelpId, FieldHelpCopy> kFieldHelpCopy =
   ),
   FieldHelpId.cameraOffset: FieldHelpCopy(
     title: 'Offset',
-    body:
-        'A constant black-level pedestal added to every pixel so the noise '
+    body: 'A constant black-level pedestal added to every pixel so the noise '
         'floor never clips to zero. Set it just high enough that the left edge '
         "of your bias histogram clears zero — your camera's recommended offset "
         'for the chosen gain is almost always correct.',
   ),
   FieldHelpId.cameraReadoutMode: FieldHelpCopy(
     title: 'Readout mode',
-    body:
-        'Selects how the sensor digitizes each frame, trading read noise '
+    body: 'Selects how the sensor digitizes each frame, trading read noise '
         'against dynamic range and speed. For deep-sky work choose the '
         'low-noise / high-gain mode; reserve high-dynamic-range modes for '
         'bright targets like the Moon and planets.',
@@ -147,15 +145,13 @@ const Map<FieldHelpId, FieldHelpCopy> kFieldHelpCopy =
   ),
   FieldHelpId.settleTime: FieldHelpCopy(
     title: 'Settle time',
-    body:
-        'How long, in seconds, guiding must stay within the settle threshold '
+    body: 'How long, in seconds, guiding must stay within the settle threshold '
         'before a capture begins. It prevents starting an exposure mid-bounce; '
         '5-10 seconds is typical, longer for heavier or wind-exposed mounts.',
   ),
   FieldHelpId.guideMinPulse: FieldHelpCopy(
     title: 'Min pulse',
-    body:
-        'The shortest guide pulse, in milliseconds, the built-in guider will '
+    body: 'The shortest guide pulse, in milliseconds, the built-in guider will '
         'issue; corrections that would need a briefer pulse are skipped because '
         'the mount cannot act on them reliably. Keep it within the range your '
         'mount reports — raise it if tiny pulses make guiding jittery, lower it '
@@ -163,16 +159,14 @@ const Map<FieldHelpId, FieldHelpCopy> kFieldHelpCopy =
   ),
   FieldHelpId.meridianFlipTrigger: FieldHelpCopy(
     title: 'Flip past meridian',
-    body:
-        'How many minutes past the meridian the mount keeps tracking before '
+    body: 'How many minutes past the meridian the mount keeps tracking before '
         'performing a meridian flip. Set it just under your mount\'s safe '
         'tracking limit so it images as long as possible without the optics '
         'striking the pier.',
   ),
   FieldHelpId.darkLibraryMatching: FieldHelpCopy(
     title: 'Dark matching',
-    body:
-        'The tolerances used to pick a stored dark for a light frame — '
+    body: 'The tolerances used to pick a stored dark for a light frame — '
         'exposure, gain, offset, binning, and sensor temperature must all fall '
         'within range. Keep them tight (especially temperature and exposure) so '
         'a mismatched dark never over- or under-subtracts.',

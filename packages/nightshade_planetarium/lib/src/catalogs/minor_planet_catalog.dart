@@ -145,16 +145,16 @@ class KeplerianPropagator {
     if (meanAnomaly < 0) meanAnomaly += 360.0;
 
     // Solve Kepler's equation: E - e*sin(E) = M
-    final eccentricAnomaly = _solveKepler(meanAnomaly * _deg2rad, elements.eccentricity);
+    final eccentricAnomaly = _solveKepler(
+      meanAnomaly * _deg2rad,
+      elements.eccentricity,
+    );
 
     // True anomaly
     final e = elements.eccentricity;
     final sinE = math.sin(eccentricAnomaly);
     final cosE = math.cos(eccentricAnomaly);
-    final trueAnomaly = math.atan2(
-      math.sqrt(1 - e * e) * sinE,
-      cosE - e,
-    );
+    final trueAnomaly = math.atan2(math.sqrt(1 - e * e) * sinE, cosE - e);
 
     // Heliocentric distance
     final r = elements.semiMajorAxis * (1 - e * cosE);
@@ -176,9 +176,11 @@ class KeplerianPropagator {
     final sinI = math.sin(i);
 
     // Heliocentric ecliptic cartesian
-    final xEcl = xOrb * (cosOmega * cosNode - sinOmega * sinNode * cosI) -
+    final xEcl =
+        xOrb * (cosOmega * cosNode - sinOmega * sinNode * cosI) -
         yOrb * (sinOmega * cosNode + cosOmega * sinNode * cosI);
-    final yEcl = xOrb * (cosOmega * sinNode + sinOmega * cosNode * cosI) -
+    final yEcl =
+        xOrb * (cosOmega * sinNode + sinOmega * cosNode * cosI) -
         yOrb * (sinOmega * sinNode - cosOmega * cosNode * cosI);
     final zEcl = xOrb * sinOmega * sinI + yOrb * cosOmega * sinI;
 
@@ -211,7 +213,8 @@ class KeplerianPropagator {
     final sunY = -earthY;
     final sunZ = -earthZ;
     final sunDist = math.sqrt(sunX * sunX + sunY * sunY + sunZ * sunZ);
-    final cosElong = (dxEcl * (-earthX) + dyEcl * (-earthY) + dzEcl * (-earthZ)) /
+    final cosElong =
+        (dxEcl * (-earthX) + dyEcl * (-earthY) + dzEcl * (-earthZ)) /
         (dist * sunDist);
     final elongation = math.acos(cosElong.clamp(-1.0, 1.0)) * _rad2deg;
 
@@ -223,18 +226,15 @@ class KeplerianPropagator {
     double visualMag;
     if (elements.type == MinorBodyType.comet) {
       // Comet magnitude: m = H + 5*log10(delta) + 10*log10(r)
-      visualMag = elements.absoluteMag +
-          5 * _log10(dist) +
-          10 * _log10(r);
+      visualMag = elements.absoluteMag + 5 * _log10(dist) + 10 * _log10(r);
     } else {
       // Asteroid HG system: m = H + 5*log10(r*delta) - 2.5*log10(phaseFunc)
       final phaseFunc = _asteroidPhaseFunctionHG(
         phaseAngle * _deg2rad,
         elements.slopeParam,
       );
-      visualMag = elements.absoluteMag +
-          5 * _log10(r * dist) -
-          2.5 * _log10(phaseFunc);
+      visualMag =
+          elements.absoluteMag + 5 * _log10(r * dist) - 2.5 * _log10(phaseFunc);
     }
 
     return MinorBodyData(
@@ -278,7 +278,8 @@ class KeplerianPropagator {
     final Mrad = M * _deg2rad;
 
     // Equation of center
-    final C = (1.9146 - 0.004817 * T) * math.sin(Mrad) +
+    final C =
+        (1.9146 - 0.004817 * T) * math.sin(Mrad) +
         0.019993 * math.sin(2 * Mrad) +
         0.000290 * math.sin(3 * Mrad);
 
@@ -311,7 +312,8 @@ class KeplerianPropagator {
   static double _julianDate(DateTime dt) {
     final y = dt.year;
     final m = dt.month;
-    final d = dt.day +
+    final d =
+        dt.day +
         dt.hour / 24 +
         dt.minute / 1440 +
         dt.second / 86400 +

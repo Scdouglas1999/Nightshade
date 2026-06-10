@@ -76,7 +76,8 @@ class _ProfileList extends StatelessWidget {
                 style: IconButton.styleFrom(
                   backgroundColor: colors.surfaceAlt,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     side: BorderSide(color: colors.border),
                   ),
                 ),
@@ -175,7 +176,9 @@ class _ProfileListItemState extends State<_ProfileListItem> {
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: widget.isSelected
                 ? Border.all(
-                    color: NightshadeColors.of(context).primary.withValues(alpha: 0.3))
+                    color: NightshadeColors.of(context)
+                        .primary
+                        .withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(
@@ -185,9 +188,12 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                 height: 36,
                 decoration: BoxDecoration(
                   color: widget.isActive
-                      ? NightshadeColors.of(context).primary.withValues(alpha: 0.2)
+                      ? NightshadeColors.of(context)
+                          .primary
+                          .withValues(alpha: 0.2)
                       : NightshadeColors.of(context).surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   LucideIcons.aperture,
@@ -207,7 +213,9 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         Expanded(
                           child: Text(
                             widget.profile.name,
-                            style: NightshadeTypography.labelStrong.copyWith(color: NightshadeColors.of(context).textPrimary),
+                            style: NightshadeTypography.labelStrong.copyWith(
+                                color:
+                                    NightshadeColors.of(context).textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -217,9 +225,11 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color:
-                                  NightshadeColors.of(context).primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              color: NightshadeColors.of(context)
+                                  .primary
+                                  .withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Active',
@@ -255,7 +265,6 @@ class _ProfileListItemState extends State<_ProfileListItem> {
     );
   }
 }
-
 
 // ============================================================================
 // Profile Details

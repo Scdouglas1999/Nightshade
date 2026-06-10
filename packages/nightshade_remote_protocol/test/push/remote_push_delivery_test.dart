@@ -71,7 +71,7 @@ class _FakeApnsTransport implements ApnsHttp2Transport {
   bool closed = false;
 
   _FakeApnsTransport({int Function(String deviceToken)? statusFor})
-      : statusFor = statusFor ?? ((_) => 200);
+    : statusFor = statusFor ?? ((_) => 200);
 
   @override
   Future<int> post({
@@ -79,11 +79,13 @@ class _FakeApnsTransport implements ApnsHttp2Transport {
     required Map<String, String> headers,
     required List<int> body,
   }) async {
-    requests.add(_CapturedApnsRequest(
-      deviceToken,
-      headers,
-      jsonDecode(utf8.decode(body)) as Map<String, Object?>,
-    ));
+    requests.add(
+      _CapturedApnsRequest(
+        deviceToken,
+        headers,
+        jsonDecode(utf8.decode(body)) as Map<String, Object?>,
+      ),
+    );
     return statusFor(deviceToken);
   }
 
@@ -96,8 +98,9 @@ class _FakeApnsTransport implements ApnsHttp2Transport {
 void main() {
   group('FCM payload assembly', () {
     test('critical frame => high priority, string-coerced data', () {
-      final msg = buildFcmMessage(_frame(), 'DEVTOKEN1')['message']!
-          as Map<String, Object?>;
+      final msg =
+          buildFcmMessage(_frame(), 'DEVTOKEN1')['message']!
+              as Map<String, Object?>;
       expect(msg['token'], 'DEVTOKEN1');
       final notif = msg['notification']! as Map<String, Object?>;
       expect(notif['title'], 'Weather Unsafe');
@@ -120,8 +123,9 @@ void main() {
     });
 
     test('info frame => normal priority', () {
-      final msg = buildFcmMessage(_frame(severity: 'info'), 'T')['message']!
-          as Map<String, Object?>;
+      final msg =
+          buildFcmMessage(_frame(severity: 'info'), 'T')['message']!
+              as Map<String, Object?>;
       final android = msg['android']! as Map<String, Object?>;
       expect(android['priority'], 'normal');
     });
@@ -152,63 +156,81 @@ void main() {
   });
 
   group('FcmRemotePushDelivery (MockClient, no network)', () {
-    test('exchanges a token then POSTs once per registered fcm token', () async {
-      const account = FcmServiceAccount(
-        projectId: 'demo-proj',
-        clientEmail: 'svc@demo-proj.iam.gserviceaccount.com',
-        privateKeyPem: fcmTestPrivateKeyPem,
-        tokenUri: 'https://oauth2.googleapis.com/token',
-      );
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'phone-a', platform: 'fcm', token: 'TOK_A'),
-        const RegisteredPushToken(
-            deviceId: 'phone-b', platform: 'fcm', token: 'TOK_B'),
-        // An APNs token must be ignored by the FCM sender.
-        const RegisteredPushToken(
-            deviceId: 'phone-c', platform: 'apns', token: 'IGNORED'),
-      ]);
+    test(
+      'exchanges a token then POSTs once per registered fcm token',
+      () async {
+        const account = FcmServiceAccount(
+          projectId: 'demo-proj',
+          clientEmail: 'svc@demo-proj.iam.gserviceaccount.com',
+          privateKeyPem: fcmTestPrivateKeyPem,
+          tokenUri: 'https://oauth2.googleapis.com/token',
+        );
+        final store = _RecordingStore(
+          tokens: [
+            const RegisteredPushToken(
+              deviceId: 'phone-a',
+              platform: 'fcm',
+              token: 'TOK_A',
+            ),
+            const RegisteredPushToken(
+              deviceId: 'phone-b',
+              platform: 'fcm',
+              token: 'TOK_B',
+            ),
+            // An APNs token must be ignored by the FCM sender.
+            const RegisteredPushToken(
+              deviceId: 'phone-c',
+              platform: 'apns',
+              token: 'IGNORED',
+            ),
+          ],
+        );
 
-      final sends = <Map<String, Object?>>[];
-      var tokenExchanges = 0;
-      final client = MockClient((req) async {
-        if (req.url.toString() == account.tokenUri) {
-          tokenExchanges++;
-          expect(req.bodyFields['grant_type'],
-              'urn:ietf:params:oauth:grant-type:jwt-bearer');
-          expect(req.bodyFields['assertion'], isNotEmpty);
-          return http.Response(
-            jsonEncode({'access_token': 'ya29.fake', 'expires_in': 3600}),
-            200,
+        final sends = <Map<String, Object?>>[];
+        var tokenExchanges = 0;
+        final client = MockClient((req) async {
+          if (req.url.toString() == account.tokenUri) {
+            tokenExchanges++;
+            expect(
+              req.bodyFields['grant_type'],
+              'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            );
+            expect(req.bodyFields['assertion'], isNotEmpty);
+            return http.Response(
+              jsonEncode({'access_token': 'ya29.fake', 'expires_in': 3600}),
+              200,
+            );
+          }
+          expect(
+            req.url.toString(),
+            'https://fcm.googleapis.com/v1/projects/demo-proj/messages:send',
           );
-        }
-        expect(req.url.toString(),
-            'https://fcm.googleapis.com/v1/projects/demo-proj/messages:send');
-        expect(req.headers['authorization'], 'Bearer ya29.fake');
-        sends.add(jsonDecode(req.body) as Map<String, Object?>);
-        return http.Response('{}', 200);
-      });
+          expect(req.headers['authorization'], 'Bearer ya29.fake');
+          sends.add(jsonDecode(req.body) as Map<String, Object?>);
+          return http.Response('{}', 200);
+        });
 
-      final delivery = FcmRemotePushDelivery(
-        account: account,
-        store: store,
-        httpClient: client,
-      );
+        final delivery = FcmRemotePushDelivery(
+          account: account,
+          store: store,
+          httpClient: client,
+        );
 
-      await delivery.deliver(_frame());
-      // Two fcm tokens => two sends; one token exchange.
-      expect(sends, hasLength(2));
-      expect(tokenExchanges, 1);
-      final sentTokens = sends
-          .map((s) => (s['message']! as Map)['token'])
-          .toList();
-      expect(sentTokens, containsAll(<String>['TOK_A', 'TOK_B']));
+        await delivery.deliver(_frame());
+        // Two fcm tokens => two sends; one token exchange.
+        expect(sends, hasLength(2));
+        expect(tokenExchanges, 1);
+        final sentTokens = sends
+            .map((s) => (s['message']! as Map)['token'])
+            .toList();
+        expect(sentTokens, containsAll(<String>['TOK_A', 'TOK_B']));
 
-      // Second deliver reuses the cached access token (no new exchange).
-      await delivery.deliver(_frame());
-      expect(tokenExchanges, 1);
-      await delivery.dispose();
-    });
+        // Second deliver reuses the cached access token (no new exchange).
+        await delivery.deliver(_frame());
+        expect(tokenExchanges, 1);
+        await delivery.dispose();
+      },
+    );
 
     test('404 prunes the stale fcm token', () async {
       const account = FcmServiceAccount(
@@ -217,14 +239,21 @@ void main() {
         privateKeyPem: fcmTestPrivateKeyPem,
         tokenUri: 'https://oauth2.googleapis.com/token',
       );
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'd', platform: 'fcm', token: 'DEAD'),
-      ]);
+      final store = _RecordingStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'd',
+            platform: 'fcm',
+            token: 'DEAD',
+          ),
+        ],
+      );
       final client = MockClient((req) async {
         if (req.url.toString() == account.tokenUri) {
           return http.Response(
-              jsonEncode({'access_token': 't', 'expires_in': 3600}), 200);
+            jsonEncode({'access_token': 't', 'expires_in': 3600}),
+            200,
+          );
         }
         return http.Response('{"error":{"status":"UNREGISTERED"}}', 404);
       });
@@ -238,40 +267,51 @@ void main() {
       expect(store.removed, ['DEAD']);
     });
 
-    test('400 INVALID_ARGUMENT does NOT prune (payload bug, not a dead token)',
-        () async {
-      const account = FcmServiceAccount(
-        projectId: 'p',
-        clientEmail: 'svc@p.iam.gserviceaccount.com',
-        privateKeyPem: fcmTestPrivateKeyPem,
-        tokenUri: 'https://oauth2.googleapis.com/token',
-      );
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'd', platform: 'fcm', token: 'LIVE'),
-      ]);
-      final client = MockClient((req) async {
-        if (req.url.toString() == account.tokenUri) {
-          return http.Response(
-              jsonEncode({'access_token': 't', 'expires_in': 3600}), 200);
-        }
-        // A malformed payload is a 400 INVALID_ARGUMENT — a code bug, not a
-        // dead recipient. The token MUST survive so the live device keeps
-        // receiving safety alerts once the payload is fixed.
-        return http.Response(
-            '{"error":{"status":"INVALID_ARGUMENT"}}', 400);
-      });
+    test(
+      '400 INVALID_ARGUMENT does NOT prune (payload bug, not a dead token)',
+      () async {
+        const account = FcmServiceAccount(
+          projectId: 'p',
+          clientEmail: 'svc@p.iam.gserviceaccount.com',
+          privateKeyPem: fcmTestPrivateKeyPem,
+          tokenUri: 'https://oauth2.googleapis.com/token',
+        );
+        final store = _RecordingStore(
+          tokens: [
+            const RegisteredPushToken(
+              deviceId: 'd',
+              platform: 'fcm',
+              token: 'LIVE',
+            ),
+          ],
+        );
+        final client = MockClient((req) async {
+          if (req.url.toString() == account.tokenUri) {
+            return http.Response(
+              jsonEncode({'access_token': 't', 'expires_in': 3600}),
+              200,
+            );
+          }
+          // A malformed payload is a 400 INVALID_ARGUMENT — a code bug, not a
+          // dead recipient. The token MUST survive so the live device keeps
+          // receiving safety alerts once the payload is fixed.
+          return http.Response('{"error":{"status":"INVALID_ARGUMENT"}}', 400);
+        });
 
-      await FcmRemotePushDelivery(
-        account: account,
-        store: store,
-        httpClient: client,
-      ).deliver(_frame());
+        await FcmRemotePushDelivery(
+          account: account,
+          store: store,
+          httpClient: client,
+        ).deliver(_frame());
 
-      expect(store.removed, isEmpty,
-          reason: 'a 400 must not prune a live token');
-      expect(store.tokens.map((t) => t.token), ['LIVE']);
-    });
+        expect(
+          store.removed,
+          isEmpty,
+          reason: 'a 400 must not prune a live token',
+        );
+        expect(store.tokens.map((t) => t.token), ['LIVE']);
+      },
+    );
 
     test('muted device is skipped (no send)', () async {
       const account = FcmServiceAccount(
@@ -283,17 +323,20 @@ void main() {
       final store = _RecordingStore(
         tokens: [
           const RegisteredPushToken(
-              deviceId: 'muted', platform: 'fcm', token: 'TOK'),
+            deviceId: 'muted',
+            platform: 'fcm',
+            token: 'TOK',
+          ),
         ],
-        prefs: {
-          'muted': const DevicePushPreferences(muteWeatherUnsafe: true),
-        },
+        prefs: {'muted': const DevicePushPreferences(muteWeatherUnsafe: true)},
       );
       var sends = 0;
       final client = MockClient((req) async {
         if (req.url.toString() == account.tokenUri) {
           return http.Response(
-              jsonEncode({'access_token': 't', 'expires_in': 3600}), 200);
+            jsonEncode({'access_token': 't', 'expires_in': 3600}),
+            200,
+          );
         }
         sends++;
         return http.Response('{}', 200);
@@ -311,24 +354,35 @@ void main() {
 
   group('ApnsRemotePushDelivery (fake transport, no network)', () {
     ApnsPushConfig config() => const ApnsPushConfig(
-          enabled: true,
-          p8KeyPath: '',
-          keyId: 'KID1234567',
-          teamId: 'TEAM123456',
-          bundleId: 'com.nightshade.app',
-          useSandbox: false,
-        );
+      enabled: true,
+      p8KeyPath: '',
+      keyId: 'KID1234567',
+      teamId: 'TEAM123456',
+      bundleId: 'com.nightshade.app',
+      useSandbox: false,
+    );
 
     test('POSTs one request per apns token with the right headers', () async {
       final transport = _FakeApnsTransport();
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'i1', platform: 'apns', token: 'HEX_1'),
-        const RegisteredPushToken(
-            deviceId: 'i2', platform: 'apns', token: 'HEX_2'),
-        const RegisteredPushToken(
-            deviceId: 'a1', platform: 'fcm', token: 'IGNORED'),
-      ]);
+      final store = _RecordingStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'i1',
+            platform: 'apns',
+            token: 'HEX_1',
+          ),
+          const RegisteredPushToken(
+            deviceId: 'i2',
+            platform: 'apns',
+            token: 'HEX_2',
+          ),
+          const RegisteredPushToken(
+            deviceId: 'a1',
+            platform: 'fcm',
+            token: 'IGNORED',
+          ),
+        ],
+      );
 
       final delivery = ApnsRemotePushDelivery(
         config: config(),
@@ -353,14 +407,23 @@ void main() {
     });
 
     test('410 prunes the stale apns token', () async {
-      final transport =
-          _FakeApnsTransport(statusFor: (t) => t == 'GONE' ? 410 : 200);
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'i1', platform: 'apns', token: 'GONE'),
-        const RegisteredPushToken(
-            deviceId: 'i2', platform: 'apns', token: 'LIVE'),
-      ]);
+      final transport = _FakeApnsTransport(
+        statusFor: (t) => t == 'GONE' ? 410 : 200,
+      );
+      final store = _RecordingStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'i1',
+            platform: 'apns',
+            token: 'GONE',
+          ),
+          const RegisteredPushToken(
+            deviceId: 'i2',
+            platform: 'apns',
+            token: 'LIVE',
+          ),
+        ],
+      );
 
       await ApnsRemotePushDelivery(
         config: config(),
@@ -373,12 +436,18 @@ void main() {
     });
 
     test('400 does NOT prune an apns token (payload/config fault)', () async {
-      final transport =
-          _FakeApnsTransport(statusFor: (t) => t == 'BAD' ? 400 : 200);
-      final store = _RecordingStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'i1', platform: 'apns', token: 'BAD'),
-      ]);
+      final transport = _FakeApnsTransport(
+        statusFor: (t) => t == 'BAD' ? 400 : 200,
+      );
+      final store = _RecordingStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'i1',
+            platform: 'apns',
+            token: 'BAD',
+          ),
+        ],
+      );
 
       await ApnsRemotePushDelivery(
         config: config(),
@@ -387,19 +456,30 @@ void main() {
         transport: transport,
       ).deliver(_frame());
 
-      expect(store.removed, isEmpty,
-          reason: 'a 400 must not prune a live apns token');
+      expect(
+        store.removed,
+        isEmpty,
+        reason: 'a 400 must not prune a live apns token',
+      );
     });
   });
 
   group('MockRemotePushDelivery records (cloudless)', () {
     test('records (frame, token) for every enabled recipient', () async {
-      final store = InMemoryPushTokenStore(tokens: [
-        const RegisteredPushToken(
-            deviceId: 'a', platform: 'fcm', token: 'FCM_A'),
-        const RegisteredPushToken(
-            deviceId: 'b', platform: 'apns', token: 'APNS_B'),
-      ]);
+      final store = InMemoryPushTokenStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'a',
+            platform: 'fcm',
+            token: 'FCM_A',
+          ),
+          const RegisteredPushToken(
+            deviceId: 'b',
+            platform: 'apns',
+            token: 'APNS_B',
+          ),
+        ],
+      );
       final mock = MockRemotePushDelivery(store: store);
       await mock.deliver(_frame());
 
@@ -414,8 +494,7 @@ void main() {
   group('absent config => no-op (never crash)', () {
     test('buildRemotePushDelivery returns null with disabled config', () {
       final store = InMemoryPushTokenStore();
-      final delivery =
-          buildRemotePushDelivery(PushConfig.disabled, store);
+      final delivery = buildRemotePushDelivery(PushConfig.disabled, store);
       expect(delivery, isNull);
     });
 

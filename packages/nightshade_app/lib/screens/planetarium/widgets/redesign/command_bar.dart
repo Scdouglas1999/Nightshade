@@ -178,13 +178,13 @@ class _SearchEntry extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: colors.surface.withValues(alpha: 0.8),
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusInline4),
-                  border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                  border:
+                      Border.all(color: colors.border.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   '⌘K',
@@ -350,10 +350,12 @@ class _ToolsMenu extends ConsumerWidget {
                   : 'Equatorial view',
               active: viewState.viewMode == SkyViewMode.horizontal,
             ),
-          item('measurement', NightshadeIcons.ruler, 'Measure (separation / PA)',
+          item(
+              'measurement', NightshadeIcons.ruler, 'Measure (separation / PA)',
               active: measurement),
           item('fov', NightshadeIcons.frame, 'FOV indicator', active: showFov),
-          item('fovRings', NightshadeIcons.target, 'FOV rings (Telrad / finder)',
+          item(
+              'fovRings', NightshadeIcons.target, 'FOV rings (Telrad / finder)',
               active: fovRings),
           item('nightVision', NightshadeIcons.moon, 'Night vision (red)',
               active: nightVision),
@@ -445,8 +447,7 @@ class _CommandBarIconButtonState extends State<CommandBarIconButton> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: MouseRegion(
-          cursor:
-              enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: GestureDetector(
@@ -460,8 +461,7 @@ class _CommandBarIconButtonState extends State<CommandBarIconButton> {
                 color: bg,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: widget.isActive
-                    ? Border.all(
-                        color: colors.accent.withValues(alpha: 0.45))
+                    ? Border.all(color: colors.accent.withValues(alpha: 0.45))
                     : null,
               ),
               child: Icon(widget.icon, size: 17, color: fg),

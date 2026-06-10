@@ -95,13 +95,25 @@ class _OpStreamCanvas implements Canvas {
   void drawImage(ui.Image image, Offset offset, Paint paint) => nDrawImage++;
 
   @override
-  void drawAtlas(ui.Image atlas, List<RSTransform> transforms, List<Rect> rects,
-          List<Color>? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) =>
+  void drawAtlas(
+          ui.Image atlas,
+          List<RSTransform> transforms,
+          List<Rect> rects,
+          List<Color>? colors,
+          BlendMode? blendMode,
+          Rect? cullRect,
+          Paint paint) =>
       nDrawAtlas++;
 
   @override
-  void drawRawAtlas(ui.Image atlas, Float32List transforms, Float32List rects,
-          Int32List? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) =>
+  void drawRawAtlas(
+          ui.Image atlas,
+          Float32List transforms,
+          Float32List rects,
+          Int32List? colors,
+          BlendMode? blendMode,
+          Rect? cullRect,
+          Paint paint) =>
       nDrawAtlas++;
 
   @override
@@ -154,7 +166,8 @@ void main() {
 
   test(
       'paint is synchronous and never touches the loader: fetch + decode ran on '
-      'the loader, the painter only composites the finished snapshot', () async {
+      'the loader, the painter only composites the finished snapshot',
+      () async {
     final clock = ManualLoaderClock();
     final fetcher = FixtureTileFetcher();
     final loader = HipsTileLoader(
@@ -183,7 +196,8 @@ void main() {
 
     final snapshot = loader.snapshot;
     expect(snapshot.hasAnyImagery, isTrue,
-        reason: 'After the debounce fires and fetches settle, committed tiles / '
+        reason:
+            'After the debounce fires and fetches settle, committed tiles / '
             'Allsky must be resident in the snapshot.');
 
     final painter = HipsTileLayerPainter(
@@ -234,7 +248,8 @@ void main() {
     painter.paint(recorder, _canvasSize);
 
     expect(recorder.nDrawVertices, greaterThan(0),
-        reason: 'Every tile / Allsky cell is composited as a textured GPU mesh.');
+        reason:
+            'Every tile / Allsky cell is composited as a textured GPU mesh.');
     expect(recorder.nDrawImageRect, 0,
         reason: 'No drawImageRect: the painter never flat-stretches an image '
             '(that would seam and bow the mosaic).');
@@ -243,7 +258,8 @@ void main() {
         reason: 'No drawAtlas path is used by this painter; all geometry is a '
             'subdivided drawVertices mesh.');
     expect(recorder.nDrawRect, 0,
-        reason: 'The painter draws no solid fills — it composites imagery only, '
+        reason:
+            'The painter draws no solid fills — it composites imagery only, '
             'staying transparent where no tile is resident.');
     // Structural framing: exactly one save/clip/restore around the mosaic.
     expect(recorder.nSaves, 1);
@@ -285,7 +301,8 @@ void main() {
         reason: 'The single coalesced recompute must settle imagery.');
 
     expect(loader.generation, genBefore + 1,
-        reason: 'The whole burst must produce exactly ONE recompute generation, '
+        reason:
+            'The whole burst must produce exactly ONE recompute generation, '
             'not one per viewport delta.');
   });
 
@@ -321,9 +338,8 @@ void main() {
         reason: 'An identical viewport after a completed recompute is a no-op; '
             'it must not reschedule or re-fetch.');
 
-    final overFetched = fetcher.tileFetchCounts.entries
-        .where((e) => e.value > 1)
-        .toList();
+    final overFetched =
+        fetcher.tileFetchCounts.entries.where((e) => e.value > 1).toList();
     expect(overFetched, isEmpty,
         reason: 'Every fetched tile must be fetched at most once across the '
             'burst (in-flight + cache dedup). Over-fetched: $overFetched');
@@ -351,7 +367,10 @@ void main() {
     // before we supersede them. The committed Norder6 set over M31 is the full
     // golden-zoom selection, so holding it holds every primary fetch.
     final firstSet = HipsTileSelection.computeVisibleTiles(
-      _plateScale, _target, _canvasSize, 1.0,
+      _plateScale,
+      _target,
+      _canvasSize,
+      1.0,
       HipsTileSelection.selectNorder(
         _plateScale.pixelsPerDegree(_canvasSize, 1.0),
         props,
@@ -395,10 +414,12 @@ void main() {
         reason: 'The superseding recompute must advance the generation.');
 
     expect(loader.generation, greaterThan(genAfterFirst),
-        reason: 'A superseding viewport must advance the generation, cancelling '
+        reason:
+            'A superseding viewport must advance the generation, cancelling '
             'the prior generation\'s in-flight fetches.');
     expect(loader.snapshot.failures, isEmpty,
-        reason: 'Cancellations of a superseded generation are expected and must '
+        reason:
+            'Cancellations of a superseded generation are expected and must '
             'NOT be recorded as failures.');
   });
 }

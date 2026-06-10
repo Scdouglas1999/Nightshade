@@ -121,11 +121,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       child: Row(
                         children: [
                           Icon(LucideIcons.pencil,
-                              size: 16, color: NightshadeColors.of(context).textSecondary),
+                              size: 16,
+                              color:
+                                  NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Edit',
-                              style:
-                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
+                              style: TextStyle(
+                                  color: NightshadeColors.of(context)
+                                      .textPrimary)),
                         ],
                       ),
                     ),
@@ -134,11 +137,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       child: Row(
                         children: [
                           Icon(LucideIcons.copy,
-                              size: 16, color: NightshadeColors.of(context).textSecondary),
+                              size: 16,
+                              color:
+                                  NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Duplicate',
-                              style:
-                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
+                              style: TextStyle(
+                                  color: NightshadeColors.of(context)
+                                      .textPrimary)),
                         ],
                       ),
                     ),
@@ -147,11 +153,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       child: Row(
                         children: [
                           Icon(LucideIcons.upload,
-                              size: 16, color: NightshadeColors.of(context).textSecondary),
+                              size: 16,
+                              color:
+                                  NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Export',
-                              style:
-                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
+                              style: TextStyle(
+                                  color: NightshadeColors.of(context)
+                                      .textPrimary)),
                         ],
                       ),
                     ),
@@ -161,10 +170,12 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       child: Row(
                         children: [
                           Icon(LucideIcons.trash2,
-                              size: 16, color: NightshadeColors.of(context).error),
+                              size: 16,
+                              color: NightshadeColors.of(context).error),
                           const SizedBox(width: 8),
                           Text('Delete',
-                              style: TextStyle(color: NightshadeColors.of(context).error)),
+                              style: TextStyle(
+                                  color: NightshadeColors.of(context).error)),
                         ],
                       ),
                     ),
@@ -434,7 +445,8 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         )
                       : IconButton(
                           icon: Icon(LucideIcons.refreshCw,
-                              size: 16, color: NightshadeColors.of(context).primary),
+                              size: 16,
+                              color: NightshadeColors.of(context).primary),
                           onPressed: _syncFiltersFromHardware,
                           tooltip: 'Sync from filter wheel',
                         ),
@@ -458,12 +470,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No filters configured',
-                      style: TextStyle(color: NightshadeColors.of(context).textMuted),
+                      style: TextStyle(
+                          color: NightshadeColors.of(context).textMuted),
                     ),
                   ),
                 )
@@ -506,8 +520,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
-                  style:
-                      TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: NightshadeTypography.fontSize12),
+                  style: TextStyle(
+                      color: NightshadeColors.of(context).textMuted,
+                      fontSize: NightshadeTypography.fontSize12),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -536,12 +551,14 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No devices assigned. Connect devices from the Equipment tab.',
-                      style: TextStyle(color: NightshadeColors.of(context).textMuted),
+                      style: TextStyle(
+                          color: NightshadeColors.of(context).textMuted),
                     ),
                   ),
                 )
@@ -597,8 +614,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
-                    style:
-                        TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: NightshadeTypography.fontSize11),
+                    style: TextStyle(
+                        color: NightshadeColors.of(context).textMuted,
+                        fontSize: NightshadeTypography.fontSize11),
                   ),
                 ),
             ],
@@ -614,7 +632,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
           Container(
             decoration: BoxDecoration(
               color: NightshadeColors.of(context).surface,
-              border: Border(bottom: BorderSide(color: NightshadeColors.of(context).border)),
+              border: Border(
+                  bottom:
+                      BorderSide(color: NightshadeColors.of(context).border)),
             ),
             child: SafeArea(
               bottom: false,

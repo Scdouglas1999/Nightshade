@@ -61,8 +61,9 @@ void main() {
       rawBytes[i] = i % 256;
     }
 
-    when(() => mockBackend.getLastRawImageData(any()))
-        .thenAnswer((_) async => rawBytes);
+    when(
+      () => mockBackend.getLastRawImageData(any()),
+    ).thenAnswer((_) async => rawBytes);
 
     final publisher = container.read(capturePreviewPublisherProvider);
     final preview = _samplePreview();
@@ -86,8 +87,9 @@ void main() {
   });
 
   test('raw failure keeps JPEG preview', () async {
-    when(() => mockBackend.getLastRawImageData(any()))
-        .thenThrow(Exception('503 unavailable'));
+    when(
+      () => mockBackend.getLastRawImageData(any()),
+    ).thenThrow(Exception('503 unavailable'));
 
     final publisher = container.read(capturePreviewPublisherProvider);
     publisher.publish(container, _samplePreview(), 'cam-1');

@@ -57,7 +57,9 @@ class StorageCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'Set a capture directory in Settings → File Output to track free space.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textSecondary),
         ),
       );
     }
@@ -85,20 +87,26 @@ class StorageCard extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 4, left: 4),
               child: Text(
                 'GB free',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textSecondary),
               ),
             ),
             const Spacer(),
             Text(
               'of $totalGb GB',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
             ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
           info.path,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10,
+              color: colors.textMuted),
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 10),
@@ -146,7 +154,8 @@ class StorageCard extends ConsumerWidget {
         Expanded(
           child: Text(
             'Disk query failed: $error',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11, color: colors.error),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,
           ),

@@ -72,47 +72,51 @@ void main() {
   });
 
   group('StackedResultsDao insert + read', () {
-    test('insert returns a positive row id and round-trips every field',
-        () async {
-      final id = await dao.insertResult(sample());
-      expect(id, greaterThan(0));
+    test(
+      'insert returns a positive row id and round-trips every field',
+      () async {
+        final id = await dao.insertResult(sample());
+        expect(id, greaterThan(0));
 
-      final rows = await dao.getResultsForSession(42);
-      expect(rows, hasLength(1));
-      final read = rows.single;
+        final rows = await dao.getResultsForSession(42);
+        expect(rows, hasLength(1));
+        final read = rows.single;
 
-      expect(read.id, id);
-      expect(read.sessionId, 42);
-      expect(read.targetId, 7);
-      expect(read.targetName, 'M51');
-      expect(read.width, 4144);
-      expect(read.height, 2822);
-      expect(read.framesStacked, 38);
-      expect(read.framesAttempted, 40);
-      expect(read.integrationSecs, 4560);
-      expect(read.avgAlignmentResidual, closeTo(0.42, 1e-9));
-      expect(read.avgHfr, closeTo(2.31, 1e-9));
-      expect(read.filter, 'L');
-      // A default (mono) sample round-trips with is_color=false / channels=1.
-      expect(read.isColor, isFalse);
-      expect(read.channels, 1);
-      expect(read.exportedImagePath, isNull);
-      // Stored as epoch seconds (UTC); the model round-trips to a UTC instant.
-      expect(read.createdAt.toUtc(), createdAt);
-      // The reconstructed stats carry only the persisted aggregate columns.
-      expect(read.stats.stackedFrameCount, 38);
-      expect(read.stats.totalFramesAttempted, 40);
-      expect(read.stats.avgAlignmentResidual, closeTo(0.42, 1e-9));
-    });
+        expect(read.id, id);
+        expect(read.sessionId, 42);
+        expect(read.targetId, 7);
+        expect(read.targetName, 'M51');
+        expect(read.width, 4144);
+        expect(read.height, 2822);
+        expect(read.framesStacked, 38);
+        expect(read.framesAttempted, 40);
+        expect(read.integrationSecs, 4560);
+        expect(read.avgAlignmentResidual, closeTo(0.42, 1e-9));
+        expect(read.avgHfr, closeTo(2.31, 1e-9));
+        expect(read.filter, 'L');
+        // A default (mono) sample round-trips with is_color=false / channels=1.
+        expect(read.isColor, isFalse);
+        expect(read.channels, 1);
+        expect(read.exportedImagePath, isNull);
+        // Stored as epoch seconds (UTC); the model round-trips to a UTC instant.
+        expect(read.createdAt.toUtc(), createdAt);
+        // The reconstructed stats carry only the persisted aggregate columns.
+        expect(read.stats.stackedFrameCount, 38);
+        expect(read.stats.totalFramesAttempted, 40);
+        expect(read.stats.avgAlignmentResidual, closeTo(0.42, 1e-9));
+      },
+    );
 
     test('persists nullable columns as null', () async {
-      await dao.insertResult(sample(
-        sessionId: null,
-        targetId: null,
-        targetName: null,
-        avgHfr: null,
-        filter: null,
-      ));
+      await dao.insertResult(
+        sample(
+          sessionId: null,
+          targetId: null,
+          targetName: null,
+          avgHfr: null,
+          filter: null,
+        ),
+      );
 
       final rows = await dao.getRecentResults();
       expect(rows, hasLength(1));
@@ -129,12 +133,14 @@ void main() {
     test('round-trips a colour (OSC) stack via getResultById', () async {
       // An OSC integration: isColor=true with a 3-channel interleaved-RGB
       // result. Both flags must survive insert -> read-by-id unchanged.
-      final id = await dao.insertResult(sample(
-        targetName: 'NGC 7000 (OSC)',
-        filter: null,
-        isColor: true,
-        channels: 3,
-      ));
+      final id = await dao.insertResult(
+        sample(
+          targetName: 'NGC 7000 (OSC)',
+          filter: null,
+          isColor: true,
+          channels: 3,
+        ),
+      );
 
       final read = await dao.getResultById(id);
       expect(read, isNotNull);
@@ -145,10 +151,12 @@ void main() {
 
       // Verify the on-disk encoding directly: is_color is stored as the
       // SQLite integer 1, not a truthy-but-wrong value.
-      final stored = await db.customSelect(
-        'SELECT is_color, channels FROM stacked_results WHERE id = ?',
-        variables: [Variable<int>(id)],
-      ).getSingle();
+      final stored = await db
+          .customSelect(
+            'SELECT is_color, channels FROM stacked_results WHERE id = ?',
+            variables: [Variable<int>(id)],
+          )
+          .getSingle();
       expect(stored.read<int>('is_color'), 1);
       expect(stored.read<int>('channels'), 3);
     });
@@ -167,10 +175,12 @@ void main() {
       final names = info.map((r) => r.data['name']).toSet();
       expect(names, containsAll(<String>['is_color', 'channels']));
 
-      final isColorCol =
-          info.firstWhere((r) => r.data['name'] == 'is_color').data;
-      final channelsCol =
-          info.firstWhere((r) => r.data['name'] == 'channels').data;
+      final isColorCol = info
+          .firstWhere((r) => r.data['name'] == 'is_color')
+          .data;
+      final channelsCol = info
+          .firstWhere((r) => r.data['name'] == 'channels')
+          .data;
       // Both are NOT NULL with the mono defaults baked into the DDL.
       expect(isColorCol['notnull'], 1);
       expect(isColorCol['dflt_value'].toString(), '0');
@@ -178,42 +188,54 @@ void main() {
       expect(channelsCol['dflt_value'].toString(), '1');
     });
 
-    test('getResultsForSession scopes to the session and orders newest-first',
-        () async {
-      await dao.insertResult(sample(
-        sessionId: 1,
-        when: DateTime.utc(2026, 1, 1, 0, 0, 0),
-        targetName: 'older',
-      ));
-      await dao.insertResult(sample(
-        sessionId: 1,
-        when: DateTime.utc(2026, 1, 2, 0, 0, 0),
-        targetName: 'newer',
-      ));
-      await dao.insertResult(sample(sessionId: 2, targetName: 'other-session'));
+    test(
+      'getResultsForSession scopes to the session and orders newest-first',
+      () async {
+        await dao.insertResult(
+          sample(
+            sessionId: 1,
+            when: DateTime.utc(2026, 1, 1, 0, 0, 0),
+            targetName: 'older',
+          ),
+        );
+        await dao.insertResult(
+          sample(
+            sessionId: 1,
+            when: DateTime.utc(2026, 1, 2, 0, 0, 0),
+            targetName: 'newer',
+          ),
+        );
+        await dao.insertResult(
+          sample(sessionId: 2, targetName: 'other-session'),
+        );
 
-      final session1 = await dao.getResultsForSession(1);
-      expect(session1.map((r) => r.targetName), ['newer', 'older']);
+        final session1 = await dao.getResultsForSession(1);
+        expect(session1.map((r) => r.targetName), ['newer', 'older']);
 
-      final session2 = await dao.getResultsForSession(2);
-      expect(session2.single.targetName, 'other-session');
+        final session2 = await dao.getResultsForSession(2);
+        expect(session2.single.targetName, 'other-session');
 
-      expect(await dao.getResultsForSession(999), isEmpty);
-    });
+        expect(await dao.getResultsForSession(999), isEmpty);
+      },
+    );
 
-    test('getRecentResults returns newest-first and honours the limit',
-        () async {
-      for (var day = 1; day <= 5; day++) {
-        await dao.insertResult(sample(
-          sessionId: day,
-          targetName: 'day$day',
-          when: DateTime.utc(2026, 2, day, 0, 0, 0),
-        ));
-      }
+    test(
+      'getRecentResults returns newest-first and honours the limit',
+      () async {
+        for (var day = 1; day <= 5; day++) {
+          await dao.insertResult(
+            sample(
+              sessionId: day,
+              targetName: 'day$day',
+              when: DateTime.utc(2026, 2, day, 0, 0, 0),
+            ),
+          );
+        }
 
-      final recent = await dao.getRecentResults(limit: 3);
-      expect(recent.map((r) => r.targetName), ['day5', 'day4', 'day3']);
-    });
+        final recent = await dao.getRecentResults(limit: 3);
+        expect(recent.map((r) => r.targetName), ['day5', 'day4', 'day3']);
+      },
+    );
 
     test('getRecentResults rejects a non-positive limit', () async {
       expect(() => dao.getRecentResults(limit: 0), throwsArgumentError);
@@ -222,39 +244,45 @@ void main() {
   });
 
   group('StackedResultsDao update + delete', () {
-    test('updateExportedPath stamps the path and returns the affected count',
-        () async {
-      final id = await dao.insertResult(sample());
+    test(
+      'updateExportedPath stamps the path and returns the affected count',
+      () async {
+        final id = await dao.insertResult(sample());
 
-      final updated = await dao.updateExportedPath(id, '/exports/m51.png');
-      expect(updated, 1);
+        final updated = await dao.updateExportedPath(id, '/exports/m51.png');
+        expect(updated, 1);
 
-      final read = (await dao.getResultsForSession(42)).single;
-      expect(read.exportedImagePath, '/exports/m51.png');
-    });
+        final read = (await dao.getResultsForSession(42)).single;
+        expect(read.exportedImagePath, '/exports/m51.png');
+      },
+    );
 
-    test('updateExportedPath returns 0 for a stale id and changes nothing',
-        () async {
-      final id = await dao.insertResult(sample());
+    test(
+      'updateExportedPath returns 0 for a stale id and changes nothing',
+      () async {
+        final id = await dao.insertResult(sample());
 
-      final updated = await dao.updateExportedPath(999999, '/nope.png');
-      expect(updated, 0);
+        final updated = await dao.updateExportedPath(999999, '/nope.png');
+        expect(updated, 0);
 
-      // The real row is untouched.
-      final read = (await dao.getResultsForSession(42)).single;
-      expect(read.id, id);
-      expect(read.exportedImagePath, isNull);
-    });
+        // The real row is untouched.
+        final read = (await dao.getResultsForSession(42)).single;
+        expect(read.id, id);
+        expect(read.exportedImagePath, isNull);
+      },
+    );
 
-    test('deleteResult removes the row and returns the affected count',
-        () async {
-      final id = await dao.insertResult(sample());
-      expect(await dao.getResultsForSession(42), hasLength(1));
+    test(
+      'deleteResult removes the row and returns the affected count',
+      () async {
+        final id = await dao.insertResult(sample());
+        expect(await dao.getResultsForSession(42), hasLength(1));
 
-      final deleted = await dao.deleteResult(id);
-      expect(deleted, 1);
-      expect(await dao.getResultsForSession(42), isEmpty);
-    });
+        final deleted = await dao.deleteResult(id);
+        expect(deleted, 1);
+        expect(await dao.getResultsForSession(42), isEmpty);
+      },
+    );
 
     test('deleteResult returns 0 for a missing id', () async {
       await dao.insertResult(sample());
@@ -286,10 +314,12 @@ void main() {
       final localWhen = DateTime(2026, 7, 4, 13, 30, 15);
       final id = await dao.insertResult(sample(when: localWhen));
 
-      final stored = await db.customSelect(
-        'SELECT created_at FROM stacked_results WHERE id = ?',
-        variables: [Variable<int>(id)],
-      ).getSingle();
+      final stored = await db
+          .customSelect(
+            'SELECT created_at FROM stacked_results WHERE id = ?',
+            variables: [Variable<int>(id)],
+          )
+          .getSingle();
       final epochSeconds = stored.read<int>('created_at');
       expect(epochSeconds, localWhen.toUtc().millisecondsSinceEpoch ~/ 1000);
 

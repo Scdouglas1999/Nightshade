@@ -131,10 +131,10 @@ class ExposureTriggerConfig {
     double threshold;
     if (conditionKey == 'DriftAbove') {
       final driftMap = conditionValue as Map?;
-      driftRa = (driftMap?['ra_px'] as num?)?.toDouble() ??
-          _kDefaultDriftRaPixels;
-      driftDec = (driftMap?['dec_px'] as num?)?.toDouble() ??
-          _kDefaultDriftDecPixels;
+      driftRa =
+          (driftMap?['ra_px'] as num?)?.toDouble() ?? _kDefaultDriftRaPixels;
+      driftDec =
+          (driftMap?['dec_px'] as num?)?.toDouble() ?? _kDefaultDriftDecPixels;
       // Keep `threshold` populated with the RA value for any consumer that
       // still reads the legacy scalar (e.g. labels with a single number);
       // the canonical drift values live in driftRaPx/driftDecPx.

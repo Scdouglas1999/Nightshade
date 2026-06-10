@@ -62,7 +62,10 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
   /// Build header with thumbnail for DSOs
   Widget _buildHeaderWithThumbnail(
-      Color txtColor, Color accent, DeepSkyObject dso) {
+    Color txtColor,
+    Color accent,
+    DeepSkyObject dso,
+  ) {
     final typeColor = _getTypeColor();
 
     return Row(
@@ -100,7 +103,9 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
                   if (object.magnitude != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: txtColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -119,7 +124,9 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
                   if (dso.sizeString != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: txtColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -151,8 +158,8 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
     final decSign = object.coordinates.dec >= 0 ? '+' : '';
     final decDegrees = object.coordinates.dec.abs().floor();
-    final decMinutes =
-        ((object.coordinates.dec.abs() - decDegrees) * 60).floor();
+    final decMinutes = ((object.coordinates.dec.abs() - decDegrees) * 60)
+        .floor();
     final decSeconds =
         ((object.coordinates.dec.abs() - decDegrees - decMinutes / 60) * 3600)
             .toStringAsFixed(0);
@@ -256,8 +263,13 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
         properties.add(_buildInfoRow('Size', sizeStr, txtColor));
       }
       if (dso.positionAngle != null) {
-        properties.add(_buildInfoRow(
-            'PA', '${dso.positionAngle!.toStringAsFixed(0)}°', txtColor));
+        properties.add(
+          _buildInfoRow(
+            'PA',
+            '${dso.positionAngle!.toStringAsFixed(0)}°',
+            txtColor,
+          ),
+        );
       }
     }
 
@@ -366,8 +378,9 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
               // horizon mid-session the painter must rebuild — passing
               // the value as a constructor field combined with
               // shouldRepaint comparing it gives Flutter the trigger.
-              effectiveHorizonDeg:
-                  ref.watch(planetariumEffectiveHorizonDegProvider),
+              effectiveHorizonDeg: ref.watch(
+                planetariumEffectiveHorizonDegProvider,
+              ),
             ),
           ),
         ),
@@ -425,18 +438,12 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
         Container(
           width: 6,
           height: 6,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 3),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 9,
-            color: txtColor.withValues(alpha: 0.5),
-          ),
+          style: TextStyle(fontSize: 9, color: txtColor.withValues(alpha: 0.5)),
         ),
       ],
     );
@@ -512,7 +519,11 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
   }
 
   Widget _buildTimeColumn(
-      IconData icon, String label, String time, Color txtColor) {
+    IconData icon,
+    String label,
+    String time,
+    Color txtColor,
+  ) {
     return Column(
       children: [
         Icon(icon, size: 16, color: txtColor.withValues(alpha: 0.7)),
@@ -581,8 +592,10 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: Icon(LucideIcons.scan, size: 16, color: accent),
-                    label:
-                        Text('Frame target', style: TextStyle(color: accent)),
+                    label: Text(
+                      'Frame target',
+                      style: TextStyle(color: accent),
+                    ),
                     onPressed: onFrameTarget,
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: accent.withValues(alpha: 0.5)),
@@ -595,8 +608,10 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: Icon(LucideIcons.listPlus, size: 16, color: accent),
-                    label: Text('Add to sequence',
-                        style: TextStyle(color: accent)),
+                    label: Text(
+                      'Add to sequence',
+                      style: TextStyle(color: accent),
+                    ),
                     onPressed: onAddToSequence,
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: accent.withValues(alpha: 0.5)),
@@ -784,17 +799,14 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
       DsoType.galaxy ||
       DsoType.galaxyPair ||
       DsoType.galaxyTriplet ||
-      DsoType.galaxyGroup =>
-        LucideIcons.orbit,
+      DsoType.galaxyGroup => LucideIcons.orbit,
       DsoType.nebula ||
       DsoType.emissionNebula ||
       DsoType.reflectionNebula ||
       DsoType.darkNebula ||
-      DsoType.hiiRegion =>
-        LucideIcons.cloud,
+      DsoType.hiiRegion => LucideIcons.cloud,
       DsoType.openCluster ||
-      DsoType.clusterWithNebulosity =>
-        LucideIcons.asterisk,
+      DsoType.clusterWithNebulosity => LucideIcons.asterisk,
       DsoType.globularCluster => LucideIcons.circle,
       DsoType.planetaryNebula => LucideIcons.circleSlash,
       DsoType.supernova => LucideIcons.zap,
@@ -810,12 +822,10 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
       DsoType.galaxy ||
       DsoType.galaxyPair ||
       DsoType.galaxyTriplet ||
-      DsoType.galaxyGroup =>
-        Colors.purple,
+      DsoType.galaxyGroup => Colors.purple,
       DsoType.nebula ||
       DsoType.emissionNebula ||
-      DsoType.hiiRegion =>
-        Colors.red,
+      DsoType.hiiRegion => Colors.red,
       DsoType.reflectionNebula => Colors.blue,
       DsoType.darkNebula => Colors.grey,
       DsoType.openCluster || DsoType.clusterWithNebulosity => Colors.blue,
@@ -854,8 +864,9 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     }
 
     // Calculate moon distance (angular separation from moon)
-    final (moonRa, moonDec, _) =
-        AstronomyCalculations.moonPosition(obsTime.time);
+    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(
+      obsTime.time,
+    );
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,
@@ -915,14 +926,16 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
     // Moon phase score (0-30 points)
     // New moon = 30 points, Full moon = 0 points
-    final moonIllumination =
-        AstronomyCalculations.moonIllumination(obsTime.time);
+    final moonIllumination = AstronomyCalculations.moonIllumination(
+      obsTime.time,
+    );
     score += ((100 - moonIllumination) / 100) * 30;
 
     // Moon distance score (0-15 points)
     // Far from moon = 15 points, close to moon = 0 points
-    final (moonRa, moonDec, _) =
-        AstronomyCalculations.moonPosition(obsTime.time);
+    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(
+      obsTime.time,
+    );
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,
@@ -957,13 +970,13 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     final color = score >= 70
         ? Colors.green
         : score >= 40
-            ? Colors.amber
-            : Colors.red;
+        ? Colors.amber
+        : Colors.red;
     final label = score >= 70
         ? 'Excellent'
         : score >= 40
-            ? 'Fair'
-            : 'Poor';
+        ? 'Fair'
+        : 'Poor';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

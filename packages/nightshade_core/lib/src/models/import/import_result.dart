@@ -136,15 +136,15 @@ class ImportResult extends Equatable {
 
   @override
   List<Object?> get props => [
-        sourceFormat,
-        totalNodes,
-        mappingTable,
-        droppedNodes,
-        unsupportedNodes,
-        sequence,
-        forcedImport,
-        validationIssues,
-      ];
+    sourceFormat,
+    totalNodes,
+    mappingTable,
+    droppedNodes,
+    unsupportedNodes,
+    sequence,
+    forcedImport,
+    validationIssues,
+  ];
 }
 
 /// Thrown when the file's format can't be identified as NINA or SGP.

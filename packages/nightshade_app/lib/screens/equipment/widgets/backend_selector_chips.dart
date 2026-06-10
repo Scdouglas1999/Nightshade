@@ -174,7 +174,8 @@ class _BackendChipState extends State<_BackendChip> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: borderColor, width: 1),
             ),
             child: Row(
@@ -291,7 +292,8 @@ class CompactBackendSelector extends StatelessWidget {
                 if (unsupportedReason != null)
                   Tooltip(
                     message: unsupportedReason,
-                    child: Icon(LucideIcons.ban, size: 14, color: colors.textMuted),
+                    child: Icon(LucideIcons.ban,
+                        size: 14, color: colors.textMuted),
                   )
                 else if (backend == selectedBackend)
                   Icon(NightshadeIcons.check, size: 14, color: colors.success),

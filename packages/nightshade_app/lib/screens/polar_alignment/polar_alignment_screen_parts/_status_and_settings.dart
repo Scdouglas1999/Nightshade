@@ -35,7 +35,8 @@ class _StatusChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: NightshadeTypography.labelQuiet.copyWith(color: isConnected ? colors.success : colors.error),
+            style: NightshadeTypography.labelQuiet
+                .copyWith(color: isConnected ? colors.success : colors.error),
           ),
         ],
       ),
@@ -105,7 +106,9 @@ class _TipItem extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             text,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary),
           ),
         ],
       ),

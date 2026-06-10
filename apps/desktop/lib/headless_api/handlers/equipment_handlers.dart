@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
@@ -159,13 +159,11 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleGetDeviceHealth(
-      Request request, String deviceId) async {
+    Request request,
+    String deviceId,
+  ) async {
     final backend = container.read(deviceBackendProvider);
     final (lastComm, isHealthy) = await backend.getDeviceHealth(deviceId);
-    return jsonOk({
-      'last_successful_comm': lastComm,
-      'is_healthy': isHealthy,
-    });
+    return jsonOk({'last_successful_comm': lastComm, 'is_healthy': isHealthy});
   }
-
 }

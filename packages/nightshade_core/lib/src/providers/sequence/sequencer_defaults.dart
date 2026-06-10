@@ -10,8 +10,8 @@ const Object _sentinel = Object();
 /// Provider for sequencer default settings (persisted via settings DAO)
 final sequencerDefaultsProvider =
     StateNotifierProvider<SequencerDefaultsNotifier, SequencerDefaults>((ref) {
-  return SequencerDefaultsNotifier(ref);
-});
+      return SequencerDefaultsNotifier(ref);
+    });
 
 class SequencerDefaults {
   // Autofocus defaults
@@ -155,7 +155,8 @@ class SequencerDefaults {
       livestackingDefaultWatermark: livestackingDefaultWatermark == _sentinel
           ? this.livestackingDefaultWatermark
           : livestackingDefaultWatermark as String?,
-      livestackingDefaultThumbnailSize: livestackingDefaultThumbnailSize ??
+      livestackingDefaultThumbnailSize:
+          livestackingDefaultThumbnailSize ??
           this.livestackingDefaultThumbnailSize,
       livestackingDisableEverywhere:
           livestackingDisableEverywhere ?? this.livestackingDisableEverywhere,
@@ -177,35 +178,35 @@ enum LiveStackingThumbnailSize {
 
   /// Width in pixels.
   int get width => switch (this) {
-        LiveStackingThumbnailSize.small => 640,
-        LiveStackingThumbnailSize.medium => 1280,
-        LiveStackingThumbnailSize.large => 1920,
-      };
+    LiveStackingThumbnailSize.small => 640,
+    LiveStackingThumbnailSize.medium => 1280,
+    LiveStackingThumbnailSize.large => 1920,
+  };
 
   /// Height in pixels (16:9 aspect ratio).
   int get height => switch (this) {
-        LiveStackingThumbnailSize.small => 360,
-        LiveStackingThumbnailSize.medium => 720,
-        LiveStackingThumbnailSize.large => 1080,
-      };
+    LiveStackingThumbnailSize.small => 360,
+    LiveStackingThumbnailSize.medium => 720,
+    LiveStackingThumbnailSize.large => 1080,
+  };
 
   String get label => switch (this) {
-        LiveStackingThumbnailSize.small => 'Small (640×360)',
-        LiveStackingThumbnailSize.medium => 'Medium (1280×720)',
-        LiveStackingThumbnailSize.large => 'Large (1920×1080)',
-      };
+    LiveStackingThumbnailSize.small => 'Small (640×360)',
+    LiveStackingThumbnailSize.medium => 'Medium (1280×720)',
+    LiveStackingThumbnailSize.large => 'Large (1920×1080)',
+  };
 
   String get storageKey => switch (this) {
-        LiveStackingThumbnailSize.small => 'small',
-        LiveStackingThumbnailSize.medium => 'medium',
-        LiveStackingThumbnailSize.large => 'large',
-      };
+    LiveStackingThumbnailSize.small => 'small',
+    LiveStackingThumbnailSize.medium => 'medium',
+    LiveStackingThumbnailSize.large => 'large',
+  };
 
   static LiveStackingThumbnailSize fromStorageKey(String? key) => switch (key) {
-        'small' => LiveStackingThumbnailSize.small,
-        'large' => LiveStackingThumbnailSize.large,
-        _ => LiveStackingThumbnailSize.medium,
-      };
+    'small' => LiveStackingThumbnailSize.small,
+    'large' => LiveStackingThumbnailSize.large,
+    _ => LiveStackingThumbnailSize.medium,
+  };
 }
 
 class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
@@ -218,98 +219,130 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
   Future<void> _loadDefaults() async {
     final settingsDao = _ref.read(settingsDaoProvider);
 
-    final stepSize = int.tryParse(
-            await settingsDao.getSetting('sequencer_autofocus_step_size') ??
-                '100') ??
+    final stepSize =
+        int.tryParse(
+          await settingsDao.getSetting('sequencer_autofocus_step_size') ??
+              '100',
+        ) ??
         100;
-    final stepsOut = int.tryParse(
-            await settingsDao.getSetting('sequencer_autofocus_steps_out') ??
-                '7') ??
+    final stepsOut =
+        int.tryParse(
+          await settingsDao.getSetting('sequencer_autofocus_steps_out') ?? '7',
+        ) ??
         7;
-    final exposureDuration = double.tryParse(await settingsDao
-                .getSetting('sequencer_autofocus_exposure_duration') ??
-            '3.0') ??
+    final exposureDuration =
+        double.tryParse(
+          await settingsDao.getSetting(
+                'sequencer_autofocus_exposure_duration',
+              ) ??
+              '3.0',
+        ) ??
         3.0;
     // Wave 1.5 Pack A: persisted autofocus-interval cadence.
-    final autofocusIntervalFrames = int.tryParse(await settingsDao
-                .getSetting('sequencer_autofocus_interval_frames') ??
-            '25') ??
+    final autofocusIntervalFrames =
+        int.tryParse(
+          await settingsDao.getSetting('sequencer_autofocus_interval_frames') ??
+              '25',
+        ) ??
         25;
 
-    final ditherPixels = double.tryParse(
-            await settingsDao.getSetting('sequencer_dither_pixels') ?? '5.0') ??
+    final ditherPixels =
+        double.tryParse(
+          await settingsDao.getSetting('sequencer_dither_pixels') ?? '5.0',
+        ) ??
         5.0;
-    final ditherSettleTime = double.tryParse(
-            await settingsDao.getSetting('sequencer_dither_settle_time') ??
-                '30.0') ??
+    final ditherSettleTime =
+        double.tryParse(
+          await settingsDao.getSetting('sequencer_dither_settle_time') ??
+              '30.0',
+        ) ??
         30.0;
-    final ditherSettlePixels = double.tryParse(
-            await settingsDao.getSetting('sequencer_dither_settle_pixels') ??
-                '1.5') ??
+    final ditherSettlePixels =
+        double.tryParse(
+          await settingsDao.getSetting('sequencer_dither_settle_pixels') ??
+              '1.5',
+        ) ??
         1.5;
-    final ditherSettleTimeout = double.tryParse(
-            await settingsDao.getSetting('sequencer_dither_settle_timeout') ??
-                '120.0') ??
+    final ditherSettleTimeout =
+        double.tryParse(
+          await settingsDao.getSetting('sequencer_dither_settle_timeout') ??
+              '120.0',
+        ) ??
         120.0;
     final ditherRaOnly =
         (await settingsDao.getSetting('sequencer_dither_ra_only') ?? 'false') ==
-            'true';
+        'true';
 
-    final exposureDurationRaw =
-        await settingsDao.getSetting('sequencer_exposure_duration');
+    final exposureDurationRaw = await settingsDao.getSetting(
+      'sequencer_exposure_duration',
+    );
     final parsedExposureDuration = exposureDurationRaw == null
         ? null
         : double.tryParse(exposureDurationRaw);
     final exposureDurationDefault =
         parsedExposureDuration != null && parsedExposureDuration > 0
-            ? parsedExposureDuration
-            : 60.0;
-    final exposureCount = int.tryParse(
-            await settingsDao.getSetting('sequencer_exposure_count') ?? '10') ??
+        ? parsedExposureDuration
+        : 60.0;
+    final exposureCount =
+        int.tryParse(
+          await settingsDao.getSetting('sequencer_exposure_count') ?? '10',
+        ) ??
         10;
-    final exposureFilter =
-        await settingsDao.getSetting('sequencer_exposure_filter');
-    final exposureGainStr =
-        await settingsDao.getSetting('sequencer_exposure_gain');
-    final exposureGain =
-        exposureGainStr != null ? int.tryParse(exposureGainStr) : null;
-    final exposureOffsetStr =
-        await settingsDao.getSetting('sequencer_exposure_offset');
-    final exposureOffset =
-        exposureOffsetStr != null ? int.tryParse(exposureOffsetStr) : null;
+    final exposureFilter = await settingsDao.getSetting(
+      'sequencer_exposure_filter',
+    );
+    final exposureGainStr = await settingsDao.getSetting(
+      'sequencer_exposure_gain',
+    );
+    final exposureGain = exposureGainStr != null
+        ? int.tryParse(exposureGainStr)
+        : null;
+    final exposureOffsetStr = await settingsDao.getSetting(
+      'sequencer_exposure_offset',
+    );
+    final exposureOffset = exposureOffsetStr != null
+        ? int.tryParse(exposureOffsetStr)
+        : null;
     final exposureBinningStr =
         await settingsDao.getSetting('sequencer_exposure_binning') ?? 'one';
     final exposureBinning = BinningMode.values.firstWhere(
       (e) => e.name == exposureBinningStr,
       orElse: () => BinningMode.one,
     );
-    final exposureDitherEvery = int.tryParse(
-            await settingsDao.getSetting('sequencer_exposure_dither_every') ??
-                '1') ??
+    final exposureDitherEvery =
+        int.tryParse(
+          await settingsDao.getSetting('sequencer_exposure_dither_every') ??
+              '1',
+        ) ??
         1;
 
     // Wave 7 Agent 2: LiveStacking defaults.
-    final livestackingPort = int.tryParse(
-            await settingsDao.getSetting('livestacking_default_port') ??
-                '8081') ??
+    final livestackingPort =
+        int.tryParse(
+          await settingsDao.getSetting('livestacking_default_port') ?? '8081',
+        ) ??
         8081;
     final livestackingPublic =
         (await settingsDao.getSetting('livestacking_public_by_default')) ==
-            'true';
+        'true';
     final livestackingStackMethodKey =
         await settingsDao.getSetting('livestacking_default_stack_method') ??
-            'average';
-    final livestackingStackMethod =
-        LiveStackingMethod.fromStorageKey(livestackingStackMethodKey);
-    final livestackingWatermark =
-        await settingsDao.getSetting('livestacking_default_watermark');
-    final livestackingThumbnailKey =
-        await settingsDao.getSetting('livestacking_default_thumbnail_size');
-    final livestackingThumbnail =
-        LiveStackingThumbnailSize.fromStorageKey(livestackingThumbnailKey);
+        'average';
+    final livestackingStackMethod = LiveStackingMethod.fromStorageKey(
+      livestackingStackMethodKey,
+    );
+    final livestackingWatermark = await settingsDao.getSetting(
+      'livestacking_default_watermark',
+    );
+    final livestackingThumbnailKey = await settingsDao.getSetting(
+      'livestacking_default_thumbnail_size',
+    );
+    final livestackingThumbnail = LiveStackingThumbnailSize.fromStorageKey(
+      livestackingThumbnailKey,
+    );
     final livestackingDisableAll =
         (await settingsDao.getSetting('livestacking_disable_everywhere')) ==
-            'true';
+        'true';
 
     state = SequencerDefaults(
       autofocusStepSize: stepSize,
@@ -335,8 +368,8 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       livestackingDefaultStackMethod: livestackingStackMethod,
       livestackingDefaultWatermark:
           (livestackingWatermark != null && livestackingWatermark.isEmpty)
-              ? null
-              : livestackingWatermark,
+          ? null
+          : livestackingWatermark,
       livestackingDefaultThumbnailSize: livestackingThumbnail,
       livestackingDisableEverywhere: livestackingDisableAll,
     );
@@ -371,8 +404,9 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     if (defaultStackMethod != null) {
       updates['livestacking_default_stack_method'] =
           defaultStackMethod.storageKey;
-      state =
-          state.copyWith(livestackingDefaultStackMethod: defaultStackMethod);
+      state = state.copyWith(
+        livestackingDefaultStackMethod: defaultStackMethod,
+      );
     }
     if (defaultWatermark != _sentinel) {
       final value = defaultWatermark as String?;
@@ -417,8 +451,8 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       state = state.copyWith(autofocusStepsOut: stepsOut);
     }
     if (exposureDuration != null) {
-      updates['sequencer_autofocus_exposure_duration'] =
-          exposureDuration.toString();
+      updates['sequencer_autofocus_exposure_duration'] = exposureDuration
+          .toString();
       state = state.copyWith(autofocusExposureDuration: exposureDuration);
     }
     if (intervalFrames != null) {

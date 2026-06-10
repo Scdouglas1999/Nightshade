@@ -11,7 +11,8 @@ Future<void> main() async {
   );
   if (!matrixGenerator.existsSync()) {
     throw StateError(
-        'Owner matrix generator not found: ${matrixGenerator.path}');
+      'Owner matrix generator not found: ${matrixGenerator.path}',
+    );
   }
   if (!validator.existsSync()) {
     throw StateError('Staged branch validator not found: ${validator.path}');
@@ -126,11 +127,7 @@ Future<void> main() async {
       'apps/desktop/lib/headless_api_server.dart',
       'scratch/research.txt',
     ]);
-    final forbidden = await _runDartScript(
-      validator,
-      temp,
-      allowFailure: true,
-    );
+    final forbidden = await _runDartScript(validator, temp, allowFailure: true);
     _expect(
       forbidden.exitCode == 1,
       'defer/exclude paths should fail validation',
@@ -236,8 +233,9 @@ Future<void> _runBucketPolicyFixture({
       .firstWhere((bucket) => bucket['id'] == 'generated-files');
   final paths = (generatedBucket['paths'] as List).cast<Map<String, dynamic>>();
   paths.first['generated'] = false;
-  await planFile
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(plan));
+  await planFile.writeAsString(
+    const JsonEncoder.withIndent('  ').convert(plan),
+  );
 
   await _runDartScript(matrixGenerator, policyRoot);
   await _stageFixturePaths(policyRoot, [
@@ -348,8 +346,11 @@ Future<void> _runBranchModeFixture({
 
 Future<void> _prepareGitWorkspace(Directory root) async {
   await _runGit(root, ['init']);
-  await _runGit(
-      root, ['config', 'user.email', 'release-self-test@example.com']);
+  await _runGit(root, [
+    'config',
+    'user.email',
+    'release-self-test@example.com',
+  ]);
   await _runGit(root, ['config', 'user.name', 'Release Self Test']);
   await File('${root.path}/README.md').writeAsString('base\n');
   await _runGit(root, ['add', 'README.md']);

@@ -10,6 +10,6 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [SyncHandlers].
 List<HeadlessRoute> buildSyncRoutes(SyncHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/sync/status', h.handleGetStatus),
-      HeadlessRoute(HttpMethod.post, '/api/sync/push', h.handlePushNow),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/sync/status', h.handleGetStatus),
+  HeadlessRoute(HttpMethod.post, '/api/sync/push', h.handlePushNow),
+];

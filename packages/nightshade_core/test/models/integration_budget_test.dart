@@ -30,13 +30,13 @@ void main() {
       final aJson = jsonEncode(a.toJson());
       final rJson = jsonEncode(r.toJson());
       expect(
-          FilterBudgetEntry.fromJson(
-              jsonDecode(aJson) as Map<String, dynamic>),
-          equals(a));
+        FilterBudgetEntry.fromJson(jsonDecode(aJson) as Map<String, dynamic>),
+        equals(a),
+      );
       expect(
-          FilterBudgetEntry.fromJson(
-              jsonDecode(rJson) as Map<String, dynamic>),
-          equals(r));
+        FilterBudgetEntry.fromJson(jsonDecode(rJson) as Map<String, dynamic>),
+        equals(r),
+      );
     });
 
     test('unknown kind throws FormatException', () {
@@ -50,9 +50,7 @@ void main() {
   group('IntegrationBudget.resolvedFilterCap', () {
     test('Absolute entries return their own value', () {
       const budget = IntegrationBudget(
-        perFilter: {
-          'Ha': FilterBudgetEntry.absolute(21600.0),
-        },
+        perFilter: {'Ha': FilterBudgetEntry.absolute(21600.0)},
       );
       expect(budget.resolvedFilterCap('Ha'), equals(21600.0));
       expect(budget.resolvedFilterCap('OIII'), isNull);
@@ -68,10 +66,14 @@ void main() {
           'B': FilterBudgetEntry.ratio(1.0),
         },
       );
-      expect((budget.resolvedFilterCap('L')! - (4.0 / 7.0) * 28800.0).abs(),
-          lessThan(1.0));
-      expect((budget.resolvedFilterCap('R')! - (1.0 / 7.0) * 28800.0).abs(),
-          lessThan(1.0));
+      expect(
+        (budget.resolvedFilterCap('L')! - (4.0 / 7.0) * 28800.0).abs(),
+        lessThan(1.0),
+      );
+      expect(
+        (budget.resolvedFilterCap('R')! - (1.0 / 7.0) * 28800.0).abs(),
+        lessThan(1.0),
+      );
     });
 
     test('Ratios without total yield null', () {
@@ -111,7 +113,8 @@ void main() {
       );
       final json = jsonEncode(budget.toJson());
       final back = IntegrationBudget.fromJson(
-          jsonDecode(json) as Map<String, dynamic>);
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       expect(back, equals(budget));
     });
 
@@ -129,12 +132,12 @@ void main() {
 
     test('isActive true for any non-zero cap', () {
       const t = IntegrationBudget(totalSecs: 60.0);
-      const a = IntegrationBudget(perFilter: {
-        'L': FilterBudgetEntry.absolute(60.0),
-      });
-      const r = IntegrationBudget(perFilter: {
-        'L': FilterBudgetEntry.ratio(1.0),
-      });
+      const a = IntegrationBudget(
+        perFilter: {'L': FilterBudgetEntry.absolute(60.0)},
+      );
+      const r = IntegrationBudget(
+        perFilter: {'L': FilterBudgetEntry.ratio(1.0)},
+      );
       expect(t.isActive, isTrue);
       expect(a.isActive, isTrue);
       expect(r.isActive, isTrue);
@@ -154,22 +157,25 @@ void main() {
       expect(copy.integrationBudget, equals(original));
     });
 
-    test('explicit null now KEEPS the budget (plain `?? this.X` semantics)', () {
-      // PHASE-5: TargetHeaderNode.copyWith dropped the sentinel; null
-      // and omitted are indistinguishable now. Clearing the budget is
-      // rebuild-explicit at the editor — see
-      // sequence_node_complex_subclasses_test.dart::
-      // nullable_fields_cleared_via_rebuild_explicit for the recipe.
-      const original = IntegrationBudget(totalSecs: 3600.0);
-      final node = TargetHeaderNode(
-        targetName: 'M31',
-        raHours: 0.5,
-        decDegrees: 41.0,
-        integrationBudget: original,
-      );
-      final copy = node.copyWith(integrationBudget: null);
-      expect(copy.integrationBudget, equals(original));
-    });
+    test(
+      'explicit null now KEEPS the budget (plain `?? this.X` semantics)',
+      () {
+        // PHASE-5: TargetHeaderNode.copyWith dropped the sentinel; null
+        // and omitted are indistinguishable now. Clearing the budget is
+        // rebuild-explicit at the editor — see
+        // sequence_node_complex_subclasses_test.dart::
+        // nullable_fields_cleared_via_rebuild_explicit for the recipe.
+        const original = IntegrationBudget(totalSecs: 3600.0);
+        final node = TargetHeaderNode(
+          targetName: 'M31',
+          raHours: 0.5,
+          decDegrees: 41.0,
+          integrationBudget: original,
+        );
+        final copy = node.copyWith(integrationBudget: null);
+        expect(copy.integrationBudget, equals(original));
+      },
+    );
 
     test('explicit value replaces the budget', () {
       const original = IntegrationBudget(totalSecs: 3600.0);

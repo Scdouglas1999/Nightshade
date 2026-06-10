@@ -40,13 +40,16 @@ class TelescopiusCsvImporter {
     if (firstLine == null) return false;
     final lower = firstLine.toLowerCase();
     // Required column set for a confident Telescopius identification.
-    final hasDesignation = lower.contains('"designation"') ||
+    final hasDesignation =
+        lower.contains('"designation"') ||
         lower.contains(',designation,') ||
         lower.startsWith('designation,');
-    final hasRa = lower.contains('"right ascension"') ||
+    final hasRa =
+        lower.contains('"right ascension"') ||
         lower.contains(',right ascension,') ||
         lower.startsWith('right ascension,');
-    final hasDec = lower.contains('"declination"') ||
+    final hasDec =
+        lower.contains('"declination"') ||
         lower.contains(',declination,') ||
         lower.startsWith('declination,');
     return hasDesignation && hasRa && hasDec;
@@ -56,10 +59,7 @@ class TelescopiusCsvImporter {
   ///
   /// Throws [MalformedSourceError] if the file isn't valid CSV or required
   /// columns are missing.
-  CanonicalSequenceNode parse(
-    String content, {
-    String? sequenceName,
-  }) {
+  CanonicalSequenceNode parse(String content, {String? sequenceName}) {
     final rows = CsvParser.parse(content);
     if (rows.isEmpty) {
       throw MalformedSourceError('Telescopius CSV is empty');
@@ -73,7 +73,11 @@ class TelescopiusCsvImporter {
 
     // Identify column indices by name (Telescopius adds new columns over time,
     // so positional lookup would be fragile).
-    final idxDesignation = _findColumn(header, ['designation', 'name', 'target']);
+    final idxDesignation = _findColumn(header, [
+      'designation',
+      'name',
+      'target',
+    ]);
     final idxRa = _findColumn(header, ['rightascension', 'ra']);
     final idxDec = _findColumn(header, ['declination', 'dec']);
     if (idxDesignation < 0 || idxRa < 0 || idxDec < 0) {
@@ -83,19 +87,28 @@ class TelescopiusCsvImporter {
       );
     }
     final idxPane = _findColumn(header, ['pane', 'panel', 'panelindex']);
-    final idxRotation = _findColumn(header, ['rotation', 'positionangle', 'pa']);
+    final idxRotation = _findColumn(header, [
+      'rotation',
+      'positionangle',
+      'pa',
+    ]);
     final idxMagnitude = _findColumn(header, ['magnitude', 'mag']);
     final idxConstellation = _findColumn(header, ['constellation']);
     final idxObjectType = _findColumn(header, ['objecttype', 'type']);
     final idxSize = _findColumn(header, ['size']);
     final idxDistance = _findColumn(header, ['distance']);
     final idxVisualDesc = _findColumn(header, ['visualdescription']);
-    final idxImagingDesc =
-        _findColumn(header, ['imagingdescription', 'description']);
+    final idxImagingDesc = _findColumn(header, [
+      'imagingdescription',
+      'description',
+    ]);
     // Optional extension columns Telescopius (and the community) sometimes
     // append.
-    final idxSubLength =
-        _findColumn(header, ['sublength', 'subexposure', 'exposuretime']);
+    final idxSubLength = _findColumn(header, [
+      'sublength',
+      'subexposure',
+      'exposuretime',
+    ]);
     final idxCount = _findColumn(header, ['count', 'subs', 'frames']);
     final idxFilter = _findColumn(header, ['filter']);
 
@@ -209,7 +222,9 @@ class TelescopiusCsvImporter {
   }
 
   CanonicalSequenceNode _buildMosaicGroup(
-      String designation, List<_ParsedRow> group) {
+    String designation,
+    List<_ParsedRow> group,
+  ) {
     // Sort panes by their pane number (1-indexed in Telescopius).
     final sorted = [...group]
       ..sort((a, b) => (a.paneIndex ?? 0).compareTo(b.paneIndex ?? 0));
@@ -227,26 +242,28 @@ class TelescopiusCsvImporter {
       final exposure = _buildExposureIfPresent(row);
       if (exposure != null) children.add(exposure);
 
-      panels.add(CanonicalSequenceNode(
-        kind: CanonicalKind.targetHeader,
-        name: '$designation (Panel ${panelIndex + 1}/$total)',
-        sourceType: 'TelescopiusMosaicPanel',
-        attributes: {
-          'targetName': designation,
-          'raHours': row.raHours,
-          'decDegrees': row.decDegrees,
-          if (row.rotation != null) 'rotation': row.rotation,
-          'mosaicName': designation,
-          'mosaicPanelIndex': panelIndex,
-          'mosaicTotalPanels': total,
-          // Row/column unknown from CSV alone; we keep a flat layout
-          // (column = index, row = 0). MosaicService can re-grid them later.
-          'mosaicRow': 0,
-          'mosaicColumn': panelIndex,
-          ..._metaAttributes(row),
-        },
-        children: children,
-      ));
+      panels.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.targetHeader,
+          name: '$designation (Panel ${panelIndex + 1}/$total)',
+          sourceType: 'TelescopiusMosaicPanel',
+          attributes: {
+            'targetName': designation,
+            'raHours': row.raHours,
+            'decDegrees': row.decDegrees,
+            if (row.rotation != null) 'rotation': row.rotation,
+            'mosaicName': designation,
+            'mosaicPanelIndex': panelIndex,
+            'mosaicTotalPanels': total,
+            // Row/column unknown from CSV alone; we keep a flat layout
+            // (column = index, row = 0). MosaicService can re-grid them later.
+            'mosaicRow': 0,
+            'mosaicColumn': panelIndex,
+            ..._metaAttributes(row),
+          },
+          children: children,
+        ),
+      );
     }
 
     // Wrap panels in a sequential container so they show up as a coherent

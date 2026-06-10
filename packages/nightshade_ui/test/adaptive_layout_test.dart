@@ -5,30 +5,22 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 void main() {
   group('clampPanelWidth', () {
     test('clamps fraction of available space', () {
-      expect(
-        clampPanelWidth(1000, fraction: 0.25, min: 200, max: 400),
-        250,
-      );
+      expect(clampPanelWidth(1000, fraction: 0.25, min: 200, max: 400), 250);
     });
 
     test('respects minimum', () {
-      expect(
-        clampPanelWidth(400, fraction: 0.1, min: 200, max: 500),
-        200,
-      );
+      expect(clampPanelWidth(400, fraction: 0.1, min: 200, max: 500), 200);
     });
 
     test('respects maximum', () {
-      expect(
-        clampPanelWidth(2000, fraction: 0.5, min: 100, max: 400),
-        400,
-      );
+      expect(clampPanelWidth(2000, fraction: 0.5, min: 100, max: 400), 400);
     });
   });
 
   group('dialogMaxWidth', () {
-    testWidgets('returns design max when viewport is wide enough',
-        (tester) async {
+    testWidgets('returns design max when viewport is wide enough', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -97,8 +89,7 @@ void main() {
       );
       expect(
         ShellChromeMetrics.contentStackBottomChromeHeight(useBottomNav: true),
-        ShellChromeMetrics.statusBarHeightCompact +
-            BottomNavMetrics.barHeight,
+        ShellChromeMetrics.statusBarHeightCompact + BottomNavMetrics.barHeight,
       );
     });
   });

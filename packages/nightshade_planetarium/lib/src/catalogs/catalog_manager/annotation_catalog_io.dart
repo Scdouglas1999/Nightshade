@@ -32,11 +32,15 @@ extension CatalogManagerAnnotationIo on CatalogManager {
     final downloadUrl = buildGladePlusUrl(package);
 
     developer.log(
-        '[Catalog] Starting download of ${source.name} (${package.displayName} tier)',
-        name: 'CatalogManager',
-        level: 800);
-    developer.log('[Catalog] VizieR TAP URL: $downloadUrl',
-        name: 'CatalogManager', level: 800);
+      '[Catalog] Starting download of ${source.name} (${package.displayName} tier)',
+      name: 'CatalogManager',
+      level: 800,
+    );
+    developer.log(
+      '[Catalog] VizieR TAP URL: $downloadUrl',
+      name: 'CatalogManager',
+      level: 800,
+    );
 
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -55,16 +59,20 @@ extension CatalogManagerAnnotationIo on CatalogManager {
       final client = http.Client();
 
       try {
-        developer.log('[Catalog] Sending HTTP GET request to VizieR TAP...',
-            name: 'CatalogManager', level: 800);
+        developer.log(
+          '[Catalog] Sending HTTP GET request to VizieR TAP...',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         final request = http.Request('GET', Uri.parse(downloadUrl));
         final streamedResponse = await client.send(request);
 
         developer.log(
-            '[Catalog] Response status: ${streamedResponse.statusCode}',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Response status: ${streamedResponse.statusCode}',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         if (streamedResponse.statusCode != 200) {
           final errorMsg =
@@ -82,9 +90,10 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         final sink = file.openWrite();
 
         developer.log(
-            '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         // VizieR TAP returns CSV directly (not gzipped)
         var bytesReceived = 0;
@@ -112,9 +121,10 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         await sink.close();
 
         developer.log(
-            '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         if (!await file.exists()) {
           throw Exception('File was not created after download');
@@ -125,16 +135,20 @@ extension CatalogManagerAnnotationIo on CatalogManager {
           throw Exception('Downloaded file is empty');
         }
 
-        developer.log('[Catalog] File verified: $fileSize bytes',
-            name: 'CatalogManager', level: 800);
+        developer.log(
+          '[Catalog] File verified: $fileSize bytes',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         final objectCount = await _countObjects(filePath);
         await _saveAnnotationMetadata(source, package, objectCount);
 
         developer.log(
-            '[Catalog] Annotation catalog saved with $objectCount objects',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Annotation catalog saved with $objectCount objects',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -146,11 +160,13 @@ extension CatalogManagerAnnotationIo on CatalogManager {
       }
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
-      developer.log(errorMsg,
-          name: 'CatalogManager',
-          level: 1000,
-          error: e,
-          stackTrace: stackTrace);
+      developer.log(
+        errorMsg,
+        name: 'CatalogManager',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
 
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
@@ -189,8 +205,11 @@ extension CatalogManagerAnnotationIo on CatalogManager {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        developer.log('[Catalog] Import source file not found: $sourcePath',
-            name: 'CatalogManager', level: 900);
+        developer.log(
+          '[Catalog] Import source file not found: $sourcePath',
+          name: 'CatalogManager',
+          level: 900,
+        );
         return false;
       }
 
@@ -204,23 +223,24 @@ extension CatalogManagerAnnotationIo on CatalogManager {
       await _saveAnnotationMetadata(gladePlusCatalog, package, objectCount);
 
       developer.log(
-          '[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath',
-          name: 'CatalogManager',
-          level: 800);
+        '[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath',
+        name: 'CatalogManager',
+        level: 800,
+      );
       return true;
     } catch (e) {
-      developer.log('[Catalog] Import annotation catalog error: $e',
-          name: 'CatalogManager', level: 1000);
+      developer.log(
+        '[Catalog] Import annotation catalog error: $e',
+        name: 'CatalogManager',
+        level: 1000,
+      );
       return false;
     }
   }
 
   /// Delete annotation catalog
   Future<void> _deleteAnnotationCatalog() async {
-    final files = [
-      gladePlusCatalog.fileName,
-      'annotation_metadata.json',
-    ];
+    final files = [gladePlusCatalog.fileName, 'annotation_metadata.json'];
 
     for (final fileName in files) {
       final file = File(path.join(catalogDirectory, fileName));

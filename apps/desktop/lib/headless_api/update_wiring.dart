@@ -61,9 +61,8 @@ Future<UpdateStack?> provisionUpdateStack({
   final resolvedUrl = (serverUrl?.trim().isNotEmpty ?? false)
       ? serverUrl!.trim()
       : (Platform.environment['NIGHTSHADE_UPDATE_SERVER']?.trim() ?? '');
-  final resolvedChannel = (Platform.environment['NIGHTSHADE_UPDATE_CHANNEL']
-              ?.trim()
-              .isNotEmpty ??
+  final resolvedChannel =
+      (Platform.environment['NIGHTSHADE_UPDATE_CHANNEL']?.trim().isNotEmpty ??
           false)
       ? Platform.environment['NIGHTSHADE_UPDATE_CHANNEL']!.trim()
       : channel;

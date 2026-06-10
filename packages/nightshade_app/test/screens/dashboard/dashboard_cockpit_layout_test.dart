@@ -181,8 +181,8 @@ void main() {
 
     test('recent-frames is no longer enabled by default', () {
       final layout = DashboardLayout.defaultLayout();
-      final recent = layout.tiles
-          .firstWhere((t) => t.widgetId == DashboardWidgetId.cockpitRecentFrames);
+      final recent = layout.tiles.firstWhere(
+          (t) => t.widgetId == DashboardWidgetId.cockpitRecentFrames);
       expect(recent.enabled, isFalse,
           reason:
               'Recent-frames is folded into cockpitFrames and off by default.');

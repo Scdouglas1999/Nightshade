@@ -56,30 +56,32 @@ void main() {
       backend.dispose();
     });
 
-    test('discoverDevices issues a GET /api/devices and decodes the body',
-        () async {
-      fake.setResponse(
-        '/api/devices',
-        method: 'GET',
-        body: '{"devices":[{"id":"sim:cam:0","name":"Sim Camera",'
-            '"deviceType":"camera","driverType":"simulator",'
-            '"description":"","driverVersion":"1.0"}]}',
-      );
-      backend = _buildBackend(fake);
-
-      final devices = await backend.discoverDevices(DeviceType.camera);
-
-      expect(devices, hasLength(1));
-      expect(devices.single.id, 'sim:cam:0');
-      expect(devices.single.driverType, DriverType.simulator);
-
-      final issued = fake.requestsFor('/api/devices');
-      expect(issued, hasLength(1));
-      expect(issued.single.method, 'GET');
-    });
-
     test(
-        'a 401 response is surfaced as a structured NightshadeError, '
+      'discoverDevices issues a GET /api/devices and decodes the body',
+      () async {
+        fake.setResponse(
+          '/api/devices',
+          method: 'GET',
+          body:
+              '{"devices":[{"id":"sim:cam:0","name":"Sim Camera",'
+              '"deviceType":"camera","driverType":"simulator",'
+              '"description":"","driverVersion":"1.0"}]}',
+        );
+        backend = _buildBackend(fake);
+
+        final devices = await backend.discoverDevices(DeviceType.camera);
+
+        expect(devices, hasLength(1));
+        expect(devices.single.id, 'sim:cam:0');
+        expect(devices.single.driverType, DriverType.simulator);
+
+        final issued = fake.requestsFor('/api/devices');
+        expect(issued, hasLength(1));
+        expect(issued.single.method, 'GET');
+      },
+    );
+
+    test('a 401 response is surfaced as a structured NightshadeError, '
         'not silently swallowed', () async {
       // 401 is non-transient, so we expect exactly one request and an
       // immediate failure.
@@ -95,8 +97,13 @@ void main() {
       // as an empty device list.
       await expectLater(
         backend.discoverDevices(DeviceType.camera),
-        throwsA(isA<NightshadeError>().having(
-            (e) => e.message, 'message', contains('missing pairing token'))),
+        throwsA(
+          isA<NightshadeError>().having(
+            (e) => e.message,
+            'message',
+            contains('missing pairing token'),
+          ),
+        ),
       );
       expect(fake.requestsFor('/api/devices'), hasLength(1));
     });
@@ -113,7 +120,8 @@ void main() {
           ),
           (
             status: 200,
-            body: '{"devices":[{"id":"sim:cam:1","name":"Sim Camera",'
+            body:
+                '{"devices":[{"id":"sim:cam:1","name":"Sim Camera",'
                 '"deviceType":"camera","driverType":"simulator",'
                 '"description":"","driverVersion":"1.0"}]}',
             headers: null,
@@ -136,14 +144,17 @@ void main() {
       expect(refreshCount, 1);
       final requests = fake.requestsFor('/api/devices');
       expect(requests, hasLength(2));
-      expect(_headerValue(requests.first.headers, 'Authorization'),
-          'Bearer expired-token');
-      expect(_headerValue(requests.last.headers, 'Authorization'),
-          'Bearer fresh-token');
+      expect(
+        _headerValue(requests.first.headers, 'Authorization'),
+        'Bearer expired-token',
+      );
+      expect(
+        _headerValue(requests.last.headers, 'Authorization'),
+        'Bearer fresh-token',
+      );
     });
 
-    test(
-        'a 500 response is retried as a transient failure and surfaces '
+    test('a 500 response is retried as a transient failure and surfaces '
         'as a recoverable NightshadeError', () async {
       // Use a plain (non-JSON) body so `_parseErrorResponse` exercises the
       // HTTP-status-based fallback path; that path marks 5xx as recoverable
@@ -162,8 +173,11 @@ void main() {
         await backend.discoverDevices(DeviceType.camera);
         fail('Expected discoverDevices to throw on persistent 500');
       } on NightshadeError catch (err) {
-        expect(err.isRecoverable, isTrue,
-            reason: '5xx must surface as transient/recoverable');
+        expect(
+          err.isRecoverable,
+          isTrue,
+          reason: '5xx must surface as transient/recoverable',
+        );
         expect(err.message, contains('500'));
       }
 
@@ -171,8 +185,7 @@ void main() {
       expect(fake.requestsFor('/api/devices'), hasLength(3));
     });
 
-    test(
-        'malformed JSON in a 200 response is surfaced, not returned as '
+    test('malformed JSON in a 200 response is surfaced, not returned as '
         'empty', () async {
       fake.setResponse(
         '/api/devices',
@@ -189,80 +202,80 @@ void main() {
       );
     });
 
-    test('request headers include the pairing token when authToken is set',
-        () async {
-      fake.setResponse(
-        '/api/devices',
-        method: 'GET',
-        body: '{"devices":[]}',
-      );
-      backend = _buildBackend(fake, authToken: 'secret-token-abc');
+    test(
+      'request headers include the pairing token when authToken is set',
+      () async {
+        fake.setResponse('/api/devices', method: 'GET', body: '{"devices":[]}');
+        backend = _buildBackend(fake, authToken: 'secret-token-abc');
 
-      await backend.discoverDevices(DeviceType.camera);
+        await backend.discoverDevices(DeviceType.camera);
 
-      final captured = fake.requestsFor('/api/devices').single;
-      // Why: `package:http` normalises header names to lowercase on the
-      // wire, so we look up case-insensitively. The header *value* is
-      // load-bearing — it carries the pairing token.
-      final auth = _headerValue(captured.headers, 'Authorization');
-      expect(auth, 'Bearer secret-token-abc',
-          reason: 'Authorization header must carry the bearer token when set');
-      // The compat-version and trace-id headers are always added by
-      // `_addAuthHeaders`; lock that in so future refactors don't drop
-      // them silently.
-      final keys = captured.headers.keys.map((k) => k.toLowerCase()).toList();
-      expect(keys, contains('x-nightshade-api-version'));
-      expect(keys, contains('x-request-id'));
-    });
+        final captured = fake.requestsFor('/api/devices').single;
+        // Why: `package:http` normalises header names to lowercase on the
+        // wire, so we look up case-insensitively. The header *value* is
+        // load-bearing — it carries the pairing token.
+        final auth = _headerValue(captured.headers, 'Authorization');
+        expect(
+          auth,
+          'Bearer secret-token-abc',
+          reason: 'Authorization header must carry the bearer token when set',
+        );
+        // The compat-version and trace-id headers are always added by
+        // `_addAuthHeaders`; lock that in so future refactors don't drop
+        // them silently.
+        final keys = captured.headers.keys.map((k) => k.toLowerCase()).toList();
+        expect(keys, contains('x-nightshade-api-version'));
+        expect(keys, contains('x-request-id'));
+      },
+    );
 
-    test('omits the Authorization header when no authToken is configured',
-        () async {
-      fake.setResponse(
-        '/api/devices',
-        method: 'GET',
-        body: '{"devices":[]}',
-      );
-      backend = _buildBackend(fake);
+    test(
+      'omits the Authorization header when no authToken is configured',
+      () async {
+        fake.setResponse('/api/devices', method: 'GET', body: '{"devices":[]}');
+        backend = _buildBackend(fake);
 
-      await backend.discoverDevices(DeviceType.camera);
+        await backend.discoverDevices(DeviceType.camera);
 
-      final captured = fake.requestsFor('/api/devices').single;
-      // Why: anonymous callers must not send an empty/bogus Authorization
-      // header — the headless server treats presence-but-empty as a
-      // misconfigured client.
-      expect(_headerValue(captured.headers, 'Authorization'), isNull);
-    });
+        final captured = fake.requestsFor('/api/devices').single;
+        // Why: anonymous callers must not send an empty/bogus Authorization
+        // header — the headless server treats presence-but-empty as a
+        // misconfigured client.
+        expect(_headerValue(captured.headers, 'Authorization'), isNull);
+      },
+    );
 
     test('cameraGetLastImage uses GET /api/camera/last-image/jpeg', () async {
       final bitmap = img.Image(width: 4, height: 2);
       bitmap.setPixelRgba(0, 0, 10, 20, 30, 255);
       final jpegBytes = img.encodeJpg(bitmap, quality: 90);
-      final metaHeader = base64Encode(utf8.encode(jsonEncode({
-        'width': 4,
-        'height': 2,
-        'encodedWidth': 4,
-        'encodedHeight': 2,
-        'histogram': List<int>.filled(256, 0),
-        'stats': const ImageStatsResult(
-          min: 0,
-          max: 100,
-          mean: 50,
-          median: 50,
-          stdDev: 10,
-          starCount: 3,
-        ).toJson(),
-        'exposureTime': 1.5,
-        'timestamp': '2026-05-23T12:00:00.000Z',
-        'isColor': false,
-      })));
+      final metaHeader = base64Encode(
+        utf8.encode(
+          jsonEncode({
+            'width': 4,
+            'height': 2,
+            'encodedWidth': 4,
+            'encodedHeight': 2,
+            'histogram': List<int>.filled(256, 0),
+            'stats': const ImageStatsResult(
+              min: 0,
+              max: 100,
+              mean: 50,
+              median: 50,
+              stdDev: 10,
+              starCount: 3,
+            ).toJson(),
+            'exposureTime': 1.5,
+            'timestamp': '2026-05-23T12:00:00.000Z',
+            'isColor': false,
+          }),
+        ),
+      );
 
       fake.setBinaryResponse(
         '/api/camera/last-image/jpeg',
         bodyBytes: jpegBytes,
-        headers: {
-          'content-type': 'image/jpeg',
-          'x-image-meta': metaHeader,
-        },
+        headers: {'content-type': 'image/jpeg', 'x-image-meta': metaHeader},
       );
       backend = _buildBackend(fake);
 
@@ -296,8 +309,7 @@ void main() {
       expect(image, isNull);
     });
 
-    test(
-        'detectPlateSolvers GETs the HOST /api/plate-solver/detect and '
+    test('detectPlateSolvers GETs the HOST /api/plate-solver/detect and '
         'decodes the host filesystem probe', () async {
       // Remote-parity: a phone's plate-solver setup must probe the HOST,
       // not the phone. This proves the NetworkBackend forwards detection to
@@ -305,7 +317,8 @@ void main() {
       fake.setResponse(
         '/api/plate-solver/detect',
         method: 'GET',
-        body: '{"astapPath":"C:/ASTAP/astap.exe",'
+        body:
+            '{"astapPath":"C:/ASTAP/astap.exe",'
             '"astrometryPath":null,'
             '"catalogName":"V17",'
             '"catalogMagnitudeLimit":17.0,'
@@ -324,13 +337,13 @@ void main() {
       expect(detection.hasAnySolver, isTrue);
     });
 
-    test(
-        'getPlateSolverConfig GETs the HOST /api/plate-solver/config and '
+    test('getPlateSolverConfig GETs the HOST /api/plate-solver/config and '
         'decodes the host-persisted preference', () async {
       fake.setResponse(
         '/api/plate-solver/config',
         method: 'GET',
-        body: '{"astapPath":"C:/ASTAP/astap.exe",'
+        body:
+            '{"astapPath":"C:/ASTAP/astap.exe",'
             '"astrometryPath":"",'
             '"catalogPath":"C:/ASTAP",'
             '"solverChoice":"astap"}',
@@ -346,8 +359,7 @@ void main() {
       expect(pref.choice, PlateSolverChoice.astap);
     });
 
-    test(
-        'setPlateSolverConfig POSTs the preference to the HOST '
+    test('setPlateSolverConfig POSTs the preference to the HOST '
         '/api/plate-solver/config', () async {
       fake.setResponse(
         '/api/plate-solver/config',
@@ -376,23 +388,27 @@ void main() {
       expect(sent['solverChoice'], 'astap');
     });
 
-    test('getConnectedDevices decodes deviceType field from host API', () async {
-      fake.setResponse(
-        '/api/devices/connected',
-        method: 'GET',
-        body: '{"devices":[{"id":"ascom:mount:0","name":"My Mount",'
-            '"deviceType":"mount","driverType":"ascom",'
-            '"description":"","driverVersion":"1.0"}]}',
-      );
-      backend = _buildBackend(fake);
+    test(
+      'getConnectedDevices decodes deviceType field from host API',
+      () async {
+        fake.setResponse(
+          '/api/devices/connected',
+          method: 'GET',
+          body:
+              '{"devices":[{"id":"ascom:mount:0","name":"My Mount",'
+              '"deviceType":"mount","driverType":"ascom",'
+              '"description":"","driverVersion":"1.0"}]}',
+        );
+        backend = _buildBackend(fake);
 
-      final devices = await backend.getConnectedDevices();
+        final devices = await backend.getConnectedDevices();
 
-      expect(devices, hasLength(1));
-      expect(devices.single.id, 'ascom:mount:0');
-      expect(devices.single.deviceType, DeviceType.mount);
-      expect(devices.single.driverType, DriverType.ascom);
-    });
+        expect(devices, hasLength(1));
+        expect(devices.single.id, 'ascom:mount:0');
+        expect(devices.single.deviceType, DeviceType.mount);
+        expect(devices.single.driverType, DriverType.ascom);
+      },
+    );
 
     test('webSocketPort defaults to serverPort when explicitly set', () {
       backend = NetworkBackend(
@@ -408,28 +424,28 @@ void main() {
   });
 
   group('BackendNotifier remote connect', () {
-    test('creates NetworkBackend with matching HTTP and WebSocket ports',
-        () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+    test(
+      'creates NetworkBackend with matching HTTP and WebSocket ports',
+      () async {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
 
-      try {
-        await container.read(backendProvider.notifier).connect(
-              '127.0.0.1',
-              8765,
-              authToken: 'test-token',
-            );
-      } catch (_) {
-        // No server listening in unit tests; construction is what we verify.
-      }
+        try {
+          await container
+              .read(backendProvider.notifier)
+              .connect('127.0.0.1', 8765, authToken: 'test-token');
+        } catch (_) {
+          // No server listening in unit tests; construction is what we verify.
+        }
 
-      final backend = container.read(backendProvider);
-      expect(backend, isA<NetworkBackend>());
-      final remote = backend as NetworkBackend;
-      expect(remote.serverPort, 8765);
-      expect(remote.webSocketPort, 8765);
-      expect(remote.serverHost, '127.0.0.1');
-    });
+        final backend = container.read(backendProvider);
+        expect(backend, isA<NetworkBackend>());
+        final remote = backend as NetworkBackend;
+        expect(remote.serverPort, 8765);
+        expect(remote.webSocketPort, 8765);
+        expect(remote.serverHost, '127.0.0.1');
+      },
+    );
   });
 }
 

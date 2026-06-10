@@ -40,8 +40,7 @@ abstract final class ShellChromeMetrics {
   /// Chrome below the main content [Stack]: status bar plus bottom nav when
   /// active. Excludes system safe-area padding.
   static double contentStackBottomChromeHeight({required bool useBottomNav}) {
-    final statusBar =
-        useBottomNav ? statusBarHeightCompact : statusBarHeight;
+    final statusBar = useBottomNav ? statusBarHeightCompact : statusBarHeight;
     final bottomNav = useBottomNav ? BottomNavMetrics.barHeight : 0.0;
     return statusBar + bottomNav;
   }
@@ -60,8 +59,7 @@ abstract final class ShellChromeMetrics {
 
   /// Scales [statusPillValueMaxWidth] for viewport size with sane bounds.
   static double scaledStatusPillValueMaxWidth(BuildContext context) {
-    final scaled =
-        statusPillValueMaxWidth * Responsive.scaleFactor(context);
+    final scaled = statusPillValueMaxWidth * Responsive.scaleFactor(context);
     return scaled.clamp(72.0, 180.0);
   }
 }
@@ -93,14 +91,16 @@ abstract final class BottomNavMetrics {
   static const double visibleSlotsPortrait = 4.6;
   static const double visibleSlotsDefault = 4.15;
 
-  static const Duration scrollAnimationDuration =
-      Duration(milliseconds: 220);
+  static const Duration scrollAnimationDuration = Duration(milliseconds: 220);
 
-  static const Duration itemSelectionAnimationDuration =
-      Duration(milliseconds: 180);
+  static const Duration itemSelectionAnimationDuration = Duration(
+    milliseconds: 180,
+  );
 
-  static const EdgeInsets itemPadding =
-      EdgeInsets.symmetric(horizontal: 10, vertical: 8);
+  static const EdgeInsets itemPadding = EdgeInsets.symmetric(
+    horizontal: 10,
+    vertical: 8,
+  );
 
   static const double itemBorderRadius = 8.0;
   static const double itemIconSize = 18.0;

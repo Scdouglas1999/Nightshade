@@ -41,8 +41,10 @@ void main() {
 
     test('state and command topics', () {
       expect(b.stateTopic('guiding'), 'nightshade/backyard_rig/guiding/state');
-      expect(b.commandTopic('sequence_paused'),
-          'nightshade/backyard_rig/sequence_paused/set');
+      expect(
+        b.commandTopic('sequence_paused'),
+        'nightshade/backyard_rig/sequence_paused/set',
+      );
     });
 
     test('config topic follows the HA discovery contract', () {
@@ -58,8 +60,10 @@ void main() {
         deviceName: 'Obs',
         discoveryPrefix: 'ha_disc',
       );
-      expect(custom.configTopic('sensor', 'last_hfr'),
-          'ha_disc/sensor/nightshade_obs/last_hfr/config');
+      expect(
+        custom.configTopic('sensor', 'last_hfr'),
+        'ha_disc/sensor/nightshade_obs/last_hfr/config',
+      );
     });
   });
 
@@ -99,8 +103,7 @@ void main() {
       expect(sensor['device'], device);
     });
 
-    test('sensor payload includes unit/device_class/state_class when set',
-        () {
+    test('sensor payload includes unit/device_class/state_class when set', () {
       final cfg = b.sensorConfig(
         key: 'camera_temperature',
         name: 'Camera Temperature',
@@ -136,81 +139,99 @@ void main() {
   group('buildHaDiscoveryEntries', () {
     final b = HaDiscoveryPayloadBuilder(nodeId: 'obs', deviceName: 'Obs');
 
-    Map<String, String> byTopic(List<HaDiscoveryEntry> entries) =>
-        {for (final e in entries) e.topic: e.payload};
+    Map<String, String> byTopic(List<HaDiscoveryEntry> entries) => {
+      for (final e in entries) e.topic: e.payload,
+    };
 
-    test('full set: every payload is valid JSON sharing the device block',
-        () {
-      final entries = buildHaDiscoveryEntries(b,
-          includeDome: true, includeControls: true);
+    test('full set: every payload is valid JSON sharing the device block', () {
+      final entries = buildHaDiscoveryEntries(
+        b,
+        includeDome: true,
+        includeControls: true,
+      );
       expect(entries, isNotEmpty);
       for (final entry in entries) {
-        expect(entry.payload, isNotEmpty,
-            reason: '${entry.topic} should be present in the full set');
+        expect(
+          entry.payload,
+          isNotEmpty,
+          reason: '${entry.topic} should be present in the full set',
+        );
         final decoded = jsonDecode(entry.payload) as Map<String, dynamic>;
-        expect(decoded['device'], b.deviceBlock,
-            reason: '${entry.topic} must group under the shared device');
+        expect(
+          decoded['device'],
+          b.deviceBlock,
+          reason: '${entry.topic} must group under the shared device',
+        );
         expect(decoded['unique_id'], startsWith('nightshade_obs_'));
         expect(decoded['availability_topic'], b.availabilityTopic);
       }
     });
 
     test('expected entities are present with the right components', () {
-      final topics = byTopic(buildHaDiscoveryEntries(b,
-              includeDome: true, includeControls: true))
-          .keys
-          .toSet();
+      final topics = byTopic(
+        buildHaDiscoveryEntries(b, includeDome: true, includeControls: true),
+      ).keys.toSet();
       expect(
-          topics,
-          containsAll([
-            'homeassistant/binary_sensor/nightshade_obs/safety/config',
-            'homeassistant/binary_sensor/nightshade_obs/sequence_running/config',
-            'homeassistant/binary_sensor/nightshade_obs/guiding/config',
-            'homeassistant/binary_sensor/nightshade_obs/roof_open/config',
-            'homeassistant/binary_sensor/nightshade_obs/camera_cooling/config',
-            'homeassistant/sensor/nightshade_obs/current_target/config',
-            'homeassistant/sensor/nightshade_obs/sequence_progress/config',
-            'homeassistant/sensor/nightshade_obs/frames_tonight/config',
-            'homeassistant/sensor/nightshade_obs/last_hfr/config',
-            'homeassistant/sensor/nightshade_obs/guide_rms/config',
-            'homeassistant/sensor/nightshade_obs/camera_temperature/config',
-            'homeassistant/sensor/nightshade_obs/ambient_temperature/config',
-            'homeassistant/sensor/nightshade_obs/humidity/config',
-            'homeassistant/sensor/nightshade_obs/sun_altitude/config',
-            'homeassistant/switch/nightshade_obs/sequence_paused/config',
-            'homeassistant/button/nightshade_obs/abort_sequence/config',
-          ]));
+        topics,
+        containsAll([
+          'homeassistant/binary_sensor/nightshade_obs/safety/config',
+          'homeassistant/binary_sensor/nightshade_obs/sequence_running/config',
+          'homeassistant/binary_sensor/nightshade_obs/guiding/config',
+          'homeassistant/binary_sensor/nightshade_obs/roof_open/config',
+          'homeassistant/binary_sensor/nightshade_obs/camera_cooling/config',
+          'homeassistant/sensor/nightshade_obs/current_target/config',
+          'homeassistant/sensor/nightshade_obs/sequence_progress/config',
+          'homeassistant/sensor/nightshade_obs/frames_tonight/config',
+          'homeassistant/sensor/nightshade_obs/last_hfr/config',
+          'homeassistant/sensor/nightshade_obs/guide_rms/config',
+          'homeassistant/sensor/nightshade_obs/camera_temperature/config',
+          'homeassistant/sensor/nightshade_obs/ambient_temperature/config',
+          'homeassistant/sensor/nightshade_obs/humidity/config',
+          'homeassistant/sensor/nightshade_obs/sun_altitude/config',
+          'homeassistant/switch/nightshade_obs/sequence_paused/config',
+          'homeassistant/button/nightshade_obs/abort_sequence/config',
+        ]),
+      );
     });
 
     test('no dome -> roof config is an empty retained delete payload', () {
-      final topics = byTopic(buildHaDiscoveryEntries(b,
-          includeDome: false, includeControls: true));
+      final topics = byTopic(
+        buildHaDiscoveryEntries(b, includeDome: false, includeControls: true),
+      );
       expect(
-          topics['homeassistant/binary_sensor/nightshade_obs/roof_open/config'],
-          isEmpty);
+        topics['homeassistant/binary_sensor/nightshade_obs/roof_open/config'],
+        isEmpty,
+      );
     });
 
-    test('controls disabled -> switch/button configs are delete payloads',
-        () {
-      final topics = byTopic(buildHaDiscoveryEntries(b,
-          includeDome: true, includeControls: false));
-      expect(topics['homeassistant/switch/nightshade_obs/sequence_paused/config'],
-          isEmpty);
-      expect(topics['homeassistant/button/nightshade_obs/abort_sequence/config'],
-          isEmpty);
+    test('controls disabled -> switch/button configs are delete payloads', () {
+      final topics = byTopic(
+        buildHaDiscoveryEntries(b, includeDome: true, includeControls: false),
+      );
+      expect(
+        topics['homeassistant/switch/nightshade_obs/sequence_paused/config'],
+        isEmpty,
+      );
+      expect(
+        topics['homeassistant/button/nightshade_obs/abort_sequence/config'],
+        isEmpty,
+      );
       // Read-only sensors stay published.
       expect(
-          topics['homeassistant/sensor/nightshade_obs/current_target/config'],
-          isNotEmpty);
+        topics['homeassistant/sensor/nightshade_obs/current_target/config'],
+        isNotEmpty,
+      );
     });
 
-    test('safety binary sensor uses HA safety device class (ON = unsafe)',
-        () {
-      final topics = byTopic(buildHaDiscoveryEntries(b,
-          includeDome: false, includeControls: false));
-      final safety = jsonDecode(
-              topics['homeassistant/binary_sensor/nightshade_obs/safety/config']!)
-          as Map<String, dynamic>;
+    test('safety binary sensor uses HA safety device class (ON = unsafe)', () {
+      final topics = byTopic(
+        buildHaDiscoveryEntries(b, includeDome: false, includeControls: false),
+      );
+      final safety =
+          jsonDecode(
+                topics['homeassistant/binary_sensor/nightshade_obs/safety/config']!,
+              )
+              as Map<String, dynamic>;
       expect(safety['device_class'], 'safety');
     });
   });

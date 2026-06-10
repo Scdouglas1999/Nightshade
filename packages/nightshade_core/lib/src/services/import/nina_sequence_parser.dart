@@ -39,7 +39,8 @@ class NinaSequenceParser {
     }
     if (raw is! Map<String, dynamic>) {
       throw MalformedSourceError(
-          'NINA root must be a JSON object, got ${raw.runtimeType}');
+        'NINA root must be a JSON object, got ${raw.runtimeType}',
+      );
     }
     return _parseNode(raw);
   }
@@ -83,8 +84,10 @@ class NinaSequenceParser {
     );
   }
 
-  List<CanonicalSequenceNode> _parseChildList(Map<String, dynamic> json,
-      {required String key}) {
+  List<CanonicalSequenceNode> _parseChildList(
+    Map<String, dynamic> json, {
+    required String key,
+  }) {
     final raw = json[key];
     if (raw is! List) return const [];
     final out = <CanonicalSequenceNode>[];
@@ -115,7 +118,9 @@ class NinaSequenceParser {
   }
 
   Map<String, Object?> _foldConditions(
-      Map<String, Object?> attrs, List<CanonicalSequenceNode> conditions) {
+    Map<String, Object?> attrs,
+    List<CanonicalSequenceNode> conditions,
+  ) {
     if (conditions.isEmpty) return attrs;
     final out = <String, Object?>{...attrs};
     for (final c in conditions) {
@@ -123,8 +128,9 @@ class NinaSequenceParser {
         case 'LoopCondition':
         case 'CountCondition':
         case 'IterationsCondition':
-          final iterations =
-              _readInt(c.attributes['Iterations'] ?? c.attributes['Count']);
+          final iterations = _readInt(
+            c.attributes['Iterations'] ?? c.attributes['Count'],
+          );
           out['_loopCountFromCondition'] = iterations;
           // NINA stores the iteration count on a child LoopCondition rather
           // than on the parent LoopContainer itself. Surface it under the
@@ -140,9 +146,11 @@ class NinaSequenceParser {
           if (iso is String) out['_loopUntilTime'] = iso;
           break;
         case 'AltitudeCondition':
-          final alt = _readDouble(c.attributes['Offset'] ??
-              c.attributes['Altitude'] ??
-              c.attributes['Threshold']);
+          final alt = _readDouble(
+            c.attributes['Offset'] ??
+                c.attributes['Altitude'] ??
+                c.attributes['Threshold'],
+          );
           if (alt != null) out['_loopUntilAltitude'] = alt;
           break;
         case 'LoopForeverCondition':
@@ -174,8 +182,7 @@ class NinaSequenceParser {
     return fallback;
   }
 
-  CanonicalKind _classify(String shortType,
-      {required bool hasChildren}) {
+  CanonicalKind _classify(String shortType, {required bool hasChildren}) {
     // Containers / logic.
     switch (shortType) {
       case 'SequentialContainer':
@@ -273,21 +280,26 @@ class NinaSequenceParser {
   }
 
   Map<String, Object?> _extractAttributes(
-      Map<String, dynamic> json, CanonicalKind kind) {
+    Map<String, dynamic> json,
+    CanonicalKind kind,
+  ) {
     final out = <String, Object?>{};
     switch (kind) {
       case CanonicalKind.exposure:
-        out['exposureTime'] =
-            _readDouble(json['ExposureTime'] ?? json['Duration']);
+        out['exposureTime'] = _readDouble(
+          json['ExposureTime'] ?? json['Duration'],
+        );
         // NINA encodes exposure count via wrapping `LoopContainer` /
         // `TakeManyExposures` -> `TotalExposureCount`. Fall back to 1.
         out['count'] = _readInt(
-            json['TotalExposureCount'] ?? json['Count'] ?? json['Iterations']);
+          json['TotalExposureCount'] ?? json['Count'] ?? json['Iterations'],
+        );
         out['gain'] = _readInt(json['Gain']);
         out['offset'] = _readInt(json['Offset']);
         out['binning'] = _extractBinning(json['Binning']);
         out['filterName'] = _extractFilter(json['Filter']);
-        out['imageType'] = json['ImageType']?.toString() ??
+        out['imageType'] =
+            json['ImageType']?.toString() ??
             json['FrameType']?.toString() ??
             'LIGHT';
         break;
@@ -301,8 +313,9 @@ class NinaSequenceParser {
           out['decDegrees'] = _readDouble(coord['Dec'] ?? coord['Declination']);
         }
         out['raHours'] ??= _readDouble(json['RAHours'] ?? json['RA']);
-        out['decDegrees'] ??=
-            _readDouble(json['Dec'] ?? json['DEC'] ?? json['Declination']);
+        out['decDegrees'] ??= _readDouble(
+          json['Dec'] ?? json['DEC'] ?? json['Declination'],
+        );
         break;
       case CanonicalKind.autofocus:
         // Nothing useful to copy from NINA — autofocus is parameterless on
@@ -313,8 +326,8 @@ class NinaSequenceParser {
         out['filterPosition'] = _readInt(json['Position']);
         break;
       case CanonicalKind.waitForTime:
-        out['waitUntilIso'] = json['WaitUntil']?.toString() ??
-            json['DateTime']?.toString();
+        out['waitUntilIso'] =
+            json['WaitUntil']?.toString() ?? json['DateTime']?.toString();
         break;
       case CanonicalKind.delay:
         out['seconds'] = _readDouble(json['Seconds'] ?? json['Duration']);
@@ -324,11 +337,13 @@ class NinaSequenceParser {
         break;
       case CanonicalKind.meridianFlip:
         out['minutesPastMeridian'] = _readDouble(
-            json['MinutesAfterMeridian'] ?? json['PauseTimeBeforeMeridian']);
+          json['MinutesAfterMeridian'] ?? json['PauseTimeBeforeMeridian'],
+        );
         break;
       case CanonicalKind.coolCamera:
         out['targetTemperature'] = _readDouble(
-            json['Temperature'] ?? json['TargetTemperature']);
+          json['Temperature'] ?? json['TargetTemperature'],
+        );
         out['durationMinutes'] = _readDouble(json['Duration']);
         break;
       case CanonicalKind.warmCamera:
@@ -336,33 +351,37 @@ class NinaSequenceParser {
         break;
       case CanonicalKind.rotator:
         out['angle'] = _readDouble(
-            json['MechanicalPosition'] ?? json['PositionAngle'] ?? json['Angle']);
+          json['MechanicalPosition'] ?? json['PositionAngle'] ?? json['Angle'],
+        );
         break;
       case CanonicalKind.loop:
         out['iterations'] = _readInt(
-            json['Iterations'] ?? json['Count'] ?? json['TotalExposureCount']);
+          json['Iterations'] ?? json['Count'] ?? json['TotalExposureCount'],
+        );
         break;
       case CanonicalKind.targetHeader:
         final target = json['Target'];
         if (target is Map<String, dynamic>) {
-          out['targetName'] = target['TargetName']?.toString() ??
+          out['targetName'] =
+              target['TargetName']?.toString() ??
               target['Name']?.toString() ??
               json['Name']?.toString();
           final coord = target['InputCoordinates'] ?? target['Coordinates'];
           if (coord is Map<String, dynamic>) {
-            out['raHours'] =
-                _readDouble(coord['RAHours'] ?? coord['RA']);
+            out['raHours'] = _readDouble(coord['RAHours'] ?? coord['RA']);
             out['decDegrees'] = _readDouble(
-                coord['NegativeDec'] == true
-                    ? -(_readDouble(coord['Dec'] ?? coord['Declination']) ?? 0)
-                    : (coord['Dec'] ?? coord['Declination']));
+              coord['NegativeDec'] == true
+                  ? -(_readDouble(coord['Dec'] ?? coord['Declination']) ?? 0)
+                  : (coord['Dec'] ?? coord['Declination']),
+            );
           }
-          out['rotation'] =
-              _readDouble(target['Rotation'] ?? target['PositionAngle']);
+          out['rotation'] = _readDouble(
+            target['Rotation'] ?? target['PositionAngle'],
+          );
         }
         // Also accept flat fields directly on the container.
-        out['targetName'] ??= json['TargetName']?.toString() ??
-            json['Name']?.toString();
+        out['targetName'] ??=
+            json['TargetName']?.toString() ?? json['Name']?.toString();
         break;
       case CanonicalKind.sequential:
       case CanonicalKind.parallel:

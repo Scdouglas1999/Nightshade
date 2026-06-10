@@ -80,8 +80,7 @@ class WeekForecastStrip extends ConsumerWidget {
           return EmptyState(
             icon: LucideIcons.cloudMoon,
             title: 'Nothing to forecast yet',
-            body:
-                'Add targets with integration goals to see the best upcoming '
+            body: 'Add targets with integration goals to see the best upcoming '
                 'nights for your campaign.',
           );
         }
@@ -341,7 +340,8 @@ class _NightCard extends StatelessWidget {
         alignment: Alignment.topLeft,
         child: Text(
           'No targets up',
-          style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
+          style:
+              NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
         ),
       );
     }

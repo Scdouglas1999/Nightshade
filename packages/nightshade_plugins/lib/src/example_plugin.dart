@@ -100,9 +100,7 @@ class ExamplePlugin extends NightshadePlugin {
     await _context?.storage.setInt('counter', _counter);
 
     // Emit event about counter change
-    _context?.eventBus.emit('plugin.example.counter', {
-      'value': _counter,
-    });
+    _context?.eventBus.emit('plugin.example.counter', {'value': _counter});
   }
 
   /// Get the current counter value
@@ -115,9 +113,7 @@ class ExamplePlugin extends NightshadePlugin {
 
     await _context?.storage.setInt('counter', 0);
 
-    _context?.eventBus.emit('plugin.example.counter', {
-      'value': 0,
-    });
+    _context?.eventBus.emit('plugin.example.counter', {'value': 0});
   }
 }
 
@@ -137,7 +133,8 @@ class ExampleUiPlugin extends UiPlugin {
   String get version => '1.0.0';
 
   @override
-  String get description => 'Adds example UI panels to demonstrate UI extensions';
+  String get description =>
+      'Adds example UI panels to demonstrate UI extensions';
 
   @override
   String get author => 'Nightshade Team';
@@ -156,22 +153,22 @@ class ExampleUiPlugin extends UiPlugin {
 
   @override
   List<UiExtensionPoint> get extensionPoints => [
-        UiExtensionPoint(
-          type: UiExtensionPointType.equipmentPanel,
-          title: 'Example Equipment Panel',
-          widgetBuilder: () {
-            // Example plugin intentionally does not provide a concrete widget.
-            return null;
-          },
-        ),
-        UiExtensionPoint(
-          type: UiExtensionPointType.statusBar,
-          title: 'Example Status',
-          widgetBuilder: () {
-            return null;
-          },
-        ),
-      ];
+    UiExtensionPoint(
+      type: UiExtensionPointType.equipmentPanel,
+      title: 'Example Equipment Panel',
+      widgetBuilder: () {
+        // Example plugin intentionally does not provide a concrete widget.
+        return null;
+      },
+    ),
+    UiExtensionPoint(
+      type: UiExtensionPointType.statusBar,
+      title: 'Example Status',
+      widgetBuilder: () {
+        return null;
+      },
+    ),
+  ];
 }
 
 /// Example device plugin showing how to add hardware support
@@ -220,9 +217,9 @@ class ExampleDevicePlugin extends DevicePlugin {
 
   @override
   List<DevicePluginType> get supportedDevices => [
-        DevicePluginType.camera,
-        DevicePluginType.focuser,
-      ];
+    DevicePluginType.camera,
+    DevicePluginType.focuser,
+  ];
 }
 
 /// Example sequence plugin showing how to add custom sequence nodes
@@ -260,27 +257,27 @@ class ExampleSequencePlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'example.wait',
-          name: 'Custom Wait',
-          category: 'Example',
-          description: 'Wait for a custom duration',
-          createNode: (params) {
-            final durationMs = params['durationMs'] as int? ?? 5000;
-            return _ExampleWaitNode(durationMs: durationMs);
-          },
-        ),
-        SequenceNodeDefinition(
-          id: 'example.notify',
-          name: 'Send Notification',
-          category: 'Example',
-          description: 'Send a custom notification',
-          createNode: (params) {
-            final message = params['message'] as String? ?? 'Notification';
-            return _ExampleNotifyNode(message: message);
-          },
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'example.wait',
+      name: 'Custom Wait',
+      category: 'Example',
+      description: 'Wait for a custom duration',
+      createNode: (params) {
+        final durationMs = params['durationMs'] as int? ?? 5000;
+        return _ExampleWaitNode(durationMs: durationMs);
+      },
+    ),
+    SequenceNodeDefinition(
+      id: 'example.notify',
+      name: 'Send Notification',
+      category: 'Example',
+      description: 'Send a custom notification',
+      createNode: (params) {
+        final message = params['message'] as String? ?? 'Notification';
+        return _ExampleNotifyNode(message: message);
+      },
+    ),
+  ];
 }
 
 /// Example wait node that pauses execution for a specified duration

@@ -47,7 +47,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
       CurvedAnimation(
-          parent: _pressController, curve: NightshadeTokens.curveSnappy),
+        parent: _pressController,
+        curve: NightshadeTokens.curveSnappy,
+      ),
     );
   }
 
@@ -80,24 +82,25 @@ class _NightshadeButtonState extends State<NightshadeButton>
   EdgeInsets get _padding {
     return switch (widget.size) {
       ButtonSize.small => const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceSm + 2,
-          vertical: NightshadeTokens.spaceSm - 2,
-        ),
+        horizontal: NightshadeTokens.spaceSm + 2,
+        vertical: NightshadeTokens.spaceSm - 2,
+      ),
       ButtonSize.medium => const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceMd + 2,
-          vertical: NightshadeTokens.spaceSm + 2,
-        ),
+        horizontal: NightshadeTokens.spaceMd + 2,
+        vertical: NightshadeTokens.spaceSm + 2,
+      ),
       ButtonSize.large => const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceLg + 2,
-          vertical: NightshadeTokens.spaceMd + 2,
-        ),
+        horizontal: NightshadeTokens.spaceLg + 2,
+        vertical: NightshadeTokens.spaceMd + 2,
+      ),
     };
   }
 
   TextStyle get _textStyle {
     return switch (widget.size) {
-      ButtonSize.small =>
-        NightshadeTypography.captionSm.copyWith(fontWeight: FontWeight.w500),
+      ButtonSize.small => NightshadeTypography.captionSm.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
       ButtonSize.medium => NightshadeTypography.buttonSm,
       ButtonSize.large => NightshadeTypography.button,
     };
@@ -218,8 +221,11 @@ class _NightshadeButtonState extends State<NightshadeButton>
                       ),
                       const SizedBox(width: NightshadeTokens.spaceSm),
                     ] else if (widget.icon != null) ...[
-                      Icon(widget.icon,
-                          size: _iconSize, color: foregroundColor),
+                      Icon(
+                        widget.icon,
+                        size: _iconSize,
+                        color: foregroundColor,
+                      ),
                       const SizedBox(width: NightshadeTokens.spaceSm - 2),
                     ],
                     Flexible(

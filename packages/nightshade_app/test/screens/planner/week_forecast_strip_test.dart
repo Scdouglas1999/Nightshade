@@ -139,7 +139,8 @@ void main() {
     expect(find.text('Nothing to forecast yet'), findsOneWidget);
   });
 
-  testWidgets('per-night forecastAvailable == false renders a "No forecast" card',
+  testWidgets(
+      'per-night forecastAvailable == false renders a "No forecast" card',
       (tester) async {
     final week = WeekForecast(nights: [
       NightForecast.unavailable(
@@ -178,7 +179,8 @@ void main() {
     expect(find.textContaining('clear'), findsNothing);
   });
 
-  testWidgets('available week renders one card per night with the best-night star',
+  testWidgets(
+      'available week renders one card per night with the best-night star',
       (tester) async {
     // Three nights: a poor (cloudy) night, a great (clear) night, a mid night.
     final week = WeekForecast(nights: [

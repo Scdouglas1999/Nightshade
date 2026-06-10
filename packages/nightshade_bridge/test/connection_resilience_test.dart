@@ -27,7 +27,10 @@ void main() {
             }
             return 'success';
           },
-          const RetryConfig(maxAttempts: 5, initialDelay: Duration(milliseconds: 100)),
+          const RetryConfig(
+            maxAttempts: 5,
+            initialDelay: Duration(milliseconds: 100),
+          ),
           onRetry: (attempt, error, delay) {
             delays.add(delay);
           },
@@ -52,7 +55,10 @@ void main() {
             attempts++;
             throw TimeoutException('Timeout');
           },
-          const RetryConfig(maxAttempts: 3, initialDelay: Duration(milliseconds: 10)),
+          const RetryConfig(
+            maxAttempts: 3,
+            initialDelay: Duration(milliseconds: 10),
+          ),
         ),
         throwsA(isA<RetryExhaustedException>()),
       );
@@ -88,7 +94,10 @@ void main() {
             attempts++;
             throw const SocketException('Network error');
           },
-          config: const RetryConfig(maxAttempts: 3, initialDelay: Duration(milliseconds: 10)),
+          config: const RetryConfig(
+            maxAttempts: 3,
+            initialDelay: Duration(milliseconds: 10),
+          ),
         ),
         throwsA(isA<RetryExhaustedException>()),
       );
@@ -110,7 +119,9 @@ void main() {
       // Fail 3 times
       for (int i = 0; i < 3; i++) {
         try {
-          await breaker.execute(() async => throw const SocketException('Error'));
+          await breaker.execute(
+            () async => throw const SocketException('Error'),
+          );
         } catch (_) {}
       }
 
@@ -137,7 +148,9 @@ void main() {
       // Open the circuit
       for (int i = 0; i < 2; i++) {
         try {
-          await breaker.execute(() async => throw const SocketException('Error'));
+          await breaker.execute(
+            () async => throw const SocketException('Error'),
+          );
         } catch (_) {}
       }
 
@@ -167,7 +180,9 @@ void main() {
       // Open the circuit
       for (int i = 0; i < 2; i++) {
         try {
-          await breaker.execute(() async => throw const SocketException('Error'));
+          await breaker.execute(
+            () async => throw const SocketException('Error'),
+          );
         } catch (_) {}
       }
 
@@ -194,7 +209,9 @@ void main() {
       // Fail a few times
       for (int i = 0; i < 3; i++) {
         try {
-          await breaker.execute(() async => throw const SocketException('Error'));
+          await breaker.execute(
+            () async => throw const SocketException('Error'),
+          );
         } catch (_) {}
       }
 
@@ -224,17 +241,25 @@ void main() {
     test('resets all breakers', () async {
       final registry = CircuitBreakerRegistry();
 
-      final breaker1 = registry.getOrCreate('device1',
-          config: const CircuitBreakerConfig(failureThreshold: 1));
-      final breaker2 = registry.getOrCreate('device2',
-          config: const CircuitBreakerConfig(failureThreshold: 1));
+      final breaker1 = registry.getOrCreate(
+        'device1',
+        config: const CircuitBreakerConfig(failureThreshold: 1),
+      );
+      final breaker2 = registry.getOrCreate(
+        'device2',
+        config: const CircuitBreakerConfig(failureThreshold: 1),
+      );
 
       // Open both breakers
       try {
-        await breaker1.execute(() async => throw const SocketException('Error'));
+        await breaker1.execute(
+          () async => throw const SocketException('Error'),
+        );
       } catch (_) {}
       try {
-        await breaker2.execute(() async => throw const SocketException('Error'));
+        await breaker2.execute(
+          () async => throw const SocketException('Error'),
+        );
       } catch (_) {}
 
       expect(breaker1.isOpen, true);
@@ -250,8 +275,14 @@ void main() {
 
   group('Retry Config Presets', () {
     test('aggressive config has more attempts and shorter delays', () {
-      expect(RetryConfig.aggressive.maxAttempts, greaterThan(RetryConfig.conservative.maxAttempts));
-      expect(RetryConfig.aggressive.maxDelay.inSeconds, lessThan(RetryConfig.conservative.maxDelay.inSeconds));
+      expect(
+        RetryConfig.aggressive.maxAttempts,
+        greaterThan(RetryConfig.conservative.maxAttempts),
+      );
+      expect(
+        RetryConfig.aggressive.maxDelay.inSeconds,
+        lessThan(RetryConfig.conservative.maxDelay.inSeconds),
+      );
     });
 
     test('fast config has short delays', () {
@@ -278,7 +309,9 @@ void main() {
       // Fail twice
       for (int i = 0; i < 2; i++) {
         try {
-          await breaker.execute(() async => throw const SocketException('Error'));
+          await breaker.execute(
+            () async => throw const SocketException('Error'),
+          );
         } catch (_) {}
       }
 

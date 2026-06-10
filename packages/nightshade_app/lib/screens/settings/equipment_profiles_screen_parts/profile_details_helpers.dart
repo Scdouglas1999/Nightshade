@@ -1,7 +1,7 @@
 part of '../equipment_profiles_screen.dart';
 
 extension _ProfileDetailsHelpers on _ProfileDetailsState {
-bool _hasDeviceAssignments() {
+  bool _hasDeviceAssignments() {
     return widget.profile.cameraId != null ||
         widget.profile.mountId != null ||
         widget.profile.focuserId != null ||
@@ -85,13 +85,16 @@ bool _hasDeviceAssignments() {
                 ),
                 decoration: BoxDecoration(
                   color: NightshadeColors.of(context).surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   filterName,
                   style: TextStyle(
                     color: NightshadeColors.of(context).textPrimary,
-                    fontSize: widget.isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
+                    fontSize: widget.isMobile
+                        ? NightshadeTypography.fontSize13
+                        : NightshadeTypography.fontSize14,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -110,7 +113,9 @@ bool _hasDeviceAssignments() {
                   ],
                   style: TextStyle(
                     color: NightshadeColors.of(context).textPrimary,
-                    fontSize: widget.isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
+                    fontSize: widget.isMobile
+                        ? NightshadeTypography.fontSize13
+                        : NightshadeTypography.fontSize14,
                   ),
                   decoration: InputDecoration(
                     isDense: true,
@@ -121,20 +126,28 @@ bool _hasDeviceAssignments() {
                     suffixText: widget.isMobile ? 'st' : 'steps',
                     suffixStyle: TextStyle(
                       color: NightshadeColors.of(context).textMuted,
-                      fontSize: widget.isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+                      fontSize: widget.isMobile
+                          ? NightshadeTypography.fontSize11
+                          : NightshadeTypography.fontSize12,
                     ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                      borderSide: BorderSide(color: NightshadeColors.of(context).border),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(
+                          color: NightshadeColors.of(context).border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                      borderSide: BorderSide(color: NightshadeColors.of(context).border),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(
+                          color: NightshadeColors.of(context).border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                      borderSide:
-                          BorderSide(color: NightshadeColors.of(context).primary, width: 2),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(
+                          color: NightshadeColors.of(context).primary,
+                          width: 2),
                     ),
                   ),
                 ),
@@ -144,7 +157,9 @@ bool _hasDeviceAssignments() {
                 '$offset steps',
                 style: TextStyle(
                   color: NightshadeColors.of(context).textSecondary,
-                  fontSize: widget.isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
+                  fontSize: widget.isMobile
+                      ? NightshadeTypography.fontSize13
+                      : NightshadeTypography.fontSize14,
                 ),
               ),
           ],

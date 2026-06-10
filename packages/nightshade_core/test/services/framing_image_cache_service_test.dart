@@ -89,29 +89,31 @@ void main() {
     expect(metaJson['sizeBytes'], equals(bytes.length));
   });
 
-  test('cached image survives a fresh service instance (restart sim)',
-      () async {
-    final bytes = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    await service.saveSurveyImage(
-      bytes: bytes,
-      raHours: 12.0,
-      decDegrees: 30.0,
-      source: SurveySource.sdss,
-    );
+  test(
+    'cached image survives a fresh service instance (restart sim)',
+    () async {
+      final bytes = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      await service.saveSurveyImage(
+        bytes: bytes,
+        raHours: 12.0,
+        decDegrees: 30.0,
+        source: SurveySource.sdss,
+      );
 
-    // Simulate app restart: brand new service pointing at the same support
-    // directory.
-    final reborn = FramingImageCacheService(
-      supportDirProvider: () async => tempRoot,
-    );
-    final found = await reborn.loadCachedSurveyImage(
-      raHours: 12.0,
-      decDegrees: 30.0,
-      source: SurveySource.sdss,
-    );
-    expect(found, isNotNull);
-    expect(await found!.readAsBytes(), equals(bytes));
-  });
+      // Simulate app restart: brand new service pointing at the same support
+      // directory.
+      final reborn = FramingImageCacheService(
+        supportDirProvider: () async => tempRoot,
+      );
+      final found = await reborn.loadCachedSurveyImage(
+        raHours: 12.0,
+        decDegrees: 30.0,
+        source: SurveySource.sdss,
+      );
+      expect(found, isNotNull);
+      expect(await found!.readAsBytes(), equals(bytes));
+    },
+  );
 
   test('saveSurveyImage rejects zero-byte payloads', () async {
     expect(
@@ -148,23 +150,25 @@ void main() {
     expect(await File('${entry.filePath}.meta.json').exists(), isFalse);
   });
 
-  test('listCachedImages enumerates only image files, skipping sidecars',
-      () async {
-    await service.saveSurveyImage(
-      bytes: Uint8List.fromList([1, 2, 3]),
-      raHours: 1.0,
-      decDegrees: 10.0,
-      source: SurveySource.dss2Red,
-    );
-    await service.saveSurveyImage(
-      bytes: Uint8List.fromList([4, 5, 6, 7]),
-      raHours: 2.0,
-      decDegrees: 20.0,
-      source: SurveySource.dss2Blue,
-    );
+  test(
+    'listCachedImages enumerates only image files, skipping sidecars',
+    () async {
+      await service.saveSurveyImage(
+        bytes: Uint8List.fromList([1, 2, 3]),
+        raHours: 1.0,
+        decDegrees: 10.0,
+        source: SurveySource.dss2Red,
+      );
+      await service.saveSurveyImage(
+        bytes: Uint8List.fromList([4, 5, 6, 7]),
+        raHours: 2.0,
+        decDegrees: 20.0,
+        source: SurveySource.dss2Blue,
+      );
 
-    final list = await service.listCachedImages();
-    expect(list.length, equals(2));
-    expect(list.every((e) => !e.filePath.endsWith('.meta.json')), isTrue);
-  });
+      final list = await service.listCachedImages();
+      expect(list.length, equals(2));
+      expect(list.every((e) => !e.filePath.endsWith('.meta.json')), isTrue);
+    },
+  );
 }

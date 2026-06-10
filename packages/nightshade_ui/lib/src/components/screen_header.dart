@@ -148,9 +148,7 @@ class SectionWell extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: effectiveRadius,
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.65),
-        ),
+        border: Border.all(color: colors.border.withValues(alpha: 0.65)),
       ),
       child: child,
     );

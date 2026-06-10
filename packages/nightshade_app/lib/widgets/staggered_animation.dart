@@ -114,6 +114,3 @@ class StaggeredList extends StatelessWidget {
     }).toList();
   }
 }
-
-
-

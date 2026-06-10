@@ -152,7 +152,8 @@ class OperationProgress {
   }
 
   @override
-  String toString() => 'OperationProgress($type, $description, progress: $progress)';
+  String toString() =>
+      'OperationProgress($type, $description, progress: $progress)';
 }
 
 /// State for the active operations provider.
@@ -161,8 +162,9 @@ class ActiveOperationsState {
   /// Only one operation of each type can be active at a time.
   final Map<OperationType, OperationProgress> _operations;
 
-  const ActiveOperationsState([Map<OperationType, OperationProgress>? operations])
-      : _operations = operations ?? const {};
+  const ActiveOperationsState([
+    Map<OperationType, OperationProgress>? operations,
+  ]) : _operations = operations ?? const {};
 
   /// Get all active operations.
   List<OperationProgress> get all => _operations.values.toList();
@@ -235,12 +237,13 @@ class ActiveOperationsNotifier extends StateNotifier<ActiveOperationsState> {
   }
 
   /// Update the progress of an operation.
-  void updateProgress(OperationType type, {double? progress, String? currentStep}) {
+  void updateProgress(
+    OperationType type, {
+    double? progress,
+    String? currentStep,
+  }) {
     state = state.withUpdatedOperation(type, (op) {
-      return op.copyWith(
-        progress: progress,
-        currentStep: currentStep,
-      );
+      return op.copyWith(progress: progress, currentStep: currentStep);
     });
   }
 
@@ -269,9 +272,11 @@ class ActiveOperationsNotifier extends StateNotifier<ActiveOperationsState> {
 
 /// Provider for tracking active long-running operations.
 final activeOperationsProvider =
-    StateNotifierProvider<ActiveOperationsNotifier, ActiveOperationsState>((ref) {
-  return ActiveOperationsNotifier();
-});
+    StateNotifierProvider<ActiveOperationsNotifier, ActiveOperationsState>((
+      ref,
+    ) {
+      return ActiveOperationsNotifier();
+    });
 
 /// Convenience provider to get the primary (first) active operation.
 final primaryOperationProvider = Provider<OperationProgress?>((ref) {

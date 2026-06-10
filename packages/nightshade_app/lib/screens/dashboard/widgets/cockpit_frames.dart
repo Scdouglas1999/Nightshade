@@ -95,7 +95,8 @@ class _CurrentFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: CockpitFrames._frameMaxHeight),
+      constraints:
+          const BoxConstraints(maxHeight: CockpitFrames._frameMaxHeight),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         child: Stack(
@@ -145,7 +146,9 @@ class _WaitingRow extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             'Waiting for first frame…',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ],
       ),

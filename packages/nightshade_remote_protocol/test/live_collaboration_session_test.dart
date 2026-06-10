@@ -27,14 +27,8 @@ void main() {
         kind: 'circle',
         payload: const {'x': 11, 'y': 22},
       );
-      manager.updatePreview(const {
-        'imageId': 'frame-42',
-        'stretch': 'auto',
-      });
-      manager.setSessionHandoff(const {
-        'sessionId': 7,
-        'targetName': 'M31',
-      });
+      manager.updatePreview(const {'imageId': 'frame-42', 'stretch': 'auto'});
+      manager.setSessionHandoff(const {'sessionId': 7, 'targetName': 'M31'});
 
       final state = manager.state;
       expect(state.viewers, hasLength(2));
@@ -44,7 +38,9 @@ void main() {
       expect(state.sessionHandoff?['targetName'], 'M31');
 
       manager.removeViewer('viewer-1');
-      expect(manager.state.viewers.map((viewer) => viewer.viewerId), ['viewer-2']);
+      expect(manager.state.viewers.map((viewer) => viewer.viewerId), [
+        'viewer-2',
+      ]);
     });
   });
 }

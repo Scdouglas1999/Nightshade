@@ -3,11 +3,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 /// Callback for download progress updates
-typedef DownloadProgressCallback = void Function(
-  int downloadedBytes,
-  int totalBytes,
-  double progress,
-);
+typedef DownloadProgressCallback =
+    void Function(int downloadedBytes, int totalBytes, double progress);
 
 /// Token for cancelling downloads
 class CancelToken {
@@ -93,16 +90,21 @@ class UpdateDownloader {
       final contentRange = streamedResponse.headers['content-range'];
       if (contentRange != null) {
         final match = RegExp(r'bytes \d+-\d+/(\d+)').firstMatch(contentRange);
-        totalBytes = match != null ? int.parse(match.group(1)!) : expectedSize ?? 0;
+        totalBytes = match != null
+            ? int.parse(match.group(1)!)
+            : expectedSize ?? 0;
       } else {
-        totalBytes = expectedSize ?? existingBytes + streamedResponse.contentLength!;
+        totalBytes =
+            expectedSize ?? existingBytes + streamedResponse.contentLength!;
       }
     } else {
       totalBytes = streamedResponse.contentLength ?? expectedSize ?? 0;
     }
 
     // Open file for writing (append if resuming)
-    final sink = destination.openWrite(mode: isPartialContent ? FileMode.append : FileMode.write);
+    final sink = destination.openWrite(
+      mode: isPartialContent ? FileMode.append : FileMode.write,
+    );
 
     int downloadedBytes = existingBytes;
 

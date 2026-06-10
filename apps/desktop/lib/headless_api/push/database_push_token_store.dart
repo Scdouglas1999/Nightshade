@@ -29,11 +29,13 @@ class DatabasePushTokenStore implements PushTokenStore, StalePushTokenSink {
   Future<List<RegisteredPushToken>> tokensForPlatform(String platform) async {
     final rows = await database.getPushTokensByPlatform(platform);
     return rows
-        .map((r) => RegisteredPushToken(
-              deviceId: r.deviceId,
-              platform: r.platform,
-              token: r.token,
-            ))
+        .map(
+          (r) => RegisteredPushToken(
+            deviceId: r.deviceId,
+            platform: r.platform,
+            token: r.token,
+          ),
+        )
         .toList();
   }
 

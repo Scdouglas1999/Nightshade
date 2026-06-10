@@ -17,8 +17,9 @@ final elementRefreshServiceProvider = Provider<ElementRefreshService>((ref) {
 
 /// Persisted refresh configuration (URLs, schedule). Bumping
 /// [elementRefreshReloadProvider] re-reads it after a settings change.
-final elementRefreshConfigProvider =
-    FutureProvider<ElementRefreshConfig>((ref) async {
+final elementRefreshConfigProvider = FutureProvider<ElementRefreshConfig>((
+  ref,
+) async {
   ref.watch(elementRefreshReloadProvider);
   return ref.watch(elementRefreshServiceProvider).loadConfig();
 });
@@ -28,8 +29,9 @@ final elementRefreshReloadProvider = StateProvider<int>((ref) => 0);
 
 /// The cached refreshed element sets (offline-safe, never touches the network).
 /// Empty until a refresh has been run at least once.
-final cachedRefreshedElementsProvider =
-    FutureProvider<RefreshedElements>((ref) async {
+final cachedRefreshedElementsProvider = FutureProvider<RefreshedElements>((
+  ref,
+) async {
   ref.watch(elementRefreshReloadProvider);
   return ref.watch(elementRefreshServiceProvider).loadCached();
 });
@@ -42,8 +44,9 @@ final cachedRefreshedElementsProvider =
 /// supersedes a bundled body's stale elements with the fresh ones) — it never
 /// drops the bundled set, which keeps the planetarium populated offline before
 /// any refresh has run.
-final effectiveMinorBodyElementsProvider =
-    Provider<List<MinorBodyElements>>((ref) {
+final effectiveMinorBodyElementsProvider = Provider<List<MinorBodyElements>>((
+  ref,
+) {
   final cached = ref.watch(cachedRefreshedElementsProvider).valueOrNull;
   if (cached == null || cached.isEmpty) {
     return MinorPlanetCatalog.all;
@@ -98,15 +101,14 @@ class ElementRefreshStatus {
     bool? isRefreshing,
     String? error,
     bool clearError = false,
-  }) =>
-      ElementRefreshStatus(
-        asteroidsFetchedAt: asteroidsFetchedAt ?? this.asteroidsFetchedAt,
-        cometsFetchedAt: cometsFetchedAt ?? this.cometsFetchedAt,
-        asteroidCount: asteroidCount ?? this.asteroidCount,
-        cometCount: cometCount ?? this.cometCount,
-        isRefreshing: isRefreshing ?? this.isRefreshing,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => ElementRefreshStatus(
+    asteroidsFetchedAt: asteroidsFetchedAt ?? this.asteroidsFetchedAt,
+    cometsFetchedAt: cometsFetchedAt ?? this.cometsFetchedAt,
+    asteroidCount: asteroidCount ?? this.asteroidCount,
+    cometCount: cometCount ?? this.cometCount,
+    isRefreshing: isRefreshing ?? this.isRefreshing,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 /// Drives manual + scheduled refreshes and exposes the "last updated" status.
@@ -147,8 +149,12 @@ class ElementRefreshController extends StateNotifier<ElementRefreshStatus> {
       // Let consumers (propagation, search) pick up the new disk cache.
       _ref.read(elementRefreshReloadProvider.notifier).state++;
     } catch (e) {
-      developer.log('[ElementRefresh] refresh failed: $e',
-          name: 'ElementRefreshProviders', level: 900, error: e);
+      developer.log(
+        '[ElementRefresh] refresh failed: $e',
+        name: 'ElementRefreshProviders',
+        level: 900,
+        error: e,
+      );
       if (!mounted) return;
       state = state.copyWith(isRefreshing: false, error: '$e');
     }
@@ -166,6 +172,8 @@ class ElementRefreshController extends StateNotifier<ElementRefreshStatus> {
 }
 
 final elementRefreshControllerProvider =
-    StateNotifierProvider<ElementRefreshController, ElementRefreshStatus>((ref) {
-  return ElementRefreshController(ref);
-});
+    StateNotifierProvider<ElementRefreshController, ElementRefreshStatus>((
+      ref,
+    ) {
+      return ElementRefreshController(ref);
+    });

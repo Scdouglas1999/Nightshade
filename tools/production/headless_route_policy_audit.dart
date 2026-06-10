@@ -86,8 +86,9 @@ void main(List<String> args) {
       'maxBytes': limit,
     });
     if (limit <= 0) {
-      issues
-          .add('${route.method} ${route.path} must use a positive body limit.');
+      issues.add(
+        '${route.method} ${route.path} must use a positive body limit.',
+      );
     }
   }
   if (serverSource == null) {
@@ -137,10 +138,8 @@ void main(List<String> args) {
     }
   }
 
-  final ordinaryReadLimited = route_metadata.endpointRateLimitFor(
-        method: 'GET',
-        path: '/api/info',
-      ) !=
+  final ordinaryReadLimited =
+      route_metadata.endpointRateLimitFor(method: 'GET', path: '/api/info') !=
       null;
   if (ordinaryReadLimited) {
     issues.add('/api/info must not be rate limited.');
@@ -178,8 +177,9 @@ void main(List<String> args) {
     'fileBrowseAuditAction': fileBrowseAction,
     'serverMiddlewareTestPath': _serverMiddlewareTestPath,
     'serverMiddlewareTests': serverMiddlewareTests,
-    'serverMiddlewareTestCount':
-        serverMiddlewareTests.values.where((present) => present).length,
+    'serverMiddlewareTestCount': serverMiddlewareTests.values
+        .where((present) => present)
+        .length,
     'highRiskPolicyCount': highRiskPolicies.length,
     'defaultLimitedPolicyCount': defaultLimitedPolicies.length,
     'highRiskPolicies': highRiskPolicies,
@@ -187,20 +187,23 @@ void main(List<String> args) {
   };
 
   File(_jsonOutputPath).parent.createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
   File(_markdownOutputPath).parent.createSync(recursive: true);
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    passed: passed,
-    issues: issues,
-    bodyLimits: bodyLimits,
-    bodyLimitedApiWriteRoutes: bodyLimitedApiWriteRoutes,
-    highRiskPolicies: highRiskPolicies,
-    defaultLimitedPolicies: defaultLimitedPolicies,
-    fileBrowseAction: fileBrowseAction,
-    ordinaryReadLimited: ordinaryReadLimited,
-    serverMiddlewareTests: serverMiddlewareTests,
-  ));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(
+      passed: passed,
+      issues: issues,
+      bodyLimits: bodyLimits,
+      bodyLimitedApiWriteRoutes: bodyLimitedApiWriteRoutes,
+      highRiskPolicies: highRiskPolicies,
+      defaultLimitedPolicies: defaultLimitedPolicies,
+      fileBrowseAction: fileBrowseAction,
+      ordinaryReadLimited: ordinaryReadLimited,
+      serverMiddlewareTests: serverMiddlewareTests,
+    ),
+  );
 
   stdout.writeln('Headless route policy audit complete.');
   stdout.writeln('Passed: $passed');
@@ -221,22 +224,26 @@ Map<String, bool> _readServerMiddlewareTests() {
   return {
     'oversized_control_request_before_auth':
         text.contains('rejects oversized control requests before auth') &&
-            text.contains('HttpStatus.requestEntityTooLarge') &&
-            text.contains('Request body too large'),
-    'chunked_oversized_control_request_before_auth': text.contains(
-            'rejects chunked oversized control requests before auth') &&
+        text.contains('HttpStatus.requestEntityTooLarge') &&
+        text.contains('Request body too large'),
+    'chunked_oversized_control_request_before_auth':
+        text.contains(
+          'rejects chunked oversized control requests before auth',
+        ) &&
         text.contains('Transfer-Encoding: chunked') &&
         text.contains("response.body['requestId']") &&
         text.contains("response.headers['x-request-id']") &&
         text.contains('HttpStatus.requestEntityTooLarge'),
     'high_risk_control_rate_limit':
         text.contains('rate limits repeated high-risk control requests') &&
-            text.contains('HttpStatus.tooManyRequests') &&
-            text.contains('Rate limit exceeded') &&
-            text.contains("blocked.body['requestId']") &&
-            text.contains("blocked.headers['x-request-id']"),
-    'websocket_api_version_before_auth': text.contains(
-            'rejects incompatible WebSocket API versions before auth') &&
+        text.contains('HttpStatus.tooManyRequests') &&
+        text.contains('Rate limit exceeded') &&
+        text.contains("blocked.body['requestId']") &&
+        text.contains("blocked.headers['x-request-id']"),
+    'websocket_api_version_before_auth':
+        text.contains(
+          'rejects incompatible WebSocket API versions before auth',
+        ) &&
         text.contains('GET /events?apiVersion=1.9.9 HTTP/1.1') &&
         text.contains('HttpStatus.upgradeRequired') &&
         text.contains('server_too_old'),
@@ -292,12 +299,11 @@ List<_ApiRoute> _registeredBodyApiRoutes(String? source) {
     }
   }
 
-  return routes.toList()
-    ..sort((a, b) {
-      final pathCompare = a.path.compareTo(b.path);
-      if (pathCompare != 0) return pathCompare;
-      return a.method.compareTo(b.method);
-    });
+  return routes.toList()..sort((a, b) {
+    final pathCompare = a.path.compareTo(b.path);
+    if (pathCompare != 0) return pathCompare;
+    return a.method.compareTo(b.method);
+  });
 }
 
 String _renderMarkdown({

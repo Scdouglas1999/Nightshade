@@ -121,7 +121,8 @@ extension _WizardShell on _QuickStartWizardDialogState {
                       color: isCompleted || isCurrent
                           ? colors.primary
                           : colors.border,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),

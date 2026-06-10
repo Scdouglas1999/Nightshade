@@ -44,8 +44,7 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test('eventsSince(arbitrary large seq) on empty buffer returns empty',
-        () {
+    test('eventsSince(arbitrary large seq) on empty buffer returns empty', () {
       final buffer = EventReplayBuffer(capacity: 10);
 
       // Same contract: empty buffer means "no events known", not "resync".
@@ -75,15 +74,17 @@ void main() {
       expect(replayed.map((e) => e.seq).toList(), [1, 2, 3, 4, 5]);
     });
 
-    test('eventsSince(newestSeq) returns empty (nothing newer than itself)',
-        () {
-      final buffer = EventReplayBuffer(capacity: 10);
-      for (var i = 1; i <= 5; i++) {
-        buffer.append(_stamped(i));
-      }
+    test(
+      'eventsSince(newestSeq) returns empty (nothing newer than itself)',
+      () {
+        final buffer = EventReplayBuffer(capacity: 10);
+        for (var i = 1; i <= 5; i++) {
+          buffer.append(_stamped(i));
+        }
 
-      expect(buffer.eventsSince(5), isEmpty);
-    });
+        expect(buffer.eventsSince(5), isEmpty);
+      },
+    );
 
     test('eventsSince(newestSeq - 1) returns only the latest event', () {
       final buffer = EventReplayBuffer(capacity: 10);
@@ -123,9 +124,14 @@ void main() {
 
   group('EventReplayBuffer (capacity + eviction)', () {
     test('capacity must be positive (asserted)', () {
-      expect(() => EventReplayBuffer(capacity: 0), throwsA(isA<AssertionError>()));
-      expect(() => EventReplayBuffer(capacity: -1),
-          throwsA(isA<AssertionError>()));
+      expect(
+        () => EventReplayBuffer(capacity: 0),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(
+        () => EventReplayBuffer(capacity: -1),
+        throwsA(isA<AssertionError>()),
+      );
     });
 
     test('adding capacity + 1 events drops the oldest entry (FIFO)', () {

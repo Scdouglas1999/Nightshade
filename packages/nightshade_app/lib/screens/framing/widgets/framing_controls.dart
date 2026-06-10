@@ -167,8 +167,9 @@ class _FramingSmallIconButtonState extends State<FramingSmallIconButton> {
             child: Icon(
               widget.icon,
               size: 14,
-              color:
-                  _isHovered ? widget.colors.textPrimary : widget.colors.textSecondary,
+              color: _isHovered
+                  ? widget.colors.textPrimary
+                  : widget.colors.textSecondary,
             ),
           ),
         ),
@@ -263,9 +264,13 @@ class FramingPreviewFovSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('0.1°',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize9,
+                      color: colors.textMuted)),
               Text('10°',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize9,
+                      color: colors.textMuted)),
             ],
           ),
           const SizedBox(height: 8),
@@ -402,7 +407,8 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Equipment FOV Overlay',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.info),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.info),
                 ),
               ),
               NightshadeSwitch(
@@ -417,7 +423,9 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
               children: [
                 Text(
                   'Opacity',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textSecondary),
                 ),
                 Expanded(
                   child: SliderTheme(
@@ -442,7 +450,9 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
                   width: 35,
                   child: Text(
                     '${(opacity * 100).round()}%',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textSecondary),
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -451,7 +461,9 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Shows your actual equipment field of view as an overlay',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize9,
+                  color: colors.textMuted),
             ),
           ],
         ],
@@ -486,7 +498,9 @@ class FramingMosaicSpinner extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10,
+              color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         Container(
@@ -506,7 +520,8 @@ class FramingMosaicSpinner extends StatelessWidget {
                 child: Text(
                   '$value',
                   textAlign: TextAlign.center,
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               _SpinnerButton(
@@ -850,7 +865,8 @@ class _FramingExportMosaicButtonState
                 _isExporting
                     ? 'Exporting...'
                     : 'Export ${widget.panels.length} Panels to Targets',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: onPrimary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: onPrimary),
               ),
             ],
           ),

@@ -7,8 +7,9 @@ part of '../planetarium_providers.dart';
 /// Calculates density hotspots for crowded regions when zoomed out.
 /// Returns list of (ra, dec, visibleCount, hiddenCount) for areas with many hidden objects.
 /// This helps users know when to zoom in to reveal more objects.
-final densityHotspotsDataProvider =
-    Provider<List<(double, double, int, int)>>((ref) {
+final densityHotspotsDataProvider = Provider<List<(double, double, int, int)>>((
+  ref,
+) {
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
 
   // Get all loaded stars (not the filtered ones - we need the full set to count hidden)
@@ -27,8 +28,9 @@ final densityHotspotsDataProvider =
     final decDegs = star.coordinates.dec;
 
     // Normalize RA to 0-360 range before gridding
-    final normalizedRA =
-        raDegs < 0 ? raDegs + 360 : (raDegs >= 360 ? raDegs - 360 : raDegs);
+    final normalizedRA = raDegs < 0
+        ? raDegs + 360
+        : (raDegs >= 360 ? raDegs - 360 : raDegs);
     final cellKey =
         '${(normalizedRA ~/ cellSize)}_${((decDegs + 90) ~/ cellSize)}';
 
@@ -49,17 +51,20 @@ final densityHotspotsDataProvider =
     final decCellIndex = double.parse(parts[1]);
     // Convert back to center of cell in RA (hours) and Dec (degrees)
     final ra = (raCellIndex * cellSize + cellSize / 2) / 15; // Convert to hours
-    final dec = decCellIndex * cellSize -
+    final dec =
+        decCellIndex * cellSize -
         90 +
         cellSize / 2; // Convert from shifted index
     return (ra, dec, e.value.$1, e.value.$2);
   }).toList();
 });
 
-final densityHotspotsProvider =
-    Provider<List<(double, double, int, int)>>((ref) {
-  final fieldOfView =
-      ref.watch(skyViewStateProvider.select((state) => state.fieldOfView));
+final densityHotspotsProvider = Provider<List<(double, double, int, int)>>((
+  ref,
+) {
+  final fieldOfView = ref.watch(
+    skyViewStateProvider.select((state) => state.fieldOfView),
+  );
 
   // Only show density indicators when zoomed out (FOV > 30 degrees)
   if (fieldOfView < 30) return [];

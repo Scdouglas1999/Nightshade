@@ -28,10 +28,11 @@ class ObservingLists extends Table {
 /// needed to identify the object on the sky, independent of the targets table.
 @DataClassName('ObservingListItem')
 @TableIndex(name: 'idx_observing_list_items_list', columns: {#listId})
+@TableIndex(name: 'idx_observing_list_items_catalog', columns: {#catalogId})
 @TableIndex(
-    name: 'idx_observing_list_items_catalog', columns: {#catalogId})
-@TableIndex(
-    name: 'idx_observing_list_items_sort', columns: {#listId, #sortOrder})
+  name: 'idx_observing_list_items_sort',
+  columns: {#listId, #sortOrder},
+)
 class ObservingListItems extends Table {
   /// Primary key
   IntColumn get id => integer().autoIncrement()();
@@ -72,6 +73,6 @@ class ObservingListItems extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {listId, catalogId},
-      ];
+    {listId, catalogId},
+  ];
 }

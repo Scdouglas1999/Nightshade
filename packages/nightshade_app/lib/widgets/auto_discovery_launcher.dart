@@ -74,10 +74,8 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
       // This allows the UI to remain responsive while discovery runs
       _runDiscoveryInBackground();
     } catch (e) {
-      _logger.error(
-          '[AutoDiscovery] Error during auto-discovery setup: $e',
-          source: 'AutoDiscoveryLauncher',
-          fields: {'error': e.toString()});
+      _logger.error('[AutoDiscovery] Error during auto-discovery setup: $e',
+          source: 'AutoDiscoveryLauncher', fields: {'error': e.toString()});
       // Don't show error to user - this is a background operation
     }
   }
@@ -97,8 +95,7 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
             source: 'AutoDiscoveryLauncher');
       } catch (e) {
         _logger.warning('[AutoDiscovery] Discovery error (non-fatal): $e',
-            source: 'AutoDiscoveryLauncher',
-            fields: {'error': e.toString()});
+            source: 'AutoDiscoveryLauncher', fields: {'error': e.toString()});
         // Errors during discovery are non-fatal - user can manually refresh
       }
     });

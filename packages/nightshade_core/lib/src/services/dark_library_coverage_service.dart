@@ -74,31 +74,32 @@ class DarkLibraryCoverageService {
     required Iterable<DarkFrameRequirement> requirements,
     required Iterable<DarkLibraryEntry> entries,
     required int minCoverage,
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
   }) {
     final missing = <DarkFrameRequirement>[];
     final underCovered = <DarkFrameRequirement, int>{};
 
     for (final req in requirements.toSet()) {
-      final matches = entries.where((e) {
-        if (e.frameType != 'dark') return false;
-        if (e.gain != req.gain) return false;
-        if (e.offset != req.offset) return false;
-        if (e.binX != req.binX) return false;
-        if (e.binY != req.binY) return false;
-        if ((e.exposureTime - req.durationSecs).abs() >
-            tolerances.exposureSecs) {
-          return false;
-        }
-        if (req.targetTemp != null && e.temperature != null) {
-          if ((e.temperature! - req.targetTemp!).abs() >
-              tolerances.temperatureC) {
-            return false;
-          }
-        }
-        return true;
-      }).toList(growable: false);
+      final matches = entries
+          .where((e) {
+            if (e.frameType != 'dark') return false;
+            if (e.gain != req.gain) return false;
+            if (e.offset != req.offset) return false;
+            if (e.binX != req.binX) return false;
+            if (e.binY != req.binY) return false;
+            if ((e.exposureTime - req.durationSecs).abs() >
+                tolerances.exposureSecs) {
+              return false;
+            }
+            if (req.targetTemp != null && e.temperature != null) {
+              if ((e.temperature! - req.targetTemp!).abs() >
+                  tolerances.temperatureC) {
+                return false;
+              }
+            }
+            return true;
+          })
+          .toList(growable: false);
 
       if (matches.isEmpty) {
         missing.add(req);

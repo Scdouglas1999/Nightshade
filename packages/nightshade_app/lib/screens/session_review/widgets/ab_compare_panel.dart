@@ -138,8 +138,9 @@ class _AbComparePanelState extends State<AbComparePanel> {
                   variant: ButtonVariant.primary,
                   size: ButtonSize.small,
                   isLoading: _runningA || _runningB,
-                  onPressed:
-                      (recipeA == null || _runningA || _runningB) ? null : _runBoth,
+                  onPressed: (recipeA == null || _runningA || _runningB)
+                      ? null
+                      : _runBoth,
                 ),
               ],
             ),
@@ -153,8 +154,8 @@ class _AbComparePanelState extends State<AbComparePanel> {
             ],
             if (recipeA == null || recipeB == null)
               const Padding(
-                padding: EdgeInsets.symmetric(
-                    vertical: NightshadeTokens.space4xl),
+                padding:
+                    EdgeInsets.symmetric(vertical: NightshadeTokens.space4xl),
                 child: Center(
                   child: SizedBox(
                     width: 28,
@@ -490,11 +491,13 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: NightshadeTypography.statValue.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.statValue
+              .copyWith(color: colors.textPrimary),
         ),
         Text(
           label.toUpperCase(),
-          style: NightshadeTypography.statLabel.copyWith(color: colors.textMuted),
+          style:
+              NightshadeTypography.statLabel.copyWith(color: colors.textMuted),
         ),
       ],
     );
@@ -537,8 +540,8 @@ class _DiffStrip extends StatelessWidget {
                 ),
                 _DiffPill(
                   metric: 'Residual',
-                  winner: _cmp(a.rmsResidual, b.rmsResidual,
-                      higherIsBetter: false),
+                  winner:
+                      _cmp(a.rmsResidual, b.rmsResidual, higherIsBetter: false),
                   detail:
                       '${a.rmsResidual.toStringAsFixed(2)} vs ${b.rmsResidual.toStringAsFixed(2)} px',
                   colors: colors,
@@ -618,7 +621,8 @@ class _DiffPill extends StatelessWidget {
           ),
           Text(
             detail,
-            style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
         ],
       ),

@@ -79,7 +79,8 @@ abstract class _FfiBackendBase implements NightshadeBackend {
         // Log guiding events at info level for diagnostics
         if (category == EventCategory.guiding) {
           _logger.info(
-              'FfiBackend received guiding event: ${payloadInfo.$1} data=${payloadInfo.$2}');
+            'FfiBackend received guiding event: ${payloadInfo.$1} data=${payloadInfo.$2}',
+          );
         }
 
         return NightshadeEvent(

@@ -76,8 +76,9 @@ class WeatherRadarService {
 
     _initialized = true;
     developer.log(
-        'Initialized with ${_providerFactory.providerCount} providers',
-        name: 'WeatherRadarService');
+      'Initialized with ${_providerFactory.providerCount} providers',
+      name: 'WeatherRadarService',
+    );
   }
 
   /// Gets the current provider for the user's location.
@@ -129,8 +130,9 @@ class WeatherRadarService {
     // Get weather settings to determine refresh interval and provider preference
     final database = _ref.read(databaseProvider);
     final settingsRow = await database.weatherSettingsDao.getOrCreateSettings();
-    final refreshInterval =
-        Duration(seconds: settingsRow.refreshIntervalSeconds);
+    final refreshInterval = Duration(
+      seconds: settingsRow.refreshIntervalSeconds,
+    );
 
     // Check if we have fresh cached data
     if (!forceRefresh && !isCacheStale(refreshInterval)) {
@@ -144,12 +146,16 @@ class WeatherRadarService {
     }
 
     // Parse provider preference from settings
-    final providerPreference =
-        _parseProviderType(settingsRow.preferredProvider);
+    final providerPreference = _parseProviderType(
+      settingsRow.preferredProvider,
+    );
 
     // Select appropriate provider
-    final provider =
-        getCurrentProvider(latitude, longitude, providerPreference);
+    final provider = getCurrentProvider(
+      latitude,
+      longitude,
+      providerPreference,
+    );
 
     if (provider == null) {
       final errorResult = RadarFetchResult.error(
@@ -160,8 +166,10 @@ class WeatherRadarService {
       return errorResult;
     }
 
-    developer.log('Fetching from ${provider.name}',
-        name: 'WeatherRadarService');
+    developer.log(
+      'Fetching from ${provider.name}',
+      name: 'WeatherRadarService',
+    );
 
     // Fetch radar frames from the selected provider
     try {
@@ -308,9 +316,10 @@ class WeatherRadarService {
         return RadarProviderType.openmeteo;
       default:
         developer.log(
-            'Unknown provider type: $providerString, defaulting to auto',
-            name: 'WeatherRadarService',
-            level: 900);
+          'Unknown provider type: $providerString, defaulting to auto',
+          name: 'WeatherRadarService',
+          level: 900,
+        );
         return RadarProviderType.auto;
     }
   }

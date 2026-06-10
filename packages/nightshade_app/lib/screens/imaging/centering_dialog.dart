@@ -320,7 +320,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 decoration: BoxDecoration(
                   // absolute: HUD badge scrim over the preview image canvas
                   color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   '${imageData.width}x${imageData.height}',
@@ -432,15 +433,18 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.accent),
                 ),
                 filled: true,
@@ -577,7 +581,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               children: [
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: LinearProgressIndicator(
                       value: (status.currentOffsetArcsec! /
                                   _centeringConfig.toleranceArcsec)
@@ -693,7 +698,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   height: 22,
                   decoration: NightshadeDecorations.tintedBadge(
                     color,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline11),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline11),
                   ),
                   child: Center(
                     child: Text(

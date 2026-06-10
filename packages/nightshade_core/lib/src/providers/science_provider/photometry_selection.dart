@@ -23,8 +23,9 @@ class SciencePhotometrySelectionNotifier
   Future<void> setDifferentialEnabled(bool enabled) async {
     await _writeScienceSettings(ref, {_enabledKey: enabled.toString()});
     state = AsyncData(
-      (state.value ?? const SciencePhotometrySelection())
-          .copyWith(differentialEnabled: enabled),
+      (state.value ?? const SciencePhotometrySelection()).copyWith(
+        differentialEnabled: enabled,
+      ),
     );
   }
 
@@ -38,8 +39,9 @@ class SciencePhotometrySelectionNotifier
 
     await _writeScienceSettings(ref, {
       _targetKey: value,
-      _comparisonsKey:
-          jsonEncode(comparisons.map((entry) => entry.toJson()).toList()),
+      _comparisonsKey: jsonEncode(
+        comparisons.map((entry) => entry.toJson()).toList(),
+      ),
     });
 
     state = AsyncData(
@@ -58,8 +60,9 @@ class SciencePhotometrySelectionNotifier
     final current = state.value ?? const SciencePhotometrySelection();
     final mutable = current.comparisons.toList(growable: true);
 
-    final existingIndex =
-        mutable.indexWhere((entry) => entry.objectId == anchor.objectId);
+    final existingIndex = mutable.indexWhere(
+      (entry) => entry.objectId == anchor.objectId,
+    );
     if (existingIndex >= 0) {
       mutable.removeAt(existingIndex);
     } else if (mutable.length < maxComparisons) {
@@ -71,8 +74,9 @@ class SciencePhotometrySelectionNotifier
         .toList(growable: false);
 
     await _writeScienceSettings(ref, {
-      _comparisonsKey:
-          jsonEncode(filtered.map((entry) => entry.toJson()).toList()),
+      _comparisonsKey: jsonEncode(
+        filtered.map((entry) => entry.toJson()).toList(),
+      ),
     });
     state = AsyncData(current.copyWith(comparisons: filtered));
   }
@@ -124,10 +128,7 @@ class SciencePhotometrySelectionNotifier
     return null;
   }
 
-  List<PhotometryAnchor> _decodeAnchors(
-    String? raw, {
-    int maxItems = 8,
-  }) {
+  List<PhotometryAnchor> _decodeAnchors(String? raw, {int maxItems = 8}) {
     if (raw == null || raw.trim().isEmpty) {
       return const [];
     }
@@ -162,18 +163,21 @@ class SciencePhotometrySelectionNotifier
   }
 }
 
-final sciencePhotometrySelectionProvider = AsyncNotifierProvider<
-    SciencePhotometrySelectionNotifier, SciencePhotometrySelection>(
-  SciencePhotometrySelectionNotifier.new,
-);
+final sciencePhotometrySelectionProvider =
+    AsyncNotifierProvider<
+      SciencePhotometrySelectionNotifier,
+      SciencePhotometrySelection
+    >(SciencePhotometrySelectionNotifier.new);
 
 final activePhotometryTargetObjectIdProvider = Provider<String>((ref) {
   final selection = ref.watch(sciencePhotometrySelectionProvider).valueOrNull;
   return selection?.target?.objectId ?? 'target_primary';
 });
 
-final scienceModeStateProvider =
-    StateProvider<ScienceModeState>((_) => const ScienceModeState());
+final scienceModeStateProvider = StateProvider<ScienceModeState>(
+  (_) => const ScienceModeState(),
+);
 
-final scienceOverlayStateProvider =
-    StateProvider<ScienceOverlayState>((_) => const ScienceOverlayState());
+final scienceOverlayStateProvider = StateProvider<ScienceOverlayState>(
+  (_) => const ScienceOverlayState(),
+);

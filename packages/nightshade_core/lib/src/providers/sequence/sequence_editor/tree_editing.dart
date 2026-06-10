@@ -44,8 +44,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
         newChildIds.add(node.id);
       }
 
-      newNodes[_currentSequence!.rootNodeId!] =
-          root.copyWith(childIds: newChildIds);
+      newNodes[_currentSequence!.rootNodeId!] = root.copyWith(
+        childIds: newChildIds,
+      );
       newNodes[node.id] = node.copyWith(
         parentId: _currentSequence!.rootNodeId,
         orderIndex: index ?? newChildIds.length - 1,
@@ -251,8 +252,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
 
     if (node.parentId != null && newNodes.containsKey(node.parentId)) {
       final oldParent = newNodes[node.parentId!]!;
-      final newChildIds =
-          oldParent.childIds.where((id) => id != nodeId).toList();
+      final newChildIds = oldParent.childIds
+          .where((id) => id != nodeId)
+          .toList();
       newNodes[node.parentId!] = oldParent.copyWith(childIds: newChildIds);
     }
 
@@ -288,7 +290,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     final newNodes = Map<String, SequenceNode>.from(_currentSequence!.nodes);
 
     SequenceNode duplicateRecursive(
-        SequenceNode original, String? newParentId) {
+      SequenceNode original,
+      String? newParentId,
+    ) {
       final newId = const Uuid().v4();
       final newChildIds = <String>[];
 
@@ -352,8 +356,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
 
     for (final childId in originalChildren) {
       if (newNodes.containsKey(childId)) {
-        newNodes[childId] =
-            newNodes[childId]!.copyWith(parentId: newWrapper.id);
+        newNodes[childId] = newNodes[childId]!.copyWith(
+          parentId: newWrapper.id,
+        );
       }
     }
 

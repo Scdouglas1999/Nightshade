@@ -1,4 +1,4 @@
-﻿// Wave 7.5 — Run-dashboard live light-curve panel for the
+// Wave 7.5 — Run-dashboard live light-curve panel for the
 // SciencePhotometryNode (Wave 7 Agent 4).
 //
 // Data flow:
@@ -125,7 +125,9 @@ class LightCurvePanel extends ConsumerWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
         ],
@@ -167,7 +169,8 @@ class _Header extends StatelessWidget {
         const Spacer(),
         Text(
           filter == null ? target : '$target Â· $filter',
-          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -211,16 +214,17 @@ class _SummaryRow extends StatelessWidget {
         const Spacer(),
         if (cadenceBreaks > 0)
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: NightshadeDecorations.statusChip(
               colors.warning,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               bordered: false,
             ),
             child: Text(
               '$cadenceBreaks cadence break${cadenceBreaks == 1 ? '' : 's'}',
-              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning),
+              style: NightshadeTypography.labelStrongSm
+                  .copyWith(color: colors.warning),
             ),
           ),
       ],
@@ -485,8 +489,9 @@ class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
     }
     if (event.eventType != 'InstructionProgress') return;
 
-    final instruction =
-        event.data['instruction'] is String ? event.data['instruction'] as String : null;
+    final instruction = event.data['instruction'] is String
+        ? event.data['instruction'] as String
+        : null;
     if (instruction != 'Science Photometry') return;
     final detail = event.data['detail'];
     if (detail is! String) return;
@@ -549,9 +554,8 @@ class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
 
     state = state.copyWith(
       hasSeenPhotometry: true,
-      lastTargetDesignation: target.isEmpty
-          ? state.lastTargetDesignation
-          : target,
+      lastTargetDesignation:
+          target.isEmpty ? state.lastTargetDesignation : target,
       lastFilter: filter ?? state.lastFilter,
       framesCaptured: state.framesCaptured + 1,
       lastFrameAt: DateTime.now(),

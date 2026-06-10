@@ -63,7 +63,8 @@ extension _ScreenShell on _PolarAlignmentScreenState {
               Text(
                 'Polar Alignment',
                 overflow: TextOverflow.ellipsis,
-                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               Text(
                 ui.mode.displayName,

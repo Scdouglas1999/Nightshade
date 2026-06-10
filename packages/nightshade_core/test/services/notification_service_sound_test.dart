@@ -65,30 +65,32 @@ void main() {
       service.dispose();
     });
 
-    test('does not play sound when notifications are entirely disabled',
-        () async {
-      var playCount = 0;
-      final settings = const AppSettingsState(
-        notificationsEnabled: false,
-        soundEnabled: true,
-      );
-      final service = NotificationService.testing(
-        settingsReader: () => settings,
-        httpClient: MockClient((req) async => http.Response('ok', 200)),
-        soundPlayer: () async {
-          playCount++;
-        },
-      );
+    test(
+      'does not play sound when notifications are entirely disabled',
+      () async {
+        var playCount = 0;
+        final settings = const AppSettingsState(
+          notificationsEnabled: false,
+          soundEnabled: true,
+        );
+        final service = NotificationService.testing(
+          settingsReader: () => settings,
+          httpClient: MockClient((req) async => http.Response('ok', 200)),
+          soundPlayer: () async {
+            playCount++;
+          },
+        );
 
-      await service.notify(
-        event: NotificationEvent.sequenceComplete,
-        title: 'Done',
-        message: 'Sequence finished',
-      );
+        await service.notify(
+          event: NotificationEvent.sequenceComplete,
+          title: 'Done',
+          message: 'Sequence finished',
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      expect(playCount, 0);
-      service.dispose();
-    });
+        await Future<void>.delayed(Duration.zero);
+        expect(playCount, 0);
+        service.dispose();
+      },
+    );
   });
 }

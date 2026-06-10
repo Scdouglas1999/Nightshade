@@ -16,8 +16,8 @@ import 'sequence_editor.dart';
 /// when mutations are attempted during an active run.
 final currentSequenceProvider =
     StateNotifierProvider<CurrentSequenceNotifier, Sequence?>((ref) {
-  return CurrentSequenceNotifier(ref: ref);
-});
+      return CurrentSequenceNotifier(ref: ref);
+    });
 
 // =============================================================================
 // SELECTED NODE
@@ -42,8 +42,8 @@ final selectedNodeProvider = Provider<SequenceNode?>((ref) {
 /// Set of currently multi-selected node IDs.
 final multiSelectedNodeIdsProvider =
     StateNotifierProvider<MultiSelectNotifier, Set<String>>(
-  (ref) => MultiSelectNotifier(ref),
-);
+      (ref) => MultiSelectNotifier(ref),
+    );
 
 /// Whether multi-select mode is active (has >0 selections).
 final isMultiSelectActiveProvider = Provider<bool>((ref) {
@@ -52,8 +52,9 @@ final isMultiSelectActiveProvider = Provider<bool>((ref) {
 
 /// Clipboard for batch copy/paste operations.
 /// Stores serialized node trees ready for pasting.
-final nodeCopyClipboardProvider =
-    StateProvider<List<Map<String, dynamic>>?>((ref) => null);
+final nodeCopyClipboardProvider = StateProvider<List<Map<String, dynamic>>?>(
+  (ref) => null,
+);
 
 class MultiSelectNotifier extends StateNotifier<Set<String>> {
   final Ref ref;
@@ -266,10 +267,7 @@ class MultiSelectNotifier extends StateNotifier<Set<String>> {
       }
     }
 
-    return {
-      'node': node,
-      'children': children,
-    };
+    return {'node': node, 'children': children};
   }
 
   /// Paste a serialized node tree, creating new IDs.

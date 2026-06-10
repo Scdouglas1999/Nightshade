@@ -8,8 +8,9 @@ enum IntegratedMasterStatus {
   /// stay re-finalizable, so this does not imply the sidecar was deleted.)
   finalized;
 
-  String get wire =>
-      this == IntegratedMasterStatus.accumulating ? 'accumulating' : 'finalized';
+  String get wire => this == IntegratedMasterStatus.accumulating
+      ? 'accumulating'
+      : 'finalized';
 
   static IntegratedMasterStatus fromWire(String value) {
     switch (value) {
@@ -279,38 +280,38 @@ class IntegratedMaster {
 
   @override
   int get hashCode => Object.hashAll([
-        id,
-        targetId,
-        name,
-        masterFitsPath,
-        previewPngPath,
-        sidecarPath,
-        rejectionMapPath,
-        status,
-        accumulationMode,
-        channels,
-        width,
-        height,
-        frameCount,
-        totalIntegrationSeconds,
-        filter,
-        settingsJson,
-        statsJson,
-        createdAt,
-        updatedAt,
-        wcsCrval1,
-        wcsCrval2,
-        wcsCrpix1,
-        wcsCrpix2,
-        wcsCd1_1,
-        wcsCd1_2,
-        wcsCd2_1,
-        wcsCd2_2,
-        backgroundExtractedPath,
-        deconvolvedPath,
-        starReducedPath,
-        colorCalibratedPath,
-      ]);
+    id,
+    targetId,
+    name,
+    masterFitsPath,
+    previewPngPath,
+    sidecarPath,
+    rejectionMapPath,
+    status,
+    accumulationMode,
+    channels,
+    width,
+    height,
+    frameCount,
+    totalIntegrationSeconds,
+    filter,
+    settingsJson,
+    statsJson,
+    createdAt,
+    updatedAt,
+    wcsCrval1,
+    wcsCrval2,
+    wcsCrpix1,
+    wcsCrpix2,
+    wcsCd1_1,
+    wcsCd1_2,
+    wcsCd2_1,
+    wcsCd2_2,
+    backgroundExtractedPath,
+    deconvolvedPath,
+    starReducedPath,
+    colorCalibratedPath,
+  ]);
 }
 
 /// A row of the `integrated_master_frames` join table: one captured sub folded

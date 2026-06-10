@@ -383,7 +383,8 @@ class _ActionButtonState extends State<_ActionButton> {
               color: isActiveHover
                   ? widget.colors.primary.withValues(alpha: 0.1)
                   : widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActiveHover
                     ? widget.colors.primary
@@ -649,7 +650,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.success,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -670,7 +672,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           const SizedBox(height: 16),
           Text(
             _status,
-            style: TextStyle(color: widget.colors.textSecondary, fontSize: NightshadeTypography.fontSize14),
+            style: TextStyle(
+                color: widget.colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize14),
           ),
           if (_lastRaError != null || _lastDecError != null) ...[
             const SizedBox(height: 12),
@@ -679,7 +683,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               children: [
                 Text('RA Error:',
                     style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
+                        color: widget.colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"',
                     style: NightshadeTypography.labelSm
                         .copyWith(color: widget.colors.textPrimary)),
@@ -691,7 +696,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               children: [
                 Text('Dec Error:',
                     style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
+                        color: widget.colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"',
                     style: NightshadeTypography.labelSm
                         .copyWith(color: widget.colors.textPrimary)),
@@ -701,7 +707,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           const SizedBox(height: 8),
           Text(
             'Iteration: $_iteration / $_maxIterations',
-            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+            style: TextStyle(
+                color: widget.colors.textMuted,
+                fontSize: NightshadeTypography.fontSize12),
           ),
         ],
       ),

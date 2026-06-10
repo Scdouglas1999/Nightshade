@@ -314,16 +314,22 @@ bool _fuzzyDeviceIdsMatch(String profileId, String connectedId) {
   // Extract model identifiers - alphanumeric sequences containing numbers
   final modelPattern = RegExp(r'[a-z]*\d+[a-z0-9]*|[a-z]{2,}');
 
-  final profileModels =
-      modelPattern.allMatches(normP).map((m) => m.group(0)!).toSet();
-  final connectedModels =
-      modelPattern.allMatches(normC).map((m) => m.group(0)!).toSet();
+  final profileModels = modelPattern
+      .allMatches(normP)
+      .map((m) => m.group(0)!)
+      .toSet();
+  final connectedModels = modelPattern
+      .allMatches(normC)
+      .map((m) => m.group(0)!)
+      .toSet();
 
   // Find models that contain numbers (most distinguishing)
-  final profileNumberedModels =
-      profileModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
-  final connectedNumberedModels =
-      connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
+  final profileNumberedModels = profileModels
+      .where((m) => RegExp(r'\d').hasMatch(m))
+      .toSet();
+  final connectedNumberedModels = connectedModels
+      .where((m) => RegExp(r'\d').hasMatch(m))
+      .toSet();
 
   // If both have numbered model identifiers, they must share at least one
   if (profileNumberedModels.isNotEmpty && connectedNumberedModels.isNotEmpty) {
@@ -382,8 +388,9 @@ bool _fuzzyDeviceIdsMatch(String profileId, String connectedId) {
     }
   }
 
-  final minTokens =
-      pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
+  final minTokens = pTokens.length < cTokens.length
+      ? pTokens.length
+      : cTokens.length;
   return matches >= (minTokens * 0.5).ceil();
 }
 

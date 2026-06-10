@@ -64,8 +64,12 @@ class ProfileExportData {
         );
       } catch (e) {
         // Malformed filter names JSON - skip
-        developer.log('ProfileService: Failed to parse filterNames: $e',
-            name: 'ProfileService', level: 1000, error: e);
+        developer.log(
+          'ProfileService: Failed to parse filterNames: $e',
+          name: 'ProfileService',
+          level: 1000,
+          error: e,
+        );
       }
     }
 
@@ -78,8 +82,12 @@ class ProfileExportData {
         );
       } catch (e) {
         // Malformed filter offsets JSON - skip
-        developer.log('ProfileService: Failed to parse filterFocusOffsets: $e',
-            name: 'ProfileService', level: 1000, error: e);
+        developer.log(
+          'ProfileService: Failed to parse filterFocusOffsets: $e',
+          name: 'ProfileService',
+          level: 1000,
+          error: e,
+        );
       }
     }
 
@@ -165,10 +173,7 @@ class ProfileExportData {
       defaultCoolingTemp: (json['defaultCoolingTemp'] as num?)?.toDouble(),
       filterNames: (json['filterNames'] as List?)?.cast<String>(),
       filterFocusOffsets: (json['filterFocusOffsets'] as Map?)?.map(
-        (key, value) => MapEntry(
-          key.toString(),
-          (value as num).toInt(),
-        ),
+        (key, value) => MapEntry(key.toString(), (value as num).toInt()),
       ),
     );
   }

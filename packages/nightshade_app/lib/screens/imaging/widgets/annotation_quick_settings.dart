@@ -26,12 +26,14 @@ class AnnotationQuickSettingChip extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 fillAlpha: 0.18,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 border: Border.all(color: colors.border),
               ),
         child: Text(

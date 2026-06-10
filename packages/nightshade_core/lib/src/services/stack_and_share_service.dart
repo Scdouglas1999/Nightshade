@@ -216,10 +216,12 @@ class StackAndShareService {
         stackingConfig: stackingConfig,
         calibration: calibration,
         emitCalibrating: (file) {
-          emit(progress.copyWith(
-            phase: StackAndSharePhase.calibrating,
-            currentFile: file,
-          ));
+          emit(
+            progress.copyWith(
+              phase: StackAndSharePhase.calibrating,
+              currentFile: file,
+            ),
+          );
         },
       );
       framesProcessed = 1; // The reference is always frame #1 in the stack.
@@ -237,10 +239,12 @@ class StackAndShareService {
 
       for (final frame in followers) {
         if (calibration != null) {
-          emit(progress.copyWith(
-            phase: StackAndSharePhase.calibrating,
-            currentFile: frame.filePath,
-          ));
+          emit(
+            progress.copyWith(
+              phase: StackAndSharePhase.calibrating,
+              currentFile: frame.filePath,
+            ),
+          );
         }
 
         final result = await _addStackFrame(
@@ -351,12 +355,14 @@ class StackAndShareService {
       final id = await _resultsDao.insertResult(result);
       final persisted = result.copyWith(id: id);
 
-      emit(progress
-          .copyWith(
-            phase: StackAndSharePhase.complete,
-            framesProcessed: framesTotal,
-          )
-          .clearCurrentFile());
+      emit(
+        progress
+            .copyWith(
+              phase: StackAndSharePhase.complete,
+              framesProcessed: framesTotal,
+            )
+            .clearCurrentFile(),
+      );
 
       _logger.info(
         'Stack-and-Share complete for session $sessionId: '
@@ -371,7 +377,9 @@ class StackAndShareService {
       // (9) Surface the failure: emit a terminal error phase, log, and rethrow.
       _lastRawResult = null;
       _lastRgbaResult = null;
-      emit(progress.copyWith(phase: StackAndSharePhase.error).clearCurrentFile());
+      emit(
+        progress.copyWith(phase: StackAndSharePhase.error).clearCurrentFile(),
+      );
       _logger.error(
         'Stack-and-Share failed for session $sessionId: $e',
         source: 'StackAndShareService',
@@ -496,11 +504,7 @@ class StackAndShareService {
       biasData: _validateDimensions(context.biasData, raw.pixelCount, 'bias'),
     );
 
-    return _RawFrame(
-      width: raw.width,
-      height: raw.height,
-      data: calibrated,
-    );
+    return _RawFrame(width: raw.width, height: raw.height, data: calibrated);
   }
 
   /// Build the shared calibration context (tolerances + master flat / bias
@@ -662,10 +666,12 @@ class StackAndShareService {
     // `isColor` plus its `bayerPattern`; a mono camera advertises neither.
     final cameraId = _ref.read(connectedCameraIdProvider);
     if (cameraId != null && cameraId.isNotEmpty) {
-      final caps =
-          await _ref.read(cameraCapabilitiesProvider(cameraId).future);
+      final caps = await _ref.read(cameraCapabilitiesProvider(cameraId).future);
       final pattern = caps?.bayerPattern?.trim();
-      if (caps != null && caps.isColor && pattern != null && pattern.isNotEmpty) {
+      if (caps != null &&
+          caps.isColor &&
+          pattern != null &&
+          pattern.isNotEmpty) {
         return pattern;
       }
     }
@@ -699,7 +705,6 @@ class StackAndShareService {
     if (named.length == 1) return named.first;
     return null;
   }
-
 }
 
 /// Integrated raw u16 result of a completed Stack-and-Share run, retained so

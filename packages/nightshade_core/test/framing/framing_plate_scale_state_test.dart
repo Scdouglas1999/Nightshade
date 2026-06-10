@@ -66,8 +66,7 @@ void main() {
       }
     });
 
-    test(
-        'populates plateScale from the stored FOV and decoded image dimensions '
+    test('populates plateScale from the stored FOV and decoded image dimensions '
         'on a stubbed successful load', () async {
       const raHours = 5.5;
       const decDegrees = -5.4;
@@ -92,7 +91,8 @@ void main() {
       );
       final metaFile = File('${saved.filePath}.meta.json');
       final meta = Map<String, Object?>.from(
-          jsonDecode(await metaFile.readAsString()) as Map);
+        jsonDecode(await metaFile.readAsString()) as Map,
+      );
       meta['fovWidthDeg'] = fovWidthDeg;
       meta['fovHeightDeg'] = fovHeightDeg;
       await metaFile.writeAsString(jsonEncode(meta), flush: true);
@@ -144,8 +144,11 @@ void main() {
       expect(await sidecar.exists(), isTrue);
       final metaMap =
           jsonDecode(await sidecar.readAsString()) as Map<String, dynamic>;
-      expect(metaMap.containsKey('fovWidthDeg'), isFalse,
-          reason: 'the cache service must not record a FOV by itself');
+      expect(
+        metaMap.containsKey('fovWidthDeg'),
+        isFalse,
+        reason: 'the cache service must not record a FOV by itself',
+      );
 
       final container = ProviderContainer(
         overrides: [
@@ -169,8 +172,11 @@ void main() {
       if (state.plateScale != null) {
         // The only way a plate scale got set is a fresh network fetch, which
         // also writes the FOV sidecar — prove the linkage is grounded on disk.
-        expect(await sidecar.exists(), isTrue,
-            reason: 'a populated plate scale must be backed by a FOV sidecar');
+        expect(
+          await sidecar.exists(),
+          isTrue,
+          reason: 'a populated plate scale must be backed by a FOV sidecar',
+        );
       }
     });
   });

@@ -50,7 +50,8 @@ class _SessionDetailDialog extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textSecondary),
                         ),
                       ],
                     ),
@@ -77,7 +78,8 @@ class _SessionDetailDialog extends ConsumerWidget {
                           ),
                           // View the rich Feature-A session report.
                           IconButton(
-                            icon: const Icon(LucideIcons.fileBarChart, size: 18),
+                            icon:
+                                const Icon(LucideIcons.fileBarChart, size: 18),
                             onPressed: () =>
                                 SessionReportDialog.show(context, session.id),
                             tooltip: 'Session Report',
@@ -89,8 +91,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                             tooltip: l10n.text('analyticsExportJson'),
                           ),
                           IconButton(
-                            icon: const Icon(
-                                LucideIcons.fileSpreadsheet,
+                            icon: const Icon(LucideIcons.fileSpreadsheet,
                                 size: 18),
                             onPressed: () => _exportCsv(context, ref),
                             tooltip: l10n.text('analyticsExportCsv'),
@@ -211,7 +212,9 @@ class _SessionDetailDialog extends ConsumerWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textSecondary),
         ),
         Text(
           value,

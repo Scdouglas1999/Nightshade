@@ -12,13 +12,20 @@ class WeatherTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'weather_radar_map': return radarMap;
-      case 'weather_timeline': return timeline;
-      case 'weather_status_card': return statusCard;
-      case 'weather_alert_radius': return alertRadius;
-      case 'weather_cloud_motion': return cloudMotion;
-      case 'weather_refresh_btn': return refreshBtn;
-      default: return null;
+      case 'weather_radar_map':
+        return radarMap;
+      case 'weather_timeline':
+        return timeline;
+      case 'weather_status_card':
+        return statusCard;
+      case 'weather_alert_radius':
+        return alertRadius;
+      case 'weather_cloud_motion':
+        return cloudMotion;
+      case 'weather_refresh_btn':
+        return refreshBtn;
+      default:
+        return null;
     }
   }
 }

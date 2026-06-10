@@ -229,8 +229,9 @@ class TokenManager {
       await _database.deletePairedDevice(normalizedDeviceId);
     }
 
-    final expiresAt =
-        tokenLifetime == null ? null : DateTime.now().add(tokenLifetime);
+    final expiresAt = tokenLifetime == null
+        ? null
+        : DateTime.now().add(tokenLifetime);
 
     await _database.addPairedDevice(
       deviceId: normalizedDeviceId,

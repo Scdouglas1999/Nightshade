@@ -121,10 +121,12 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       };
     }
 
-    allRoutes.addAll(buildWebSocketRoutes(
-      eventsHandler: eventsHandler(),
-      liveViewHandler: liveViewHandler(),
-    ));
+    allRoutes.addAll(
+      buildWebSocketRoutes(
+        eventsHandler: eventsHandler(),
+        liveViewHandler: liveViewHandler(),
+      ),
+    );
 
     // Single dispatch point — `registerRoutes` walks the list once and
     // calls the right `router.<verb>(...)` for each entry. See
@@ -138,18 +140,20 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         // It must be _outside_ auth/CORS so 4xx auth responses keep their
         // intended status (errorTranslationMiddleware only intercepts
         // exceptions, not non-2xx responses).
-        .addMiddleware(errorTranslationMiddleware(
-          logError: _logError,
-          requestIdFor: _requestIdFrom,
-          shouldBypass: (request) {
-            final path = '/${request.url.path}';
-            // P2-10: also bypass /ws/live-view so shelf does not try to
-            // wrap the WS upgrade response into a JSON error envelope.
-            return path == '/api/ws' ||
-                path == '/events' ||
-                path == '/ws/live-view';
-          },
-        ))
+        .addMiddleware(
+          errorTranslationMiddleware(
+            logError: _logError,
+            requestIdFor: _requestIdFrom,
+            shouldBypass: (request) {
+              final path = '/${request.url.path}';
+              // P2-10: also bypass /ws/live-view so shelf does not try to
+              // wrap the WS upgrade response into a JSON error envelope.
+              return path == '/api/ws' ||
+                  path == '/events' ||
+                  path == '/ws/live-view';
+            },
+          ),
+        )
         .addMiddleware(_corsMiddleware())
         .addMiddleware(_requestSizeLimitMiddleware())
         .addMiddleware(_apiVersionMiddleware())
@@ -162,8 +166,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         .addMiddleware(_sessionOwnershipMiddleware())
         .addHandler(router.call);
 
-    final bindAddress =
-        bindLocalOnly ? InternetAddress.loopbackIPv4 : InternetAddress.anyIPv4;
+    final bindAddress = bindLocalOnly
+        ? InternetAddress.loopbackIPv4
+        : InternetAddress.anyIPv4;
     // P0-9: when a TLS SecurityContext is supplied, bind HTTPS instead of
     // HTTP. shelf_io.serve transparently upgrades the WebSocket layer to
     // WSS for us because the underlying HttpServer is secure.
@@ -175,19 +180,23 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     );
     final scheme = tlsContext != null ? 'https' : 'http';
     _logInfo(
-        'Headless API server running on $scheme://${_server!.address.host}:${_server!.port}');
+      'Headless API server running on $scheme://${_server!.address.host}:${_server!.port}',
+    );
     if (tlsContext != null) {
       _logInfo(
-          '[TLS] Transport encryption is ENABLED. Bearer tokens and pairing codes are protected on the wire.');
+        '[TLS] Transport encryption is ENABLED. Bearer tokens and pairing codes are protected on the wire.',
+      );
     }
     if (_effectiveAuthTokensByValue.isNotEmpty) {
       _logInfo(
-          '[AUTH] Authentication is ENABLED. All requests require Bearer token.');
+        '[AUTH] Authentication is ENABLED. All requests require Bearer token.',
+      );
     } else {
       _logInfo('[AUTH] Authentication is DISABLED. All requests are allowed.');
       if (!bindLocalOnly) {
         _logWarning(
-            '[AUTH] Unauthenticated LAN access is enabled. This is unsafe for normal rig control.');
+          '[AUTH] Unauthenticated LAN access is enabled. This is unsafe for normal rig control.',
+        );
       }
     }
 
@@ -204,8 +213,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // (or a sequence aborted before a completion event fires) doesn't keep
     // the correlator table growing forever.
     _commandCorrelatorSweepTimer?.cancel();
-    _commandCorrelatorSweepTimer =
-        Timer.periodic(const Duration(minutes: 5), (_) {
+    _commandCorrelatorSweepTimer = Timer.periodic(const Duration(minutes: 5), (
+      _,
+    ) {
       try {
         _commandCorrelator.evictExpired();
       } catch (e) {
@@ -230,8 +240,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _subscribeToSequenceCatalogUpdates();
     _subscribeToHostMutationEvents();
     _subscribeToCatalogManagerEvents();
-    _collaborationSubscription =
-        _collaborationManager.stream.listen(_broadcastCollaborationState);
+    _collaborationSubscription = _collaborationManager.stream.listen(
+      _broadcastCollaborationState,
+    );
 
     // P1-19: start the LAN UDP push broadcaster (when wired). We start it
     // only when the server is non-loopback — loopback-only deployments
@@ -349,8 +360,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       final service = _pairingService;
       if (service == null) return;
       try {
-        final result =
-            await service.tokenManager.purgeExpiredAndRevokedSessions();
+        final result = await service.tokenManager
+            .purgeExpiredAndRevokedSessions();
         if (!result.isEmpty) {
           _logInfo(
             '[AUTH] Token sweep purged ${result.expiredTokens.length} expired '
@@ -358,9 +369,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
           );
         }
       } catch (e, st) {
-        _logWarning(
-          '[AUTH] Token sweep failed: $e\n$st',
-        );
+        _logWarning('[AUTH] Token sweep failed: $e\n$st');
       }
     });
   }
@@ -371,8 +380,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         .read(sequenceCatalogUpdateBusProvider)
         .stream
         .listen((update) {
-      broadcastEvent(update.toNightshadeEvent());
-    });
+          broadcastEvent(update.toNightshadeEvent());
+        });
   }
 
   void _subscribeToHostMutationEvents() {
@@ -407,18 +416,21 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       (event) {
         final severity = switch (event.eventType) {
           'CatalogDownloadFailed' => EventSeverity.error,
-          'CatalogVerified' => (event.data['ok'] == true)
-              ? EventSeverity.info
-              : EventSeverity.warning,
+          'CatalogVerified' =>
+            (event.data['ok'] == true)
+                ? EventSeverity.info
+                : EventSeverity.warning,
           _ => EventSeverity.info,
         };
-        broadcastEvent(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: severity,
-          category: EventCategory.catalog,
-          eventType: event.eventType,
-          data: Map<String, dynamic>.from(event.data),
-        ));
+        broadcastEvent(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: severity,
+            category: EventCategory.catalog,
+            eventType: event.eventType,
+            data: Map<String, dynamic>.from(event.data),
+          ),
+        );
       },
       onError: (Object e, _) {
         _logWarning('[catalog] event stream error: $e');

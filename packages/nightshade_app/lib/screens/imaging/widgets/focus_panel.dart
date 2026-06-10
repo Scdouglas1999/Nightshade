@@ -139,7 +139,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -149,8 +150,9 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   Expanded(
                     child: Text(
                       'No focuser connected',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -169,7 +171,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   children: [
                     Text('Position',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Text(
@@ -184,7 +187,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                         Text(
                           isConnected ? ' / $maxPosition' : '',
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: widget.colors.textMuted),
                         ),
                         if (isMoving)
                           Padding(
@@ -215,7 +219,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                         Text(
                           '${temperature.toStringAsFixed(1)}°C',
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12, color: widget.colors.textPrimary),
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: widget.colors.textPrimary),
                         ),
                       ],
                     ),
@@ -234,7 +239,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   children: [
                     Text('Step Size:',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: widget.colors.textSecondary)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: SingleChildScrollView(
@@ -255,12 +261,14 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                                   decoration: isSelected
                                       ? NightshadeDecorations.selectedSurface(
                                           widget.colors.primary,
-                                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                          borderRadius: BorderRadius.circular(
+                                              NightshadeTokens.radiusInline4),
                                           fillAlpha: 0.15,
                                         )
                                       : BoxDecoration(
                                           color: widget.colors.background,
-                                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                          borderRadius: BorderRadius.circular(
+                                              NightshadeTokens.radiusInline4),
                                           border: Border.all(
                                             color: widget.colors.border,
                                           ),

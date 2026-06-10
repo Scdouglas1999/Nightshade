@@ -59,12 +59,18 @@ void main() {
     });
 
     test('equality_breaks_when_altitude_differs', () {
-      expect(const AltitudeAboveTrigger(30.0),
-          equals(const AltitudeAboveTrigger(30.0)));
-      expect(const AltitudeAboveTrigger(30.0).hashCode,
-          equals(const AltitudeAboveTrigger(30.0).hashCode));
-      expect(const AltitudeAboveTrigger(30.0),
-          isNot(equals(const AltitudeAboveTrigger(35.0))));
+      expect(
+        const AltitudeAboveTrigger(30.0),
+        equals(const AltitudeAboveTrigger(30.0)),
+      );
+      expect(
+        const AltitudeAboveTrigger(30.0).hashCode,
+        equals(const AltitudeAboveTrigger(30.0).hashCode),
+      );
+      expect(
+        const AltitudeAboveTrigger(30.0),
+        isNot(equals(const AltitudeAboveTrigger(35.0))),
+      );
     });
   });
 
@@ -95,8 +101,10 @@ void main() {
       // NOT be equal. Freezed unions handle this automatically by virtue
       // of their generated `==`, but the conversion must keep the hash
       // discriminator semantic.
-      expect(const AltitudeAboveTrigger(30.0),
-          isNot(equals(const AltitudeBelowTrigger(30.0))));
+      expect(
+        const AltitudeAboveTrigger(30.0),
+        isNot(equals(const AltitudeBelowTrigger(30.0))),
+      );
     });
   });
 
@@ -127,10 +135,14 @@ void main() {
 
     test('equality_and_hash_match_for_same_payload', () {
       expect(const TimeAfterTrigger(42), equals(const TimeAfterTrigger(42)));
-      expect(const TimeAfterTrigger(42).hashCode,
-          equals(const TimeAfterTrigger(42).hashCode));
-      expect(const TimeAfterTrigger(42),
-          isNot(equals(const TimeAfterTrigger(43))));
+      expect(
+        const TimeAfterTrigger(42).hashCode,
+        equals(const TimeAfterTrigger(42).hashCode),
+      );
+      expect(
+        const TimeAfterTrigger(42),
+        isNot(equals(const TimeAfterTrigger(43))),
+      );
     });
   });
 
@@ -151,8 +163,10 @@ void main() {
 
     test('not_equal_to_time_after_with_same_unix_seconds', () {
       // Discriminator in hashCode must distinguish the variants.
-      expect(const TimeBeforeTrigger(42),
-          isNot(equals(const TimeAfterTrigger(42))));
+      expect(
+        const TimeBeforeTrigger(42),
+        isNot(equals(const TimeAfterTrigger(42))),
+      );
     });
   });
 
@@ -250,25 +264,13 @@ void main() {
     });
 
     test('has_empty_compound_propagates_from_nested_compound', () {
-      expect(
-        const AndTrigger([AndTrigger([])]).hasEmptyCompound,
-        isTrue,
-      );
+      expect(const AndTrigger([AndTrigger([])]).hasEmptyCompound, isTrue);
     });
 
     test('equality_requires_same_child_order', () {
-      const a = AndTrigger([
-        AltitudeAboveTrigger(30.0),
-        TimeAfterTrigger(0),
-      ]);
-      const b = AndTrigger([
-        AltitudeAboveTrigger(30.0),
-        TimeAfterTrigger(0),
-      ]);
-      const c = AndTrigger([
-        TimeAfterTrigger(0),
-        AltitudeAboveTrigger(30.0),
-      ]);
+      const a = AndTrigger([AltitudeAboveTrigger(30.0), TimeAfterTrigger(0)]);
+      const b = AndTrigger([AltitudeAboveTrigger(30.0), TimeAfterTrigger(0)]);
+      const c = AndTrigger([TimeAfterTrigger(0), AltitudeAboveTrigger(30.0)]);
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
       // PHASE-2-NOTE: child order is significant for equality. Freezed's
@@ -281,10 +283,7 @@ void main() {
 
   group('OrTrigger', () {
     test('json_shape_mirrors_and_trigger_but_with_or_tag', () {
-      const t = OrTrigger([
-        AltitudeAboveTrigger(35.0),
-        TimeBeforeTrigger(200),
-      ]);
+      const t = OrTrigger([AltitudeAboveTrigger(35.0), TimeBeforeTrigger(200)]);
       expect(
         t.toJson(),
         equals({
@@ -299,10 +298,7 @@ void main() {
 
     test('json_round_trip_preserves_nested_compound_structures', () {
       const t = OrTrigger([
-        AndTrigger([
-          AltitudeAboveTrigger(30.0),
-          TimeAfterTrigger(0),
-        ]),
+        AndTrigger([AltitudeAboveTrigger(30.0), TimeAfterTrigger(0)]),
         HourAngleBetweenTrigger(minHa: -1.0, maxHa: 1.0),
       ]);
       final back = TargetTrigger.fromJson(

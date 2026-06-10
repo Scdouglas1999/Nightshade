@@ -195,9 +195,8 @@ class _BackendStatusRow extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
-    final entries = drivers
-        .map((d) => MapEntry(d, discovery.backendStates[d]))
-        .toList();
+    final entries =
+        drivers.map((d) => MapEntry(d, discovery.backendStates[d])).toList();
 
     return Wrap(
       spacing: 6,
@@ -289,7 +288,9 @@ class _DeviceList extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isDiscovering ? LucideIcons.loader : NightshadeIcons.searchEmpty,
+                isDiscovering
+                    ? LucideIcons.loader
+                    : NightshadeIcons.searchEmpty,
                 color: colors.textMuted,
                 size: 28,
               ),
@@ -341,8 +342,7 @@ class _DeviceList extends StatelessWidget {
                   isSelected
                       ? LucideIcons.checkCircle2
                       : NightshadeIcons.circle,
-                  color:
-                      isSelected ? colors.primary : colors.textMuted,
+                  color: isSelected ? colors.primary : colors.textMuted,
                   size: 18,
                 ),
                 const SizedBox(width: 12),

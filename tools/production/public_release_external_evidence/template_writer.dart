@@ -79,7 +79,7 @@ Future<void> _writeTemplates() async {
           'connectPassed': true,
           'disconnectPassed': true,
           'statusReadback': 'recorded status after connect',
-        }
+        },
       ],
       'commandResults': [
         {
@@ -89,7 +89,7 @@ Future<void> _writeTemplates() async {
           'command': 'short exposure',
           'stateReadback': 'recorded state after command',
           'passed': true,
-        }
+        },
       ],
       'skippedUnsafeActions': [],
       'notes':
@@ -113,7 +113,7 @@ Future<void> _writeTemplates() async {
       'websocketConnected': true,
       'websocketReconnectObserved': true,
       'evidenceArtifacts': [
-        'docs/production-readiness/second-device-lan-screenshot.png'
+        'docs/production-readiness/second-device-lan-screenshot.png',
       ],
       'notes':
           'Do not use localhost, 127.0.0.1, or Android emulator 10.0.2.2. Every evidence artifact path must exist when this verifier runs.',
@@ -132,13 +132,13 @@ Future<void> _writeTemplates() async {
           'command': 'safe status/control action',
           'passed': true,
           'stateReadback': 'recorded state after command',
-        }
+        },
       ],
       'skippedUnsafeActions': [
         {
           'command': 'example unsafe command',
           'reason': 'skipped in real environment; simulator used instead',
-        }
+        },
       ],
       'notes':
           'Record request IDs and post-command state readback. The audit log path must exist when this verifier runs.',
@@ -159,8 +159,9 @@ Future<void> _writeTemplates() async {
   };
 
   for (final entry in templates.entries) {
-    await File('$_templateDirectory/${entry.key}')
-        .writeAsString(const JsonEncoder.withIndent('  ').convert(entry.value));
+    await File(
+      '$_templateDirectory/${entry.key}',
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert(entry.value));
   }
 }
 
@@ -200,12 +201,7 @@ _EvidenceCheck _validateLinuxBuildEvidence() {
         'packageSizeBytes',
         packageArtifact,
       );
-      _requireFileSha256Matches(
-        data,
-        issues,
-        'packageSha256',
-        packageArtifact,
-      );
+      _requireFileSha256Matches(data, issues, 'packageSha256', packageArtifact);
     }
     final packageSha256File = _requireExistingFile(
       data,

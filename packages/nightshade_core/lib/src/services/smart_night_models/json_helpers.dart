@@ -1,13 +1,13 @@
 part of '../smart_night_models.dart';
 
 Map<String, dynamic> _darkRequirementToJson(DarkFrameRequirement req) => {
-      'gain': req.gain,
-      'offset': req.offset,
-      'durationSecs': req.durationSecs,
-      'binX': req.binX,
-      'binY': req.binY,
-      'targetTemp': req.targetTemp,
-    };
+  'gain': req.gain,
+  'offset': req.offset,
+  'durationSecs': req.durationSecs,
+  'binX': req.binX,
+  'binY': req.binY,
+  'targetTemp': req.targetTemp,
+};
 
 List<DarkFrameRequirement> _darkRequirementsFromJson(Object? raw) {
   if (raw is! List) return const [];
@@ -23,14 +23,16 @@ List<DarkFrameRequirement> _darkRequirementsFromJson(Object? raw) {
     final temp = m['targetTemp'];
     final targetTemp = temp is num ? temp.toDouble() : null;
     if (durationSecs <= 0) continue;
-    out.add(DarkFrameRequirement(
-      gain: gain,
-      offset: offset,
-      durationSecs: durationSecs,
-      binX: binX,
-      binY: binY,
-      targetTemp: targetTemp,
-    ));
+    out.add(
+      DarkFrameRequirement(
+        gain: gain,
+        offset: offset,
+        durationSecs: durationSecs,
+        binX: binX,
+        binY: binY,
+        targetTemp: targetTemp,
+      ),
+    );
   }
   return List.unmodifiable(out);
 }
@@ -57,7 +59,8 @@ ExposureRecommendation? _recommendationFromJson(Object? raw) {
         ExposureLimitingFactor.values,
         entry.key,
         ExposureLimitingFactor.glover,
-      ): (entry.value as num).toDouble(),
+      ): (entry.value as num)
+          .toDouble(),
   };
   return ExposureRecommendation(
     seconds: _jsonDouble(json['seconds'], 0.0),
@@ -96,9 +99,7 @@ Map<String, double> _stringDoubleMap(Object? raw) {
     return const SmartNightSettings().defaultFrameDurationSecs;
   }
   return raw.map(
-    (key, value) => MapEntry(
-      key.toString(),
-      value is num ? value.toDouble() : 0.0,
-    ),
+    (key, value) =>
+        MapEntry(key.toString(), value is num ? value.toDouble() : 0.0),
   );
 }

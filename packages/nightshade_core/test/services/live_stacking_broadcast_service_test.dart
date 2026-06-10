@@ -1,4 +1,4 @@
-﻿// Wave 7 Agent 2 — tests for the live-stacking broadcast service.
+// Wave 7 Agent 2 — tests for the live-stacking broadcast service.
 //
 // Covers the three failure modes the brief calls out:
 //   * Frame published → broadcast endpoint serves a JPEG.
@@ -71,12 +71,14 @@ void main() {
       final c = _container();
       addTearDown(c.dispose);
       final svc = c.read(liveStackingBroadcastServiceProvider);
-      svc.activate(_makeNode(
-        port: 9090,
-        method: LiveStackingMethod.sigma,
-        token: 'secret',
-        watermark: r'M42 — ${integration.hms}',
-      ));
+      svc.activate(
+        _makeNode(
+          port: 9090,
+          method: LiveStackingMethod.sigma,
+          token: 'secret',
+          watermark: r'M42 — ${integration.hms}',
+        ),
+      );
       final s = svc.state;
       expect(s.active, isTrue);
       expect(s.port, 9090);
@@ -186,9 +188,9 @@ void main() {
       final c = _container();
       addTearDown(c.dispose);
       final svc = c.read(liveStackingBroadcastServiceProvider);
-      svc.activate(_makeNode(
-        watermark: r'M42 — ${integration.hms} (${frames} frames)',
-      ));
+      svc.activate(
+        _makeNode(watermark: r'M42 — ${integration.hms} (${frames} frames)'),
+      );
       svc.updateCurrentTarget('M42');
       svc.publishFrame(
         width: 32,
@@ -257,8 +259,10 @@ void main() {
       final issues = LiveStackingNoExposureRule().validate(sequence);
       expect(issues, isNotEmpty);
       expect(issues.first.severity, ValidationSeverity.warning);
-      expect(issues.first.title,
-          contains('Live Stacking has nothing to broadcast'));
+      expect(
+        issues.first.title,
+        contains('Live Stacking has nothing to broadcast'),
+      );
     });
 
     test('LiveStackingNoExposureRule passes with sibling ExposureNode', () {
@@ -278,7 +282,7 @@ void main() {
         nodes: {
           root.id: root,
           patchedLs.id: patchedLs,
-          patchedEx.id: patchedEx
+          patchedEx.id: patchedEx,
         },
         rootNodeId: root.id,
       );
@@ -353,16 +357,19 @@ void main() {
       expect(LiveStackingNode(authToken: 'x').isPublic, isFalse);
     });
 
-    test('copyWith explicit null KEEPS authToken (Phase 5 plain semantics)', () {
-      // PHASE-5: LiveStackingNode.copyWith dropped the `_unset` sentinel.
-      // Null and omitted are now indistinguishable — both keep. The
-      // editor clears via rebuild-explicit (see live_stacking_properties
-      // .dart::_rebuildWithCleared).
-      final n = LiveStackingNode(authToken: 'secret');
-      final stillSecret = n.copyWith(authToken: null);
-      expect(stillSecret.authToken, 'secret');
-      expect(stillSecret.isPublic, isFalse);
-    });
+    test(
+      'copyWith explicit null KEEPS authToken (Phase 5 plain semantics)',
+      () {
+        // PHASE-5: LiveStackingNode.copyWith dropped the `_unset` sentinel.
+        // Null and omitted are now indistinguishable — both keep. The
+        // editor clears via rebuild-explicit (see live_stacking_properties
+        // .dart::_rebuildWithCleared).
+        final n = LiveStackingNode(authToken: 'secret');
+        final stillSecret = n.copyWith(authToken: null);
+        expect(stillSecret.authToken, 'secret');
+        expect(stillSecret.isPublic, isFalse);
+      },
+    );
 
     test('authToken cleared via rebuild-explicit makes broadcast public', () {
       // PHASE-5: pin the rebuild-explicit recipe used by the editor.
@@ -409,13 +416,17 @@ void main() {
     });
 
     test('LiveStackingMode.fromStorageKey is lenient on unknown keys', () {
-      expect(LiveStackingMode.fromStorageKey('garbage'),
-          LiveStackingMode.broadcastOnly);
+      expect(
+        LiveStackingMode.fromStorageKey('garbage'),
+        LiveStackingMode.broadcastOnly,
+      );
     });
 
     test('LiveStackingMethod.fromStorageKey is lenient on unknown keys', () {
-      expect(LiveStackingMethod.fromStorageKey('garbage'),
-          LiveStackingMethod.average);
+      expect(
+        LiveStackingMethod.fromStorageKey('garbage'),
+        LiveStackingMethod.average,
+      );
     });
   });
 
@@ -441,8 +452,7 @@ void main() {
       expect(svc.state.active, isFalse);
     });
 
-    test('flipping the kill switch ON force-deactivates a live session',
-        () {
+    test('flipping the kill switch ON force-deactivates a live session', () {
       final c = _container();
       addTearDown(c.dispose);
       final svc = c.read(liveStackingBroadcastServiceProvider);
@@ -451,8 +461,11 @@ void main() {
       expect(svc.state.active, isTrue);
       // Now engage the kill switch mid-run.
       svc.setKillSwitch(true);
-      expect(svc.state.active, isFalse,
-          reason: 'Master kill must force-stop the active session');
+      expect(
+        svc.state.active,
+        isFalse,
+        reason: 'Master kill must force-stop the active session',
+      );
     });
 
     test('flipping the kill switch back OFF re-allows activation', () {

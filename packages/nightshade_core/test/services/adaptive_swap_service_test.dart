@@ -49,9 +49,7 @@ void main() {
     });
 
     test('wind axis: 50 km/h drops score to ≤30', () {
-      final score = svc.compose(
-        const AdaptiveSwapInputs(windKph: 50.0),
-      );
+      final score = svc.compose(const AdaptiveSwapInputs(windKph: 50.0));
       expect(score, isNotNull);
       expect(score!.windScore, 30.0);
     });
@@ -105,15 +103,17 @@ void main() {
       expect(withCloud!.score, closeTo(60.5, 1.0));
     });
 
-    test('representative "transparency recovers to 0.85" case lands at ~80',
-        () {
-      // The brief: transparency 0.85 ⇒ ConditionsScore ~80.
-      final score = svc.compose(
-        const AdaptiveSwapInputs(transparencyFraction: 0.85),
-      );
-      expect(score, isNotNull);
-      expect(score!.score, closeTo(85.0, 1.0));
-    });
+    test(
+      'representative "transparency recovers to 0.85" case lands at ~80',
+      () {
+        // The brief: transparency 0.85 ⇒ ConditionsScore ~80.
+        final score = svc.compose(
+          const AdaptiveSwapInputs(transparencyFraction: 0.85),
+        );
+        expect(score, isNotNull);
+        expect(score!.score, closeTo(85.0, 1.0));
+      },
+    );
   });
 
   group('AdaptiveSwapInputComposer', () {
@@ -245,10 +245,7 @@ void main() {
       expect(node.swapOnConditionsBelow, isNull);
       expect(node.swapHysteresisSecs, 180.0);
       expect(node.maxConditionsScoreAgeSecs, 300);
-      expect(
-        node.brightnessTierPreferences,
-        const BrightnessTierPreferences(),
-      );
+      expect(node.brightnessTierPreferences, const BrightnessTierPreferences());
     });
 
     test('copyWith updates the new fields correctly', () {
@@ -339,8 +336,9 @@ void main() {
     });
 
     test('hysteresis countdown reports remaining secs', () {
-      final lastSwap =
-          DateTime.now().toUtc().subtract(const Duration(seconds: 60));
+      final lastSwap = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 60),
+      );
       final state = AdaptiveSwapRuntimeState(
         lastSwapAt: lastSwap,
         configuredHysteresisSecs: 180.0,
@@ -351,8 +349,9 @@ void main() {
     });
 
     test('hysteresis countdown returns null once cooldown elapsed', () {
-      final lastSwap =
-          DateTime.now().toUtc().subtract(const Duration(seconds: 300));
+      final lastSwap = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 300),
+      );
       final state = AdaptiveSwapRuntimeState(
         lastSwapAt: lastSwap,
         configuredHysteresisSecs: 180.0,

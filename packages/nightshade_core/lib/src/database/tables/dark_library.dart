@@ -12,8 +12,9 @@ import 'package:drift/drift.dart';
 @TableIndex(name: 'idx_dark_library_temperature', columns: {#temperature})
 @TableIndex(name: 'idx_dark_library_gain', columns: {#gain})
 @TableIndex(
-    name: 'idx_dark_library_match',
-    columns: {#frameType, #exposureTime, #gain, #binX, #binY})
+  name: 'idx_dark_library_match',
+  columns: {#frameType, #exposureTime, #gain, #binX, #binY},
+)
 @TableIndex(name: 'idx_dark_library_created', columns: {#createdAt})
 class DarkLibrary extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -40,8 +41,7 @@ class DarkLibrary extends Table {
   IntColumn get binY => integer().withDefault(const Constant(1))();
 
   /// Frame type: 'dark' or 'bias'
-  TextColumn get frameType =>
-      text().withDefault(const Constant('dark'))();
+  TextColumn get frameType => text().withDefault(const Constant('dark'))();
 
   /// Sensor width in pixels
   IntColumn get width => integer().nullable()();
@@ -58,6 +58,5 @@ class DarkLibrary extends Table {
   IntColumn get masterFrameCount => integer().nullable()();
 
   /// When this frame was captured or the master was created
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

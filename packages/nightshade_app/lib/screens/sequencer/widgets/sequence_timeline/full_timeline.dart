@@ -533,7 +533,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               padding: const EdgeInsets.all(1),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
               child: Icon(
                 icon,

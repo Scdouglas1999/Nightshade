@@ -7,7 +7,9 @@ void main() {
       expect(RemoteApiCompatibility.check('2.4.0').isCompatible, isTrue);
       expect(RemoteApiCompatibility.check('2.5.0').isCompatible, isTrue);
       expect(
-          RemoteApiCompatibility.check('v2.9.1+build.42').isCompatible, isTrue);
+        RemoteApiCompatibility.check('v2.9.1+build.42').isCompatible,
+        isTrue,
+      );
     });
 
     test('rejects old servers with a clear code and message', () {
@@ -29,8 +31,10 @@ void main() {
 
     test('rejects missing or malformed versions', () {
       expect(RemoteApiCompatibility.check(null).code, 'server_version_unknown');
-      expect(RemoteApiCompatibility.check('not-a-version').code,
-          'server_version_unknown');
+      expect(
+        RemoteApiCompatibility.check('not-a-version').code,
+        'server_version_unknown',
+      );
     });
 
     test('accepts same-major supported client versions', () {
@@ -67,10 +71,14 @@ void main() {
     });
 
     test('rejects missing or malformed client versions', () {
-      expect(RemoteApiCompatibility.checkClient(null).code,
-          'client_version_unknown');
-      expect(RemoteApiCompatibility.checkClient('not-a-version').code,
-          'client_version_unknown');
+      expect(
+        RemoteApiCompatibility.checkClient(null).code,
+        'client_version_unknown',
+      );
+      expect(
+        RemoteApiCompatibility.checkClient('not-a-version').code,
+        'client_version_unknown',
+      );
     });
   });
 }

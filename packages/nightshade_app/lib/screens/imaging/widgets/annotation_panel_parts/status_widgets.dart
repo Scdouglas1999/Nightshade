@@ -47,7 +47,8 @@ class AnnotationCatalogBanner extends StatelessWidget {
             size: ButtonSize.small,
           ),
           IconButton(
-            icon: Icon(NightshadeIcons.close, size: 16, color: colors.textMuted),
+            icon:
+                Icon(NightshadeIcons.close, size: 16, color: colors.textMuted),
             onPressed: onDismiss,
             tooltip: 'Dismiss',
             padding: EdgeInsets.zero,

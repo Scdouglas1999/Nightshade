@@ -232,8 +232,8 @@ class VoiceControlService {
   VoiceControlService({
     MethodChannel? channel,
     @visibleForTesting bool skipPlatformGuard = false,
-  })  : _channel = channel ?? const MethodChannel(_voiceControlChannelName),
-        _skipPlatformGuard = skipPlatformGuard {
+  }) : _channel = channel ?? const MethodChannel(_voiceControlChannelName),
+       _skipPlatformGuard = skipPlatformGuard {
     // Inbound action handler. We set it up eagerly because the native
     // side can fire actions any time the app is foregrounded — including
     // immediately at launch when the user opened the app via a Siri
@@ -364,7 +364,8 @@ class VoiceControlService {
           // the kind of fallback the repo policy forbids.
           throw PlatformException(
             code: 'unknown_action',
-            message: 'Unknown voice action wire id: "$wireId". '
+            message:
+                'Unknown voice action wire id: "$wireId". '
                 'Check parity between Dart VoiceControlAction and the '
                 'native AppIntents / shortcuts xml.',
           );

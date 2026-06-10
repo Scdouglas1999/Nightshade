@@ -80,15 +80,15 @@ List<Override> _stubSettings([
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders_without_throwing: default desktop pump is exception-free',
+  testWidgets(
+      'renders_without_throwing: default desktop pump is exception-free',
       (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
       tester,
       const SettingsScreen(),
       size: const Size(1280, 800),
-      extraOverrides:
-          _stubSettings(),
+      extraOverrides: _stubSettings(),
     );
 
     expect(tester.takeException(), isNull,
@@ -231,7 +231,8 @@ void main() {
     expect(persisted, isNotNull,
         reason: 'setLatitude must write a row to settingsDao.');
     expect(double.parse(persisted!), 47.5,
-        reason: 'The persisted DAO value must round-trip to the entered value.');
+        reason:
+            'The persisted DAO value must round-trip to the entered value.');
   });
 
   testWidgets(
@@ -277,8 +278,7 @@ void main() {
       'switch flips AppSettingsState.theme through setTheme()', (tester) async {
     _swallowKnownOverflows();
     const initial = AppSettingsState();
-    expect(initial.theme, 'dark',
-        reason: 'Sanity: the default theme is dark.');
+    expect(initial.theme, 'dark', reason: 'Sanity: the default theme is dark.');
 
     final handle = await pumpAppScreen(
       tester,

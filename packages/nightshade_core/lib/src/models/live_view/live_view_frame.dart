@@ -66,8 +66,7 @@ class LiveViewFrame {
   ) {
     final deviceId = json['deviceId'];
     if (deviceId is! String || deviceId.isEmpty) {
-      throw const FormatException(
-          'LiveViewFrame metadata missing deviceId');
+      throw const FormatException('LiveViewFrame metadata missing deviceId');
     }
     final width = json['width'];
     final height = json['height'];
@@ -78,8 +77,7 @@ class LiveViewFrame {
       );
     }
     final frameNumberRaw = json['frameNumber'];
-    final frameNumber =
-        frameNumberRaw is int ? frameNumberRaw : 0;
+    final frameNumber = frameNumberRaw is int ? frameNumberRaw : 0;
     final tsRaw = json['serverTimestamp'];
     final ts = tsRaw is String ? DateTime.tryParse(tsRaw) : null;
     return LiveViewFrame(
@@ -111,12 +109,7 @@ class LiveViewRegion {
     required this.height,
   });
 
-  Map<String, Object?> toJson() => {
-        'x': x,
-        'y': y,
-        'w': width,
-        'h': height,
-      };
+  Map<String, Object?> toJson() => {'x': x, 'y': y, 'w': width, 'h': height};
 
   factory LiveViewRegion.fromJson(Map<String, Object?> json) {
     final x = (json['x'] as num?)?.toInt() ?? 0;
@@ -124,8 +117,7 @@ class LiveViewRegion {
     final w = (json['w'] as num?)?.toInt() ?? 0;
     final h = (json['h'] as num?)?.toInt() ?? 0;
     if (w <= 0 || h <= 0) {
-      throw FormatException(
-          'LiveViewRegion w/h must be positive: w=$w h=$h');
+      throw FormatException('LiveViewRegion w/h must be positive: w=$w h=$h');
     }
     return LiveViewRegion(x: x, y: y, width: w, height: h);
   }

@@ -18,8 +18,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       final response = await _get('sessions/active');
       return response['session'] as Map<String, dynamic>?;
     } catch (e) {
-      developer.log('Failed to get active session: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get active session: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -30,8 +34,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       final response = await _get('sessions/$id');
       return response['session'] as Map<String, dynamic>?;
     } catch (e) {
-      developer.log('Failed to get session $id: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get session $id: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -76,8 +84,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       final response = await _get('images/$id');
       return response['image'] as Map<String, dynamic>?;
     } catch (e) {
-      developer.log('Failed to get image $id: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get image $id: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -136,28 +148,36 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   /// Get analytics summary
-  Future<Map<String, dynamic>> getAnalyticsSummary(
-      {DateTime? startDate, DateTime? endDate}) async {
-    final params = <String, dynamic>{};
-    if (startDate != null)
-      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
-    if (endDate != null)
-      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
-    final response =
-        await _get('analytics/summary', params.isEmpty ? null : params);
-    return response;
-  }
-
-  /// Get total integration time
-  Future<Map<String, dynamic>> getTotalIntegrationTime(
-      {DateTime? startDate, DateTime? endDate}) async {
+  Future<Map<String, dynamic>> getAnalyticsSummary({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final params = <String, dynamic>{};
     if (startDate != null)
       params['startDate'] = startDate.millisecondsSinceEpoch.toString();
     if (endDate != null)
       params['endDate'] = endDate.millisecondsSinceEpoch.toString();
     final response = await _get(
-        'analytics/integration-time', params.isEmpty ? null : params);
+      'analytics/summary',
+      params.isEmpty ? null : params,
+    );
+    return response;
+  }
+
+  /// Get total integration time
+  Future<Map<String, dynamic>> getTotalIntegrationTime({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final params = <String, dynamic>{};
+    if (startDate != null)
+      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+    if (endDate != null)
+      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    final response = await _get(
+      'analytics/integration-time',
+      params.isEmpty ? null : params,
+    );
     return response;
   }
 
@@ -166,8 +186,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   // =========================================================================
 
   /// Get weather radar data
-  Future<Map<String, dynamic>> getWeatherRadar(double lat, double lon,
-      {bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>> getWeatherRadar(
+    double lat,
+    double lon, {
+    bool forceRefresh = false,
+  }) async {
     final response = await _get('weather/radar', {
       'lat': lat.toString(),
       'lon': lon.toString(),
@@ -227,8 +250,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       params['prioritizeIncomplete'] = prioritizeIncomplete.toString();
     if (objectTypes != null && objectTypes.isNotEmpty)
       params['objectTypes'] = objectTypes.join(',');
-    final response =
-        await _get('suggestions/tonight', params.isEmpty ? null : params);
+    final response = await _get(
+      'suggestions/tonight',
+      params.isEmpty ? null : params,
+    );
     return response;
   }
 
@@ -292,8 +317,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   /// Create a new backup
-  Future<Map<String, dynamic>> createBackup(
-      {String? customPath, bool autoSave = false}) async {
+  Future<Map<String, dynamic>> createBackup({
+    String? customPath,
+    bool autoSave = false,
+  }) async {
     final response = await _post('backup/create', {
       if (customPath != null) 'customPath': customPath,
       'autoSave': autoSave,
@@ -302,8 +329,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   /// Restore from a backup
-  Future<Map<String, dynamic>> restoreBackup(String filePath,
-      {bool replaceExisting = false}) async {
+  Future<Map<String, dynamic>> restoreBackup(
+    String filePath, {
+    bool replaceExisting = false,
+  }) async {
     final response = await _post('backup/restore', {
       'filePath': filePath,
       'replaceExisting': replaceExisting,
@@ -334,10 +363,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }) async {
     return _postRaw(
       'backup/upload-restore',
-      {
-        'fileName': fileName,
-        'replaceExisting': replaceExisting,
-      },
+      {'fileName': fileName, 'replaceExisting': replaceExisting},
       bytes,
       contentType: 'application/octet-stream',
     );
@@ -458,15 +484,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     required String filterName,
     int? equipmentProfileId,
   }) async {
-    final response = await _post(
-      'science/calibration/compute-transform',
-      {
-        'starMatches': starMatches.map((match) => match.toJson()).toList(),
-        'filterName': filterName,
-        if (equipmentProfileId != null)
-          'equipmentProfileId': equipmentProfileId,
-      },
-    );
+    final response = await _post('science/calibration/compute-transform', {
+      'starMatches': starMatches.map((match) => match.toJson()).toList(),
+      'filterName': filterName,
+      if (equipmentProfileId != null) 'equipmentProfileId': equipmentProfileId,
+    });
     final coefficients = response['coefficients'];
     if (coefficients is Map<String, dynamic>) {
       return PhotometricTransformCoefficients.fromJson(coefficients);
@@ -482,10 +504,9 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   Future<int> savePhotometricTransform(
     PhotometricTransformCoefficients coefficients,
   ) async {
-    final response = await _post(
-      'science/calibration/save-transform',
-      {'coefficients': coefficients.toJson()},
-    );
+    final response = await _post('science/calibration/save-transform', {
+      'coefficients': coefficients.toJson(),
+    });
     return (response['id'] as num?)?.toInt() ?? 0;
   }
 
@@ -531,15 +552,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     String? filterBand,
     String? chartId,
   }) async {
-    return _postRawBytes(
-      'science/session/$sessionId/export/aavso',
-      {
-        'targetStarName': targetStarName,
-        if (filterBand != null && filterBand.isNotEmpty)
-          'filterBand': filterBand,
-        if (chartId != null && chartId.isNotEmpty) 'chartId': chartId,
-      },
-    );
+    return _postRawBytes('science/session/$sessionId/export/aavso', {
+      'targetStarName': targetStarName,
+      if (filterBand != null && filterBand.isNotEmpty) 'filterBand': filterBand,
+      if (chartId != null && chartId.isNotEmpty) 'chartId': chartId,
+    });
   }
 
   Future<Uint8List> generateObservationReport(int sessionId) async {

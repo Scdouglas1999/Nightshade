@@ -74,10 +74,7 @@ Stream<NightshadeEvent> _mergeEventStreams(
 
   controller = StreamController<NightshadeEvent>.broadcast(
     onListen: () {
-      primarySub = primary.listen(
-        controller.add,
-        onError: controller.addError,
-      );
+      primarySub = primary.listen(controller.add, onError: controller.addError);
       secondarySub = secondary.listen(
         controller.add,
         onError: controller.addError,
@@ -98,17 +95,18 @@ Stream<NightshadeEvent> _mergeEventStreams(
 ///
 /// Useful for displaying the most recent event in the UI
 /// or for debugging purposes.
-final lastEventProvider = StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
-  final notifier = LastEventNotifier();
+final lastEventProvider =
+    StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
+      final notifier = LastEventNotifier();
 
-  ref.listen(nightshadeEventsProvider, (previous, next) {
-    next.whenData((event) {
-      notifier.updateEvent(event);
+      ref.listen(nightshadeEventsProvider, (previous, next) {
+        next.whenData((event) {
+          notifier.updateEvent(event);
+        });
+      });
+
+      return notifier;
     });
-  });
-
-  return notifier;
-});
 
 // Note: All async callbacks and stream listeners check `mounted`
 // before updating state to prevent updates after disposal.
@@ -126,17 +124,18 @@ class LastEventNotifier extends StateNotifier<NightshadeEvent?> {
 ///
 /// Keeps a rolling buffer of the most recent events for
 /// displaying in an event log or notification center.
-final eventHistoryProvider = StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
-  final notifier = EventHistoryNotifier();
+final eventHistoryProvider =
+    StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
+      final notifier = EventHistoryNotifier();
 
-  ref.listen(nightshadeEventsProvider, (previous, next) {
-    next.whenData((event) {
-      notifier.addEvent(event);
+      ref.listen(nightshadeEventsProvider, (previous, next) {
+        next.whenData((event) {
+          notifier.addEvent(event);
+        });
+      });
+
+      return notifier;
     });
-  });
-
-  return notifier;
-});
 
 /// Notifier that maintains a history of events
 class EventHistoryNotifier extends StateNotifier<List<NightshadeEvent>> {
@@ -148,10 +147,7 @@ class EventHistoryNotifier extends StateNotifier<List<NightshadeEvent>> {
   /// Add a new event to the history
   void addEvent(NightshadeEvent event) {
     if (!mounted) return;
-    state = [
-      event,
-      ...state,
-    ].take(maxHistorySize).toList();
+    state = [event, ...state].take(maxHistorySize).toList();
   }
 
   /// Clear the event history
@@ -206,40 +202,44 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
     return false;
   }
 
-  subscription = backend.eventStream.listen((event) {
-    if (event.severity == core.EventSeverity.info) return;
+  subscription = backend.eventStream.listen(
+    (event) {
+      if (event.severity == core.EventSeverity.info) return;
 
-    final message = _extractEventMessage(event);
-    final title = _eventTitle(event);
+      final message = _extractEventMessage(event);
+      final title = _eventTitle(event);
 
-    final now = DateTime.now();
-    final dedupeKey = '${event.severity.name}|$title|$message';
-    if (shouldSuppress(dedupeKey, now)) return;
+      final now = DateTime.now();
+      final dedupeKey = '${event.severity.name}|$title|$message';
+      if (shouldSuppress(dedupeKey, now)) return;
 
-    switch (event.severity) {
-      case core.EventSeverity.critical:
-        notifier.showError(
-          message,
-          title: 'Critical: $title',
-          duration: const Duration(seconds: 15),
-        );
-        break;
-      case core.EventSeverity.error:
-        notifier.showError(message, title: title);
-        break;
-      case core.EventSeverity.warning:
-        notifier.showWarning(message, title: title);
-        break;
-      case core.EventSeverity.info:
-        break;
-    }
-  }, onError: (error) {
-    developer.log(
+      switch (event.severity) {
+        case core.EventSeverity.critical:
+          notifier.showError(
+            message,
+            title: 'Critical: $title',
+            duration: const Duration(seconds: 15),
+          );
+          break;
+        case core.EventSeverity.error:
+          notifier.showError(message, title: title);
+          break;
+        case core.EventSeverity.warning:
+          notifier.showWarning(message, title: title);
+          break;
+        case core.EventSeverity.info:
+          break;
+      }
+    },
+    onError: (error) {
+      developer.log(
         '[ErrorNotificationBridge] Event stream error: $error',
         name: 'ErrorNotificationBridge',
         level: 1000,
-        error: error);
-  });
+        error: error,
+      );
+    },
+  );
 
   ref.onDispose(() {
     subscription?.cancel();
@@ -251,13 +251,19 @@ String _extractEventMessage(core.NightshadeEvent event) {
   final data = event.data;
 
   // Try common message keys in order of specificity
-  if (data.containsKey('message') && data['message'] is String && (data['message'] as String).isNotEmpty) {
+  if (data.containsKey('message') &&
+      data['message'] is String &&
+      (data['message'] as String).isNotEmpty) {
     return data['message'] as String;
   }
-  if (data.containsKey('error') && data['error'] is String && (data['error'] as String).isNotEmpty) {
+  if (data.containsKey('error') &&
+      data['error'] is String &&
+      (data['error'] as String).isNotEmpty) {
     return data['error'] as String;
   }
-  if (data.containsKey('reason') && data['reason'] is String && (data['reason'] as String).isNotEmpty) {
+  if (data.containsKey('reason') &&
+      data['reason'] is String &&
+      (data['reason'] as String).isNotEmpty) {
     return data['reason'] as String;
   }
 

@@ -47,7 +47,8 @@ class ScienceHudPanel extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Science HUD',
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Text(
@@ -254,12 +255,16 @@ class ScienceHudPanel extends ConsumerWidget {
             if (selectedObject != null)
               Text(
                 'Selected: ${selectedObject.commonName ?? selectedObject.name}',
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize11),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize11),
               )
             else
               Text(
                 'Click an annotated object to select it.',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize11),
               ),
             const SizedBox(height: 8),
             Row(
@@ -346,11 +351,15 @@ class ScienceHudPanel extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               'Target: ${photometryTarget?.label ?? 'auto-target'}',
-              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
+              style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize10),
             ),
             Text(
               'Comparisons: ${comparisonAnchors.isEmpty ? 'auto' : comparisonAnchors.length}',
-              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
+              style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize10),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -568,7 +577,8 @@ class _OfferTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -611,14 +621,12 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
     final calibrationRows =
         ref.watch(sessionFrameCalibrationsProvider(sessionId)).valueOrNull ??
             const <FramePhotometricCalibrationRow>[];
-    final transparency = ref
-            .watch(sessionTransparencySamplesProvider(sessionId))
-            .valueOrNull ??
-        const <TransparencySampleRow>[];
+    final transparency =
+        ref.watch(sessionTransparencySamplesProvider(sessionId)).valueOrNull ??
+            const <TransparencySampleRow>[];
     if (transparency.isNotEmpty) return const SizedBox.shrink();
 
-    final calibrated =
-        calibrationRows.where((row) => row.isCalibrated).length;
+    final calibrated = calibrationRows.where((row) => row.isCalibrated).length;
     const target = ScienceInsightsEngine.minCalibratedForTransparency;
     if (calibrated >= target) return const SizedBox.shrink();
     final ratio = (calibrated / target).clamp(0.0, 1.0);
@@ -652,8 +660,8 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
               value: ratio,
               minHeight: 4,
               backgroundColor: colors.surfaceAlt,
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(colors.info.withValues(alpha: 0.8)),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                  colors.info.withValues(alpha: 0.8)),
             ),
           ),
         ],

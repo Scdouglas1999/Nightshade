@@ -11,8 +11,7 @@ import 'settings_provider.dart';
 /// carry-over detection. The original device-to-device handoff API
 /// (`exportBundle` / `describe`) still works without DAOs because the
 /// constructor parameters are optional.
-final sessionHandoffServiceProvider =
-    Provider<SessionHandoffService>((ref) {
+final sessionHandoffServiceProvider = Provider<SessionHandoffService>((ref) {
   return SessionHandoffService(
     sessionsDao: ref.watch(sessionsDaoProvider),
     imagesDao: ref.watch(imagesDaoProvider),
@@ -33,26 +32,26 @@ final sessionHandoffServiceProvider =
 /// must never be blocked by a transient database read.
 final sessionCarryOverProvider =
     FutureProvider.autoDispose<List<SessionCarryOver>>((ref) async {
-  final sequence = ref.watch(currentSequenceProvider);
-  if (sequence == null) return const <SessionCarryOver>[];
-  final service = ref.watch(sessionHandoffServiceProvider);
-  try {
-    final libraryTargets = await ref.watch(allDbTargetsProvider.future);
-    final capturedImages = await ref.watch(allDbImagesProvider.future);
-    final sessions = await ref.watch(allSessionsProvider.future);
-    return await service.detectCarryOver(
-      sequence: sequence,
-      libraryTargets: libraryTargets,
-      capturedImages: capturedImages,
-      sessions: sessions,
-    );
-  } catch (_) {
-    // Failing closed here would be wrong: the user could be blocked
-    // from running their sequence because of a stale DAO. Carry-over
-    // is a "hint" surface — degrade gracefully when the DB call fails.
-    return const <SessionCarryOver>[];
-  }
-});
+      final sequence = ref.watch(currentSequenceProvider);
+      if (sequence == null) return const <SessionCarryOver>[];
+      final service = ref.watch(sessionHandoffServiceProvider);
+      try {
+        final libraryTargets = await ref.watch(allDbTargetsProvider.future);
+        final capturedImages = await ref.watch(allDbImagesProvider.future);
+        final sessions = await ref.watch(allSessionsProvider.future);
+        return await service.detectCarryOver(
+          sequence: sequence,
+          libraryTargets: libraryTargets,
+          capturedImages: capturedImages,
+          sessions: sessions,
+        );
+      } catch (_) {
+        // Failing closed here would be wrong: the user could be blocked
+        // from running their sequence because of a stale DAO. Carry-over
+        // is a "hint" surface — degrade gracefully when the DB call fails.
+        return const <SessionCarryOver>[];
+      }
+    });
 
 /// Wave 7 — controls whether the carry-over pre-flight dialog auto-opens.
 ///
@@ -71,7 +70,8 @@ final sessionHandoffAutoPromptProvider = Provider<bool>((ref) {
 ///
 /// Keyed by `(sequenceDatabaseId, targetId)` so independent sequences
 /// for the same target don't share state.
-final sessionHandoffDecisionProvider = StateProvider.family<
-    SessionHandoffDecision?, ({int? sequenceId, int targetId})>(
-  (ref, key) => null,
-);
+final sessionHandoffDecisionProvider =
+    StateProvider.family<
+      SessionHandoffDecision?,
+      ({int? sequenceId, int targetId})
+    >((ref, key) => null);

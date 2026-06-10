@@ -47,8 +47,7 @@ class RadarTimelineScrubber extends ConsumerStatefulWidget {
       _RadarTimelineScrubberState();
 }
 
-class _RadarTimelineScrubberState
-    extends ConsumerState<RadarTimelineScrubber>
+class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
     with WidgetsBindingObserver {
   Timer? _animationTimer;
   bool _isDragging = false;
@@ -107,7 +106,8 @@ class _RadarTimelineScrubberState
       // Base interval: 500ms per frame (2 FPS)
       const baseInterval = Duration(milliseconds: 500);
       final adjustedInterval = Duration(
-        milliseconds: (baseInterval.inMilliseconds / widget.playbackSpeed).round(),
+        milliseconds:
+            (baseInterval.inMilliseconds / widget.playbackSpeed).round(),
       );
 
       _animationTimer = Timer.periodic(adjustedInterval, (_) {
@@ -278,12 +278,16 @@ class _RadarTimelineScrubberState
                     final box = context.findRenderObject() as RenderBox?;
                     if (box == null) return;
 
-                    final localPosition = box.globalToLocal(details.globalPosition);
-                    final sliderWidth = box.size.width - 200; // Account for controls
+                    final localPosition =
+                        box.globalToLocal(details.globalPosition);
+                    final sliderWidth =
+                        box.size.width - 200; // Account for controls
                     if (sliderWidth <= 0) return;
-                    final relativeX = (localPosition.dx - 100).clamp(0.0, sliderWidth);
+                    final relativeX =
+                        (localPosition.dx - 100).clamp(0.0, sliderWidth);
                     final fraction = relativeX / sliderWidth;
-                    final newIndex = (fraction * widget.frames.length).floor()
+                    final newIndex = (fraction * widget.frames.length)
+                        .floor()
                         .clamp(0, widget.frames.length - 1);
 
                     if (newIndex != widget.currentIndex) {
@@ -536,7 +540,8 @@ class _TimelineTrackPainter extends CustomPainter {
     const thumbRadius = 8.0;
     final trackY = size.height / 2;
     final hasMultipleFrames = frames.length > 1;
-    final segmentWidth = hasMultipleFrames ? size.width / (frames.length - 1) : 0.0;
+    final segmentWidth =
+        hasMultipleFrames ? size.width / (frames.length - 1) : 0.0;
     final singleFrameX = size.width / 2;
 
     // Draw track background
@@ -633,7 +638,8 @@ class _TimelineTrackPainter extends CustomPainter {
     }
 
     // Draw current position thumb
-    final thumbX = hasMultipleFrames ? currentIndex * segmentWidth : singleFrameX;
+    final thumbX =
+        hasMultipleFrames ? currentIndex * segmentWidth : singleFrameX;
     final thumbPaint = Paint()
       ..color = colors.primary
       ..style = PaintingStyle.fill;

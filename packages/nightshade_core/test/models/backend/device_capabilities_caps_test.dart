@@ -211,10 +211,7 @@ void main() {
     });
 
     test('toJson includes the new keys', () {
-      const caps = RotatorCapabilities(
-        minAngleDeg: 0.0,
-        maxAngleDeg: 360.0,
-      );
+      const caps = RotatorCapabilities(minAngleDeg: 0.0, maxAngleDeg: 360.0);
       final json = caps.toJson();
 
       expect(json.containsKey('minAngleDeg'), isTrue);

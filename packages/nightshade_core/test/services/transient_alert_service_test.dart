@@ -39,9 +39,7 @@ void main() {
 
     /// Create a sample AAVSO API response
     String createAavsoResponse(List<Map<String, dynamic>> objects) {
-      return jsonEncode({
-        'VSXObjects': objects,
-      });
+      return jsonEncode({'VSXObjects': objects});
     }
 
     /// Create a sample AAVSO variable star object
@@ -86,8 +84,9 @@ void main() {
           ),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -110,8 +109,9 @@ void main() {
       test('handles empty VSXObjects array', () async {
         final responseBody = createAavsoResponse([]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -119,8 +119,9 @@ void main() {
       });
 
       test('returns empty list on HTTP error', () async {
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response('Server Error', 500));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response('Server Error', 500));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -128,8 +129,9 @@ void main() {
       });
 
       test('returns empty list on network failure', () async {
-        when(() => mockHttpClient.get(any()))
-            .thenThrow(http.ClientException('Connection refused'));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenThrow(http.ClientException('Connection refused'));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -137,8 +139,9 @@ void main() {
       });
 
       test('returns empty list on invalid JSON', () async {
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response('not valid json', 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response('not valid json', 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -147,13 +150,21 @@ void main() {
 
       test('skips objects with missing required fields', () async {
         final responseBody = createAavsoResponse([
-          createAavsoObject(name: 'Good Star', ra: '12:00:00', dec: '+45:00:00'),
+          createAavsoObject(
+            name: 'Good Star',
+            ra: '12:00:00',
+            dec: '+45:00:00',
+          ),
           {'Name': 'Missing RA'}, // Missing RA2000
-          {'RA2000': '12:00:00', 'Declination2000': '+45:00:00'}, // Missing Name
+          {
+            'RA2000': '12:00:00',
+            'Declination2000': '+45:00:00',
+          }, // Missing Name
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -170,8 +181,9 @@ void main() {
           createAavsoObject(name: 'Unknown', type: 'UNKNOWN'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -188,8 +200,9 @@ void main() {
           createAavsoObject(name: 'Nova', type: 'N', maxMag: '10.0'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -210,8 +223,9 @@ void main() {
           createAavsoObject(name: 'Test Star'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final settings = const TransientAlertSettings();
 
@@ -234,8 +248,9 @@ void main() {
           createAavsoObject(name: 'Test Star'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final settings = const TransientAlertSettings();
 
@@ -256,8 +271,9 @@ void main() {
           createAavsoObject(name: 'Variable', type: 'M'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova}, // Only novae
@@ -278,8 +294,9 @@ void main() {
           createAavsoObject(name: 'Faint', maxMag: '18.0'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         const settings = TransientAlertSettings(
           magnitudeThreshold: 12.0, // Only brighter than 12
@@ -301,8 +318,9 @@ void main() {
           createAavsoObject(name: 'Test Star'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         // Settings that disable AAVSO
         const settings = TransientAlertSettings(
@@ -323,8 +341,9 @@ void main() {
           createAavsoObject(name: 'High Priority', type: 'SN'), // Supernova
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final settings = const TransientAlertSettings();
         final alerts = await service.getAllAlerts(settings);
@@ -333,7 +352,10 @@ void main() {
           // Higher priority (lower number) should come first
           for (int i = 0; i < alerts.length - 1; i++) {
             if (alerts[i].priority != alerts[i + 1].priority) {
-              expect(alerts[i].priority, lessThanOrEqualTo(alerts[i + 1].priority));
+              expect(
+                alerts[i].priority,
+                lessThanOrEqualTo(alerts[i + 1].priority),
+              );
             }
           }
         }
@@ -379,7 +401,10 @@ void main() {
         );
 
         const settings = TransientAlertSettings(
-          typesToMonitor: {TransientType.nova, TransientType.supernova}, // Not variableStar
+          typesToMonitor: {
+            TransientType.nova,
+            TransientType.supernova,
+          }, // Not variableStar
           enabledSources: {TransientSource.aavso},
         );
 
@@ -430,57 +455,63 @@ void main() {
         expect(service.shouldNotify(alert, settings), isFalse);
       });
 
-      test('returns false when notifyOnNew is false and not auto-queue eligible', () {
-        final alert = TransientAlert(
-          id: 'test1',
-          name: 'Test Nova',
-          type: TransientType.nova,
-          raHours: 12.0,
-          decDegrees: 45.0,
-          magnitude: 12.0, // Not bright enough for auto-queue
-          discoveryTime: DateTime.now(),
-          lastUpdated: DateTime.now(),
-          source: TransientSource.aavso,
-          priority: 3,
-        );
+      test(
+        'returns false when notifyOnNew is false and not auto-queue eligible',
+        () {
+          final alert = TransientAlert(
+            id: 'test1',
+            name: 'Test Nova',
+            type: TransientType.nova,
+            raHours: 12.0,
+            decDegrees: 45.0,
+            magnitude: 12.0, // Not bright enough for auto-queue
+            discoveryTime: DateTime.now(),
+            lastUpdated: DateTime.now(),
+            source: TransientSource.aavso,
+            priority: 3,
+          );
 
-        const settings = TransientAlertSettings(
-          typesToMonitor: {TransientType.nova},
-          enabledSources: {TransientSource.aavso},
-          magnitudeThreshold: 15.0,
-          notifyOnNew: false,
-          autoQueueBright: true,
-          autoQueueMagnitude: 10.0, // Alert is not bright enough
-        );
+          const settings = TransientAlertSettings(
+            typesToMonitor: {TransientType.nova},
+            enabledSources: {TransientSource.aavso},
+            magnitudeThreshold: 15.0,
+            notifyOnNew: false,
+            autoQueueBright: true,
+            autoQueueMagnitude: 10.0, // Alert is not bright enough
+          );
 
-        expect(service.shouldNotify(alert, settings), isFalse);
-      });
+          expect(service.shouldNotify(alert, settings), isFalse);
+        },
+      );
 
-      test('returns true for bright transient when autoQueueBright is enabled', () {
-        final alert = TransientAlert(
-          id: 'test1',
-          name: 'Bright Nova',
-          type: TransientType.nova,
-          raHours: 12.0,
-          decDegrees: 45.0,
-          magnitude: 8.0, // Very bright
-          discoveryTime: DateTime.now(),
-          lastUpdated: DateTime.now(),
-          source: TransientSource.aavso,
-          priority: 2,
-        );
+      test(
+        'returns true for bright transient when autoQueueBright is enabled',
+        () {
+          final alert = TransientAlert(
+            id: 'test1',
+            name: 'Bright Nova',
+            type: TransientType.nova,
+            raHours: 12.0,
+            decDegrees: 45.0,
+            magnitude: 8.0, // Very bright
+            discoveryTime: DateTime.now(),
+            lastUpdated: DateTime.now(),
+            source: TransientSource.aavso,
+            priority: 2,
+          );
 
-        const settings = TransientAlertSettings(
-          typesToMonitor: {TransientType.nova},
-          enabledSources: {TransientSource.aavso},
-          magnitudeThreshold: 15.0,
-          notifyOnNew: false, // Even with this false
-          autoQueueBright: true,
-          autoQueueMagnitude: 10.0, // 8.0 is brighter than 10.0
-        );
+          const settings = TransientAlertSettings(
+            typesToMonitor: {TransientType.nova},
+            enabledSources: {TransientSource.aavso},
+            magnitudeThreshold: 15.0,
+            notifyOnNew: false, // Even with this false
+            autoQueueBright: true,
+            autoQueueMagnitude: 10.0, // 8.0 is brighter than 10.0
+          );
 
-        expect(service.shouldNotify(alert, settings), isTrue);
-      });
+          expect(service.shouldNotify(alert, settings), isTrue);
+        },
+      );
 
       test('handles alert with null magnitude', () {
         final alert = TransientAlert(
@@ -514,8 +545,9 @@ void main() {
           createAavsoObject(ra: '12:30:45.67'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -529,8 +561,9 @@ void main() {
           createAavsoObject(dec: '+45:30:00.0'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 
@@ -544,8 +577,9 @@ void main() {
           createAavsoObject(dec: '-30:15:30.0'),
         ]);
 
-        when(() => mockHttpClient.get(any()))
-            .thenAnswer((_) async => http.Response(responseBody, 200));
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
 
         final alerts = await service.fetchAavsoAlerts();
 

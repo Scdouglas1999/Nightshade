@@ -65,9 +65,10 @@ void main() {
   }
 
   CameraPreset unityPresetOf(ProviderContainer c) {
-    return c.read(cameraPresetsProvider).value!.firstWhere(
-          (p) => p.id == kUnityGainPresetId,
-        );
+    return c
+        .read(cameraPresetsProvider)
+        .value!
+        .firstWhere((p) => p.id == kUnityGainPresetId);
   }
 
   test('clamps recommended unity gain to gainMax (200 -> 180)', () async {
@@ -86,8 +87,11 @@ void main() {
     final unity = unityPresetOf(container);
     expect(unity.gain, 180, reason: 'gain 200 must clamp to gainMax 180');
     expect(unity.offset, 25, reason: 'recommended defaultOffset should apply');
-    expect(unity.updatedAt, isNotNull,
-        reason: 'seeded preset should record an update timestamp');
+    expect(
+      unity.updatedAt,
+      isNotNull,
+      reason: 'seeded preset should record an update timestamp',
+    );
 
     // Persisted, not just in-memory: a fresh container hydrating the same DB
     // must see the seeded value.
@@ -98,37 +102,54 @@ void main() {
     while (fresh.read(cameraPresetsProvider).valueOrNull == null) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(unityPresetOf(fresh).gain, 180,
-        reason: 'seed must round-trip through persistence');
-  });
-
-  test('null recommended unity gain leaves the published default (139)',
-      () async {
-    final notifier = await loadedNotifier();
-
-    final before = unityPresetOf(container);
-    expect(before.gain, kDefaultUnityGain,
-        reason: 'sanity: factory default is 139');
-    expect(before.offset, kDefaultUnityOffset);
-
-    await notifier.seedFromRecommended(
-      const CameraRecommendedSettings(
-        unityGain: null,
-        defaultOffset: 64,
-        notes: 'ASCOM camera — no unity gain published',
-      ),
-      gainMin: 0,
-      gainMax: 600,
+    expect(
+      unityPresetOf(fresh).gain,
+      180,
+      reason: 'seed must round-trip through persistence',
     );
-
-    final after = unityPresetOf(container);
-    expect(after.gain, kDefaultUnityGain,
-        reason: 'null unityGain must leave the literal default untouched');
-    expect(after.offset, kDefaultUnityOffset,
-        reason: 'offset must not move when there is no recommended gain');
-    expect(after.updatedAt, isNull,
-        reason: 'no seed occurred, so no update timestamp');
   });
+
+  test(
+    'null recommended unity gain leaves the published default (139)',
+    () async {
+      final notifier = await loadedNotifier();
+
+      final before = unityPresetOf(container);
+      expect(
+        before.gain,
+        kDefaultUnityGain,
+        reason: 'sanity: factory default is 139',
+      );
+      expect(before.offset, kDefaultUnityOffset);
+
+      await notifier.seedFromRecommended(
+        const CameraRecommendedSettings(
+          unityGain: null,
+          defaultOffset: 64,
+          notes: 'ASCOM camera — no unity gain published',
+        ),
+        gainMin: 0,
+        gainMax: 600,
+      );
+
+      final after = unityPresetOf(container);
+      expect(
+        after.gain,
+        kDefaultUnityGain,
+        reason: 'null unityGain must leave the literal default untouched',
+      );
+      expect(
+        after.offset,
+        kDefaultUnityOffset,
+        reason: 'offset must not move when there is no recommended gain',
+      );
+      expect(
+        after.updatedAt,
+        isNull,
+        reason: 'no seed occurred, so no update timestamp',
+      );
+    },
+  );
 
   test('does not modify a user-customized unity preset', () async {
     final notifier = await loadedNotifier();
@@ -175,25 +196,37 @@ void main() {
     );
 
     final unity = unityPresetOf(container);
-    expect(unity.gain, kDefaultUnityGain,
-        reason: 'renamed preset is not pristine, so it must not be seeded');
+    expect(
+      unity.gain,
+      kDefaultUnityGain,
+      reason: 'renamed preset is not pristine, so it must not be seeded',
+    );
     expect(unity.name, 'My Unity');
   });
 
   test('applyPreset sets the exposure-settings dirty flag', () async {
     final notifier = await loadedNotifier();
 
-    expect(container.read(exposureSettingsUserDirtyProvider), isFalse,
-        reason: 'dirty flag defaults to false');
+    expect(
+      container.read(exposureSettingsUserDirtyProvider),
+      isFalse,
+      reason: 'dirty flag defaults to false',
+    );
 
     notifier.applyPreset(kUnityGainPresetId);
 
-    expect(container.read(exposureSettingsUserDirtyProvider), isTrue,
-        reason: 'applying a preset is a deliberate user gain/offset choice');
+    expect(
+      container.read(exposureSettingsUserDirtyProvider),
+      isTrue,
+      reason: 'applying a preset is a deliberate user gain/offset choice',
+    );
 
     final settings = container.read(exposureSettingsProvider);
-    expect(settings.gain, kDefaultUnityGain,
-        reason: 'applyPreset should push the preset gain into exposure settings');
+    expect(
+      settings.gain,
+      kDefaultUnityGain,
+      reason: 'applyPreset should push the preset gain into exposure settings',
+    );
     expect(settings.offset, kDefaultUnityOffset);
     expect(container.read(selectedPresetIdProvider), kUnityGainPresetId);
   });
@@ -214,10 +247,12 @@ void main() {
 
     setUp(() {
       mockBackend = MockBackend();
-      when(() => mockBackend.eventStream)
-          .thenAnswer((_) => const Stream.empty());
-      when(() => mockBackend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.eventStream,
+      ).thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
     });
 
     tearDown(() {
@@ -251,16 +286,114 @@ void main() {
       // The seed runs off the listener callback as an unawaited future, so
       // poll until it lands (or give up after a bounded number of pumps).
       for (var i = 0; i < 200; i++) {
-        final unity = c.read(cameraPresetsProvider).value!.firstWhere(
-              (p) => p.id == kUnityGainPresetId,
-            );
+        final unity = c
+            .read(cameraPresetsProvider)
+            .value!
+            .firstWhere((p) => p.id == kUnityGainPresetId);
         if (unity.gain == expectedGain) return;
         await Future<void>.delayed(Duration.zero);
       }
     }
 
-    test('seeds unity preset from CameraRecommendedSettings on connect',
-        () async {
+    test(
+      'seeds unity preset from CameraRecommendedSettings on connect',
+      () async {
+        when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
+          (_) async => const CameraRecommendedSettings(
+            unityGain: 100,
+            defaultOffset: 40,
+            notes: 'ZWO ASI2600MM',
+          ),
+        );
+        when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
+          (_) async => const CameraCapabilities(
+            maxWidth: 6248,
+            maxHeight: 4176,
+            bitDepth: 16,
+            gainMin: 0,
+            gainMax: 600,
+          ),
+        );
+
+        connectContainer = buildContainer();
+        await waitForPresets(connectContainer);
+
+        // Attach the connect-edge listener exactly as app bootstrap does.
+        connectContainer.read(cameraPresetsSeedOnConnectProvider);
+
+        // Drive disconnected -> connecting -> connected.
+        final cameraNotifier = connectContainer.read(
+          cameraStateProvider.notifier,
+        );
+        cameraNotifier.setConnecting('simulator:test-camera-1', 'ASI2600MM');
+        cameraNotifier.setConnected();
+
+        await pumpUntilUnitySeeded(connectContainer, expectedGain: 100);
+
+        final unity = connectContainer
+            .read(cameraPresetsProvider)
+            .value!
+            .firstWhere((p) => p.id == kUnityGainPresetId);
+        expect(
+          unity.gain,
+          100,
+          reason: 'connect edge must seed gain from the recommendation',
+        );
+        expect(
+          unity.offset,
+          40,
+          reason: 'connect edge must seed offset from the recommendation',
+        );
+
+        verify(
+          () => mockBackend.cameraGetRecommendedSettings(
+            'simulator:test-camera-1',
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'clamps the recommended gain to the reported gainMax on connect',
+      () async {
+        when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
+          (_) async => const CameraRecommendedSettings(
+            unityGain: 500,
+            defaultOffset: 30,
+            notes: 'recommendation above gainMax',
+          ),
+        );
+        when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
+          (_) async => const CameraCapabilities(
+            maxWidth: 100,
+            maxHeight: 100,
+            bitDepth: 16,
+            gainMin: 0,
+            gainMax: 180,
+          ),
+        );
+
+        connectContainer = buildContainer();
+        await waitForPresets(connectContainer);
+        connectContainer.read(cameraPresetsSeedOnConnectProvider);
+
+        final cameraNotifier = connectContainer.read(
+          cameraStateProvider.notifier,
+        );
+        cameraNotifier.setConnecting('simulator:test-camera-1', 'Cam');
+        cameraNotifier.setConnected();
+
+        await pumpUntilUnitySeeded(connectContainer, expectedGain: 180);
+
+        final unity = connectContainer
+            .read(cameraPresetsProvider)
+            .value!
+            .firstWhere((p) => p.id == kUnityGainPresetId);
+        expect(unity.gain, 180, reason: 'gain 500 must clamp to gainMax 180');
+      },
+    );
+
+    test('does not re-seed on status ticks after the first connect', () async {
       when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
         (_) async => const CameraRecommendedSettings(
           unityGain: 100,
@@ -270,85 +403,6 @@ void main() {
       );
       when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
         (_) async => const CameraCapabilities(
-          maxWidth: 6248,
-          maxHeight: 4176,
-          bitDepth: 16,
-          gainMin: 0,
-          gainMax: 600,
-        ),
-      );
-
-      connectContainer = buildContainer();
-      await waitForPresets(connectContainer);
-
-      // Attach the connect-edge listener exactly as app bootstrap does.
-      connectContainer.read(cameraPresetsSeedOnConnectProvider);
-
-      // Drive disconnected -> connecting -> connected.
-      final cameraNotifier =
-          connectContainer.read(cameraStateProvider.notifier);
-      cameraNotifier.setConnecting('simulator:test-camera-1', 'ASI2600MM');
-      cameraNotifier.setConnected();
-
-      await pumpUntilUnitySeeded(connectContainer, expectedGain: 100);
-
-      final unity = connectContainer.read(cameraPresetsProvider).value!
-          .firstWhere((p) => p.id == kUnityGainPresetId);
-      expect(unity.gain, 100,
-          reason: 'connect edge must seed gain from the recommendation');
-      expect(unity.offset, 40,
-          reason: 'connect edge must seed offset from the recommendation');
-
-      verify(() => mockBackend.cameraGetRecommendedSettings(
-          'simulator:test-camera-1')).called(1);
-    });
-
-    test('clamps the recommended gain to the reported gainMax on connect',
-        () async {
-      when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
-        (_) async => const CameraRecommendedSettings(
-          unityGain: 500,
-          defaultOffset: 30,
-          notes: 'recommendation above gainMax',
-        ),
-      );
-      when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
-        (_) async => const CameraCapabilities(
-          maxWidth: 100,
-          maxHeight: 100,
-          bitDepth: 16,
-          gainMin: 0,
-          gainMax: 180,
-        ),
-      );
-
-      connectContainer = buildContainer();
-      await waitForPresets(connectContainer);
-      connectContainer.read(cameraPresetsSeedOnConnectProvider);
-
-      final cameraNotifier =
-          connectContainer.read(cameraStateProvider.notifier);
-      cameraNotifier.setConnecting('simulator:test-camera-1', 'Cam');
-      cameraNotifier.setConnected();
-
-      await pumpUntilUnitySeeded(connectContainer, expectedGain: 180);
-
-      final unity = connectContainer.read(cameraPresetsProvider).value!
-          .firstWhere((p) => p.id == kUnityGainPresetId);
-      expect(unity.gain, 180, reason: 'gain 500 must clamp to gainMax 180');
-    });
-
-    test('does not re-seed on status ticks after the first connect',
-        () async {
-      when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
-        (_) async => const CameraRecommendedSettings(
-          unityGain: 100,
-          defaultOffset: 40,
-          notes: 'ZWO ASI2600MM',
-        ),
-      );
-      when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
-        (_) async => const CameraCapabilities(
           maxWidth: 100,
           maxHeight: 100,
           bitDepth: 16,
@@ -361,8 +415,9 @@ void main() {
       await waitForPresets(connectContainer);
       connectContainer.read(cameraPresetsSeedOnConnectProvider);
 
-      final cameraNotifier =
-          connectContainer.read(cameraStateProvider.notifier);
+      final cameraNotifier = connectContainer.read(
+        cameraStateProvider.notifier,
+      );
       cameraNotifier.setConnecting('simulator:test-camera-1', 'Cam');
       cameraNotifier.setConnected();
       await pumpUntilUnitySeeded(connectContainer, expectedGain: 100);

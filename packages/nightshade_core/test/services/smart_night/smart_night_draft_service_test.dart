@@ -28,29 +28,31 @@ void main() {
     await database.close();
   });
 
-  test('savePending overwrites one draft per profile per astronomical day',
-      () async {
-    await service.savePending(
-      profileId: 'rig-a',
-      astronomicalDay: DateTime.utc(2026, 5, 21),
-      plan: testSmartNightPlan('M51'),
-    );
-    await service.savePending(
-      profileId: 'rig-a',
-      astronomicalDay: DateTime.utc(2026, 5, 21),
-      plan: testSmartNightPlan('M101'),
-    );
+  test(
+    'savePending overwrites one draft per profile per astronomical day',
+    () async {
+      await service.savePending(
+        profileId: 'rig-a',
+        astronomicalDay: DateTime.utc(2026, 5, 21),
+        plan: testSmartNightPlan('M51'),
+      );
+      await service.savePending(
+        profileId: 'rig-a',
+        astronomicalDay: DateTime.utc(2026, 5, 21),
+        plan: testSmartNightPlan('M101'),
+      );
 
-    final draft = await service.loadPending(
-      profileId: 'rig-a',
-      astronomicalDay: DateTime.utc(2026, 5, 21),
-    );
+      final draft = await service.loadPending(
+        profileId: 'rig-a',
+        astronomicalDay: DateTime.utc(2026, 5, 21),
+      );
 
-    expect(draft, isNotNull);
-    expect(draft!.status, SmartNightDraftStatus.pending);
-    expect(draft.plan.plannedTargets.single.suggestion.targetName, 'M101');
-    expect(await service.loadAll(), hasLength(1));
-  });
+      expect(draft, isNotNull);
+      expect(draft!.status, SmartNightDraftStatus.pending);
+      expect(draft.plan.plannedTargets.single.suggestion.targetName, 'M101');
+      expect(await service.loadAll(), hasLength(1));
+    },
+  );
 
   test('markStarted hides the draft from pending lookups', () async {
     final draft = await service.savePending(
@@ -68,8 +70,10 @@ void main() {
       ),
       isNull,
     );
-    expect((await service.loadById(draft.id))!.status,
-        SmartNightDraftStatus.started);
+    expect(
+      (await service.loadById(draft.id))!.status,
+      SmartNightDraftStatus.started,
+    );
   });
 
   test('cleanupExpiredPending removes stale pending drafts only', () async {
@@ -89,17 +93,15 @@ void main() {
     await service.cleanupExpiredPending();
 
     expect(await service.loadById(stale.id), isNull);
-    expect((await service.loadById(fresh.id))!.status,
-        SmartNightDraftStatus.started);
+    expect(
+      (await service.loadById(fresh.id))!.status,
+      SmartNightDraftStatus.started,
+    );
   });
 }
 
 SmartNightPlan testSmartNightPlan(String targetName) {
-  final root = InstructionSetNode(
-    id: 'root',
-    name: 'Root',
-    childIds: const [],
-  );
+  final root = InstructionSetNode(id: 'root', name: 'Root', childIds: const []);
   return SmartNightPlan(
     sequence: Sequence(
       id: 'seq-$targetName',

@@ -60,57 +60,57 @@ class SequenceDelayPlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'delay.conditional',
-          name: 'Conditional Delay',
-          category: 'Smart Delays',
-          description:
-              'Waits for a specified duration but can be aborted early '
-              'by a named event',
-          createNode: (params) {
-            final durationSeconds = params['durationSeconds'] as int? ?? 60;
-            final abortEvent = params['abortEvent'] as String?;
-            return ConditionalDelayNode(
-              durationSeconds: durationSeconds,
-              abortEventName: abortEvent,
-            );
-          },
-        ),
-        SequenceNodeDefinition(
-          id: 'delay.cooldown',
-          name: 'Cooldown Wait',
-          category: 'Smart Delays',
-          description:
-              'Waits until the sensor temperature reaches a target value. '
-              'Monitors focuser temperature events.',
-          createNode: (params) {
-            final targetTemp = params['targetTemperature'] as double? ?? -10.0;
-            final toleranceDeg = params['toleranceDegrees'] as double? ?? 1.0;
-            final timeoutMinutes = params['timeoutMinutes'] as int? ?? 60;
-            return CooldownWaitNode(
-              targetTemperature: targetTemp,
-              toleranceDegrees: toleranceDeg,
-              timeoutMinutes: timeoutMinutes,
-            );
-          },
-        ),
-        SequenceNodeDefinition(
-          id: 'delay.twilight',
-          name: 'Twilight Wait',
-          category: 'Smart Delays',
-          description: 'Waits until the sun reaches a specified altitude '
-              '(e.g., -18 degrees for astronomical twilight)',
-          createNode: (params) {
-            final targetAltitude =
-                params['targetSunAltitude'] as double? ?? -18.0;
-            final timeoutMinutes = params['timeoutMinutes'] as int? ?? 120;
-            return TwilightWaitNode(
-              targetSunAltitude: targetAltitude,
-              timeoutMinutes: timeoutMinutes,
-            );
-          },
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'delay.conditional',
+      name: 'Conditional Delay',
+      category: 'Smart Delays',
+      description:
+          'Waits for a specified duration but can be aborted early '
+          'by a named event',
+      createNode: (params) {
+        final durationSeconds = params['durationSeconds'] as int? ?? 60;
+        final abortEvent = params['abortEvent'] as String?;
+        return ConditionalDelayNode(
+          durationSeconds: durationSeconds,
+          abortEventName: abortEvent,
+        );
+      },
+    ),
+    SequenceNodeDefinition(
+      id: 'delay.cooldown',
+      name: 'Cooldown Wait',
+      category: 'Smart Delays',
+      description:
+          'Waits until the sensor temperature reaches a target value. '
+          'Monitors focuser temperature events.',
+      createNode: (params) {
+        final targetTemp = params['targetTemperature'] as double? ?? -10.0;
+        final toleranceDeg = params['toleranceDegrees'] as double? ?? 1.0;
+        final timeoutMinutes = params['timeoutMinutes'] as int? ?? 60;
+        return CooldownWaitNode(
+          targetTemperature: targetTemp,
+          toleranceDegrees: toleranceDeg,
+          timeoutMinutes: timeoutMinutes,
+        );
+      },
+    ),
+    SequenceNodeDefinition(
+      id: 'delay.twilight',
+      name: 'Twilight Wait',
+      category: 'Smart Delays',
+      description:
+          'Waits until the sun reaches a specified altitude '
+          '(e.g., -18 degrees for astronomical twilight)',
+      createNode: (params) {
+        final targetAltitude = params['targetSunAltitude'] as double? ?? -18.0;
+        final timeoutMinutes = params['timeoutMinutes'] as int? ?? 120;
+        return TwilightWaitNode(
+          targetSunAltitude: targetAltitude,
+          timeoutMinutes: timeoutMinutes,
+        );
+      },
+    ),
+  ];
 }
 
 /// Sequence node that waits for a fixed duration but can be aborted early
@@ -123,10 +123,7 @@ class ConditionalDelayNode implements PluginSequenceNode {
   final int durationSeconds;
   final String? abortEventName;
 
-  ConditionalDelayNode({
-    required this.durationSeconds,
-    this.abortEventName,
-  });
+  ConditionalDelayNode({required this.durationSeconds, this.abortEventName});
 
   @override
   String? validate() {
@@ -151,16 +148,12 @@ class ConditionalDelayNode implements PluginSequenceNode {
 
     // Set up abort listener if configured
     if (abortEventName != null) {
-      abortSubscription = context.eventBus.on(abortEventName!).listen(
-        (data) {
-          context.logger.info(
-            'Delay aborted by event: $abortEventName',
-          );
-          if (!completer.isCompleted) {
-            completer.complete(true); // Abort is a success, not a failure
-          }
-        },
-      );
+      abortSubscription = context.eventBus.on(abortEventName!).listen((data) {
+        context.logger.info('Delay aborted by event: $abortEventName');
+        if (!completer.isCompleted) {
+          completer.complete(true); // Abort is a success, not a failure
+        }
+      });
     }
 
     // Set up the main delay timer
@@ -172,20 +165,17 @@ class ConditionalDelayNode implements PluginSequenceNode {
     });
 
     // Emit progress events every 10 seconds
-    final progressTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (t) {
-        final elapsed = (t.tick * 10);
-        final remaining = durationSeconds - elapsed;
-        if (remaining > 0) {
-          context.eventBus.emit('plugin.delay.progress', {
-            'elapsed': elapsed,
-            'remaining': remaining,
-            'total': durationSeconds,
-          });
-        }
-      },
-    );
+    final progressTimer = Timer.periodic(const Duration(seconds: 10), (t) {
+      final elapsed = (t.tick * 10);
+      final remaining = durationSeconds - elapsed;
+      if (remaining > 0) {
+        context.eventBus.emit('plugin.delay.progress', {
+          'elapsed': elapsed,
+          'remaining': remaining,
+          'total': durationSeconds,
+        });
+      }
+    });
 
     try {
       final result = await completer.future;
@@ -246,40 +236,39 @@ class CooldownWaitNode implements PluginSequenceNode {
     final deadline = DateTime.now().add(Duration(minutes: timeoutMinutes));
 
     // Listen for temperature updates from focuser events
-    final subscription = context.eventBus.on('focuser.moved').listen(
-      (data) {
-        final temp = data['temperature'];
-        if (temp == null) return;
+    final subscription = context.eventBus.on('focuser.moved').listen((data) {
+      final temp = data['temperature'];
+      if (temp == null) return;
 
-        final temperature =
-            (temp is num) ? temp.toDouble() : double.tryParse(temp.toString());
-        if (temperature == null) return;
+      final temperature = (temp is num)
+          ? temp.toDouble()
+          : double.tryParse(temp.toString());
+      if (temperature == null) return;
 
-        final delta = (temperature - targetTemperature).abs();
+      final delta = (temperature - targetTemperature).abs();
 
-        context.logger.debug(
-          'Temperature: ${temperature.toStringAsFixed(1)} C '
-          '(delta: ${delta.toStringAsFixed(1)} C)',
+      context.logger.debug(
+        'Temperature: ${temperature.toStringAsFixed(1)} C '
+        '(delta: ${delta.toStringAsFixed(1)} C)',
+      );
+
+      context.eventBus.emit('plugin.cooldown.progress', {
+        'currentTemperature': temperature,
+        'targetTemperature': targetTemperature,
+        'delta': delta,
+        'tolerance': toleranceDegrees,
+      });
+
+      if (delta <= toleranceDegrees) {
+        context.logger.info(
+          'Temperature ${temperature.toStringAsFixed(1)} C is within '
+          'tolerance of target ${targetTemperature.toStringAsFixed(1)} C',
         );
-
-        context.eventBus.emit('plugin.cooldown.progress', {
-          'currentTemperature': temperature,
-          'targetTemperature': targetTemperature,
-          'delta': delta,
-          'tolerance': toleranceDegrees,
-        });
-
-        if (delta <= toleranceDegrees) {
-          context.logger.info(
-            'Temperature ${temperature.toStringAsFixed(1)} C is within '
-            'tolerance of target ${targetTemperature.toStringAsFixed(1)} C',
-          );
-          if (!completer.isCompleted) {
-            completer.complete(true);
-          }
+        if (!completer.isCompleted) {
+          completer.complete(true);
         }
-      },
-    );
+      }
+    });
 
     // Set up timeout
     final timeoutTimer = Timer(Duration(minutes: timeoutMinutes), () {
@@ -292,15 +281,12 @@ class CooldownWaitNode implements PluginSequenceNode {
     });
 
     // Also poll periodically in case we miss events
-    final pollTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (DateTime.now().isAfter(deadline) && !completer.isCompleted) {
-          context.logger.warning('Cooldown wait deadline exceeded');
-          completer.complete(false);
-        }
-      },
-    );
+    final pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (DateTime.now().isAfter(deadline) && !completer.isCompleted) {
+        context.logger.warning('Cooldown wait deadline exceeded');
+        completer.complete(false);
+      }
+    });
 
     try {
       return await completer.future;

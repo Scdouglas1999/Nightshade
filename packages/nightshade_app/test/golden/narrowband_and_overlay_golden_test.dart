@@ -17,8 +17,7 @@ import 'surface_golden_harness.dart';
 void main() {
   setUpAll(SurfaceGoldenHarness.ensureFonts);
 
-  testWidgets('morning report — narrowband mixer panel (dark)',
-      (tester) async {
+  testWidgets('morning report — narrowband mixer panel (dark)', (tester) async {
     tester.view.physicalSize = const Size(620, 940);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -101,8 +100,8 @@ void main() {
       ),
     );
     // Let Image.file decode the synthesized PNG.
-    await tester.runAsync(() => Future<void>.delayed(
-        const Duration(milliseconds: 50)));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
 

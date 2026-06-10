@@ -108,8 +108,7 @@ class ResponsiveStatStrip extends StatelessWidget {
           );
         }
 
-        final cellWidth =
-            (available - spacing * (columns - 1)) / columns;
+        final cellWidth = (available - spacing * (columns - 1)) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -148,10 +147,10 @@ class _StatCell extends StatelessWidget {
       stat.value,
       style: NightshadeTypography.withTabular(NightshadeTypography.bodySm)
           .copyWith(
-        color: stat.valueColor ?? colors.textPrimary,
-        fontWeight: FontWeight.w600,
-        fontFamily: NightshadeTypography.fontFamilyMono,
-      ),
+            color: stat.valueColor ?? colors.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontFamily: NightshadeTypography.fontFamilyMono,
+          ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
@@ -178,14 +177,11 @@ class _StatCell extends StatelessWidget {
     );
 
     return Column(
-      crossAxisAlignment:
-          alignStart ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: alignStart
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
-      children: [
-        label,
-        const SizedBox(height: 2),
-        valueRow,
-      ],
+      children: [label, const SizedBox(height: 2), valueRow],
     );
   }
 }

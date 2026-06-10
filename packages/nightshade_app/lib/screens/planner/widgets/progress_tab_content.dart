@@ -207,7 +207,9 @@ class _SortBar extends StatelessWidget {
               child: DropdownButton<ProgressSort>(
                 value: sort,
                 isDense: true,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textPrimary),
                 dropdownColor: colors.surface,
                 iconSize: 14,
                 items: const [

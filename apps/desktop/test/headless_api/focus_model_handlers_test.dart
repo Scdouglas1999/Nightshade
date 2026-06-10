@@ -20,15 +20,16 @@ void main() {
     late FocusModelHandlers handlers;
 
     setUp(() async {
-      tempDir =
-          await Directory.systemTemp.createTemp('focus-model-handler-test');
+      tempDir = await Directory.systemTemp.createTemp(
+        'focus-model-handler-test',
+      );
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(pathProviderChannel, (call) async {
-        if (call.method == 'getApplicationDocumentsDirectory') {
-          return tempDir.path;
-        }
-        return null;
-      });
+            if (call.method == 'getApplicationDocumentsDirectory') {
+              return tempDir.path;
+            }
+            return null;
+          });
       container = ProviderContainer();
       handlers = FocusModelHandlers(container);
     });
@@ -42,28 +43,31 @@ void main() {
       }
     });
 
-    test('get focus data without active profile returns JSON bad request',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleGetFocusData(
-        Request('GET', Uri.parse('http://localhost/api/focus-model/data')),
-      ));
+    test(
+      'get focus data without active profile returns JSON bad request',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetFocusData(
+            Request('GET', Uri.parse('http://localhost/api/focus-model/data')),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(
-        body['error'],
-        'No active equipment profile. Load a profile first.',
-      );
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(
+          body['error'],
+          'No active equipment profile. Load a profile first.',
+        );
+      },
+    );
 
     test('predict without active profile returns JSON bad request', () async {
-      final response = await translateHandlerErrors(handlers.handlePredictFocus(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/focus-model/predict'),
+      final response = await translateHandlerErrors(
+        handlers.handlePredictFocus(
+          Request('GET', Uri.parse('http://localhost/api/focus-model/predict')),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -75,14 +79,15 @@ void main() {
     });
 
     test('import without active profile returns JSON bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleImportFocusData(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/focus-model/import'),
-          body: '{',
+      final response = await translateHandlerErrors(
+        handlers.handleImportFocusData(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/focus-model/import'),
+            body: '{',
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');

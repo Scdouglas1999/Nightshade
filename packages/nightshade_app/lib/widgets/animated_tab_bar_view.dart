@@ -87,6 +87,3 @@ class _AnimatedTabBarViewState extends State<AnimatedTabBarView>
     );
   }
 }
-
-
-

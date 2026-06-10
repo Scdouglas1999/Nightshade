@@ -25,7 +25,10 @@ class MilkyWayData {
 
   /// Convert equatorial coordinates to galactic coordinates
   /// Returns (l, b) in degrees where l is galactic longitude, b is galactic latitude
-  static (double l, double b) equatorialToGalactic(double raDeg, double decDeg) {
+  static (double l, double b) equatorialToGalactic(
+    double raDeg,
+    double decDeg,
+  ) {
     final ra = raDeg * _deg2rad;
     final dec = decDeg * _deg2rad;
     final raGNP = galacticNorthPoleRA * _deg2rad;
@@ -33,13 +36,15 @@ class MilkyWayData {
     final l0 = galacticAscendingNode * _deg2rad;
 
     // Calculate galactic latitude
-    final sinB = math.sin(decGNP) * math.sin(dec) +
+    final sinB =
+        math.sin(decGNP) * math.sin(dec) +
         math.cos(decGNP) * math.cos(dec) * math.cos(ra - raGNP);
     final b = math.asin(sinB.clamp(-1.0, 1.0));
 
     // Calculate galactic longitude
     final y = math.cos(dec) * math.sin(ra - raGNP);
-    final x = math.cos(decGNP) * math.sin(dec) -
+    final x =
+        math.cos(decGNP) * math.sin(dec) -
         math.sin(decGNP) * math.cos(dec) * math.cos(ra - raGNP);
     var l = l0 - math.atan2(y, x);
 
@@ -53,7 +58,10 @@ class MilkyWayData {
 
   /// Convert galactic coordinates to equatorial coordinates
   /// Returns (ra, dec) in degrees
-  static (double ra, double dec) galacticToEquatorial(double lDeg, double bDeg) {
+  static (double ra, double dec) galacticToEquatorial(
+    double lDeg,
+    double bDeg,
+  ) {
     final l = lDeg * _deg2rad;
     final b = bDeg * _deg2rad;
     final l0 = galacticAscendingNode * _deg2rad;
@@ -61,13 +69,15 @@ class MilkyWayData {
     final raGNP = galacticNorthPoleRA * _deg2rad;
 
     // Calculate declination
-    final sinDec = math.sin(decGNP) * math.sin(b) +
+    final sinDec =
+        math.sin(decGNP) * math.sin(b) +
         math.cos(decGNP) * math.cos(b) * math.cos(l0 - l);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
     // Calculate right ascension
     final y = math.cos(b) * math.sin(l0 - l);
-    final x = math.cos(decGNP) * math.sin(b) -
+    final x =
+        math.cos(decGNP) * math.sin(b) -
         math.sin(decGNP) * math.cos(b) * math.cos(l0 - l);
     var ra = raGNP + math.atan2(y, x);
 
@@ -153,13 +163,15 @@ class MilkyWayData {
 
         if (intensity > 0.05) {
           final (ra, dec) = galacticToEquatorial(l, b);
-          points.add(MilkyWayPoint(
-            ra: ra / 15, // Convert to hours
-            dec: dec,
-            intensity: intensity,
-            galacticLon: l,
-            galacticLat: b,
-          ));
+          points.add(
+            MilkyWayPoint(
+              ra: ra / 15, // Convert to hours
+              dec: dec,
+              intensity: intensity,
+              galacticLon: l,
+              galacticLat: b,
+            ),
+          );
         }
       }
     }

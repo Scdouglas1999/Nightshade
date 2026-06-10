@@ -56,11 +56,13 @@ void main() {
     ({double x, double y})? project(double raDeg, double decDeg) {
       final ra = raDeg * math.pi / 180.0;
       final dec = decDeg * math.pi / 180.0;
-      final cosc = sinDec0 * math.sin(dec) +
+      final cosc =
+          sinDec0 * math.sin(dec) +
           cosDec0 * math.cos(dec) * math.cos(ra - ra0);
       if (cosc <= 0) return null; // behind the tangent point
       final xi = (math.cos(dec) * math.sin(ra - ra0)) / cosc;
-      final eta = (cosDec0 * math.sin(dec) -
+      final eta =
+          (cosDec0 * math.sin(dec) -
               sinDec0 * math.cos(dec) * math.cos(ra - ra0)) /
           cosc;
       // +RA (east) to the left to match sky orientation; +Dec (north) up.
@@ -131,26 +133,36 @@ void main() {
         if (a.intersection(b).length >= 2) sharedEdgePairs++;
       }
     }
-    expect(drawnCells, greaterThan(50),
-        reason: 'expected a populated grid, drew $drawnCells cells');
-    expect(sharedEdgePairs, greaterThan(0),
-        reason: 'adjacent cells must share exact edges (seam-free)');
+    expect(
+      drawnCells,
+      greaterThan(50),
+      reason: 'expected a populated grid, drew $drawnCells cells',
+    );
+    expect(
+      sharedEdgePairs,
+      greaterThan(0),
+      reason: 'adjacent cells must share exact edges (seam-free)',
+    );
 
     // Draw a crosshair at the FOV center to confirm registration.
     final c0 = project(centerRa, centerDec)!;
     final cross = img.ColorRgb8(255, 80, 80);
-    img.drawLine(canvas,
-        x1: c0.x.round() - 10,
-        y1: c0.y.round(),
-        x2: c0.x.round() + 10,
-        y2: c0.y.round(),
-        color: cross);
-    img.drawLine(canvas,
-        x1: c0.x.round(),
-        y1: c0.y.round() - 10,
-        x2: c0.x.round(),
-        y2: c0.y.round() + 10,
-        color: cross);
+    img.drawLine(
+      canvas,
+      x1: c0.x.round() - 10,
+      y1: c0.y.round(),
+      x2: c0.x.round() + 10,
+      y2: c0.y.round(),
+      color: cross,
+    );
+    img.drawLine(
+      canvas,
+      x1: c0.x.round(),
+      y1: c0.y.round() - 10,
+      x2: c0.x.round(),
+      y2: c0.y.round() + 10,
+      color: cross,
+    );
 
     final png = img.encodePng(canvas);
 
@@ -172,10 +184,13 @@ void main() {
       // ignore: avoid_print
       print('Golden created: ${golden.absolute.path}');
     } else {
-      expect(png, golden.readAsBytesSync(),
-          reason:
-              'HEALPix grid render drifted from golden; if intentional, '
-              'delete ${golden.path} to regenerate.');
+      expect(
+        png,
+        golden.readAsBytesSync(),
+        reason:
+            'HEALPix grid render drifted from golden; if intentional, '
+            'delete ${golden.path} to regenerate.',
+      );
     }
   });
 }

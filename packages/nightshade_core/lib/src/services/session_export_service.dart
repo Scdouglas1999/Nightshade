@@ -24,11 +24,11 @@ class SessionExportService {
     required ImagesDao imagesDao,
     Future<Directory> Function()? documentsDirectoryProvider,
     DateTime Function()? nowProvider,
-  })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao,
-        _documentsDirectoryProvider =
-            documentsDirectoryProvider ?? getApplicationDocumentsDirectory,
-        _now = nowProvider ?? DateTime.now;
+  }) : _sessionsDao = sessionsDao,
+       _imagesDao = imagesDao,
+       _documentsDirectoryProvider =
+           documentsDirectoryProvider ?? getApplicationDocumentsDirectory,
+       _now = nowProvider ?? DateTime.now;
 
   /// Export session images to CSV format
   ///
@@ -61,7 +61,7 @@ class SessionExportService {
         'Binning',
         'Guiding RMS Total',
         'Accepted',
-      ]
+      ],
     ];
 
     // Add image data rows
@@ -93,8 +93,10 @@ class SessionExportService {
     // Save to file
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
-    final timestamp =
-        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final timestamp = _now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')[0];
     final fileName = '${sessionName}_$timestamp.csv';
     final filePath = path.join(directory.path, fileName);
 
@@ -209,8 +211,10 @@ class SessionExportService {
     // Save to file
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
-    final timestamp =
-        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final timestamp = _now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')[0];
     final fileName = '${sessionName}_$timestamp.json';
     final filePath = path.join(directory.path, fileName);
 
@@ -223,8 +227,9 @@ class SessionExportService {
   /// Get or create the export directory
   Future<Directory> _getExportDirectory() async {
     final docsDir = await _documentsDirectoryProvider();
-    final exportDir =
-        Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+    final exportDir = Directory(
+      path.join(docsDir.path, 'Nightshade', 'exports'),
+    );
 
     if (!await exportDir.exists()) {
       await exportDir.create(recursive: true);
@@ -267,7 +272,8 @@ class SessionExportService {
         : 0.0;
     buffer.writeln('Success Rate: ${successRate.toStringAsFixed(1)}%');
     buffer.writeln(
-        'Total Integration: ${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)} hours');
+      'Total Integration: ${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)} hours',
+    );
 
     if (session.avgHfr != null) {
       buffer.writeln('Average HFR: ${session.avgHfr!.toStringAsFixed(2)} px');
@@ -275,7 +281,8 @@ class SessionExportService {
 
     if (session.avgGuidingRms != null) {
       buffer.writeln(
-          'Average Guiding RMS: ${session.avgGuidingRms!.toStringAsFixed(2)} "');
+        'Average Guiding RMS: ${session.avgGuidingRms!.toStringAsFixed(2)} "',
+      );
     }
 
     buffer.writeln('Autofocus Runs: ${session.autofocusCount}');
@@ -290,17 +297,20 @@ class SessionExportService {
 
       if (session.avgTemperature != null) {
         buffer.writeln(
-            'Avg Temperature: ${session.avgTemperature!.toStringAsFixed(1)} °C');
+          'Avg Temperature: ${session.avgTemperature!.toStringAsFixed(1)} °C',
+        );
       }
 
       if (session.avgHumidity != null) {
         buffer.writeln(
-            'Avg Humidity: ${session.avgHumidity!.toStringAsFixed(1)} %');
+          'Avg Humidity: ${session.avgHumidity!.toStringAsFixed(1)} %',
+        );
       }
 
       if (session.avgSeeing != null) {
-        buffer
-            .writeln('Avg Seeing: ${session.avgSeeing!.toStringAsFixed(1)} "');
+        buffer.writeln(
+          'Avg Seeing: ${session.avgSeeing!.toStringAsFixed(1)} "',
+        );
       }
 
       buffer.writeln();
@@ -324,10 +334,13 @@ class SessionExportService {
     if (filterGroups.isNotEmpty) {
       buffer.writeln('By Filter:');
       for (final entry in filterGroups.entries) {
-        final totalExp = entry.value
-            .fold<double>(0, (sum, img) => sum + img.exposureDuration);
+        final totalExp = entry.value.fold<double>(
+          0,
+          (sum, img) => sum + img.exposureDuration,
+        );
         buffer.writeln(
-            '  ${entry.key}: ${entry.value.length} images, ${(totalExp / 60).toStringAsFixed(1)} min');
+          '  ${entry.key}: ${entry.value.length} images, ${(totalExp / 60).toStringAsFixed(1)} min',
+        );
       }
       buffer.writeln();
     }
@@ -394,7 +407,8 @@ class SessionExportService {
       ''';
     }).join();
 
-    final html = '''
+    final html =
+        '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -463,8 +477,10 @@ class SessionExportService {
 
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
-    final timestamp =
-        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final timestamp = _now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')[0];
     final fileName = '${sessionName}_$timestamp.html';
     final filePath = path.join(directory.path, fileName);
     final file = File(filePath);

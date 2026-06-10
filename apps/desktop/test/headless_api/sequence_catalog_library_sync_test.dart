@@ -35,52 +35,54 @@ void main() {
       await db.close();
     });
 
-    test('save-full refreshes savedSequencesProvider when sync is active',
-        () async {
-      container.read(sequenceLibrarySyncProvider);
-      container.listen(savedSequencesProvider, (_, __) {});
+    test(
+      'save-full refreshes savedSequencesProvider when sync is active',
+      () async {
+        container.read(sequenceLibrarySyncProvider);
+        container.listen(savedSequencesProvider, (_, __) {});
 
-      const rootId = 'root-catalog-library-sync';
-      final response = await translateHandlerErrors(
-        handlers.handleSaveFullSequence(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/sequence-management/save-full'),
-            body: jsonEncode({
-              'sequence': {
-                'schemaVersion': SequenceFileService.currentSchemaVersion,
-                'version': '2.0',
-                'name': 'Tablet Draft',
-                'description': '',
-                'rootNodeId': rootId,
-                'isTemplate': false,
-                'createdAt': DateTime(2026, 1, 1).toIso8601String(),
-                'modifiedAt': DateTime(2026, 1, 2).toIso8601String(),
-                'nodes': {
-                  rootId: {
-                    'id': rootId,
-                    'nodeType': 'instructionSet',
-                    'name': 'Sequence',
-                    'parentId': null,
-                    'childIds': <String>[],
-                    'orderIndex': 0,
-                    'isEnabled': true,
+        const rootId = 'root-catalog-library-sync';
+        final response = await translateHandlerErrors(
+          handlers.handleSaveFullSequence(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/sequence-management/save-full'),
+              body: jsonEncode({
+                'sequence': {
+                  'schemaVersion': SequenceFileService.currentSchemaVersion,
+                  'version': '2.0',
+                  'name': 'Tablet Draft',
+                  'description': '',
+                  'rootNodeId': rootId,
+                  'isTemplate': false,
+                  'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+                  'modifiedAt': DateTime(2026, 1, 2).toIso8601String(),
+                  'nodes': {
+                    rootId: {
+                      'id': rootId,
+                      'nodeType': 'instructionSet',
+                      'name': 'Sequence',
+                      'parentId': null,
+                      'childIds': <String>[],
+                      'orderIndex': 0,
+                      'isEnabled': true,
+                    },
                   },
                 },
-              },
-              'isTemplate': false,
-            }),
-            headers: {'Content-Type': 'application/json'},
+                'isTemplate': false,
+              }),
+              headers: {'Content-Type': 'application/json'},
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      await Future<void>.delayed(Duration.zero);
+        expect(response.statusCode, HttpStatus.ok);
+        await Future<void>.delayed(Duration.zero);
 
-      final sequences = await container.read(savedSequencesProvider.future);
-      expect(sequences, hasLength(1));
-      expect(sequences.single.name, 'Tablet Draft');
-    });
+        final sequences = await container.read(savedSequencesProvider.future);
+        expect(sequences, hasLength(1));
+        expect(sequences.single.name, 'Tablet Draft');
+      },
+    );
   });
 }

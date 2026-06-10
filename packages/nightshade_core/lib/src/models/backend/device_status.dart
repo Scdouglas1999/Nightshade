@@ -85,25 +85,25 @@ class CameraStatus {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'connected': connected,
-        'state': state.name,
-        'sensorTemp': sensorTemp,
-        'coolerPower': coolerPower,
-        'targetTemp': targetTemp,
-        'coolerOn': coolerOn,
-        'gain': gain,
-        'offset': offset,
-        'binX': binX,
-        'binY': binY,
-        'sensorWidth': sensorWidth,
-        'sensorHeight': sensorHeight,
-        'pixelSizeX': pixelSizeX,
-        'pixelSizeY': pixelSizeY,
-        'maxAdu': maxAdu,
-        'canCool': canCool,
-        'canSetGain': canSetGain,
-        'canSetOffset': canSetOffset,
-      };
+    'connected': connected,
+    'state': state.name,
+    'sensorTemp': sensorTemp,
+    'coolerPower': coolerPower,
+    'targetTemp': targetTemp,
+    'coolerOn': coolerOn,
+    'gain': gain,
+    'offset': offset,
+    'binX': binX,
+    'binY': binY,
+    'sensorWidth': sensorWidth,
+    'sensorHeight': sensorHeight,
+    'pixelSizeX': pixelSizeX,
+    'pixelSizeY': pixelSizeY,
+    'maxAdu': maxAdu,
+    'canCool': canCool,
+    'canSetGain': canSetGain,
+    'canSetOffset': canSetOffset,
+  };
 
   static CameraState _parseCameraState(dynamic value) {
     if (value == null) return CameraState.idle;
@@ -173,50 +173,53 @@ class MountStatus {
       sideOfPier: _parsePierSide(json['side_of_pier'] ?? json['sideOfPier']),
       rightAscension:
           (json['right_ascension'] ?? json['rightAscension'] ?? json['ra'])
-                  ?.toDouble() ??
-              0.0,
+              ?.toDouble() ??
+          0.0,
       declination: (json['declination'] ?? json['dec'])?.toDouble() ?? 0.0,
       altitude: (json['altitude'] ?? json['alt'])?.toDouble() ?? 0.0,
       azimuth: (json['azimuth'] ?? json['az'])?.toDouble() ?? 0.0,
       siderealTime:
           (json['sidereal_time'] ?? json['siderealTime'] ?? json['lst'])
-                  ?.toDouble() ??
-              0.0,
-      trackingRate:
-          _parseTrackingRate(json['tracking_rate'] ?? json['trackingRate']),
+              ?.toDouble() ??
+          0.0,
+      trackingRate: _parseTrackingRate(
+        json['tracking_rate'] ?? json['trackingRate'],
+      ),
       canPark: json['can_park'] ?? json['canPark'] ?? false,
       canSlew: json['can_slew'] ?? json['canSlew'] ?? false,
       canSync: json['can_sync'] ?? json['canSync'] ?? false,
       canPulseGuide: json['can_pulse_guide'] ?? json['canPulseGuide'] ?? false,
       canSetTrackingRate:
           json['can_set_tracking_rate'] ?? json['canSetTrackingRate'] ?? false,
-      availability: (json['availability'] as Map?)?.map(
-              (key, value) => MapEntry(key.toString(), value.toString())) ??
+      availability:
+          (json['availability'] as Map?)?.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          ) ??
           const {},
     );
   }
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'connected': connected,
-        'tracking': tracking,
-        'slewing': slewing,
-        'parked': parked,
-        'atHome': atHome,
-        'sideOfPier': sideOfPier.name,
-        'rightAscension': rightAscension,
-        'declination': declination,
-        'altitude': altitude,
-        'azimuth': azimuth,
-        'siderealTime': siderealTime,
-        'trackingRate': trackingRate.name,
-        'canPark': canPark,
-        'canSlew': canSlew,
-        'canSync': canSync,
-        'canPulseGuide': canPulseGuide,
-        'canSetTrackingRate': canSetTrackingRate,
-        'availability': availability,
-      };
+    'connected': connected,
+    'tracking': tracking,
+    'slewing': slewing,
+    'parked': parked,
+    'atHome': atHome,
+    'sideOfPier': sideOfPier.name,
+    'rightAscension': rightAscension,
+    'declination': declination,
+    'altitude': altitude,
+    'azimuth': azimuth,
+    'siderealTime': siderealTime,
+    'trackingRate': trackingRate.name,
+    'canPark': canPark,
+    'canSlew': canSlew,
+    'canSync': canSync,
+    'canPulseGuide': canPulseGuide,
+    'canSetTrackingRate': canSetTrackingRate,
+    'availability': availability,
+  };
 
   static PierSide _parsePierSide(dynamic value) {
     if (value == null) return PierSide.unknown;
@@ -275,7 +278,8 @@ class FocuserStatus {
       maxPosition: (json['max_position'] ?? json['maxPosition']) as int? ?? 0,
       stepSize: (json['step_size'] ?? json['stepSize'])?.toDouble() ?? 0.0,
       isAbsolute: json['is_absolute'] ?? json['isAbsolute'] ?? false,
-      hasTemperature: json['has_temperature'] ??
+      hasTemperature:
+          json['has_temperature'] ??
           json['hasTemperature'] ??
           (json['temperature'] != null),
     );
@@ -283,15 +287,15 @@ class FocuserStatus {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'connected': connected,
-        'position': position,
-        'moving': moving,
-        'temperature': temperature,
-        'maxPosition': maxPosition,
-        'stepSize': stepSize,
-        'isAbsolute': isAbsolute,
-        'hasTemperature': hasTemperature,
-      };
+    'connected': connected,
+    'position': position,
+    'moving': moving,
+    'temperature': temperature,
+    'maxPosition': maxPosition,
+    'stepSize': stepSize,
+    'isAbsolute': isAbsolute,
+    'hasTemperature': hasTemperature,
+  };
 }
 
 // =========================================================================
@@ -335,12 +339,12 @@ class FilterWheelStatus {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'connected': connected,
-        'position': position,
-        'moving': moving,
-        'filterCount': filterCount,
-        'filterNames': filterNames,
-      };
+    'connected': connected,
+    'position': position,
+    'moving': moving,
+    'filterCount': filterCount,
+    'filterNames': filterNames,
+  };
 }
 
 // =========================================================================
@@ -374,8 +378,8 @@ class RotatorStatus {
       moving: json['moving'] as bool? ?? false,
       mechanicalPosition:
           (json['mechanical_position'] ?? json['mechanicalPosition'])
-                  ?.toDouble() ??
-              position,
+              ?.toDouble() ??
+          position,
       isMoving: json['is_moving'] ?? json['isMoving'] ?? false,
       canReverse: json['can_reverse'] ?? json['canReverse'] ?? false,
     );
@@ -383,11 +387,11 @@ class RotatorStatus {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'connected': connected,
-        'position': position,
-        'moving': moving,
-        'mechanicalPosition': mechanicalPosition,
-        'isMoving': isMoving,
-        'canReverse': canReverse,
-      };
+    'connected': connected,
+    'position': position,
+    'moving': moving,
+    'mechanicalPosition': mechanicalPosition,
+    'isMoving': isMoving,
+    'canReverse': canReverse,
+  };
 }

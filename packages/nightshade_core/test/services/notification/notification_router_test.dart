@@ -15,7 +15,11 @@ class _RecordingTransport extends NotificationTransport {
   bool configured;
   bool failNext;
 
-  _RecordingTransport(this.kind, {this.configured = true, this.failNext = false});
+  _RecordingTransport(
+    this.kind, {
+    this.configured = true,
+    this.failNext = false,
+  });
 
   @override
   String get name => kind.label;
@@ -42,7 +46,11 @@ class _SentMessage {
   final NotificationCategory category;
   final String title;
   final String body;
-  _SentMessage({required this.category, required this.title, required this.body});
+  _SentMessage({
+    required this.category,
+    required this.title,
+    required this.body,
+  });
 }
 
 NightshadeEvent _evt({
@@ -50,14 +58,13 @@ NightshadeEvent _evt({
   required String type,
   EventSeverity severity = EventSeverity.info,
   Map<String, dynamic> data = const {},
-}) =>
-    NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: severity,
-      category: cat,
-      eventType: type,
-      data: data,
-    );
+}) => NightshadeEvent(
+  timestamp: DateTime.now().millisecondsSinceEpoch,
+  severity: severity,
+  category: cat,
+  eventType: type,
+  data: data,
+);
 
 void main() {
   test('matrix disabled drops every event', () async {
@@ -66,8 +73,11 @@ void main() {
       transports: [t],
       matrix: const NotificationRoutingMatrix(enabled: false),
     );
-    router.route(NotificationCategory.sequenceCompleted, const {},
-        severity: EventSeverity.info);
+    router.route(
+      NotificationCategory.sequenceCompleted,
+      const {},
+      severity: EventSeverity.info,
+    );
     await Future<void>.delayed(Duration.zero);
     expect(t.sent, isEmpty);
     await router.dispose();
@@ -79,16 +89,20 @@ void main() {
     final telegram = _RecordingTransport(NotificationTransportKind.telegram);
     final matrix = NotificationRoutingMatrix.defaults().withRule(
       NotificationCategory.targetCompleted,
-      const NotificationRoutingRule(transports: [
-        NotificationTransportKind.pushover,
-        NotificationTransportKind.discord,
-      ]),
+      const NotificationRoutingRule(
+        transports: [
+          NotificationTransportKind.pushover,
+          NotificationTransportKind.discord,
+        ],
+      ),
     );
     final router = NotificationRouter(
       transports: [pushover, discord, telegram],
       matrix: matrix,
     );
-    router.route(NotificationCategory.targetCompleted, const {'target.name': 'NGC 7000'});
+    router.route(NotificationCategory.targetCompleted, const {
+      'target.name': 'NGC 7000',
+    });
     await Future<void>.delayed(Duration.zero);
     expect(pushover.sent.length, 1);
     expect(discord.sent.length, 1);
@@ -107,13 +121,19 @@ void main() {
       ),
     );
     final router = NotificationRouter(transports: [t], matrix: matrix);
-    router.route(NotificationCategory.targetCompleted, const {},
-        severity: EventSeverity.info);
+    router.route(
+      NotificationCategory.targetCompleted,
+      const {},
+      severity: EventSeverity.info,
+    );
     await Future<void>.delayed(Duration.zero);
     expect(t.sent, isEmpty);
 
-    router.route(NotificationCategory.targetCompleted, const {},
-        severity: EventSeverity.warning);
+    router.route(
+      NotificationCategory.targetCompleted,
+      const {},
+      severity: EventSeverity.warning,
+    );
     await Future<void>.delayed(Duration.zero);
     expect(t.sent.length, 1);
     await router.dispose();
@@ -166,8 +186,10 @@ void main() {
       ),
     );
     final router = NotificationRouter(transports: [t], matrix: matrix);
-    router.route(NotificationCategory.targetCompleted,
-        const {'target.name': 'M31', 'target.id': 'abc'});
+    router.route(NotificationCategory.targetCompleted, const {
+      'target.name': 'M31',
+      'target.id': 'abc',
+    });
     await Future<void>.delayed(Duration.zero);
     expect(t.sent.first.title, 'Done: M31');
     expect(t.sent.first.body, 'Finished M31 (id=abc)');
@@ -176,8 +198,10 @@ void main() {
 
   test('skips transports that are not configured', () async {
     final ready = _RecordingTransport(NotificationTransportKind.discord);
-    final pending = _RecordingTransport(NotificationTransportKind.pushover,
-        configured: false);
+    final pending = _RecordingTransport(
+      NotificationTransportKind.pushover,
+      configured: false,
+    );
     final matrix = NotificationRoutingMatrix.defaults().withRule(
       NotificationCategory.sequenceCompleted,
       const NotificationRoutingRule(
@@ -187,8 +211,10 @@ void main() {
         ],
       ),
     );
-    final router =
-        NotificationRouter(transports: [ready, pending], matrix: matrix);
+    final router = NotificationRouter(
+      transports: [ready, pending],
+      matrix: matrix,
+    );
     router.route(NotificationCategory.sequenceCompleted, const {});
     await Future<void>.delayed(Duration.zero);
     expect(ready.sent.length, 1);
@@ -201,17 +227,20 @@ void main() {
     final matrix = NotificationRoutingMatrix.defaults().withRule(
       NotificationCategory.targetCompleted,
       const NotificationRoutingRule(
-          transports: [NotificationTransportKind.discord]),
+        transports: [NotificationTransportKind.discord],
+      ),
     );
     final router = NotificationRouter(transports: [t], matrix: matrix);
     final controller = StreamController<NightshadeEvent>();
     router.attachEventStream(controller.stream);
 
-    controller.add(_evt(
-      cat: EventCategory.sequencer,
-      type: 'TargetCompleted',
-      data: const {'target_name': 'NGC 281'},
-    ));
+    controller.add(
+      _evt(
+        cat: EventCategory.sequencer,
+        type: 'TargetCompleted',
+        data: const {'target_name': 'NGC 281'},
+      ),
+    );
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 
@@ -229,7 +258,8 @@ void main() {
     final matrix = NotificationRoutingMatrix.defaults().withRule(
       NotificationCategory.targetCompleted,
       const NotificationRoutingRule(
-          transports: [NotificationTransportKind.discord]),
+        transports: [NotificationTransportKind.discord],
+      ),
     );
     final router = NotificationRouter(
       transports: [global, perSeq],
@@ -237,10 +267,9 @@ void main() {
     );
     router.setActiveSequence('public-observatory');
     router.setSequenceOverrides('public-observatory', {
-      NotificationCategory.targetCompleted:
-          const NotificationRoutingRule(transports: [
-        NotificationTransportKind.telegram,
-      ]),
+      NotificationCategory.targetCompleted: const NotificationRoutingRule(
+        transports: [NotificationTransportKind.telegram],
+      ),
     });
     router.route(NotificationCategory.targetCompleted, const {});
     await Future<void>.delayed(Duration.zero);
@@ -252,21 +281,23 @@ void main() {
   test('sendTest returns transport result and records it', () async {
     final t = _RecordingTransport(NotificationTransportKind.pushover);
     final router = NotificationRouter(transports: [t]);
-    final res =
-        await router.sendTest(NotificationTransportKind.pushover);
+    final res = await router.sendTest(NotificationTransportKind.pushover);
     expect(res.success, isTrue);
     expect(t.sent.length, 1);
-    expect(router.lastResults[NotificationTransportKind.pushover]?.success,
-        isTrue);
+    expect(
+      router.lastResults[NotificationTransportKind.pushover]?.success,
+      isTrue,
+    );
     await router.dispose();
   });
 
   test('sendTest surfaces transport failure', () async {
-    final t = _RecordingTransport(NotificationTransportKind.pushover,
-        failNext: true);
+    final t = _RecordingTransport(
+      NotificationTransportKind.pushover,
+      failNext: true,
+    );
     final router = NotificationRouter(transports: [t]);
-    final res =
-        await router.sendTest(NotificationTransportKind.pushover);
+    final res = await router.sendTest(NotificationTransportKind.pushover);
     expect(res.success, isFalse);
     expect(res.error, contains('synthetic'));
     await router.dispose();
@@ -278,7 +309,8 @@ void main() {
     final matrix = NotificationRoutingMatrix.defaults().withRule(
       NotificationCategory.custom,
       const NotificationRoutingRule(
-          transports: [NotificationTransportKind.discord]),
+        transports: [NotificationTransportKind.discord],
+      ),
     );
     final router = NotificationRouter(transports: [tA, tB], matrix: matrix);
     router.routeNotificationNode(
@@ -294,71 +326,81 @@ void main() {
   });
 
   test(
-      'sequencer Notification event with explicit_transports overrides matrix',
-      () async {
-    final discord = _RecordingTransport(NotificationTransportKind.discord);
-    final telegram = _RecordingTransport(NotificationTransportKind.telegram);
-    // Matrix says custom → discord, but the event carries
-    // explicit_transports: [telegram] so the router must send via
-    // telegram only.
-    final matrix = NotificationRoutingMatrix.defaults().withRule(
-      NotificationCategory.custom,
-      const NotificationRoutingRule(
-          transports: [NotificationTransportKind.discord]),
-    );
-    final router =
-        NotificationRouter(transports: [discord, telegram], matrix: matrix);
-    final ctrl = StreamController<NightshadeEvent>();
-    router.attachEventStream(ctrl.stream);
+    'sequencer Notification event with explicit_transports overrides matrix',
+    () async {
+      final discord = _RecordingTransport(NotificationTransportKind.discord);
+      final telegram = _RecordingTransport(NotificationTransportKind.telegram);
+      // Matrix says custom → discord, but the event carries
+      // explicit_transports: [telegram] so the router must send via
+      // telegram only.
+      final matrix = NotificationRoutingMatrix.defaults().withRule(
+        NotificationCategory.custom,
+        const NotificationRoutingRule(
+          transports: [NotificationTransportKind.discord],
+        ),
+      );
+      final router = NotificationRouter(
+        transports: [discord, telegram],
+        matrix: matrix,
+      );
+      final ctrl = StreamController<NightshadeEvent>();
+      router.attachEventStream(ctrl.stream);
 
-    ctrl.add(_evt(
-      cat: EventCategory.sequencer,
-      type: 'Notification',
-      data: {
-        'title': 'Custom T',
-        'message': 'Custom B',
-        'explicit_transports': ['telegram'],
-      },
-    ));
-    await Future<void>.delayed(Duration.zero);
-    expect(discord.sent, isEmpty);
-    expect(telegram.sent.length, 1);
-    expect(telegram.sent.first.title, 'Custom T');
-    expect(telegram.sent.first.body, 'Custom B');
+      ctrl.add(
+        _evt(
+          cat: EventCategory.sequencer,
+          type: 'Notification',
+          data: {
+            'title': 'Custom T',
+            'message': 'Custom B',
+            'explicit_transports': ['telegram'],
+          },
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(discord.sent, isEmpty);
+      expect(telegram.sent.length, 1);
+      expect(telegram.sent.first.title, 'Custom T');
+      expect(telegram.sent.first.body, 'Custom B');
 
-    await ctrl.close();
-    await router.dispose();
-  });
+      await ctrl.close();
+      await router.dispose();
+    },
+  );
 
-  test('sequencer Notification event with no explicit_transports uses matrix',
-      () async {
-    final discord = _RecordingTransport(NotificationTransportKind.discord);
-    final telegram = _RecordingTransport(NotificationTransportKind.telegram);
-    final matrix = NotificationRoutingMatrix.defaults().withRule(
-      NotificationCategory.custom,
-      const NotificationRoutingRule(
-          transports: [NotificationTransportKind.discord]),
-    );
-    final router =
-        NotificationRouter(transports: [discord, telegram], matrix: matrix);
-    final ctrl = StreamController<NightshadeEvent>();
-    router.attachEventStream(ctrl.stream);
+  test(
+    'sequencer Notification event with no explicit_transports uses matrix',
+    () async {
+      final discord = _RecordingTransport(NotificationTransportKind.discord);
+      final telegram = _RecordingTransport(NotificationTransportKind.telegram);
+      final matrix = NotificationRoutingMatrix.defaults().withRule(
+        NotificationCategory.custom,
+        const NotificationRoutingRule(
+          transports: [NotificationTransportKind.discord],
+        ),
+      );
+      final router = NotificationRouter(
+        transports: [discord, telegram],
+        matrix: matrix,
+      );
+      final ctrl = StreamController<NightshadeEvent>();
+      router.attachEventStream(ctrl.stream);
 
-    ctrl.add(_evt(
-      cat: EventCategory.sequencer,
-      type: 'Notification',
-      data: {
-        'title': 'T',
-        'message': 'B',
-      },
-    ));
-    await Future<void>.delayed(Duration.zero);
-    expect(discord.sent.length, 1);
-    expect(telegram.sent, isEmpty);
+      ctrl.add(
+        _evt(
+          cat: EventCategory.sequencer,
+          type: 'Notification',
+          data: {'title': 'T', 'message': 'B'},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(discord.sent.length, 1);
+      expect(telegram.sent, isEmpty);
 
-    await ctrl.close();
-    await router.dispose();
-  });
+      await ctrl.close();
+      await router.dispose();
+    },
+  );
 
   test('updateMatrix swaps the live routing in-place', () async {
     final t = _RecordingTransport(NotificationTransportKind.discord);
@@ -366,9 +408,9 @@ void main() {
     router.route(NotificationCategory.targetCompleted, const {});
     await Future<void>.delayed(Duration.zero);
     final initialCount = t.sent.length;
-    router.updateMatrix(NotificationRoutingMatrix.defaults().copyWith(
-      enabled: false,
-    ));
+    router.updateMatrix(
+      NotificationRoutingMatrix.defaults().copyWith(enabled: false),
+    );
     router.route(NotificationCategory.targetCompleted, const {});
     await Future<void>.delayed(Duration.zero);
     expect(t.sent.length, initialCount);

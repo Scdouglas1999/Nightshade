@@ -134,11 +134,11 @@ class WeatherSafetyState {
   });
 
   factory WeatherSafetyState.initial() => WeatherSafetyState(
-        status: WeatherSafetyStatus.safe,
-        actions: WeatherSafetyActions.safe,
-        currentAlertLevel: AlertLevel.clear,
-        lastEvaluation: DateTime.now(),
-      );
+    status: WeatherSafetyStatus.safe,
+    actions: WeatherSafetyActions.safe,
+    currentAlertLevel: AlertLevel.clear,
+    lastEvaluation: DateTime.now(),
+  );
 
   /// Check if conditions are safe for imaging
   bool get isSafe =>
@@ -168,8 +168,9 @@ class WeatherSafetyState {
       hardwareWeatherSafe: hardwareWeatherSafe ?? this.hardwareWeatherSafe,
       safetyMonitorSafe: safetyMonitorSafe ?? this.safetyMonitorSafe,
       apiWeatherSafe: apiWeatherSafe ?? this.apiWeatherSafe,
-      failModeWarning:
-          clearWarning ? null : (failModeWarning ?? this.failModeWarning),
+      failModeWarning: clearWarning
+          ? null
+          : (failModeWarning ?? this.failModeWarning),
       lastEvaluation: lastEvaluation ?? this.lastEvaluation,
     );
   }
@@ -277,7 +278,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // Get API weather status
     final alertService = _ref.read(weatherAlertServiceProvider);
     final currentAlert = alertService.currentAlert;
-    final apiWeatherSafe = currentAlert == null ||
+    final apiWeatherSafe =
+        currentAlert == null ||
         currentAlert.level == AlertLevel.clear ||
         currentAlert.level == AlertLevel.watch;
 
@@ -400,7 +402,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     if (shouldShowFailModeWarning) {
       Future<void>.microtask(() {
         if (!mounted) return;
-        _ref.read(uiNotificationProvider.notifier).showWarning(
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showWarning(
               failModeWarning ?? 'No weather data sources available',
               title: 'Weather Safety',
               duration: const Duration(seconds: 10),
@@ -500,7 +504,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       // failures; add the weather-safety context so the operator knows what
       // tripped it. Do not rethrow — the periodic evaluator must keep running.
       if (!mounted) return;
-      _ref.read(uiNotificationProvider.notifier).showError(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showError(
             'Weather safety enforcement did not fully complete: $e',
             title: 'Weather Safety',
             duration: const Duration(seconds: 15),
@@ -520,7 +526,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     Future<void>.microtask(() {
       if (!mounted) return;
       final mins = _autoResumeHoldoff.inMinutes;
-      _ref.read(uiNotificationProvider.notifier).showInfo(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showInfo(
             'Weather is clearing; auto-resume scheduled for '
             '${resumeAt.hour.toString().padLeft(2, '0')}:'
             '${resumeAt.minute.toString().padLeft(2, '0')} '
@@ -536,7 +544,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       if (state.status != WeatherSafetyStatus.safe) {
         Future<void>.microtask(() {
           if (!mounted) return;
-          _ref.read(uiNotificationProvider.notifier).showWarning(
+          _ref
+              .read(uiNotificationProvider.notifier)
+              .showWarning(
                 'Auto-resume aborted: conditions deteriorated during hold-off.',
                 title: 'Weather Safety',
                 duration: const Duration(seconds: 10),
@@ -580,11 +590,13 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 
   void _startAdaptiveConditionsPush() {
     _adaptiveConditionsPushTimer?.cancel();
-    _adaptiveConditionsPushTimer =
-        Timer.periodic(_adaptiveConditionsPushInterval, (_) {
-      if (!mounted) return;
-      unawaited(_pushAdaptiveConditions());
-    });
+    _adaptiveConditionsPushTimer = Timer.periodic(
+      _adaptiveConditionsPushInterval,
+      (_) {
+        if (!mounted) return;
+        unawaited(_pushAdaptiveConditions());
+      },
+    );
     Future<void>.microtask(() {
       if (!mounted) return;
       unawaited(_pushAdaptiveConditions());
@@ -814,14 +826,18 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       }
       await backend.sequencerResume();
       if (!mounted) return;
-      _ref.read(uiNotificationProvider.notifier).showInfo(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showInfo(
             'Weather is safe again; sequence resume was requested.',
             title: 'Weather Safety',
             duration: const Duration(seconds: 8),
           );
     } catch (e) {
       if (!mounted) return;
-      _ref.read(uiNotificationProvider.notifier).showWarning(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showWarning(
             'Weather cleared, but automatic resume failed: $e',
             title: 'Weather Safety',
             duration: const Duration(seconds: 10),
@@ -928,8 +944,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 /// Provider for weather safety state
 final weatherSafetyProvider =
     StateNotifierProvider<WeatherSafetyNotifier, WeatherSafetyState>((ref) {
-  return WeatherSafetyNotifier(ref);
-});
+      return WeatherSafetyNotifier(ref);
+    });
 
 /// Convenience provider for quick safety check
 final isWeatherSafeProvider = Provider<bool>((ref) {

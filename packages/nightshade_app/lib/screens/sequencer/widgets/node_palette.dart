@@ -38,42 +38,72 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
 
   IconData _getIcon(String iconName) {
     switch (iconName) {
-      case 'target': return LucideIcons.target;
-      case 'camera': return LucideIcons.camera;
-      case 'circle': return LucideIcons.circle;
-      case 'shuffle': return LucideIcons.shuffle;
-      case 'compass': return LucideIcons.compass;
-      case 'crosshair': return LucideIcons.crosshair;
-      case 'parking-circle': return LucideIcons.parkingCircle;
-      case 'unlock': return LucideIcons.unlock;
-      case 'focus': return LucideIcons.focus;
-      case 'snowflake': return LucideIcons.snowflake;
-      case 'flame': return LucideIcons.flame;
-      case 'rotate-cw': return LucideIcons.rotateCw;
-      case 'workflow': return LucideIcons.workflow;
-      case 'repeat': return LucideIcons.repeat;
-      case 'git-merge': return LucideIcons.gitMerge;
-      case 'git-branch': return LucideIcons.gitBranch;
-      case 'shield-check': return LucideIcons.shieldCheck;
-      case 'clock': return LucideIcons.clock;
-      case 'timer': return LucideIcons.timer;
-      case 'wrench': return LucideIcons.wrench;
-      case 'bell': return LucideIcons.bell;
-      case 'code': return LucideIcons.code;
-      case 'aperture': return LucideIcons.aperture;
-      case 'door-open': return LucideIcons.doorOpen;
-      case 'door-closed': return LucideIcons.doorClosed;
-      case 'lightbulb': return LucideIcons.lightbulb;
-      case 'lightbulb-off': return LucideIcons.lightbulbOff;
+      case 'target':
+        return LucideIcons.target;
+      case 'camera':
+        return LucideIcons.camera;
+      case 'circle':
+        return LucideIcons.circle;
+      case 'shuffle':
+        return LucideIcons.shuffle;
+      case 'compass':
+        return LucideIcons.compass;
+      case 'crosshair':
+        return LucideIcons.crosshair;
+      case 'parking-circle':
+        return LucideIcons.parkingCircle;
+      case 'unlock':
+        return LucideIcons.unlock;
+      case 'focus':
+        return LucideIcons.focus;
+      case 'snowflake':
+        return LucideIcons.snowflake;
+      case 'flame':
+        return LucideIcons.flame;
+      case 'rotate-cw':
+        return LucideIcons.rotateCw;
+      case 'workflow':
+        return LucideIcons.workflow;
+      case 'repeat':
+        return LucideIcons.repeat;
+      case 'git-merge':
+        return LucideIcons.gitMerge;
+      case 'git-branch':
+        return LucideIcons.gitBranch;
+      case 'shield-check':
+        return LucideIcons.shieldCheck;
+      case 'clock':
+        return LucideIcons.clock;
+      case 'timer':
+        return LucideIcons.timer;
+      case 'wrench':
+        return LucideIcons.wrench;
+      case 'bell':
+        return LucideIcons.bell;
+      case 'code':
+        return LucideIcons.code;
+      case 'aperture':
+        return LucideIcons.aperture;
+      case 'door-open':
+        return LucideIcons.doorOpen;
+      case 'door-closed':
+        return LucideIcons.doorClosed;
+      case 'lightbulb':
+        return LucideIcons.lightbulb;
+      case 'lightbulb-off':
+        return LucideIcons.lightbulbOff;
       // Wave 3 Agent 2: SmartExposure uses the "layers" icon for the
       // tabular multi-filter editor.
-      case 'layers': return LucideIcons.layers;
+      case 'layers':
+        return LucideIcons.layers;
       // Audit §11 — plugin-contributed nodes default to the puzzle-piece
       // glyph; the same icon flags the per-plugin category header in the
       // palette so users learn to spot extension-provided entries at a
       // glance.
-      case 'puzzle': return LucideIcons.puzzle;
-      default: return LucideIcons.box;
+      case 'puzzle':
+        return LucideIcons.puzzle;
+      default:
+        return LucideIcons.box;
     }
   }
 
@@ -87,18 +117,30 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
       return widget.colors.accent;
     }
     switch (categoryName) {
-      case 'Target': return widget.colors.warning;
-      case 'Imaging': return widget.colors.primary;
-      case 'Mount': return widget.colors.info;
-      case 'Focus': return widget.colors.accent;
-      case 'Camera': return widget.colors.primary;
-      case 'Logic': return widget.colors.accent;
-      case 'Timing': return widget.colors.warning;
-      case 'Utilities': return widget.colors.textMuted;
-      case 'Flat Panel': return widget.colors.warning;
-      case 'Dome': return widget.colors.info;
-      case 'Guiding': return widget.colors.primary;
-      default: return widget.colors.textSecondary;
+      case 'Target':
+        return widget.colors.warning;
+      case 'Imaging':
+        return widget.colors.primary;
+      case 'Mount':
+        return widget.colors.info;
+      case 'Focus':
+        return widget.colors.accent;
+      case 'Camera':
+        return widget.colors.primary;
+      case 'Logic':
+        return widget.colors.accent;
+      case 'Timing':
+        return widget.colors.warning;
+      case 'Utilities':
+        return widget.colors.textMuted;
+      case 'Flat Panel':
+        return widget.colors.warning;
+      case 'Dome':
+        return widget.colors.info;
+      case 'Guiding':
+        return widget.colors.primary;
+      default:
+        return widget.colors.textSecondary;
     }
   }
 
@@ -107,21 +149,28 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
     final categories = ref.watch(nodePaletteProvider);
 
     // Filter based on search
-    final filteredCategories = categories.map((category) {
-      if (_searchQuery.isEmpty) return category;
+    final filteredCategories = categories
+        .map((category) {
+          if (_searchQuery.isEmpty) return category;
 
-      final filteredItems = category.items
-          .where((item) =>
-              item.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              item.description.toLowerCase().contains(_searchQuery.toLowerCase()))
-          .toList();
+          final filteredItems = category.items
+              .where((item) =>
+                  item.name
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()) ||
+                  item.description
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()))
+              .toList();
 
-      return NodePaletteCategory(
-        name: category.name,
-        icon: category.icon,
-        items: filteredItems,
-      );
-    }).where((c) => c.items.isNotEmpty).toList();
+          return NodePaletteCategory(
+            name: category.name,
+            icon: category.icon,
+            items: filteredItems,
+          );
+        })
+        .where((c) => c.items.isNotEmpty)
+        .toList();
 
     // Mobile bottom sheet layout
     if (widget.isMobileSheet) {
@@ -132,7 +181,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
     return _buildDesktopSidebarContent(filteredCategories);
   }
 
-  Widget _buildMobileSheetContent(List<NodePaletteCategory> filteredCategories) {
+  Widget _buildMobileSheetContent(
+      List<NodePaletteCategory> filteredCategories) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -144,7 +194,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
             height: 4,
             decoration: BoxDecoration(
               color: widget.colors.border,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
         ),
@@ -179,7 +230,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: Row(
@@ -193,7 +245,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) => setState(() => _searchQuery = value),
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize14,
                           color: widget.colors.textPrimary,
@@ -206,7 +259,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                           ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -263,7 +317,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
     );
   }
 
-  Widget _buildDesktopSidebarContent(List<NodePaletteCategory> filteredCategories) {
+  Widget _buildDesktopSidebarContent(
+      List<NodePaletteCategory> filteredCategories) {
     return Builder(builder: (context) {
       final headerFontSize = Responsive.fontSize(context, 14);
       final searchFontSize = Responsive.fontSize(context, 13);
@@ -315,7 +370,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                           message: 'Collapse panel',
                           child: InkWell(
                             onTap: widget.onCollapse,
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4),
                             child: Padding(
                               padding: const EdgeInsets.all(4),
                               child: Icon(
@@ -334,7 +390,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                     padding: EdgeInsets.symmetric(horizontal: searchPadding),
                     decoration: BoxDecoration(
                       color: widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       border: Border.all(color: widget.colors.border),
                     ),
                     child: Row(
@@ -348,7 +405,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                         Expanded(
                           child: TextField(
                             controller: _searchController,
-                            onChanged: (value) => setState(() => _searchQuery = value),
+                            onChanged: (value) =>
+                                setState(() => _searchQuery = value),
                             style: TextStyle(
                               fontSize: searchFontSize,
                               color: widget.colors.textPrimary,
@@ -420,7 +478,8 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
               margin: EdgeInsets.all(tipPadding),
               decoration: NightshadeDecorations.iconChip(
                 widget.colors.info,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderAlpha: 0.2,
               ),
               child: Row(
@@ -504,7 +563,9 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
                   height: badgeSize,
                   decoration: NightshadeDecorations.statusChip(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(isMobile ? NightshadeTokens.radiusInline8 : NightshadeTokens.radiusMd),
+                    borderRadius: BorderRadius.circular(isMobile
+                        ? NightshadeTokens.radiusInline8
+                        : NightshadeTokens.radiusMd),
                     bordered: false,
                   ),
                   child: Icon(
@@ -646,65 +707,67 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
     return FocusRing(
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _addNode,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        child: Container(
-          margin: const EdgeInsets.only(top: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: Border.all(color: widget.colors.border),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: NightshadeDecorations.tintedBadge(
-                  widget.categoryColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _addNode,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+          child: Container(
+            margin: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: widget.colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              border: Border.all(color: widget.colors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: NightshadeDecorations.tintedBadge(
+                    widget.categoryColor,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
+                  ),
+                  child: Icon(
+                    widget.getIcon(widget.item.icon),
+                    size: 20,
+                    color: widget.categoryColor,
+                  ),
                 ),
-                child: Icon(
-                  widget.getIcon(widget.item.icon),
-                  size: 20,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.item.name,
+                        style: NightshadeTypography.h5
+                            .copyWith(color: widget.colors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.item.description,
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: widget.colors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  LucideIcons.plus,
+                  size: 18,
                   color: widget.categoryColor,
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.item.name,
-                      style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.item.description,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: widget.colors.textMuted,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                LucideIcons.plus,
-                size: 18,
-                color: widget.categoryColor,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -725,10 +788,12 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
         feedback: Material(
           color: Colors.transparent,
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
+            padding:
+                EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
             decoration: NightshadeDecorations.selectedSurface(
               widget.categoryColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               fillAlpha: 0.2,
             ),
             child: Row(
@@ -758,83 +823,83 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
         child: FocusRing(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: MouseRegion(
-          onEnter: (_) => setState(() => _isHovered = true),
-          onExit: (_) => setState(() => _isHovered = false),
-          child: GestureDetector(
-            onDoubleTap: _addNode,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.only(top: 4),
-              padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-              decoration: BoxDecoration(
-                color: _isHovered
-                    ? widget.colors.surfaceAlt
-                    : widget.colors.background,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(
+            onEnter: (_) => setState(() => _isHovered = true),
+            onExit: (_) => setState(() => _isHovered = false),
+            child: GestureDetector(
+              onDoubleTap: _addNode,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(top: 4),
+                padding: EdgeInsets.symmetric(
+                    horizontal: hPadding, vertical: vPadding),
+                decoration: BoxDecoration(
                   color: _isHovered
-                      ? widget.categoryColor.withValues(alpha: 0.5)
-                      : widget.colors.border,
+                      ? widget.colors.surfaceAlt
+                      : widget.colors.background,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  border: Border.all(
+                    color: _isHovered
+                        ? widget.categoryColor.withValues(alpha: 0.5)
+                        : widget.colors.border,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: iconBoxSize,
-                    height: iconBoxSize,
-                    decoration: NightshadeDecorations.tintedBadge(
-                      widget.categoryColor,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                child: Row(
+                  children: [
+                    Container(
+                      width: iconBoxSize,
+                      height: iconBoxSize,
+                      decoration: NightshadeDecorations.tintedBadge(
+                        widget.categoryColor,
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
+                      ),
+                      child: Icon(
+                        widget.getIcon(widget.item.icon),
+                        size: itemIconSize,
+                        color: widget.categoryColor,
+                      ),
                     ),
-                    child: Icon(
-                      widget.getIcon(widget.item.icon),
-                      size: itemIconSize,
-                      color: widget.categoryColor,
-                    ),
-                  ),
-                  SizedBox(width: Responsive.spacing(context, 10)),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.item.name,
-                          style: TextStyle(
-                            fontSize: nameFontSize,
-                            fontWeight: FontWeight.w500,
-                            color: _isHovered
-                                ? widget.colors.textPrimary
-                                : widget.colors.textSecondary,
+                    SizedBox(width: Responsive.spacing(context, 10)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.item.name,
+                            style: TextStyle(
+                              fontSize: nameFontSize,
+                              fontWeight: FontWeight.w500,
+                              color: _isHovered
+                                  ? widget.colors.textPrimary
+                                  : widget.colors.textSecondary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          widget.item.description,
-                          style: TextStyle(
-                            fontSize: descFontSize,
-                            color: widget.colors.textMuted,
+                          Text(
+                            widget.item.description,
+                            style: TextStyle(
+                              fontSize: descFontSize,
+                              color: widget.colors.textMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  if (_isHovered)
-                    Icon(
-                      LucideIcons.plus,
-                      size: plusIconSize,
-                      color: widget.categoryColor,
-                    ),
-                ],
+                    if (_isHovered)
+                      Icon(
+                        LucideIcons.plus,
+                        size: plusIconSize,
+                        color: widget.categoryColor,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         ),
       );
     });
   }
 }
-
-
-

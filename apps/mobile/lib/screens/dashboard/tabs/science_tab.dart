@@ -19,7 +19,7 @@ class ScienceTab extends ConsumerWidget {
     final images = activeSessionId == null
         ? const <DbCapturedImage>[]
         : ref.watch(dbSessionImagesProvider(activeSessionId)).valueOrNull ??
-            const [];
+              const [];
     final lightFrames = images
         .where((img) => img.frameType.toLowerCase() == 'light')
         .toList(growable: false);
@@ -102,9 +102,7 @@ class _QuickActions extends ConsumerWidget {
                   frames: lightFrames,
                   sessionId: sessionId,
                 );
-                if (rejected != null &&
-                    rejected > 0 &&
-                    context.mounted) {
+                if (rejected != null && rejected > 0 && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Rejected $rejected frame(s)'),
@@ -172,8 +170,7 @@ class _IdleHint extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(LucideIcons.flaskConical,
-              color: colors.textSecondary, size: 20),
+          Icon(LucideIcons.flaskConical, color: colors.textSecondary, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

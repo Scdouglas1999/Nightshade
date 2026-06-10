@@ -43,8 +43,11 @@ Future<void> applyRemoteSyncEvent(
 
   switch (event.category) {
     case EventCategory.system:
-      await _applySystemSyncEvent(reader, event,
-          networkBackend: networkBackend);
+      await _applySystemSyncEvent(
+        reader,
+        event,
+        networkBackend: networkBackend,
+      );
       break;
     case EventCategory.equipment:
       _applyEquipmentEvent(reader, event);
@@ -168,7 +171,10 @@ Future<void> _applyGuidingEvent(
     case 'Connected':
       final notifier = _readDeviceNotifier(reader, DeviceType.guider);
       if (!_isDeviceAlreadyConnected(
-          reader, DeviceType.guider, 'phd2_guider')) {
+        reader,
+        DeviceType.guider,
+        'phd2_guider',
+      )) {
         notifier.setConnecting('phd2_guider', 'PHD2');
       }
       notifier.setConnected();
@@ -199,7 +205,8 @@ void _applySequencerEvent(
       final sequenceName = data['sequence_name'] as String? ?? 'Unknown';
       progressNotifier.updateState(SequenceExecutionState.running);
       progressNotifier.updateProgress(
-          message: 'Started sequence: $sequenceName');
+        message: 'Started sequence: $sequenceName',
+      );
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.running;
       break;
@@ -245,10 +252,7 @@ void _applySequencerEvent(
   }
 }
 
-void _applyHostMutation(
-  Object reader,
-  Map<String, dynamic> data,
-) {
+void _applyHostMutation(Object reader, Map<String, dynamic> data) {
   final entityType = data['entityType'] as String?;
   final action = data['action'] as String?;
   if (entityType == null || action == null) {
@@ -318,7 +322,10 @@ void _applyGuiderMutationFromHost(
   switch (action) {
     case HostMutationAction.connected:
       if (!_isDeviceAlreadyConnected(
-          reader, DeviceType.guider, 'phd2_guider')) {
+        reader,
+        DeviceType.guider,
+        'phd2_guider',
+      )) {
         notifier.setConnecting('phd2_guider', 'PHD2');
       }
       notifier.setConnected();
@@ -354,11 +361,10 @@ void _applyFramingMutationFromHost(
     return;
   }
 
-  _read(reader, framingProvider.notifier).setTargetCoordinates(
-    ra.toDouble(),
-    dec.toDouble(),
-    name: name,
-  );
+  _read(
+    reader,
+    framingProvider.notifier,
+  ).setTargetCoordinates(ra.toDouble(), dec.toDouble(), name: name);
 }
 
 void _applySequencerMutationFromHost(
@@ -389,8 +395,10 @@ void _applySequencerMutationFromHost(
 
   final message = data['message'] as String?;
   if (message != null) {
-    _read(reader, sequenceProgressProvider.notifier)
-        .updateProgress(message: message);
+    _read(
+      reader,
+      sequenceProgressProvider.notifier,
+    ).updateProgress(message: message);
   }
 }
 
@@ -405,10 +413,7 @@ int? _parseSequenceId(Map<String, dynamic> data) {
   return null;
 }
 
-void _invalidateSequenceLibrary(
-  Object reader, {
-  int? sequenceId,
-}) {
+void _invalidateSequenceLibrary(Object reader, {int? sequenceId}) {
   _invalidate(reader, savedSequencesProvider);
   if (sequenceId != null && reader is Ref) {
     unawaited(reloadOpenSequenceIfIdle(reader, sequenceId));
@@ -535,11 +540,10 @@ Future<void> _publishRemoteCurrentFrame(
     // Publish through the shared publisher: it tags the source from the live
     // backend, schedules the background raw-pixel load, and writes both
     // `currentImageProvider` and `lastImageStatsProvider`.
-    _read(reader, capturePreviewPublisherProvider).publish(
+    _read(
       reader,
-      imageData,
-      deviceId,
-    );
+      capturePreviewPublisherProvider,
+    ).publish(reader, imageData, deviceId);
   } catch (_) {
     // Degrade gracefully: a failed/aborted fetch must never crash the event
     // pump or spam logs. The tile simply keeps its previous frame; the next
@@ -561,11 +565,10 @@ void _applyFramingTargetChanged(Object reader, NightshadeEvent event) {
     return;
   }
 
-  _read(reader, framingProvider.notifier).setTargetCoordinates(
-    ra,
-    dec,
-    name: name,
-  );
+  _read(
+    reader,
+    framingProvider.notifier,
+  ).setTargetCoordinates(ra, dec, name: name);
 }
 
 void _applyDeviceConnectedFromSyncPayload(

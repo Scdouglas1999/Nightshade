@@ -6,11 +6,7 @@ part of '../planetarium_providers.dart';
 
 class SkyViewNotifier extends StateNotifier<SkyViewState> {
   SkyViewNotifier()
-      : super(const SkyViewState(
-          centerRA: 0,
-          centerDec: 0,
-          fieldOfView: 60,
-        ));
+    : super(const SkyViewState(centerRA: 0, centerDec: 0, fieldOfView: 60));
 
   void setCenter(double ra, double dec) {
     state = state.copyWith(
@@ -54,8 +50,9 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     if (mousePosition != null && viewSize != null) {
       _zoomAtPosition(mousePosition, viewSize, 1.5);
     } else {
-      state =
-          state.copyWith(fieldOfView: (state.fieldOfView / 1.5).clamp(1, 180));
+      state = state.copyWith(
+        fieldOfView: (state.fieldOfView / 1.5).clamp(1, 180),
+      );
     }
   }
 
@@ -63,8 +60,9 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     if (mousePosition != null && viewSize != null) {
       _zoomAtPosition(mousePosition, viewSize, 1 / 1.5);
     } else {
-      state =
-          state.copyWith(fieldOfView: (state.fieldOfView * 1.5).clamp(1, 180));
+      state = state.copyWith(
+        fieldOfView: (state.fieldOfView * 1.5).clamp(1, 180),
+      );
     }
   }
 
@@ -76,7 +74,8 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     // center zoom there — correct, just not cursor-anchored.
     if (state.viewMode == SkyViewMode.horizontal) {
       state = state.copyWith(
-          fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180));
+        fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180),
+      );
       return;
     }
 
@@ -85,7 +84,8 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     if (coordBefore == null) {
       // Fallback to center zoom if conversion fails
       state = state.copyWith(
-          fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180));
+        fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180),
+      );
       return;
     }
 
@@ -146,9 +146,12 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     final sinc = math.sin(c);
     final cosc = math.cos(c);
 
-    final dec = math.asin(cosc * math.sin(centerDecRad) +
-        yRad * sinc * math.cos(centerDecRad) / rho);
-    final ra = centerRaRad +
+    final dec = math.asin(
+      cosc * math.sin(centerDecRad) +
+          yRad * sinc * math.cos(centerDecRad) / rho,
+    );
+    final ra =
+        centerRaRad +
         math.atan2(
           xRad * sinc,
           rho * math.cos(centerDecRad) * cosc -
@@ -199,8 +202,8 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
 
 final skyViewStateProvider =
     StateNotifierProvider<SkyViewNotifier, SkyViewState>((ref) {
-  return SkyViewNotifier();
-});
+      return SkyViewNotifier();
+    });
 
 /// A request to smoothly animate the view center to a target coordinate.
 ///
@@ -233,8 +236,8 @@ class FlyToNotifier extends StateNotifier<FlyToRequest?> {
 
 final flyToRequestProvider =
     StateNotifierProvider<FlyToNotifier, FlyToRequest?>((ref) {
-  return FlyToNotifier();
-});
+      return FlyToNotifier();
+    });
 
 /// Computed provider for current view center in horizontal coordinates
 /// Returns (azimuth, altitude) in degrees
@@ -242,8 +245,9 @@ final flyToRequestProvider =
 final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
   final location = ref.watch(observerLocationProvider);
-  final time =
-      ref.watch(_currentMinuteProvider); // Use minute precision instead
+  final time = ref.watch(
+    _currentMinuteProvider,
+  ); // Use minute precision instead
 
   // In the horizontal frame the center is already alt/az.
   if (viewState.viewMode == SkyViewMode.horizontal) {

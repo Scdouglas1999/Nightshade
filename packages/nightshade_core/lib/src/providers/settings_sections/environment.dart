@@ -48,7 +48,8 @@ extension EnvironmentSettingsSection on AppSettingsNotifier {
   Future<void> setCriticalAlertSound(String value) async {
     if (value != 'systemBell' && value != 'none') {
       throw ArgumentError(
-          'criticalAlertSound must be "systemBell" or "none", got: $value');
+        'criticalAlertSound must be "systemBell" or "none", got: $value',
+      );
     }
     await _saveSetting('critical_alert_sound', value);
     _patchState((s) => s.copyWith(criticalAlertSound: value));

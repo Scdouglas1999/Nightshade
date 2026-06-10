@@ -12,12 +12,20 @@ import 'headless_route.dart';
 /// Build the declarative route table for [SafetyMonitorHandlers].
 List<HeadlessRoute> buildSafetyMonitorRoutes(SafetyMonitorHandlers h) =>
     <HeadlessRoute>[
+      HeadlessRoute(HttpMethod.get, '/api/safety/status', h.handleSafetyStatus),
       HeadlessRoute(
-          HttpMethod.get, '/api/safety/status', h.handleSafetyStatus),
-      HeadlessRoute(HttpMethod.get, '/api/safety/settings',
-          h.handleGetSafetySettings),
-      HeadlessRoute(HttpMethod.post, '/api/safety/settings',
-          h.handleUpdateSafetySettings),
-      HeadlessRoute(HttpMethod.post, '/api/safety/acknowledge',
-          h.handleAcknowledgeUnsafe),
+        HttpMethod.get,
+        '/api/safety/settings',
+        h.handleGetSafetySettings,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/safety/settings',
+        h.handleUpdateSafetySettings,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/safety/acknowledge',
+        h.handleAcknowledgeUnsafe,
+      ),
     ];

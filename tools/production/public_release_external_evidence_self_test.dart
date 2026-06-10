@@ -226,12 +226,12 @@ Future<void> main() async {
 }
 
 Future<void> _prepareWorkspace(Directory root) async {
-  await Directory('${root.path}/docs/production-readiness').create(
-    recursive: true,
-  );
+  await Directory(
+    '${root.path}/docs/production-readiness',
+  ).create(recursive: true);
   await File(
-          '${root.path}/docs/production-readiness/public-release-checklist-audit.json')
-      .writeAsString(
+    '${root.path}/docs/production-readiness/public-release-checklist-audit.json',
+  ).writeAsString(
     const JsonEncoder.withIndent('  ').convert({
       'uncheckedItemCount': 1,
       'checkedWithoutEvidenceCount': 0,
@@ -242,17 +242,18 @@ Future<void> _prepareWorkspace(Directory root) async {
   await File('${root.path}/docs/known-limitations.md')
       .create(recursive: true)
       .then((file) => file.writeAsString('# Known Limitations\n'));
-  await File('${root.path}/docs/supported-hardware-by-platform.md')
-      .writeAsString('# Supported Hardware By Platform\n');
-  await File('${root.path}/docs/release-notes-template.md')
-      .writeAsString('# Nightshade Release Notes Template\n');
-  await File('${root.path}/docs/production-readiness/public-release-gate.json')
-      .writeAsString(
-    const JsonEncoder.withIndent('  ').convert({
-      'decision': 'NOT_READY',
-      'ready': false,
-      'blockerCount': 1,
-    }),
+  await File(
+    '${root.path}/docs/supported-hardware-by-platform.md',
+  ).writeAsString('# Supported Hardware By Platform\n');
+  await File(
+    '${root.path}/docs/release-notes-template.md',
+  ).writeAsString('# Nightshade Release Notes Template\n');
+  await File(
+    '${root.path}/docs/production-readiness/public-release-gate.json',
+  ).writeAsString(
+    const JsonEncoder.withIndent(
+      '  ',
+    ).convert({'decision': 'NOT_READY', 'ready': false, 'blockerCount': 1}),
   );
 }
 
@@ -271,15 +272,13 @@ Future<void> _writeStaleLinuxEvidence(Directory root) async {
   }
 
   await File(
-          '${root.path}/docs/production-readiness/linux-release-build-evidence.json')
-      .writeAsString(
+    '${root.path}/docs/production-readiness/linux-release-build-evidence.json',
+  ).writeAsString(
     const JsonEncoder.withIndent('  ').convert({
       'platform': 'linux',
       'metadataSchemaVersion': 1,
       'buildCommand': 'dart run melos run build:desktop:linux --no-select',
-      'toolVersions': {
-        'dartVersion': 'Dart VM fixture',
-      },
+      'toolVersions': {'dartVersion': 'Dart VM fixture'},
       'buildPassed': true,
       'packageArtifactPath': 'nightshade-linux.tar.gz',
       'packageSizeBytes': 1,
@@ -334,8 +333,8 @@ Future<void> _writePassingLinuxEvidence(Directory root) async {
   );
 
   await File(
-          '${root.path}/docs/production-readiness/linux-release-build-evidence.json')
-      .writeAsString(
+    '${root.path}/docs/production-readiness/linux-release-build-evidence.json',
+  ).writeAsString(
     const JsonEncoder.withIndent('  ').convert({
       'platform': 'linux',
       'metadataSchemaVersion': 2,
@@ -755,8 +754,8 @@ Future<void> _writeTemplateFinalSignoffEvidence(Directory root) async {
 
 Future<void> _writePassingFinalSignoffEvidence(Directory root) async {
   await File(
-          '${root.path}/docs/production-readiness/public-release-checklist-audit.json')
-      .writeAsString(
+    '${root.path}/docs/production-readiness/public-release-checklist-audit.json',
+  ).writeAsString(
     const JsonEncoder.withIndent('  ').convert({
       'uncheckedItemCount': 0,
       'checkedWithoutEvidenceCount': 0,
@@ -797,13 +796,12 @@ Back up profiles before upgrade.
 ## Rollback Plan
 Restore the previous build and profile backup.
 ''');
-  await File('${root.path}/docs/production-readiness/public-release-gate.json')
-      .writeAsString(
-    const JsonEncoder.withIndent('  ').convert({
-      'decision': 'READY',
-      'ready': true,
-      'blockerCount': 0,
-    }),
+  await File(
+    '${root.path}/docs/production-readiness/public-release-gate.json',
+  ).writeAsString(
+    const JsonEncoder.withIndent(
+      '  ',
+    ).convert({'decision': 'READY', 'ready': true, 'blockerCount': 0}),
   );
   final head = _gitHead(root);
   await File(
@@ -824,11 +822,9 @@ Restore the previous build and profile backup.
 }
 
 Future<void> _runVerifier(File verifier, Directory workingDirectory) async {
-  final result = await Process.run(
-    'dart',
-    [verifier.path],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = await Process.run('dart', [
+    verifier.path,
+  ], workingDirectory: workingDirectory.path);
   if (result.exitCode != 0) {
     throw StateError(
       'Verifier failed with exit ${result.exitCode}\n'
@@ -854,11 +850,10 @@ Future<void> _runGit(Directory workingDirectory, List<String> arguments) async {
 }
 
 String _gitHead(Directory workingDirectory) {
-  final result = Process.runSync(
-    'git',
-    ['rev-parse', 'HEAD'],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = Process.runSync('git', [
+    'rev-parse',
+    'HEAD',
+  ], workingDirectory: workingDirectory.path);
   if (result.exitCode != 0) {
     throw StateError(
       'git rev-parse HEAD failed with exit ${result.exitCode}\n'
@@ -909,10 +904,9 @@ String? _sha256(File file) {
   if (result.exitCode != 0) {
     return null;
   }
-  return RegExp(r'\b[0-9a-fA-F]{64}\b')
-      .firstMatch(result.stdout.toString())
-      ?.group(0)
-      ?.toLowerCase();
+  return RegExp(
+    r'\b[0-9a-fA-F]{64}\b',
+  ).firstMatch(result.stdout.toString())?.group(0)?.toLowerCase();
 }
 
 const _requiredDeviceTypes = [

@@ -164,11 +164,8 @@ class PluginEvent {
   final DateTime timestamp;
 
   /// Creates a plugin event
-  PluginEvent({
-    required this.name,
-    required this.data,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+  PluginEvent({required this.name, required this.data, DateTime? timestamp})
+    : timestamp = timestamp ?? DateTime.now();
 }
 
 /// Exception thrown by plugin system
@@ -183,7 +180,8 @@ class PluginException implements Exception {
   PluginException(this.message, [this.cause]);
 
   @override
-  String toString() => 'PluginException: $message${cause != null ? ' (caused by: $cause)' : ''}';
+  String toString() =>
+      'PluginException: $message${cause != null ? ' (caused by: $cause)' : ''}';
 }
 
 /// Plugin that adds UI panels
@@ -196,16 +194,16 @@ abstract class UiPlugin extends NightshadePlugin {
 enum UiExtensionPointType {
   /// Panel in equipment tab
   equipmentPanel,
-  
+
   /// Panel in imaging tab
   imagingPanel,
-  
+
   /// Panel in sequencer tab
   sequencerPanel,
-  
+
   /// Status bar widget
   statusBar,
-  
+
   /// Settings section
   settings,
 }
@@ -282,8 +280,3 @@ class SequenceNodeDefinition {
     required this.createNode,
   });
 }
-
-
-
-
-

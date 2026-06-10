@@ -99,7 +99,8 @@ void main() {
     );
   });
 
-  testWidgets('preserves the empty-body code path (no MarkdownBody when '
+  testWidgets(
+      'preserves the empty-body code path (no MarkdownBody when '
       'body is empty)', (tester) async {
     final service = NotesService(database);
     await service.addNote(

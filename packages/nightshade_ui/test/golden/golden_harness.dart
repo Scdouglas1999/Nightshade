@@ -26,16 +26,19 @@ abstract final class GoldenHarness {
   static Future<void> ensureFonts() async {
     if (_fontsLoaded) return;
     final root = repoRoot().path;
-    await _loadFont('HankenGrotesk',
-        '$root/packages/nightshade_ui/assets/fonts/HankenGrotesk-VF.ttf');
-    await _loadFont('SplineSansMono',
-        '$root/packages/nightshade_ui/assets/fonts/SplineSansMono-VF.ttf');
+    await _loadFont(
+      'HankenGrotesk',
+      '$root/packages/nightshade_ui/assets/fonts/HankenGrotesk-VF.ttf',
+    );
+    await _loadFont(
+      'SplineSansMono',
+      '$root/packages/nightshade_ui/assets/fonts/SplineSansMono-VF.ttf',
+    );
     // The Lucide glyph font is a package asset (family "Lucide", package
     // "lucide_icons" → resolved family "packages/lucide_icons/Lucide"). Load it
     // so HUD/nav/button icons render as real glyphs in the captured PNGs
     // instead of tofu boxes.
-    await _loadFont(
-        'packages/lucide_icons/Lucide', resolveLucideTtf());
+    await _loadFont('packages/lucide_icons/Lucide', resolveLucideTtf());
     _fontsLoaded = true;
   }
 
@@ -43,11 +46,15 @@ abstract final class GoldenHarness {
   /// caller package's `.dart_tool/package_config.json`. Fails loud if the
   /// dependency or its asset cannot be found.
   static String resolveLucideTtf() {
-    final config = File('${Directory.current.path}/.dart_tool/'
-        'package_config.json');
+    final config = File(
+      '${Directory.current.path}/.dart_tool/'
+      'package_config.json',
+    );
     if (!config.existsSync()) {
-      throw StateError('package_config.json not found for golden font load: '
-          '${config.path}');
+      throw StateError(
+        'package_config.json not found for golden font load: '
+        '${config.path}',
+      );
     }
     final decoded =
         jsonDecode(config.readAsStringSync()) as Map<String, dynamic>;
@@ -144,8 +151,9 @@ abstract final class GoldenHarness {
     // components run indeterminate/attention animations forever).
     await tester.pump(const Duration(milliseconds: 32));
 
-    final boundary = boundaryKey.currentContext!.findRenderObject()!
-        as RenderRepaintBoundary;
+    final boundary =
+        boundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
     // toImage / toByteData are real async GPU+IO ops that never resolve under
     // the automated test binding's fake-async zone — capture inside runAsync
     // or the awaiting test hangs to the per-test timeout.
@@ -159,8 +167,10 @@ abstract final class GoldenHarness {
         final out = File('${goldensDir().path}/$fileName');
         out.writeAsBytesSync(bytes.buffer.asUint8List());
         // ignore: avoid_print
-        print('Golden written: ${out.absolute.path} '
-            '(${out.lengthSync()} bytes)');
+        print(
+          'Golden written: ${out.absolute.path} '
+          '(${out.lengthSync()} bytes)',
+        );
         return out;
       } finally {
         image.dispose();

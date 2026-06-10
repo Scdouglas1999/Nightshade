@@ -18,17 +18,21 @@ ProviderContainer _newContainer() {
 CurrentSequenceNotifier _notifier(ProviderContainer c) =>
     c.read(currentSequenceProvider.notifier);
 
-TargetHeaderNode _target(String name,
-        {double ra = 1.0, double dec = 0.0, String? id, String? parentId}) =>
-    TargetHeaderNode(
-      id: id,
-      name: name,
-      targetName: name,
-      raHours: ra,
-      decDegrees: dec,
-      parentId: parentId,
-      isEnabled: true,
-    );
+TargetHeaderNode _target(
+  String name, {
+  double ra = 1.0,
+  double dec = 0.0,
+  String? id,
+  String? parentId,
+}) => TargetHeaderNode(
+  id: id,
+  name: name,
+  targetName: name,
+  raHours: ra,
+  decDegrees: dec,
+  parentId: parentId,
+  isEnabled: true,
+);
 
 void main() {
   group('canEditSequenceProvider', () {
@@ -40,8 +44,11 @@ void main() {
       ]) {
         final c = _newContainer();
         c.read(sequenceExecutionStateProvider.notifier).state = state;
-        expect(c.read(canEditSequenceProvider), isTrue,
-            reason: 'state=$state should be editable');
+        expect(
+          c.read(canEditSequenceProvider),
+          isTrue,
+          reason: 'state=$state should be editable',
+        );
       }
     });
 
@@ -53,8 +60,11 @@ void main() {
       ]) {
         final c = _newContainer();
         c.read(sequenceExecutionStateProvider.notifier).state = state;
-        expect(c.read(canEditSequenceProvider), isFalse,
-            reason: 'state=$state should be locked');
+        expect(
+          c.read(canEditSequenceProvider),
+          isFalse,
+          reason: 'state=$state should be locked',
+        );
       }
     });
   });
@@ -167,8 +177,10 @@ void main() {
       _notifier(c).setName('one');
       c.read(sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.running;
-      expect(() => _notifier(c).undo(),
-          throwsA(isA<SequenceLockedException>()));
+      expect(
+        () => _notifier(c).undo(),
+        throwsA(isA<SequenceLockedException>()),
+      );
       // Run terminates -> editing restored.
       c.read(sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.completed;
@@ -212,10 +224,8 @@ void main() {
       final loopB = LoopNode(id: 'loopB', name: 'B', parentId: rootId);
       _notifier(c).addNode(loopA, parentId: rootId);
       _notifier(c).addNode(loopB, parentId: rootId);
-      _notifier(c)
-          .addNode(_target('A1', id: 'aT'), parentId: 'loopA');
-      _notifier(c)
-          .addNode(_target('B1', id: 'bT'), parentId: 'loopB');
+      _notifier(c).addNode(_target('A1', id: 'aT'), parentId: 'loopA');
+      _notifier(c).addNode(_target('B1', id: 'bT'), parentId: 'loopB');
 
       // targetHeaders flattens across parents; reorderTargets(1, 0)
       // (downward swap, no Flutter index adjustment) tries to swap the two
@@ -233,10 +243,7 @@ void main() {
       _notifier(c).addTargetHeader(_target('A'));
       _notifier(c).addTargetHeader(_target('B'));
       // Two siblings under root — should succeed.
-      expect(
-        () => _notifier(c).reorderTargets(0, 1),
-        returnsNormally,
-      );
+      expect(() => _notifier(c).reorderTargets(0, 1), returnsNormally);
     });
   });
 
@@ -305,8 +312,10 @@ void main() {
       final c = _newContainer();
       _notifier(c).createSequence();
       _notifier(c).addNode(_target('M31', id: 't1'));
-      _notifier(c)
-          .addNode(LoopNode(id: 'L', name: 'L'), parentId: 't1');
+      _notifier(c).addNode(
+        LoopNode(id: 'L', name: 'L'),
+        parentId: 't1',
+      );
       _notifier(c).addNode(
         ExposureNode(id: 'E', name: 'Exp', durationSecs: 60, count: 1),
         parentId: 'L',
@@ -334,8 +343,11 @@ void main() {
       // can detect that exactly ONE additional entry comes from the snippet
       // insertion (not three).
       _notifier(c).setName('baseline');
-      expect(_notifier(c).canUndo, isTrue,
-          reason: 'setName saved one undo entry');
+      expect(
+        _notifier(c).canUndo,
+        isTrue,
+        reason: 'setName saved one undo entry',
+      );
 
       // Build a 3-node snippet (exposure -> exposure -> dither). After
       // insertion, exactly ONE additional undo entry should exist.
@@ -346,22 +358,9 @@ void main() {
         category: SnippetCategory.custom,
         iconName: 'star',
         nodeData: const [
-          {
-            'nodeType': 'Exposure',
-            'name': 'L',
-            'durationSecs': 60,
-            'count': 5,
-          },
-          {
-            'nodeType': 'Exposure',
-            'name': 'R',
-            'durationSecs': 60,
-            'count': 5,
-          },
-          {
-            'nodeType': 'Dither',
-            'name': 'D',
-          },
+          {'nodeType': 'Exposure', 'name': 'L', 'durationSecs': 60, 'count': 5},
+          {'nodeType': 'Exposure', 'name': 'R', 'durationSecs': 60, 'count': 5},
+          {'nodeType': 'Dither', 'name': 'D'},
         ],
         createdAt: DateTime(2026, 1, 1),
       );
@@ -391,12 +390,9 @@ void main() {
       final n = _notifier(c);
 
       n.withUndoGroup(() {
-        n.addNode(
-            ExposureNode(id: 'a', durationSecs: 1, count: 1, name: 'a'));
-        n.addNode(
-            ExposureNode(id: 'b', durationSecs: 1, count: 1, name: 'b'));
-        n.addNode(
-            ExposureNode(id: 'c', durationSecs: 1, count: 1, name: 'c'));
+        n.addNode(ExposureNode(id: 'a', durationSecs: 1, count: 1, name: 'a'));
+        n.addNode(ExposureNode(id: 'b', durationSecs: 1, count: 1, name: 'b'));
+        n.addNode(ExposureNode(id: 'c', durationSecs: 1, count: 1, name: 'c'));
       });
 
       final before = c.read(currentSequenceProvider)!;
@@ -405,8 +401,11 @@ void main() {
 
       n.undo();
       final after = c.read(currentSequenceProvider)!;
-      expect(after.getChildren(rootId).length, 0,
-          reason: 'a single undo should clear all three batched nodes');
+      expect(
+        after.getChildren(rootId).length,
+        0,
+        reason: 'a single undo should clear all three batched nodes',
+      );
     });
   });
 }

@@ -31,8 +31,7 @@ void main() {
     /// prove the additive bump preserves existing rows.
     Future<File> createV2Database(Directory dir) async {
       final dbFile = File('${dir.path}/pairing.db');
-      final setupDb =
-          PairingDatabase.forTesting(NativeDatabase(dbFile));
+      final setupDb = PairingDatabase.forTesting(NativeDatabase(dbFile));
       try {
         // A real paired device must already be on disk before the upgrade.
         await setupDb.addPairedDevice(
@@ -53,7 +52,9 @@ void main() {
     }
 
     Future<Directory> tempDir(String suffix) async {
-      final dir = await Directory.systemTemp.createTemp('ns_pairing_v2v3_$suffix');
+      final dir = await Directory.systemTemp.createTemp(
+        'ns_pairing_v2v3_$suffix',
+      );
       addTearDown(() async {
         if (await dir.exists()) await dir.delete(recursive: true);
       });
@@ -66,9 +67,7 @@ void main() {
       final upgraded = PairingDatabase.forTesting(NativeDatabase(dbFile));
       try {
         final tables = await upgraded
-            .customSelect(
-              "SELECT name FROM sqlite_master WHERE type = 'table'",
-            )
+            .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
             .get();
         final names = tables.map((r) => r.data['name'] as String).toSet();
         expect(
@@ -90,7 +89,8 @@ void main() {
         expect(
           device,
           isNotNull,
-          reason: 'An additive table-add migration must not touch existing '
+          reason:
+              'An additive table-add migration must not touch existing '
               'paired-device rows. If this fails the migration is destroying '
               'pairing state on upgrade.',
         );
@@ -101,41 +101,43 @@ void main() {
       }
     });
 
-    test('push accessors work after the upgrade (token upsert + prefs)',
-        () async {
-      final dbFile = await createV2Database(await tempDir('accessors'));
+    test(
+      'push accessors work after the upgrade (token upsert + prefs)',
+      () async {
+        final dbFile = await createV2Database(await tempDir('accessors'));
 
-      final upgraded = PairingDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        // The /api/push/register-token path: upsert a token for the device
-        // that pre-existed the migration.
-        await upgraded.upsertPushToken(
-          deviceId: 'legacy-phone',
-          platform: 'fcm',
-          token: 'post-upgrade-token',
-        );
-        final tokens = await upgraded.getPushTokensByPlatform('fcm');
-        expect(tokens, hasLength(1));
-        expect(tokens.single.deviceId, 'legacy-phone');
-        expect(tokens.single.token, 'post-upgrade-token');
+        final upgraded = PairingDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          // The /api/push/register-token path: upsert a token for the device
+          // that pre-existed the migration.
+          await upgraded.upsertPushToken(
+            deviceId: 'legacy-phone',
+            platform: 'fcm',
+            token: 'post-upgrade-token',
+          );
+          final tokens = await upgraded.getPushTokensByPlatform('fcm');
+          expect(tokens, hasLength(1));
+          expect(tokens.single.deviceId, 'legacy-phone');
+          expect(tokens.single.token, 'post-upgrade-token');
 
-        // The /api/push/preferences PUT path: round-trips through the new table.
-        await upgraded.upsertPushPrefs(
-          deviceId: 'legacy-phone',
-          enabled: true,
-          muteSequenceFailed: false,
-          muteWeatherUnsafe: true,
-          muteGuidingLost: false,
-          muteAutofocusFailed: false,
-          muteEquipmentDisconnected: false,
-        );
-        final prefs = await upgraded.getPushPrefs('legacy-phone');
-        expect(prefs, isNotNull);
-        expect(prefs!.muteWeatherUnsafe, isTrue);
-        expect(prefs.enabled, isTrue);
-      } finally {
-        await upgraded.close();
-      }
-    });
+          // The /api/push/preferences PUT path: round-trips through the new table.
+          await upgraded.upsertPushPrefs(
+            deviceId: 'legacy-phone',
+            enabled: true,
+            muteSequenceFailed: false,
+            muteWeatherUnsafe: true,
+            muteGuidingLost: false,
+            muteAutofocusFailed: false,
+            muteEquipmentDisconnected: false,
+          );
+          final prefs = await upgraded.getPushPrefs('legacy-phone');
+          expect(prefs, isNotNull);
+          expect(prefs!.muteWeatherUnsafe, isTrue);
+          expect(prefs.enabled, isTrue);
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
   });
 }

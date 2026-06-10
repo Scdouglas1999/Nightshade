@@ -152,8 +152,8 @@ const Object _unset = Object();
 /// Main app settings provider
 final appSettingsProvider =
     AsyncNotifierProvider<AppSettingsNotifier, AppSettingsState>(() {
-  return AppSettingsNotifier();
-});
+      return AppSettingsNotifier();
+    });
 
 /// Effective horizon in degrees selected from [appSettingsProvider].
 ///
@@ -230,7 +230,8 @@ final autofocusSettingsProvider = Provider<AutofocusSettings>((ref) {
     backlashOut: settings.afBacklashOut,
     autofocusFilterName: settings.afAutofocusFilterName,
     filterSettings: AutofocusSettings.parseFilterSettingsJson(
-        settings.afFilterSettingsJson),
+      settings.afFilterSettingsJson,
+    ),
   );
 });
 
@@ -272,11 +273,7 @@ class LocationSettingsNotifier extends AsyncNotifier<LocationSettings> {
     final lon = await dao.getObserverLongitude();
     final elev = await dao.getObserverElevation();
 
-    return LocationSettings(
-      latitude: lat,
-      longitude: lon,
-      elevation: elev,
-    );
+    return LocationSettings(latitude: lat, longitude: lon, elevation: elev);
   }
 
   Future<void> updateLocation({
@@ -297,18 +294,20 @@ class LocationSettingsNotifier extends AsyncNotifier<LocationSettings> {
       await dao.setObserverElevation(elevation);
     }
 
-    state = AsyncData(current.copyWith(
-      latitude: latitude,
-      longitude: longitude,
-      elevation: elevation,
-    ));
+    state = AsyncData(
+      current.copyWith(
+        latitude: latitude,
+        longitude: longitude,
+        elevation: elevation,
+      ),
+    );
   }
 }
 
 final locationSettingsProvider =
     AsyncNotifierProvider<LocationSettingsNotifier, LocationSettings>(() {
-  return LocationSettingsNotifier();
-});
+      return LocationSettingsNotifier();
+    });
 
 // ============================================================================
 // Output Settings
@@ -360,7 +359,8 @@ class OutputSettingsNotifier extends AsyncNotifier<OutputSettings> {
     final format = await dao.getSetting('output_format') ?? 'FITS';
     final bitDepth = await dao.getSetting('output_bit_depth') ?? '16-bit';
     final savePath = await dao.getSetting('default_image_directory') ?? '';
-    final filePattern = await dao.getSetting('file_pattern') ??
+    final filePattern =
+        await dao.getSetting('file_pattern') ??
         r'$DATE_$TARGET_$FILTER_$EXPOSURE_###';
     final includeTimestamp =
         (await dao.getSetting('include_timestamp') ?? 'true') == 'true';
@@ -404,21 +404,23 @@ class OutputSettingsNotifier extends AsyncNotifier<OutputSettings> {
       await dao.setSettings(settings);
     }
 
-    state = AsyncData(current.copyWith(
-      format: format,
-      bitDepth: bitDepth,
-      savePath: savePath,
-      filePattern: filePattern,
-      includeTimestamp: includeTimestamp,
-      includeFilter: includeFilter,
-    ));
+    state = AsyncData(
+      current.copyWith(
+        format: format,
+        bitDepth: bitDepth,
+        savePath: savePath,
+        filePattern: filePattern,
+        includeTimestamp: includeTimestamp,
+        includeFilter: includeFilter,
+      ),
+    );
   }
 }
 
 final outputSettingsProvider =
     AsyncNotifierProvider<OutputSettingsNotifier, OutputSettings>(() {
-  return OutputSettingsNotifier();
-});
+      return OutputSettingsNotifier();
+    });
 
 // ============================================================================
 // Plate Solve Settings
@@ -505,20 +507,22 @@ class PlateSolveSettingsNotifier extends AsyncNotifier<PlateSolveSettings> {
       await dao.setSettings(settings);
     }
 
-    state = AsyncData(current.copyWith(
-      solver: solver,
-      solverPath: solverPath,
-      timeoutSeconds: timeoutSeconds,
-      autoSolve: autoSolve,
-      searchRadius: searchRadius,
-    ));
+    state = AsyncData(
+      current.copyWith(
+        solver: solver,
+        solverPath: solverPath,
+        timeoutSeconds: timeoutSeconds,
+        autoSolve: autoSolve,
+        searchRadius: searchRadius,
+      ),
+    );
   }
 }
 
 final plateSolveSettingsProvider =
     AsyncNotifierProvider<PlateSolveSettingsNotifier, PlateSolveSettings>(() {
-  return PlateSolveSettingsNotifier();
-});
+      return PlateSolveSettingsNotifier();
+    });
 
 // ============================================================================
 // Theme Settings
@@ -541,8 +545,8 @@ class ThemeSettingsNotifier extends AsyncNotifier<String> {
 
 final themeSettingsProvider =
     AsyncNotifierProvider<ThemeSettingsNotifier, String>(() {
-  return ThemeSettingsNotifier();
-});
+      return ThemeSettingsNotifier();
+    });
 
 // ============================================================================
 // Auto Connect Settings
@@ -565,8 +569,8 @@ class AutoConnectSettingsNotifier extends AsyncNotifier<bool> {
 
 final autoConnectSettingsProvider =
     AsyncNotifierProvider<AutoConnectSettingsNotifier, bool>(() {
-  return AutoConnectSettingsNotifier();
-});
+      return AutoConnectSettingsNotifier();
+    });
 
 // ============================================================================
 // Horizon Profile Utilities
@@ -581,7 +585,7 @@ const List<String> horizonDirections = [
   'S',
   'SW',
   'W',
-  'NW'
+  'NW',
 ];
 
 /// Azimuth angles corresponding to each compass direction
@@ -593,7 +597,7 @@ const List<double> horizonDirectionAzimuths = [
   180.0,
   225.0,
   270.0,
-  315.0
+  315.0,
 ];
 
 /// Bortle scale descriptions and limiting magnitudes
@@ -755,7 +759,8 @@ class HorizonProfile {
   /// imported skyline never under-reports an obstruction. Sectors with no
   /// samples default to 0° (open sky).
   factory HorizonProfile.fromSamples(
-      List<({double azimuth, double altitude})> samples) {
+    List<({double azimuth, double altitude})> samples,
+  ) {
     final altitudes = <String, double>{
       for (final dir in horizonDirections) dir: 0.0,
     };
@@ -798,20 +803,23 @@ class HorizonProfile {
           .toList();
       if (parts.length < 2) {
         throw FormatException(
-            'Horizon import line ${i + 1}: expected "azimuth altitude", '
-            'got "$trimmed"');
+          'Horizon import line ${i + 1}: expected "azimuth altitude", '
+          'got "$trimmed"',
+        );
       }
       final az = double.tryParse(parts[0]);
       final alt = double.tryParse(parts[1]);
       if (az == null || alt == null) {
         throw FormatException(
-            'Horizon import line ${i + 1}: non-numeric value in "$trimmed"');
+          'Horizon import line ${i + 1}: non-numeric value in "$trimmed"',
+        );
       }
       samples.add((azimuth: az, altitude: alt));
     }
     if (samples.isEmpty) {
       throw const FormatException(
-          'Horizon import contained no usable azimuth/altitude pairs');
+        'Horizon import contained no usable azimuth/altitude pairs',
+      );
     }
     return HorizonProfile.fromSamples(samples);
   }
@@ -826,7 +834,8 @@ final bortleClassProvider = Provider<int>((ref) {
 /// Focused provider for parsed horizon profile.
 final horizonProfileProvider = Provider<HorizonProfile>((ref) {
   final settingsAsync = ref.watch(appSettingsProvider);
-  final json = settingsAsync.valueOrNull?.horizonProfileJson ??
+  final json =
+      settingsAsync.valueOrNull?.horizonProfileJson ??
       '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}';
   return HorizonProfile.fromJson(json);
 });

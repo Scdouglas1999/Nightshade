@@ -32,8 +32,7 @@ import 'package:nightshade_core/src/services/hips/hips_tile_selection.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('C7 providers drive a registered, gap-free framing tile mosaic',
-      () async {
+  test('C7 providers drive a registered, gap-free framing tile mosaic', () async {
     const canvas = ui.Size(1200, 900);
     const plateScale = FramingPlateScale(
       surveyFovWidthDeg: 1.5,
@@ -54,16 +53,21 @@ hips_frame        = equatorial
       final url = request.url.toString();
       final seed = url.hashCode & 0x7fffffff;
       return http.Response.bytes(
-        _solidPng(64, 80 + seed % 120, 80 + (seed ~/ 120) % 120,
-            100 + (seed ~/ 14400) % 120),
+        _solidPng(
+          64,
+          80 + seed % 120,
+          80 + (seed ~/ 120) % 120,
+          100 + (seed ~/ 14400) % 120,
+        ),
         200,
       );
     });
 
     final container = ProviderContainer(
       overrides: [
-        hipsTileFetcherProvider
-            .overrideWithValue(HipsTileFetcher(httpClient: server)),
+        hipsTileFetcherProvider.overrideWithValue(
+          HipsTileFetcher(httpClient: server),
+        ),
         hipsTileCacheProvider.overrideWithValue(
           HipsTileCache(maxEntries: 1024, maxBytes: 128 * 1024 * 1024),
         ),
@@ -119,8 +123,10 @@ hips_frame        = equatorial
     expect(vs, isNotNull);
 
     // Render the snapshot the way the painter layers it.
-    final image =
-        img.Image(width: canvas.width.toInt(), height: canvas.height.toInt());
+    final image = img.Image(
+      width: canvas.width.toInt(),
+      height: canvas.height.toInt(),
+    );
     img.fill(image, color: img.ColorRgb8(6, 9, 16));
 
     if (snap.allsky != null) {
@@ -142,42 +148,55 @@ hips_frame        = equatorial
     _rectOutline(image, fov, img.ColorRgb8(255, 170, 60));
 
     // The projected FOV center must be covered (never blank there).
-    final center = vs.projection.raDecToScreen(target.raHours, target.decDegrees);
+    final center = vs.projection.raDecToScreen(
+      target.raHours,
+      target.decDegrees,
+    );
     final coveringMeshes = <HipsTileMesh>[
       ...snap.primaryTiles.map((t) => t.mesh),
       ...snap.fallbackTiles.map((t) => t.mesh),
     ];
-    final centerCovered = snap.allsky != null ||
+    final centerCovered =
+        snap.allsky != null ||
         coveringMeshes.any((mesh) {
           final b = mesh.screenBounds;
           return b != null && b.contains(ui.Offset(center.dx, center.dy));
         });
-    expect(centerCovered, isTrue,
-        reason: 'FOV center must be covered by a resident tile / Allsky base');
+    expect(
+      centerCovered,
+      isTrue,
+      reason: 'FOV center must be covered by a resident tile / Allsky base',
+    );
 
     final png = Uint8List.fromList(img.encodePng(image));
 
     final repoRoot = _repoRoot();
     final sampleDir = Directory('${repoRoot.path}/.hips_verify');
     sampleDir.createSync(recursive: true);
-    final sample =
-        File('${sampleDir.path}/hips_framing_provider_registered.png');
+    final sample = File(
+      '${sampleDir.path}/hips_framing_provider_registered.png',
+    );
     sample.writeAsBytesSync(png);
     // ignore: avoid_print
     print('HiPS C7 provider sample written: ${sample.absolute.path}');
 
     final goldenDir = Directory('test/providers/goldens');
     goldenDir.createSync(recursive: true);
-    final golden =
-        File('${goldenDir.path}/hips_framing_provider_registered.png');
+    final golden = File(
+      '${goldenDir.path}/hips_framing_provider_registered.png',
+    );
     if (!golden.existsSync()) {
       golden.writeAsBytesSync(png);
       // ignore: avoid_print
       print('Golden created: ${golden.absolute.path}');
     } else {
-      expect(png, golden.readAsBytesSync(),
-          reason: 'C7 provider render drifted from golden; if intentional, '
-              'delete ${golden.path} to regenerate.');
+      expect(
+        png,
+        golden.readAsBytesSync(),
+        reason:
+            'C7 provider render drifted from golden; if intentional, '
+            'delete ${golden.path} to regenerate.',
+      );
     }
   });
 }
@@ -224,14 +243,22 @@ void _meshOutline(img.Image image, HipsTileMesh mesh, img.Color color) {
   final n = mesh.subdivisions;
   for (var row = 0; row <= n; row++) {
     for (var col = 0; col < n; col++) {
-      _line(image, mesh.vertexAt(row, col).screen,
-          mesh.vertexAt(row, col + 1).screen, color);
+      _line(
+        image,
+        mesh.vertexAt(row, col).screen,
+        mesh.vertexAt(row, col + 1).screen,
+        color,
+      );
     }
   }
   for (var col = 0; col <= n; col++) {
     for (var row = 0; row < n; row++) {
-      _line(image, mesh.vertexAt(row, col).screen,
-          mesh.vertexAt(row + 1, col).screen, color);
+      _line(
+        image,
+        mesh.vertexAt(row, col).screen,
+        mesh.vertexAt(row + 1, col).screen,
+        color,
+      );
     }
   }
 }

@@ -32,7 +32,8 @@ class CameraTab extends ConsumerWidget {
       return const EmptyState(
         icon: LucideIcons.camera,
         title: 'Camera not connected',
-        body: 'Connect the camera from the Devices tab to start capturing '
+        body:
+            'Connect the camera from the Devices tab to start capturing '
             'and adjust cooling.',
       );
     }
@@ -55,8 +56,7 @@ class CameraTab extends ConsumerWidget {
     final showLiveViewStream =
         backend is NetworkBackend && cameraState.deviceId != null;
     final prefsAsync = ref.watch(mobilePreferencesProvider);
-    final preferWebRtc =
-        prefsAsync.valueOrNull?.preferWebRtcLiveView ?? true;
+    final preferWebRtc = prefsAsync.valueOrNull?.preferWebRtcLiveView ?? true;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -209,9 +209,7 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
           ),
           const SizedBox(height: 8),
           AspectRatio(
-            aspectRatio: latest == null
-                ? 16 / 9
-                : latest.width / latest.height,
+            aspectRatio: latest == null ? 16 / 9 : latest.width / latest.height,
             child: Container(
               decoration: BoxDecoration(
                 color: colors.background,
@@ -226,24 +224,24 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
                       fit: BoxFit.contain,
                     )
                   : (_error != null
-                      ? Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            'Live preview unavailable: $_error',
+                        ? Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              'Live preview unavailable: $_error',
+                              style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : Text(
+                            'Waiting for first frame…',
                             style: TextStyle(
                               color: colors.textMuted,
                               fontSize: 12,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : Text(
-                          'Waiting for first frame…',
-                          style: TextStyle(
-                            color: colors.textMuted,
-                            fontSize: 12,
-                          ),
-                        )),
+                          )),
             ),
           ),
         ],
@@ -483,7 +481,9 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
     setState(() => _starting = true);
     try {
       final session = ref.read(sessionStateProvider);
-      final result = await ref.read(imagingServiceProvider).captureImage(
+      final result = await ref
+          .read(imagingServiceProvider)
+          .captureImage(
             settings: widget.settings,
             targetName: session.targetName,
           );
@@ -551,10 +551,7 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
           ),
           if (isExposing) ...[
             const SizedBox(height: 12),
-            NightshadeProgressBar(
-              value: pct / 100.0,
-              height: 8,
-            ),
+            NightshadeProgressBar(value: pct / 100.0, height: 8),
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -565,38 +562,44 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
                   style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
                 if (widget.progress.isDownloading)
-                  Text('Downloading…',
-                      style: TextStyle(color: colors.warning, fontSize: 12)),
+                  Text(
+                    'Downloading…',
+                    style: TextStyle(color: colors.warning, fontSize: 12),
+                  ),
                 if (hfr != null && hfr > 0)
-                  Text('HFR ${hfr.toStringAsFixed(2)}',
-                      style:
-                          TextStyle(color: colors.textSecondary, fontSize: 12)),
+                  Text(
+                    'HFR ${hfr.toStringAsFixed(2)}',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                  ),
               ],
             ),
           ] else ...[
             // Couch-glance stats row: last-frame quality plus live guide
             // RMS, so the phone answers "is the rig healthy?" without a
             // walk to the desktop.
-            Builder(builder: (context) {
-              final stars = lastStats?.starCount;
-              final ecc = lastStats?.eccentricity;
-              final guider = ref.watch(guiderStateProvider);
-              final rms = guider.isGuiding ? guider.rmsTotal : null;
-              final parts = <String>[
-                if (hfr != null && hfr > 0) 'HFR ${hfr.toStringAsFixed(2)} px',
-                if (stars != null && stars > 0) '$stars stars',
-                if (ecc != null) 'ecc ${ecc.toStringAsFixed(2)}',
-                if (rms != null && rms > 0) 'RMS ${rms.toStringAsFixed(2)}',
-              ];
-              if (parts.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  parts.join('  •  '),
-                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                ),
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final stars = lastStats?.starCount;
+                final ecc = lastStats?.eccentricity;
+                final guider = ref.watch(guiderStateProvider);
+                final rms = guider.isGuiding ? guider.rmsTotal : null;
+                final parts = <String>[
+                  if (hfr != null && hfr > 0)
+                    'HFR ${hfr.toStringAsFixed(2)} px',
+                  if (stars != null && stars > 0) '$stars stars',
+                  if (ecc != null) 'ecc ${ecc.toStringAsFixed(2)}',
+                  if (rms != null && rms > 0) 'RMS ${rms.toStringAsFixed(2)}',
+                ];
+                if (parts.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    parts.join('  •  '),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                  ),
+                );
+              },
+            ),
           ],
           const SizedBox(height: 12),
           Row(
@@ -828,7 +831,10 @@ class _FilterCard extends ConsumerWidget {
                         if (context.mounted) {
                           // [Wave 6D error parsing]
                           showApiErrorWithPrefix(
-                              context, 'Filter change failed', e);
+                            context,
+                            'Filter change failed',
+                            e,
+                          );
                         }
                       }
                     },
@@ -866,9 +872,7 @@ class _FilterChip extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? colors.primary : colors.surfaceAlt,
-          border: Border.all(
-            color: selected ? colors.primary : colors.border,
-          ),
+          border: Border.all(color: selected ? colors.primary : colors.border),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(

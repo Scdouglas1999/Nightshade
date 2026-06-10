@@ -9,8 +9,3 @@ class AppSettings extends Table {
   TextColumn get value => text()();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
-
-
-
-
-

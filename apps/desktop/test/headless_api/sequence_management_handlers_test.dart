@@ -35,58 +35,73 @@ void main() {
     });
 
     test('invalid sequence ID returns JSON internal error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetSequenceById(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/sequence-management/not-an-id'),
+      final response = await translateHandlerErrors(
+        handlers.handleGetSequenceById(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/sequence-management/not-an-id'),
+          ),
+          'not-an-id',
         ),
-        'not-an-id',
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
-    test('create sequence malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCreateSequence(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/sequence-management'),
-          body: jsonEncode({}),
-        ),
-      ));
+    test(
+      'create sequence malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleCreateSequence(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/sequence-management'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
-    test('set node enabled malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleSetNodeEnabled(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/sequence-management/nodes/1/enabled'),
-          body: jsonEncode({}),
-        ),
-        '1',
-      ));
+    test(
+      'set node enabled malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSetNodeEnabled(
+            Request(
+              'POST',
+              Uri.parse(
+                'http://localhost/api/sequence-management/nodes/1/enabled',
+              ),
+              body: jsonEncode({}),
+            ),
+            '1',
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
     test('save-full persists sequence and notifies catalog bus', () async {
       final updates = <SequenceCatalogUpdate>[];
@@ -142,62 +157,66 @@ void main() {
       await sub.cancel();
     });
 
-    test('delete sequence publishes catalog bus and HostStateChanged', () async {
-      const rootId = 'root-delete-notify';
-      final saveResponse = await translateHandlerErrors(
-        handlers.handleSaveFullSequence(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/sequence-management/save-full'),
-            body: jsonEncode({
-              'sequence': {
-                'schemaVersion': SequenceFileService.currentSchemaVersion,
-                'version': '2.0',
-                'name': 'To Delete',
-                'description': '',
-                'rootNodeId': rootId,
-                'isTemplate': false,
-                'createdAt': DateTime(2026, 1, 1).toIso8601String(),
-                'modifiedAt': DateTime(2026, 1, 2).toIso8601String(),
-                'nodes': {
-                  rootId: {
-                    'id': rootId,
-                    'nodeType': 'instructionSet',
-                    'name': 'Sequence',
-                    'parentId': null,
-                    'childIds': <String>[],
-                    'orderIndex': 0,
-                    'isEnabled': true,
+    test(
+      'delete sequence publishes catalog bus and HostStateChanged',
+      () async {
+        const rootId = 'root-delete-notify';
+        final saveResponse = await translateHandlerErrors(
+          handlers.handleSaveFullSequence(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/sequence-management/save-full'),
+              body: jsonEncode({
+                'sequence': {
+                  'schemaVersion': SequenceFileService.currentSchemaVersion,
+                  'version': '2.0',
+                  'name': 'To Delete',
+                  'description': '',
+                  'rootNodeId': rootId,
+                  'isTemplate': false,
+                  'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+                  'modifiedAt': DateTime(2026, 1, 2).toIso8601String(),
+                  'nodes': {
+                    rootId: {
+                      'id': rootId,
+                      'nodeType': 'instructionSet',
+                      'name': 'Sequence',
+                      'parentId': null,
+                      'childIds': <String>[],
+                      'orderIndex': 0,
+                      'isEnabled': true,
+                    },
                   },
                 },
-              },
-              'isTemplate': false,
-            }),
-            headers: {'Content-Type': 'application/json'},
+                'isTemplate': false,
+              }),
+              headers: {'Content-Type': 'application/json'},
+            ),
           ),
-        ),
-      );
-      final saveBody = jsonDecode(await saveResponse.readAsString()) as Map;
-      final sequenceId = saveBody['id'] as int;
+        );
+        final saveBody = jsonDecode(await saveResponse.readAsString()) as Map;
+        final sequenceId = saveBody['id'] as int;
 
-      final published = <NightshadeEvent>[];
-      container.read(hostMutationEventHubProvider).wsBroadcast = published.add;
+        final published = <NightshadeEvent>[];
+        container.read(hostMutationEventHubProvider).wsBroadcast =
+            published.add;
 
-      final deleteResponse = await translateHandlerErrors(
-        handlers.handleDeleteSequence(
-          Request(
-            'DELETE',
-            Uri.parse('http://localhost/api/sequence-management/$sequenceId'),
+        final deleteResponse = await translateHandlerErrors(
+          handlers.handleDeleteSequence(
+            Request(
+              'DELETE',
+              Uri.parse('http://localhost/api/sequence-management/$sequenceId'),
+            ),
+            sequenceId.toString(),
           ),
-          sequenceId.toString(),
-        ),
-      );
-      expect(deleteResponse.statusCode, HttpStatus.ok);
-      expect(published, hasLength(1));
-      expect(published.single.eventType, hostStateChangedEventType);
-      expect(published.single.data['entityId'], sequenceId.toString());
-      expect(published.single.data['action'], HostMutationAction.deleted);
-    });
+        );
+        expect(deleteResponse.statusCode, HttpStatus.ok);
+        expect(published, hasLength(1));
+        expect(published.single.eventType, hostStateChangedEventType);
+        expect(published.single.data['entityId'], sequenceId.toString());
+        expect(published.single.data['action'], HostMutationAction.deleted);
+      },
+    );
 
     test('list-full returns persisted sequences', () async {
       const rootId = 'root-list-full';

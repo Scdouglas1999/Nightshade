@@ -164,13 +164,16 @@ class CalibrationService {
       if (matchingDark != null) {
         darkPath = matchingDark.filePath;
         _logger.info(
-            'Auto-matched dark: ${matchingDark.filePath} '
-            '(exposure=${matchingDark.exposureTime}s, '
-            'temp=${matchingDark.temperature}C)',
-            source: 'CalibrationService');
+          'Auto-matched dark: ${matchingDark.filePath} '
+          '(exposure=${matchingDark.exposureTime}s, '
+          'temp=${matchingDark.temperature}C)',
+          source: 'CalibrationService',
+        );
       } else {
-        _logger.info('No matching dark found in library',
-            source: 'CalibrationService');
+        _logger.info(
+          'No matching dark found in library',
+          source: 'CalibrationService',
+        );
       }
     }
 
@@ -180,8 +183,10 @@ class CalibrationService {
 
     // Validate that at least one calibration frame is provided
     if (darkPath == null && flatPath == null && biasPath == null) {
-      throw StateError('No calibration frames available. '
-          'Provide a dark, flat, or bias frame.');
+      throw StateError(
+        'No calibration frames available. '
+        'Provide a dark, flat, or bias frame.',
+      );
     }
 
     // Validate files exist (local filesystem only — remote paths are
@@ -213,8 +218,10 @@ class CalibrationService {
         final backupPath = '${lightPath}.uncal';
         if (!File(backupPath).existsSync()) {
           await File(lightPath).copy(backupPath);
-          _logger.info('Backed up original to: $backupPath',
-              source: 'CalibrationService');
+          _logger.info(
+            'Backed up original to: $backupPath',
+            source: 'CalibrationService',
+          );
         }
       }
     }
@@ -228,10 +235,11 @@ class CalibrationService {
     );
 
     _logger.info(
-        'Calibration complete: $effectiveOutputPath '
-        '(dark=${darkPath != null}, flat=${flatPath != null}, '
-        'bias=${biasPath != null})',
-        source: 'CalibrationService');
+      'Calibration complete: $effectiveOutputPath '
+      '(dark=${darkPath != null}, flat=${flatPath != null}, '
+      'bias=${biasPath != null})',
+      source: 'CalibrationService',
+    );
 
     return CalibrationResult(
       outputPath: effectiveOutputPath,
@@ -289,10 +297,11 @@ final calibrationServiceProvider = Provider<CalibrationService>((ref) {
 
 /// Provider for calibration settings, loaded from app settings.
 final calibrationSettingsProvider =
-    StateNotifierProvider<CalibrationSettingsNotifier, CalibrationSettings>(
-        (ref) {
-  return CalibrationSettingsNotifier(ref);
-});
+    StateNotifierProvider<CalibrationSettingsNotifier, CalibrationSettings>((
+      ref,
+    ) {
+      return CalibrationSettingsNotifier(ref);
+    });
 
 /// Manages calibration settings with persistence via app settings.
 class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
@@ -323,8 +332,9 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
     // once because we delete the legacy key after lifting it.
     var autoCalibrate = settings['calibration.auto_calibrate'] == 'true';
     final legacyDarkLibrary = settings['dark_library.auto_subtract'];
-    final hasCalibrationKey =
-        settings.containsKey('calibration.auto_calibrate');
+    final hasCalibrationKey = settings.containsKey(
+      'calibration.auto_calibrate',
+    );
     if (!hasCalibrationKey && legacyDarkLibrary != null) {
       autoCalibrate = legacyDarkLibrary == 'true';
       // Persist the migrated value into the canonical store; clear the
@@ -377,7 +387,9 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   Future<void> setAutoDarkFromLibrary(bool enabled) async {
     state = state.copyWith(autoDarkFromLibrary: enabled);
     await _saveSetting(
-        'calibration.auto_dark_from_library', enabled.toString());
+      'calibration.auto_dark_from_library',
+      enabled.toString(),
+    );
   }
 
   Future<void> setManualDarkPath(String? path) async {

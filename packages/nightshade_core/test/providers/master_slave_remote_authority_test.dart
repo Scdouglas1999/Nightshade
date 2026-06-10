@@ -25,17 +25,13 @@ void main() {
   group('master/slave host authority', () {
     test('profile CRUD uses NetworkBackend not local DAO', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.saveProfile(any())).thenAnswer((_) async {});
       when(() => backend.getProfiles()).thenAnswer(
         (_) async => [
-          const EquipmentProfile(
-            id: '42',
-            name: 'Remote Rig',
-            isActive: true,
-          ),
+          const EquipmentProfile(id: '42', name: 'Remote Rig', isActive: true),
         ],
       );
 
@@ -57,9 +53,9 @@ void main() {
 
     test('setActiveProfile on slave calls host loadProfile', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.getProfiles()).thenAnswer((_) async => []);
       when(() => backend.getActiveProfile()).thenAnswer((_) async => null);
       when(() => backend.loadProfile('7')).thenAnswer((_) async {});
@@ -83,12 +79,14 @@ void main() {
 
     test('HostStateChanged target invalidates remote target catalog', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(() => backend.getAllTargets()).thenAnswer(
+        (_) async => [
+          {'id': 1, 'name': 'M42', 'ra': 5.58, 'dec': -5.39},
+        ],
       );
-      when(() => backend.getAllTargets()).thenAnswer((_) async => [
-            {'id': 1, 'name': 'M42', 'ra': 5.58, 'dec': -5.39},
-          ]);
 
       final container = ProviderContainer(
         overrides: [
@@ -102,10 +100,12 @@ void main() {
       await container.read(allDbTargetsProvider.future);
       clearInteractions(backend);
 
-      when(() => backend.getAllTargets()).thenAnswer((_) async => [
-            {'id': 1, 'name': 'M42', 'ra': 5.58, 'dec': -5.39},
-            {'id': 2, 'name': 'M43', 'ra': 5.6, 'dec': -5.2},
-          ]);
+      when(() => backend.getAllTargets()).thenAnswer(
+        (_) async => [
+          {'id': 1, 'name': 'M42', 'ra': 5.58, 'dec': -5.39},
+          {'id': 2, 'name': 'M43', 'ra': 5.6, 'dec': -5.2},
+        ],
+      );
 
       await applyRemoteSyncEvent(
         container,

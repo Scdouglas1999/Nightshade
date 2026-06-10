@@ -14,15 +14,24 @@ class PlanetariumTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'planetarium_sky_view': return skyView;
-      case 'planetarium_search': return search;
-      case 'planetarium_filter_btn': return filterBtn;
-      case 'planetarium_fov_toggle': return fovToggle;
-      case 'planetarium_slew_btn': return slewBtn;
-      case 'planetarium_object_popup': return objectPopup;
-      case 'planetarium_send_framing': return sendFraming;
-      case 'planetarium_add_sequence': return addSequence;
-      default: return null;
+      case 'planetarium_sky_view':
+        return skyView;
+      case 'planetarium_search':
+        return search;
+      case 'planetarium_filter_btn':
+        return filterBtn;
+      case 'planetarium_fov_toggle':
+        return fovToggle;
+      case 'planetarium_slew_btn':
+        return slewBtn;
+      case 'planetarium_object_popup':
+        return objectPopup;
+      case 'planetarium_send_framing':
+        return sendFraming;
+      case 'planetarium_add_sequence':
+        return addSequence;
+      default:
+        return null;
     }
   }
 }

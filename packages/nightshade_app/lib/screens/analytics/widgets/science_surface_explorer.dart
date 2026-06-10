@@ -97,8 +97,8 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
                   onPanUpdate: (details) {
                     setState(() {
                       _yaw += details.delta.dx * 0.01;
-                      _pitch = (_pitch - details.delta.dy * 0.01)
-                          .clamp(0.1, 1.45);
+                      _pitch =
+                          (_pitch - details.delta.dy * 0.01).clamp(0.1, 1.45);
                     });
                   },
                   child: CustomPaint(
@@ -200,7 +200,8 @@ class _SliderLabeled extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: NightshadeTypography.fontSize11)),
+        Text(label,
+            style: const TextStyle(fontSize: NightshadeTypography.fontSize11)),
         Slider(
           min: min,
           max: max,

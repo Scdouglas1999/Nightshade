@@ -22,104 +22,105 @@ class OnboardingWelcomeStep extends ConsumerWidget {
 
     return SingleChildScrollView(
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: NightshadeDecorations.iconChip(
-                colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              ),
-              child:
-                  Icon(NightshadeIcons.sparkle, color: colors.primary, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome to Nightshade',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Let's get your rig set up. This takes about 2 minutes.",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          borderRadius: NightshadeTokens.radiusLg,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                "What we'll cover",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
+              Container(
+                width: 56,
+                height: 56,
+                decoration: NightshadeDecorations.iconChip(
+                  colors.primary,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
+                child: Icon(NightshadeIcons.sparkle,
+                    color: colors.primary, size: 28),
               ),
-              const SizedBox(height: 12),
-              _bullet(theme, colors, NightshadeIcons.connected,
-                  'Which device drivers to scan (ASCOM / INDI / Alpaca / Native)'),
-              _bullet(theme, colors, NightshadeIcons.camera,
-                  'Picking your camera, mount, focuser, filter wheel, and guider'),
-              _bullet(theme, colors, LucideIcons.ruler,
-                  'Optical train details: focal length, aperture, reducer'),
-              _bullet(theme, colors, NightshadeIcons.folder,
-                  'Where Nightshade will save captured images'),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        profilesAsync.when(
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (profiles) {
-            if (profiles.isEmpty) return const SizedBox.shrink();
-            // Returning user — explain why the wizard appeared at all.
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: NightshadeDecorations.emphasisSurface(
-                colors.warning,
-                borderRadius: NightshadeTokens.borderRadiusLg,
-              ),
-              child: Row(
-                children: [
-                  Icon(NightshadeIcons.info, color: colors.warning, size: 18),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'You already have ${profiles.length} equipment profile'
-                      '${profiles.length == 1 ? '' : 's'}. '
-                      'Running the wizard will create a new one — your existing profiles are not modified.',
-                      style: theme.textTheme.bodySmall?.copyWith(
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome to Nightshade',
+                      style: theme.textTheme.headlineSmall?.copyWith(
                         color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      "Let's get your rig set up. This takes about 2 minutes.",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: 24),
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusLg,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "What we'll cover",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _bullet(theme, colors, NightshadeIcons.connected,
+                    'Which device drivers to scan (ASCOM / INDI / Alpaca / Native)'),
+                _bullet(theme, colors, NightshadeIcons.camera,
+                    'Picking your camera, mount, focuser, filter wheel, and guider'),
+                _bullet(theme, colors, LucideIcons.ruler,
+                    'Optical train details: focal length, aperture, reducer'),
+                _bullet(theme, colors, NightshadeIcons.folder,
+                    'Where Nightshade will save captured images'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          profilesAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (profiles) {
+              if (profiles.isEmpty) return const SizedBox.shrink();
+              // Returning user — explain why the wizard appeared at all.
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: NightshadeDecorations.emphasisSurface(
+                  colors.warning,
+                  borderRadius: NightshadeTokens.borderRadiusLg,
+                ),
+                child: Row(
+                  children: [
+                    Icon(NightshadeIcons.info, color: colors.warning, size: 18),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'You already have ${profiles.length} equipment profile'
+                        '${profiles.length == 1 ? '' : 's'}. '
+                        'Running the wizard will create a new one — your existing profiles are not modified.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

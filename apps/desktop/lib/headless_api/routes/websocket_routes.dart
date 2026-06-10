@@ -33,9 +33,8 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildWebSocketRoutes({
   required Handler eventsHandler,
   required Handler liveViewHandler,
-}) =>
-    <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/ws', eventsHandler),
-      HeadlessRoute(HttpMethod.get, '/events', eventsHandler),
-      HeadlessRoute(HttpMethod.get, '/ws/live-view', liveViewHandler),
-    ];
+}) => <HeadlessRoute>[
+  HeadlessRoute(HttpMethod.get, '/api/ws', eventsHandler),
+  HeadlessRoute(HttpMethod.get, '/events', eventsHandler),
+  HeadlessRoute(HttpMethod.get, '/ws/live-view', liveViewHandler),
+];

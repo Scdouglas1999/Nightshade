@@ -17,8 +17,12 @@ class PolarAlignmentHistoryDaoManager {
   PolarAlignmentHistoryDaoManager(this._db);
   $$EquipmentProfilesTableTableManager get equipmentProfiles =>
       $$EquipmentProfilesTableTableManager(
-          _db.attachedDatabase, _db.equipmentProfiles);
+        _db.attachedDatabase,
+        _db.equipmentProfiles,
+      );
   $$PolarAlignmentHistoryTableTableManager get polarAlignmentHistory =>
       $$PolarAlignmentHistoryTableTableManager(
-          _db.attachedDatabase, _db.polarAlignmentHistory);
+        _db.attachedDatabase,
+        _db.polarAlignmentHistory,
+      );
 }

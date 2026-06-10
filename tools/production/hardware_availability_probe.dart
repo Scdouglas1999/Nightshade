@@ -31,7 +31,7 @@ void main(List<String> args) async {
   final requireFull = args.contains('--require-full');
   final exePath =
       args.where((arg) => !arg.startsWith('--')).cast<String?>().firstOrNull ??
-          _defaultExePath;
+      _defaultExePath;
   final exe = File(exePath);
   if (!exe.existsSync()) {
     stderr.writeln('Release executable not found: $exePath');
@@ -40,15 +40,11 @@ void main(List<String> args) async {
 
   final port = await _reservePort();
   final processLog = _ProcessLog();
-  final process = await Process.start(
-    exe.absolute.path,
-    [
-      '--headless',
-      '--port=$port',
-      '--auth-token=$_adminToken',
-    ],
-    workingDirectory: exe.parent.absolute.path,
-  );
+  final process = await Process.start(exe.absolute.path, [
+    '--headless',
+    '--port=$port',
+    '--auth-token=$_adminToken',
+  ], workingDirectory: exe.parent.absolute.path);
 
   process.stdout
       .transform(utf8.decoder)
@@ -61,10 +57,12 @@ void main(List<String> args) async {
 
   var exited = false;
   int? processExitCode;
-  unawaited(process.exitCode.then((code) {
-    exited = true;
-    processExitCode = code;
-  }));
+  unawaited(
+    process.exitCode.then((code) {
+      exited = true;
+      processExitCode = code;
+    }),
+  );
 
   final client = HttpClient();
   final baseUri = Uri.parse('http://127.0.0.1:$port');
@@ -85,9 +83,7 @@ void main(List<String> args) async {
       final rawDevices = (response.json['devices'] as List? ?? const []);
       final devices = rawDevices
           .whereType<Map>()
-          .map((raw) => _DiscoveredDevice.fromJson(
-                raw.cast<String, dynamic>(),
-              ))
+          .map((raw) => _DiscoveredDevice.fromJson(raw.cast<String, dynamic>()))
           .toList();
       results[entry.key] = _DeviceAvailability(
         label: entry.value,
@@ -125,17 +121,20 @@ void main(List<String> args) async {
       },
     };
 
-    await File(_jsonOutputPath)
-        .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-    await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-      generatedAt: generatedAt,
-      exe: exe,
-      results: results,
-      missingAny: missingAny,
-      missingNonSimulator: missingNonSimulator,
-      fullRealOrSimulatorCoverage: fullRealOrSimulatorCoverage,
-      fullNonSimulatorCoverage: fullNonSimulatorCoverage,
-    ));
+    await File(
+      _jsonOutputPath,
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+    await File(_markdownOutputPath).writeAsString(
+      _renderMarkdown(
+        generatedAt: generatedAt,
+        exe: exe,
+        results: results,
+        missingAny: missingAny,
+        missingNonSimulator: missingNonSimulator,
+        fullRealOrSimulatorCoverage: fullRealOrSimulatorCoverage,
+        fullNonSimulatorCoverage: fullNonSimulatorCoverage,
+      ),
+    );
 
     stdout.writeln('Hardware availability probe complete.');
     stdout.writeln('JSON: $_jsonOutputPath');
@@ -291,8 +290,8 @@ String _renderMarkdown({
     final devices = availability.devices.isEmpty
         ? 'None'
         : availability.devices
-            .map((device) => '${device.driverType}:${device.id}')
-            .join('<br>');
+              .map((device) => '${device.driverType}:${device.id}')
+              .join('<br>');
     buffer.writeln(
       '| ${entry.value} | ${availability.nonSimulatorCount} | '
       '${availability.simulatorCount} | $devices |',
@@ -340,22 +339,19 @@ class _DiscoveredDevice {
   }
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'deviceType': deviceType,
-        'driverType': driverType,
-        'description': description,
-      };
+    'id': id,
+    'name': name,
+    'deviceType': deviceType,
+    'driverType': driverType,
+    'description': description,
+  };
 }
 
 class _DeviceAvailability {
   final String label;
   final List<_DiscoveredDevice> devices;
 
-  const _DeviceAvailability({
-    required this.label,
-    required this.devices,
-  });
+  const _DeviceAvailability({required this.label, required this.devices});
 
   int get simulatorCount =>
       devices.where((device) => device.driverType == 'simulator').length;
@@ -367,12 +363,12 @@ class _DeviceAvailability {
   bool get hasNonSimulatorDevice => nonSimulatorCount > 0;
 
   Map<String, Object?> toJson() => {
-        'label': label,
-        'deviceCount': devices.length,
-        'nonSimulatorCount': nonSimulatorCount,
-        'simulatorCount': simulatorCount,
-        'devices': devices.map((device) => device.toJson()).toList(),
-      };
+    'label': label,
+    'deviceCount': devices.length,
+    'nonSimulatorCount': nonSimulatorCount,
+    'simulatorCount': simulatorCount,
+    'devices': devices.map((device) => device.toJson()).toList(),
+  };
 }
 
 class _ProcessLog {

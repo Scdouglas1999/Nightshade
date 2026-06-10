@@ -5,12 +5,7 @@ import '../providers/ui_notification_provider.dart';
 import 'logging_service.dart';
 
 /// Error severity levels matching Rust EventSeverity
-enum ErrorSeverity {
-  info,
-  warning,
-  error,
-  critical,
-}
+enum ErrorSeverity { info, warning, error, critical }
 
 /// Convert to LogLevel for integration with logging service
 extension ErrorSeverityExtension on ErrorSeverity {
@@ -142,8 +137,11 @@ class ErrorService {
     }
 
     // Print to debug console
-    developer.log(entry.logMessage,
-        name: 'ErrorService', level: entry.severity.toLogLevel().index * 200 + 500);
+    developer.log(
+      entry.logMessage,
+      name: 'ErrorService',
+      level: entry.severity.toLogLevel().index * 200 + 500,
+    );
 
     // Log to file via logging service if available
     _loggingService?.log(
@@ -168,8 +166,9 @@ class ErrorService {
           _uiNotificationNotifier!.showError(
             userFriendly.fullMessage,
             title: 'Critical: ${_categoryToTitle(entry.category)}',
-            duration:
-                const Duration(seconds: 15), // Persist longer for critical
+            duration: const Duration(
+              seconds: 15,
+            ), // Persist longer for critical
           );
           break;
         case ErrorSeverity.warning:
@@ -225,15 +224,17 @@ class ErrorService {
     ErrorSeverity severity = ErrorSeverity.error,
     Map<String, dynamic>? context,
   }) {
-    log(ErrorEntry(
-      severity: severity,
-      category: ErrorCategory.device,
-      operation: operation,
-      message: message,
-      deviceType: deviceType,
-      deviceId: deviceId,
-      context: context,
-    ));
+    log(
+      ErrorEntry(
+        severity: severity,
+        category: ErrorCategory.device,
+        operation: operation,
+        message: message,
+        deviceType: deviceType,
+        deviceId: deviceId,
+        context: context,
+      ),
+    );
   }
 
   /// Convenience method for imaging errors
@@ -243,13 +244,15 @@ class ErrorService {
     ErrorSeverity severity = ErrorSeverity.error,
     Map<String, dynamic>? context,
   }) {
-    log(ErrorEntry(
-      severity: severity,
-      category: ErrorCategory.imaging,
-      operation: operation,
-      message: message,
-      context: context,
-    ));
+    log(
+      ErrorEntry(
+        severity: severity,
+        category: ErrorCategory.imaging,
+        operation: operation,
+        message: message,
+        context: context,
+      ),
+    );
   }
 
   /// Convenience method for sequencer errors
@@ -259,13 +262,15 @@ class ErrorService {
     ErrorSeverity severity = ErrorSeverity.error,
     Map<String, dynamic>? context,
   }) {
-    log(ErrorEntry(
-      severity: severity,
-      category: ErrorCategory.sequencer,
-      operation: operation,
-      message: message,
-      context: context,
-    ));
+    log(
+      ErrorEntry(
+        severity: severity,
+        category: ErrorCategory.sequencer,
+        operation: operation,
+        message: message,
+        context: context,
+      ),
+    );
   }
 
   /// Convenience method for guiding errors
@@ -275,13 +280,15 @@ class ErrorService {
     ErrorSeverity severity = ErrorSeverity.error,
     Map<String, dynamic>? context,
   }) {
-    log(ErrorEntry(
-      severity: severity,
-      category: ErrorCategory.guiding,
-      operation: operation,
-      message: message,
-      context: context,
-    ));
+    log(
+      ErrorEntry(
+        severity: severity,
+        category: ErrorCategory.guiding,
+        operation: operation,
+        message: message,
+        context: context,
+      ),
+    );
   }
 
   /// Log from exception with context
@@ -295,16 +302,18 @@ class ErrorService {
     String? deviceId,
     Map<String, dynamic>? context,
   }) {
-    log(ErrorEntry.fromException(
-      error,
-      stack,
-      category: category,
-      operation: operation,
-      severity: severity,
-      deviceType: deviceType,
-      deviceId: deviceId,
-      context: context,
-    ));
+    log(
+      ErrorEntry.fromException(
+        error,
+        stack,
+        category: category,
+        operation: operation,
+        severity: severity,
+        deviceType: deviceType,
+        deviceId: deviceId,
+        context: context,
+      ),
+    );
   }
 
   /// Get recent errors
@@ -313,8 +322,10 @@ class ErrorService {
   }
 
   /// Get errors by category
-  List<ErrorEntry> getErrorsByCategory(ErrorCategory category,
-      {int limit = 20}) {
+  List<ErrorEntry> getErrorsByCategory(
+    ErrorCategory category, {
+    int limit = 20,
+  }) {
     return _errorHistory
         .where((e) => e.category == category)
         .toList()
@@ -324,8 +335,10 @@ class ErrorService {
   }
 
   /// Get errors by severity
-  List<ErrorEntry> getErrorsBySeverity(ErrorSeverity severity,
-      {int limit = 20}) {
+  List<ErrorEntry> getErrorsBySeverity(
+    ErrorSeverity severity, {
+    int limit = 20,
+  }) {
     return _errorHistory
         .where((e) => e.severity == severity)
         .toList()
@@ -566,15 +579,17 @@ class ErrorMessageMapper {
   };
 
   /// Convert a technical error to a user-friendly message
-  static UserFriendlyError mapError(String technicalError,
-      {ErrorCategory? category}) {
+  static UserFriendlyError mapError(
+    String technicalError, {
+    ErrorCategory? category,
+  }) {
     // Try category-specific patterns first
     if (category != null) {
       final categoryPatterns = _getCategoryPatterns(category);
       for (final entry in categoryPatterns.entries) {
-        if (technicalError
-            .toLowerCase()
-            .contains(entry.key.toString().toLowerCase())) {
+        if (technicalError.toLowerCase().contains(
+          entry.key.toString().toLowerCase(),
+        )) {
           return entry.value;
         }
       }
@@ -590,9 +605,9 @@ class ErrorMessageMapper {
     ];
 
     for (final entry in allPatterns) {
-      if (technicalError
-          .toLowerCase()
-          .contains(entry.key.toString().toLowerCase())) {
+      if (technicalError.toLowerCase().contains(
+        entry.key.toString().toLowerCase(),
+      )) {
         return entry.value;
       }
     }
@@ -606,7 +621,8 @@ class ErrorMessageMapper {
   }
 
   static Map<Pattern, UserFriendlyError> _getCategoryPatterns(
-      ErrorCategory category) {
+    ErrorCategory category,
+  ) {
     switch (category) {
       case ErrorCategory.device:
         return _deviceErrors;
@@ -626,10 +642,13 @@ class ErrorMessageMapper {
     // Remove common prefixes
     var cleaned = error
         .replaceAll(
-            RegExp(r'^(Error:|Exception:|Failed:)\s*', caseSensitive: false),
-            '')
+          RegExp(r'^(Error:|Exception:|Failed:)\s*', caseSensitive: false),
+          '',
+        )
         .replaceAll(
-            RegExp(r'^nightshade_\w+::\w+::\s*', caseSensitive: false), '')
+          RegExp(r'^nightshade_\w+::\w+::\s*', caseSensitive: false),
+          '',
+        )
         .replaceAll(RegExp(r'Err\((.*)\)', caseSensitive: false), r'$1');
 
     // Capitalize first letter
@@ -648,8 +667,10 @@ class ErrorMessageMapper {
   }
 
   /// Get a user-friendly message from an exception
-  static UserFriendlyError fromException(Object error,
-      {ErrorCategory? category}) {
+  static UserFriendlyError fromException(
+    Object error, {
+    ErrorCategory? category,
+  }) {
     return mapError(error.toString(), category: category);
   }
 }

@@ -19,14 +19,22 @@ Future<void> main() async {
     await _writeBlockedFixture(temp);
     await _runAuditor(auditor, temp);
     final blockedReport = _readReport(temp);
-    _expect(blockedReport['decision'] == 'NOT_ACHIEVED',
-        'blocked fixture decision should be NOT_ACHIEVED');
-    _expect(blockedReport['gateDecision'] == 'NOT_READY',
-        'blocked fixture gateDecision should stay NOT_READY');
-    _expect(blockedReport['completeCount'] == 0,
-        'blocked fixture completeCount should be 0');
-    _expect(blockedReport['blockedOrIncompleteCount'] == 7,
-        'blocked fixture should have 7 blocked/incomplete checks');
+    _expect(
+      blockedReport['decision'] == 'NOT_ACHIEVED',
+      'blocked fixture decision should be NOT_ACHIEVED',
+    );
+    _expect(
+      blockedReport['gateDecision'] == 'NOT_READY',
+      'blocked fixture gateDecision should stay NOT_READY',
+    );
+    _expect(
+      blockedReport['completeCount'] == 0,
+      'blocked fixture completeCount should be 0',
+    );
+    _expect(
+      blockedReport['blockedOrIncompleteCount'] == 7,
+      'blocked fixture should have 7 blocked/incomplete checks',
+    );
     _expectSourceArtifacts(blockedReport);
     _expectCheckStatus(
       blockedReport,
@@ -52,18 +60,30 @@ Future<void> main() async {
     await _writeAchievedFixture(temp);
     await _runAuditor(auditor, temp);
     final achievedReport = _readReport(temp);
-    _expect(achievedReport['decision'] == 'ACHIEVED',
-        'achieved fixture decision should be ACHIEVED');
-    _expect(achievedReport['completionDecision'] == 'ACHIEVED',
-        'completionDecision should mirror decision');
-    _expect(achievedReport['gateDecision'] == 'READY',
-        'achieved fixture gateDecision should stay READY');
-    _expect(achievedReport['ready'] == true,
-        'achieved fixture ready should be true');
-    _expect(achievedReport['completeCount'] == 7,
-        'achieved fixture completeCount should be 7');
-    _expect(achievedReport['blockedOrIncompleteCount'] == 0,
-        'achieved fixture should have no blocked/incomplete checks');
+    _expect(
+      achievedReport['decision'] == 'ACHIEVED',
+      'achieved fixture decision should be ACHIEVED',
+    );
+    _expect(
+      achievedReport['completionDecision'] == 'ACHIEVED',
+      'completionDecision should mirror decision',
+    );
+    _expect(
+      achievedReport['gateDecision'] == 'READY',
+      'achieved fixture gateDecision should stay READY',
+    );
+    _expect(
+      achievedReport['ready'] == true,
+      'achieved fixture ready should be true',
+    );
+    _expect(
+      achievedReport['completeCount'] == 7,
+      'achieved fixture completeCount should be 7',
+    );
+    _expect(
+      achievedReport['blockedOrIncompleteCount'] == 0,
+      'achieved fixture should have no blocked/incomplete checks',
+    );
     _expectCheckStatus(
       achievedReport,
       'split_generated_binary_native',
@@ -77,11 +97,12 @@ Future<void> main() async {
 }
 
 Future<void> _prepareWorkspace(Directory root) async {
-  await Directory('${root.path}/docs/production-readiness').create(
-    recursive: true,
-  );
-  await Directory('${root.path}/docs/production-readiness/release-pr-pathspecs')
-      .create(recursive: true);
+  await Directory(
+    '${root.path}/docs/production-readiness',
+  ).create(recursive: true);
+  await Directory(
+    '${root.path}/docs/production-readiness/release-pr-pathspecs',
+  ).create(recursive: true);
   await File('${root.path}/goal.txt').writeAsString('''
 **P0 Before Public Release**
 - Create a clean release branch/PR from the dirty worktree so the final artifact is reviewable.
@@ -218,20 +239,21 @@ Future<void> _writeAchievedFixture(Directory root) async {
   await File('${root.path}/docs/known-limitations.md')
       .create(recursive: true)
       .then((file) => file.writeAsString('# Known Limitations\n'));
-  await File('${root.path}/docs/supported-hardware-by-platform.md')
-      .writeAsString('# Supported Hardware By Platform\n');
+  await File(
+    '${root.path}/docs/supported-hardware-by-platform.md',
+  ).writeAsString('# Supported Hardware By Platform\n');
   await File(
     '${root.path}/docs/production-readiness/release-pr-pathspecs/01-fixture.txt',
   ).writeAsString('# fixture\n');
 }
 
 Map<String, Object?> _gateCheck(String id, bool passed) => {
-      'id': id,
-      'label': id,
-      'passed': passed,
-      'evidence': 'docs/production-readiness/$id.json',
-      'detail': passed ? 'fixture passed' : 'fixture blocked',
-    };
+  'id': id,
+  'label': id,
+  'passed': passed,
+  'evidence': 'docs/production-readiness/$id.json',
+  'detail': passed ? 'fixture passed' : 'fixture blocked',
+};
 
 Future<void> _writeJson(
   Directory root,
@@ -244,11 +266,9 @@ Future<void> _writeJson(
 }
 
 Future<void> _runAuditor(File auditor, Directory workingDirectory) async {
-  final result = await Process.run(
-    'dart',
-    [auditor.path],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = await Process.run('dart', [
+    auditor.path,
+  ], workingDirectory: workingDirectory.path);
   if (result.exitCode != 0) {
     throw StateError(
       'Completion auditor failed with exit ${result.exitCode}\n'
@@ -312,11 +332,13 @@ void _expectSourceArtifacts(Map<String, dynamic> report) {
   final artifacts = (report['sourceArtifacts'] as List?) ?? const [];
   _expect(artifacts.length == 9, 'sourceArtifacts should list 9 artifacts');
   _expect(
-    artifacts.any((artifact) =>
-        artifact is Map &&
-        artifact['path'] ==
-            'docs/production-readiness/public-release-gate.json' &&
-        artifact['exists'] == true),
+    artifacts.any(
+      (artifact) =>
+          artifact is Map &&
+          artifact['path'] ==
+              'docs/production-readiness/public-release-gate.json' &&
+          artifact['exists'] == true,
+    ),
     'sourceArtifacts should include the public release gate artifact',
   );
 }

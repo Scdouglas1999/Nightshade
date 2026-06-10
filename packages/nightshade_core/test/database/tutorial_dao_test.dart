@@ -23,40 +23,48 @@ void main() {
   });
 
   group('TutorialDao - first-night auto-launch logic', () {
-    test('shouldShowFirstNightOnLaunch returns true when no progress exists',
-        () async {
-      // Fresh database — nothing has ever been stored for any tutorial.
-      // This is the "first launch" path and the wizard must auto-open.
-      final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
-      expect(shouldShow, isTrue);
-    });
+    test(
+      'shouldShowFirstNightOnLaunch returns true when no progress exists',
+      () async {
+        // Fresh database — nothing has ever been stored for any tutorial.
+        // This is the "first launch" path and the wizard must auto-open.
+        final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
+        expect(shouldShow, isTrue);
+      },
+    );
 
-    test('shouldShowFirstNightOnLaunch returns false after completion',
-        () async {
-      // User finished the wizard. They never see it again automatically.
-      await tutorialDao.markFirstNightCompleted();
-      final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
-      expect(shouldShow, isFalse);
-    });
+    test(
+      'shouldShowFirstNightOnLaunch returns false after completion',
+      () async {
+        // User finished the wizard. They never see it again automatically.
+        await tutorialDao.markFirstNightCompleted();
+        final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
+        expect(shouldShow, isFalse);
+      },
+    );
 
-    test('shouldShowFirstNightOnLaunch returns false after dismiss-forever',
-        () async {
-      // User clicked "Skip forever". Same outcome as completion for the
-      // auto-launch check, but recorded as dismissal not completion.
-      await tutorialDao.dismissFirstNightForever();
-      final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
-      expect(shouldShow, isFalse);
-    });
+    test(
+      'shouldShowFirstNightOnLaunch returns false after dismiss-forever',
+      () async {
+        // User clicked "Skip forever". Same outcome as completion for the
+        // auto-launch check, but recorded as dismissal not completion.
+        await tutorialDao.dismissFirstNightForever();
+        final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
+        expect(shouldShow, isFalse);
+      },
+    );
 
-    test('shouldShowFirstNightOnLaunch returns false after partial progress',
-        () async {
-      // User started the wizard, advanced two steps, then closed it
-      // (without the soft-reset path). The DAO has a row — the wizard
-      // does NOT auto-open. Resume is opt-in from Settings → Help.
-      await tutorialDao.saveFirstNightProgress(2);
-      final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
-      expect(shouldShow, isFalse);
-    });
+    test(
+      'shouldShowFirstNightOnLaunch returns false after partial progress',
+      () async {
+        // User started the wizard, advanced two steps, then closed it
+        // (without the soft-reset path). The DAO has a row — the wizard
+        // does NOT auto-open. Resume is opt-in from Settings → Help.
+        await tutorialDao.saveFirstNightProgress(2);
+        final shouldShow = await tutorialDao.shouldShowFirstNightOnLaunch();
+        expect(shouldShow, isFalse);
+      },
+    );
 
     test('resetFirstNight restores auto-launch behavior', () async {
       // Finish, then reset — auto-launch must resume. This is what the
@@ -76,12 +84,14 @@ void main() {
       expect(index, equals(0));
     });
 
-    test('saveFirstNightProgress persists and getLastStepIndex returns it',
-        () async {
-      await tutorialDao.saveFirstNightProgress(3);
-      final index = await tutorialDao.getLastStepIndex();
-      expect(index, equals(3));
-    });
+    test(
+      'saveFirstNightProgress persists and getLastStepIndex returns it',
+      () async {
+        await tutorialDao.saveFirstNightProgress(3);
+        final index = await tutorialDao.getLastStepIndex();
+        expect(index, equals(3));
+      },
+    );
 
     test('saveFirstNightProgress overwrites previous progress', () async {
       await tutorialDao.saveFirstNightProgress(2);
@@ -96,21 +106,25 @@ void main() {
       expect(await tutorialDao.isFirstNightCompleted(), isFalse);
     });
 
-    test('isFirstNightCompleted is true after markFirstNightCompleted',
-        () async {
-      await tutorialDao.markFirstNightCompleted();
-      expect(await tutorialDao.isFirstNightCompleted(), isTrue);
-    });
+    test(
+      'isFirstNightCompleted is true after markFirstNightCompleted',
+      () async {
+        await tutorialDao.markFirstNightCompleted();
+        expect(await tutorialDao.isFirstNightCompleted(), isTrue);
+      },
+    );
 
     test('isFirstNightDismissed is false by default', () async {
       expect(await tutorialDao.isFirstNightDismissed(), isFalse);
     });
 
-    test('isFirstNightDismissed is true after dismissFirstNightForever',
-        () async {
-      await tutorialDao.dismissFirstNightForever();
-      expect(await tutorialDao.isFirstNightDismissed(), isTrue);
-    });
+    test(
+      'isFirstNightDismissed is true after dismissFirstNightForever',
+      () async {
+        await tutorialDao.dismissFirstNightForever();
+        expect(await tutorialDao.isFirstNightDismissed(), isTrue);
+      },
+    );
 
     test('completion and dismissal are distinguishable', () async {
       // We want the Settings UI to be able to tell "user finished" from
@@ -152,11 +166,14 @@ void main() {
     test('wizard steps are in monotonically increasing order', () {
       final orders = FirstNightWizard.steps.map((s) => s.order).toList();
       for (var i = 0; i < orders.length; i++) {
-        expect(orders[i], equals(i),
-            reason:
-                'Step at index $i has order ${orders[i]}; expected $i. '
-                'TutorialStep.order must equal its position in the list '
-                'so FirstNightWizardNotifier.goToStep math is correct.');
+        expect(
+          orders[i],
+          equals(i),
+          reason:
+              'Step at index $i has order ${orders[i]}; expected $i. '
+              'TutorialStep.order must equal its position in the list '
+              'so FirstNightWizardNotifier.goToStep math is correct.',
+        );
       }
     });
 
@@ -165,10 +182,13 @@ void main() {
       // route-free. Catches a future refactor that accidentally drops a
       // route from a navigation step.
       for (var i = 1; i < FirstNightWizard.steps.length; i++) {
-        expect(FirstNightWizard.steps[i].hasDeepLink, isTrue,
-            reason:
-                'Wizard step $i (${FirstNightWizard.steps[i].id}) must have '
-                'a deep-link route; only the welcome step is route-free.');
+        expect(
+          FirstNightWizard.steps[i].hasDeepLink,
+          isTrue,
+          reason:
+              'Wizard step $i (${FirstNightWizard.steps[i].id}) must have '
+              'a deep-link route; only the welcome step is route-free.',
+        );
       }
     });
 
@@ -181,10 +201,13 @@ void main() {
             .split(RegExp(r'\s+'))
             .where((w) => w.isNotEmpty)
             .length;
-        expect(words, inInclusiveRange(80, 150),
-            reason:
-                'Step "${wizardStep.id}" description is $words words; '
-                'expected 80–150. Either tighten the prose or expand it.');
+        expect(
+          words,
+          inInclusiveRange(80, 150),
+          reason:
+              'Step "${wizardStep.id}" description is $words words; '
+              'expected 80–150. Either tighten the prose or expand it.',
+        );
       }
     });
   });

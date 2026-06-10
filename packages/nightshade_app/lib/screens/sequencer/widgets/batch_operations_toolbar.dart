@@ -35,7 +35,8 @@ class BatchOperationsToolbar extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: NightshadeDecorations.statusChip(
               colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               bordered: false,
             ),
             child: Text(
@@ -182,9 +183,7 @@ class BatchOperationsToolbar extends ConsumerWidget {
           ),
           NightshadeButton(
             onPressed: () {
-              ref
-                  .read(multiSelectedNodeIdsProvider.notifier)
-                  .deleteSelected();
+              ref.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
               Navigator.pop(context);
             },
             label: 'Delete',
@@ -241,9 +240,10 @@ class _ToolbarButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: NightshadeTypography.labelQuiet.copyWith(color: isEnabled
-                        ? effectiveColor
-                        : colors.textMuted.withValues(alpha: 0.4)),
+                  style: NightshadeTypography.labelQuiet.copyWith(
+                      color: isEnabled
+                          ? effectiveColor
+                          : colors.textMuted.withValues(alpha: 0.4)),
                 ),
               ],
             ),

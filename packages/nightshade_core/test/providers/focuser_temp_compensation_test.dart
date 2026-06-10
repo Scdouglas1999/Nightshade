@@ -23,15 +23,10 @@ void main() {
   group('FocuserTempCompensator (§2.1 WIRE-UP #7)', () {
     test('captures baseline on first temperature reading', () async {
       final notifier = _FakeAppSettingsNotifier(
-        const AppSettingsState(
-          tempCompensation: true,
-          tempCoefficient: 10.0,
-        ),
+        const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [
-          appSettingsProvider.overrideWith(() => notifier),
-        ],
+        overrides: [appSettingsProvider.overrideWith(() => notifier)],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -49,8 +44,7 @@ void main() {
       // Allow listeners to fire.
       await Future<void>.delayed(Duration.zero);
 
-      final baseline =
-          container.read(focuserTempCompensationBaselineProvider);
+      final baseline = container.read(focuserTempCompensationBaselineProvider);
       expect(baseline, isNotNull);
       expect(baseline!.temperature, 15.0);
       expect(baseline.position, 5000);
@@ -58,15 +52,10 @@ void main() {
 
     test('does not capture baseline when toggle is off', () async {
       final notifier = _FakeAppSettingsNotifier(
-        const AppSettingsState(
-          tempCompensation: false,
-          tempCoefficient: 10.0,
-        ),
+        const AppSettingsState(tempCompensation: false, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [
-          appSettingsProvider.overrideWith(() => notifier),
-        ],
+        overrides: [appSettingsProvider.overrideWith(() => notifier)],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -84,15 +73,10 @@ void main() {
 
     test('clears baseline when focuser disconnects', () async {
       final notifier = _FakeAppSettingsNotifier(
-        const AppSettingsState(
-          tempCompensation: true,
-          tempCoefficient: 10.0,
-        ),
+        const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [
-          appSettingsProvider.overrideWith(() => notifier),
-        ],
+        overrides: [appSettingsProvider.overrideWith(() => notifier)],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -104,7 +88,10 @@ void main() {
       focuser.updatePosition(5000);
       focuser.updateTemperature(15.0);
       await Future<void>.delayed(Duration.zero);
-      expect(container.read(focuserTempCompensationBaselineProvider), isNotNull);
+      expect(
+        container.read(focuserTempCompensationBaselineProvider),
+        isNotNull,
+      );
 
       focuser.setDisconnected();
       await Future<void>.delayed(Duration.zero);
@@ -113,15 +100,10 @@ void main() {
 
     test('toggling tempCompensation off drops the baseline', () async {
       final notifier = _FakeAppSettingsNotifier(
-        const AppSettingsState(
-          tempCompensation: true,
-          tempCoefficient: 10.0,
-        ),
+        const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [
-          appSettingsProvider.overrideWith(() => notifier),
-        ],
+        overrides: [appSettingsProvider.overrideWith(() => notifier)],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -133,13 +115,13 @@ void main() {
       focuser.updatePosition(5000);
       focuser.updateTemperature(15.0);
       await Future<void>.delayed(Duration.zero);
-      expect(container.read(focuserTempCompensationBaselineProvider), isNotNull);
+      expect(
+        container.read(focuserTempCompensationBaselineProvider),
+        isNotNull,
+      );
 
       notifier.overrideState(
-        const AppSettingsState(
-          tempCompensation: false,
-          tempCoefficient: 10.0,
-        ),
+        const AppSettingsState(tempCompensation: false, tempCoefficient: 10.0),
       );
       await Future<void>.delayed(Duration.zero);
       expect(container.read(focuserTempCompensationBaselineProvider), isNull);

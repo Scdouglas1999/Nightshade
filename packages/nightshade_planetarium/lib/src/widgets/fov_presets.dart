@@ -143,19 +143,19 @@ class FovPreset {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'focalLengthMm': focalLengthMm,
-        'sensorWidthMm': sensorWidthMm,
-        'sensorHeightMm': sensorHeightMm,
-        'pixelSizeMicrons': pixelSizeMicrons,
-        'positionAngleDeg': positionAngleDeg,
-        // Store ARGB so the schematic hue round-trips exactly.
-        'color': color.toARGB32(),
-        'visible': visible,
-        if (center != null) 'centerRaHours': center!.ra,
-        if (center != null) 'centerDecDeg': center!.dec,
-      };
+    'id': id,
+    'name': name,
+    'focalLengthMm': focalLengthMm,
+    'sensorWidthMm': sensorWidthMm,
+    'sensorHeightMm': sensorHeightMm,
+    'pixelSizeMicrons': pixelSizeMicrons,
+    'positionAngleDeg': positionAngleDeg,
+    // Store ARGB so the schematic hue round-trips exactly.
+    'color': color.toARGB32(),
+    'visible': visible,
+    if (center != null) 'centerRaHours': center!.ra,
+    if (center != null) 'centerDecDeg': center!.dec,
+  };
 
   /// Reconstruct a preset from [toJson] output. Returns null when a required
   /// numeric field is missing or unparseable so a single corrupt entry can be
@@ -166,7 +166,11 @@ class FovPreset {
     final w = (json['sensorWidthMm'] as num?)?.toDouble();
     final h = (json['sensorHeightMm'] as num?)?.toDouble();
     final px = (json['pixelSizeMicrons'] as num?)?.toDouble();
-    if (id is! String || focal == null || w == null || h == null || px == null) {
+    if (id is! String ||
+        focal == null ||
+        w == null ||
+        h == null ||
+        px == null) {
       return null;
     }
     final raHours = (json['centerRaHours'] as num?)?.toDouble();
@@ -204,18 +208,18 @@ class FovPreset {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        name,
-        focalLengthMm,
-        sensorWidthMm,
-        sensorHeightMm,
-        pixelSizeMicrons,
-        positionAngleDeg,
-        color,
-        visible,
-        center?.ra,
-        center?.dec,
-      );
+    id,
+    name,
+    focalLengthMm,
+    sensorWidthMm,
+    sensorHeightMm,
+    pixelSizeMicrons,
+    positionAngleDeg,
+    color,
+    visible,
+    center?.ra,
+    center?.dec,
+  );
 }
 
 /// The collection of FOV framing presets plus which one is "active" (the target
@@ -228,10 +232,7 @@ class FovPresetsState {
   /// preset present in [presets] (the notifier keeps this invariant).
   final String? activeId;
 
-  const FovPresetsState({
-    this.presets = const [],
-    this.activeId,
-  });
+  const FovPresetsState({this.presets = const [], this.activeId});
 
   FovPreset? get active {
     if (activeId == null) return null;
@@ -254,9 +255,9 @@ class FovPresetsState {
 
   /// Serialize the whole collection to a JSON string for host persistence.
   String toJsonString() => jsonEncode({
-        'activeId': activeId,
-        'presets': presets.map((p) => p.toJson()).toList(),
-      });
+    'activeId': activeId,
+    'presets': presets.map((p) => p.toJson()).toList(),
+  });
 
   /// Parse a collection previously produced by [toJsonString]. Malformed input
   /// (or individual malformed presets) is tolerated: a bad blob yields an empty
@@ -278,8 +279,8 @@ class FovPresetsState {
         }
       }
       final rawActive = decoded['activeId'];
-      final activeId = (rawActive is String &&
-              presets.any((p) => p.id == rawActive))
+      final activeId =
+          (rawActive is String && presets.any((p) => p.id == rawActive))
           ? rawActive
           : null;
       return FovPresetsState(presets: presets, activeId: activeId);
@@ -353,9 +354,11 @@ class FovPresetsNotifier extends StateNotifier<FovPresetsState> {
     final active = state.active;
     if (active == null) return;
     final normalized = degrees % 360;
-    update(active.copyWith(
-      positionAngleDeg: normalized < 0 ? normalized + 360 : normalized,
-    ));
+    update(
+      active.copyWith(
+        positionAngleDeg: normalized < 0 ? normalized + 360 : normalized,
+      ),
+    );
   }
 
   /// Pin the active preset to a fixed sky position (e.g. snap-to-target).
@@ -377,5 +380,5 @@ class FovPresetsNotifier extends StateNotifier<FovPresetsState> {
 /// persistence is layered on by the host app.
 final fovPresetsProvider =
     StateNotifierProvider<FovPresetsNotifier, FovPresetsState>((ref) {
-  return FovPresetsNotifier();
-});
+      return FovPresetsNotifier();
+    });

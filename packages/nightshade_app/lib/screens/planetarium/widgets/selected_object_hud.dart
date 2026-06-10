@@ -59,7 +59,8 @@ class SelectedObjectHud extends ConsumerWidget {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       border: Border.all(
                           color: colors.primary.withValues(alpha: 0.3)),
                     ),
@@ -78,7 +79,8 @@ class SelectedObjectHud extends ConsumerWidget {
                       displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],

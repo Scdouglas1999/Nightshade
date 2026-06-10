@@ -67,7 +67,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                 height: 40,
                 decoration: NightshadeDecorations.tintedBadge(
                   widget.categoryColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Icon(
                   widget.getIcon(widget.snippet.iconName),
@@ -85,7 +86,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                         Expanded(
                           child: Text(
                             widget.snippet.name,
-                            style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
+                            style: NightshadeTypography.h5
+                                .copyWith(color: widget.colors.textPrimary),
                           ),
                         ),
                         if (widget.snippet.isBuiltIn)
@@ -96,7 +98,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                             ),
                             decoration: NightshadeDecorations.tintedBadge(
                               widget.colors.info,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Built-in',
@@ -171,7 +174,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               const SizedBox(width: 8),
               Text(
                 widget.snippet.name,
-                style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textPrimary),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: widget.colors.textPrimary),
               ),
             ],
           ),
@@ -190,7 +194,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               color: _isHovered
                   ? widget.colors.surfaceAlt
                   : widget.colors.background,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: _isHovered
                     ? widget.categoryColor.withValues(alpha: 0.5)
@@ -204,7 +209,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                   height: 28,
                   decoration: NightshadeDecorations.tintedBadge(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: Icon(
                     widget.getIcon(widget.snippet.iconName),
@@ -222,9 +228,10 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                           Expanded(
                             child: Text(
                               widget.snippet.name,
-                              style: NightshadeTypography.labelQuiet.copyWith(color: _isHovered
-                                    ? widget.colors.textPrimary
-                                    : widget.colors.textSecondary),
+                              style: NightshadeTypography.labelQuiet.copyWith(
+                                  color: _isHovered
+                                      ? widget.colors.textPrimary
+                                      : widget.colors.textSecondary),
                             ),
                           ),
                           if (widget.snippet.isBuiltIn)
@@ -235,7 +242,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                               ),
                               decoration: NightshadeDecorations.tintedBadge(
                                 widget.colors.info,
-                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusXs),
                               ),
                               child: Text(
                                 'Built-in',
@@ -360,7 +368,9 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 10),
-        Text(label, style: TextStyle(color: color, fontSize: NightshadeTypography.fontSize13)),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: NightshadeTypography.fontSize13)),
       ],
     );
   }

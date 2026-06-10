@@ -74,7 +74,9 @@ class _FilterChecklist extends ConsumerWidget {
         ),
         child: Text(
           'No filters available. Connect a filter wheel.',
-          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize13),
         ),
       );
     }

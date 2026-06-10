@@ -74,8 +74,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Welcome step', () {
-    testWidgets('renders the headline and bulleted summary',
-        (tester) async {
+    testWidgets('renders the headline and bulleted summary', (tester) async {
       final db = _newDb();
       addTearDown(db.close);
       await _pumpStep(tester, db: db, step: const OnboardingWelcomeStep());
@@ -124,9 +123,7 @@ void main() {
       await tester.pump();
       // Wait for the notifier to hydrate (defaults to all non-sim drivers
       // selected on a fresh load).
-      await container
-          .read(onboardingDraftProvider.notifier)
-          .loaded;
+      await container.read(onboardingDraftProvider.notifier).loaded;
       await tester.pumpAndSettle();
 
       // Default selection includes all non-simulator drivers
@@ -208,12 +205,10 @@ void main() {
   });
 
   group('Capture dir step', () {
-    testWidgets('renders browse button and placeholder text',
-        (tester) async {
+    testWidgets('renders browse button and placeholder text', (tester) async {
       final db = _newDb();
       addTearDown(db.close);
-      await _pumpStep(tester,
-          db: db, step: const OnboardingCaptureDirStep());
+      await _pumpStep(tester, db: db, step: const OnboardingCaptureDirStep());
 
       expect(find.text('Where should we save captures?'), findsOneWidget);
       expect(find.text('No folder selected yet'), findsOneWidget);
@@ -261,9 +256,7 @@ void main() {
       await container
           .read(onboardingDraftProvider.notifier)
           .setMount(id: 'ascom:EQMOD', name: 'EQ6-R');
-      await container
-          .read(onboardingDraftProvider.notifier)
-          .setOpticalTrain(
+      await container.read(onboardingDraftProvider.notifier).setOpticalTrain(
             focalLengthMm: 1000,
             apertureMm: 80,
             pixelSizeMicrons: 3.76,
@@ -293,8 +286,8 @@ void main() {
       // Editing the name persists to the draft.
       await tester.enterText(nameField, 'Backyard Rig');
       await tester.pumpAndSettle();
-      expect(container.read(onboardingDraftProvider).profileName,
-          'Backyard Rig');
+      expect(
+          container.read(onboardingDraftProvider).profileName, 'Backyard Rig');
     });
   });
 

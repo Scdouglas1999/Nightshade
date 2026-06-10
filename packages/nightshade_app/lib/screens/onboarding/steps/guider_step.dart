@@ -219,9 +219,8 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                           ? LucideIcons.checkCircle2
                           : NightshadeIcons.warning,
                       size: 16,
-                      color: _lastResult == true
-                          ? colors.success
-                          : colors.error,
+                      color:
+                          _lastResult == true ? colors.success : colors.error,
                     ),
                     const SizedBox(width: 8),
                     Expanded(

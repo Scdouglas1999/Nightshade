@@ -18,8 +18,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('camera', deviceId);
       }
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.camera, deviceId);
+      final deviceName = await _resolveDeviceDisplayName(
+        DeviceType.camera,
+        deviceId,
+      );
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -47,8 +49,9 @@ extension _DeviceServiceConnections on DeviceService {
         } catch (e) {
           _safeLog(
             (l) => l.warning(
-                'Cool-on-connect failed (profile lookup or cooling command): $e',
-                source: 'DeviceService'),
+              'Cool-on-connect failed (profile lookup or cooling command): $e',
+              source: 'DeviceService',
+            ),
             'cool-on-connect',
           );
         }
@@ -89,7 +92,8 @@ extension _DeviceServiceConnections on DeviceService {
   /// Returns the raw [CameraRecommendedSettings] from the backend so the UI
   /// can present the values BEFORE deciding whether to apply them.
   Future<CameraRecommendedSettings> _queryRecommendedCameraSettings(
-      String deviceId) {
+    String deviceId,
+  ) {
     return _backend.cameraGetRecommendedSettings(deviceId);
   }
 
@@ -99,7 +103,8 @@ extension _DeviceServiceConnections on DeviceService {
   ///
   /// Returns true if at least one field was updated.
   Future<bool> _applyRecommendedCameraSettings(
-      CameraRecommendedSettings rec) async {
+    CameraRecommendedSettings rec,
+  ) async {
     final activeProfile = _ref.read(activeEquipmentProfileProvider);
     if (activeProfile == null || activeProfile.id == null) {
       return false;
@@ -183,20 +188,20 @@ extension _DeviceServiceConnections on DeviceService {
         // Fail-soft — an unreachable driver must not block the disconnect.
         if (state.isCooling) {
           try {
-            await _backend.cameraSetCooling(
-              deviceId: deviceId,
-              enabled: false,
-            );
+            await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
             _safeLog(
-              (l) => l.info('Cooler disabled as part of camera disconnect',
-                  source: 'DeviceService'),
+              (l) => l.info(
+                'Cooler disabled as part of camera disconnect',
+                source: 'DeviceService',
+              ),
               'disconnect-cooler-off',
             );
           } catch (e) {
             _safeLog(
               (l) => l.warning(
-                  'Could not disable cooler during disconnect: $e',
-                  source: 'DeviceService'),
+                'Could not disable cooler during disconnect: $e',
+                source: 'DeviceService',
+              ),
               'disconnect-cooler-off',
             );
           }
@@ -229,8 +234,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('mount', deviceId);
       }
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.mount, deviceId);
+      final deviceName = await _resolveDeviceDisplayName(
+        DeviceType.mount,
+        deviceId,
+      );
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -293,15 +300,9 @@ extension _DeviceServiceConnections on DeviceService {
       try {
         // Stop heartbeat monitoring; fail-soft inside the router so the
         // matching disconnectDevice call below proceeds regardless.
-        await _heartbeat.stop(
-          deviceType: DeviceType.mount,
-          deviceId: deviceId,
-        );
+        await _heartbeat.stop(deviceType: DeviceType.mount, deviceId: deviceId);
 
-        await _backend.disconnectDevice(
-          DeviceType.mount,
-          deviceId,
-        );
+        await _backend.disconnectDevice(DeviceType.mount, deviceId);
       } finally {
         notifier.setDisconnected();
       }
@@ -319,8 +320,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('focuser', deviceId);
       }
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.focuser, deviceId);
+      final deviceName = await _resolveDeviceDisplayName(
+        DeviceType.focuser,
+        deviceId,
+      );
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -363,10 +366,7 @@ extension _DeviceServiceConnections on DeviceService {
       _focuserVerifyGeneration++;
 
       try {
-        await _backend.disconnectDevice(
-          DeviceType.focuser,
-          deviceId,
-        );
+        await _backend.disconnectDevice(DeviceType.focuser, deviceId);
       } finally {
         notifier.setDisconnected();
       }
@@ -389,8 +389,10 @@ extension _DeviceServiceConnections on DeviceService {
       // Discovery opens/closes hardware (e.g. ZWO EFW via native SDK) which
       // can interfere with subsequent position reads.  The device manager will
       // register the full DeviceInfo during api_connect_device anyway.
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.filterWheel, deviceId);
+      final deviceName = await _resolveDeviceDisplayName(
+        DeviceType.filterWheel,
+        deviceId,
+      );
 
       notifier.setConnecting(deviceId, deviceName);
 
@@ -432,9 +434,7 @@ extension _DeviceServiceConnections on DeviceService {
           source: 'DeviceService',
         );
 
-        notifier.setConnected(
-          filterNames: status.filterNames,
-        );
+        notifier.setConnected(filterNames: status.filterNames);
         notifier.setDeviceName(deviceName);
         notifier.updatePosition(status.position);
         notifier.setMoving(status.moving);
@@ -449,7 +449,8 @@ extension _DeviceServiceConnections on DeviceService {
             status.position < status.filterNames.length) {
           _lastAppliedFilterOffsetByWheel[deviceId] =
               _resolveConfiguredFilterOffset(
-                  status.filterNames[status.position]);
+                status.filterNames[status.position],
+              );
         }
 
         // After connection, sync profile/session filter names to the native
@@ -480,10 +481,7 @@ extension _DeviceServiceConnections on DeviceService {
       _lastAppliedFilterOffsetByWheel.remove(deviceId);
 
       try {
-        await _backend.disconnectDevice(
-          DeviceType.filterWheel,
-          deviceId,
-        );
+        await _backend.disconnectDevice(DeviceType.filterWheel, deviceId);
       } finally {
         notifier.setDisconnected();
       }
@@ -577,10 +575,7 @@ extension _DeviceServiceConnections on DeviceService {
         if (isPhd2DeviceId(deviceId)) {
           await _backend.phd2Disconnect();
         } else {
-          await _backend.disconnectDevice(
-            DeviceType.guider,
-            deviceId,
-          );
+          await _backend.disconnectDevice(DeviceType.guider, deviceId);
         }
       } finally {
         notifier.setDisconnected();

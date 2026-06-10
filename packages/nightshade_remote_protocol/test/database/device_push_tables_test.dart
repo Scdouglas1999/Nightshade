@@ -23,11 +23,11 @@ void main() {
   /// against `paired_devices.is_active = true`, so a token only fans out when
   /// its device is paired and active — mirror that in fixtures.
   Future<void> pair(String deviceId) => db.addPairedDevice(
-        deviceId: deviceId,
-        deviceName: 'Test $deviceId',
-        sessionToken: 'tok-$deviceId',
-        deviceType: 'mobile',
-      );
+    deviceId: deviceId,
+    deviceName: 'Test $deviceId',
+    sessionToken: 'tok-$deviceId',
+    deviceType: 'mobile',
+  );
 
   group('device_push_tokens', () {
     test('register-token upserts: insert then overwrite in place', () async {
@@ -78,12 +78,9 @@ void main() {
       await pair('a');
       await pair('b');
       await pair('c');
-      await db.upsertPushToken(
-          deviceId: 'a', platform: 'fcm', token: 't-a');
-      await db.upsertPushToken(
-          deviceId: 'b', platform: 'fcm', token: 't-b');
-      await db.upsertPushToken(
-          deviceId: 'c', platform: 'apns', token: 't-c');
+      await db.upsertPushToken(deviceId: 'a', platform: 'fcm', token: 't-a');
+      await db.upsertPushToken(deviceId: 'b', platform: 'fcm', token: 't-b');
+      await db.upsertPushToken(deviceId: 'c', platform: 'apns', token: 't-c');
 
       final fcm = await db.getPushTokensByPlatform('fcm');
       expect(fcm.map((r) => r.deviceId).toSet(), {'a', 'b'});
@@ -91,26 +88,43 @@ void main() {
       expect(apns.map((r) => r.deviceId).toSet(), {'c'});
     });
 
-    test('deletePushTokensForDevice clears all of a device\'s tokens',
-        () async {
-      await db.upsertPushToken(
-          deviceId: 'phone-1', platform: 'fcm', token: 'f');
-      await db.upsertPushToken(
-          deviceId: 'phone-1', platform: 'apns', token: 'a');
-      await db.upsertPushToken(
-          deviceId: 'phone-2', platform: 'fcm', token: 'f2');
+    test(
+      'deletePushTokensForDevice clears all of a device\'s tokens',
+      () async {
+        await db.upsertPushToken(
+          deviceId: 'phone-1',
+          platform: 'fcm',
+          token: 'f',
+        );
+        await db.upsertPushToken(
+          deviceId: 'phone-1',
+          platform: 'apns',
+          token: 'a',
+        );
+        await db.upsertPushToken(
+          deviceId: 'phone-2',
+          platform: 'fcm',
+          token: 'f2',
+        );
 
-      await db.deletePushTokensForDevice('phone-1');
+        await db.deletePushTokensForDevice('phone-1');
 
-      expect(await db.getPushTokensForDevice('phone-1'), isEmpty);
-      expect(await db.getPushTokensForDevice('phone-2'), hasLength(1));
-    });
+        expect(await db.getPushTokensForDevice('phone-1'), isEmpty);
+        expect(await db.getPushTokensForDevice('phone-2'), hasLength(1));
+      },
+    );
 
     test('deletePushToken removes a single stale token by value', () async {
       await db.upsertPushToken(
-          deviceId: 'phone-1', platform: 'fcm', token: 'stale');
+        deviceId: 'phone-1',
+        platform: 'fcm',
+        token: 'stale',
+      );
       await db.upsertPushToken(
-          deviceId: 'phone-2', platform: 'fcm', token: 'fresh');
+        deviceId: 'phone-2',
+        platform: 'fcm',
+        token: 'fresh',
+      );
 
       await db.deletePushToken('stale');
 
@@ -119,56 +133,74 @@ void main() {
       expect(remaining.single.token, 'fresh');
     });
 
-    test('getPushTokensByPlatform excludes a token with no active device',
-        () async {
-      // A token row whose paired-device row is inactive (or absent) must not
-      // fan out — defense in depth so a revoked phone cannot keep receiving
-      // criticals even if its token row lingers.
-      await pair('active');
-      await db.upsertPushToken(
-          deviceId: 'active', platform: 'fcm', token: 'A');
-      // Token for a device that was never paired (no paired_devices row).
-      await db.upsertPushToken(
-          deviceId: 'orphan', platform: 'fcm', token: 'O');
+    test(
+      'getPushTokensByPlatform excludes a token with no active device',
+      () async {
+        // A token row whose paired-device row is inactive (or absent) must not
+        // fan out — defense in depth so a revoked phone cannot keep receiving
+        // criticals even if its token row lingers.
+        await pair('active');
+        await db.upsertPushToken(
+          deviceId: 'active',
+          platform: 'fcm',
+          token: 'A',
+        );
+        // Token for a device that was never paired (no paired_devices row).
+        await db.upsertPushToken(
+          deviceId: 'orphan',
+          platform: 'fcm',
+          token: 'O',
+        );
 
-      final rows = await db.getPushTokensByPlatform('fcm');
-      expect(rows.map((r) => r.deviceId), ['active']);
-    });
-
-    test('revokeDevice deletes push rows and drops the device from fan-out',
-        () async {
-      await pair('keep');
-      await pair('revoked');
-      await db.upsertPushToken(
-          deviceId: 'keep', platform: 'fcm', token: 'KEEP');
-      await db.upsertPushToken(
-          deviceId: 'revoked', platform: 'fcm', token: 'REVOKED');
-      await db.upsertPushPrefs(
-        deviceId: 'revoked',
-        enabled: true,
-        muteSequenceFailed: false,
-        muteWeatherUnsafe: false,
-        muteGuidingLost: false,
-        muteAutofocusFailed: false,
-        muteEquipmentDisconnected: false,
-      );
-
-      await db.revokeDevice('revoked');
-
-      // Push token + prefs rows for the revoked device are gone.
-      expect(await db.getPushTokensForDevice('revoked'), isEmpty);
-      expect(await db.getPushPrefs('revoked'), isNull);
-      // The active device still fans out; the revoked one does not.
-      final rows = await db.getPushTokensByPlatform('fcm');
-      expect(rows.map((r) => r.deviceId), ['keep']);
-    });
+        final rows = await db.getPushTokensByPlatform('fcm');
+        expect(rows.map((r) => r.deviceId), ['active']);
+      },
+    );
 
     test(
-        'deletePairedDevice removes the device\'s push token + prefs rows '
+      'revokeDevice deletes push rows and drops the device from fan-out',
+      () async {
+        await pair('keep');
+        await pair('revoked');
+        await db.upsertPushToken(
+          deviceId: 'keep',
+          platform: 'fcm',
+          token: 'KEEP',
+        );
+        await db.upsertPushToken(
+          deviceId: 'revoked',
+          platform: 'fcm',
+          token: 'REVOKED',
+        );
+        await db.upsertPushPrefs(
+          deviceId: 'revoked',
+          enabled: true,
+          muteSequenceFailed: false,
+          muteWeatherUnsafe: false,
+          muteGuidingLost: false,
+          muteAutofocusFailed: false,
+          muteEquipmentDisconnected: false,
+        );
+
+        await db.revokeDevice('revoked');
+
+        // Push token + prefs rows for the revoked device are gone.
+        expect(await db.getPushTokensForDevice('revoked'), isEmpty);
+        expect(await db.getPushPrefs('revoked'), isNull);
+        // The active device still fans out; the revoked one does not.
+        final rows = await db.getPushTokensByPlatform('fcm');
+        expect(rows.map((r) => r.deviceId), ['keep']);
+      },
+    );
+
+    test('deletePairedDevice removes the device\'s push token + prefs rows '
         '(no orphan re-attaches on re-pair)', () async {
       await pair('gone');
       await db.upsertPushToken(
-          deviceId: 'gone', platform: 'fcm', token: 'GONE');
+        deviceId: 'gone',
+        platform: 'fcm',
+        token: 'GONE',
+      );
       await db.upsertPushPrefs(
         deviceId: 'gone',
         enabled: true,
@@ -194,27 +226,29 @@ void main() {
   });
 
   group('getActivePairedDeviceByFingerprint (caller resolution)', () {
-    test('resolves the device whose session token digests to the fingerprint',
-        () async {
-      await db.addPairedDevice(
-        deviceId: 'owner',
-        deviceName: 'Owner',
-        sessionToken: 'session-owner',
-        deviceType: 'mobile',
-      );
-      await db.addPairedDevice(
-        deviceId: 'other',
-        deviceName: 'Other',
-        sessionToken: 'session-other',
-        deviceType: 'mobile',
-      );
+    test(
+      'resolves the device whose session token digests to the fingerprint',
+      () async {
+        await db.addPairedDevice(
+          deviceId: 'owner',
+          deviceName: 'Owner',
+          sessionToken: 'session-owner',
+          deviceType: 'mobile',
+        );
+        await db.addPairedDevice(
+          deviceId: 'other',
+          deviceName: 'Other',
+          sessionToken: 'session-other',
+          deviceType: 'mobile',
+        );
 
-      final resolved = await db.getActivePairedDeviceByFingerprint(
-        computeServerFingerprint('session-owner'),
-      );
-      expect(resolved, isNotNull);
-      expect(resolved!.deviceId, 'owner');
-    });
+        final resolved = await db.getActivePairedDeviceByFingerprint(
+          computeServerFingerprint('session-owner'),
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.deviceId, 'owner');
+      },
+    );
 
     test('returns null for an unknown / non-matching fingerprint', () async {
       await db.addPairedDevice(
@@ -232,30 +266,34 @@ void main() {
       expect(await db.getActivePairedDeviceByFingerprint(''), isNull);
     });
 
-    test('excludes a revoked (inactive) device — stolen token resolves to none',
-        () async {
-      await db.addPairedDevice(
-        deviceId: 'revoked',
-        deviceName: 'Revoked',
-        sessionToken: 'session-revoked',
-        deviceType: 'mobile',
-      );
-      await db.revokeDevice('revoked');
+    test(
+      'excludes a revoked (inactive) device — stolen token resolves to none',
+      () async {
+        await db.addPairedDevice(
+          deviceId: 'revoked',
+          deviceName: 'Revoked',
+          sessionToken: 'session-revoked',
+          deviceType: 'mobile',
+        );
+        await db.revokeDevice('revoked');
 
-      expect(
-        await db.getActivePairedDeviceByFingerprint(
-          computeServerFingerprint('session-revoked'),
-        ),
-        isNull,
-      );
-    });
+        expect(
+          await db.getActivePairedDeviceByFingerprint(
+            computeServerFingerprint('session-revoked'),
+          ),
+          isNull,
+        );
+      },
+    );
   });
 
   group('device_push_prefs', () {
-    test('missing row reads as null (caller applies all-enabled default)',
-        () async {
-      expect(await db.getPushPrefs('never-set'), isNull);
-    });
+    test(
+      'missing row reads as null (caller applies all-enabled default)',
+      () async {
+        expect(await db.getPushPrefs('never-set'), isNull);
+      },
+    );
 
     test('preferences round-trip: write then read identical', () async {
       await db.upsertPushPrefs(

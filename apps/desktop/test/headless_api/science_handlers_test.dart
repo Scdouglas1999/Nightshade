@@ -23,17 +23,20 @@ void main() {
     });
 
     test('invalid session bundle ID returns JSON internal error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetSessionBundle(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/science/session/not-an-id/bundle'),
+      final response = await translateHandlerErrors(
+        handlers.handleGetSessionBundle(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/science/session/not-an-id/bundle'),
+          ),
+          'not-an-id',
         ),
-        'not-an-id',
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -41,14 +44,16 @@ void main() {
 
     test('compute transform without filter returns JSON bad request', () async {
       final response = await translateHandlerErrors(
-          handlers.handleComputePhotometricTransform(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/science/calibration/compute-transform'),
-          body: jsonEncode({'starMatches': []}),
+        handlers.handleComputePhotometricTransform(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/science/calibration/compute-transform',
+            ),
+            body: jsonEncode({'starMatches': []}),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -56,22 +61,27 @@ void main() {
       expect(body['error'], 'filterName is required');
     });
 
-    test('update settings malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleUpdateScienceSettings(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/science/settings'),
-          body: '{',
-        ),
-      ));
+    test(
+      'update settings malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleUpdateScienceSettings(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/science/settings'),
+              body: '{',
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
   });
 }

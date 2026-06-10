@@ -10,8 +10,8 @@ import 'equipment_retry_defaults.dart';
 /// Weather state provider
 final weatherStateProvider =
     StateNotifierProvider<WeatherStateNotifier, WeatherState>((ref) {
-  return WeatherStateNotifier(ref);
-});
+      return WeatherStateNotifier(ref);
+    });
 
 class WeatherStateNotifier extends StateNotifier<WeatherState> {
   final Ref _ref;
@@ -19,8 +19,10 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
 
   WeatherStateNotifier(this._ref) : super(const WeatherState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

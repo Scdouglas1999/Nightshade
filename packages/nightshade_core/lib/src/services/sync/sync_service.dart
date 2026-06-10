@@ -126,17 +126,18 @@ class SyncBundleInfo {
       file: json['file'] as String? ?? '',
       sha256: json['sha256'] as String? ?? '',
       sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'file': file,
-        'sha256': sha256,
-        'sizeBytes': sizeBytes,
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'file': file,
+    'sha256': sha256,
+    'sizeBytes': sizeBytes,
+    'createdAt': createdAt.toIso8601String(),
+  };
 }
 
 /// Per-machine `manifest.json` stored next to the bundles.
@@ -171,19 +172,20 @@ class SyncManifest {
     return SyncManifest(
       machine: json['machine'] as String? ?? '',
       appVersion: json['appVersion'] as String? ?? 'unknown',
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       bundles: bundles,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'version': formatVersion,
-        'machine': machine,
-        'appVersion': appVersion,
-        'updatedAt': updatedAt.toIso8601String(),
-        'bundles': bundles.map((b) => b.toJson()).toList(),
-      };
+    'version': formatVersion,
+    'machine': machine,
+    'appVersion': appVersion,
+    'updatedAt': updatedAt.toIso8601String(),
+    'bundles': bundles.map((b) => b.toJson()).toList(),
+  };
 
   /// Returns a copy with [bundle] prepended and the list trimmed to
   /// [retainCount] entries (newest first). The trimmed-off entries are
@@ -253,14 +255,14 @@ class SyncStatus {
   });
 
   Map<String, dynamic> toJson() => {
-        'configured': configured,
-        'autoPushEnabled': autoPushEnabled,
-        'machineName': machineName,
-        'serverUrl': serverUrl,
-        'lastPushAt': lastPushAt?.toIso8601String(),
-        'lastError': lastError,
-        'pushInProgress': pushInProgress,
-      };
+    'configured': configured,
+    'autoPushEnabled': autoPushEnabled,
+    'machineName': machineName,
+    'serverUrl': serverUrl,
+    'lastPushAt': lastPushAt?.toIso8601String(),
+    'lastError': lastError,
+    'pushInProgress': pushInProgress,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -298,15 +300,16 @@ class SyncService {
     SyncTarget Function(SyncConfig config, String password)? targetFactory,
     Future<Directory> Function()? downloadDirectoryProvider,
     DateTime Function()? clock,
-  })  : _logger = logger,
-        _targetFactory = targetFactory ?? _defaultTargetFactory,
-        _downloadDirectoryProvider = downloadDirectoryProvider ??
-            (() async {
-              final dir = await backupService.getBackupDirectory();
-              await dir.create(recursive: true);
-              return dir;
-            }),
-        _clock = clock ?? DateTime.now;
+  }) : _logger = logger,
+       _targetFactory = targetFactory ?? _defaultTargetFactory,
+       _downloadDirectoryProvider =
+           downloadDirectoryProvider ??
+           (() async {
+             final dir = await backupService.getBackupDirectory();
+             await dir.create(recursive: true);
+             return dir;
+           }),
+       _clock = clock ?? DateTime.now;
 
   static SyncTarget _defaultTargetFactory(SyncConfig config, String password) {
     final uri = Uri.parse(config.serverUrl.trim());
@@ -340,8 +343,10 @@ class SyncService {
     }
     final autoPush =
         await settingsDao.getSetting(SyncSettingsKeys.autoPush) == 'true';
-    final retain = int.tryParse(
-            await settingsDao.getSetting(SyncSettingsKeys.retainCount) ?? '') ??
+    final retain =
+        int.tryParse(
+          await settingsDao.getSetting(SyncSettingsKeys.retainCount) ?? '',
+        ) ??
         kSyncDefaultRetainCount;
     return SyncConfig(
       serverUrl: serverUrl,
@@ -384,16 +389,16 @@ class SyncService {
 
   Future<SyncStatus> status() async {
     final config = await loadConfig();
-    final lastPushRaw =
-        await settingsDao.getSetting(SyncSettingsKeys.lastPushAt);
+    final lastPushRaw = await settingsDao.getSetting(
+      SyncSettingsKeys.lastPushAt,
+    );
     final lastError = await settingsDao.getSetting(SyncSettingsKeys.lastError);
     return SyncStatus(
       configured: config.isConfigured,
       autoPushEnabled: config.autoPushEnabled,
       machineName: config.machineName,
       serverUrl: config.serverUrl,
-      lastPushAt:
-          lastPushRaw == null ? null : DateTime.tryParse(lastPushRaw),
+      lastPushAt: lastPushRaw == null ? null : DateTime.tryParse(lastPushRaw),
       lastError: (lastError == null || lastError.isEmpty) ? null : lastError,
       pushInProgress: _pushInProgress,
     );
@@ -470,7 +475,8 @@ class SyncService {
       await target.uploadFile(remotePath, bytes);
 
       // 3. Manifest update + prune.
-      final manifest = await _readManifest(target, machineDir) ??
+      final manifest =
+          await _readManifest(target, machineDir) ??
           SyncManifest(
             machine: sanitizeMachineName(config.machineName),
             appVersion: BackupService.appVersion,
@@ -489,14 +495,16 @@ class SyncService {
       );
       await target.uploadFile(
         '$machineDir/manifest.json',
-        utf8.encode(const JsonEncoder.withIndent('  ').convert(
-          SyncManifest(
-            machine: updated.machine,
-            appVersion: BackupService.appVersion,
-            updatedAt: updated.updatedAt,
-            bundles: updated.bundles,
-          ).toJson(),
-        )),
+        utf8.encode(
+          const JsonEncoder.withIndent('  ').convert(
+            SyncManifest(
+              machine: updated.machine,
+              appVersion: BackupService.appVersion,
+              updatedAt: updated.updatedAt,
+              bundles: updated.bundles,
+            ).toJson(),
+          ),
+        ),
       );
       for (final old in pruned) {
         try {
@@ -607,17 +615,20 @@ class SyncService {
         rethrow;
       }
       final extras = entries
-          .where((e) =>
-              !e.isDirectory &&
-              e.name.endsWith('.nsbak') &&
-              !knownNames.contains(e.name))
-          .map((e) => SyncBundleInfo(
-                file: e.name,
-                sha256: '',
-                sizeBytes: e.sizeBytes ?? 0,
-                createdAt:
-                    e.modified ?? DateTime.fromMillisecondsSinceEpoch(0),
-              ));
+          .where(
+            (e) =>
+                !e.isDirectory &&
+                e.name.endsWith('.nsbak') &&
+                !knownNames.contains(e.name),
+          )
+          .map(
+            (e) => SyncBundleInfo(
+              file: e.name,
+              sha256: '',
+              sizeBytes: e.sizeBytes ?? 0,
+              createdAt: e.modified ?? DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+          );
       return [...known, ...extras];
     } finally {
       _closeIfOwned(target);
@@ -675,10 +686,12 @@ class SyncService {
 
       final downloadDir = await _downloadDirectoryProvider();
       final stem = p.basenameWithoutExtension(bundleFile);
-      final localFile = File(p.join(
-        downloadDir.path,
-        'cloud-${sanitizeMachineName(machine)}-$stem.nsbackup',
-      ));
+      final localFile = File(
+        p.join(
+          downloadDir.path,
+          'cloud-${sanitizeMachineName(machine)}-$stem.nsbackup',
+        ),
+      );
       await localFile.writeAsBytes(bytes, flush: true);
 
       return backupService.restoreBackup(
@@ -722,11 +735,8 @@ class SyncService {
     if (target is WebDavSyncTarget) target.close();
   }
 
-  static String _fileTimestamp(DateTime t) => t
-      .toUtc()
-      .toIso8601String()
-      .replaceAll(':', '-')
-      .replaceAll('.', '-');
+  static String _fileTimestamp(DateTime t) =>
+      t.toUtc().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
 }
 
 // ---------------------------------------------------------------------------

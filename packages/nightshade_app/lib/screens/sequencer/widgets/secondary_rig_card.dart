@@ -144,9 +144,8 @@ class SecondaryRigCard extends ConsumerWidget {
                   FilledButton.icon(
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Start secondary'),
-                    onPressed: config.isValid
-                        ? () => _start(context, ref)
-                        : null,
+                    onPressed:
+                        config.isValid ? () => _start(context, ref) : null,
                   )
                 else
                   FilledButton.tonalIcon(

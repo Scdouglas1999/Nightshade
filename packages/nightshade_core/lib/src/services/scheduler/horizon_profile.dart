@@ -10,9 +10,9 @@ class HorizonSample extends Equatable {
   const HorizonSample(this.azimuthDegrees, this.altitudeDegrees);
 
   Map<String, dynamic> toJson() => {
-        'az': azimuthDegrees,
-        'alt': altitudeDegrees,
-      };
+    'az': azimuthDegrees,
+    'alt': altitudeDegrees,
+  };
 
   static HorizonSample fromJson(Map<String, dynamic> json) {
     return HorizonSample(
@@ -41,11 +41,7 @@ class HorizonProfile extends Equatable {
   /// a single entry creates a flat horizon at that altitude.
   final List<HorizonSample> samples;
 
-  const HorizonProfile({
-    this.id,
-    required this.name,
-    required this.samples,
-  });
+  const HorizonProfile({this.id, required this.name, required this.samples});
 
   /// Build the canonical flat horizon at a given altitude.
   factory HorizonProfile.flat({
@@ -122,7 +118,8 @@ class HorizonProfile extends Equatable {
     final list = jsonDecode(samplesJson) as List<dynamic>;
     if (list.isEmpty) {
       throw FormatException(
-          'HorizonProfile $id ($name) has an empty samples list');
+        'HorizonProfile $id ($name) has an empty samples list',
+      );
     }
     return HorizonProfile(
       id: id,
@@ -153,19 +150,22 @@ class HorizonProfile extends Equatable {
       final parts = trimmed.split(RegExp(r'[\s,]+'));
       if (parts.length < 2) {
         throw FormatException(
-            'Horizon profile "$name" line $lineNum: expected "az alt"');
+          'Horizon profile "$name" line $lineNum: expected "az alt"',
+        );
       }
       final az = double.tryParse(parts[0]);
       final alt = double.tryParse(parts[1]);
       if (az == null || alt == null) {
         throw FormatException(
-            'Horizon profile "$name" line $lineNum: non-numeric value');
+          'Horizon profile "$name" line $lineNum: non-numeric value',
+        );
       }
       samples.add(HorizonSample(az, alt));
     }
     if (samples.isEmpty) {
       throw FormatException(
-          'Horizon profile "$name" contained no usable samples');
+        'Horizon profile "$name" contained no usable samples',
+      );
     }
     return HorizonProfile(id: id, name: name, samples: samples);
   }

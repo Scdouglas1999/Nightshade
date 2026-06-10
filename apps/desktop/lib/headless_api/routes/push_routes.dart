@@ -12,12 +12,20 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [PushHandlers].
 List<HeadlessRoute> buildPushRoutes(PushHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(
-          HttpMethod.post, '/api/push/register-token', h.handleRegisterToken),
-      HeadlessRoute(
-          HttpMethod.delete, '/api/push/token', h.handleDeleteToken),
-      HeadlessRoute(
-          HttpMethod.get, '/api/push/preferences', h.handleGetPreferences),
-      HeadlessRoute(
-          HttpMethod.put, '/api/push/preferences', h.handlePutPreferences),
-    ];
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/push/register-token',
+    h.handleRegisterToken,
+  ),
+  HeadlessRoute(HttpMethod.delete, '/api/push/token', h.handleDeleteToken),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/push/preferences',
+    h.handleGetPreferences,
+  ),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/push/preferences',
+    h.handlePutPreferences,
+  ),
+];

@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/platform_capability_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/platform_capability_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Platform capability audit not found: ${script.path}');
   }
@@ -220,10 +221,7 @@ void main() {
 }
 ''',
   );
-  await _writeDoc(
-    root,
-    'docs/supported-hardware-by-platform.md',
-    '''
+  await _writeDoc(root, 'docs/supported-hardware-by-platform.md', '''
 # Supported Hardware By Platform
 ## Driver Backend Availability
 ASCOM COM | Available | Unsupported | Unsupported
@@ -240,8 +238,7 @@ video
 DSLR/gphoto2
 /api/info.platformCapabilities
 in-app Platform Capabilities
-''',
-  );
+''');
   await _writeDoc(
     root,
     'docs/production-readiness/feature-parity-matrix.md',
@@ -259,10 +256,7 @@ Unsupported
 controls disabled
 ''',
   );
-  await _writeDoc(
-    root,
-    'docs/api/web-server-api.md',
-    '''
+  await _writeDoc(root, 'docs/api/web-server-api.md', '''
 # API
 platformCapabilities
 ASCOM COM
@@ -274,8 +268,7 @@ GET /api/equipment/focuser/capabilities
 GET /api/equipment/filter-wheel/capabilities
 GET /api/equipment/rotator/capabilities
 capability response is device-specific
-''',
-  );
+''');
 }
 
 Future<ProcessResult> _runAudit(

@@ -76,7 +76,9 @@ class CockpitRunControls extends ConsumerWidget {
           Expanded(
             child: Text(
               'Sequence ready — start tonight’s run.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -255,7 +257,8 @@ class _ControlButton extends StatelessWidget {
                   : isEnabled
                       ? colors.surface
                       : colors.surface.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActive
                     ? colors.success.withValues(alpha: 0.5)

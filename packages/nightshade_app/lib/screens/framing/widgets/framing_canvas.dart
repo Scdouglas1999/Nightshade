@@ -855,7 +855,8 @@ class _ZoomControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ZoomButton(icon: NightshadeIcons.add, colors: colors, onTap: onZoomIn),
+          _ZoomButton(
+              icon: NightshadeIcons.add, colors: colors, onTap: onZoomIn),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Padding(
             padding:

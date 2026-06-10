@@ -62,8 +62,7 @@ class NotesService {
   /// through this stream — every consumer re-reads the table because
   /// the queries are cheap (per-target indexes) and we want a single
   /// source of truth (the database row).
-  final StreamController<void> _mutations =
-      StreamController<void>.broadcast();
+  final StreamController<void> _mutations = StreamController<void>.broadcast();
 
   NotesService(this._db, {Uuid? uuid}) : _uuid = uuid ?? const Uuid();
 
@@ -210,10 +209,12 @@ class NotesService {
 
   Future<JournalNote?> getNoteById(String id) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT * FROM notes_journal WHERE id = ?',
-      variables: [Variable.withString(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM notes_journal WHERE id = ?',
+          variables: [Variable.withString(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _rowToNote(rows.first);
   }
@@ -223,22 +224,26 @@ class NotesService {
   /// (most UI uses [JournalNote.createdAt] descending).
   Future<List<JournalNote>> notesForTarget(String targetId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT * FROM notes_journal WHERE target_id = ? '
-      'ORDER BY created_at DESC',
-      variables: [Variable.withString(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM notes_journal WHERE target_id = ? '
+          'ORDER BY created_at DESC',
+          variables: [Variable.withString(targetId)],
+        )
+        .get();
     return rows.map(_rowToNote).toList();
   }
 
   /// All notes attached to a specific sequence run.
   Future<List<JournalNote>> notesForRun(int runId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT * FROM notes_journal WHERE sequence_run_id = ? '
-      'ORDER BY created_at DESC',
-      variables: [Variable.withInt(runId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM notes_journal WHERE sequence_run_id = ? '
+          'ORDER BY created_at DESC',
+          variables: [Variable.withInt(runId)],
+        )
+        .get();
     return rows.map(_rowToNote).toList();
   }
 
@@ -247,9 +252,9 @@ class NotesService {
   /// referenced target ids.
   Future<List<JournalNote>> allNotes() async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT * FROM notes_journal ORDER BY created_at DESC',
-    ).get();
+    final rows = await _db
+        .customSelect('SELECT * FROM notes_journal ORDER BY created_at DESC')
+        .get();
     return rows.map(_rowToNote).toList();
   }
 
@@ -282,10 +287,12 @@ class NotesService {
       variables.add(Variable.withString('%"$tag"%'));
     }
     final where = clauses.isEmpty ? '' : 'WHERE ${clauses.join(' AND ')} ';
-    final rows = await _db.customSelect(
-      'SELECT * FROM notes_journal ${where}ORDER BY created_at DESC',
-      variables: variables,
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM notes_journal ${where}ORDER BY created_at DESC',
+          variables: variables,
+        )
+        .get();
     return rows.map(_rowToNote).toList();
   }
 
@@ -332,9 +339,7 @@ class NotesService {
       updatedAt: _fromEpochMs(row.read<int>('updated_at')),
       title: row.readNullable<String>('title'),
       body: row.read<String>('body'),
-      tags: JournalNote.decodeStringList(
-        row.readNullable<String>('tags_json'),
-      ),
+      tags: JournalNote.decodeStringList(row.readNullable<String>('tags_json')),
       attachments: JournalNote.decodeStringList(
         row.readNullable<String>('attachments_json'),
       ),
@@ -370,8 +375,10 @@ String buildAutoPromptNoteBody({
   final buf = StringBuffer();
   buf.writeln('**$sequenceName** completed in ${_formatDuration(wallClock)}.');
   buf.writeln();
-  buf.writeln('- Frames captured: $framesCaptured'
-      '${framesRejected > 0 ? ' ($framesRejected rejected)' : ''}');
+  buf.writeln(
+    '- Frames captured: $framesCaptured'
+    '${framesRejected > 0 ? ' ($framesRejected rejected)' : ''}',
+  );
   if (autofocusRuns > 0) {
     buf.writeln('- Autofocus runs: $autofocusRuns');
   }

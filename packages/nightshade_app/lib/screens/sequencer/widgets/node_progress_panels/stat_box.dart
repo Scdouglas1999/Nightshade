@@ -28,7 +28,9 @@ class _StatBox extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9,
+                color: colors.textMuted),
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -46,7 +48,9 @@ class _StatBox extends StatelessWidget {
                 const SizedBox(width: 2),
                 Text(
                   unit,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
               ],
             ],

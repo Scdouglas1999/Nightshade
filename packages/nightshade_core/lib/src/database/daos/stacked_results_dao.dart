@@ -74,21 +74,25 @@ class StackedResultsDao {
   /// by its database id. Returns null (rather than throwing) for a missing row
   /// so the provider layer can decide how to surface a stale id.
   Future<StackAndShareResult?> getResultById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM stacked_results WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM stacked_results WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapRow(rows.first);
   }
 
   /// Returns every stacked result for the given imaging session, newest first.
   Future<List<StackAndShareResult>> getResultsForSession(int sessionId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM stacked_results '
-      'WHERE session_id = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<int>(sessionId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM stacked_results '
+          'WHERE session_id = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(sessionId)],
+        )
+        .get();
     return rows.map(_mapRow).toList();
   }
 
@@ -101,11 +105,13 @@ class StackedResultsDao {
     if (limit <= 0) {
       throw ArgumentError.value(limit, 'limit', 'must be a positive integer');
     }
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM stacked_results '
-      'ORDER BY created_at DESC, id DESC LIMIT ?',
-      variables: [Variable<int>(limit)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM stacked_results '
+          'ORDER BY created_at DESC, id DESC LIMIT ?',
+          variables: [Variable<int>(limit)],
+        )
+        .get();
     return rows.map(_mapRow).toList();
   }
 

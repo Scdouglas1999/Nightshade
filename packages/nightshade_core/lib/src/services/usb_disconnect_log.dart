@@ -87,10 +87,8 @@ class UsbDisconnectLog {
   /// production wiring leaves it at [DateTime.now].
   final DateTime Function() _now;
 
-  UsbDisconnectLog({
-    DateTime Function()? now,
-    this.maxEntries = 100000,
-  }) : _now = now ?? DateTime.now;
+  UsbDisconnectLog({DateTime Function()? now, this.maxEntries = 100000})
+    : _now = now ?? DateTime.now;
 
   /// Record a disconnect.
   ///

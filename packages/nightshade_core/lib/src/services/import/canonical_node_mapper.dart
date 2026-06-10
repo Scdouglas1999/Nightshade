@@ -74,14 +74,17 @@ class CanonicalNodeMapper {
       rootNodeId: rootId,
     );
 
-    final mappingTable = mappingCounts.values
-        .map((m) => MappingTableRow(
-              sourceType: m.sourceType,
-              nightshadeType: m.nightshadeType,
-              count: m.count,
-            ))
-        .toList()
-      ..sort((a, b) => a.sourceType.compareTo(b.sourceType));
+    final mappingTable =
+        mappingCounts.values
+            .map(
+              (m) => MappingTableRow(
+                sourceType: m.sourceType,
+                nightshadeType: m.nightshadeType,
+                count: m.count,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.sourceType.compareTo(b.sourceType));
 
     return MapResult(
       sequence: sequence,
@@ -107,24 +110,35 @@ class CanonicalNodeMapper {
   }) {
     final isDisabled = node.attributes['_disabled'] == true;
     if (isDisabled) {
-      dropped.add(DroppedNodeRecord(
-        sourceType: node.sourceType,
-        name: node.name,
-        reason: DropReason.disabled,
-      ));
+      dropped.add(
+        DroppedNodeRecord(
+          sourceType: node.sourceType,
+          name: node.name,
+          reason: DropReason.disabled,
+        ),
+      );
       _bumpMapping(mapping, node.sourceType, null);
       // Walk children so we count them in totals; they get attached to parent.
-      _mapChildren(node.children, parentId, out, dropped, unsupported, mapping,
-          forceUnsupported);
+      _mapChildren(
+        node.children,
+        parentId,
+        out,
+        dropped,
+        unsupported,
+        mapping,
+        forceUnsupported,
+      );
       return null;
     }
 
     if (node.kind == CanonicalKind.annotation) {
-      dropped.add(DroppedNodeRecord(
-        sourceType: node.sourceType,
-        name: node.name,
-        reason: DropReason.decorative,
-      ));
+      dropped.add(
+        DroppedNodeRecord(
+          sourceType: node.sourceType,
+          name: node.name,
+          reason: DropReason.decorative,
+        ),
+      );
       _bumpMapping(mapping, node.sourceType, null);
       return null;
     }
@@ -137,19 +151,25 @@ class CanonicalNodeMapper {
       );
       unsupported.add(record);
       if (forceUnsupported) {
-        dropped.add(DroppedNodeRecord(
-          sourceType: node.sourceType,
-          name: node.name,
-          reason: DropReason.unsupported,
-        ));
+        dropped.add(
+          DroppedNodeRecord(
+            sourceType: node.sourceType,
+            name: node.name,
+            reason: DropReason.unsupported,
+          ),
+        );
       }
       _bumpMapping(mapping, node.sourceType, null);
       return null;
     }
 
     final id = _uuid.v4();
-    final mapped = _construct(node, id: id, parentId: parentId,
-        orderIndex: orderIndex);
+    final mapped = _construct(
+      node,
+      id: id,
+      parentId: parentId,
+      orderIndex: orderIndex,
+    );
     if (mapped == null) {
       // _construct only returns null for unsupported instruction kinds we
       // discover late (rare; logic kinds are guarded above).
@@ -160,11 +180,13 @@ class CanonicalNodeMapper {
       );
       unsupported.add(record);
       if (forceUnsupported) {
-        dropped.add(DroppedNodeRecord(
-          sourceType: node.sourceType,
-          name: node.name,
-          reason: DropReason.unsupported,
-        ));
+        dropped.add(
+          DroppedNodeRecord(
+            sourceType: node.sourceType,
+            name: node.name,
+            reason: DropReason.unsupported,
+          ),
+        );
       }
       _bumpMapping(mapping, node.sourceType, null);
       return null;
@@ -243,8 +265,8 @@ class CanonicalNodeMapper {
           orderIndex: orderIndex,
         );
       case CanonicalKind.loop:
-        final iterations = _readInt(a['iterations']) ??
-            _readInt(a['_loopCountFromCondition']);
+        final iterations =
+            _readInt(a['iterations']) ?? _readInt(a['_loopCountFromCondition']);
         final untilIso = a['_loopUntilTime'];
         final foreverFlag = a['_loopForever'] == true;
         if (foreverFlag) {
@@ -279,8 +301,7 @@ class CanonicalNodeMapper {
           repeatCount: iterations ?? 1,
         );
       case CanonicalKind.targetHeader:
-        final targetName =
-            a['targetName']?.toString() ?? node.name;
+        final targetName = a['targetName']?.toString() ?? node.name;
         final raHours = _readDouble(a['raHours']) ?? 0;
         final decDegrees = _readDouble(a['decDegrees']) ?? 0;
         final rotation = _readDouble(a['rotation']);
@@ -322,8 +343,7 @@ class CanonicalNodeMapper {
         final gain = _readInt(a['gain']);
         final offset = _readInt(a['offset']);
         final binning = _mapBinning(_readInt(a['binning']));
-        final frameType =
-            _mapFrameType(a['imageType']?.toString());
+        final frameType = _mapFrameType(a['imageType']?.toString());
         return ExposureNode(
           id: id,
           name: node.name,
@@ -494,8 +514,7 @@ class CanonicalNodeMapper {
     return base.copyWith(childIds: childIds);
   }
 
-  void _bumpMapping(
-      Map<String, _MappingCount> table, String src, String? dst) {
+  void _bumpMapping(Map<String, _MappingCount> table, String src, String? dst) {
     final key = '$src->${dst ?? '<dropped>'}';
     final entry =
         table[key] ?? _MappingCount(sourceType: src, nightshadeType: dst);

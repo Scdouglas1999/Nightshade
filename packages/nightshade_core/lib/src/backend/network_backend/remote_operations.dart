@@ -45,7 +45,8 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   Stream<RemoteJob> watchJob(String jobId) {
     return eventStream
         .where(
-            (e) => e.category == EventCategory.job && e.data['jobId'] == jobId)
+          (e) => e.category == EventCategory.job && e.data['jobId'] == jobId,
+        )
         .map((e) => RemoteJob.fromEventData(e.data));
   }
 
@@ -107,7 +108,8 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
       pollTimer?.cancel();
       completer.completeError(
         TimeoutException(
-            'Job $jobId did not reach a terminal state within $timeout'),
+          'Job $jobId did not reach a terminal state within $timeout',
+        ),
       );
     });
 
@@ -143,7 +145,11 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
       return false; // Slot taken — caller may decide to take-over.
     }
     throw _parseErrorResponse(
-        response.statusCode, response.body, 'POST', 'session/claim');
+      response.statusCode,
+      response.body,
+      'POST',
+      'session/claim',
+    );
   }
 
   /// POST /api/session/take-over — always succeeds (any control-scope
@@ -255,9 +261,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     final raw = response['staged'];
     if (raw == null) return null;
     if (raw is! Map) return null;
-    return RemoteStagedUpdate.fromJson(
-      Map<String, dynamic>.from(raw),
-    );
+    return RemoteStagedUpdate.fromJson(Map<String, dynamic>.from(raw));
   }
 
   /// DELETE /api/system/update/staged — discard the staged update.

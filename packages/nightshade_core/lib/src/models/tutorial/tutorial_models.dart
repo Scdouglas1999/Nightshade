@@ -3,11 +3,7 @@ part 'tutorial_models_parts/workflow_tours.dart';
 part 'tutorial_models_parts/screen_tours.dart';
 
 /// Shape of the spotlight cutout
-enum SpotlightShape {
-  circle,
-  roundedRect,
-  pill,
-}
+enum SpotlightShape { circle, roundedRect, pill }
 
 /// Tutorial step definition
 class TutorialStep {
@@ -68,13 +64,7 @@ class TutorialStep {
 }
 
 /// Position of the tutorial tooltip
-enum TooltipPosition {
-  top,
-  bottom,
-  left,
-  right,
-  center,
-}
+enum TooltipPosition { top, bottom, left, right, center }
 
 /// Tutorial categories - focused mini-tours
 enum TutorialCategory {
@@ -184,8 +174,9 @@ class TutorialProgress {
       completedSteps: completedSteps ?? this.completedSteps,
       hasSeenInitialTour: hasSeenInitialTour ?? this.hasSeenInitialTour,
       tutorialsEnabled: tutorialsEnabled ?? this.tutorialsEnabled,
-      activeCategory:
-          clearActiveCategory ? null : (activeCategory ?? this.activeCategory),
+      activeCategory: clearActiveCategory
+          ? null
+          : (activeCategory ?? this.activeCategory),
       currentStepIndex: currentStepIndex ?? this.currentStepIndex,
     );
   }

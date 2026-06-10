@@ -19,34 +19,33 @@ final darkLibraryServiceProvider = Provider<DarkLibraryService>((ref) {
 });
 
 /// Reactive stream of all dark library entries (newest first).
-final darkLibraryEntriesProvider =
-    StreamProvider<List<DarkLibraryEntry>>((ref) {
+final darkLibraryEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((
+  ref,
+) {
   return ref.watch(darkLibraryDaoProvider).watchAllEntries();
 });
 
 /// Reactive stream of dark-only entries.
-final darkFrameEntriesProvider =
-    StreamProvider<List<DarkLibraryEntry>>((ref) {
+final darkFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
   return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('dark');
 });
 
 /// Reactive stream of bias-only entries.
-final biasFrameEntriesProvider =
-    StreamProvider<List<DarkLibraryEntry>>((ref) {
+final biasFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
   return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('bias');
 });
 
 /// Library statistics (refreshes when entries change).
-final darkLibraryStatsProvider =
-    FutureProvider<DarkLibraryStats>((ref) async {
+final darkLibraryStatsProvider = FutureProvider<DarkLibraryStats>((ref) async {
   // Depend on the entries stream so stats refresh on any change
   ref.watch(darkLibraryEntriesProvider);
   return ref.read(darkLibraryDaoProvider).getStats();
 });
 
 /// Distinct parameter groups in the library.
-final darkLibraryGroupsProvider =
-    FutureProvider<List<DarkGroupKey>>((ref) async {
+final darkLibraryGroupsProvider = FutureProvider<List<DarkGroupKey>>((
+  ref,
+) async {
   ref.watch(darkLibraryEntriesProvider);
   return ref.read(darkLibraryDaoProvider).getDistinctGroups();
 });
@@ -63,9 +62,7 @@ final darkLibraryGroupsProvider =
 /// source via [migrateLegacyDarkLibrarySettings].
 final autoDarkSubtractEnabledProvider = Provider<bool>((ref) {
   // Watch calibration settings so dark-library UI updates reactively.
-  return ref.watch(
-    calibrationSettingsProvider.select((s) => s.autoCalibrate),
-  );
+  return ref.watch(calibrationSettingsProvider.select((s) => s.autoCalibrate));
 });
 
 /// Settings key for the dark-library exposure-match tolerance (seconds).
@@ -95,43 +92,44 @@ const String darkLibraryTempToleranceKey = 'dark_library.temp_tolerance';
 /// provider to throw via [DarkLibraryMatchTolerances.validated] so the
 /// problem surfaces immediately instead of being silently clamped — per
 /// "Errors are a feature" in CLAUDE.md.
-final darkLibraryMatchTolerancesProvider =
-    Provider<DarkLibraryMatchTolerances>((ref) {
-  final settings = ref.watch(allSettingsProvider);
-  return settings.when(
-    data: (s) {
-      final exposureRaw = s[darkLibraryExposureToleranceKey];
-      final tempRaw = s[darkLibraryTempToleranceKey];
-      // Defaults: 0.5s exposure, 1.0°C temperature. If the legacy
-      // dark_library.temp_tolerance default of 2.0 is present it is
-      // honored as-is (it is a user-tunable value, not a migration).
-      final exposureSecs = exposureRaw == null
-          ? DarkLibraryMatchTolerances.defaults.exposureSecs
-          : (double.tryParse(exposureRaw) ??
-              (throw ArgumentError.value(
-                exposureRaw,
-                darkLibraryExposureToleranceKey,
-                'Setting "$darkLibraryExposureToleranceKey" is not a valid '
+final darkLibraryMatchTolerancesProvider = Provider<DarkLibraryMatchTolerances>(
+  (ref) {
+    final settings = ref.watch(allSettingsProvider);
+    return settings.when(
+      data: (s) {
+        final exposureRaw = s[darkLibraryExposureToleranceKey];
+        final tempRaw = s[darkLibraryTempToleranceKey];
+        // Defaults: 0.5s exposure, 1.0°C temperature. If the legacy
+        // dark_library.temp_tolerance default of 2.0 is present it is
+        // honored as-is (it is a user-tunable value, not a migration).
+        final exposureSecs = exposureRaw == null
+            ? DarkLibraryMatchTolerances.defaults.exposureSecs
+            : (double.tryParse(exposureRaw) ??
+                  (throw ArgumentError.value(
+                    exposureRaw,
+                    darkLibraryExposureToleranceKey,
+                    'Setting "$darkLibraryExposureToleranceKey" is not a valid '
                     'number of seconds',
-              )));
-      final temperatureC = tempRaw == null
-          ? DarkLibraryMatchTolerances.defaults.temperatureC
-          : (double.tryParse(tempRaw) ??
-              (throw ArgumentError.value(
-                tempRaw,
-                darkLibraryTempToleranceKey,
-                'Setting "$darkLibraryTempToleranceKey" is not a valid '
+                  )));
+        final temperatureC = tempRaw == null
+            ? DarkLibraryMatchTolerances.defaults.temperatureC
+            : (double.tryParse(tempRaw) ??
+                  (throw ArgumentError.value(
+                    tempRaw,
+                    darkLibraryTempToleranceKey,
+                    'Setting "$darkLibraryTempToleranceKey" is not a valid '
                     'number of degrees',
-              )));
-      return DarkLibraryMatchTolerances.validated(
-        exposureSecs: exposureSecs,
-        temperatureC: temperatureC,
-      );
-    },
-    loading: () => DarkLibraryMatchTolerances.defaults,
-    error: (_, __) => DarkLibraryMatchTolerances.defaults,
-  );
-});
+                  )));
+        return DarkLibraryMatchTolerances.validated(
+          exposureSecs: exposureSecs,
+          temperatureC: temperatureC,
+        );
+      },
+      loading: () => DarkLibraryMatchTolerances.defaults,
+      error: (_, __) => DarkLibraryMatchTolerances.defaults,
+    );
+  },
+);
 
 /// Legacy convenience accessor for the temperature tolerance value alone.
 ///
@@ -160,8 +158,8 @@ Future<bool?> readLegacyAutoSubtractFlag(SettingsDao dao) async {
 /// StateNotifier for managing the dark library UI state.
 final darkLibraryNotifierProvider =
     StateNotifierProvider<DarkLibraryNotifier, DarkLibraryUiState>((ref) {
-  return DarkLibraryNotifier(ref);
-});
+      return DarkLibraryNotifier(ref);
+    });
 
 /// UI state for the dark library management screen.
 class DarkLibraryUiState {
@@ -234,19 +232,14 @@ class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
       }
 
       state = state.copyWith(
-        statusMessage:
-            'Median-combining ${frames.length} frames...',
+        statusMessage: 'Median-combining ${frames.length} frames...',
       );
 
-      await _service.createMasterDark(
-        frames: frames,
-        outputPath: outputPath,
-      );
+      await _service.createMasterDark(frames: frames, outputPath: outputPath);
 
       state = state.copyWith(
         isCreatingMaster: false,
-        statusMessage:
-            'Master dark created from ${frames.length} frames.',
+        statusMessage: 'Master dark created from ${frames.length} frames.',
       );
     } catch (e) {
       state = state.copyWith(
@@ -271,9 +264,7 @@ class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
             : 'No orphaned entries found.',
       );
     } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Failed to clean orphans: $e',
-      );
+      state = state.copyWith(errorMessage: 'Failed to clean orphans: $e');
     }
   }
 

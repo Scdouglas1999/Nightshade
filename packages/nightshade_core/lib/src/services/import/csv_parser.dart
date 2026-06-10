@@ -113,7 +113,8 @@ class CsvParser {
   }
 
   static String _escape(String field) {
-    final needsQuote = field.contains(',') ||
+    final needsQuote =
+        field.contains(',') ||
         field.contains('"') ||
         field.contains('\n') ||
         field.contains('\r');

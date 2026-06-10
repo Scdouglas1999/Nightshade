@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,15 +96,16 @@ ProviderContainer _container({
     overrides: [
       cameraStateProvider.overrideWith(
         (ref) => _StubCameraNotifier(
-            ref, CameraStateSnapshot(connectionState: camera)),
+          ref,
+          CameraStateSnapshot(connectionState: camera),
+        ),
       ),
       mountStateProvider.overrideWith(
-        (ref) =>
-            _StubMountNotifier(ref, MountState(connectionState: mount)),
+        (ref) => _StubMountNotifier(ref, MountState(connectionState: mount)),
       ),
       focuserStateProvider.overrideWith(
-        (ref) => _StubFocuserNotifier(
-            ref, FocuserState(connectionState: focuser)),
+        (ref) =>
+            _StubFocuserNotifier(ref, FocuserState(connectionState: focuser)),
       ),
       filterWheelStateProvider.overrideWith(
         (ref) => _StubFilterWheelNotifier(
@@ -116,12 +117,11 @@ ProviderContainer _container({
         ),
       ),
       guiderStateProvider.overrideWith(
-        (ref) =>
-            _StubGuiderNotifier(ref, GuiderState(connectionState: guider)),
+        (ref) => _StubGuiderNotifier(ref, GuiderState(connectionState: guider)),
       ),
       rotatorStateProvider.overrideWith(
-        (ref) => _StubRotatorNotifier(
-            ref, RotatorState(connectionState: rotator)),
+        (ref) =>
+            _StubRotatorNotifier(ref, RotatorState(connectionState: rotator)),
       ),
       appSettingsProvider.overrideWith(
         () => _FakeAppSettingsNotifier(
@@ -145,11 +145,7 @@ Sequence _sequenceWith(List<SequenceNode> children) {
     ids.add(placed.id);
   }
   nodes[root.id] = root.copyWith(childIds: ids);
-  return Sequence.create(
-    name: 'T',
-    nodes: nodes,
-    rootNodeId: root.id,
-  );
+  return Sequence.create(name: 'T', nodes: nodes, rootNodeId: root.id);
 }
 
 void main() {
@@ -158,20 +154,23 @@ void main() {
       final container = _container();
       final rule = EquipmentConnectionRule();
       final s = _sequenceWith([ExposureNode()]);
-      final issues =
-          _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       final cam = issues.firstWhere((i) => i.title == 'No Camera Connected');
       expect(cam.severity, ValidationSeverity.error);
       expect(cam.category, ValidationCategory.equipment);
     });
 
     test('clean when required device is connected', () {
-      final container =
-          _container(camera: DeviceConnectionState.connected);
+      final container = _container(camera: DeviceConnectionState.connected);
       final rule = EquipmentConnectionRule();
       final s = _sequenceWith([ExposureNode()]);
-      final issues =
-          _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.where((i) => i.title.contains('Camera')), isEmpty);
     });
 
@@ -181,14 +180,14 @@ void main() {
         mount: DeviceConnectionState.connected,
       );
       final rule = EquipmentConnectionRule();
-      final s = _sequenceWith([
-        ExposureNode(),
-        StartGuidingNode(),
-      ]);
-      final issues =
-          _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
-      final guiderIssues =
-          issues.where((i) => i.title.contains('Guider')).toList();
+      final s = _sequenceWith([ExposureNode(), StartGuidingNode()]);
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
+      final guiderIssues = issues
+          .where((i) => i.title.contains('Guider'))
+          .toList();
       // One summary + one per-node = 2 issues.
       expect(guiderIssues, hasLength(2));
       expect(guiderIssues.any((i) => i.affectedNodeId != null), isTrue);
@@ -206,7 +205,10 @@ void main() {
         rotation: 90,
       );
       final s = _sequenceWith([t]);
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Rotator Not Connected');
       expect(issues.single.affectedNodeId, t.id);
     });
@@ -224,13 +226,14 @@ void main() {
       );
       final s = _sequenceWith([t]);
       final issues = _withRef(
-          container, (ref) => rule.validate(s, ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues, isEmpty);
     });
 
     test('clean when rotator is connected', () {
-      final container =
-          _container(rotator: DeviceConnectionState.connected);
+      final container = _container(rotator: DeviceConnectionState.connected);
       final rule = RotatorRotationConflictRule();
       final t = TargetHeaderNode(
         targetName: 'M31',
@@ -239,7 +242,10 @@ void main() {
         rotation: 90,
       );
       final s = _sequenceWith([t]);
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 
@@ -252,7 +258,10 @@ void main() {
       final rule = FilterInWheelRule();
       final e = ExposureNode(filter: 'Ha');
       final s = _sequenceWith([e]);
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Filter Not in Wheel');
       expect(issues.single.affectedNodeId, e.id);
     });
@@ -265,45 +274,61 @@ void main() {
       final rule = FilterInWheelRule();
       final e = ExposureNode(filter: 'L');
       final s = _sequenceWith([e]);
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
 
-    test('emits info when filter wheel is connected but reports no filters',
-        () {
-      final container =
-          _container(filterWheel: DeviceConnectionState.connected);
-      final rule = FilterInWheelRule();
-      final s = _sequenceWith([ExposureNode(filter: 'L')]);
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
-      expect(issues.single.title, 'Filter Wheel Reports No Filters');
-      expect(issues.single.severity, ValidationSeverity.info);
-    });
+    test(
+      'emits info when filter wheel is connected but reports no filters',
+      () {
+        final container = _container(
+          filterWheel: DeviceConnectionState.connected,
+        );
+        final rule = FilterInWheelRule();
+        final s = _sequenceWith([ExposureNode(filter: 'L')]);
+        final issues = _withRef(
+          container,
+          (ref) => rule.validate(s, ValidationContext(ref)),
+        );
+        expect(issues.single.title, 'Filter Wheel Reports No Filters');
+        expect(issues.single.severity, ValidationSeverity.info);
+      },
+    );
 
     test('skips check when filter wheel is disconnected', () {
       final container = _container();
       final rule = FilterInWheelRule();
       final s = _sequenceWith([ExposureNode(filter: 'L')]);
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 
   group('ImageOutputPathRule (P0-7)', () {
-    test('fires ERROR when no output path is configured and exposures exist',
-        () async {
-      // P0-7 — empty path must hard-block sequence start. Pre-P0-7 this
-      // was only a warning so the start handler ignored it; the Rust
-      // sequencer would then either fail to write or land frames in
-      // the working directory with no operator signal.
-      final container = _container(imageOutputPath: '');
-      // Force settings to load
-      await container.read(appSettingsProvider.future);
-      final rule = ImageOutputPathRule();
-      final s = _sequenceWith([ExposureNode()]);
-      final issues = _withRef(
-          container, (ref) => rule.validate(s, ValidationContext(ref)));
-      expect(issues.single.title, 'Image Output Path Not Configured');
-      expect(issues.single.severity, ValidationSeverity.error);
-    });
+    test(
+      'fires ERROR when no output path is configured and exposures exist',
+      () async {
+        // P0-7 — empty path must hard-block sequence start. Pre-P0-7 this
+        // was only a warning so the start handler ignored it; the Rust
+        // sequencer would then either fail to write or land frames in
+        // the working directory with no operator signal.
+        final container = _container(imageOutputPath: '');
+        // Force settings to load
+        await container.read(appSettingsProvider.future);
+        final rule = ImageOutputPathRule();
+        final s = _sequenceWith([ExposureNode()]);
+        final issues = _withRef(
+          container,
+          (ref) => rule.validate(s, ValidationContext(ref)),
+        );
+        expect(issues.single.title, 'Image Output Path Not Configured');
+        expect(issues.single.severity, ValidationSeverity.error);
+      },
+    );
 
     test('fires ERROR for whitespace-only output path', () async {
       final container = _container(imageOutputPath: '   \t  ');
@@ -311,7 +336,9 @@ void main() {
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([ExposureNode()]);
       final issues = _withRef(
-          container, (ref) => rule.validate(s, ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Image Output Path Not Configured');
       expect(issues.single.severity, ValidationSeverity.error);
     });
@@ -319,7 +346,8 @@ void main() {
     test('fires ERROR when output directory does not exist', () async {
       // Pick a path that definitely cannot exist — appending a random
       // suffix under tempdir without creating it.
-      final missingDir = '${Directory.systemTemp.path}'
+      final missingDir =
+          '${Directory.systemTemp.path}'
           '${Platform.pathSeparator}nightshade_does_not_exist_'
           '${DateTime.now().microsecondsSinceEpoch}';
       final container = _container(imageOutputPath: missingDir);
@@ -327,15 +355,18 @@ void main() {
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([ExposureNode()]);
       final issues = _withRef(
-          container, (ref) => rule.validate(s, ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Image Output Path Missing');
       expect(issues.single.severity, ValidationSeverity.error);
       expect(issues.single.description, contains(missingDir));
     });
 
     test('clean when output directory exists and is writable', () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_imageoutput_ok_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_imageoutput_ok_',
+      );
       addTearDown(() async {
         try {
           await tempDir.delete(recursive: true);
@@ -346,9 +377,9 @@ void main() {
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([ExposureNode()]);
       expect(
-          _withRef(container,
-              (ref) => rule.validate(s, ValidationContext(ref))),
-          isEmpty);
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
 
     test('skips check when sequence has no enabled exposures', () async {
@@ -359,9 +390,9 @@ void main() {
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([SlewNode(useTargetCoords: true)]);
       expect(
-          _withRef(container,
-              (ref) => rule.validate(s, ValidationContext(ref))),
-          isEmpty);
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 
@@ -371,7 +402,10 @@ void main() {
       await container.read(appSettingsProvider.future);
       final rule = DefaultSequenceNameRule();
       final s = Sequence.create(name: 'Untitled Sequence');
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Default Sequence Name');
       expect(issues.single.severity, ValidationSeverity.info);
     });
@@ -381,7 +415,10 @@ void main() {
       await container.read(appSettingsProvider.future);
       final rule = DefaultSequenceNameRule();
       final s = Sequence.create(name: 'My Run');
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 
@@ -391,7 +428,10 @@ void main() {
       await container.read(appSettingsProvider.future);
       final rule = LongEstimatedDurationRule();
       final s = Sequence.create(name: 'X', estimatedDurationMins: 700);
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'Long Sequence');
     });
 
@@ -400,13 +440,15 @@ void main() {
       await container.read(appSettingsProvider.future);
       final rule = LongEstimatedDurationRule();
       final s = Sequence.create(name: 'X');
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 
   group('MeridianFlipTriggerRule', () {
-    test('fires when long sequence has targets but no flip handling',
-        () async {
+    test('fires when long sequence has targets but no flip handling', () async {
       final container = _container();
       await container.read(appSettingsProvider.future);
       final rule = MeridianFlipTriggerRule();
@@ -425,7 +467,10 @@ void main() {
         },
         rootNodeId: target.id,
       );
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
       expect(issues.single.title, 'No Meridian Flip Trigger');
     });
 
@@ -449,7 +494,10 @@ void main() {
         },
         rootNodeId: target.id,
       );
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
 
     test('clean when run is short', () async {
@@ -471,7 +519,10 @@ void main() {
         },
         rootNodeId: target.id,
       );
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+        _withRef(container, (ref) => rule.validate(s, ValidationContext(ref))),
+        isEmpty,
+      );
     });
   });
 }

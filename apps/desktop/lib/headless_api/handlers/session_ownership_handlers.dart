@@ -97,22 +97,17 @@ class SessionOwnershipHandlers {
         'error': 'not_owner',
         'message':
             'Only the current operator can voluntarily release the slot. '
-                'Use /api/session/take-over to displace the owner.',
+            'Use /api/session/take-over to displace the owner.',
       });
     }
-    return jsonOk({
-      'released': true,
-      'owner': null,
-    });
+    return jsonOk({'released': true, 'owner': null});
   }
 
   /// `GET /api/session/owner` — current owner snapshot. The body has
   /// `{owner}` which is null when the slot is open.
   Future<Response> handleGetOwner(Request request) async {
     final owner = manager.current;
-    return jsonOk({
-      'owner': owner?.toJson(),
-    });
+    return jsonOk({'owner': owner?.toJson()});
   }
 
   /// `GET /api/session/status` — combines owner snapshot with the
@@ -124,8 +119,8 @@ class SessionOwnershipHandlers {
     final mode = owner == null
         ? 'unowned'
         : isOwner
-            ? 'operator'
-            : 'viewer';
+        ? 'operator'
+        : 'viewer';
     return jsonOk({
       'owner': owner?.toJson(),
       'isYouTheOwner': isOwner,

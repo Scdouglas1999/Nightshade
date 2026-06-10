@@ -48,8 +48,9 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       (_) => List.generate(decCells, (_) => <T>[]),
     );
     for (final obj in _allObjects) {
-      grid[_raToCell(obj.coordinates.ra)][_decToCell(obj.coordinates.dec)]
-          .add(obj);
+      grid[_raToCell(obj.coordinates.ra)][_decToCell(obj.coordinates.dec)].add(
+        obj,
+      );
     }
     _grid = grid;
   }
@@ -121,7 +122,8 @@ class CelestialSpatialIndex<T extends CelestialObject> {
         if ((o.magnitude ?? 99.0) <= maxMagnitude) filtered.add(o);
       }
       filtered.sort(
-          (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+        (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0),
+      );
       return filtered.length > maxResults
           ? filtered.sublist(0, maxResults)
           : filtered;
@@ -130,8 +132,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     var sorted = _byMagnitude;
     if (sorted == null) {
       sorted = List<T>.of(_allObjects)
-        ..sort((a, b) =>
-            (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+        ..sort((a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
       _byMagnitude = sorted;
     }
 
@@ -141,8 +142,9 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
     final cosDec = math.cos(centerDec.abs() * math.pi / 180);
-    final raRangeHalf =
-        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2 : 12.0;
+    final raRangeHalf = cosDec > 0.1
+        ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2
+        : 12.0;
     final raWrapsWholeSky = raRangeHalf >= 12.0;
 
     final results = <T>[];
@@ -192,8 +194,9 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     // RA range expands near poles due to spherical geometry
     // At dec=90, all RA values are at the same point
     final cosDec = math.cos(centerDec.abs() * math.pi / 180);
-    final raRangeHours =
-        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) : 12.0;
+    final raRangeHours = cosDec > 0.1
+        ? (queryFov / 15 / cosDec).clamp(0.0, 12.0)
+        : 12.0;
 
     final minRA = centerRA - raRangeHours / 2;
     final maxRA = centerRA + raRangeHours / 2;
@@ -307,7 +310,8 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     final ra2 = b.ra * 15 * math.pi / 180;
     final dec2 = b.dec * math.pi / 180;
 
-    final cosSep = math.sin(dec1) * math.sin(dec2) +
+    final cosSep =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;

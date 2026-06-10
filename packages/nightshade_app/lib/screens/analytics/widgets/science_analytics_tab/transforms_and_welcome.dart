@@ -51,7 +51,9 @@ class _PhotometricTransformsCard extends ConsumerWidget {
               ),
               error: (error, _) => Text(
                 'Failed to load transforms: $error',
-                style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.error,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
             ),
             const SizedBox(height: 12),
@@ -78,7 +80,9 @@ class _PhotometricTransformsCard extends ConsumerWidget {
         child: Text(
           'No transform coefficients computed yet. Use the Calibrate button '
           'to run the photometric calibration wizard on a standard star field.',
-          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize12),
         ),
       );
     }
@@ -138,7 +142,8 @@ class _TransformRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
@@ -153,7 +158,8 @@ class _TransformRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   qualityColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
@@ -168,7 +174,9 @@ class _TransformRow extends StatelessWidget {
               const Spacer(),
               Text(
                 ageLabel,
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize10),
               ),
             ],
           ),
@@ -204,7 +212,9 @@ class _TransformRow extends StatelessWidget {
           Text(
             '${transform.matchedStarCount} stars matched  |  '
             'Catalog: ${transform.catalogSource}',
-            style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
+            style: TextStyle(
+                color: colors.textMuted,
+                fontSize: NightshadeTypography.fontSize10),
           ),
         ],
       ),
@@ -366,8 +376,9 @@ class _ScienceWelcomeCard extends ConsumerWidget {
                     .dismissPrompt(_screenId),
                 icon: const Icon(LucideIcons.check, size: 13),
                 label: const Text('Got it',
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize12, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        fontWeight: FontWeight.w600)),
               ),
             ),
           ],

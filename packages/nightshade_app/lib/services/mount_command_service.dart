@@ -198,7 +198,8 @@ class MountCommandService {
       await _deviceService.slewMountToAltAz(altitude, azimuth);
       if (showFeedback) {
         return CommandActionResult.success(
-          message: 'Slewing to Alt ${altitude.toStringAsFixed(1)}, Az ${azimuth.toStringAsFixed(1)}...',
+          message:
+              'Slewing to Alt ${altitude.toStringAsFixed(1)}, Az ${azimuth.toStringAsFixed(1)}...',
           feedbackType: CommandFeedbackType.info,
         );
       }

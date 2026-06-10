@@ -79,7 +79,9 @@ class _StarZoomPanel extends StatelessWidget {
                 // Counter
                 Text(
                   '${currentIndex + 1}/${starCrops.length}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize9,
+                      color: colors.textMuted),
                 ),
                 // Next arrow
                 _buildNavButton(
@@ -158,7 +160,8 @@ class _StarZoomPanel extends StatelessWidget {
       );
     } catch (e) {
       return Center(
-          child: Icon(NightshadeIcons.error, size: 24, color: colors.textMuted));
+          child:
+              Icon(NightshadeIcons.error, size: 24, color: colors.textMuted));
     }
   }
 
@@ -306,7 +309,8 @@ class _VCurvePainter extends CustomPainter {
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'Collecting data...',
-        style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+        style: TextStyle(
+            color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -326,7 +330,8 @@ class _VCurvePainter extends CustomPainter {
       double minHfr,
       double maxHfr,
       FocusRange range) {
-    final textStyle = TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize8);
+    final textStyle = TextStyle(
+        color: colors.textMuted, fontSize: NightshadeTypography.fontSize8);
 
     // Y-axis label (HFR)
     final yLabel = TextPainter(

@@ -46,8 +46,8 @@ class TransientAlertService {
   TransientAlertService({
     required http.Client httpClient,
     required LoggingService logger,
-  })  : _httpClient = httpClient,
-        _logger = logger;
+  }) : _httpClient = httpClient,
+       _logger = logger;
 
   /// Whether the cache is still valid and has not expired.
   bool get isCacheValid {
@@ -61,7 +61,10 @@ class TransientAlertService {
   void clearCache() {
     _cachedAlerts = null;
     _cacheExpiry = null;
-    _logger.debug('Transient alert cache cleared', source: 'TransientAlertService');
+    _logger.debug(
+      'Transient alert cache cleared',
+      source: 'TransientAlertService',
+    );
   }
 
   /// Fetches variable star alerts from AAVSO.
@@ -71,8 +74,10 @@ class TransientAlertService {
   ///
   /// Returns an empty list on failure (graceful degradation).
   Future<List<TransientAlert>> fetchAavsoAlerts() async {
-    _logger.debug('Fetching AAVSO alerts from: $_aavsoApiUrl',
-        source: 'TransientAlertService');
+    _logger.debug(
+      'Fetching AAVSO alerts from: $_aavsoApiUrl',
+      source: 'TransientAlertService',
+    );
 
     try {
       final response = await _httpClient
@@ -81,8 +86,9 @@ class TransientAlertService {
 
       if (response.statusCode != 200) {
         _logger.error(
-            'AAVSO API returned status ${response.statusCode}: ${response.reasonPhrase}',
-            source: 'TransientAlertService');
+          'AAVSO API returned status ${response.statusCode}: ${response.reasonPhrase}',
+          source: 'TransientAlertService',
+        );
         return [];
       }
 
@@ -91,8 +97,10 @@ class TransientAlertService {
       try {
         data = json.decode(response.body);
       } catch (e) {
-        _logger.error('Failed to parse AAVSO API response: $e',
-            source: 'TransientAlertService');
+        _logger.error(
+          'Failed to parse AAVSO API response: $e',
+          source: 'TransientAlertService',
+        );
         return [];
       }
 
@@ -102,14 +110,17 @@ class TransientAlertService {
         vsxObjects = data['VSXObjects'] as List<dynamic>?;
       } else {
         _logger.error(
-            'Unexpected AAVSO API response format: expected Map, got ${data.runtimeType}',
-            source: 'TransientAlertService');
+          'Unexpected AAVSO API response format: expected Map, got ${data.runtimeType}',
+          source: 'TransientAlertService',
+        );
         return [];
       }
 
       if (vsxObjects == null || vsxObjects.isEmpty) {
-        _logger.warning('AAVSO API returned no variable star objects',
-            source: 'TransientAlertService');
+        _logger.warning(
+          'AAVSO API returned no variable star objects',
+          source: 'TransientAlertService',
+        );
         return [];
       }
 
@@ -125,22 +136,30 @@ class TransientAlertService {
             alerts.add(alert);
           }
         } catch (e) {
-          _logger.warning('Failed to parse AAVSO object: $e',
-              source: 'TransientAlertService');
+          _logger.warning(
+            'Failed to parse AAVSO object: $e',
+            source: 'TransientAlertService',
+          );
           // Continue processing other objects
         }
       }
 
-      _logger.info('Fetched ${alerts.length} alerts from AAVSO',
-          source: 'TransientAlertService');
+      _logger.info(
+        'Fetched ${alerts.length} alerts from AAVSO',
+        source: 'TransientAlertService',
+      );
       return alerts;
     } on http.ClientException catch (e) {
-      _logger.error('Network error fetching AAVSO alerts: $e',
-          source: 'TransientAlertService');
+      _logger.error(
+        'Network error fetching AAVSO alerts: $e',
+        source: 'TransientAlertService',
+      );
       return [];
     } catch (e) {
-      _logger.error('Unexpected error fetching AAVSO alerts: $e',
-          source: 'TransientAlertService');
+      _logger.error(
+        'Unexpected error fetching AAVSO alerts: $e',
+        source: 'TransientAlertService',
+      );
       return [];
     }
   }
@@ -207,7 +226,9 @@ class TransientAlertService {
       source: TransientSource.aavso,
       sourceUrl: 'https://www.aavso.org/vsx/index.php?view=detail.top&oid=$oid',
       priority: priority,
-      classification: constellation != null ? 'Constellation: $constellation' : null,
+      classification: constellation != null
+          ? 'Constellation: $constellation'
+          : null,
     );
   }
 
@@ -267,7 +288,11 @@ class TransientAlertService {
 
     // Nova types
     if (type.contains('N') && !type.contains('SN')) {
-      if (type == 'N' || type == 'NA' || type == 'NB' || type == 'NC' || type == 'NR') {
+      if (type == 'N' ||
+          type == 'NA' ||
+          type == 'NB' ||
+          type == 'NC' ||
+          type == 'NR') {
         return TransientType.nova;
       }
     }
@@ -371,7 +396,10 @@ class TransientAlertService {
       return [];
     }
 
-    _logger.debug('Fetching transients from TNS', source: 'TransientAlertService');
+    _logger.debug(
+      'Fetching transients from TNS',
+      source: 'TransientAlertService',
+    );
 
     try {
       // TNS API requires specific headers and parameters
@@ -385,7 +413,9 @@ class TransientAlertService {
           'api_key': apiKey,
           'format': 'json',
           // Get recent objects from the last 30 days
-          'date_start': _formatTnsDate(DateTime.now().subtract(const Duration(days: 30))),
+          'date_start': _formatTnsDate(
+            DateTime.now().subtract(const Duration(days: 30)),
+          ),
           'date_end': _formatTnsDate(DateTime.now()),
           // Only get confirmed supernovae and novae
           'objtype': '1,2,3,4,5', // SN Ia, SN II, SN Ibc, CV, Nova
@@ -410,7 +440,10 @@ class TransientAlertService {
         return [];
       }
     } catch (e) {
-      _logger.error('Failed to fetch TNS alerts: $e', source: 'TransientAlertService');
+      _logger.error(
+        'Failed to fetch TNS alerts: $e',
+        source: 'TransientAlertService',
+      );
       return [];
     }
   }
@@ -452,30 +485,39 @@ class TransientAlertService {
 
           // Parse discovery time
           final discDateStr = obj['discoverydate'] as String? ?? '';
-          final discoveryTime = DateTime.tryParse(discDateStr) ?? DateTime.now();
+          final discoveryTime =
+              DateTime.tryParse(discDateStr) ?? DateTime.now();
 
-          alerts.add(TransientAlert(
-            id: 'tns_${entry.key}',
-            name: obj['name'] as String? ?? 'Unknown',
-            type: type,
-            raHours: raHours,
-            decDegrees: decDegrees,
-            magnitude: magnitude,
-            peakMagnitude: magnitude,
-            discoveryTime: discoveryTime,
-            lastUpdated: DateTime.now(),
-            source: TransientSource.tns,
-            sourceUrl: 'https://www.wis-tns.org/object/${obj['name'] ?? entry.key}',
-            priority: _calculatePriority(type, magnitude),
-            classification: classification,
-          ));
+          alerts.add(
+            TransientAlert(
+              id: 'tns_${entry.key}',
+              name: obj['name'] as String? ?? 'Unknown',
+              type: type,
+              raHours: raHours,
+              decDegrees: decDegrees,
+              magnitude: magnitude,
+              peakMagnitude: magnitude,
+              discoveryTime: discoveryTime,
+              lastUpdated: DateTime.now(),
+              source: TransientSource.tns,
+              sourceUrl:
+                  'https://www.wis-tns.org/object/${obj['name'] ?? entry.key}',
+              priority: _calculatePriority(type, magnitude),
+              classification: classification,
+            ),
+          );
         } catch (e) {
-          _logger.debug('Failed to parse TNS object ${entry.key}: $e',
-              source: 'TransientAlertService');
+          _logger.debug(
+            'Failed to parse TNS object ${entry.key}: $e',
+            source: 'TransientAlertService',
+          );
         }
       }
     } catch (e) {
-      _logger.error('Failed to parse TNS response: $e', source: 'TransientAlertService');
+      _logger.error(
+        'Failed to parse TNS response: $e',
+        source: 'TransientAlertService',
+      );
     }
 
     return alerts;
@@ -487,7 +529,9 @@ class TransientAlertService {
     if (lower.contains('sn ia') || lower.contains('type ia')) {
       return TransientType.supernova;
     }
-    if (lower.contains('sn ii') || lower.contains('sn ib') || lower.contains('sn ic')) {
+    if (lower.contains('sn ii') ||
+        lower.contains('sn ib') ||
+        lower.contains('sn ic')) {
       return TransientType.supernova;
     }
     if (lower.contains('nova')) {
@@ -510,16 +554,22 @@ class TransientAlertService {
   /// - [settings]: Alert settings controlling which sources and types to include
   ///
   /// Returns a filtered, deduplicated, and sorted list of alerts.
-  Future<List<TransientAlert>> getAllAlerts(TransientAlertSettings settings) async {
+  Future<List<TransientAlert>> getAllAlerts(
+    TransientAlertSettings settings,
+  ) async {
     // Check cache first
     if (isCacheValid && _cachedAlerts != null) {
-      _logger.debug('Returning cached alerts (${_cachedAlerts!.length} total)',
-          source: 'TransientAlertService');
+      _logger.debug(
+        'Returning cached alerts (${_cachedAlerts!.length} total)',
+        source: 'TransientAlertService',
+      );
       return _filterAlerts(_cachedAlerts!, settings);
     }
 
-    _logger.debug('Fetching alerts from enabled sources',
-        source: 'TransientAlertService');
+    _logger.debug(
+      'Fetching alerts from enabled sources',
+      source: 'TransientAlertService',
+    );
 
     // Fetch from enabled sources in parallel
     final futures = <Future<List<TransientAlert>>>[];
@@ -565,15 +615,18 @@ class TransientAlertService {
     _cacheExpiry = DateTime.now().add(_cacheTtl);
 
     _logger.info(
-        'Fetched ${deduplicatedAlerts.length} unique alerts, cache updated',
-        source: 'TransientAlertService');
+      'Fetched ${deduplicatedAlerts.length} unique alerts, cache updated',
+      source: 'TransientAlertService',
+    );
 
     return _filterAlerts(deduplicatedAlerts, settings);
   }
 
   /// Filters alerts based on user settings.
   List<TransientAlert> _filterAlerts(
-      List<TransientAlert> alerts, TransientAlertSettings settings) {
+    List<TransientAlert> alerts,
+    TransientAlertSettings settings,
+  ) {
     var filtered = alerts.where((alert) {
       // Filter by type
       if (!settings.typesToMonitor.contains(alert.type)) {
@@ -581,7 +634,8 @@ class TransientAlertService {
       }
 
       // Filter by magnitude threshold (only if magnitude is known)
-      if (alert.magnitude != null && alert.magnitude! > settings.magnitudeThreshold) {
+      if (alert.magnitude != null &&
+          alert.magnitude! > settings.magnitudeThreshold) {
         return false;
       }
 
@@ -636,7 +690,8 @@ class TransientAlertService {
 
     // Check auto-queue criteria for bright transients
     if (settings.autoQueueBright) {
-      if (alert.magnitude != null && alert.magnitude! <= settings.autoQueueMagnitude) {
+      if (alert.magnitude != null &&
+          alert.magnitude! <= settings.autoQueueMagnitude) {
         // This is a bright transient that should be auto-queued
         return true;
       }
@@ -649,7 +704,10 @@ class TransientAlertService {
   /// Closes the HTTP client and releases resources.
   void dispose() {
     _httpClient.close();
-    _logger.debug('TransientAlertService disposed', source: 'TransientAlertService');
+    _logger.debug(
+      'TransientAlertService disposed',
+      source: 'TransientAlertService',
+    );
   }
 }
 

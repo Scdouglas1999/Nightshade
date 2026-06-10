@@ -22,10 +22,7 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
-            color: color.withValues(alpha: 0.5),
-            fontSize: 10,
-          ),
+          style: TextStyle(color: color.withValues(alpha: 0.5), fontSize: 10),
         ),
         Text(
           value,
@@ -113,10 +110,7 @@ class _AltitudeGraphPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(size.width - textPainter.width - 4, 2),
-      );
+      textPainter.paint(canvas, Offset(size.width - textPainter.width - 4, 2));
     }
 
     // Draw grid
@@ -257,21 +251,33 @@ class _AirmassChartPainter extends CustomPainter {
     // Green zone: 1.0 to 1.5
     canvas.drawRect(
       Rect.fromLTRB(
-          leftMargin, topMargin, leftMargin + chartWidth, greenZoneBottom),
+        leftMargin,
+        topMargin,
+        leftMargin + chartWidth,
+        greenZoneBottom,
+      ),
       Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.08),
     );
 
     // Yellow zone: 1.5 to 2.0
     canvas.drawRect(
-      Rect.fromLTRB(leftMargin, greenZoneBottom, leftMargin + chartWidth,
-          yellowZoneBottom),
+      Rect.fromLTRB(
+        leftMargin,
+        greenZoneBottom,
+        leftMargin + chartWidth,
+        yellowZoneBottom,
+      ),
       Paint()..color = const Color(0xFFFFC107).withValues(alpha: 0.08),
     );
 
     // Red zone: 2.0 to 3.0
     canvas.drawRect(
-      Rect.fromLTRB(leftMargin, yellowZoneBottom, leftMargin + chartWidth,
-          topMargin + chartHeight),
+      Rect.fromLTRB(
+        leftMargin,
+        yellowZoneBottom,
+        leftMargin + chartWidth,
+        topMargin + chartHeight,
+      ),
       Paint()..color = const Color(0xFFF44336).withValues(alpha: 0.08),
     );
 
@@ -330,7 +336,12 @@ class _AirmassChartPainter extends CustomPainter {
         // Object below horizon - break the line
         if (points.isNotEmpty) {
           _drawAirmassSegment(
-              canvas, points, airmassValues, chartHeight, topMargin);
+            canvas,
+            points,
+            airmassValues,
+            chartHeight,
+            topMargin,
+          );
           points.clear();
           airmassValues.clear();
         }
@@ -340,7 +351,12 @@ class _AirmassChartPainter extends CustomPainter {
     // Draw remaining points
     if (points.isNotEmpty) {
       _drawAirmassSegment(
-          canvas, points, airmassValues, chartHeight, topMargin);
+        canvas,
+        points,
+        airmassValues,
+        chartHeight,
+        topMargin,
+      );
     }
 
     // Draw current time indicator
@@ -359,8 +375,11 @@ class _AirmassChartPainter extends CustomPainter {
         bestAirmass != null &&
         bestAirmass < _maxAirmass) {
       final bestX = leftMargin + (bestTimeMinute / (24 * 60)) * chartWidth;
-      final bestY = _airmassToY(
-              bestAirmass.clamp(_minAirmass, _maxAirmass), chartHeight) +
+      final bestY =
+          _airmassToY(
+            bestAirmass.clamp(_minAirmass, _maxAirmass),
+            chartHeight,
+          ) +
           topMargin;
 
       // Draw diamond marker

@@ -146,10 +146,12 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
               color: !disabled && _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ).color
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               widget.icon,
@@ -243,7 +245,8 @@ class _DropZone extends ConsumerWidget {
           decoration: isOver
               ? NightshadeDecorations.selectedSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   fillAlpha: 0.2,
                 ).copyWith(
                   border: Border.all(color: colors.primary, width: 2),
@@ -264,7 +267,8 @@ class _DropZone extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Text(
                         'Insert here',
-                        style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
+                        style: NightshadeTypography.labelStrongSm
+                            .copyWith(color: colors.primary),
                       ),
                     ],
                   ),
@@ -496,7 +500,8 @@ class _NodeValidationWrapper extends StatelessWidget {
                   ),
                   TextSpan(
                     text: ': ${validationIssues![i].description}',
-                    style: const TextStyle(fontSize: NightshadeTypography.fontSize11),
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize11),
                   ),
                 ],
               ],
@@ -646,7 +651,8 @@ class _MinimapToggle extends ConsumerWidget {
             color: isVisible
                 ? NightshadeDecorations.statusChip(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ).color
                 : colors.surfaceAlt,
@@ -704,7 +710,8 @@ class _TimelineToggle extends ConsumerWidget {
             color: isVisible
                 ? NightshadeDecorations.statusChip(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ).color
                 : colors.surfaceAlt,

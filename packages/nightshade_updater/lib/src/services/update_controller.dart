@@ -79,13 +79,13 @@ class UpdateControllerStatus {
   });
 
   Map<String, Object?> toJson() => {
-        'state': state.wireName,
-        if (stagedVersion != null) 'stagedVersion': stagedVersion,
-        if (stagedAt != null) 'stagedAt': stagedAt!.toUtc().toIso8601String(),
-        if (progressPct != null) 'progressPct': progressPct,
-        if (message != null) 'message': message,
-        if (lastError != null) 'lastError': lastError,
-      };
+    'state': state.wireName,
+    if (stagedVersion != null) 'stagedVersion': stagedVersion,
+    if (stagedAt != null) 'stagedAt': stagedAt!.toUtc().toIso8601String(),
+    if (progressPct != null) 'progressPct': progressPct,
+    if (message != null) 'message': message,
+    if (lastError != null) 'lastError': lastError,
+  };
 }
 
 /// Snapshot of a staged but-not-applied update exposed via
@@ -113,15 +113,15 @@ class StagedUpdateInfo {
   });
 
   Map<String, Object?> toJson() => {
-        'stagedVersion': stagedVersion,
-        'stagedBuildNumber': stagedBuildNumber,
-        'stagedAt': stagedAt.toUtc().toIso8601String(),
-        if (manifestHash != null) 'manifestHash': manifestHash,
-        'fileCount': fileCount,
-        'totalBytes': totalBytes,
-        if (sourceUrl != null) 'sourceUrl': sourceUrl,
-        'expectedHashes': expectedHashes,
-      };
+    'stagedVersion': stagedVersion,
+    'stagedBuildNumber': stagedBuildNumber,
+    'stagedAt': stagedAt.toUtc().toIso8601String(),
+    if (manifestHash != null) 'manifestHash': manifestHash,
+    'fileCount': fileCount,
+    'totalBytes': totalBytes,
+    if (sourceUrl != null) 'sourceUrl': sourceUrl,
+    'expectedHashes': expectedHashes,
+  };
 }
 
 /// Result of `POST /api/system/update/check`. The check job resolves to
@@ -150,16 +150,16 @@ class UpdateCheckOutcome {
   });
 
   Map<String, Object?> toJson() => {
-        'available': available,
-        if (latestVersion != null) 'latestVersion': latestVersion,
-        if (latestBuildNumber != null) 'latestBuildNumber': latestBuildNumber,
-        if (releaseNotes != null) 'releaseNotes': releaseNotes,
-        if (downloadUrl != null) 'downloadUrl': downloadUrl,
-        if (downloadSize != null) 'downloadSize': downloadSize,
-        if (signature != null) 'signature': signature,
-        'isPrerelease': isPrerelease,
-        if (requiresManualUpgrade) 'requiresManualUpgrade': requiresManualUpgrade,
-      };
+    'available': available,
+    if (latestVersion != null) 'latestVersion': latestVersion,
+    if (latestBuildNumber != null) 'latestBuildNumber': latestBuildNumber,
+    if (releaseNotes != null) 'releaseNotes': releaseNotes,
+    if (downloadUrl != null) 'downloadUrl': downloadUrl,
+    if (downloadSize != null) 'downloadSize': downloadSize,
+    if (signature != null) 'signature': signature,
+    'isPrerelease': isPrerelease,
+    if (requiresManualUpgrade) 'requiresManualUpgrade': requiresManualUpgrade,
+  };
 }
 
 /// Typed event broadcast by [UpdateController.events]. The headless API
@@ -195,12 +195,12 @@ class UpdateAvailableEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'currentVersion': currentVersion,
-        'latestVersion': latestVersion,
-        if (downloadUrl != null) 'downloadUrl': downloadUrl,
-        if (releaseNotes != null) 'releaseNotes': releaseNotes,
-        if (downloadSize != null) 'downloadSize': downloadSize,
-      };
+    'currentVersion': currentVersion,
+    'latestVersion': latestVersion,
+    if (downloadUrl != null) 'downloadUrl': downloadUrl,
+    if (releaseNotes != null) 'releaseNotes': releaseNotes,
+    if (downloadSize != null) 'downloadSize': downloadSize,
+  };
 }
 
 class UpdateDownloadStartedEvent extends UpdateEvent {
@@ -219,10 +219,10 @@ class UpdateDownloadStartedEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'jobId': jobId,
-        'version': version,
-        'totalBytes': totalBytes,
-      };
+    'jobId': jobId,
+    'version': version,
+    'totalBytes': totalBytes,
+  };
 }
 
 class UpdateDownloadProgressEvent extends UpdateEvent {
@@ -243,11 +243,11 @@ class UpdateDownloadProgressEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'jobId': jobId,
-        'downloadedBytes': downloadedBytes,
-        'totalBytes': totalBytes,
-        'pct': pct,
-      };
+    'jobId': jobId,
+    'downloadedBytes': downloadedBytes,
+    'totalBytes': totalBytes,
+    'pct': pct,
+  };
 }
 
 class UpdateDownloadCompleteEvent extends UpdateEvent {
@@ -266,10 +266,10 @@ class UpdateDownloadCompleteEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'jobId': jobId,
-        'stagedPath': stagedPath,
-        'version': version,
-      };
+    'jobId': jobId,
+    'stagedPath': stagedPath,
+    'version': version,
+  };
 }
 
 class UpdateVerificationFailedEvent extends UpdateEvent {
@@ -290,30 +290,24 @@ class UpdateVerificationFailedEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'jobId': jobId,
-        'reason': reason,
-        if (expectedHash != null) 'expectedHash': expectedHash,
-        if (actualHash != null) 'actualHash': actualHash,
-      };
+    'jobId': jobId,
+    'reason': reason,
+    if (expectedHash != null) 'expectedHash': expectedHash,
+    if (actualHash != null) 'actualHash': actualHash,
+  };
 }
 
 class UpdateApplyStartedEvent extends UpdateEvent {
   final String jobId;
   final String version;
 
-  const UpdateApplyStartedEvent({
-    required this.jobId,
-    required this.version,
-  });
+  const UpdateApplyStartedEvent({required this.jobId, required this.version});
 
   @override
   String get type => 'UpdateApplyStarted';
 
   @override
-  Map<String, Object?> get data => {
-        'jobId': jobId,
-        'version': version,
-      };
+  Map<String, Object?> get data => {'jobId': jobId, 'version': version};
 }
 
 class UpdateAppliedEvent extends UpdateEvent {
@@ -332,10 +326,10 @@ class UpdateAppliedEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        'fromVersion': fromVersion,
-        'toVersion': toVersion,
-        'restartRequired': restartRequired,
-      };
+    'fromVersion': fromVersion,
+    'toVersion': toVersion,
+    'restartRequired': restartRequired,
+  };
 }
 
 class UpdateFailedEvent extends UpdateEvent {
@@ -354,10 +348,10 @@ class UpdateFailedEvent extends UpdateEvent {
 
   @override
   Map<String, Object?> get data => {
-        if (jobId != null) 'jobId': jobId,
-        'phase': phase,
-        'error': error,
-      };
+    if (jobId != null) 'jobId': jobId,
+    'phase': phase,
+    'error': error,
+  };
 }
 
 /// Adapter the headless API depends on. Wraps a real [UpdateService] and
@@ -383,8 +377,9 @@ class UpdateController {
   final StreamController<UpdateEvent> _eventsController =
       StreamController<UpdateEvent>.broadcast();
 
-  UpdateControllerStatus _status =
-      const UpdateControllerStatus(state: UpdateLifecycleState.idle);
+  UpdateControllerStatus _status = const UpdateControllerStatus(
+    state: UpdateLifecycleState.idle,
+  );
   DateTime? _lastUpdateCheck;
   DateTime? _lastUpdateApplied;
 
@@ -402,13 +397,13 @@ class UpdateController {
     String channel = 'stable',
     String? serverUrl,
     DateTime Function()? now,
-  })  : _service = service,
-        _currentVersion = currentVersion,
-        _currentBuildNumber = currentBuildNumber,
-        _channel = channel,
-        _serverUrl = serverUrl,
-        _stateDir = stateDirectory,
-        _now = now ?? DateTime.now;
+  }) : _service = service,
+       _currentVersion = currentVersion,
+       _currentBuildNumber = currentBuildNumber,
+       _channel = channel,
+       _serverUrl = serverUrl,
+       _stateDir = stateDirectory,
+       _now = now ?? DateTime.now;
 
   /// Hydrate persisted state markers from disk. Must be awaited before
   /// the controller is exposed via the API.
@@ -462,16 +457,15 @@ class UpdateController {
   /// [channelOverride] for one-off `?channel=` query params.
   Future<UpdateCheckOutcome> checkForUpdates({String? channelOverride}) async {
     if (channelOverride != null && channelOverride.isNotEmpty) {
-      _service.configure(
-        serverUrl: _serverUrl ?? '',
-        channel: channelOverride,
-      );
+      _service.configure(serverUrl: _serverUrl ?? '', channel: channelOverride);
     }
-    _updateStatus(_status = UpdateControllerStatus(
-      state: UpdateLifecycleState.checking,
-      stagedVersion: _status.stagedVersion,
-      stagedAt: _status.stagedAt,
-    ));
+    _updateStatus(
+      _status = UpdateControllerStatus(
+        state: UpdateLifecycleState.checking,
+        stagedVersion: _status.stagedVersion,
+        stagedAt: _status.stagedAt,
+      ),
+    );
 
     try {
       final result = await _service.checkForUpdates();
@@ -481,22 +475,26 @@ class UpdateController {
 
       if (result.hasUpdate && result.manifest != null) {
         final manifest = result.manifest!;
-        _updateStatus(UpdateControllerStatus(
-          state: _status.stagedVersion != null
-              ? UpdateLifecycleState.staged
-              : UpdateLifecycleState.idle,
-          stagedVersion: _status.stagedVersion,
-          stagedAt: _status.stagedAt,
-          message:
-              'Update ${manifest.version}+${manifest.buildNumber} available',
-        ));
-        _eventsController.add(UpdateAvailableEvent(
-          currentVersion: _currentVersion,
-          latestVersion: manifest.version,
-          downloadUrl: manifest.downloadUrl,
-          releaseNotes: manifest.releaseNotes,
-          downloadSize: manifest.compressedSize,
-        ));
+        _updateStatus(
+          UpdateControllerStatus(
+            state: _status.stagedVersion != null
+                ? UpdateLifecycleState.staged
+                : UpdateLifecycleState.idle,
+            stagedVersion: _status.stagedVersion,
+            stagedAt: _status.stagedAt,
+            message:
+                'Update ${manifest.version}+${manifest.buildNumber} available',
+          ),
+        );
+        _eventsController.add(
+          UpdateAvailableEvent(
+            currentVersion: _currentVersion,
+            latestVersion: manifest.version,
+            downloadUrl: manifest.downloadUrl,
+            releaseNotes: manifest.releaseNotes,
+            downloadSize: manifest.compressedSize,
+          ),
+        );
         return UpdateCheckOutcome(
           available: true,
           latestVersion: manifest.version,
@@ -511,25 +509,28 @@ class UpdateController {
 
       // No update — reset to idle (or staged if a previously-staged
       // update still exists).
-      _updateStatus(UpdateControllerStatus(
-        state: _status.stagedVersion != null
-            ? UpdateLifecycleState.staged
-            : UpdateLifecycleState.idle,
-        stagedVersion: _status.stagedVersion,
-        stagedAt: _status.stagedAt,
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: _status.stagedVersion != null
+              ? UpdateLifecycleState.staged
+              : UpdateLifecycleState.idle,
+          stagedVersion: _status.stagedVersion,
+          stagedAt: _status.stagedAt,
+        ),
+      );
       return const UpdateCheckOutcome(available: false);
     } catch (e) {
-      _updateStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.failed,
-        stagedVersion: _status.stagedVersion,
-        stagedAt: _status.stagedAt,
-        lastError: e.toString(),
-      ));
-      _eventsController.add(UpdateFailedEvent(
-        phase: 'check',
-        error: e.toString(),
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.failed,
+          stagedVersion: _status.stagedVersion,
+          stagedAt: _status.stagedAt,
+          lastError: e.toString(),
+        ),
+      );
+      _eventsController.add(
+        UpdateFailedEvent(phase: 'check', error: e.toString()),
+      );
       rethrow;
     }
   }
@@ -540,38 +541,44 @@ class UpdateController {
   Future<void> downloadAndStage({required String jobId}) async {
     final manifest = _lastManifest;
     if (manifest == null) {
-      throw StateError(
-        'No manifest available; call checkForUpdates first.',
-      );
+      throw StateError('No manifest available; call checkForUpdates first.');
     }
 
-    _eventsController.add(UpdateDownloadStartedEvent(
-      jobId: jobId,
-      version: manifest.version,
-      totalBytes: manifest.compressedSize,
-    ));
-    _updateStatus(UpdateControllerStatus(
-      state: UpdateLifecycleState.downloading,
-      progressPct: 0,
-      message: 'Downloading ${manifest.version}',
-    ));
+    _eventsController.add(
+      UpdateDownloadStartedEvent(
+        jobId: jobId,
+        version: manifest.version,
+        totalBytes: manifest.compressedSize,
+      ),
+    );
+    _updateStatus(
+      UpdateControllerStatus(
+        state: UpdateLifecycleState.downloading,
+        progressPct: 0,
+        message: 'Downloading ${manifest.version}',
+      ),
+    );
 
     try {
       await _service.downloadAndStage(
         manifest,
         onProgress: (downloaded, total, progress) {
-          _updateStatus(UpdateControllerStatus(
-            state: UpdateLifecycleState.downloading,
-            progressPct: progress,
-            message:
-                'Downloading ${manifest.version} (${(progress * 100).toStringAsFixed(1)}%)',
-          ));
-          _eventsController.add(UpdateDownloadProgressEvent(
-            jobId: jobId,
-            downloadedBytes: downloaded,
-            totalBytes: total == 0 ? manifest.compressedSize : total,
-            pct: progress,
-          ));
+          _updateStatus(
+            UpdateControllerStatus(
+              state: UpdateLifecycleState.downloading,
+              progressPct: progress,
+              message:
+                  'Downloading ${manifest.version} (${(progress * 100).toStringAsFixed(1)}%)',
+            ),
+          );
+          _eventsController.add(
+            UpdateDownloadProgressEvent(
+              jobId: jobId,
+              downloadedBytes: downloaded,
+              totalBytes: total == 0 ? manifest.compressedSize : total,
+              pct: progress,
+            ),
+          );
         },
       );
 
@@ -588,36 +595,43 @@ class UpdateController {
         );
       }
 
-      _updateStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.staged,
-        stagedVersion: staged.version,
-        stagedAt: staged.stagedAt,
-        progressPct: 1.0,
-      ));
-      _eventsController.add(UpdateDownloadCompleteEvent(
-        jobId: jobId,
-        stagedPath: staged.extractPath,
-        version: staged.version,
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.staged,
+          stagedVersion: staged.version,
+          stagedAt: staged.stagedAt,
+          progressPct: 1.0,
+        ),
+      );
+      _eventsController.add(
+        UpdateDownloadCompleteEvent(
+          jobId: jobId,
+          stagedPath: staged.extractPath,
+          version: staged.version,
+        ),
+      );
     } catch (e) {
-      _updateStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.failed,
-        lastError: e.toString(),
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.failed,
+          lastError: e.toString(),
+        ),
+      );
       // Verification failures surface as `UpdateVerificationFailed` so
       // the client can distinguish "the bytes were bad" from "the network
       // dropped".
       if (e is UpdateException && e.message.toLowerCase().contains('verif')) {
-        _eventsController.add(UpdateVerificationFailedEvent(
-          jobId: jobId,
-          reason: e.message,
-        ));
+        _eventsController.add(
+          UpdateVerificationFailedEvent(jobId: jobId, reason: e.message),
+        );
       } else {
-        _eventsController.add(UpdateFailedEvent(
-          jobId: jobId,
-          phase: 'download',
-          error: e.toString(),
-        ));
+        _eventsController.add(
+          UpdateFailedEvent(
+            jobId: jobId,
+            phase: 'download',
+            error: e.toString(),
+          ),
+        );
       }
       rethrow;
     }
@@ -633,43 +647,45 @@ class UpdateController {
       throw StateError('No staged update available to apply');
     }
 
-    _eventsController.add(UpdateApplyStartedEvent(
-      jobId: jobId,
-      version: staged.version,
-    ));
-    _updateStatus(UpdateControllerStatus(
-      state: UpdateLifecycleState.installing,
-      stagedVersion: staged.version,
-      stagedAt: staged.stagedAt,
-      message: 'Applying ${staged.version}',
-    ));
+    _eventsController.add(
+      UpdateApplyStartedEvent(jobId: jobId, version: staged.version),
+    );
+    _updateStatus(
+      UpdateControllerStatus(
+        state: UpdateLifecycleState.installing,
+        stagedVersion: staged.version,
+        stagedAt: staged.stagedAt,
+        message: 'Applying ${staged.version}',
+      ),
+    );
 
     try {
       // applyUpdate may exit(0) before this returns. We still emit the
       // applied-event optimistically here so phones receive the alert
       // before the WebSocket teardown. On real failure (Process.start
       // throws) we transition back to staged so the client can retry.
-      _eventsController.add(UpdateAppliedEvent(
-        fromVersion: _currentVersion,
-        toVersion: staged.version,
-        restartRequired: true,
-      ));
+      _eventsController.add(
+        UpdateAppliedEvent(
+          fromVersion: _currentVersion,
+          toVersion: staged.version,
+          restartRequired: true,
+        ),
+      );
       _lastUpdateApplied = _now();
-      await _writeTimestamp(
-          'last_update_applied.txt', _lastUpdateApplied!);
+      await _writeTimestamp('last_update_applied.txt', _lastUpdateApplied!);
       await _service.applyUpdate();
     } catch (e) {
-      _updateStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.failed,
-        stagedVersion: staged.version,
-        stagedAt: staged.stagedAt,
-        lastError: e.toString(),
-      ));
-      _eventsController.add(UpdateFailedEvent(
-        jobId: jobId,
-        phase: 'apply',
-        error: e.toString(),
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.failed,
+          stagedVersion: staged.version,
+          stagedAt: staged.stagedAt,
+          lastError: e.toString(),
+        ),
+      );
+      _eventsController.add(
+        UpdateFailedEvent(jobId: jobId, phase: 'apply', error: e.toString()),
+      );
       rethrow;
     }
   }
@@ -677,7 +693,8 @@ class UpdateController {
   /// Abort an in-flight check / download. Throws [StateError] when there
   /// is nothing to abort.
   void abortInFlight() {
-    final inFlight = _status.state == UpdateLifecycleState.checking ||
+    final inFlight =
+        _status.state == UpdateLifecycleState.checking ||
         _status.state == UpdateLifecycleState.downloading;
     if (!inFlight) {
       throw StateError(
@@ -686,14 +703,16 @@ class UpdateController {
       );
     }
     _service.cancelDownload();
-    _updateStatus(UpdateControllerStatus(
-      state: _status.stagedVersion != null
-          ? UpdateLifecycleState.staged
-          : UpdateLifecycleState.idle,
-      stagedVersion: _status.stagedVersion,
-      stagedAt: _status.stagedAt,
-      message: 'Aborted by operator',
-    ));
+    _updateStatus(
+      UpdateControllerStatus(
+        state: _status.stagedVersion != null
+            ? UpdateLifecycleState.staged
+            : UpdateLifecycleState.idle,
+        stagedVersion: _status.stagedVersion,
+        stagedAt: _status.stagedAt,
+        message: 'Aborted by operator',
+      ),
+    );
   }
 
   /// Return the current staged update, or null when no staged update is
@@ -707,8 +726,7 @@ class UpdateController {
     // that detail, but the manifest does (it's persisted next to
     // ready.json by [persistStagedManifest]).
     final stagingRoot = Directory(p.dirname(staged.extractPath));
-    final manifestFile =
-        File(p.join(stagingRoot.path, 'manifest.json'));
+    final manifestFile = File(p.join(stagingRoot.path, 'manifest.json'));
     Map<String, String> expectedHashes = {};
     int totalBytes = 0;
     int fileCount = 0;
@@ -754,10 +772,12 @@ class UpdateController {
   /// Discard any staged update on disk. No-op when nothing is staged.
   Future<void> discardStaged() async {
     await _service.clearStagedUpdate();
-    _updateStatus(const UpdateControllerStatus(
-      state: UpdateLifecycleState.idle,
-      message: 'Staged update discarded',
-    ));
+    _updateStatus(
+      const UpdateControllerStatus(
+        state: UpdateLifecycleState.idle,
+        message: 'Staged update discarded',
+      ),
+    );
   }
 
   /// Whether a manual rollback is currently possible. True only while a
@@ -785,36 +805,39 @@ class UpdateController {
       );
     }
 
-    _eventsController.add(UpdateApplyStartedEvent(
-      jobId: jobId,
-      version: 'rollback',
-    ));
-    _updateStatus(const UpdateControllerStatus(
-      state: UpdateLifecycleState.installing,
-      message: 'Rolling back to the previous version',
-    ));
+    _eventsController.add(
+      UpdateApplyStartedEvent(jobId: jobId, version: 'rollback'),
+    );
+    _updateStatus(
+      const UpdateControllerStatus(
+        state: UpdateLifecycleState.installing,
+        message: 'Rolling back to the previous version',
+      ),
+    );
 
     try {
       // Optimistic applied-event so phones receive the restart alert before
       // the WebSocket teardown (rollbackToPrevious exits the process on
       // success). On a real failure (spawn throws) we fall through to the
       // catch and re-arm.
-      _eventsController.add(UpdateAppliedEvent(
-        fromVersion: _currentVersion,
-        toVersion: 'previous',
-        restartRequired: true,
-      ));
+      _eventsController.add(
+        UpdateAppliedEvent(
+          fromVersion: _currentVersion,
+          toVersion: 'previous',
+          restartRequired: true,
+        ),
+      );
       await _service.rollbackToPrevious();
     } catch (e) {
-      _updateStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.failed,
-        lastError: e.toString(),
-      ));
-      _eventsController.add(UpdateFailedEvent(
-        jobId: jobId,
-        phase: 'rollback',
-        error: e.toString(),
-      ));
+      _updateStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.failed,
+          lastError: e.toString(),
+        ),
+      );
+      _eventsController.add(
+        UpdateFailedEvent(jobId: jobId, phase: 'rollback', error: e.toString()),
+      );
       rethrow;
     }
   }
@@ -846,5 +869,4 @@ class UpdateController {
     await file.parent.create(recursive: true);
     await file.writeAsString(ts.toUtc().toIso8601String());
   }
-
 }

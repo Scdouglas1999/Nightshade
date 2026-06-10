@@ -37,8 +37,11 @@ const FramingPlateScale _plateScale = FramingPlateScale(
   imagePixelHeight: 1200,
 );
 
-const FramingTarget _target =
-    FramingTarget(name: 'M42', raHours: 5.59, decDegrees: -5.39);
+const FramingTarget _target = FramingTarget(
+  name: 'M42',
+  raHours: 5.59,
+  decDegrees: -5.39,
+);
 
 const ui.Size _canvas = ui.Size(1200, 900);
 
@@ -86,8 +89,9 @@ ProviderContainer _container({
   final container = ProviderContainer(
     overrides: [
       hipsFramingEnabledProvider.overrideWith((ref) => enabled),
-      hipsTileFetcherProvider
-          .overrideWithValue(HipsTileFetcher(httpClient: client)),
+      hipsTileFetcherProvider.overrideWithValue(
+        HipsTileFetcher(httpClient: client),
+      ),
       hipsTileCacheProvider.overrideWithValue(
         HipsTileCache(maxEntries: 256, maxBytes: 64 * 1024 * 1024),
       ),
@@ -116,7 +120,8 @@ ProviderContainer _container({
 /// provider is torn down the moment the synchronous `read` returns, which would
 /// cancel the loader's pending recompute timer before the event loop runs.
 ProviderSubscription<HipsResidentSnapshot> _keepAlive(
-    ProviderContainer container) {
+  ProviderContainer container,
+) {
   final sub = container.listen<HipsResidentSnapshot>(
     hipsResidentTilesProvider,
     (_, __) {},
@@ -152,16 +157,18 @@ void main() {
       expect(container.read(hipsFramingEnabledProvider), isTrue);
     });
 
-    test('DSS surveys are tile-capable; resolve-at-runtime surveys are not',
-        () {
-      // DSS2 red / blue have verified base URLs in the registry.
-      expect(hipsSurveyIsTileCapable(SurveySource.dss2Red), isTrue);
-      expect(hipsSurveyIsTileCapable(SurveySource.dss2Blue), isTrue);
-      // The remaining surveys have no verified base URL.
-      expect(hipsSurveyIsTileCapable(SurveySource.sdss), isFalse);
-      expect(hipsSurveyIsTileCapable(SurveySource.wise12), isFalse);
-      expect(hipsSurveyIsTileCapable(SurveySource.twomassJ), isFalse);
-    });
+    test(
+      'DSS surveys are tile-capable; resolve-at-runtime surveys are not',
+      () {
+        // DSS2 red / blue have verified base URLs in the registry.
+        expect(hipsSurveyIsTileCapable(SurveySource.dss2Red), isTrue);
+        expect(hipsSurveyIsTileCapable(SurveySource.dss2Blue), isTrue);
+        // The remaining surveys have no verified base URL.
+        expect(hipsSurveyIsTileCapable(SurveySource.sdss), isFalse);
+        expect(hipsSurveyIsTileCapable(SurveySource.wise12), isFalse);
+        expect(hipsSurveyIsTileCapable(SurveySource.twomassJ), isFalse);
+      },
+    );
 
     test('active = user toggle AND survey capability', () {
       final container = ProviderContainer();
@@ -221,29 +228,31 @@ void main() {
     });
 
     test(
-        'disposing the container disposes the loader (and through it the cache '
-        '+ fetcher) exactly once', () async {
-      final client = _tileServer();
-      final cache = HipsTileCache(maxEntries: 8, maxBytes: 8 * 1024 * 1024);
-      final fetcher = HipsTileFetcher(httpClient: client);
-      final container = ProviderContainer(
-        overrides: [
-          hipsTileCacheProvider.overrideWithValue(cache),
-          hipsTileFetcherProvider.overrideWithValue(fetcher),
-        ],
-      );
-      // Force the loader to build.
-      final loader = container.read(hipsTileLoaderProvider);
-      expect(cache.isDisposed, isFalse);
+      'disposing the container disposes the loader (and through it the cache '
+      '+ fetcher) exactly once',
+      () async {
+        final client = _tileServer();
+        final cache = HipsTileCache(maxEntries: 8, maxBytes: 8 * 1024 * 1024);
+        final fetcher = HipsTileFetcher(httpClient: client);
+        final container = ProviderContainer(
+          overrides: [
+            hipsTileCacheProvider.overrideWithValue(cache),
+            hipsTileFetcherProvider.overrideWithValue(fetcher),
+          ],
+        );
+        // Force the loader to build.
+        final loader = container.read(hipsTileLoaderProvider);
+        expect(cache.isDisposed, isFalse);
 
-      container.dispose();
+        container.dispose();
 
-      // The loader disposed the cache; a second dispose on the cache is a
-      // tolerated no-op (proving single ownership, not a double-free crash).
-      expect(cache.isDisposed, isTrue);
-      // The loader rejects use after dispose (a feature, not a silent no-op).
-      expect(() => loader.requestTiles(_viewport()), throwsStateError);
-    });
+        // The loader disposed the cache; a second dispose on the cache is a
+        // tolerated no-op (proving single ownership, not a double-free crash).
+        expect(cache.isDisposed, isTrue);
+        // The loader rejects use after dispose (a feature, not a silent no-op).
+        expect(() => loader.requestTiles(_viewport()), throwsStateError);
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -291,8 +300,7 @@ void main() {
       expect(container.read(hipsResidentTilesProvider).version, beforeVersion);
     });
 
-    test(
-        'requestViewport streams resident tiles and the notifier mirrors the '
+    test('requestViewport streams resident tiles and the notifier mirrors the '
         'loader snapshot into Riverpod state', () async {
       final container = _container();
       _keepAlive(container);
@@ -315,8 +323,11 @@ void main() {
       // The state the widget watches is the SAME object the loader published.
       expect(identical(snap, notifier.loader.snapshot), isTrue);
       expect(snap.version, greaterThan(0));
-      expect(snap.hasAnyImagery, isTrue,
-          reason: 'tiles / Allsky should have streamed in');
+      expect(
+        snap.hasAnyImagery,
+        isTrue,
+        reason: 'tiles / Allsky should have streamed in',
+      );
       expect(snap.visibleSet, isNotNull);
     });
 
@@ -347,82 +358,92 @@ void main() {
       expect(container.read(hipsResidentTilesProvider).hasAnyImagery, isFalse);
     });
 
-    test('a held (identical) viewport does not re-issue fetches (dedup)',
-        () async {
-      final urls = <String>[];
-      final container = _container(server: _tileServer(requestedUrls: urls));
-      _keepAlive(container);
-      final notifier = container.read(hipsResidentTilesProvider.notifier);
-      notifier.setSurvey(SurveySource.dss2Red);
+    test(
+      'a held (identical) viewport does not re-issue fetches (dedup)',
+      () async {
+        final urls = <String>[];
+        final container = _container(server: _tileServer(requestedUrls: urls));
+        _keepAlive(container);
+        final notifier = container.read(hipsResidentTilesProvider.notifier);
+        notifier.setSurvey(SurveySource.dss2Red);
 
-      void request() => notifier.requestViewport(
-            plateScale: _plateScale,
-            target: _target,
-            canvasSize: _canvas,
-            zoom: 1.0,
-            pan: ui.Offset.zero,
-            rotationDegrees: 0.0,
-            format: HipsTileFormat.png,
-            props: _props(),
-          );
+        void request() => notifier.requestViewport(
+          plateScale: _plateScale,
+          target: _target,
+          canvasSize: _canvas,
+          zoom: 1.0,
+          pan: ui.Offset.zero,
+          rotationDegrees: 0.0,
+          format: HipsTileFormat.png,
+          props: _props(),
+        );
 
-      request();
-      await _settle();
-      final afterFirst = urls.length;
-      expect(afterFirst, greaterThan(0));
+        request();
+        await _settle();
+        final afterFirst = urls.length;
+        expect(afterFirst, greaterThan(0));
 
-      // Re-request the identical viewport several times: no new requests.
-      request();
-      request();
-      request();
-      await _settle();
-      expect(urls.length, afterFirst,
-          reason: 'identical viewport must not thrash the network');
-    });
+        // Re-request the identical viewport several times: no new requests.
+        request();
+        request();
+        request();
+        await _settle();
+        expect(
+          urls.length,
+          afterFirst,
+          reason: 'identical viewport must not thrash the network',
+        );
+      },
+    );
 
-    test('surfaces genuine fetch failures to the injected error sink',
-        () async {
-      final sink = _CapturingErrorSink();
-      final failing = MockClient((request) async {
-        return http.Response('not found', 404);
-      });
-      final container = _container(server: failing, errorSink: sink);
-      _keepAlive(container);
-      final notifier = container.read(hipsResidentTilesProvider.notifier);
-      notifier.setSurvey(SurveySource.dss2Red);
+    test(
+      'surfaces genuine fetch failures to the injected error sink',
+      () async {
+        final sink = _CapturingErrorSink();
+        final failing = MockClient((request) async {
+          return http.Response('not found', 404);
+        });
+        final container = _container(server: failing, errorSink: sink);
+        _keepAlive(container);
+        final notifier = container.read(hipsResidentTilesProvider.notifier);
+        notifier.setSurvey(SurveySource.dss2Red);
 
-      notifier.requestViewport(
-        plateScale: _plateScale,
-        target: _target,
-        canvasSize: _canvas,
-        zoom: 1.0,
-        pan: ui.Offset.zero,
-        rotationDegrees: 0.0,
-        format: HipsTileFormat.png,
-        props: _props(),
-      );
-      await _settle();
+        notifier.requestViewport(
+          plateScale: _plateScale,
+          target: _target,
+          canvasSize: _canvas,
+          zoom: 1.0,
+          pan: ui.Offset.zero,
+          rotationDegrees: 0.0,
+          format: HipsTileFormat.png,
+          props: _props(),
+        );
+        await _settle();
 
-      expect(sink.failures, isNotEmpty,
-          reason: 'errors are a feature: a 404 must surface, not be swallowed');
-      expect(
-        container.read(hipsResidentTilesProvider).failures,
-        isNotEmpty,
-        reason: 'failures must also appear in the snapshot for a UI banner',
-      );
-    });
+        expect(
+          sink.failures,
+          isNotEmpty,
+          reason: 'errors are a feature: a 404 must surface, not be swallowed',
+        );
+        expect(
+          container.read(hipsResidentTilesProvider).failures,
+          isNotEmpty,
+          reason: 'failures must also appear in the snapshot for a UI banner',
+        );
+      },
+    );
   });
 }
 
 HipsViewport _viewport() => HipsViewport(
-      plateScale: _plateScale,
-      target: _target,
-      canvasSize: _canvas,
-      zoom: 1.0,
-      pan: ui.Offset.zero,
-      rotationDegrees: 0.0,
-      baseUrl: _dssRedBaseUrl,
-      surveyId: _dssRedSurveyId,
-      format: HipsTileFormat.png,
-      props: _props(),
-    );
+  plateScale: _plateScale,
+  target: _target,
+  canvasSize: _canvas,
+  zoom: 1.0,
+  pan: ui.Offset.zero,
+  rotationDegrees: 0.0,
+  baseUrl: _dssRedBaseUrl,
+  surveyId: _dssRedSurveyId,
+  format: HipsTileFormat.png,
+  props: _props(),
+);

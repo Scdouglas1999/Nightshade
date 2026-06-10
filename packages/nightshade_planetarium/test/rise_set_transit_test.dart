@@ -56,8 +56,12 @@ void main() {
 
     test('transit occurs at the meridian (hour angle ~0)', () {
       final lst = AstronomyCalculations.localSiderealTime(
-          visibility.transitTime!, lon);
-      final (ra, _) = AstronomyCalculations.sunPosition(visibility.transitTime!);
+        visibility.transitTime!,
+        lon,
+      );
+      final (ra, _) = AstronomyCalculations.sunPosition(
+        visibility.transitTime!,
+      );
       // Hour angle = LST - RA, normalised to [-12, 12] hours.
       var ha = lst - ra / 15;
       while (ha > 12) {
@@ -101,7 +105,9 @@ void main() {
 
     test('at transit the star is on the meridian', () {
       final lst = AstronomyCalculations.localSiderealTime(
-          visibility.transitTime!, -75.0);
+        visibility.transitTime!,
+        -75.0,
+      );
       var ha = lst - 279.2347 / 15;
       while (ha > 12) {
         ha -= 24;
@@ -257,8 +263,10 @@ void main() {
       );
       expect(moving.setTime, isNotNull);
       expect(frozen.setTime, isNotNull);
-      final deltaSec =
-          moving.setTime!.difference(frozen.setTime!).inSeconds.abs();
+      final deltaSec = moving.setTime!
+          .difference(frozen.setTime!)
+          .inSeconds
+          .abs();
       expect(deltaSec, greaterThan(2));
     });
   });

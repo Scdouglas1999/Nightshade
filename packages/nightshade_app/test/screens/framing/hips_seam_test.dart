@@ -150,10 +150,12 @@ void main() {
       }
     }
     expect(edgePairsChecked, greaterThan(0),
-        reason: 'The fixture mosaic must contain >= 1 edge-adjacent tile pair to '
+        reason:
+            'The fixture mosaic must contain >= 1 edge-adjacent tile pair to '
             'exercise the seam guarantee.');
     expect(diagonalPairsChecked, greaterThan(0),
-        reason: 'The fixture mosaic must contain >= 1 diagonal neighbour pair so '
+        reason:
+            'The fixture mosaic must contain >= 1 diagonal neighbour pair so '
             'the corner-only coincidence path is also exercised (this is the '
             'pair that a naive >= 2 assertion misclassifies as a seam).');
   });

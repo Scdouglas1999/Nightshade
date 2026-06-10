@@ -89,8 +89,9 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
             child: AnimatedAlign(
               duration: NightshadeTokens.durationNormal,
               curve: NightshadeTokens.curvePrecise,
-              alignment:
-                  widget.value ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: widget.value
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: Container(
                 width: thumbSize,
                 height: thumbSize,

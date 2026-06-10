@@ -185,14 +185,14 @@ class PushNotificationFrame {
   }
 
   Map<String, Object?> toPayloadJson() => <String, Object?>{
-        'id': id,
-        'severity': severity,
-        'title': title,
-        'body': body,
-        'data': data,
-        'timestamp': timestamp.toUtc().millisecondsSinceEpoch,
-        'serverFingerprint': serverFingerprint,
-      };
+    'id': id,
+    'severity': severity,
+    'title': title,
+    'body': body,
+    'data': data,
+    'timestamp': timestamp.toUtc().millisecondsSinceEpoch,
+    'serverFingerprint': serverFingerprint,
+  };
 
   /// Reconstruct a frame from a decoded JSON payload. Throws
   /// [FormatException] on missing fields — the caller (decode) catches
@@ -232,8 +232,10 @@ class PushNotificationFrame {
       title: title,
       body: body,
       data: data,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true)
-          .toLocal(),
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        timestamp,
+        isUtc: true,
+      ).toLocal(),
       serverFingerprint: fingerprint,
     );
   }
@@ -266,21 +268,24 @@ Uint8List encodePushFrame(
   final payloadBytes = utf8.encode(jsonEncode(frame.toPayloadJson()));
   if (payloadBytes.length > kLanPushMaxPayloadBytes) {
     throw ArgumentError(
-        'Push payload too large: ${payloadBytes.length} > '
-        '$kLanPushMaxPayloadBytes bytes. Reduce `data` map size.');
+      'Push payload too large: ${payloadBytes.length} > '
+      '$kLanPushMaxPayloadBytes bytes. Reduce `data` map size.',
+    );
   }
   final totalBytes = kLanPushHeaderBytes + payloadBytes.length;
   if (totalBytes > kLanPushMaxDatagramBytes) {
     throw ArgumentError(
-        'Push datagram too large: $totalBytes > '
-        '$kLanPushMaxDatagramBytes bytes. Reduce `data` map size.');
+      'Push datagram too large: $totalBytes > '
+      '$kLanPushMaxDatagramBytes bytes. Reduce `data` map size.',
+    );
   }
 
   final hmacBytes = Hmac(sha256, hmacKey).convert(payloadBytes).bytes;
   if (hmacBytes.length != 32) {
     // HMAC-SHA256 is always 32 bytes; this would be a crypto package bug.
     throw StateError(
-        'HMAC-SHA256 returned ${hmacBytes.length} bytes (expected 32)');
+      'HMAC-SHA256 returned ${hmacBytes.length} bytes (expected 32)',
+    );
   }
 
   final out = Uint8List(totalBytes);
@@ -330,7 +335,8 @@ LanPushDecodeResult decodePushFrame(
 }) {
   if (bytes.length < kLanPushHeaderBytes) {
     return const LanPushDecodeResult.failed(
-        LanPushDecodeFailure.truncatedHeader);
+      LanPushDecodeFailure.truncatedHeader,
+    );
   }
   final magic = utf8.decode(bytes.sublist(0, 4), allowMalformed: true);
   if (magic != kLanPushMagic) {
@@ -339,13 +345,15 @@ LanPushDecodeResult decodePushFrame(
   final version = bytes[4];
   if (version != kLanPushProtocolVersion) {
     return const LanPushDecodeResult.failed(
-        LanPushDecodeFailure.unsupportedVersion);
+      LanPushDecodeFailure.unsupportedVersion,
+    );
   }
   final view = ByteData.view(bytes.buffer, bytes.offsetInBytes, bytes.length);
   final payloadLen = view.getUint16(6, Endian.big);
   if (bytes.length != kLanPushHeaderBytes + payloadLen) {
     return const LanPushDecodeResult.failed(
-        LanPushDecodeFailure.payloadLengthMismatch);
+      LanPushDecodeFailure.payloadLengthMismatch,
+    );
   }
   final receivedHmac = bytes.sublist(8, 40);
   final payloadBytes = bytes.sublist(40);
@@ -357,13 +365,15 @@ LanPushDecodeResult decodePushFrame(
     final decoded = jsonDecode(utf8.decode(payloadBytes));
     if (decoded is! Map<String, dynamic>) {
       return const LanPushDecodeResult.failed(
-          LanPushDecodeFailure.malformedPayload);
+        LanPushDecodeFailure.malformedPayload,
+      );
     }
     final frame = PushNotificationFrame.fromPayloadJson(decoded);
     return LanPushDecodeResult.ok(frame);
   } on FormatException {
     return const LanPushDecodeResult.failed(
-        LanPushDecodeFailure.malformedPayload);
+      LanPushDecodeFailure.malformedPayload,
+    );
   }
 }
 
@@ -383,11 +393,7 @@ bool _constantTimeEquals(List<int> a, List<int> b) {
 /// carries only the events that need to wake a sleeping client. Set to
 /// [LanPushSeverityFilter.warning] to also forward `warning`-class
 /// pushes; `LanPushSeverityFilter.info` is intended for tests.
-enum LanPushSeverityFilter {
-  info,
-  warning,
-  critical,
-}
+enum LanPushSeverityFilter { info, warning, critical }
 
 extension _SeverityFilterMatch on LanPushSeverityFilter {
   bool admits(int severityCode) {
@@ -448,8 +454,12 @@ class LanPushBroadcaster {
 
   /// Logger sink. Production wires this to `LoggingService` via a
   /// closure; tests inject a recording closure.
-  final void Function(LanPushLogLevel level, String message,
-      {Map<String, Object?>? fields})? logger;
+  final void Function(
+    LanPushLogLevel level,
+    String message, {
+    Map<String, Object?>? fields,
+  })?
+  logger;
 
   late final List<int> _hmacKey = derivePushHmacKey(serverFingerprint);
 
@@ -506,7 +516,7 @@ class LanPushBroadcaster {
       _log(
         LanPushLogLevel.warning,
         'LAN push broadcaster: no IPv4 interfaces available; '
-            'broadcaster will not fan out to LAN',
+        'broadcaster will not fan out to LAN',
         fields: {'port': port},
       );
       return;
@@ -535,11 +545,8 @@ class LanPushBroadcaster {
           _log(
             LanPushLogLevel.warning,
             'LAN push broadcaster: multicast join failed; continuing '
-                'with broadcast-only fan-out on this interface',
-            fields: {
-              'interface': interface.name,
-              'error': '$e',
-            },
+            'with broadcast-only fan-out on this interface',
+            fields: {'interface': interface.name, 'error': '$e'},
           );
         }
         _sockets.add(socket);
@@ -562,10 +569,7 @@ class LanPushBroadcaster {
       _log(
         LanPushLogLevel.info,
         'LAN push broadcaster started',
-        fields: {
-          'port': port,
-          'interfaces': _sinks.length,
-        },
+        fields: {'port': port, 'interfaces': _sinks.length},
       );
     } else {
       _log(
@@ -652,7 +656,10 @@ class LanPushBroadcaster {
   /// overrides) so a sink that throws from its `send` doesn't take down
   /// the broadcaster.
   void _safeSend(
-      LanPushDatagramSink sink, Uint8List bytes, InternetAddress address) {
+    LanPushDatagramSink sink,
+    Uint8List bytes,
+    InternetAddress address,
+  ) {
     try {
       sink.send(bytes, address, port);
     } catch (e) {
@@ -683,8 +690,11 @@ class LanPushBroadcaster {
     _sockets.clear();
   }
 
-  void _log(LanPushLogLevel level, String message,
-      {Map<String, Object?>? fields}) {
+  void _log(
+    LanPushLogLevel level,
+    String message, {
+    Map<String, Object?>? fields,
+  }) {
     final l = logger;
     if (l != null) {
       l(level, message, fields: fields);

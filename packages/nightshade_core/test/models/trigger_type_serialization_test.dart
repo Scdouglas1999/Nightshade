@@ -154,22 +154,26 @@ void main() {
     });
 
     test(
-        'every TriggerType variant has a non-null serialization (no missing cases)',
-        () {
-      // Defense-in-depth: if a future contributor adds a variant to the
-      // enum but forgets to update toRustTriggerConfig, the exhaustive
-      // switch in that method will throw at runtime. We exercise every
-      // variant here so the test fires immediately.
-      for (final t in TriggerType.values) {
-        final node = RecoveryNode(triggerType: t);
-        final encoded = node.toRustTriggerConfig();
-        expect(encoded, isNotNull,
-            reason: 'TriggerType.${t.name} produced null encoding');
-        // Must be encodable as JSON.
-        final json = jsonEncode(encoded);
-        expect(json.isNotEmpty, isTrue);
-      }
-    });
+      'every TriggerType variant has a non-null serialization (no missing cases)',
+      () {
+        // Defense-in-depth: if a future contributor adds a variant to the
+        // enum but forgets to update toRustTriggerConfig, the exhaustive
+        // switch in that method will throw at runtime. We exercise every
+        // variant here so the test fires immediately.
+        for (final t in TriggerType.values) {
+          final node = RecoveryNode(triggerType: t);
+          final encoded = node.toRustTriggerConfig();
+          expect(
+            encoded,
+            isNotNull,
+            reason: 'TriggerType.${t.name} produced null encoding',
+          );
+          // Must be encodable as JSON.
+          final json = jsonEncode(encoded);
+          expect(json.isNotEmpty, isTrue);
+        }
+      },
+    );
   });
 
   group('RecoveryNode round-trip preserves new fields', () {

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -10,8 +10,7 @@ import 'settings_widgets.dart';
 class SequencerSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const SequencerSettings(
-      {super.key, this.isMobile = false});
+  const SequencerSettings({super.key, this.isMobile = false});
 
   @override
   ConsumerState<SequencerSettings> createState() => _SequencerSettingsState();

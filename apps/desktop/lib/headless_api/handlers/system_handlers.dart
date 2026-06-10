@@ -620,50 +620,49 @@ class SystemHandlers {
   /// catalog so a remote client can render its capabilities map
   /// without polling individual probes.
   Future<Response> handleInfo(Request request) async {
-    final platformCapabilities =
-        PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+    final platformCapabilities = PlatformCapabilityMatrix.forPlatform(
+      Platform.operatingSystem,
+    );
     final versionInfo = container.read(appVersionProvider);
     final dashboardAvailable = staticFileHandlers.dashboardAvailable;
 
-    return jsonOk(
-      {
-        'name': 'Nightshade Headless',
-        'version': versionInfo.version,
-        'apiVersion': RemoteApiCompatibility.serverApiVersion.format(),
-        'minimumSupportedApiVersion':
-            RemoteApiCompatibility.minimumSupportedVersion.format(),
-        'apiVersionHeader': RemoteApiCompatibility.apiVersionHeader,
-        'mode': 'headless',
-        'platform': platformCapabilities.platform,
-        'platformCapabilities': platformCapabilities.toJson(),
-        'authRequired': view.authRequired(),
-        'authenticationMode': view.authRequired() ? 'token' : 'none',
-        'authScopes': view.availableAuthScopes(),
-        'pairingSupported': true,
-        'fingerprint': view.fingerprint(),
-        // P1-1: surface the sequencing + replay state so a reconnecting
-        // client can decide between `?since=` replay and a full
-        // `/api/run-watch/snapshot` rehydrate without guessing.
-        'serverInstanceId': view.instanceId(),
-        'currentEventSeq': view.currentEventSeq(),
-        'eventReplayBufferSize': view.eventReplayBufferSize(),
-        'eventReplayBufferOldestSeq': view.eventReplayBufferOldestSeq(),
-        'apiOnlyMode': true,
-        'webUIAvailable': dashboardAvailable,
-        'publicEndpoints': [
-          '/api/info',
-          '/api/pairing/start',
-          '/api/pairing/verify',
-          '/dashboard',
-          // Wave 6: the run-watch SPA bundle is auth-exempt so the
-          // phone can load it before pairing. The /api/run-watch/*
-          // endpoints themselves still require a Bearer token.
-          '/run-watch',
-        ],
-        'endpoints': availableHeadlessEndpoints(),
-      },
-      headers: _apiCompatibilityHeaders(),
-    );
+    return jsonOk({
+      'name': 'Nightshade Headless',
+      'version': versionInfo.version,
+      'apiVersion': RemoteApiCompatibility.serverApiVersion.format(),
+      'minimumSupportedApiVersion': RemoteApiCompatibility
+          .minimumSupportedVersion
+          .format(),
+      'apiVersionHeader': RemoteApiCompatibility.apiVersionHeader,
+      'mode': 'headless',
+      'platform': platformCapabilities.platform,
+      'platformCapabilities': platformCapabilities.toJson(),
+      'authRequired': view.authRequired(),
+      'authenticationMode': view.authRequired() ? 'token' : 'none',
+      'authScopes': view.availableAuthScopes(),
+      'pairingSupported': true,
+      'fingerprint': view.fingerprint(),
+      // P1-1: surface the sequencing + replay state so a reconnecting
+      // client can decide between `?since=` replay and a full
+      // `/api/run-watch/snapshot` rehydrate without guessing.
+      'serverInstanceId': view.instanceId(),
+      'currentEventSeq': view.currentEventSeq(),
+      'eventReplayBufferSize': view.eventReplayBufferSize(),
+      'eventReplayBufferOldestSeq': view.eventReplayBufferOldestSeq(),
+      'apiOnlyMode': true,
+      'webUIAvailable': dashboardAvailable,
+      'publicEndpoints': [
+        '/api/info',
+        '/api/pairing/start',
+        '/api/pairing/verify',
+        '/dashboard',
+        // Wave 6: the run-watch SPA bundle is auth-exempt so the
+        // phone can load it before pairing. The /api/run-watch/*
+        // endpoints themselves still require a Bearer token.
+        '/run-watch',
+      ],
+      'endpoints': availableHeadlessEndpoints(),
+    }, headers: _apiCompatibilityHeaders());
   }
 
   /// `GET /api/status` — sequencer state snapshot. Mobile clients poll
@@ -681,7 +680,7 @@ class SystemHandlers {
           "currentNodeId": status.currentNodeId,
           "currentNodeName": status.currentNodeName,
           "progress": status.progress,
-          "message": status.message
+          "message": status.message,
         },
       });
     } catch (e, stackTrace) {
@@ -699,8 +698,9 @@ class SystemHandlers {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/self-test');
     try {
-      final platformCapabilities =
-          PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+      final platformCapabilities = PlatformCapabilityMatrix.forPlatform(
+        Platform.operatingSystem,
+      );
       // A-12: self-test needs `backend.runtimeType` to report which backend
       // implementation is active (FfiBackend / NetworkBackend / Disconnected).
       // Role providers all return the same instance widened to a role
@@ -760,10 +760,12 @@ class SystemHandlers {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/openapi.json');
     try {
-      return jsonOk(route_metadata.buildOpenApiSpec(
-        routes: availableHeadlessEndpoints(),
-        port: view.port(),
-      ));
+      return jsonOk(
+        route_metadata.buildOpenApiSpec(
+          routes: availableHeadlessEndpoints(),
+          port: view.port(),
+        ),
+      );
     } catch (e, stackTrace) {
       _logError('[API][$requestId] OpenAPI generation error: $e\n$stackTrace');
       return jsonInternalServerError({'error': 'Internal server error'});
@@ -772,10 +774,12 @@ class SystemHandlers {
 
   Map<String, String> _apiCompatibilityHeaders() {
     return {
-      RemoteApiCompatibility.apiVersionHeader:
-          RemoteApiCompatibility.serverApiVersion.format(),
-      'x-nightshade-minimum-api-version':
-          RemoteApiCompatibility.minimumSupportedVersion.format(),
+      RemoteApiCompatibility.apiVersionHeader: RemoteApiCompatibility
+          .serverApiVersion
+          .format(),
+      'x-nightshade-minimum-api-version': RemoteApiCompatibility
+          .minimumSupportedVersion
+          .format(),
     };
   }
 
@@ -803,8 +807,8 @@ class SystemHandlers {
   ) async {
     try {
       final devices = await backend.getConnectedDevices().timeout(
-            const Duration(seconds: 2),
-          );
+        const Duration(seconds: 2),
+      );
       return {
         'status': 'ok',
         'count': devices.length,
@@ -852,10 +856,7 @@ class SystemHandlers {
       'applicationSupport',
       getApplicationSupportDirectory,
     );
-    await addDirectoryCheck(
-      'systemTemp',
-      () async => Directory.systemTemp,
-    );
+    await addDirectoryCheck('systemTemp', () async => Directory.systemTemp);
 
     return checks;
   }

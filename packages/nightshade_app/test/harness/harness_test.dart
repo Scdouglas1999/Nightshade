@@ -186,8 +186,7 @@ void main() {
     backend.dispose();
   });
 
-  test(
-      'MockBackend.emitPolarAlignmentEvent forwards onto polarAlignmentEvents',
+  test('MockBackend.emitPolarAlignmentEvent forwards onto polarAlignmentEvents',
       () async {
     final backend = mockBackend();
     final received = <Map<String, dynamic>>[];

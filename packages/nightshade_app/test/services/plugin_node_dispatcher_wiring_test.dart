@@ -71,8 +71,7 @@ void main() {
       expect(result.structuredDetailJson, contains('com.example.capture'));
     });
 
-    test('unknown plugin returns a structured failure (not a throw)',
-        () async {
+    test('unknown plugin returns a structured failure (not a throw)', () async {
       final container = ProviderContainer(overrides: [
         pluginNodeDispatcherOverride(),
       ]);

@@ -75,8 +75,7 @@ class Project extends Equatable {
     return Project(
       id: id ?? this.id,
       name: name ?? this.name,
-      description:
-          clearDescription ? null : (description ?? this.description),
+      description: clearDescription ? null : (description ?? this.description),
       colorArgb: clearColor ? null : (colorArgb ?? this.colorArgb),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -84,23 +83,23 @@ class Project extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'colorArgb': colorArgb,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'colorArgb': colorArgb,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+  };
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        description,
-        colorArgb,
-        createdAt,
-        updatedAt,
-      ];
+    id,
+    name,
+    description,
+    colorArgb,
+    createdAt,
+    updatedAt,
+  ];
 }
 
 /// Membership link between a [Project] and a target (FK to `targets.id`).
@@ -171,19 +170,19 @@ class ProjectTarget extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'projectId': projectId,
-        'targetId': targetId,
-        'priorityOverride': priorityOverride,
-        'addedAt': addedAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'projectId': projectId,
+    'targetId': targetId,
+    'priorityOverride': priorityOverride,
+    'addedAt': addedAt.toUtc().toIso8601String(),
+  };
 
   @override
   List<Object?> get props => [
-        id,
-        projectId,
-        targetId,
-        priorityOverride,
-        addedAt,
-      ];
+    id,
+    projectId,
+    targetId,
+    priorityOverride,
+    addedAt,
+  ];
 }

@@ -12,13 +12,20 @@ class AnalyticsTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'analytics_session_tab': return sessionTab;
-      case 'analytics_history_tab': return historyTab;
-      case 'analytics_equipment_tab': return equipmentTab;
-      case 'analytics_hfr_chart': return hfrChart;
-      case 'analytics_guiding_chart': return guidingChart;
-      case 'analytics_thumbnails': return thumbnails;
-      default: return null;
+      case 'analytics_session_tab':
+        return sessionTab;
+      case 'analytics_history_tab':
+        return historyTab;
+      case 'analytics_equipment_tab':
+        return equipmentTab;
+      case 'analytics_hfr_chart':
+        return hfrChart;
+      case 'analytics_guiding_chart':
+        return guidingChart;
+      case 'analytics_thumbnails':
+        return thumbnails;
+      default:
+        return null;
     }
   }
 }

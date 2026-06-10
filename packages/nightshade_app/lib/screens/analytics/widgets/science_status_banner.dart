@@ -56,9 +56,8 @@ class ScienceStatusBanner extends ConsumerWidget {
       style = _BannerStyle.busy(colors);
       final running = inflight.runningStages.toList();
       final running0 = running.isEmpty ? null : running.first;
-      headline = running0 == null
-          ? 'Processing frame…'
-          : '${running0.displayName}…';
+      headline =
+          running0 == null ? 'Processing frame…' : '${running0.displayName}…';
       subtitle = snapshot.queueDepth > 0
           ? '${snapshot.queueDepth} more queued'
           : 'Just this frame in flight';
@@ -85,9 +84,8 @@ class ScienceStatusBanner extends ConsumerWidget {
       final completedAt = last.finishedAt ?? last.startedAt;
       subtitle =
           '${snapshot.processedCount} frame${snapshot.processedCount == 1 ? '' : 's'} processed · last ${_relativeTime(completedAt)}';
-      icon = last.hasFailure
-          ? LucideIcons.alertCircle
-          : LucideIcons.checkCircle;
+      icon =
+          last.hasFailure ? LucideIcons.alertCircle : LucideIcons.checkCircle;
     } else {
       style = _BannerStyle.idle(colors);
       headline = 'Science idle';
@@ -172,9 +170,8 @@ class _StageTicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final dots = <Widget>[];
     for (final stage in ScienceStage.values) {
-      final match = statuses
-          .where((r) => r.stage == stage)
-          .toList(growable: false);
+      final match =
+          statuses.where((r) => r.stage == stage).toList(growable: false);
       if (match.isEmpty) continue;
       final result = match.last;
       dots.add(

@@ -131,18 +131,19 @@ class FramingProjectionView {
 
   @override
   int get hashCode => Object.hash(
-        plateScale,
-        previewFovDegrees,
-        centerRaHours,
-        centerDecDegrees,
-        zoom,
-        panX,
-        panY,
-        rotationDegrees,
-      );
+    plateScale,
+    previewFovDegrees,
+    centerRaHours,
+    centerDecDegrees,
+    zoom,
+    panX,
+    panY,
+    rotationDegrees,
+  );
 
   @override
-  String toString() => 'FramingProjectionView('
+  String toString() =>
+      'FramingProjectionView('
       'plateScale: $plateScale, '
       'previewFovDegrees: $previewFovDegrees, '
       'centerRaHours: $centerRaHours, '
@@ -266,18 +267,24 @@ class FramingSkyProjection {
     required double cosRot,
     required double sinRot,
     required double safeCosDec,
-  })  : _canvasCenter = canvasCenter,
-        _cosRot = cosRot,
-        _sinRot = sinRot,
-        _safeCosDec = safeCosDec;
+  }) : _canvasCenter = canvasCenter,
+       _cosRot = cosRot,
+       _sinRot = sinRot,
+       _safeCosDec = safeCosDec;
 
   /// Build a projection for [canvasSize] from a framing [view].
   ///
   /// The plate scale is resolved with the shared canvas rule so this projection
   /// is registered identically to the survey background and the FOV/mosaic
   /// overlays.
-  factory FramingSkyProjection.fromView(Size canvasSize, FramingProjectionView view) {
-    final scale = FramingPlateScaleResolution.resolveForCanvas(canvasSize, view);
+  factory FramingSkyProjection.fromView(
+    Size canvasSize,
+    FramingProjectionView view,
+  ) {
+    final scale = FramingPlateScaleResolution.resolveForCanvas(
+      canvasSize,
+      view,
+    );
     return FramingSkyProjection.fromResolved(
       plateScale: scale,
       canvasSize: canvasSize,
@@ -308,8 +315,9 @@ class FramingSkyProjection {
     final cosDec = math.cos(decRad);
     // Identical clamp to FramingProvider._recenterFromPan: keep |cos(dec)| >=
     // 0.01 with the sign preserved so RA scaling stays finite near the poles.
-    final safeCosDec =
-        cosDec.abs() > 0.01 ? cosDec : (cosDec.isNegative ? -0.01 : 0.01);
+    final safeCosDec = cosDec.abs() > 0.01
+        ? cosDec
+        : (cosDec.isNegative ? -0.01 : 0.01);
 
     return FramingSkyProjection._(
       plateScale: plateScale,

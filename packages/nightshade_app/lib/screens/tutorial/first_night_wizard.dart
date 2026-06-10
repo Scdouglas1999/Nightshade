@@ -56,8 +56,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   // Cache the steps once per dialog open. The core getter validates the
   // seven-step length invariant on every read; doing it once per dialog
   // is sufficient and avoids re-running that check on every rebuild.
-  late final List<FirstNightWizardStep> _steps =
-      FirstNightWizardModel.steps;
+  late final List<FirstNightWizardStep> _steps = FirstNightWizardModel.steps;
 
   @override
   Widget build(BuildContext context) {

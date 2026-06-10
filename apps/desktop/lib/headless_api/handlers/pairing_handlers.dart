@@ -39,10 +39,8 @@ import '../validation.dart';
 /// session token. The server-side implementation appends the token +
 /// scope to its in-memory `_pairedSessionTokens` map so subsequent
 /// authenticated requests resolve immediately.
-typedef RecordPairedSession = void Function(
-  String sessionToken,
-  HeadlessTokenScope scope,
-);
+typedef RecordPairedSession =
+    void Function(String sessionToken, HeadlessTokenScope scope);
 
 /// Function the handler calls to look up the [PairingService], lazily
 /// constructing one on first use. The server's implementation also
@@ -106,14 +104,15 @@ class PairingHandlers {
       return jsonRateLimited(
         {
           'error': 'Pairing attempts temporarily locked',
-          'retryAfterSeconds':
-              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
+          'retryAfterSeconds': lockedFor.inSeconds < 1
+              ? 1
+              : lockedFor.inSeconds,
           'requestId': requestId,
         },
         headers: {
           requestIdHeader: requestId,
-          'retry-after':
-              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
+          'retry-after': (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds)
+              .toString(),
         },
       );
     }
@@ -145,8 +144,9 @@ class PairingHandlers {
     return jsonOk(
       {
         'expiresAt': result.expiresAt.toUtc().toIso8601String(),
-        'expiresInSeconds':
-            result.expiresAt.difference(DateTime.now()).inSeconds,
+        'expiresInSeconds': result.expiresAt
+            .difference(DateTime.now())
+            .inSeconds,
       },
       headers: {requestIdHeader: requestId},
     );
@@ -214,14 +214,15 @@ class PairingHandlers {
       return jsonRateLimited(
         {
           'error': 'Pairing attempts temporarily locked',
-          'retryAfterSeconds':
-              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
+          'retryAfterSeconds': lockedFor.inSeconds < 1
+              ? 1
+              : lockedFor.inSeconds,
           'requestId': requestId,
         },
         headers: {
           requestIdHeader: requestId,
-          'retry-after':
-              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
+          'retry-after': (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds)
+              .toString(),
         },
       );
     }
@@ -231,7 +232,8 @@ class PairingHandlers {
     // deviceId/deviceName/deviceType identify the dashboard instance for the
     // PairingDatabase. Defaults are conservative so a minimal browser client
     // can pair without sending hardware fingerprints.
-    final deviceId = optionalString(payload, 'deviceId', maxLength: 128) ??
+    final deviceId =
+        optionalString(payload, 'deviceId', maxLength: 128) ??
         'dashboard:${clientKey.replaceAll(':', '_')}';
     final deviceName =
         optionalString(payload, 'deviceName', maxLength: 128) ?? 'Dashboard';
@@ -274,9 +276,7 @@ class PairingHandlers {
         );
       case PairingVerifyOutcome.invalidCode:
         pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Invalid pairing code from $clientKey',
-        );
+        _logWarning('[PAIR][$requestId] Invalid pairing code from $clientKey');
         return jsonUnauthorized(
           {
             'error': 'invalid_pairing_code',
@@ -287,9 +287,7 @@ class PairingHandlers {
         );
       case PairingVerifyOutcome.codeExpired:
         pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Expired pairing code from $clientKey',
-        );
+        _logWarning('[PAIR][$requestId] Expired pairing code from $clientKey');
         return jsonUnauthorized(
           {
             'error': 'pairing_code_expired',
@@ -301,9 +299,7 @@ class PairingHandlers {
         );
       case PairingVerifyOutcome.codeAlreadyUsed:
         pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Reused pairing code from $clientKey',
-        );
+        _logWarning('[PAIR][$requestId] Reused pairing code from $clientKey');
         return jsonUnauthorized(
           {
             'error': 'pairing_code_already_used',

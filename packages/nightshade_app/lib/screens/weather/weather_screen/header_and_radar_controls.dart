@@ -54,7 +54,8 @@ class _WeatherHeader extends StatelessWidget {
         title: 'Weather Radar',
         subtitle: 'Live cloud tracking and safety monitoring',
         padding: EdgeInsets.symmetric(
-          horizontal: isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+          horizontal:
+              isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
           vertical: NightshadeTokens.spaceMd,
         ),
         trailing: Row(
@@ -201,7 +202,8 @@ class _SliderRow extends StatelessWidget {
           width: 50,
           child: Text(
             displayValue,
-            style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.labelSm
+                .copyWith(color: colors.textPrimary),
             textAlign: TextAlign.end,
           ),
         ),
@@ -231,49 +233,50 @@ class _NoLocationContent extends StatelessWidget {
             variant: CardVariant.subtle,
             borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    NightshadeIcons.location,
+                    size: 48,
+                    color: colors.warning,
+                  ),
                 ),
-                child: Icon(
-                  NightshadeIcons.location,
-                  size: 48,
-                  color: colors.warning,
+                const SizedBox(height: 24),
+                Text(
+                  'Location Not Configured',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize20,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Location Not Configured',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize20,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+                const SizedBox(height: 12),
+                Text(
+                  'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize14,
+                    color: colors.textSecondary,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  color: colors.textSecondary,
-                  height: 1.5,
+                const SizedBox(height: 24),
+                NightshadeButton(
+                  label: 'Open Weather Settings',
+                  icon: NightshadeIcons.weather,
+                  variant: ButtonVariant.primary,
+                  onPressed: () =>
+                      context.go('/settings?section=weather-safety'),
                 ),
-              ),
-              const SizedBox(height: 24),
-              NightshadeButton(
-                label: 'Open Weather Settings',
-                icon: NightshadeIcons.weather,
-                variant: ButtonVariant.primary,
-                onPressed: () => context.go('/settings?section=weather-safety'),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),

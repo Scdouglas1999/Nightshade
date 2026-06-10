@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
@@ -59,19 +59,18 @@ void main() {
       final s = _abcdTree();
       // Selection: A (parent), A1 (its child), B (sibling), B2 (B's child).
       // A and B are top-level ancestors; A1 and B2 should be filtered out.
-      final filtered = MultiSelectNotifier.ancestorsOnly(
-        s,
-        {'A', 'A1', 'B', 'B2'},
-      );
+      final filtered = MultiSelectNotifier.ancestorsOnly(s, {
+        'A',
+        'A1',
+        'B',
+        'B2',
+      });
       expect(filtered, equals({'A', 'B'}));
     });
 
     test('returns the input unchanged when no ancestor-descendant pairs', () {
       final s = _abcdTree();
-      final filtered = MultiSelectNotifier.ancestorsOnly(
-        s,
-        {'A1', 'B1', 'C'},
-      );
+      final filtered = MultiSelectNotifier.ancestorsOnly(s, {'A1', 'B1', 'C'});
       expect(filtered, equals({'A1', 'B1', 'C'}));
     });
 
@@ -97,18 +96,26 @@ void main() {
       c.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
 
       final result = c.read(currentSequenceProvider)!;
-      expect(result.nodes.containsKey('B'), isFalse,
-          reason: 'parent B should be gone');
-      expect(result.nodes.containsKey('B1'), isFalse,
-          reason: 'descendant B1 should be removed with parent');
-      expect(result.nodes.containsKey('B2'), isFalse,
-          reason: 'descendant B2 should be removed with parent');
+      expect(
+        result.nodes.containsKey('B'),
+        isFalse,
+        reason: 'parent B should be gone',
+      );
+      expect(
+        result.nodes.containsKey('B1'),
+        isFalse,
+        reason: 'descendant B1 should be removed with parent',
+      );
+      expect(
+        result.nodes.containsKey('B2'),
+        isFalse,
+        reason: 'descendant B2 should be removed with parent',
+      );
       // Selection cleared after delete.
       expect(c.read(multiSelectedNodeIdsProvider), isEmpty);
     });
 
-    test('handles three-deep nesting (root selected, leaf also selected)',
-        () {
+    test('handles three-deep nesting (root selected, leaf also selected)', () {
       final c = _makeContainer();
       c
           .read(currentSequenceProvider.notifier)
@@ -130,9 +137,7 @@ void main() {
       c
           .read(currentSequenceProvider.notifier)
           .loadSequence(_abcdTree(), discardUnsaved: true);
-      c
-          .read(multiSelectedNodeIdsProvider.notifier)
-          .selectAll(['A1', 'C']);
+      c.read(multiSelectedNodeIdsProvider.notifier).selectAll(['A1', 'C']);
       c.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
 
       final result = c.read(currentSequenceProvider)!;
@@ -150,11 +155,11 @@ void main() {
           .read(currentSequenceProvider.notifier)
           .loadSequence(_abcdTree(), discardUnsaved: true);
       final wrapper = InstructionSetNode(name: 'Group');
-      c.read(currentSequenceProvider.notifier).wrapChildrenSubset(
-        'root',
-        ['A', 'B', 'C'],
-        wrapper,
-      );
+      c.read(currentSequenceProvider.notifier).wrapChildrenSubset('root', [
+        'A',
+        'B',
+        'C',
+      ], wrapper);
 
       final result = c.read(currentSequenceProvider)!;
       // The wrapper was assigned a fresh id by the notifier, so look it up
@@ -163,8 +168,11 @@ void main() {
       expect(rootChildren, hasLength(1));
       final newWrapperId = rootChildren.first;
       final newWrapper = result.nodes[newWrapperId]!;
-      expect(newWrapper.childIds, equals(['A', 'B', 'C']),
-          reason: 'children stay in original sibling order');
+      expect(
+        newWrapper.childIds,
+        equals(['A', 'B', 'C']),
+        reason: 'children stay in original sibling order',
+      );
       // Each child's parent now points at the wrapper.
       for (final id in ['A', 'B', 'C']) {
         expect(result.nodes[id]!.parentId, newWrapperId);
@@ -183,11 +191,13 @@ void main() {
           ['A', 'C'], // A and C with B in between → not contiguous
           InstructionSetNode(name: 'Group'),
         ),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          contains('not contiguous'),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('not contiguous'),
+          ),
+        ),
       );
 
       // Sequence is unchanged.
@@ -209,11 +219,13 @@ void main() {
           ['A', 'B1'],
           InstructionSetNode(name: 'Group'),
         ),
-        throwsA(isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          contains('not a child'),
-        )),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('not a child'),
+          ),
+        ),
       );
     });
 
@@ -223,11 +235,9 @@ void main() {
           .read(currentSequenceProvider.notifier)
           .loadSequence(_abcdTree(), discardUnsaved: true);
 
-      c.read(currentSequenceProvider.notifier).wrapChildrenSubset(
-        'B',
-        ['B1'],
-        InstructionSetNode(name: 'Solo'),
-      );
+      c.read(currentSequenceProvider.notifier).wrapChildrenSubset('B', [
+        'B1',
+      ], InstructionSetNode(name: 'Solo'));
 
       final result = c.read(currentSequenceProvider)!;
       final bChildren = result.nodes['B']!.childIds;
@@ -244,11 +254,13 @@ void main() {
       c
           .read(currentSequenceProvider.notifier)
           .loadSequence(original, discardUnsaved: true);
-      c.read(currentSequenceProvider.notifier).wrapChildrenSubset(
-        'root',
-        const [],
-        InstructionSetNode(name: 'Nothing'),
-      );
+      c
+          .read(currentSequenceProvider.notifier)
+          .wrapChildrenSubset(
+            'root',
+            const [],
+            InstructionSetNode(name: 'Nothing'),
+          );
       final result = c.read(currentSequenceProvider)!;
       expect(result.nodes['root']!.childIds, equals(['A', 'B', 'C']));
     });

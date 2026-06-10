@@ -50,20 +50,17 @@ void main(List<String> args) async {
       serverExited.exitCode,
     );
 
-    chromeProcess = await Process.start(
-      chromePath,
-      [
-        '--headless=new',
-        '--disable-gpu',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--remote-debugging-port=$chromePort',
-        '--user-data-dir=${tempDir.path}',
-        'about:blank',
-      ],
-    );
+    chromeProcess = await Process.start(chromePath, [
+      '--headless=new',
+      '--disable-gpu',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=$chromePort',
+      '--user-data-dir=${tempDir.path}',
+      'about:blank',
+    ]);
     _captureProcess(chromeProcess, chromeLog);
 
     final browserExited = _ExitTracker(chromeProcess);
@@ -156,17 +153,13 @@ Future<Process> _startHeadlessServer(
   int port,
   _ProcessLog serverLog,
 ) async {
-  final process = await Process.start(
-    exe.absolute.path,
-    [
-      '--headless',
-      '--port=$port',
-      '--auth-token=$_adminToken',
-      '--view-token=$_viewToken',
-      '--control-token=$_controlToken',
-    ],
-    workingDirectory: exe.parent.absolute.path,
-  );
+  final process = await Process.start(exe.absolute.path, [
+    '--headless',
+    '--port=$port',
+    '--auth-token=$_adminToken',
+    '--view-token=$_viewToken',
+    '--control-token=$_controlToken',
+  ], workingDirectory: exe.parent.absolute.path);
   _captureProcess(process, serverLog);
   return process;
 }
@@ -265,9 +258,7 @@ Future<_BrowserTarget> _waitForBrowserTarget(
         for (final targetJson in targets.cast<Map<String, dynamic>>()) {
           if (targetJson['type'] == 'page' &&
               targetJson['webSocketDebuggerUrl'] is String) {
-            return _BrowserTarget(
-              targetJson['webSocketDebuggerUrl'] as String,
-            );
+            return _BrowserTarget(targetJson['webSocketDebuggerUrl'] as String);
           }
         }
       }
@@ -350,8 +341,9 @@ Future<Process> _verifyDashboardReconnect({
     requireLogText: 'WebSocket connected',
     timeout: const Duration(seconds: 30),
   );
-  final connectedCount =
-      RegExp('WebSocket connected').allMatches(reconnected.logText).length;
+  final connectedCount = RegExp(
+    'WebSocket connected',
+  ).allMatches(reconnected.logText).length;
   if (connectedCount < 2) {
     throw StateError(
       'Dashboard did not log an initial and recovered WebSocket connection: '
@@ -411,8 +403,10 @@ Future<_DashboardSnapshot> _readDashboardSnapshot(_CdpClient cdp) async {
 ''',
     'returnByValue': true,
   });
-  final value = ((result['result'] as Map<String, dynamic>)['result']
-      as Map<String, dynamic>)['value'] as Map<String, dynamic>;
+  final value =
+      ((result['result'] as Map<String, dynamic>)['result']
+              as Map<String, dynamic>)['value']
+          as Map<String, dynamic>;
   return _DashboardSnapshot.fromJson(value);
 }
 
@@ -475,8 +469,8 @@ class _DashboardSnapshot {
       logText: json['logText'] as String? ?? '',
       serverUrl: json['serverUrl'] as String? ?? '',
       scriptCount: json['scriptCount'] as int? ?? 0,
-      scriptSources:
-          (json['scriptSources'] as List<dynamic>? ?? const []).cast<String>(),
+      scriptSources: (json['scriptSources'] as List<dynamic>? ?? const [])
+          .cast<String>(),
       hasApiClass: json['hasApiClass'] as bool? ?? false,
       apiConnected: json['apiConnected'] as bool?,
       apiWsConnected: json['apiWsConnected'] as bool?,
@@ -507,10 +501,12 @@ class _ExitTracker {
   int? _exitCode;
 
   _ExitTracker(Process process) {
-    unawaited(process.exitCode.then((code) {
-      _exited = true;
-      _exitCode = code;
-    }));
+    unawaited(
+      process.exitCode.then((code) {
+        _exited = true;
+        _exitCode = code;
+      }),
+    );
   }
 
   bool hasExited() => _exited;
@@ -619,11 +615,13 @@ class _CdpClient {
     final id = _nextId++;
     final completer = Completer<Map<String, dynamic>>();
     _pending[id] = completer;
-    _socket.add(jsonEncode({
-      'id': id,
-      'method': method,
-      if (params.isNotEmpty) 'params': params,
-    }));
+    _socket.add(
+      jsonEncode({
+        'id': id,
+        'method': method,
+        if (params.isNotEmpty) 'params': params,
+      }),
+    );
     return completer.future.timeout(const Duration(seconds: 30));
   }
 

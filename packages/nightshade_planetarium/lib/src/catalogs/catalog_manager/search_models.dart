@@ -211,8 +211,9 @@ class OpenNgcData {
       positionAngle: parts.length > 7 ? double.tryParse(parts[7]) : null,
       magnitude: parts.length > 9 ? double.tryParse(parts[9]) : null, // V-Mag
       messier: _parseMessier(parts.length > 23 ? parts[23] : ''),
-      ngcId:
-          parts.length > 24 && parts[24].isNotEmpty ? 'NGC ${parts[24]}' : null,
+      ngcId: parts.length > 24 && parts[24].isNotEmpty
+          ? 'NGC ${parts[24]}'
+          : null,
       commonNames: parts.length > 28 && parts[28].isNotEmpty ? parts[28] : null,
       notes: parts.length > 30 && parts[30].isNotEmpty ? parts[30] : null,
     );

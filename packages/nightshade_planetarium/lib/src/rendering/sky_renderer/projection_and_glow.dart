@@ -16,8 +16,10 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
         SkyCanvasPainter._lstCacheLon == longitude) {
       return cached;
     }
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
     SkyCanvasPainter._lstCacheValue = lst;
     SkyCanvasPainter._lstCacheTime = observationTime;
     SkyCanvasPainter._lstCacheLon = longitude;
@@ -25,7 +27,10 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   }
 
   Offset? _celestialToScreen(
-      CelestialCoordinate coord, Offset center, double scale) {
+    CelestialCoordinate coord,
+    Offset center,
+    double scale,
+  ) {
     if (viewState.viewMode == SkyViewMode.horizontal) {
       final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
         raDeg: coord.ra * 15,
@@ -63,7 +68,11 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   /// azimuth) maps to the right of the screen — the natural "looking outward"
   /// orientation an observer expects — while altitude increases upward.
   Offset? _horizontalToScreen(
-      double altDeg, double azDeg, Offset center, double scale) {
+    double altDeg,
+    double azDeg,
+    Offset center,
+    double scale,
+  ) {
     return _projectAroundCenter(
       lonDeg: -azDeg,
       latDeg: altDeg,
@@ -95,7 +104,8 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     final ra2 = lonDeg * SkyCanvasPainter._deg2rad;
     final dec2 = latDeg * SkyCanvasPainter._deg2rad;
 
-    final cosc = math.sin(dec1) * math.sin(dec2) +
+    final cosc =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra2 - ra1);
 
     // Object is behind the projection plane
@@ -107,14 +117,16 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
       case SkyProjection.stereographic:
         final k = 2 / (1 + cosc);
         x = k * math.cos(dec2) * math.sin(ra2 - ra1);
-        y = k *
+        y =
+            k *
             (math.cos(dec1) * math.sin(dec2) -
                 math.sin(dec1) * math.cos(dec2) * math.cos(ra2 - ra1));
         break;
 
       case SkyProjection.orthographic:
         x = math.cos(dec2) * math.sin(ra2 - ra1);
-        y = math.cos(dec1) * math.sin(dec2) -
+        y =
+            math.cos(dec1) * math.sin(dec2) -
             math.sin(dec1) * math.cos(dec2) * math.cos(ra2 - ra1);
         break;
 
@@ -126,7 +138,8 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
         } else {
           final k = c / math.sin(c);
           x = k * math.cos(dec2) * math.sin(ra2 - ra1);
-          y = k *
+          y =
+              k *
               (math.cos(dec1) * math.sin(dec2) -
                   math.sin(dec1) * math.cos(dec2) * math.cos(ra2 - ra1));
         }
@@ -162,7 +175,12 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   /// The cull test uses the per-paint [_CullContext] dot product, which is far
   /// cheaper than a full projection followed by an `_isInView` rejection.
   Offset? _projectObjectCulled(
-      Object key, double raDeg, double decDeg, Offset center, double scale) {
+    Object key,
+    double raDeg,
+    double decDeg,
+    Offset center,
+    double scale,
+  ) {
     final cache = SkyCanvasPainter._projectionCache;
     if (cache.contains(key)) {
       return cache.get(key);
@@ -345,8 +363,11 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   }) {
     if (qualityConfig.useBlurEffects) {
       // High quality: use cached blur paint
-      final glowPaint =
-          _PaintCache.getBlurPaint(blurSigma, color, alpha: opacity);
+      final glowPaint = _PaintCache.getBlurPaint(
+        blurSigma,
+        color,
+        alpha: opacity,
+      );
       canvas.drawCircle(center, radius, glowPaint);
     } else if (qualityConfig.useGlowEffects) {
       // Balanced: use gradient
@@ -375,8 +396,11 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   }) {
     if (qualityConfig.useBlurEffects) {
       // Use cached blur paint
-      final glowPaint =
-          _PaintCache.getBlurPaint(blurSigma, color, alpha: opacity);
+      final glowPaint = _PaintCache.getBlurPaint(
+        blurSigma,
+        color,
+        alpha: opacity,
+      );
       canvas.drawOval(
         Rect.fromCenter(center: center, width: width, height: height),
         glowPaint,

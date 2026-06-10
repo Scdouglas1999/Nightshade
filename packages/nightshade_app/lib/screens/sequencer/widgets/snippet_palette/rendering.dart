@@ -1,7 +1,7 @@
 part of '../snippet_palette.dart';
 
 extension _SnippetPaletteRendering on _SnippetPaletteState {
-Widget _buildMobileSheetContent(
+  Widget _buildMobileSheetContent(
     Map<SnippetCategory, List<TemplateSnippet>> filteredByCategory,
     List<SnippetCategory> orderedCategories,
   ) {
@@ -16,7 +16,8 @@ Widget _buildMobileSheetContent(
             height: 4,
             decoration: BoxDecoration(
               color: widget.colors.border,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
         ),
@@ -143,14 +144,16 @@ Widget _buildMobileSheetContent(
                     Expanded(
                       child: Text(
                         'Templates',
-                        style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                        style: NightshadeTypography.labelStrong
+                            .copyWith(color: widget.colors.textPrimary),
                       ),
                     ),
                     Tooltip(
                       message: 'Import snippet from file…',
                       child: InkWell(
                         onTap: _handleImportSnippet,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline4),
                         child: Padding(
                           padding: const EdgeInsets.all(4),
                           child: Icon(
@@ -168,7 +171,8 @@ Widget _buildMobileSheetContent(
                             : 'Collapse panel',
                         child: InkWell(
                           onTap: widget.onToggleCollapse,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           child: Padding(
                             padding: const EdgeInsets.all(4),
                             child: Icon(
@@ -235,7 +239,8 @@ Widget _buildMobileSheetContent(
             margin: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.iconChip(
               widget.colors.info,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               borderAlpha: 0.2,
             ),
             child: Row(
@@ -268,7 +273,9 @@ Widget _buildMobileSheetContent(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 12),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(isMobile ? NightshadeTokens.radiusLg : NightshadeTokens.radiusInline8),
+        borderRadius: BorderRadius.circular(isMobile
+            ? NightshadeTokens.radiusLg
+            : NightshadeTokens.radiusInline8),
         border: Border.all(color: widget.colors.border),
       ),
       child: Row(
@@ -284,13 +291,17 @@ Widget _buildMobileSheetContent(
               controller: _searchController,
               onChanged: (value) => _update(() => _searchQuery = value),
               style: TextStyle(
-                fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+                fontSize: isMobile
+                    ? NightshadeTypography.fontSize14
+                    : NightshadeTypography.fontSize12,
                 color: widget.colors.textPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'Search templates...',
                 hintStyle: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize14
+                      : NightshadeTypography.fontSize12,
                   color: widget.colors.textMuted,
                 ),
                 border: InputBorder.none,
@@ -341,11 +352,13 @@ Widget _buildMobileSheetContent(
               decoration: hasSelection
                   ? NightshadeDecorations.emphasisSurface(
                       widget.colors.primary,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                     )
                   : BoxDecoration(
                       color: widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       border: Border.all(color: widget.colors.border),
                     ),
               child: Row(
@@ -362,7 +375,9 @@ Widget _buildMobileSheetContent(
                   Text(
                     'Create from Selection',
                     style: TextStyle(
-                      fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+                      fontSize: isMobile
+                          ? NightshadeTypography.fontSize14
+                          : NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w500,
                       color: hasSelection
                           ? widget.colors.primary

@@ -56,7 +56,8 @@ void main() {
   // width, so a phone rotated to landscape stays a phone and keeps the list ->
   // detail flow even though its long edge crosses 600.)
   for (final (label, size) in [..._phonePortrait, ..._phoneLandscape]) {
-    testWidgets('settings_$label: renders with no overflow and a reachable, '
+    testWidgets(
+        'settings_$label: renders with no overflow and a reachable, '
         'working search box', (tester) async {
       await pumpAppScreen(
         tester,
@@ -85,7 +86,8 @@ void main() {
 
   // Phone PORTRAIT (width < 600) uses list -> full-screen detail navigation.
   for (final (label, size) in _phonePortrait) {
-    testWidgets('settings_phone_${label}_detail: tapping a category opens the '
+    testWidgets(
+        'settings_phone_${label}_detail: tapping a category opens the '
         'full-screen detail pane (list gone), Back returns to the list',
         (tester) async {
       await pumpAppScreen(

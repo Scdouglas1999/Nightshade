@@ -43,8 +43,11 @@ void main() {
       final result = await service.parseWcsFileForTest(wcs.path);
 
       expect(result.success, isTrue);
-      expect(result.ra, closeTo(crval1Deg, 1e-9),
-          reason: 'RA must be in degrees, not hours (187.7 not 12.513)');
+      expect(
+        result.ra,
+        closeTo(crval1Deg, 1e-9),
+        reason: 'RA must be in degrees, not hours (187.7 not 12.513)',
+      );
       expect(result.dec, closeTo(crval2Deg, 1e-9));
       // CDELT1 (deg/px) -> arcsec/px
       expect(result.pixelScale, closeTo(0.000416667 * 3600, 1e-6));
@@ -54,14 +57,18 @@ void main() {
     test('_parseAstrometryOutput returns RA in degrees', () {
       const raDeg = 187.7;
       const decDeg = 12.39;
-      const output = 'Field center: (RA,Dec) = ($raDeg, $decDeg) deg.\n'
+      const output =
+          'Field center: (RA,Dec) = ($raDeg, $decDeg) deg.\n'
           'RA,Dec = ($raDeg,$decDeg), pixel scale 1.23 arcsec/pix.\n';
 
       final result = service.parseAstrometryOutputForTest(output);
 
       expect(result.success, isTrue);
-      expect(result.ra, closeTo(raDeg, 1e-9),
-          reason: 'RA must be in degrees, not hours');
+      expect(
+        result.ra,
+        closeTo(raDeg, 1e-9),
+        reason: 'RA must be in degrees, not hours',
+      );
       expect(result.dec, closeTo(decDeg, 1e-9));
     });
 
@@ -76,8 +83,11 @@ void main() {
       final result = await service.parsePlateSolve2OutputForTest(apm.path);
 
       expect(result.success, isTrue);
-      expect(result.ra, closeTo(raDeg, 1e-9),
-          reason: 'RA must be in degrees, not hours');
+      expect(
+        result.ra,
+        closeTo(raDeg, 1e-9),
+        reason: 'RA must be in degrees, not hours',
+      );
       expect(result.dec, closeTo(decDeg, 1e-9));
     });
   });
@@ -97,23 +107,27 @@ void main() {
     });
 
     test('_parseAstrometryOutput fails loud on unparseable output', () {
-      final result =
-          service.parseAstrometryOutputForTest('no solution in this text');
+      final result = service.parseAstrometryOutputForTest(
+        'no solution in this text',
+      );
 
       expect(result.success, isFalse);
       expect(result.error, isNotNull);
     });
 
-    test('_parsePlateSolve2Output fails loud on non-numeric coordinates', () async {
-      final tmp = await Directory.systemTemp.createTemp('ns_apm_bad');
-      addTearDown(() => tmp.delete(recursive: true));
-      final apm = File('${tmp.path}/frame.fit.apm');
-      await apm.writeAsString('notanumber,alsobad\n');
+    test(
+      '_parsePlateSolve2Output fails loud on non-numeric coordinates',
+      () async {
+        final tmp = await Directory.systemTemp.createTemp('ns_apm_bad');
+        addTearDown(() => tmp.delete(recursive: true));
+        final apm = File('${tmp.path}/frame.fit.apm');
+        await apm.writeAsString('notanumber,alsobad\n');
 
-      final result = await service.parsePlateSolve2OutputForTest(apm.path);
+        final result = await service.parsePlateSolve2OutputForTest(apm.path);
 
-      expect(result.success, isFalse);
-      expect(result.error, isNotNull);
-    });
+        expect(result.success, isFalse);
+        expect(result.error, isNotNull);
+      },
+    );
   });
 }

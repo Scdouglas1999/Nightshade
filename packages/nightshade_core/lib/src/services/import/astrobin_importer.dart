@@ -38,11 +38,8 @@ class NullCatalogLookup implements CatalogLookup {
 class InMemoryCatalogLookup implements CatalogLookup {
   final Map<String, CatalogLookupResult> _byKey;
 
-  InMemoryCatalogLookup(
-      Iterable<MapEntry<String, CatalogLookupResult>> entries)
-      : _byKey = {
-          for (final e in entries) _normalize(e.key): e.value,
-        };
+  InMemoryCatalogLookup(Iterable<MapEntry<String, CatalogLookupResult>> entries)
+    : _byKey = {for (final e in entries) _normalize(e.key): e.value};
 
   @override
   Future<CatalogLookupResult?> resolve(String designation) async {
@@ -125,7 +122,7 @@ class AstrobinImporter {
   final CatalogLookup _catalog;
 
   AstrobinImporter({CatalogLookup? catalog})
-      : _catalog = catalog ?? const NullCatalogLookup();
+    : _catalog = catalog ?? const NullCatalogLookup();
 
   /// Quick sniff: Astrobin CSVs include `Subject` and `Integration` as
   /// canonical column headers. We accept the variant with `Object` as well
@@ -134,14 +131,13 @@ class AstrobinImporter {
     final firstLine = _firstNonEmptyLine(content);
     if (firstLine == null) return false;
     final lower = firstLine.toLowerCase();
-    final hasSubject =
-        lower.contains('subject') || lower.contains('object');
+    final hasSubject = lower.contains('subject') || lower.contains('object');
     final hasIntegration =
         lower.contains('integration') || lower.contains('total time');
     // Astrobin headers are typically lowercase / friendly names — and we
     // want to distinguish from Telescopius which uses "Designation".
-    final isTelescopius = lower.contains('designation') &&
-        lower.contains('right ascension');
+    final isTelescopius =
+        lower.contains('designation') && lower.contains('right ascension');
     return hasSubject && hasIntegration && !isTelescopius;
   }
 
@@ -157,8 +153,11 @@ class AstrobinImporter {
         .map((c) => c.trim().toLowerCase().replaceAll(RegExp(r'[\s_]'), ''))
         .toList(growable: false);
     final idxSubject = _findColumn(header, ['subject', 'object', 'target']);
-    final idxIntegration =
-        _findColumn(header, ['integration', 'totaltime', 'totalintegration']);
+    final idxIntegration = _findColumn(header, [
+      'integration',
+      'totaltime',
+      'totalintegration',
+    ]);
     if (idxSubject < 0) {
       throw MalformedSourceError(
         'Astrobin CSV missing required "Subject" column. Got: ${header.join(", ")}',
@@ -193,10 +192,7 @@ class AstrobinImporter {
       final key = subject.toUpperCase();
       if (!aggregated.containsKey(key)) {
         ordering.add(key);
-        aggregated[key] = _AggregatedTarget(
-          subject: subject,
-          rowNum: rowNum,
-        );
+        aggregated[key] = _AggregatedTarget(subject: subject, rowNum: rowNum);
       }
       final agg = aggregated[key]!;
       if (integrationHours != null) {
@@ -216,46 +212,52 @@ class AstrobinImporter {
       final resolved = await _catalog.resolve(agg.subject);
       final notes = _buildNotes(agg);
       if (resolved == null) {
-        unresolved.add(UnresolvedTarget(
-          designation: agg.subject,
-          rowNum: agg.rowNum,
-          integrationHours: agg.integrationHours,
-          notes: notes,
-        ));
+        unresolved.add(
+          UnresolvedTarget(
+            designation: agg.subject,
+            rowNum: agg.rowNum,
+            integrationHours: agg.integrationHours,
+            notes: notes,
+          ),
+        );
         // We still emit a TargetHeaderNode with RA=0/Dec=0 so the user sees
         // the row in the preview and can paste coordinates manually. The
         // validation pipeline will surface the placeholder coords as a
         // WARNING so they're never silently used in production.
-        children.add(CanonicalSequenceNode(
-          kind: CanonicalKind.targetHeader,
-          name: agg.subject,
-          sourceType: 'AstrobinUnresolvedTarget',
-          attributes: {
-            'targetName': agg.subject,
-            'raHours': 0.0,
-            'decDegrees': 0.0,
-            'notes': notes,
-            '_unresolved': true,
-            if (agg.integrationHours != null)
-              'astrobinIntegrationHours': agg.integrationHours,
-          },
-        ));
+        children.add(
+          CanonicalSequenceNode(
+            kind: CanonicalKind.targetHeader,
+            name: agg.subject,
+            sourceType: 'AstrobinUnresolvedTarget',
+            attributes: {
+              'targetName': agg.subject,
+              'raHours': 0.0,
+              'decDegrees': 0.0,
+              'notes': notes,
+              '_unresolved': true,
+              if (agg.integrationHours != null)
+                'astrobinIntegrationHours': agg.integrationHours,
+            },
+          ),
+        );
         continue;
       }
       resolvedRows++;
-      children.add(CanonicalSequenceNode(
-        kind: CanonicalKind.targetHeader,
-        name: resolved.canonicalName,
-        sourceType: 'AstrobinTarget',
-        attributes: {
-          'targetName': resolved.canonicalName,
-          'raHours': resolved.raHours,
-          'decDegrees': resolved.decDegrees,
-          'notes': notes,
-          if (agg.integrationHours != null)
-            'astrobinIntegrationHours': agg.integrationHours,
-        },
-      ));
+      children.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.targetHeader,
+          name: resolved.canonicalName,
+          sourceType: 'AstrobinTarget',
+          attributes: {
+            'targetName': resolved.canonicalName,
+            'raHours': resolved.raHours,
+            'decDegrees': resolved.decDegrees,
+            'notes': notes,
+            if (agg.integrationHours != null)
+              'astrobinIntegrationHours': agg.integrationHours,
+          },
+        ),
+      );
     }
 
     final root = CanonicalSequenceNode(
@@ -282,7 +284,8 @@ class AstrobinImporter {
     final parts = <String>[];
     if (agg.integrationHours != null) {
       parts.add(
-          'Astrobin integration: ${agg.integrationHours!.toStringAsFixed(1)}h');
+        'Astrobin integration: ${agg.integrationHours!.toStringAsFixed(1)}h',
+      );
     }
     if (agg.filters.isNotEmpty) {
       parts.add('Filters: ${agg.filters.join(", ")}');
@@ -303,10 +306,14 @@ class AstrobinImporter {
     final asDouble = double.tryParse(text);
     if (asDouble != null) return asDouble;
     // "Nh", "Nh Mm".
-    final hm = RegExp(r'^(\d+(?:\.\d+)?)\s*h(?:\s*(\d+)\s*m)?$').firstMatch(text);
+    final hm = RegExp(
+      r'^(\d+(?:\.\d+)?)\s*h(?:\s*(\d+)\s*m)?$',
+    ).firstMatch(text);
     if (hm != null) {
       final h = double.tryParse(hm.group(1)!) ?? 0;
-      final m = (hm.group(2) != null) ? (double.tryParse(hm.group(2)!) ?? 0) : 0;
+      final m = (hm.group(2) != null)
+          ? (double.tryParse(hm.group(2)!) ?? 0)
+          : 0;
       return h + m / 60.0;
     }
     // "Nmin" / "Nm".

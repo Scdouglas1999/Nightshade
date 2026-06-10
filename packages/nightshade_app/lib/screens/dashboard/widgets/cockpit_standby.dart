@@ -123,7 +123,9 @@ class _LastRunSummary extends ConsumerWidget {
             Expanded(
               child: Text(
                 'No runs yet — your first night will appear here.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12_5, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12_5,
+                    color: colors.textMuted),
               ),
             ),
           ],
@@ -161,7 +163,9 @@ class _LastRunSummary extends ConsumerWidget {
                   '${_statusLabel(lastRun.status)} · '
                   '${_relativeTime(lastRun.startedAt)}',
                   style: NightshadeTypography.withTabular(
-                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
               ],

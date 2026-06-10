@@ -12,8 +12,8 @@ import 'equipment_retry_defaults.dart';
 /// Mount state provider
 final mountStateProvider =
     StateNotifierProvider<MountStateNotifier, MountState>((ref) {
-  return MountStateNotifier(ref);
-});
+      return MountStateNotifier(ref);
+    });
 
 class MountStateNotifier extends StateNotifier<MountState> {
   final Ref _ref;
@@ -35,8 +35,10 @@ class MountStateNotifier extends StateNotifier<MountState> {
     super.dispose();
   }
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -171,12 +173,14 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
   void _startPositionPolling() {
     _stopPositionPolling();
-    final interval =
-        state.isSlewing ? _slewingPollInterval : _normalPollInterval;
+    final interval = state.isSlewing
+        ? _slewingPollInterval
+        : _normalPollInterval;
     developer.log(
-        '[Mount] Starting position polling (interval: ${interval.inMilliseconds}ms)',
-        name: 'MountStateNotifier',
-        level: 800);
+      '[Mount] Starting position polling (interval: ${interval.inMilliseconds}ms)',
+      name: 'MountStateNotifier',
+      level: 800,
+    );
     _positionPollTimer = Timer.periodic(interval, (_) => _pollPosition());
   }
 
@@ -184,8 +188,11 @@ class MountStateNotifier extends StateNotifier<MountState> {
     if (_positionPollTimer != null) {
       _positionPollTimer!.cancel();
       _positionPollTimer = null;
-      developer.log('[Mount] Stopped position polling',
-          name: 'MountStateNotifier', level: 800);
+      developer.log(
+        '[Mount] Stopped position polling',
+        name: 'MountStateNotifier',
+        level: 800,
+      );
     }
   }
 
@@ -232,8 +239,12 @@ class MountStateNotifier extends StateNotifier<MountState> {
       // Don't spam errors for transient failures during polling.
       // A persistent failure will eventually be caught by the heartbeat
       // monitor which handles reconnection.
-      developer.log('[Mount] Position poll failed: $e',
-          name: 'MountStateNotifier', level: 900, error: e);
+      developer.log(
+        '[Mount] Position poll failed: $e',
+        name: 'MountStateNotifier',
+        level: 900,
+        error: e,
+      );
     } finally {
       _isPolling = false;
     }

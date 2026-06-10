@@ -51,7 +51,9 @@ class RunDashboardTriggerFeed extends ConsumerWidget {
                   vertical: NightshadeTokens.spaceMd),
               child: Text(
                 'No events yet.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted),
               ),
             )
           else
@@ -131,7 +133,8 @@ class _EventRow extends StatelessWidget {
                   Expanded(
                     child: Text(
                       event.title,
-                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h6
+                          .copyWith(color: colors.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

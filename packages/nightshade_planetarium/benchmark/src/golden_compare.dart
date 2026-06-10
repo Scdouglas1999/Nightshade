@@ -48,16 +48,17 @@ class GoldenComparison {
   String toString() => baselineMissing
       ? '$name: BASELINE MISSING'
       : '$name: maxDelta=$maxChannelDelta '
-          'changed=${(changedFraction * 100).toStringAsFixed(4)}% '
-          '(limit ${(kGoldenMaxChangedFraction * 100).toStringAsFixed(2)}%) '
-          '${passed ? "OK" : "FAIL"}';
+            'changed=${(changedFraction * 100).toStringAsFixed(4)}% '
+            '(limit ${(kGoldenMaxChangedFraction * 100).toStringAsFixed(2)}%) '
+            '${passed ? "OK" : "FAIL"}';
 }
 
 /// The checkpoint frames sampled from the [timeline] for golden capture/compare.
 /// Five spread across the path: wide start, mid-pan, deep zoom, post-time-
 /// advance, wide return.
 List<({String name, CameraFrame frame})> goldenCheckpoints(
-    List<CameraFrame> timeline) {
+  List<CameraFrame> timeline,
+) {
   if (timeline.isEmpty) return const [];
   ({String name, CameraFrame frame}) at(String name, double t) {
     final idx = ((timeline.length - 1) * t).round();
@@ -78,15 +79,16 @@ String goldensDir() => 'benchmark/goldens';
 
 /// Render one checkpoint to a PNG byte buffer (RGBA -> PNG).
 Future<Uint8List> renderCheckpointPng(
-    StressFixture fixture, CameraFrame frame) async {
+  StressFixture fixture,
+  CameraFrame frame,
+) async {
   const size = kBenchmarkCanvasSize;
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   buildSkyPainter(fixture: fixture, frame: frame).paint(canvas, size);
   buildFovPainter(frame).paint(canvas, size);
   final picture = recorder.endRecording();
-  final image =
-      await picture.toImage(size.width.toInt(), size.height.toInt());
+  final image = await picture.toImage(size.width.toInt(), size.height.toInt());
   final png = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   picture.dispose();
@@ -98,7 +100,8 @@ Future<Uint8List> renderCheckpointPng(
 
 /// Decode a PNG into raw RGBA bytes + dimensions for pixel comparison.
 Future<({Uint8List rgba, int width, int height})> _decodeRgba(
-    Uint8List png) async {
+  Uint8List png,
+) async {
   final codec = await ui.instantiateImageCodec(png);
   final frame = await codec.getNextFrame();
   final image = frame.image;
@@ -115,7 +118,9 @@ Future<({Uint8List rgba, int width, int height})> _decodeRgba(
 
 /// Capture mode: render every checkpoint and (over)write its baseline PNG.
 Future<void> captureGoldens(
-    StressFixture fixture, List<CameraFrame> timeline) async {
+  StressFixture fixture,
+  List<CameraFrame> timeline,
+) async {
   final dir = Directory(goldensDir());
   dir.createSync(recursive: true);
   for (final cp in goldenCheckpoints(timeline)) {
@@ -127,17 +132,21 @@ Future<void> captureGoldens(
 /// Compare mode: render every checkpoint and diff against its committed
 /// baseline. Returns one [GoldenComparison] per checkpoint.
 Future<List<GoldenComparison>> compareGoldens(
-    StressFixture fixture, List<CameraFrame> timeline) async {
+  StressFixture fixture,
+  List<CameraFrame> timeline,
+) async {
   final results = <GoldenComparison>[];
   for (final cp in goldenCheckpoints(timeline)) {
     final baselineFile = File('${goldensDir()}/${cp.name}.png');
     if (!baselineFile.existsSync()) {
-      results.add(GoldenComparison(
-        name: cp.name,
-        maxChannelDelta: 0,
-        changedFraction: 0,
-        baselineMissing: true,
-      ));
+      results.add(
+        GoldenComparison(
+          name: cp.name,
+          maxChannelDelta: 0,
+          changedFraction: 0,
+          baselineMissing: true,
+        ),
+      );
       continue;
     }
 
@@ -146,12 +155,14 @@ Future<List<GoldenComparison>> compareGoldens(
     final baseline = await _decodeRgba(baselineFile.readAsBytesSync());
 
     if (fresh.width != baseline.width || fresh.height != baseline.height) {
-      results.add(GoldenComparison(
-        name: cp.name,
-        maxChannelDelta: 255,
-        changedFraction: 1.0,
-        baselineMissing: false,
-      ));
+      results.add(
+        GoldenComparison(
+          name: cp.name,
+          maxChannelDelta: 255,
+          changedFraction: 1.0,
+          baselineMissing: false,
+        ),
+      );
       continue;
     }
 
@@ -171,12 +182,14 @@ Future<List<GoldenComparison>> compareGoldens(
       if (pixelChanged) changed++;
     }
 
-    results.add(GoldenComparison(
-      name: cp.name,
-      maxChannelDelta: maxDelta,
-      changedFraction: pixels == 0 ? 0 : changed / pixels,
-      baselineMissing: false,
-    ));
+    results.add(
+      GoldenComparison(
+        name: cp.name,
+        maxChannelDelta: maxDelta,
+        changedFraction: pixels == 0 ? 0 : changed / pixels,
+        baselineMissing: false,
+      ),
+    );
   }
   return results;
 }

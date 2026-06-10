@@ -22,9 +22,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Head (small circle approximated by quad arcs above shoulders)
       ArtMoveTo(ConstellationArt._c(5.67, 10.5)),
       ArtQuadTo(
-          ConstellationArt._c(5.85, 11.5), ConstellationArt._c(5.67, 12.0)),
+        ConstellationArt._c(5.85, 11.5),
+        ConstellationArt._c(5.67, 12.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(5.50, 11.5), ConstellationArt._c(5.67, 10.5)),
+        ConstellationArt._c(5.50, 11.5),
+        ConstellationArt._c(5.67, 10.5),
+      ),
       const ArtClose(),
       // Torso: shoulders → belt → hips
       ArtMoveTo(ConstellationArt._c(5.42, 6.35)), // Bellatrix (left shoulder)
@@ -88,8 +92,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     segments: [
       // Bear body encompassing the bowl stars
       ArtMoveTo(ConstellationArt._c(10.50, 63.0)), // above Dubhe (head)
-      ArtQuadTo(ConstellationArt._c(10.20, 60.0),
-          ConstellationArt._c(10.30, 57.0)), // snout
+      ArtQuadTo(
+        ConstellationArt._c(10.20, 60.0),
+        ConstellationArt._c(10.30, 57.0),
+      ), // snout
       ArtLineTo(ConstellationArt._c(10.50, 55.0)),
       ArtLineTo(ConstellationArt._c(10.80, 53.0)),
       ArtLineTo(ConstellationArt._c(11.50, 51.5)), // belly bottom
@@ -165,9 +171,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Head
       ArtMoveTo(ConstellationArt._c(0.92, 62.5)),
       ArtQuadTo(
-          ConstellationArt._c(1.05, 63.5), ConstellationArt._c(0.95, 64.0)),
+        ConstellationArt._c(1.05, 63.5),
+        ConstellationArt._c(0.95, 64.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(0.82, 63.5), ConstellationArt._c(0.92, 62.5)),
+        ConstellationArt._c(0.82, 63.5),
+        ConstellationArt._c(0.92, 62.5),
+      ),
       const ArtClose(),
       // Left arm (toward Caph, raised)
       ArtMoveTo(ConstellationArt._c(0.68, 58.0)),
@@ -221,22 +231,32 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Head/mane (follows the sickle)
       ArtMoveTo(ConstellationArt._c(10.14, 11.97)), // Regulus
       ArtQuadTo(
-          ConstellationArt._c(9.90, 14.0), ConstellationArt._c(9.80, 18.0)),
-      ArtQuadTo(ConstellationArt._c(9.75, 22.0),
-          ConstellationArt._c(10.12, 23.77)), // Algieba
+        ConstellationArt._c(9.90, 14.0),
+        ConstellationArt._c(9.80, 18.0),
+      ),
+      ArtQuadTo(
+        ConstellationArt._c(9.75, 22.0),
+        ConstellationArt._c(10.12, 23.77),
+      ), // Algieba
       ArtLineTo(ConstellationArt._c(10.28, 26.01)), // Zosma (top of mane)
       ArtQuadTo(
-          ConstellationArt._c(10.50, 27.0), ConstellationArt._c(10.70, 26.0)),
+        ConstellationArt._c(10.50, 27.0),
+        ConstellationArt._c(10.70, 26.0),
+      ),
       ArtLineTo(ConstellationArt._c(10.50, 22.0)),
       ArtQuadTo(
-          ConstellationArt._c(10.30, 17.0), ConstellationArt._c(10.40, 13.0)),
+        ConstellationArt._c(10.30, 17.0),
+        ConstellationArt._c(10.40, 13.0),
+      ),
       ArtLineTo(ConstellationArt._c(10.14, 11.97)), // back to Regulus
       const ArtClose(),
       // Body (from mane to Denebola)
       ArtMoveTo(ConstellationArt._c(10.28, 26.01)), // Zosma (start of back)
       ArtLineTo(ConstellationArt._c(10.70, 26.0)), // inner mane edge
-      ArtQuadTo(ConstellationArt._c(11.00, 24.0),
-          ConstellationArt._c(11.24, 20.52)), // Chertan (mid-back)
+      ArtQuadTo(
+        ConstellationArt._c(11.00, 24.0),
+        ConstellationArt._c(11.24, 20.52),
+      ), // Chertan (mid-back)
       ArtLineTo(ConstellationArt._c(11.82, 14.57)), // Denebola (tail)
       ArtLineTo(ConstellationArt._c(12.00, 14.0)), // tail tip
       ArtLineTo(ConstellationArt._c(11.90, 13.0)),
@@ -264,9 +284,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Tail tuft
       ArtMoveTo(ConstellationArt._c(11.82, 14.57)),
       ArtQuadTo(
-          ConstellationArt._c(12.10, 15.5), ConstellationArt._c(12.20, 15.0)),
+        ConstellationArt._c(12.10, 15.5),
+        ConstellationArt._c(12.20, 15.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(12.15, 14.0), ConstellationArt._c(12.00, 14.0)),
+        ConstellationArt._c(12.15, 14.0),
+        ConstellationArt._c(12.00, 14.0),
+      ),
       const ArtClose(),
     ],
   ),
@@ -283,16 +307,24 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Left pincer
       ArtMoveTo(ConstellationArt._c(15.90, -20.0)),
       ArtQuadTo(
-          ConstellationArt._c(15.70, -18.0), ConstellationArt._c(15.50, -19.0)),
+        ConstellationArt._c(15.70, -18.0),
+        ConstellationArt._c(15.50, -19.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(15.65, -21.0), ConstellationArt._c(15.90, -20.0)),
+        ConstellationArt._c(15.65, -21.0),
+        ConstellationArt._c(15.90, -20.0),
+      ),
       const ArtClose(),
       // Right pincer
       ArtMoveTo(ConstellationArt._c(16.15, -20.0)),
       ArtQuadTo(
-          ConstellationArt._c(16.35, -18.0), ConstellationArt._c(16.55, -19.0)),
+        ConstellationArt._c(16.35, -18.0),
+        ConstellationArt._c(16.55, -19.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(16.40, -21.0), ConstellationArt._c(16.15, -20.0)),
+        ConstellationArt._c(16.40, -21.0),
+        ConstellationArt._c(16.15, -20.0),
+      ),
       const ArtClose(),
       // Head (connects pincers)
       ArtMoveTo(ConstellationArt._c(15.90, -21.5)),
@@ -308,16 +340,22 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       ArtLineTo(ConstellationArt._c(16.49, -26.43)), // Antares
       ArtLineTo(ConstellationArt._c(16.84, -34.29)), // Tau Sco
       ArtLineTo(ConstellationArt._c(17.20, -37.30)), // Epsilon Sco
-      ArtQuadTo(ConstellationArt._c(17.40, -38.0),
-          ConstellationArt._c(17.56, -37.10)), // Shaula
-      ArtQuadTo(ConstellationArt._c(17.65, -38.5),
-          ConstellationArt._c(17.71, -39.03)), // Lesath
+      ArtQuadTo(
+        ConstellationArt._c(17.40, -38.0),
+        ConstellationArt._c(17.56, -37.10),
+      ), // Shaula
+      ArtQuadTo(
+        ConstellationArt._c(17.65, -38.5),
+        ConstellationArt._c(17.71, -39.03),
+      ), // Lesath
       // Stinger curves back
       ArtLineTo(ConstellationArt._c(17.80, -38.0)),
       ArtLineTo(ConstellationArt._c(17.85, -37.0)),
       // Return path (other side of body)
-      ArtQuadTo(ConstellationArt._c(17.70, -37.5),
-          ConstellationArt._c(17.62, -37.50)),
+      ArtQuadTo(
+        ConstellationArt._c(17.70, -37.5),
+        ConstellationArt._c(17.62, -37.50),
+      ),
       ArtLineTo(ConstellationArt._c(17.30, -37.60)),
       ArtLineTo(ConstellationArt._c(16.95, -34.60)),
       ArtLineTo(ConstellationArt._c(16.60, -27.0)),
@@ -371,43 +409,63 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     segments: [
       // Body (elongated along Deneb-Albireo axis)
       ArtMoveTo(ConstellationArt._c(20.69, 45.28)), // Deneb (tail)
-      ArtQuadTo(ConstellationArt._c(20.55, 43.5),
-          ConstellationArt._c(20.37, 40.26)), // Sadr (body center)
       ArtQuadTo(
-          ConstellationArt._c(20.10, 36.0), ConstellationArt._c(19.80, 31.0)),
+        ConstellationArt._c(20.55, 43.5),
+        ConstellationArt._c(20.37, 40.26),
+      ), // Sadr (body center)
+      ArtQuadTo(
+        ConstellationArt._c(20.10, 36.0),
+        ConstellationArt._c(19.80, 31.0),
+      ),
       ArtLineTo(ConstellationArt._c(19.51, 27.96)), // Albireo (head/beak)
       ArtLineTo(ConstellationArt._c(19.45, 27.5)),
       ArtQuadTo(
-          ConstellationArt._c(19.75, 31.0), ConstellationArt._c(20.05, 36.0)),
+        ConstellationArt._c(19.75, 31.0),
+        ConstellationArt._c(20.05, 36.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(20.30, 40.0), ConstellationArt._c(20.60, 45.0)),
+        ConstellationArt._c(20.30, 40.0),
+        ConstellationArt._c(20.60, 45.0),
+      ),
       const ArtClose(),
       // Left wing (toward Gienah Cygni)
       ArtMoveTo(ConstellationArt._c(20.37, 41.0)), // above Sadr
-      ArtQuadTo(ConstellationArt._c(20.00, 43.0),
-          ConstellationArt._c(19.75, 45.13)), // Gienah Cygni
+      ArtQuadTo(
+        ConstellationArt._c(20.00, 43.0),
+        ConstellationArt._c(19.75, 45.13),
+      ), // Gienah Cygni
       ArtLineTo(ConstellationArt._c(19.40, 46.0)), // wing tip
       ArtLineTo(ConstellationArt._c(19.30, 45.5)),
       ArtQuadTo(
-          ConstellationArt._c(19.60, 44.0), ConstellationArt._c(20.00, 41.5)),
+        ConstellationArt._c(19.60, 44.0),
+        ConstellationArt._c(20.00, 41.5),
+      ),
       ArtLineTo(ConstellationArt._c(20.25, 40.0)),
       const ArtClose(),
       // Right wing (toward Fawaris / delta Cyg)
       ArtMoveTo(ConstellationArt._c(20.50, 41.0)),
-      ArtQuadTo(ConstellationArt._c(20.80, 37.0),
-          ConstellationArt._c(21.22, 30.23)), // Fawaris
+      ArtQuadTo(
+        ConstellationArt._c(20.80, 37.0),
+        ConstellationArt._c(21.22, 30.23),
+      ), // Fawaris
       ArtLineTo(ConstellationArt._c(21.50, 28.0)), // wing tip
       ArtLineTo(ConstellationArt._c(21.55, 28.8)),
       ArtQuadTo(
-          ConstellationArt._c(21.00, 33.0), ConstellationArt._c(20.70, 38.0)),
+        ConstellationArt._c(21.00, 33.0),
+        ConstellationArt._c(20.70, 38.0),
+      ),
       ArtLineTo(ConstellationArt._c(20.50, 40.0)),
       const ArtClose(),
       // Tail fan (around Deneb)
       ArtMoveTo(ConstellationArt._c(20.55, 45.5)),
       ArtQuadTo(
-          ConstellationArt._c(20.60, 47.0), ConstellationArt._c(20.69, 47.5)),
+        ConstellationArt._c(20.60, 47.0),
+        ConstellationArt._c(20.69, 47.5),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(20.80, 47.0), ConstellationArt._c(20.75, 45.5)),
+        ConstellationArt._c(20.80, 47.0),
+        ConstellationArt._c(20.75, 45.5),
+      ),
       const ArtClose(),
     ],
   ),
@@ -425,9 +483,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Head
       ArtMoveTo(ConstellationArt._c(7.52, 33.0)),
       ArtQuadTo(
-          ConstellationArt._c(7.65, 34.0), ConstellationArt._c(7.58, 34.5)),
+        ConstellationArt._c(7.65, 34.0),
+        ConstellationArt._c(7.58, 34.5),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(7.50, 34.0), ConstellationArt._c(7.52, 33.0)),
+        ConstellationArt._c(7.50, 34.0),
+        ConstellationArt._c(7.52, 33.0),
+      ),
       const ArtClose(),
       // Torso
       ArtMoveTo(ConstellationArt._c(7.50, 32.5)),
@@ -444,9 +506,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Head
       ArtMoveTo(ConstellationArt._c(7.70, 29.0)),
       ArtQuadTo(
-          ConstellationArt._c(7.82, 30.0), ConstellationArt._c(7.76, 30.5)),
+        ConstellationArt._c(7.82, 30.0),
+        ConstellationArt._c(7.76, 30.5),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(7.68, 30.0), ConstellationArt._c(7.70, 29.0)),
+        ConstellationArt._c(7.68, 30.0),
+        ConstellationArt._c(7.70, 29.0),
+      ),
       const ArtClose(),
       // Torso
       ArtMoveTo(ConstellationArt._c(7.68, 28.5)),
@@ -483,9 +549,13 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       ArtLineTo(ConstellationArt._c(18.45, -21.0)), // neck
       // Head
       ArtQuadTo(
-          ConstellationArt._c(18.50, -19.5), ConstellationArt._c(18.40, -19.0)),
+        ConstellationArt._c(18.50, -19.5),
+        ConstellationArt._c(18.40, -19.0),
+      ),
       ArtQuadTo(
-          ConstellationArt._c(18.30, -19.5), ConstellationArt._c(18.35, -21.0)),
+        ConstellationArt._c(18.30, -19.5),
+        ConstellationArt._c(18.35, -21.0),
+      ),
       // Shoulders back down
       ArtLineTo(ConstellationArt._c(18.20, -23.0)),
       ArtLineTo(ConstellationArt._c(18.23, -25.42)), // Kaus Borealis
@@ -501,10 +571,14 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Bow arc
       ArtMoveTo(ConstellationArt._c(17.50, -21.0)),
       ArtQuadTo(
-          ConstellationArt._c(17.30, -24.0), ConstellationArt._c(17.50, -27.0)),
+        ConstellationArt._c(17.30, -24.0),
+        ConstellationArt._c(17.50, -27.0),
+      ),
       ArtLineTo(ConstellationArt._c(17.55, -27.0)),
       ArtQuadTo(
-          ConstellationArt._c(17.35, -24.0), ConstellationArt._c(17.55, -21.0)),
+        ConstellationArt._c(17.35, -24.0),
+        ConstellationArt._c(17.55, -21.0),
+      ),
       const ArtClose(),
       // Horse body (lower, following teapot outline)
       ArtMoveTo(ConstellationArt._c(18.23, -25.42)), // Kaus Borealis
@@ -544,8 +618,10 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     segments: [
       // Bull face (V-shape of Hyades)
       ArtMoveTo(ConstellationArt._c(4.00, 12.5)),
-      ArtQuadTo(ConstellationArt._c(4.20, 14.0),
-          ConstellationArt._c(4.60, 16.51)), // Aldebaran (eye)
+      ArtQuadTo(
+        ConstellationArt._c(4.20, 14.0),
+        ConstellationArt._c(4.60, 16.51),
+      ), // Aldebaran (eye)
       ArtLineTo(ConstellationArt._c(4.80, 17.0)),
       ArtLineTo(ConstellationArt._c(4.60, 14.0)),
       ArtLineTo(ConstellationArt._c(4.33, 15.63)),
@@ -560,19 +636,27 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       const ArtClose(),
       // Left horn (to Elnath)
       ArtMoveTo(ConstellationArt._c(4.80, 19.5)),
-      ArtQuadTo(ConstellationArt._c(5.10, 24.0),
-          ConstellationArt._c(5.44, 28.61)), // Elnath
+      ArtQuadTo(
+        ConstellationArt._c(5.10, 24.0),
+        ConstellationArt._c(5.44, 28.61),
+      ), // Elnath
       ArtLineTo(ConstellationArt._c(5.50, 29.0)),
       ArtQuadTo(
-          ConstellationArt._c(5.15, 24.5), ConstellationArt._c(4.90, 19.5)),
+        ConstellationArt._c(5.15, 24.5),
+        ConstellationArt._c(4.90, 19.5),
+      ),
       const ArtClose(),
       // Right horn (to Zeta Tau)
       ArtMoveTo(ConstellationArt._c(5.00, 19.0)),
-      ArtQuadTo(ConstellationArt._c(5.30, 20.0),
-          ConstellationArt._c(5.63, 21.14)), // Zeta Tau
+      ArtQuadTo(
+        ConstellationArt._c(5.30, 20.0),
+        ConstellationArt._c(5.63, 21.14),
+      ), // Zeta Tau
       ArtLineTo(ConstellationArt._c(5.70, 21.5)),
       ArtQuadTo(
-          ConstellationArt._c(5.35, 20.5), ConstellationArt._c(5.10, 19.0)),
+        ConstellationArt._c(5.35, 20.5),
+        ConstellationArt._c(5.10, 19.0),
+      ),
       const ArtClose(),
       // Neck/shoulder (trails off to the right)
       ArtMoveTo(ConstellationArt._c(3.80, 13.0)),
@@ -580,7 +664,9 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       ArtQuadTo(ConstellationArt._c(3.40, 9.0), ConstellationArt._c(3.50, 8.0)),
       ArtLineTo(ConstellationArt._c(3.70, 8.0)),
       ArtQuadTo(
-          ConstellationArt._c(3.60, 9.5), ConstellationArt._c(3.70, 11.5)),
+        ConstellationArt._c(3.60, 9.5),
+        ConstellationArt._c(3.70, 11.5),
+      ),
       ArtLineTo(ConstellationArt._c(4.00, 12.0)),
       const ArtClose(),
     ],
@@ -597,10 +683,14 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
     segments: [
       // Head (around Sirius)
       ArtMoveTo(ConstellationArt._c(6.65, -14.5)),
-      ArtQuadTo(ConstellationArt._c(6.55, -13.5),
-          ConstellationArt._c(6.65, -12.5)), // top of head
       ArtQuadTo(
-          ConstellationArt._c(6.85, -13.0), ConstellationArt._c(6.90, -14.5)),
+        ConstellationArt._c(6.55, -13.5),
+        ConstellationArt._c(6.65, -12.5),
+      ), // top of head
+      ArtQuadTo(
+        ConstellationArt._c(6.85, -13.0),
+        ConstellationArt._c(6.90, -14.5),
+      ),
       ArtLineTo(ConstellationArt._c(6.85, -16.0)),
       ArtLineTo(ConstellationArt._c(6.65, -16.0)),
       const ArtClose(),
@@ -639,10 +729,14 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       // Tail (upward from Wezen)
       ArtMoveTo(ConstellationArt._c(7.14, -26.39)),
       ArtQuadTo(
-          ConstellationArt._c(7.30, -24.0), ConstellationArt._c(7.40, -22.5)),
+        ConstellationArt._c(7.30, -24.0),
+        ConstellationArt._c(7.40, -22.5),
+      ),
       ArtLineTo(ConstellationArt._c(7.35, -22.0)),
       ArtQuadTo(
-          ConstellationArt._c(7.25, -23.5), ConstellationArt._c(7.10, -25.5)),
+        ConstellationArt._c(7.25, -23.5),
+        ConstellationArt._c(7.10, -25.5),
+      ),
       const ArtClose(),
     ],
   ),
@@ -660,11 +754,15 @@ final List<ConstellationArtData> _earlyConstellationArtFigures = [
       ArtMoveTo(ConstellationArt._c(18.62, 38.78)), // Vega (top)
       ArtLineTo(ConstellationArt._c(18.50, 37.5)),
       ArtLineTo(ConstellationArt._c(18.45, 35.0)),
-      ArtQuadTo(ConstellationArt._c(18.50, 32.0),
-          ConstellationArt._c(18.83, 33.36)), // Sheliak
+      ArtQuadTo(
+        ConstellationArt._c(18.50, 32.0),
+        ConstellationArt._c(18.83, 33.36),
+      ), // Sheliak
       ArtLineTo(ConstellationArt._c(18.91, 33.36)), // Sulafat
       ArtQuadTo(
-          ConstellationArt._c(19.10, 32.0), ConstellationArt._c(19.10, 35.0)),
+        ConstellationArt._c(19.10, 32.0),
+        ConstellationArt._c(19.10, 35.0),
+      ),
       ArtLineTo(ConstellationArt._c(19.00, 37.5)),
       ArtLineTo(ConstellationArt._c(18.62, 38.78)), // back to Vega
       const ArtClose(),

@@ -91,9 +91,9 @@ class PlatformCapabilityReport {
   });
 
   Map<String, dynamic> toJson() => {
-        'platform': platform,
-        'drivers': drivers.map((driver) => driver.toJson(platform)).toList(),
-      };
+    'platform': platform,
+    'drivers': drivers.map((driver) => driver.toJson(platform)).toList(),
+  };
 }
 
 class PlatformDriverCapability {
@@ -116,8 +116,9 @@ class PlatformDriverCapability {
   });
 
   bool isAvailableOn(String platform) {
-    final normalizedPlatform =
-        PlatformCapabilityMatrix.normalizePlatform(platform);
+    final normalizedPlatform = PlatformCapabilityMatrix.normalizePlatform(
+      platform,
+    );
     return supportedPlatforms.contains(normalizedPlatform);
   }
 
@@ -133,13 +134,12 @@ class PlatformDriverCapability {
   }
 
   Map<String, dynamic> toJson(String platform) => {
-        'backend': backend,
-        'label': label,
-        'status': statusFor(platform),
-        'supportedPlatforms': supportedPlatforms,
-        'unsupportedReason':
-            isAvailableOn(platform) ? null : reasonFor(platform),
-        'deviceCoverage': deviceCoverage,
-        'notes': notes,
-      };
+    'backend': backend,
+    'label': label,
+    'status': statusFor(platform),
+    'supportedPlatforms': supportedPlatforms,
+    'unsupportedReason': isAvailableOn(platform) ? null : reasonFor(platform),
+    'deviceCoverage': deviceCoverage,
+    'notes': notes,
+  };
 }

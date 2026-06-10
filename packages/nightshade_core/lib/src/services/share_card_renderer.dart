@@ -307,7 +307,11 @@ class ShareCardRenderer {
   ///
   /// No-op when there is neither a title nor any stats (e.g. a watermark-only
   /// share), so a bare image isn't gratuitously darkened.
-  void _drawStatPanel(img.Image bitmap, ShareCardSpec spec, img.BitmapFont font) {
+  void _drawStatPanel(
+    img.Image bitmap,
+    ShareCardSpec spec,
+    img.BitmapFont font,
+  ) {
     final title = spec.title.trim();
     final stats = spec.stats;
     if (title.isEmpty && stats.isEmpty) return;
@@ -467,13 +471,11 @@ class ShareCardRenderer {
       final w = _measureText(font, line);
       if (w > contentWidth) contentWidth = w;
     }
-    final cardWidth =
-        (contentWidth + pad * 2).clamp(1, bitmap.width).toInt();
-    final cardHeight = (lines.length * lineHeight +
-            (lines.length - 1) * gap +
-            pad * 2)
-        .clamp(1, bitmap.height)
-        .toInt();
+    final cardWidth = (contentWidth + pad * 2).clamp(1, bitmap.width).toInt();
+    final cardHeight =
+        (lines.length * lineHeight + (lines.length - 1) * gap + pad * 2)
+            .clamp(1, bitmap.height)
+            .toInt();
 
     // Top-right corner with a small inset margin.
     final margin = pad;

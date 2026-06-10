@@ -17,8 +17,7 @@ class OnboardingSummaryStep extends ConsumerStatefulWidget {
       _OnboardingSummaryStepState();
 }
 
-class _OnboardingSummaryStepState
-    extends ConsumerState<OnboardingSummaryStep> {
+class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
   late final TextEditingController _nameController;
 
   @override
@@ -57,118 +56,128 @@ class _OnboardingSummaryStepState
 
     return SingleChildScrollView(
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Review and save',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'This creates your first equipment profile. You can edit any of these later.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Profile name',
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _nameController,
-          style: TextStyle(color: colors.textPrimary),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: 'My First Rig',
-            hintStyle: TextStyle(color: colors.textMuted),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-              borderSide: BorderSide(color: colors.border),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Review and save',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-              borderSide: BorderSide(color: colors.primary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'This creates your first equipment profile. You can edit any of these later.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.textSecondary,
             ),
-            filled: true,
-            fillColor: colors.surface,
           ),
-          onChanged: (value) {
-            ref
-                .read(onboardingDraftProvider.notifier)
-                .setProfileName(value);
-          },
-        ),
-        const SizedBox(height: 18),
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          borderRadius: NightshadeTokens.radiusLg,
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _summaryRow(theme, colors, NightshadeIcons.camera, 'Camera',
-                  draft.cameraName),
-              _summaryRow(theme, colors, NightshadeIcons.compass, 'Mount',
-                  draft.mountName),
-              _summaryRow(theme, colors, NightshadeIcons.focuser, 'Focuser',
-                  draft.focuserName ?? '— not set —'),
-              _summaryRow(theme, colors, NightshadeIcons.filterWheel, 'Filter wheel',
-                  draft.filterWheelName ?? '— not set —'),
-              if (draft.filterNames.isNotEmpty)
-                _summaryRow(theme, colors, NightshadeIcons.list, 'Filters',
-                    draft.filterNames.join(', ')),
-              _summaryRow(theme, colors, NightshadeIcons.crosshair, 'Guider',
-                  draft.guiderName ?? '— not set —'),
-              const Divider(height: 20),
-              _summaryRow(theme, colors, LucideIcons.ruler, 'Focal length',
-                  draft.focalLengthMm != null
-                      ? '${draft.focalLengthMm!.toStringAsFixed(1)} mm × ${draft.reducerFactor.toStringAsFixed(2)}'
-                      : null),
-              _summaryRow(theme, colors, NightshadeIcons.aperture, 'Aperture',
-                  draft.apertureMm != null
-                      ? '${draft.apertureMm!.toStringAsFixed(1)} mm'
-                      : null),
-              _summaryRow(theme, colors, NightshadeIcons.move, 'Image scale',
-                  imageScale != null
-                      ? '${imageScale.toStringAsFixed(2)} arcsec/px'
-                      : null),
-              const Divider(height: 20),
-              _summaryRow(theme, colors, NightshadeIcons.folder,
-                  'Capture folder', draft.captureDirectory),
-            ],
+          const SizedBox(height: 16),
+          Text(
+            'Profile name',
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: NightshadeDecorations.emphasisSurface(
-            colors.primary,
-            borderRadius: NightshadeTokens.borderRadiusLg,
+          const SizedBox(height: 6),
+          TextField(
+            controller: _nameController,
+            style: TextStyle(color: colors.textPrimary),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'My First Rig',
+              hintStyle: TextStyle(color: colors.textMuted),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: NightshadeTokens.borderRadiusInline8,
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: NightshadeTokens.borderRadiusInline8,
+                borderSide: BorderSide(color: colors.primary),
+              ),
+              filled: true,
+              fillColor: colors.surface,
+            ),
+            onChanged: (value) {
+              ref.read(onboardingDraftProvider.notifier).setProfileName(value);
+            },
           ),
-          child: Row(
-            children: [
-              Icon(NightshadeIcons.info, color: colors.primary, size: 16),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Need polar alignment? Open Polar Alignment from the side nav after finishing.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.textPrimary,
+          const SizedBox(height: 18),
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusLg,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryRow(theme, colors, NightshadeIcons.camera, 'Camera',
+                    draft.cameraName),
+                _summaryRow(theme, colors, NightshadeIcons.compass, 'Mount',
+                    draft.mountName),
+                _summaryRow(theme, colors, NightshadeIcons.focuser, 'Focuser',
+                    draft.focuserName ?? '— not set —'),
+                _summaryRow(theme, colors, NightshadeIcons.filterWheel,
+                    'Filter wheel', draft.filterWheelName ?? '— not set —'),
+                if (draft.filterNames.isNotEmpty)
+                  _summaryRow(theme, colors, NightshadeIcons.list, 'Filters',
+                      draft.filterNames.join(', ')),
+                _summaryRow(theme, colors, NightshadeIcons.crosshair, 'Guider',
+                    draft.guiderName ?? '— not set —'),
+                const Divider(height: 20),
+                _summaryRow(
+                    theme,
+                    colors,
+                    LucideIcons.ruler,
+                    'Focal length',
+                    draft.focalLengthMm != null
+                        ? '${draft.focalLengthMm!.toStringAsFixed(1)} mm × ${draft.reducerFactor.toStringAsFixed(2)}'
+                        : null),
+                _summaryRow(
+                    theme,
+                    colors,
+                    NightshadeIcons.aperture,
+                    'Aperture',
+                    draft.apertureMm != null
+                        ? '${draft.apertureMm!.toStringAsFixed(1)} mm'
+                        : null),
+                _summaryRow(
+                    theme,
+                    colors,
+                    NightshadeIcons.move,
+                    'Image scale',
+                    imageScale != null
+                        ? '${imageScale.toStringAsFixed(2)} arcsec/px'
+                        : null),
+                const Divider(height: 20),
+                _summaryRow(theme, colors, NightshadeIcons.folder,
+                    'Capture folder', draft.captureDirectory),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.primary,
+              borderRadius: NightshadeTokens.borderRadiusLg,
+            ),
+            child: Row(
+              children: [
+                Icon(NightshadeIcons.info, color: colors.primary, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Need polar alignment? Open Polar Alignment from the side nav after finishing.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
@@ -196,10 +205,8 @@ class _OnboardingSummaryStepState
             child: Text(
               hasValue ? value : '— not set —',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color:
-                    hasValue ? colors.textPrimary : colors.textMuted,
-                fontWeight:
-                    hasValue ? FontWeight.w600 : FontWeight.w400,
+                color: hasValue ? colors.textPrimary : colors.textMuted,
+                fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ),

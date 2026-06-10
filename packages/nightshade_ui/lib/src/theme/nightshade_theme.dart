@@ -37,8 +37,9 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 /// Transitional / test hook — production apps resolve theme from
 /// [appSettingsProvider], not this provider. Prefer [getThemeForMode] when
 /// bridging persisted settings to [ThemeData].
-final appThemeModeProvider =
-    StateProvider<AppThemeMode>((ref) => AppThemeMode.dark);
+final appThemeModeProvider = StateProvider<AppThemeMode>(
+  (ref) => AppThemeMode.dark,
+);
 
 /// Parse a hex accent color (`#RRGGBB` or `RRGGBB`). Returns null if invalid.
 Color? parseNightshadeAccentColor(String? hexColor) {
@@ -93,8 +94,9 @@ SystemUiOverlayStyle systemUiOverlayStyleFor(ThemeData theme) {
   return base.copyWith(
     statusBarColor: surface,
     systemNavigationBarColor: surface,
-    systemNavigationBarIconBrightness:
-        isDark ? Brightness.light : Brightness.dark,
+    systemNavigationBarIconBrightness: isDark
+        ? Brightness.light
+        : Brightness.dark,
   );
 }
 
@@ -187,8 +189,9 @@ class NightshadeTheme {
       fontFamily: NightshadeTypography.fontFamily,
       scaffoldBackgroundColor: colors.background,
       canvasColor: colors.background,
-      disabledColor:
-          colors.textMuted.withValues(alpha: NightshadeTokens.opacityDisabled),
+      disabledColor: colors.textMuted.withValues(
+        alpha: NightshadeTokens.opacityDisabled,
+      ),
       unselectedWidgetColor: colors.textMuted,
       splashColor: colors.primary.withValues(alpha: 0.08),
       highlightColor: colors.primary.withValues(alpha: 0.06),
@@ -209,10 +212,7 @@ class NightshadeTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: systemUiOverlayStyleFor(
-          ThemeData(
-            brightness: brightness,
-            extensions: [colors],
-          ),
+          ThemeData(brightness: brightness, extensions: [colors]),
         ),
         titleTextStyle: NightshadeTypography.h4.copyWith(
           color: colors.textPrimary,
@@ -231,9 +231,7 @@ class NightshadeTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         alignment: Alignment.center,
-        shape: shape.copyWith(
-          side: BorderSide(color: colors.border),
-        ),
+        shape: shape.copyWith(side: BorderSide(color: colors.border)),
         titleTextStyle: NightshadeTypography.h4.copyWith(
           color: colors.textPrimary,
         ),
@@ -356,9 +354,7 @@ class NightshadeTheme {
         color: colors.surfaceElevated,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        shape: shape.copyWith(
-          side: BorderSide(color: colors.border),
-        ),
+        shape: shape.copyWith(side: BorderSide(color: colors.border)),
         textStyle: NightshadeTypography.body.copyWith(
           color: colors.textPrimary,
         ),
@@ -368,9 +364,7 @@ class NightshadeTheme {
         contentTextStyle: NightshadeTypography.body.copyWith(
           color: colors.textPrimary,
         ),
-        shape: shape.copyWith(
-          side: BorderSide(color: colors.border),
-        ),
+        shape: shape.copyWith(side: BorderSide(color: colors.border)),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
       ),

@@ -28,16 +28,18 @@ class SequenceRepository {
     SequencesDao? dao,
     NetworkBackend? remote,
     SequenceFileService? fileService,
-  })  : _dao = dao,
-        _remote = remote,
-        _fileService = fileService {
+  }) : _dao = dao,
+       _remote = remote,
+       _fileService = fileService {
     assert(
       (dao != null && remote == null) || (dao == null && remote != null),
       'SequenceRepository must be either local (dao) or remote (NetworkBackend)',
     );
     if (remote != null) {
-      assert(fileService != null,
-          'Remote SequenceRepository requires fileService');
+      assert(
+        fileService != null,
+        'Remote SequenceRepository requires fileService',
+      );
     }
   }
 
@@ -47,8 +49,7 @@ class SequenceRepository {
   factory SequenceRepository.remote(
     NetworkBackend remote,
     SequenceFileService fileService,
-  ) =>
-      SequenceRepository._(remote: remote, fileService: fileService);
+  ) => SequenceRepository._(remote: remote, fileService: fileService);
 
   bool get _isRemote => _remote != null;
 
@@ -115,7 +116,10 @@ class SequenceRepository {
   }
 
   Future<void> _updateSequence(
-      int sequenceId, Sequence sequence, bool isTemplate) async {
+    int sequenceId,
+    Sequence sequence,
+    bool isTemplate,
+  ) async {
     // Get existing sequence
     final existing = await _dao!.getSequenceById(sequenceId);
     if (existing == null) {
@@ -123,7 +127,7 @@ class SequenceRepository {
     }
 
     // Update sequence metadata
-    await _dao!.updateSequence(
+    await _dao.updateSequence(
       db.Sequence(
         id: sequenceId,
         name: sequence.name,
@@ -137,7 +141,7 @@ class SequenceRepository {
     );
 
     // Get existing nodes to diff against incoming nodes
-    final existingNodes = await _dao!.getNodesForSequence(sequenceId);
+    final existingNodes = await _dao.getNodesForSequence(sequenceId);
     final existingNodeIds = existingNodes.map((n) => n.nodeId).toSet();
     final incomingNodeIds = sequence.nodes.keys.toSet();
 
@@ -147,15 +151,13 @@ class SequenceRepository {
     final toDelete = existingNodeIds.difference(incomingNodeIds);
 
     // Build a lookup from nodeId to database row for existing nodes
-    final existingNodeMap = {
-      for (final n in existingNodes) n.nodeId: n,
-    };
+    final existingNodeMap = {for (final n in existingNodes) n.nodeId: n};
 
     // Update existing nodes in place (preserves database row IDs)
     for (final nodeId in toUpdate) {
       final node = sequence.nodes[nodeId]!;
       final dbNode = existingNodeMap[nodeId]!;
-      await _dao!.updateNode(
+      await _dao.updateNode(
         db.SequenceNode(
           id: dbNode.id,
           nodeId: node.id,
@@ -179,7 +181,7 @@ class SequenceRepository {
     // Insert new nodes
     for (final nodeId in toInsert) {
       final node = sequence.nodes[nodeId]!;
-      await _dao!.createNode(
+      await _dao.createNode(
         db.SequenceNodesCompanion.insert(
           nodeId: node.id,
           sequenceId: sequenceId,
@@ -197,12 +199,14 @@ class SequenceRepository {
     // Delete removed nodes
     for (final nodeId in toDelete) {
       final dbNode = existingNodeMap[nodeId]!;
-      await _dao!.deleteNode(dbNode.id);
+      await _dao.deleteNode(dbNode.id);
     }
   }
 
   Future<void> _saveNodes(
-      int sequenceId, Map<String, SequenceNode> nodes) async {
+    int sequenceId,
+    Map<String, SequenceNode> nodes,
+  ) async {
     for (final node in nodes.values) {
       await _dao!.createNode(
         db.SequenceNodesCompanion.insert(
@@ -230,9 +234,8 @@ class SequenceRepository {
   /// `MeridianFlipNode` to [NodeCategory.trigger] but this switch still
   /// emitted 'instruction'). Deriving from the getter makes that class of
   /// divergence structurally impossible.
-  String _getNodeCategory(SequenceNode node) => _categoryWireString(
-        node.category,
-      );
+  String _getNodeCategory(SequenceNode node) =>
+      _categoryWireString(node.category);
 
   /// Map a [NodeCategory] to the string persisted in
   /// `sequence_nodes.node_type`. Exhaustive over the enum so a future
@@ -252,7 +255,7 @@ class SequenceRepository {
     if (_isRemote) {
       final all = [
         ...await _remote!.listFullSequences(),
-        ...await _remote!.listFullTemplates(),
+        ...await _remote.listFullTemplates(),
       ];
       for (final map in all) {
         if (map['databaseId'] == sequenceId) {
@@ -265,7 +268,7 @@ class SequenceRepository {
     final dbSequence = await _dao!.getSequenceById(sequenceId);
     if (dbSequence == null) return null;
 
-    final dbNodes = await _dao!.getNodesForSequence(sequenceId);
+    final dbNodes = await _dao.getNodesForSequence(sequenceId);
 
     // Convert database nodes to model nodes
     final nodes = <String, SequenceNode>{};

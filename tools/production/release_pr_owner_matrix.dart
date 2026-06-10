@@ -117,18 +117,18 @@ Future<void> main() async {
     },
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    plan: plan,
-    groups: groups,
-    buckets: buckets,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(plan: plan, groups: groups, buckets: buckets),
+  );
 
   stdout.writeln('Release PR owner decision matrix complete.');
   stdout.writeln('Buckets: ${buckets.length}');
   stdout.writeln(
-      'Paths: ${buckets.fold<int>(0, (sum, b) => sum + b.paths.length)}');
+    'Paths: ${buckets.fold<int>(0, (sum, b) => sum + b.paths.length)}',
+  );
   stdout.writeln('JSON: $_jsonOutputPath');
   stdout.writeln('Markdown: $_markdownOutputPath');
 }
@@ -161,7 +161,8 @@ String _renderMarkdown({
     ..writeln('- Source split plan: `$_inputPath`')
     ..writeln('- Source generated at: `${plan['generatedAt'] ?? 'unknown'}`')
     ..writeln(
-        '- Branch at planning time: `${plan['currentBranch'] ?? 'unknown'}`')
+      '- Branch at planning time: `${plan['currentBranch'] ?? 'unknown'}`',
+    )
     ..writeln('- HEAD at planning time: `${plan['head'] ?? 'unknown'}`')
     ..writeln('- Buckets: `${buckets.length}`')
     ..writeln(
@@ -230,7 +231,8 @@ String _renderMarkdown({
       ..writeln('### ${bucket.title}')
       ..writeln()
       ..writeln(
-          '- Decision group: `${_decisionGroupDefinitions[group]!.title}`')
+        '- Decision group: `${_decisionGroupDefinitions[group]!.title}`',
+      )
       ..writeln('- Bucket ID: `${bucket.id}`')
       ..writeln('- Paths: `${bucket.paths.length}`')
       ..writeln('- Pathspec: `${bucket.pathspecFile}`')
@@ -288,20 +290,18 @@ class _DecisionGroup {
       buckets.map((bucket) => bucket.pathspecFile).toList();
 
   Map<String, Object?> toJson() => {
-        'id': definition.id,
-        'title': definition.title,
-        'description': definition.description,
-        'validationRule': definition.validationRule,
-        'bucketIds': buckets.map((bucket) => bucket.id).toList(),
-        'bucketCount': buckets.length,
-        'pathCount': pathCount,
-        'relatedReleaseListFile': releaseList?.pathspecFile,
-        'relatedReleaseListPathCount': releaseList?.count,
-        'pathspecFiles': pathspecFiles,
-        'paths': [
-          for (final bucket in buckets) ...bucket.paths,
-        ],
-      };
+    'id': definition.id,
+    'title': definition.title,
+    'description': definition.description,
+    'validationRule': definition.validationRule,
+    'bucketIds': buckets.map((bucket) => bucket.id).toList(),
+    'bucketCount': buckets.length,
+    'pathCount': pathCount,
+    'relatedReleaseListFile': releaseList?.pathspecFile,
+    'relatedReleaseListPathCount': releaseList?.count,
+    'pathspecFiles': pathspecFiles,
+    'paths': [for (final bucket in buckets) ...bucket.paths],
+  };
 }
 
 class _ReleaseList {
@@ -330,12 +330,12 @@ class _ReleaseList {
   }
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'pathspecFile': pathspecFile,
-        'count': count,
-      };
+    'id': id,
+    'title': title,
+    'description': description,
+    'pathspecFile': pathspecFile,
+    'count': count,
+  };
 }
 
 class _Bucket {
@@ -409,8 +409,8 @@ class _Bucket {
     final categorySummary = categories.isEmpty
         ? '- None'
         : categories
-            .map((entry) => '- `${entry.key}`: `${entry.value}`')
-            .join('\n');
+              .map((entry) => '- `${entry.key}`: `${entry.value}`')
+              .join('\n');
 
     return '''
 ## Scope

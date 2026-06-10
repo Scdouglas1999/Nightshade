@@ -68,8 +68,9 @@ void main() {
   /// Stubs the backend to return [status], starts the poller, and waits for
   /// the immediate-on-start poll to complete and publish to providers.
   Future<void> pollOnce(CameraStatus status) async {
-    when(() => mockBackend.getCameraStatus(deviceId))
-        .thenAnswer((_) async => status);
+    when(
+      () => mockBackend.getCameraStatus(deviceId),
+    ).thenAnswer((_) async => status);
     poller.start(deviceId);
     // Let the awaited getCameraStatus future and subsequent provider writes
     // settle. Two zero-delay turns covers the async gap in _poll.
@@ -77,27 +78,26 @@ void main() {
     await Future<void>.delayed(Duration.zero);
   }
 
-  test('publishes a cooling snapshot at-target when within tolerance', () async {
-    await pollOnce(_coolingStatus(
-      sensorTemp: -9.7,
-      targetTemp: -10.0,
-      coolerPower: 42.0,
-    ));
+  test(
+    'publishes a cooling snapshot at-target when within tolerance',
+    () async {
+      await pollOnce(
+        _coolingStatus(sensorTemp: -9.7, targetTemp: -10.0, coolerPower: 42.0),
+      );
 
-    final cooling = container.read(coolingStatusProvider);
-    expect(cooling.isCooling, isTrue);
-    expect(cooling.isAtTarget, isTrue);
-    expect(cooling.coolerPower, 42.0);
-    expect(cooling.currentTemp, -9.7);
-    expect(cooling.targetTemp, -10.0);
-  });
+      final cooling = container.read(coolingStatusProvider);
+      expect(cooling.isCooling, isTrue);
+      expect(cooling.isAtTarget, isTrue);
+      expect(cooling.coolerPower, 42.0);
+      expect(cooling.currentTemp, -9.7);
+      expect(cooling.targetTemp, -10.0);
+    },
+  );
 
   test('cooling but not at-target when reading is outside tolerance', () async {
-    await pollOnce(_coolingStatus(
-      sensorTemp: 5.0,
-      targetTemp: -10.0,
-      coolerPower: 95.0,
-    ));
+    await pollOnce(
+      _coolingStatus(sensorTemp: 5.0, targetTemp: -10.0, coolerPower: 95.0),
+    );
 
     final cooling = container.read(coolingStatusProvider);
     expect(cooling.isCooling, isTrue);
@@ -106,11 +106,9 @@ void main() {
   });
 
   test('cooler power of zero reports not cooling and not at-target', () async {
-    await pollOnce(_coolingStatus(
-      sensorTemp: -10.0,
-      targetTemp: -10.0,
-      coolerPower: 0.0,
-    ));
+    await pollOnce(
+      _coolingStatus(sensorTemp: -10.0, targetTemp: -10.0, coolerPower: 0.0),
+    );
 
     final cooling = container.read(coolingStatusProvider);
     expect(cooling.isCooling, isFalse);
@@ -128,11 +126,9 @@ void main() {
       isAtTarget: true,
     );
 
-    await pollOnce(_coolingStatus(
-      sensorTemp: null,
-      targetTemp: -10.0,
-      coolerPower: 50.0,
-    ));
+    await pollOnce(
+      _coolingStatus(sensorTemp: null, targetTemp: -10.0, coolerPower: 50.0),
+    );
 
     // With no live temperature the poller must not fabricate a fresh state;
     // the previously-published snapshot is preserved untouched.

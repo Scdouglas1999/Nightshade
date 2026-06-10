@@ -61,10 +61,7 @@ class BroadcastHandlers {
     final state = _service.state;
 
     if (!state.active) {
-      return jsonOk(
-        {'active': false},
-        headers: _jsonHeaders(),
-      );
+      return jsonOk({'active': false}, headers: _jsonHeaders());
     }
 
     final authError = _checkAuth(request, state);
@@ -92,10 +89,10 @@ class BroadcastHandlers {
   Future<Response> handleLiveStack(Request request) async {
     final state = _service.state;
     if (!state.active) {
-      return jsonNotFound(
-        {'error': 'no_broadcast', 'message': 'Broadcast not armed'},
-        headers: _jsonHeaders(),
-      );
+      return jsonNotFound({
+        'error': 'no_broadcast',
+        'message': 'Broadcast not armed',
+      }, headers: _jsonHeaders());
     }
 
     final authError = _checkAuth(request, state);
@@ -103,13 +100,10 @@ class BroadcastHandlers {
 
     final jpeg = state.jpegBytes;
     if (jpeg == null || jpeg.isEmpty) {
-      return jsonNotFound(
-        {
-          'error': 'no_frame',
-          'message': 'Broadcast armed but no frame stacked yet.',
-        },
-        headers: _jsonHeaders(),
-      );
+      return jsonNotFound({
+        'error': 'no_frame',
+        'message': 'Broadcast armed but no frame stacked yet.',
+      }, headers: _jsonHeaders());
     }
     return contentResponse(
       jpeg,
@@ -118,8 +112,9 @@ class BroadcastHandlers {
       headers: {
         'cache-control': 'no-store, no-cache, must-revalidate',
         'x-broadcast-frames': state.framesStacked.toString(),
-        'x-broadcast-integration-secs':
-            state.integrationSecs.toStringAsFixed(0),
+        'x-broadcast-integration-secs': state.integrationSecs.toStringAsFixed(
+          0,
+        ),
       },
     );
   }
@@ -134,10 +129,7 @@ class BroadcastHandlers {
   Response handleSse(Request request) {
     final state = _service.state;
     if (!state.active) {
-      return jsonNotFound(
-        {'error': 'no_broadcast'},
-        headers: _jsonHeaders(),
-      );
+      return jsonNotFound({'error': 'no_broadcast'}, headers: _jsonHeaders());
     }
     final authError = _checkAuth(request, state);
     if (authError != null) return authError;
@@ -232,7 +224,8 @@ class BroadcastHandlers {
         'cache-control': 'no-cache, no-store, must-revalidate',
         // CSP that allows nothing but our own resources. The HTML uses
         // no external CSS / JS / images so default-src 'self' suffices.
-        'content-security-policy': "default-src 'self'; img-src 'self';"
+        'content-security-policy':
+            "default-src 'self'; img-src 'self';"
             " style-src 'unsafe-inline'; script-src 'unsafe-inline'",
       },
     );
@@ -243,9 +236,9 @@ class BroadcastHandlers {
   // ---------------------------------------------------------------------------
 
   Map<String, String> _jsonHeaders() => {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-store',
-      };
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+  };
 
   /// Validate the `?token=` query parameter for endpoints that should
   /// reject mismatched / missing tokens with 401. Returns `null` on
@@ -253,14 +246,10 @@ class BroadcastHandlers {
   Response? _checkAuth(Request request, BroadcastSessionState state) {
     final token = request.url.queryParameters['token'];
     if (_service.authorize(token)) return null;
-    return jsonUnauthorized(
-      {
-        'error': 'invalid_token',
-        'message':
-            'This broadcast requires a token. Append ?token=… to the URL.',
-      },
-      headers: _jsonHeaders(),
-    );
+    return jsonUnauthorized({
+      'error': 'invalid_token',
+      'message': 'This broadcast requires a token. Append ?token=… to the URL.',
+    }, headers: _jsonHeaders());
   }
 
   /// Render the broadcast HTML page. Kept inline (rather than a static
@@ -287,14 +276,14 @@ class BroadcastHandlers {
 
     final tokenBanner = (!showImage && state.active)
         ? '<div class="banner">This broadcast is private. '
-            'Append <code>?token=…</code> to the URL to view.</div>'
+              'Append <code>?token=…</code> to the URL to view.</div>'
         : '';
 
     final offlineBanner = state.active
         ? ''
         : '<div class="banner">The broadcast is not currently armed. '
-            'It will start once the operator adds a Live Stacking node '
-            'to their running sequence.</div>';
+              'It will start once the operator adds a Live Stacking node '
+              'to their running sequence.</div>';
 
     final initialTarget = escapeText(state.currentTarget ?? '—');
     final initialFrames = state.framesStacked.toString();
@@ -440,7 +429,7 @@ class BroadcastHandlers {
     $offlineBanner
     <div class="stage">
       ${showImage ? '<img id="broadcast-img" alt="Live stack" '
-            'src="${escapeAttr(imgSrc)}">' : '<div class="placeholder">Awaiting first frame…</div>'}
+              'src="${escapeAttr(imgSrc)}">' : '<div class="placeholder">Awaiting first frame…</div>'}
     </div>
     <div class="telemetry">
       <div class="tile">

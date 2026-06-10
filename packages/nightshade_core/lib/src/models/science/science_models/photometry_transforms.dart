@@ -52,8 +52,9 @@ class SciencePhotometrySelection {
     if (rawTarget is Map<String, dynamic>) {
       parsedTarget = PhotometryAnchor.fromJson(rawTarget);
     } else if (rawTarget is Map) {
-      parsedTarget =
-          PhotometryAnchor.fromJson(rawTarget.cast<String, dynamic>());
+      parsedTarget = PhotometryAnchor.fromJson(
+        rawTarget.cast<String, dynamic>(),
+      );
     }
 
     return SciencePhotometrySelection(
@@ -166,9 +167,7 @@ class PhotometricTransformCoefficients {
     };
   }
 
-  factory PhotometricTransformCoefficients.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory PhotometricTransformCoefficients.fromJson(Map<String, dynamic> json) {
     final rawFitData = json['fitData'] as List? ?? const [];
     return PhotometricTransformCoefficients(
       id: (json['id'] as num?)?.toInt(),
@@ -183,11 +182,13 @@ class PhotometricTransformCoefficients {
       catalogSource: json['catalogSource']?.toString() ?? 'auto',
       fitData: rawFitData
           .whereType<Map>()
-          .map((entry) => TransformStarMatch.fromJson(
-                entry.cast<String, dynamic>(),
-              ))
+          .map(
+            (entry) =>
+                TransformStarMatch.fromJson(entry.cast<String, dynamic>()),
+          )
           .toList(growable: false),
-      dateComputed: DateTime.tryParse(json['dateComputed']?.toString() ?? '') ??
+      dateComputed:
+          DateTime.tryParse(json['dateComputed']?.toString() ?? '') ??
           DateTime.now(),
     );
   }

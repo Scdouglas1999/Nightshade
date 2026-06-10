@@ -420,7 +420,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(NightshadeIcons.error, color: colors.error, size: 20),
+                            Icon(NightshadeIcons.error,
+                                color: colors.error, size: 20),
                             const SizedBox(width: 8),
                             Expanded(child: Text(error)),
                           ],
@@ -481,7 +482,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(NightshadeIcons.warning, color: colors.warning, size: 20),
+                        Icon(NightshadeIcons.warning,
+                            color: colors.warning, size: 20),
                         const SizedBox(width: 8),
                         Expanded(child: Text(warning)),
                       ],
@@ -634,7 +636,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               margin: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: colors.background,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               clipBehavior: Clip.antiAlias,
@@ -708,7 +711,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             '"${info.sequenceName}" was interrupted $ageStr. '
             '${info.completedExposures} frames captured (${integrationMins}m '
             'integration). Resuming picks up at the next unfinished panel.',
-            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+            style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13),
           ),
           const SizedBox(height: 12),
           Wrap(

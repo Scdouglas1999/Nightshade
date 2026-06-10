@@ -79,15 +79,15 @@ class BuiltinGuiderConfig {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'exposureSecs': exposureSecs,
-        'gain': gain,
-        'offset': offset,
-        'binning': binning,
-        'calibrationMs': calibrationMs,
-        'settleSleepMs': settleSleepMs,
-        'minPulseMs': minPulseMs,
-        'maxPulseMs': maxPulseMs,
-      };
+    'exposureSecs': exposureSecs,
+    'gain': gain,
+    'offset': offset,
+    'binning': binning,
+    'calibrationMs': calibrationMs,
+    'settleSleepMs': settleSleepMs,
+    'minPulseMs': minPulseMs,
+    'maxPulseMs': maxPulseMs,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -105,13 +105,13 @@ class BuiltinGuiderConfig {
 
   @override
   int get hashCode => Object.hash(
-        exposureSecs,
-        gain,
-        offset,
-        binning,
-        calibrationMs,
-        settleSleepMs,
-        minPulseMs,
-        maxPulseMs,
-      );
+    exposureSecs,
+    gain,
+    offset,
+    binning,
+    calibrationMs,
+    settleSleepMs,
+    minPulseMs,
+    maxPulseMs,
+  );
 }

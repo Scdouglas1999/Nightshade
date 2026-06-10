@@ -24,11 +24,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/hips/hips_properties.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_selection.dart';
 
-HipsProperties _props({
-  int order = 9,
-  int orderMin = 3,
-  int tileWidth = 512,
-}) =>
+HipsProperties _props({int order = 9, int orderMin = 3, int tileWidth = 512}) =>
     HipsProperties.parse('''
 hips_order        = $order
 hips_order_min    = $orderMin
@@ -41,7 +37,8 @@ hips_frame        = equatorial
 /// survey tile width exactly as the production code rescales the 512-px constant.
 int _expected(double pxPerDeg, HipsProperties props) {
   final arcsecPerPx = 3600.0 / pxPerDeg;
-  final ref = HipsTileSelection.tilepixReferenceArcsec *
+  final ref =
+      HipsTileSelection.tilepixReferenceArcsec *
       (props.tileWidth / HipsTileSelection.referenceTileWidth);
   final raw = (math.log(ref / arcsecPerPx) / math.ln2).ceil();
   return raw.clamp(props.hipsOrderMin, props.hipsOrder);
@@ -49,19 +46,29 @@ int _expected(double pxPerDeg, HipsProperties props) {
 
 void main() {
   group('literal tilepix formula', () {
-    test('matches clamp(ceil(log2(ref/arcsecpp)), min, max) for 512-px tiles',
-        () {
-      final props = _props();
-      for (final pxPerDeg in <double>[
-        10, 37, 120, 360, 1000, 3600, 12000, 48000, 200000,
-      ]) {
-        expect(
-          HipsTileSelection.selectNorder(pxPerDeg, props),
-          _expected(pxPerDeg, props),
-          reason: 'pxPerDeg=$pxPerDeg',
-        );
-      }
-    });
+    test(
+      'matches clamp(ceil(log2(ref/arcsecpp)), min, max) for 512-px tiles',
+      () {
+        final props = _props();
+        for (final pxPerDeg in <double>[
+          10,
+          37,
+          120,
+          360,
+          1000,
+          3600,
+          12000,
+          48000,
+          200000,
+        ]) {
+          expect(
+            HipsTileSelection.selectNorder(pxPerDeg, props),
+            _expected(pxPerDeg, props),
+            reason: 'pxPerDeg=$pxPerDeg',
+          );
+        }
+      },
+    );
   });
 
   group('monotone zoom sweep', () {
@@ -72,23 +79,28 @@ void main() {
       var previous = -1;
       for (var pxPerDeg = 5.0; pxPerDeg <= 500000.0; pxPerDeg *= 1.3) {
         final n = HipsTileSelection.selectNorder(pxPerDeg, props);
-        expect(n, greaterThanOrEqualTo(previous),
-            reason: 'order decreased while zooming in at pxPerDeg=$pxPerDeg');
+        expect(
+          n,
+          greaterThanOrEqualTo(previous),
+          reason: 'order decreased while zooming in at pxPerDeg=$pxPerDeg',
+        );
         previous = n;
       }
     });
 
-    test('a 2x zoom step raises the order by exactly one in the linear regime',
-        () {
-      // Within the unclamped middle of the range, doubling px/deg halves
-      // arcsec/px, which advances ceil(log2(...)) by exactly 1.
-      final props = _props(order: 20, orderMin: 0, tileWidth: 512);
-      // Choose a base that sits comfortably inside the range.
-      const base = 4000.0;
-      final n1 = HipsTileSelection.selectNorder(base, props);
-      final n2 = HipsTileSelection.selectNorder(base * 2.0, props);
-      expect(n2 - n1, 1);
-    });
+    test(
+      'a 2x zoom step raises the order by exactly one in the linear regime',
+      () {
+        // Within the unclamped middle of the range, doubling px/deg halves
+        // arcsec/px, which advances ceil(log2(...)) by exactly 1.
+        final props = _props(order: 20, orderMin: 0, tileWidth: 512);
+        // Choose a base that sits comfortably inside the range.
+        const base = 4000.0;
+        final n1 = HipsTileSelection.selectNorder(base, props);
+        final n2 = HipsTileSelection.selectNorder(base * 2.0, props);
+        expect(n2 - n1, 1);
+      },
+    );
   });
 
   group('clamping to the survey range', () {
@@ -125,18 +137,20 @@ void main() {
   });
 
   group('tile-width scaling of the reference', () {
-    test('a 1024-px survey reaches a given order one step earlier than 512-px',
-        () {
-      // The reference arcsec scales linearly with tile width, so at the SAME
-      // screen scale a wider-tile survey selects an order one higher (it
-      // resolves more finely per order).
-      final p512 = _props(order: 20, orderMin: 0, tileWidth: 512);
-      final p1024 = _props(order: 20, orderMin: 0, tileWidth: 1024);
-      const pxPerDeg = 6000.0;
-      final n512 = HipsTileSelection.selectNorder(pxPerDeg, p512);
-      final n1024 = HipsTileSelection.selectNorder(pxPerDeg, p1024);
-      expect(n1024 - n512, 1);
-    });
+    test(
+      'a 1024-px survey reaches a given order one step earlier than 512-px',
+      () {
+        // The reference arcsec scales linearly with tile width, so at the SAME
+        // screen scale a wider-tile survey selects an order one higher (it
+        // resolves more finely per order).
+        final p512 = _props(order: 20, orderMin: 0, tileWidth: 512);
+        final p1024 = _props(order: 20, orderMin: 0, tileWidth: 1024);
+        const pxPerDeg = 6000.0;
+        final n512 = HipsTileSelection.selectNorder(pxPerDeg, p512);
+        final n1024 = HipsTileSelection.selectNorder(pxPerDeg, p1024);
+        expect(n1024 - n512, 1);
+      },
+    );
 
     test('matches the rescaled formula for non-512 tile widths', () {
       for (final width in <int>[256, 512, 1024]) {

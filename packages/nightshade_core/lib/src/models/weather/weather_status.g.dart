@@ -10,14 +10,15 @@ _WeatherStatus _$WeatherStatusFromJson(Map<String, dynamic> json) =>
     _WeatherStatus(
       currentLevel:
           $enumDecodeNullable(_$AlertLevelEnumMap, json['currentLevel']) ??
-              AlertLevel.clear,
+          AlertLevel.clear,
       activeAlert: json['activeAlert'] == null
           ? null
           : WeatherAlert.fromJson(json['activeAlert'] as Map<String, dynamic>),
       motion: json['motion'] == null
           ? null
           : CloudMotion.fromJson(json['motion'] as Map<String, dynamic>),
-      radarFrames: (json['radarFrames'] as List<dynamic>?)
+      radarFrames:
+          (json['radarFrames'] as List<dynamic>?)
               ?.map((e) => RadarFrame.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],

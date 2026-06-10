@@ -26,11 +26,13 @@ void main() {
   });
 
   group('default behavior', () {
-    test('discoverDevices returns empty list when nothing configured',
-        () async {
-      final result = await fake.discoverDevices(DeviceType.camera);
-      expect(result, isEmpty);
-    });
+    test(
+      'discoverDevices returns empty list when nothing configured',
+      () async {
+        final result = await fake.discoverDevices(DeviceType.camera);
+        expect(result, isEmpty);
+      },
+    );
 
     test('getCameraStatus returns a disconnected default', () async {
       final status = await fake.getCameraStatus('cam-1');
@@ -71,14 +73,16 @@ void main() {
       await fake.endSession();
     });
 
-    test('plateSolveBlind throws StateError when no response is wired',
-        () async {
-      // Explicit failure required because there is no neutral default.
-      await expectLater(
-        fake.plateSolveBlind('foo.fits'),
-        throwsA(isA<StateError>()),
-      );
-    });
+    test(
+      'plateSolveBlind throws StateError when no response is wired',
+      () async {
+        // Explicit failure required because there is no neutral default.
+        await expectLater(
+          fake.plateSolveBlind('foo.fits'),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
   });
 
   group('setResponse', () {
@@ -121,10 +125,7 @@ void main() {
 
   group('setError', () {
     test('throws the injected exception', () async {
-      fake.setError(
-        'connectDevice',
-        Exception('simulated connection refused'),
-      );
+      fake.setError('connectDevice', Exception('simulated connection refused'));
 
       await expectLater(
         fake.connectDevice(DeviceType.camera, 'cam'),
@@ -240,34 +241,34 @@ void main() {
       expect(parks.last.args['deviceId'], 'm2');
     });
 
-    test('reset clears calls/responses/errors but keeps the stream alive',
-        () async {
-      fake.setResponse('mountGetTrackingRate', 3);
-      fake.setError('mountPark', Exception('x'));
-      await fake.mountUnpark('m1');
+    test(
+      'reset clears calls/responses/errors but keeps the stream alive',
+      () async {
+        fake.setResponse('mountGetTrackingRate', 3);
+        fake.setError('mountPark', Exception('x'));
+        await fake.mountUnpark('m1');
 
-      fake.reset();
+        fake.reset();
 
-      expect(fake.recordedCalls, isEmpty);
-      expect(await fake.mountGetTrackingRate('m1'), 0); // back to default
-      await fake.mountPark('m1'); // no error injection
-      // Stream should still accept events post-reset.
-      final received = <NightshadeEvent>[];
-      final sub = fake.eventStream().listen(received.add);
-      fake.emitEvent(fake.makeEvent(category: EventCategory.system));
-      await Future<void>.delayed(Duration.zero);
-      expect(received, hasLength(1));
-      await sub.cancel();
-    });
+        expect(fake.recordedCalls, isEmpty);
+        expect(await fake.mountGetTrackingRate('m1'), 0); // back to default
+        await fake.mountPark('m1'); // no error injection
+        // Stream should still accept events post-reset.
+        final received = <NightshadeEvent>[];
+        final sub = fake.eventStream().listen(received.add);
+        fake.emitEvent(fake.makeEvent(category: EventCategory.system));
+        await Future<void>.delayed(Duration.zero);
+        expect(received, hasLength(1));
+        await sub.cancel();
+      },
+    );
   });
 
   group('dispose', () {
     test('using fake after dispose throws StateError', () async {
       await fake.dispose();
       expect(
-        () => fake.emitEvent(
-          fake.makeEvent(category: EventCategory.system),
-        ),
+        () => fake.emitEvent(fake.makeEvent(category: EventCategory.system)),
         // makeEvent itself is safe to call (no _ensureLive), but emitEvent is not.
         throwsA(isA<StateError>()),
       );

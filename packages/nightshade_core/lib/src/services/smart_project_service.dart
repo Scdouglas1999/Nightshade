@@ -120,13 +120,13 @@ class ReReferenceAdvice {
 
   /// A null-object advice for a master with no usable fold log.
   static ReReferenceAdvice none(DateTime epoch) => ReReferenceAdvice(
-        recommended: false,
-        referenceDate: epoch,
-        referenceMeanWeight: 0,
-        candidateDate: null,
-        candidateMeanWeight: 0,
-        gainFraction: 0,
-      );
+    recommended: false,
+    referenceDate: epoch,
+    referenceMeanWeight: 0,
+    candidateDate: null,
+    candidateMeanWeight: 0,
+    gainFraction: 0,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -141,13 +141,13 @@ class ReReferenceAdvice {
 
   @override
   int get hashCode => Object.hash(
-        recommended,
-        referenceDate,
-        referenceMeanWeight,
-        candidateDate,
-        candidateMeanWeight,
-        gainFraction,
-      );
+    recommended,
+    referenceDate,
+    referenceMeanWeight,
+    candidateDate,
+    candidateMeanWeight,
+    gainFraction,
+  );
 }
 
 /// Result of writing a target-SNR deficit back to the scheduler.
@@ -257,8 +257,8 @@ class SmartProjectService {
   SmartProjectService({
     required db.NightshadeDatabase database,
     required IntegrationGoalService goals,
-  })  : _db = database,
-        _goals = goals;
+  }) : _db = database,
+       _goals = goals;
 
   final db.NightshadeDatabase _db;
   final IntegrationGoalService _goals;
@@ -298,11 +298,13 @@ class SmartProjectService {
       final entry = byDay[day]!;
       cumSeconds += entry.seconds;
       cumFrames += entry.count;
-      out.add(IntegrationGrowthPoint(
-        date: day,
-        cumulativeIntegrationSeconds: cumSeconds,
-        framesToDate: cumFrames,
-      ));
+      out.add(
+        IntegrationGrowthPoint(
+          date: day,
+          cumulativeIntegrationSeconds: cumSeconds,
+          framesToDate: cumFrames,
+        ),
+      );
     }
     return out;
   }
@@ -344,7 +346,8 @@ class SmartProjectService {
     final epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     if (subs.isEmpty) return ReReferenceAdvice.none(epoch);
 
-    final nights = _meanWeightByNight(subs)..sort((a, b) => a.date.compareTo(b.date));
+    final nights = _meanWeightByNight(subs)
+      ..sort((a, b) => a.date.compareTo(b.date));
     final reference = nights.first;
     if (nights.length < 2) {
       return ReReferenceAdvice(
@@ -408,8 +411,7 @@ class SmartProjectService {
     final subs = await _foldedSubs(masterId);
     if (subs.isEmpty) return DeficitPushResult.notApplied;
 
-    final totalSeconds =
-        subs.fold<double>(0, (a, s) => a + s.exposureSeconds);
+    final totalSeconds = subs.fold<double>(0, (a, s) => a + s.exposureSeconds);
     if (totalSeconds <= 0) return DeficitPushResult.notApplied;
 
     final currentSnr = _currentSnr(master, subs);
@@ -460,8 +462,7 @@ class SmartProjectService {
       final exposure = _median(perFilterExposures[filter]!);
       if (exposure <= 0) continue;
 
-      final deltaFrames =
-          math.max(1, (filterDeficitSeconds / exposure).ceil());
+      final deltaFrames = math.max(1, (filterDeficitSeconds / exposure).ceil());
 
       // Find an existing goal matching this (filter, exposure). Filter match is
       // case-insensitive to mirror IntegrationGoalService.capturedFrameCount.
@@ -493,21 +494,25 @@ class SmartProjectService {
         await _goals.upsert(existing.copyWith(frameCount: newFrameCount));
       } else {
         newFrameCount = deficitTarget;
-        await _goals.upsert(IntegrationGoal(
-          targetId: targetId,
-          filter: filter,
-          exposureSeconds: exposure,
-          frameCount: newFrameCount,
-          createdAt: DateTime.now().toUtc(),
-        ));
+        await _goals.upsert(
+          IntegrationGoal(
+            targetId: targetId,
+            filter: filter,
+            exposureSeconds: exposure,
+            frameCount: newFrameCount,
+            createdAt: DateTime.now().toUtc(),
+          ),
+        );
       }
 
-      results.add(FilterDeficit(
-        filter: filter,
-        exposureSeconds: exposure,
-        deltaFrames: deltaFrames,
-        newFrameCount: newFrameCount,
-      ));
+      results.add(
+        FilterDeficit(
+          filter: filter,
+          exposureSeconds: exposure,
+          deltaFrames: deltaFrames,
+          newFrameCount: newFrameCount,
+        ),
+      );
     }
 
     return DeficitPushResult(
@@ -526,11 +531,13 @@ class SmartProjectService {
   /// The master's v42 smart columns (read directly — the typed
   /// [IntegratedMaster] model does not surface them).
   Future<_SmartMasterRow?> _smartRow(int masterId) async {
-    final rows = await _db.customSelect(
-      'SELECT target_id, target_snr, target_integration_s, '
-      'improvement_curve_json FROM integrated_masters WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(masterId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT target_id, target_snr, target_integration_s, '
+          'improvement_curve_json FROM integrated_masters WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(masterId)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     final r = rows.first;
     return _SmartMasterRow(
@@ -554,28 +561,32 @@ class SmartProjectService {
   /// totals. (A *rejected* sub is recorded with `accepted = 0` and is excluded by
   /// the WHERE clause, not by its weight.)
   Future<List<_FoldedSub>> _foldedSubs(int masterId) async {
-    final rows = await _db.customSelect(
-      'SELECT f.weight AS weight, f.snr AS snr, '
-      'ci.captured_at AS captured_at, ci.exposure_duration AS exposure, '
-      'ci.filter AS filter '
-      'FROM integrated_master_frames f '
-      'JOIN captured_images ci ON ci.id = f.image_id '
-      'WHERE f.master_id = ? AND f.accepted = 1 '
-      'ORDER BY ci.captured_at ASC',
-      variables: [Variable<int>(masterId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT f.weight AS weight, f.snr AS snr, '
+          'ci.captured_at AS captured_at, ci.exposure_duration AS exposure, '
+          'ci.filter AS filter '
+          'FROM integrated_master_frames f '
+          'JOIN captured_images ci ON ci.id = f.image_id '
+          'WHERE f.master_id = ? AND f.accepted = 1 '
+          'ORDER BY ci.captured_at ASC',
+          variables: [Variable<int>(masterId)],
+        )
+        .get();
 
     final out = <_FoldedSub>[];
     for (final r in rows) {
       final capturedAtSec = r.read<int>('captured_at');
       final exposure = r.readNullable<double>('exposure') ?? 0.0;
-      out.add(_FoldedSub(
-        captureDate: _dayOf(capturedAtSec),
-        exposureSeconds: exposure,
-        weight: r.readNullable<double>('weight'),
-        snr: r.readNullable<double>('snr'),
-        filter: (r.readNullable<String>('filter') ?? '').trim(),
-      ));
+      out.add(
+        _FoldedSub(
+          captureDate: _dayOf(capturedAtSec),
+          exposureSeconds: exposure,
+          weight: r.readNullable<double>('weight'),
+          snr: r.readNullable<double>('snr'),
+          filter: (r.readNullable<String>('filter') ?? '').trim(),
+        ),
+      );
     }
     return out;
   }
@@ -587,7 +598,10 @@ class SmartProjectService {
   /// (with `meanWeight` 0 when no sub on that night had a weight).
   List<BestNight> _meanWeightByNight(List<_FoldedSub> subs) {
     final byDay =
-        <DateTime, ({double weightSum, int weighted, double seconds, int count})>{};
+        <
+          DateTime,
+          ({double weightSum, int weighted, double seconds, int count})
+        >{};
     for (final s in subs) {
       final prev = byDay[s.captureDate];
       byDay[s.captureDate] = (
@@ -600,12 +614,14 @@ class SmartProjectService {
     final out = <BestNight>[];
     for (final entry in byDay.entries) {
       final v = entry.value;
-      out.add(BestNight(
-        date: entry.key,
-        meanWeight: v.weighted > 0 ? v.weightSum / v.weighted : 0,
-        frameCount: v.count,
-        integrationSeconds: v.seconds,
-      ));
+      out.add(
+        BestNight(
+          date: entry.key,
+          meanWeight: v.weighted > 0 ? v.weightSum / v.weighted : 0,
+          frameCount: v.count,
+          integrationSeconds: v.seconds,
+        ),
+      );
     }
     return out;
   }
@@ -661,8 +677,10 @@ class SmartProjectService {
   }
 
   static DateTime _dayOf(int epochSeconds) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(epochSeconds * 1000,
-        isUtc: true);
+    final dt = DateTime.fromMillisecondsSinceEpoch(
+      epochSeconds * 1000,
+      isUtc: true,
+    );
     return DateTime.utc(dt.year, dt.month, dt.day);
   }
 

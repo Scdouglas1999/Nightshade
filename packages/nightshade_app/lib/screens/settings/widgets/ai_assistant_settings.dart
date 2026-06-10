@@ -157,9 +157,7 @@ class _AiAssistantSettingsState extends ConsumerState<AiAssistantSettings> {
               onChanged: (next) async {
                 if (next == null) return;
                 setState(() => _selectedKind = next);
-                await ref
-                    .read(llmSettingsServiceProvider)
-                    .setActiveKind(next);
+                await ref.read(llmSettingsServiceProvider).setActiveKind(next);
                 if (!_edits[next]!.apiKeyLoaded) {
                   await _loadKeyForKind(next);
                 }
@@ -220,8 +218,7 @@ class _AiAssistantSettingsState extends ConsumerState<AiAssistantSettings> {
               ? LucideIcons.eyeOff
               : LucideIcons.eye,
           onTrailingTap: () => setState(() {
-            _keyVisible[_selectedKind] =
-                !(_keyVisible[_selectedKind] ?? false);
+            _keyVisible[_selectedKind] = !(_keyVisible[_selectedKind] ?? false);
           }),
           onChanged: (v) => setState(() => state.apiKey = v),
         ),
@@ -289,8 +286,7 @@ class _AiAssistantSettingsState extends ConsumerState<AiAssistantSettings> {
                 label: const Text('Test connection'),
               ),
               const Spacer(),
-              if (testResult != null)
-                _TestResultBadge(result: testResult),
+              if (testResult != null) _TestResultBadge(result: testResult),
             ],
           ),
         ),
@@ -391,7 +387,9 @@ class _AiAssistantSettingsState extends ConsumerState<AiAssistantSettings> {
                   'Nightshade never sends data automatically — every build '
                   'requires an explicit Submit click.',
                   style: TextStyle(
-                    fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+                    fontSize: isMobile
+                        ? NightshadeTypography.fontSize11
+                        : NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -502,24 +500,25 @@ class _LabeledTextFieldState extends State<_LabeledTextField> {
               children: [
                 Expanded(
                   child: TextField(
-                controller: _controller,
-                obscureText: widget.obscure,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: NightshadeColors.of(context).textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: widget.hint,
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    controller: _controller,
+                    obscureText: widget.obscure,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: NightshadeColors.of(context).textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: widget.hint,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline4),
+                      ),
+                    ),
+                    onChanged: widget.onChanged,
                   ),
                 ),
-                onChanged: widget.onChanged,
-              ),
-            ),
                 if (widget.trailingIcon != null) ...[
                   const SizedBox(width: 4),
                   IconButton(
@@ -575,8 +574,9 @@ class _LabeledNumericField extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(LucideIcons.minus, size: 14),
-            onPressed:
-                value <= min ? null : () => onChanged((value - step).clamp(min, max)),
+            onPressed: value <= min
+                ? null
+                : () => onChanged((value - step).clamp(min, max)),
             visualDensity: VisualDensity.compact,
           ),
           SizedBox(
@@ -594,8 +594,9 @@ class _LabeledNumericField extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(LucideIcons.plus, size: 14),
-            onPressed:
-                value >= max ? null : () => onChanged((value + step).clamp(min, max)),
+            onPressed: value >= max
+                ? null
+                : () => onChanged((value + step).clamp(min, max)),
             visualDensity: VisualDensity.compact,
           ),
         ],

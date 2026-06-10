@@ -29,9 +29,9 @@ class SequenceLockedException extends SequenceEditorException {
     required this.attemptedOperation,
     required this.executionState,
   }) : super(
-          'Cannot $attemptedOperation while sequence is $executionState. '
-          'Stop the sequence first.',
-        );
+         'Cannot $attemptedOperation while sequence is $executionState. '
+         'Stop the sequence first.',
+       );
 
   /// The operation the caller tried to perform (e.g. "add node",
   /// "reorder targets"). Verb phrase, not capitalized, no trailing period.
@@ -55,9 +55,9 @@ class SnippetDeserializationException extends SequenceEditorException {
     required this.unknownType,
     required this.snippetName,
   }) : super(
-          'Snippet "$snippetName" references unknown node type "$unknownType". '
-          'The snippet may have been authored by a newer version of Nightshade.',
-        );
+         'Snippet "$snippetName" references unknown node type "$unknownType". '
+         'The snippet may have been authored by a newer version of Nightshade.',
+       );
 
   /// The raw `nodeType` string from the snippet JSON that could not be
   /// resolved (kept verbatim — not normalized — so users can search the
@@ -78,10 +78,10 @@ class SnippetDeserializationException extends SequenceEditorException {
 /// editor non-idempotent. Callers should catch this and prompt the user.
 class NoActiveSequenceException extends SequenceEditorException {
   const NoActiveSequenceException({required this.attemptedOperation})
-      : super(
-          'Cannot $attemptedOperation: no active sequence. '
-          'Create or open a sequence first.',
-        );
+    : super(
+        'Cannot $attemptedOperation: no active sequence. '
+        'Create or open a sequence first.',
+      );
 
   /// The operation the caller tried to perform. Verb phrase, not
   /// capitalized, no trailing period (e.g. "add a target").
@@ -99,10 +99,10 @@ class CrossParentReorderException extends SequenceEditorException {
     required this.sourceTargetName,
     required this.destinationTargetName,
   }) : super(
-          'Cannot reorder "$sourceTargetName" across "$destinationTargetName": '
-          'targets are under different parents. Move them into the same '
-          'container first.',
-        );
+         'Cannot reorder "$sourceTargetName" across "$destinationTargetName": '
+         'targets are under different parents. Move them into the same '
+         'container first.',
+       );
 
   final String sourceTargetName;
   final String destinationTargetName;
@@ -144,9 +144,9 @@ class UnsavedChangesException extends SequenceEditorException {
     required this.attemptedOperation,
     required this.currentSequenceName,
   }) : super(
-          'Cannot $attemptedOperation: "$currentSequenceName" has unsaved '
-          'changes. Save or discard them first.',
-        );
+         'Cannot $attemptedOperation: "$currentSequenceName" has unsaved '
+         'changes. Save or discard them first.',
+       );
 
   /// Verb phrase describing what was blocked (e.g. "create a new sequence",
   /// "open imported sequence"). Lower-case, no trailing period.

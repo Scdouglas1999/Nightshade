@@ -113,8 +113,10 @@ class AdaptivePanelLayout extends StatefulWidget {
     this.primarySegmentLabel = 'View',
     this.primarySegmentIcon,
     this.onPanelWidthChanged,
-  }) : assert(secondary.length >= 1 && secondary.length <= 2,
-            'AdaptivePanelLayout takes one or two secondary panels');
+  }) : assert(
+         secondary.length >= 1 && secondary.length <= 2,
+         'AdaptivePanelLayout takes one or two secondary panels',
+       );
 
   @override
   State<AdaptivePanelLayout> createState() => _AdaptivePanelLayoutState();
@@ -159,8 +161,7 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
         }
 
         // Tablet: fixed-ratio split.
-        final panelWidth =
-            (w * widget.tabletPanelFraction).clamp(220.0, 420.0);
+        final panelWidth = (w * widget.tabletPanelFraction).clamp(220.0, 420.0);
         return _buildFixedSplit(context, panelWidth: panelWidth);
       },
     );
@@ -178,7 +179,10 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
       }
       children.add(Expanded(child: widget.secondary[i].child));
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
   }
 
   Widget _buildFixedSplit(BuildContext context, {required double panelWidth}) {
@@ -194,12 +198,16 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
     );
   }
 
-  Widget _buildResizableSplit(BuildContext context,
-      {required double available}) {
+  Widget _buildResizableSplit(
+    BuildContext context, {
+    required double available,
+  }) {
     final colors = context.nightshadeColors;
     // Clamp the live width to what fits, leaving room for the primary region.
-    final maxForPanel =
-        (available - 240).clamp(widget.minPanelWidth, widget.maxPanelWidth);
+    final maxForPanel = (available - 240).clamp(
+      widget.minPanelWidth,
+      widget.maxPanelWidth,
+    );
     final width = _panelWidth.clamp(widget.minPanelWidth, maxForPanel);
 
     final handle = _ResizeHandle(
@@ -210,8 +218,10 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
         setState(() {
           // Dragging the divider toward the panel shrinks it.
           final delta = widget.panelSide == PanelSide.end ? -dx : dx;
-          _panelWidth =
-              (width + delta).clamp(widget.minPanelWidth, maxForPanel);
+          _panelWidth = (width + delta).clamp(
+            widget.minPanelWidth,
+            maxForPanel,
+          );
         });
         widget.onPanelWidthChanged?.call(_panelWidth);
       },
@@ -406,16 +416,20 @@ class _SheetHandleButton extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon ?? Icons.keyboard_arrow_up,
-                    size: 18, color: colors.primary),
+                Icon(
+                  icon ?? Icons.keyboard_arrow_up,
+                  size: 18,
+                  color: colors.primary,
+                ),
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Flexible(
                   child: Text(
                     label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NightshadeTypography.labelLg
-                        .copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.labelLg.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -488,8 +502,9 @@ class _PhoneSheet extends StatelessWidget {
                           ),
                           child: Text(
                             panels[i].title.toUpperCase(),
-                            style: NightshadeTypography.overline
-                                .copyWith(color: colors.textMuted),
+                            style: NightshadeTypography.overline.copyWith(
+                              color: colors.textMuted,
+                            ),
                           ),
                         ),
                       panels[i].child,
@@ -603,8 +618,9 @@ class _SegmentButton extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: NightshadeTypography.labelSm.copyWith(
                       color: fg,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                     ),
                   ),
                 ),

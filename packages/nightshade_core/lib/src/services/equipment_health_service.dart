@@ -50,10 +50,7 @@ class EquipmentHealthReport {
   final double score;
   final List<EquipmentHealthInsight> insights;
 
-  const EquipmentHealthReport({
-    required this.score,
-    required this.insights,
-  });
+  const EquipmentHealthReport({required this.score, required this.insights});
 }
 
 /// Connected-device descriptor used by [EquipmentHealthService.buildSnapshots]
@@ -143,14 +140,22 @@ class EquipmentHealthService {
     final latest = recentSessions.take(5).toList(growable: false);
     final baseline = recentSessions.skip(5).take(10).toList(growable: false);
 
-    final recentGuiding = _mean(latest.map((session) => session.avgGuidingRms).whereType<double>());
-    final baselineGuiding =
-        _mean(baseline.map((session) => session.avgGuidingRms).whereType<double>()).clamp(0.1, 100.0);
-    final recentHfr = _mean(latest.map((session) => session.avgHfr).whereType<double>());
-    final baselineHfr =
-        _mean(baseline.map((session) => session.avgHfr).whereType<double>()).clamp(0.1, 100.0);
+    final recentGuiding = _mean(
+      latest.map((session) => session.avgGuidingRms).whereType<double>(),
+    );
+    final baselineGuiding = _mean(
+      baseline.map((session) => session.avgGuidingRms).whereType<double>(),
+    ).clamp(0.1, 100.0);
+    final recentHfr = _mean(
+      latest.map((session) => session.avgHfr).whereType<double>(),
+    );
+    final baselineHfr = _mean(
+      baseline.map((session) => session.avgHfr).whereType<double>(),
+    ).clamp(0.1, 100.0);
     final failureRate = _failureRate(latest);
-    final unhealthyDevices = deviceHealth.where((snapshot) => !snapshot.isHealthy).toList(growable: false);
+    final unhealthyDevices = deviceHealth
+        .where((snapshot) => !snapshot.isHealthy)
+        .toList(growable: false);
 
     var score = 100.0;
     final insights = <EquipmentHealthInsight>[];
@@ -186,8 +191,9 @@ class EquipmentHealthService {
           title: 'Capture reliability risk',
           message:
               'Recent failed-exposure rate is ${(failureRate * 100).toStringAsFixed(0)}%. Review cables, power stability, and camera timeouts.',
-          severity:
-              failureRate >= 0.2 ? EquipmentHealthSeverity.critical : EquipmentHealthSeverity.warning,
+          severity: failureRate >= 0.2
+              ? EquipmentHealthSeverity.critical
+              : EquipmentHealthSeverity.warning,
         ),
       );
     }
@@ -208,7 +214,8 @@ class EquipmentHealthService {
       insights.add(
         const EquipmentHealthInsight(
           title: 'Equipment health stable',
-          message: 'No negative trend exceeded alert thresholds in the recent session history.',
+          message:
+              'No negative trend exceeded alert thresholds in the recent session history.',
           severity: EquipmentHealthSeverity.info,
         ),
       );
@@ -221,7 +228,9 @@ class EquipmentHealthService {
   }
 
   double _mean(Iterable<double> values) {
-    final list = values.where((value) => value.isFinite).toList(growable: false);
+    final list = values
+        .where((value) => value.isFinite)
+        .toList(growable: false);
     if (list.isEmpty) {
       return 0.0;
     }
@@ -232,8 +241,14 @@ class EquipmentHealthService {
     if (sessions.isEmpty) {
       return 0.0;
     }
-    final failed = sessions.fold<int>(0, (sum, session) => sum + session.failedExposures);
-    final total = sessions.fold<int>(0, (sum, session) => sum + session.totalExposures);
+    final failed = sessions.fold<int>(
+      0,
+      (sum, session) => sum + session.failedExposures,
+    );
+    final total = sessions.fold<int>(
+      0,
+      (sum, session) => sum + session.totalExposures,
+    );
     if (total <= 0) {
       return 0.0;
     }

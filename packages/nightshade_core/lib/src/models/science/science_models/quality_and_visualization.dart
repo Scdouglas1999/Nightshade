@@ -1,10 +1,6 @@
 part of '../science_models.dart';
 
-enum PhotometricCatalogSource {
-  auto,
-  localGaia,
-  localApass,
-}
+enum PhotometricCatalogSource { auto, localGaia, localApass }
 
 enum ScienceFeature {
   photometry,

@@ -43,21 +43,20 @@ Duration pollIntervalFor({
 ///     final interval = ref.watch(effectivePollIntervalProvider(
 ///       const Duration(seconds: 10),
 ///     ));
-final effectivePollIntervalProvider =
-    Provider.family<Duration, Duration>((ref, base) {
-  final battery = ref.watch(batteryStateProvider).valueOrNull ??
-      PhoneBatteryState.unknown;
+final effectivePollIntervalProvider = Provider.family<Duration, Duration>((
+  ref,
+  base,
+) {
+  final battery =
+      ref.watch(batteryStateProvider).valueOrNull ?? PhoneBatteryState.unknown;
   // NetworkService is a singleton-style service exposing currentState
   // synchronously; reading it directly here keeps the provider pure
   // even though the underlying state is mutable (the watch above ticks
   // when battery changes; consumers that need cellular changes too can
   // listen to NetworkService.stateStream and ref.invalidate this
   // provider themselves).
-  final onCellular = NetworkService().currentState.hasMobile &&
+  final onCellular =
+      NetworkService().currentState.hasMobile &&
       !NetworkService().currentState.hasWifi;
-  return pollIntervalFor(
-    base: base,
-    battery: battery,
-    onCellular: onCellular,
-  );
+  return pollIntervalFor(base: base, battery: battery, onCellular: onCellular);
 });

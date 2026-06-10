@@ -61,10 +61,7 @@ extension SessionLifecycleSettingsSection on AppSettingsNotifier {
   /// scheduler when [adaptiveSwapEnabledByDefault] is true.
   Future<void> setAdaptiveSwapDefaultThreshold(double value) async {
     final clamped = value.clamp(0.0, 100.0);
-    await _saveSetting(
-      'adaptive_swap.default_threshold',
-      clamped.toString(),
-    );
+    await _saveSetting('adaptive_swap.default_threshold', clamped.toString());
     _patchState((s) => s.copyWith(adaptiveSwapDefaultThreshold: clamped));
   }
 
@@ -96,10 +93,7 @@ extension SessionLifecycleSettingsSection on AppSettingsNotifier {
         if (known.contains(entry.key) && entry.value.isFinite)
           entry.key: entry.value < 0 ? 0.0 : entry.value,
     };
-    await _saveSetting(
-      'adaptive_swap.score_weights',
-      jsonEncode(sanitised),
-    );
+    await _saveSetting('adaptive_swap.score_weights', jsonEncode(sanitised));
     _patchState((s) => s.copyWith(conditionsScoreWeights: sanitised));
   }
 }

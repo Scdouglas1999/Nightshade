@@ -579,7 +579,8 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
             color: _isHovered
                 ? NightshadeDecorations.tintedBadge(
                     widget.colors.error,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ).color
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),

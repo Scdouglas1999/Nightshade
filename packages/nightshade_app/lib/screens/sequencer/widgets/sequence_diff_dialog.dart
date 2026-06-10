@@ -178,7 +178,9 @@ class SequenceDiffDialog extends StatelessWidget {
                 ),
                 Text(
                   '${diff.previousName} → ${diff.currentName}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted),
                 ),
               ],
             ),
@@ -206,7 +208,9 @@ class SequenceDiffDialog extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'No structural changes between these runs.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textSecondary),
               ),
             ],
           ),
@@ -414,7 +418,8 @@ class _DiffNodeRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   entry.nodeKind,
@@ -430,7 +435,8 @@ class _DiffNodeRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   entry.label,
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

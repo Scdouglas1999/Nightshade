@@ -37,10 +37,10 @@ class HardwarePresetsService {
     List<CameraDefaultsPreset> cameraOverrides = const [],
     List<TelescopePreset> telescopeCatalog = builtInTelescopePresets,
     List<CameraDefaultsPreset> cameraCatalog = builtInCameraDefaultsPresets,
-  })  : _telescopeOverrides = telescopeOverrides,
-        _cameraOverrides = cameraOverrides,
-        _telescopeCatalog = telescopeCatalog,
-        _cameraCatalog = cameraCatalog;
+  }) : _telescopeOverrides = telescopeOverrides,
+       _cameraOverrides = cameraOverrides,
+       _telescopeCatalog = telescopeCatalog,
+       _cameraCatalog = cameraCatalog;
 
   /// Returns a copy of this service with the supplied overrides swapped in,
   /// preserving the (immutable) built-in catalogs.
@@ -87,8 +87,12 @@ class HardwarePresetsService {
     return _search(
       allCameras(),
       query,
-      (preset) =>
-          [preset.displayName, preset.brand, preset.model, ...preset.aliases],
+      (preset) => [
+        preset.displayName,
+        preset.brand,
+        preset.model,
+        ...preset.aliases,
+      ],
     );
   }
 
@@ -124,7 +128,8 @@ class HardwarePresetsService {
       for (final name in _candidateNames(preset)) {
         final normalizedName = _normalize(name);
         if (normalizedName.length < 4) continue;
-        final contains = normalizedQuery.contains(normalizedName) ||
+        final contains =
+            normalizedQuery.contains(normalizedName) ||
             normalizedName.contains(normalizedQuery);
         if (contains && normalizedName.length > bestNameLength) {
           bestPreset = preset;
@@ -149,8 +154,10 @@ class HardwarePresetsService {
       throw const FormatException('Telescope preset overrides must be a list');
     }
     return decoded
-        .map((value) =>
-            TelescopePreset.fromJson((value as Map).cast<String, dynamic>()))
+        .map(
+          (value) =>
+              TelescopePreset.fromJson((value as Map).cast<String, dynamic>()),
+        )
         .toList();
   }
 
@@ -163,8 +170,11 @@ class HardwarePresetsService {
       throw const FormatException('Camera preset overrides must be a list');
     }
     return decoded
-        .map((value) => CameraDefaultsPreset.fromJson(
-            (value as Map).cast<String, dynamic>()))
+        .map(
+          (value) => CameraDefaultsPreset.fromJson(
+            (value as Map).cast<String, dynamic>(),
+          ),
+        )
         .toList();
   }
 
@@ -246,8 +256,11 @@ class HardwarePresetsService {
 
   static const int _noMatchRank = 1 << 30;
 
-  static List<String> _candidateNames(CameraDefaultsPreset preset) =>
-      [preset.displayName, preset.model, ...preset.aliases];
+  static List<String> _candidateNames(CameraDefaultsPreset preset) => [
+    preset.displayName,
+    preset.model,
+    ...preset.aliases,
+  ];
 
   /// Lower-cases and strips every non-alphanumeric character so that
   /// "ASI2600MM Pro", "ASI2600MM-Pro" and "asi2600mmpro" all collapse to the

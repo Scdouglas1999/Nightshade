@@ -60,7 +60,8 @@ class FullscreenImageViewer extends StatelessWidget {
                   color: colors.surface.withValues(alpha: 0.72),
                   shape: const CircleBorder(),
                   child: IconButton(
-                    icon: Icon(NightshadeIcons.close, color: colors.textPrimary),
+                    icon:
+                        Icon(NightshadeIcons.close, color: colors.textPrimary),
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),

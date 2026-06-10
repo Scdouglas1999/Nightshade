@@ -15,37 +15,43 @@ class ExposureParamsRule implements SequenceValidator {
     for (final node in sequence.nodes.values) {
       if (node is! ExposureNode) continue;
       if (node.durationSecs <= 0) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'Invalid Exposure Time',
-          description:
-              'Exposure "${node.name}" has invalid duration: ${node.durationSecs}s',
-          affectedNodeId: node.id,
-          resolutionHint: 'Set a positive exposure duration.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Invalid Exposure Time',
+            description:
+                'Exposure "${node.name}" has invalid duration: ${node.durationSecs}s',
+            affectedNodeId: node.id,
+            resolutionHint: 'Set a positive exposure duration.',
+          ),
+        );
       } else if (node.durationSecs > 1800) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.exposures,
-          title: 'Very Long Exposure',
-          description:
-              'Exposure "${node.name}" is ${(node.durationSecs / 60).toStringAsFixed(0)} minutes. '
-              'Very long exposures may fail due to tracking errors.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Consider breaking into shorter exposures or using auto-guiding.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.exposures,
+            title: 'Very Long Exposure',
+            description:
+                'Exposure "${node.name}" is ${(node.durationSecs / 60).toStringAsFixed(0)} minutes. '
+                'Very long exposures may fail due to tracking errors.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Consider breaking into shorter exposures or using auto-guiding.',
+          ),
+        );
       }
       if (node.count <= 0) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'Invalid Frame Count',
-          description: 'Exposure "${node.name}" has count of ${node.count}.',
-          affectedNodeId: node.id,
-          resolutionHint: 'Set at least 1 frame to capture.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Invalid Frame Count',
+            description: 'Exposure "${node.name}" has count of ${node.count}.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Set at least 1 frame to capture.',
+          ),
+        );
       }
     }
     return issues;
@@ -68,14 +74,16 @@ class HighBinningRule implements SequenceValidator {
           node.binning != BinningMode.four) {
         continue;
       }
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.info,
-        category: ValidationCategory.exposures,
-        title: 'High Binning',
-        description:
-            'Exposure "${node.name}" uses ${node.binning.label} binning which reduces resolution.',
-        affectedNodeId: node.id,
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.info,
+          category: ValidationCategory.exposures,
+          title: 'High Binning',
+          description:
+              'Exposure "${node.name}" uses ${node.binning.label} binning which reduces resolution.',
+          affectedNodeId: node.id,
+        ),
+      );
     }
     return issues;
   }

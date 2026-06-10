@@ -17,10 +17,12 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     Map<String, String> headers, {
     required String endpoint,
   }) {
-    headers[RemoteApiCompatibility.apiVersionHeader] =
-        RemoteApiCompatibility.clientApiVersion.format();
-    headers[_NetworkBackendTransport._requestIdHeader] =
-        _nextRequestId(endpoint);
+    headers[RemoteApiCompatibility.apiVersionHeader] = RemoteApiCompatibility
+        .clientApiVersion
+        .format();
+    headers[_NetworkBackendTransport._requestIdHeader] = _nextRequestId(
+      endpoint,
+    );
     if (authToken != null && authToken!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $authToken';
     }
@@ -155,8 +157,10 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
         // don't accidentally swallow the richer NightshadeError
         // envelope, which always carries `category`.
         if (!json.containsKey('category')) {
-          final serverError =
-              ServerError.tryFromJson(json, httpStatus: statusCode);
+          final serverError = ServerError.tryFromJson(
+            json,
+            httpStatus: statusCode,
+          );
           if (serverError != null) {
             return serverError;
           }
@@ -169,7 +173,8 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
         // Check for legacy error format: {error: 'message', message: 'details'}
         if (json.containsKey('error') || json.containsKey('message')) {
-          final errorMsg = json['error'] as String? ??
+          final errorMsg =
+              json['error'] as String? ??
               json['message'] as String? ??
               'Unknown error';
           final detailMsg =
@@ -206,10 +211,10 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
       category: statusCode == 404
           ? dart_error.BackendErrorCategory.connection
           : statusCode == 400
-              ? dart_error.BackendErrorCategory.validation
-              : statusCode == 408 || statusCode == 504
-                  ? dart_error.BackendErrorCategory.timeout
-                  : dart_error.BackendErrorCategory.system,
+          ? dart_error.BackendErrorCategory.validation
+          : statusCode == 408 || statusCode == 504
+          ? dart_error.BackendErrorCategory.timeout
+          : dart_error.BackendErrorCategory.system,
       message: 'HTTP $statusCode: $method $endpoint failed',
       isRecoverable: isTransient,
       isTimeout: statusCode == 408 || statusCode == 504,
@@ -240,30 +245,33 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
         // Check if this is the last attempt
         if (attempt >= maxAttempts) {
           developer.log(
-              '[NetworkBackend] Request failed after $maxAttempts attempts: $e',
-              name: 'NetworkBackend',
-              level: 1000,
-              error: e);
+            '[NetworkBackend] Request failed after $maxAttempts attempts: $e',
+            name: 'NetworkBackend',
+            level: 1000,
+            error: e,
+          );
           rethrow;
         }
 
         // Only retry transient failures
         if (!_isTransientFailure(e)) {
           developer.log(
-              '[NetworkBackend] Non-transient failure, not retrying: $e',
-              name: 'NetworkBackend',
-              level: 1000,
-              error: e);
+            '[NetworkBackend] Non-transient failure, not retrying: $e',
+            name: 'NetworkBackend',
+            level: 1000,
+            error: e,
+          );
           rethrow;
         }
 
         // Calculate backoff delay: 1s, 2s, 4s
         final delay = Duration(seconds: 1 << (attempt - 1));
         developer.log(
-            '[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e',
-            name: 'NetworkBackend',
-            level: 900,
-            error: e);
+          '[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e',
+          name: 'NetworkBackend',
+          level: 900,
+          error: e,
+        );
         await Future.delayed(delay);
       }
     }
@@ -272,8 +280,10 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     throw lastException!;
   }
 
-  Future<Map<String, dynamic>> _get(String endpoint,
-      [Map<String, dynamic>? queryParams]) async {
+  Future<Map<String, dynamic>> _get(
+    String endpoint, [
+    Map<String, dynamic>? queryParams,
+  ]) async {
     return _retryableRequest(() async {
       final uri = _apiUri(
         endpoint,
@@ -287,15 +297,22 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'GET', endpoint);
+          response.statusCode,
+          response.body,
+          'GET',
+          endpoint,
+        );
       }
 
       return jsonDecode(response.body) as Map<String, dynamic>;
     });
   }
 
-  Future<Map<String, dynamic>> _post(String endpoint,
-      [Map<String, dynamic>? body, Map<String, String>? extraHeaders]) async {
+  Future<Map<String, dynamic>> _post(
+    String endpoint, [
+    Map<String, dynamic>? body,
+    Map<String, String>? extraHeaders,
+  ]) async {
     return _retryableRequest(() async {
       final uri = _apiUri(endpoint);
 
@@ -312,7 +329,11 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'POST', endpoint);
+          response.statusCode,
+          response.body,
+          'POST',
+          endpoint,
+        );
       }
 
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -330,13 +351,19 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'DELETE', endpoint);
+          response.statusCode,
+          response.body,
+          'DELETE',
+          endpoint,
+        );
       }
     });
   }
 
-  Future<Map<String, dynamic>> _put(String endpoint,
-      [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> _put(
+    String endpoint, [
+    Map<String, dynamic>? body,
+  ]) async {
     return _retryableRequest(() async {
       final uri = _apiUri(endpoint);
 
@@ -352,7 +379,11 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'PUT', endpoint);
+          response.statusCode,
+          response.body,
+          'PUT',
+          endpoint,
+        );
       }
 
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -368,7 +399,7 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
   }
 
   Future<({Uint8List bytes, Map<String, String> headers})>
-      _downloadBytesWithHeaders(
+  _downloadBytesWithHeaders(
     String endpoint, [
     Map<String, dynamic>? queryParams,
   ]) async {
@@ -383,7 +414,11 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
       );
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'GET', endpoint);
+          response.statusCode,
+          response.body,
+          'GET',
+          endpoint,
+        );
       }
       return (
         bytes: response.bodyBytes,
@@ -412,7 +447,11 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'POST', endpoint);
+          response.statusCode,
+          response.body,
+          'POST',
+          endpoint,
+        );
       }
 
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -429,15 +468,16 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
         jsonContent: true,
-        send: (headers) => _http.post(
-          uri,
-          headers: headers,
-          body: jsonEncode(body),
-        ),
+        send: (headers) =>
+            _http.post(uri, headers: headers, body: jsonEncode(body)),
       );
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, response.body, 'POST', endpoint);
+          response.statusCode,
+          response.body,
+          'POST',
+          endpoint,
+        );
       }
       return response.bodyBytes;
     });

@@ -1,6 +1,12 @@
 part of '../planetarium_screen.dart';
 
 extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
+  // Legacy phone/desktop layouts kept on disk for reference during the
+  // adaptive-shell redesign (see planetarium_screen.dart): `_buildShell` is the
+  // single mounted layout now, so these two are intentionally unmounted rather
+  // than deleted. analyzer 10's UNUSED_ELEMENT (a warning the production gate
+  // fails on) is suppressed here so the kept-on-purpose code does not break CI.
+  // ignore: unused_element
   Widget _buildMobileLayout(BuildContext context, NightshadeColors colors,
       SelectedObjectState selectedObject) {
     // Orientation-aware overlay placement. Every floating overlay's rectangle
@@ -304,6 +310,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
     );
   }
 
+  // ignore: unused_element
   Widget _buildDesktopLayout(BuildContext context, NightshadeColors colors,
       SelectedObjectState selectedObject) {
     return LayoutBuilder(
@@ -398,8 +405,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                         Positioned.fill(
                           child: Consumer(
                             builder: (context, ref, _) {
-                              final viewState =
-                                  ref.watch(skyViewStateProvider);
+                              final viewState = ref.watch(skyViewStateProvider);
                               return MultiFovOverlay(
                                 centerRaHours: viewState.centerRA,
                                 centerDecDeg: viewState.centerDec,
@@ -439,7 +445,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                               return DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: colors.surface.withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusInline8),
                                   border: Border.all(color: colors.border),
                                 ),
                                 child: Padding(
@@ -464,7 +471,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                                           'UI ${buildMs.toStringAsFixed(1)}ms  GPU ${rasterMs.toStringAsFixed(1)}ms',
                                           style: TextStyle(
                                             color: colors.textSecondary,
-                                            fontSize: NightshadeTypography.fontSize11,
+                                            fontSize:
+                                                NightshadeTypography.fontSize11,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),

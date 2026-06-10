@@ -47,7 +47,8 @@ void main() {
         sessionId: 'sess-1',
         frameIndex: i + 1,
         totalFrames: 30,
-        rejectPath: '/captures/Reject/m31_L_${i.toString().padLeft(4, '0')}.fits',
+        rejectPath:
+            '/captures/Reject/m31_L_${i.toString().padLeft(4, '0')}.fits',
         reason: 'star count 15 below minimum 80 (likely cloud / off-target)',
         causeLabel: LikelyCause.cloudPassage.label,
         evidence: const [
@@ -192,7 +193,8 @@ void main() {
     expect(find.text('WHY DID THIS FRAME FAIL?'), findsNothing);
   });
 
-  testWidgets('Frame detail dialog shows "no telemetry" fallback', (tester) async {
+  testWidgets('Frame detail dialog shows "no telemetry" fallback',
+      (tester) async {
     final record = FrameForensicsRecord(
       id: 'r1',
       capturedImageId: null,
@@ -219,9 +221,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Satellite / aircraft trail'), findsOneWidget);
-    expect(find.text('No telemetry available at capture time.'),
-        findsOneWidget);
-    expect(find.text('Isolated rejection — no nearby frames bad'),
-        findsOneWidget);
+    expect(
+        find.text('No telemetry available at capture time.'), findsOneWidget);
+    expect(
+        find.text('Isolated rejection — no nearby frames bad'), findsOneWidget);
   });
 }

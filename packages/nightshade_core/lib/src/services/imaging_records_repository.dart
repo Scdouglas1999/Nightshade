@@ -24,9 +24,9 @@ class ImagingRecordsRepository {
     SessionsDao? sessionsDao,
     ImagesDao? imagesDao,
     NetworkBackend? remote,
-  })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao,
-        _remote = remote {
+  }) : _sessionsDao = sessionsDao,
+       _imagesDao = imagesDao,
+       _remote = remote {
     assert(
       (sessionsDao != null && imagesDao != null && remote == null) ||
           (sessionsDao == null && imagesDao == null && remote != null),
@@ -37,8 +37,10 @@ class ImagingRecordsRepository {
   factory ImagingRecordsRepository.local({
     required SessionsDao sessionsDao,
     required ImagesDao imagesDao,
-  }) =>
-      ImagingRecordsRepository._(sessionsDao: sessionsDao, imagesDao: imagesDao);
+  }) => ImagingRecordsRepository._(
+    sessionsDao: sessionsDao,
+    imagesDao: imagesDao,
+  );
 
   factory ImagingRecordsRepository.remote(NetworkBackend remote) =>
       ImagingRecordsRepository._(remote: remote);
@@ -51,7 +53,7 @@ class ImagingRecordsRepository {
 
   Future<List<db.ImagingSession>> getAllSessions() async {
     if (_remote != null) {
-      final rows = await _remote!.getAllSessions();
+      final rows = await _remote.getAllSessions();
       return rows.map(_sessionFromJson).toList();
     }
     return _sessionsDao!.getAllSessions();
@@ -59,7 +61,7 @@ class ImagingRecordsRepository {
 
   Future<db.ImagingSession?> getSessionById(int id) async {
     if (_remote != null) {
-      final row = await _remote!.getSessionById(id);
+      final row = await _remote.getSessionById(id);
       return row == null ? null : _sessionFromJson(row);
     }
     return _sessionsDao!.getSessionById(id);
@@ -67,7 +69,7 @@ class ImagingRecordsRepository {
 
   Future<List<db.ImagingSession>> getSessionsForTarget(int targetId) async {
     if (_remote != null) {
-      final rows = await _remote!.getSessionsForTarget(targetId);
+      final rows = await _remote.getSessionsForTarget(targetId);
       return rows.map(_sessionFromJson).toList();
     }
     return _sessionsDao!.getSessionsForTarget(targetId);
@@ -80,7 +82,7 @@ class ImagingRecordsRepository {
     int? sequenceId,
   }) async {
     if (_remote != null) {
-      return _remote!.createSession({
+      return _remote.createSession({
         if (name != null) 'name': name,
         if (profileId != null) 'profileId': profileId,
         if (targetId != null) 'targetId': targetId,
@@ -97,7 +99,7 @@ class ImagingRecordsRepository {
 
   Future<void> endSession(int id, {String status = 'completed'}) async {
     if (_remote != null) {
-      await _remote!.endSession(id, status: status);
+      await _remote.endSession(id, status: status);
       return;
     }
     await _sessionsDao!.endSession(id, status: status);
@@ -114,7 +116,7 @@ class ImagingRecordsRepository {
     int? autofocusCount,
   }) async {
     if (_remote != null) {
-      await _remote!.updateSession(id, {
+      await _remote.updateSession(id, {
         if (totalExposures != null) 'totalExposures': totalExposures,
         if (successfulExposures != null)
           'successfulExposures': successfulExposures,
@@ -141,7 +143,7 @@ class ImagingRecordsRepository {
 
   Future<void> updateSessionNotes(int id, String notes) async {
     if (_remote != null) {
-      await _remote!.updateSession(id, {'notes': notes});
+      await _remote.updateSession(id, {'notes': notes});
       return;
     }
     await _sessionsDao!.updateNotes(id, notes);
@@ -153,7 +155,7 @@ class ImagingRecordsRepository {
 
   Future<db.CapturedImage?> getImageById(int id) async {
     if (_remote != null) {
-      final row = await _remote!.getCapturedImageById(id);
+      final row = await _remote.getCapturedImageById(id);
       return row == null ? null : db.CapturedImage.fromJson(row);
     }
     return _imagesDao!.getImageById(id);
@@ -161,7 +163,7 @@ class ImagingRecordsRepository {
 
   Future<List<db.CapturedImage>> getImagesForSession(int sessionId) async {
     if (_remote != null) {
-      final rows = await _remote!.getSessionImageRows(sessionId);
+      final rows = await _remote.getSessionImageRows(sessionId);
       return rows.map(db.CapturedImage.fromJson).toList();
     }
     return _imagesDao!.getImagesForSession(sessionId);
@@ -169,7 +171,7 @@ class ImagingRecordsRepository {
 
   Future<List<db.CapturedImage>> getImagesForTarget(int targetId) async {
     if (_remote != null) {
-      final rows = await _remote!.getImagesForTarget(targetId);
+      final rows = await _remote.getImagesForTarget(targetId);
       return rows.map(db.CapturedImage.fromJson).toList();
     }
     return _imagesDao!.getImagesForTarget(targetId);
@@ -180,7 +182,7 @@ class ImagingRecordsRepository {
     int limit = 5,
   }) async {
     if (_remote != null) {
-      final rows = await _remote!.getSessionImageRows(sessionId);
+      final rows = await _remote.getSessionImageRows(sessionId);
       final images = rows.map(db.CapturedImage.fromJson).toList()
         ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
       if (images.length <= limit) {
@@ -193,21 +195,21 @@ class ImagingRecordsRepository {
 
   Stream<List<db.CapturedImage>> watchImagesForSession(int sessionId) {
     if (_remote != null) {
-      return _pollRemoteSessionImages(_remote!, sessionId);
+      return _pollRemoteSessionImages(_remote, sessionId);
     }
     return _imagesDao!.watchImagesForSession(sessionId);
   }
 
   Future<int> createImage(db.CapturedImagesCompanion image) async {
     if (_remote != null) {
-      return _remote!.createCapturedImage(_companionToCreateJson(image));
+      return _remote.createCapturedImage(_companionToCreateJson(image));
     }
     return _imagesDao!.createImage(image);
   }
 
   Future<void> updateImageFilePath(int id, String filePath) async {
     if (_remote != null) {
-      await _remote!.updateCapturedImage(id, {'filePath': filePath});
+      await _remote.updateCapturedImage(id, {'filePath': filePath});
       return;
     }
     await _imagesDao!.updateImageFilePath(id, filePath);
@@ -215,7 +217,7 @@ class ImagingRecordsRepository {
 
   Future<void> rejectImage(int id, String reason) async {
     if (_remote != null) {
-      await _remote!.updateCapturedImage(id, {
+      await _remote.updateCapturedImage(id, {
         'isAccepted': false,
         'rejectionReason': reason,
       });
@@ -232,7 +234,7 @@ class ImagingRecordsRepository {
     required double solvedPixelScale,
   }) async {
     if (_remote != null) {
-      await _remote!.updateCapturedImage(id, {
+      await _remote.updateCapturedImage(id, {
         'isPlateSolved': true,
         'solvedRa': solvedRa,
         'solvedDec': solvedDec,
@@ -258,7 +260,7 @@ class ImagingRecordsRepository {
     double? eccentricity,
   }) async {
     if (_remote != null) {
-      await _remote!.updateCapturedImage(imageId, {
+      await _remote.updateCapturedImage(imageId, {
         if (producingNodeId != null) 'producingNodeId': producingNodeId,
         if (producingRunId != null) 'producingRunId': producingRunId,
         if (runtimeGrade != null) 'runtimeGrade': runtimeGrade,
@@ -281,7 +283,7 @@ class ImagingRecordsRepository {
     int limit = 100,
   }) async {
     if (_remote != null) {
-      final rows = await _remote!.getImagesByProducingNode(
+      final rows = await _remote.getImagesByProducingNode(
         producingNodeId,
         producingRunId: producingRunId,
         limit: limit,
@@ -302,7 +304,7 @@ class ImagingRecordsRepository {
   }) {
     if (_remote != null) {
       return _pollRemoteProducingNodeThumbnails(
-        _remote!,
+        _remote,
         producingNodeId: producingNodeId,
         producingRunId: producingRunId,
         limit: limit,
@@ -320,7 +322,7 @@ class ImagingRecordsRepository {
     String? producingRunId,
   }) async {
     if (_remote != null) {
-      final rows = await _remote!.getImagesByProducingNode(
+      final rows = await _remote.getImagesByProducingNode(
         producingNodeId,
         producingRunId: producingRunId,
       );
@@ -377,7 +379,9 @@ class ImagingRecordsRepository {
 
     final capturedAt = read(companion.capturedAt);
     if (capturedAt == null) {
-      throw ArgumentError('capturedAt is required when creating a captured image');
+      throw ArgumentError(
+        'capturedAt is required when creating a captured image',
+      );
     }
 
     return {
@@ -444,7 +448,8 @@ class ImagingRecordsRepository {
     return mapped;
   }
 
-  static Stream<List<ProducingNodeThumbnail>> _pollRemoteProducingNodeThumbnails(
+  static Stream<List<ProducingNodeThumbnail>>
+  _pollRemoteProducingNodeThumbnails(
     NetworkBackend backend, {
     required String producingNodeId,
     String? producingRunId,
@@ -467,7 +472,8 @@ class ImagingRecordsRepository {
     }
   }
 
-  static Future<List<ProducingNodeThumbnail>> _fetchRemoteProducingNodeThumbnails(
+  static Future<List<ProducingNodeThumbnail>>
+  _fetchRemoteProducingNodeThumbnails(
     NetworkBackend backend, {
     required String producingNodeId,
     String? producingRunId,
@@ -482,7 +488,9 @@ class ImagingRecordsRepository {
   }
 }
 
-ProducingNodeThumbnail _producingThumbnailFromApiJson(Map<String, dynamic> json) {
+ProducingNodeThumbnail _producingThumbnailFromApiJson(
+  Map<String, dynamic> json,
+) {
   final image = db.CapturedImage.fromJson(json);
   return ProducingNodeThumbnail(
     id: image.id,
@@ -504,8 +512,9 @@ ProducingNodeThumbnail _producingThumbnailFromApiJson(Map<String, dynamic> json)
 }
 
 /// Repository provider — local DAOs or remote host API.
-final imagingRecordsRepositoryProvider =
-    Provider<ImagingRecordsRepository>((ref) {
+final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
+  ref,
+) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     return ImagingRecordsRepository.remote(backend);
@@ -517,11 +526,9 @@ final imagingRecordsRepositoryProvider =
 });
 
 /// Persisted captured-image rows for one session (Drift watch or remote poll).
-final sessionDbImagesProvider =
-    StreamProvider.autoDispose.family<List<db.CapturedImage>, int>(
-  (ref, sessionId) {
-    return ref
-        .watch(imagingRecordsRepositoryProvider)
-        .watchImagesForSession(sessionId);
-  },
-);
+final sessionDbImagesProvider = StreamProvider.autoDispose
+    .family<List<db.CapturedImage>, int>((ref, sessionId) {
+      return ref
+          .watch(imagingRecordsRepositoryProvider)
+          .watchImagesForSession(sessionId);
+    });

@@ -14,9 +14,9 @@ CapturedImageResult capturedImageFromRemoteJpegWire({
   required Uint8List jpegBytes,
   required String metaHeaderBase64,
 }) {
-  final meta = jsonDecode(
-    utf8.decode(base64Decode(metaHeaderBase64)),
-  ) as Map<String, dynamic>;
+  final meta =
+      jsonDecode(utf8.decode(base64Decode(metaHeaderBase64)))
+          as Map<String, dynamic>;
 
   final decoded = img.decodeImage(jpegBytes);
   if (decoded == null) {

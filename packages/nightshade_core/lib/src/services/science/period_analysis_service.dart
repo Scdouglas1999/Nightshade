@@ -99,10 +99,7 @@ class PeriodAnalysisResult {
   final LombScargleResult lombScargle;
   final BlsResult bls;
 
-  const PeriodAnalysisResult({
-    required this.lombScargle,
-    required this.bls,
-  });
+  const PeriodAnalysisResult({required this.lombScargle, required this.bls});
 }
 
 /// Service that implements period detection algorithms for variable star
@@ -235,8 +232,9 @@ class PeriodAnalysisService {
 
     // Cap at a reasonable maximum to avoid excessive computation.
     final effectiveNFreqs = math.min(nFreqs, 500000);
-    final effectiveDf =
-        effectiveNFreqs < nFreqs ? (maxFreq - minFreq) / effectiveNFreqs : df;
+    final effectiveDf = effectiveNFreqs < nFreqs
+        ? (maxFreq - minFreq) / effectiveNFreqs
+        : df;
 
     final frequencies = List<double>.filled(effectiveNFreqs, 0.0);
     final powers = List<double>.filled(effectiveNFreqs, 0.0);
@@ -376,8 +374,7 @@ class PeriodAnalysisService {
     final logMinP = math.log(minPeriod);
     final logMaxP = math.log(maxPeriod);
     // At minimum, use about 1000 trial periods; scale with baseline.
-    final nTrialPeriods =
-        math.max(1000, (timeBaseline / minPeriod * 2).ceil());
+    final nTrialPeriods = math.max(1000, (timeBaseline / minPeriod * 2).ceil());
     final effectiveNTrials = math.min(nTrialPeriods, 100000);
     final dLogP = (logMaxP - logMinP) / effectiveNTrials;
 
@@ -391,8 +388,14 @@ class PeriodAnalysisService {
     var globalBestDepth = 0.0;
 
     // Min/max bin-widths for transit duration.
-    final minBinWidth = math.max(1, (minTransitDurationFraction * nbins).floor());
-    final maxBinWidth = math.max(minBinWidth + 1, (maxTransitDurationFraction * nbins).ceil());
+    final minBinWidth = math.max(
+      1,
+      (minTransitDurationFraction * nbins).floor(),
+    );
+    final maxBinWidth = math.max(
+      minBinWidth + 1,
+      (maxTransitDurationFraction * nbins).ceil(),
+    );
 
     for (var ip = 0; ip < effectiveNTrials; ip++) {
       final period = math.exp(logMinP + ip * dLogP);
@@ -550,11 +553,13 @@ class PeriodAnalysisService {
           point.timestamp.difference(t0).inMicroseconds / 8.64e10;
       var phase = (daysSinceEpoch % periodDays) / periodDays;
       if (phase < 0) phase += 1.0;
-      folded.add(PhaseFoldedPoint(
-        phase: phase,
-        magnitude: point.differentialMagnitude,
-        uncertainty: point.uncertainty > 0 ? point.uncertainty : 0.01,
-      ));
+      folded.add(
+        PhaseFoldedPoint(
+          phase: phase,
+          magnitude: point.differentialMagnitude,
+          uncertainty: point.uncertainty > 0 ? point.uncertainty : 0.01,
+        ),
+      );
     }
 
     folded.sort((a, b) => a.phase.compareTo(b.phase));

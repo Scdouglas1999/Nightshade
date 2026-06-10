@@ -83,7 +83,8 @@ void main() {
       expect(formatTimeToFlip(const Duration(hours: 2)), '2h');
     });
 
-    test('round-up means any positive duration reads at least 1m, never 0m', () {
+    test('round-up means any positive duration reads at least 1m, never 0m',
+        () {
       expect(formatTimeToFlip(const Duration(seconds: 20)), '1m');
       expect(formatTimeToFlip(const Duration(seconds: 1)), '1m');
     });
@@ -106,7 +107,8 @@ void main() {
 
       expect(find.byType(MeridianFlipCountdownBanner), findsOneWidget);
       // Collapses to zero size; surfaces no disabled-reason chatter.
-      expect(tester.getSize(find.byType(MeridianFlipCountdownBanner)), Size.zero);
+      expect(
+          tester.getSize(find.byType(MeridianFlipCountdownBanner)), Size.zero);
       expect(find.textContaining('Meridian flip'), findsNothing);
     });
 
@@ -154,7 +156,8 @@ void main() {
       final decoration = container.decoration as BoxDecoration;
       const colors = NightshadeColors.dark;
       // Border carries the warning accent (alpha 0.35), not info.
-      expect(decoration.border!.top.color, colors.warning.withValues(alpha: 0.35));
+      expect(
+          decoration.border!.top.color, colors.warning.withValues(alpha: 0.35));
     });
 
     testWidgets('calm tone above the warning threshold', (tester) async {
@@ -197,7 +200,8 @@ void main() {
       expect(find.textContaining('watchdog will run this'), findsNothing);
     });
 
-    testWidgets('tracking-limit method (null countdown) shows monitored banner '
+    testWidgets(
+        'tracking-limit method (null countdown) shows monitored banner '
         'with no fake timer', (tester) async {
       await _pump(
         tester,
@@ -243,7 +247,8 @@ void main() {
       );
       final decoration = container.decoration as BoxDecoration;
       const colors = NightshadeColors.dark;
-      expect(decoration.border!.top.color, colors.warning.withValues(alpha: 0.35));
+      expect(
+          decoration.border!.top.color, colors.warning.withValues(alpha: 0.35));
     });
 
     testWidgets('pier-side renders as a trailing chip when present',

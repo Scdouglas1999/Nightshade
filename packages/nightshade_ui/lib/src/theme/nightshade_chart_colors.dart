@@ -30,11 +30,7 @@ abstract final class NightshadeChartColors {
   ];
 
   /// PSF heatmap: tight → average → bloated.
-  static const List<Color> psfGradient = [
-    seriesGreen,
-    seriesAmber,
-    seriesRed,
-  ];
+  static const List<Color> psfGradient = [seriesGreen, seriesAmber, seriesRed];
 
   /// Uniformity: flat → mild → strong gradient.
   static const List<Color> uniformityGradient = [

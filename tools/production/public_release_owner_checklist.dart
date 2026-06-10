@@ -22,11 +22,13 @@ void main() {
       jsonDecode(auditFile.readAsStringSync()) as Map<String, dynamic>;
   final checks = (audit['promptToArtifactChecklist'] as List? ?? const [])
       .whereType<Map>()
-      .map((check) =>
-          _OwnerChecklistItem.fromJson(check.cast<String, dynamic>()))
+      .map(
+        (check) => _OwnerChecklistItem.fromJson(check.cast<String, dynamic>()),
+      )
       .toList();
-  final sourceArtifacts =
-      (audit['sourceArtifacts'] as List? ?? const []).whereType<Map>().toList();
+  final sourceArtifacts = (audit['sourceArtifacts'] as List? ?? const [])
+      .whereType<Map>()
+      .toList();
   final sourceArtifactBlockerCount = sourceArtifacts.fold<int>(
     0,
     (sum, artifact) => sum + _intValue(artifact['blockerCount']),
@@ -46,17 +48,18 @@ void main() {
     'sourceArtifactBlockerCount': sourceArtifactBlockerCount,
     'itemCount': checks.length,
     'completeCount': checks.where((check) => check.status == 'complete').length,
-    'blockedOrIncompleteCount':
-        checks.where((check) => check.status != 'complete').length,
+    'blockedOrIncompleteCount': checks
+        .where((check) => check.status != 'complete')
+        .length,
     'items': checks.map((check) => check.toJson()).toList(),
   };
 
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    audit: audit,
-    checks: checks,
-  ));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _markdownOutputPath,
+  ).writeAsStringSync(_renderMarkdown(audit: audit, checks: checks));
 
   stdout.writeln('Public release owner checklist complete.');
   stdout.writeln('Decision: ${audit['decision']}');
@@ -79,9 +82,7 @@ String _renderMarkdown({
     ..writeln('- Completion audit generated at: `${audit['generatedAt']}`')
     ..writeln('- Decision: `${audit['decision']}`')
     ..writeln('- Gate decision: `${audit['gateDecision']}`')
-    ..writeln(
-      '- Completion detail: ${audit['completionDetail'] ?? 'unknown'}',
-    )
+    ..writeln('- Completion detail: ${audit['completionDetail'] ?? 'unknown'}')
     ..writeln('- Ready: `${audit['ready']}`')
     ..writeln('- Items: `${checks.length}`')
     ..writeln(
@@ -103,12 +104,15 @@ String _renderMarkdown({
   for (final artifact
       in (audit['sourceArtifacts'] as List? ?? const []).whereType<Map>()) {
     final path = artifact['path']?.toString() ?? 'unknown';
-    final generated = artifact['generatedAt']?.toString() ??
+    final generated =
+        artifact['generatedAt']?.toString() ??
         artifact['fileModifiedAt']?.toString() ??
         'unknown';
-    final decision = artifact['decision']?.toString() ??
+    final decision =
+        artifact['decision']?.toString() ??
         (artifact['ready'] == null ? '' : 'ready=${artifact['ready']}');
-    final count = artifact['entryCount'] ??
+    final count =
+        artifact['entryCount'] ??
         artifact['bucketCount'] ??
         artifact['passedCount'] ??
         artifact['checkCount'] ??
@@ -259,17 +263,17 @@ class _OwnerChecklistItem {
   }
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'requirement': requirement,
-        'status': status,
-        'evidence': evidence,
-        'verification': verification,
-        'requiredInput': requiredInput,
-        'rerunCommands': rerunCommands,
-        'acceptanceCriteria': acceptanceCriteria,
-        'expectedEvidence': expectedEvidence,
-        'gap': gap,
-      };
+    'id': id,
+    'requirement': requirement,
+    'status': status,
+    'evidence': evidence,
+    'verification': verification,
+    'requiredInput': requiredInput,
+    'rerunCommands': rerunCommands,
+    'acceptanceCriteria': acceptanceCriteria,
+    'expectedEvidence': expectedEvidence,
+    'gap': gap,
+  };
 }
 
 List<String> _stringList(Object? value) {

@@ -99,8 +99,8 @@ void main() {
     // Draggable's feedback lands on a DragTarget; gestural simulation
     // would add ~30 lines of pointer math without strengthening the
     // contract.
-    final state = tester.state<State>(dragTargetFinder)
-        as State<DragTarget<Object>>;
+    final state =
+        tester.state<State>(dragTargetFinder) as State<DragTarget<Object>>;
     // ignore: invalid_use_of_protected_member
     final widget = state.widget;
     final accepts = widget.onWillAcceptWithDetails!

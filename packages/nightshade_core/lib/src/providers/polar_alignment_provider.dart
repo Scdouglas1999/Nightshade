@@ -20,10 +20,11 @@ import 'profiles_provider.dart';
 
 /// Main provider for polar alignment runtime state
 final polarAlignmentStateProvider =
-    StateNotifierProvider<PolarAlignmentStateNotifier, PolarAlignmentState>(
-        (ref) {
-  return PolarAlignmentStateNotifier(ref);
-});
+    StateNotifierProvider<PolarAlignmentStateNotifier, PolarAlignmentState>((
+      ref,
+    ) {
+      return PolarAlignmentStateNotifier(ref);
+    });
 
 /// Notifier that manages polar alignment state and subscribes to backend events
 class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
@@ -33,8 +34,7 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   /// Stores the initial error when entering adjustment phase
   PolarAlignmentError? _capturedInitialError;
 
-  PolarAlignmentStateNotifier(this.ref)
-      : super(const PolarAlignmentState()) {
+  PolarAlignmentStateNotifier(this.ref) : super(const PolarAlignmentState()) {
     _init();
   }
 
@@ -55,9 +55,10 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     if (!mounted) return;
 
     developer.log(
-        '[PolarAlignmentStateNotifier] Received event: $eventType',
-        name: 'PolarAlignmentStateNotifier',
-        level: 500);
+      '[PolarAlignmentStateNotifier] Received event: $eventType',
+      name: 'PolarAlignmentStateNotifier',
+      level: 500,
+    );
 
     switch (eventType) {
       case 'PolarAlignment':
@@ -81,10 +82,7 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     if (state.phase == PolarAlignPhase.adjusting &&
         state.initialError == null) {
       _capturedInitialError = error;
-      state = state.copyWith(
-        currentError: error,
-        initialError: error,
-      );
+      state = state.copyWith(currentError: error, initialError: error);
     } else {
       state = state.copyWith(currentError: error);
     }
@@ -249,9 +247,10 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   Future<void> completeAlignment({bool autoCompleted = false}) async {
     if (state.initialError == null || state.currentError == null) {
       developer.log(
-          '[PolarAlignmentStateNotifier] Cannot complete - missing error data',
-          name: 'PolarAlignmentStateNotifier',
-          level: 900);
+        '[PolarAlignmentStateNotifier] Cannot complete - missing error data',
+        name: 'PolarAlignmentStateNotifier',
+        level: 900,
+      );
       return;
     }
 
@@ -260,10 +259,11 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
       await backend.stopPolarAlignment();
     } catch (e) {
       developer.log(
-          '[PolarAlignmentStateNotifier] Error stopping alignment: $e',
-          name: 'PolarAlignmentStateNotifier',
-          level: 1000,
-          error: e);
+        '[PolarAlignmentStateNotifier] Error stopping alignment: $e',
+        name: 'PolarAlignmentStateNotifier',
+        level: 1000,
+        error: e,
+      );
     }
 
     await _saveResult(autoCompleted: autoCompleted);
@@ -302,11 +302,18 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     try {
       final db = ref.read(databaseProvider);
       await db.polarAlignmentHistoryDao.insertResult(result);
-      developer.log('[PolarAlignmentStateNotifier] Saved alignment result',
-          name: 'PolarAlignmentStateNotifier', level: 800);
+      developer.log(
+        '[PolarAlignmentStateNotifier] Saved alignment result',
+        name: 'PolarAlignmentStateNotifier',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[PolarAlignmentStateNotifier] Failed to save result: $e',
-          name: 'PolarAlignmentStateNotifier', level: 1000, error: e);
+      developer.log(
+        '[PolarAlignmentStateNotifier] Failed to save result: $e',
+        name: 'PolarAlignmentStateNotifier',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
@@ -330,18 +337,18 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
 
 /// Provider for persisted polar alignment configuration
 final polarAlignmentConfigProvider =
-    StateNotifierProvider<PolarAlignmentConfigNotifier, PolarAlignmentConfig>(
-        (ref) {
-  return PolarAlignmentConfigNotifier(ref);
-});
+    StateNotifierProvider<PolarAlignmentConfigNotifier, PolarAlignmentConfig>((
+      ref,
+    ) {
+      return PolarAlignmentConfigNotifier(ref);
+    });
 
 /// Notifier that persists polar alignment configuration to database
 class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
   final Ref ref;
   static const String _settingsKey = 'polar_alignment_config';
 
-  PolarAlignmentConfigNotifier(this.ref)
-      : super(const PolarAlignmentConfig()) {
+  PolarAlignmentConfigNotifier(this.ref) : super(const PolarAlignmentConfig()) {
     _loadConfig();
   }
 
@@ -352,12 +359,19 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
       if (setting != null && setting.isNotEmpty) {
         final json = jsonDecode(setting) as Map<String, dynamic>;
         state = PolarAlignmentConfig.fromJson(json);
-        developer.log('[PolarAlignmentConfigNotifier] Loaded config from DB',
-            name: 'PolarAlignmentConfigNotifier', level: 800);
+        developer.log(
+          '[PolarAlignmentConfigNotifier] Loaded config from DB',
+          name: 'PolarAlignmentConfigNotifier',
+          level: 800,
+        );
       }
     } catch (e) {
-      developer.log('[PolarAlignmentConfigNotifier] Failed to load config: $e',
-          name: 'PolarAlignmentConfigNotifier', level: 1000, error: e);
+      developer.log(
+        '[PolarAlignmentConfigNotifier] Failed to load config: $e',
+        name: 'PolarAlignmentConfigNotifier',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
@@ -371,11 +385,18 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
       final db = ref.read(databaseProvider);
       final json = jsonEncode(state.toJson());
       await db.settingsDao.setSetting(_settingsKey, json);
-      developer.log('[PolarAlignmentConfigNotifier] Saved config to DB',
-          name: 'PolarAlignmentConfigNotifier', level: 800);
+      developer.log(
+        '[PolarAlignmentConfigNotifier] Saved config to DB',
+        name: 'PolarAlignmentConfigNotifier',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[PolarAlignmentConfigNotifier] Failed to save config: $e',
-          name: 'PolarAlignmentConfigNotifier', level: 1000, error: e);
+      developer.log(
+        '[PolarAlignmentConfigNotifier] Failed to save config: $e',
+        name: 'PolarAlignmentConfigNotifier',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
@@ -482,12 +503,12 @@ class PolarAlignmentUiState {
   }
 
   Map<String, dynamic> toJson() => {
-        'mode': mode.name,
-        'showCommonSettings': showCommonSettings,
-        'showAdvancedSettings': showAdvancedSettings,
-        'showHistoryPanel': showHistoryPanel,
-        'compactTabIndex': compactTabIndex,
-      };
+    'mode': mode.name,
+    'showCommonSettings': showCommonSettings,
+    'showAdvancedSettings': showAdvancedSettings,
+    'showHistoryPanel': showHistoryPanel,
+    'compactTabIndex': compactTabIndex,
+  };
 
   factory PolarAlignmentUiState.fromJson(Map<String, dynamic> json) {
     final modeName = json['mode'] as String?;
@@ -513,14 +534,17 @@ class PolarAlignmentUiState {
 }
 
 /// Persisted UI state for the polar alignment screen.
-final polarAlignmentUiStateProvider = StateNotifierProvider<
-    PolarAlignmentUiStateNotifier, PolarAlignmentUiState>((ref) {
-  return PolarAlignmentUiStateNotifier(ref);
-});
+final polarAlignmentUiStateProvider =
+    StateNotifierProvider<PolarAlignmentUiStateNotifier, PolarAlignmentUiState>(
+      (ref) {
+        return PolarAlignmentUiStateNotifier(ref);
+      },
+    );
 
-class PolarAlignmentUiStateNotifier extends StateNotifier<PolarAlignmentUiState> {
+class PolarAlignmentUiStateNotifier
+    extends StateNotifier<PolarAlignmentUiState> {
   PolarAlignmentUiStateNotifier(this.ref)
-      : super(const PolarAlignmentUiState()) {
+    : super(const PolarAlignmentUiState()) {
     _load();
   }
 
@@ -548,10 +572,7 @@ class PolarAlignmentUiStateNotifier extends StateNotifier<PolarAlignmentUiState>
   Future<void> _persist() async {
     try {
       final db = ref.read(databaseProvider);
-      await db.settingsDao.setSetting(
-        _settingsKey,
-        jsonEncode(state.toJson()),
-      );
+      await db.settingsDao.setSetting(_settingsKey, jsonEncode(state.toJson()));
     } catch (e) {
       developer.log(
         '[PolarAlignmentUiStateNotifier] Failed to save UI state: $e',
@@ -596,10 +617,13 @@ class PolarAlignmentUiStateNotifier extends StateNotifier<PolarAlignmentUiState>
 const int _maxErrorHistorySamples = 60;
 
 /// Provider for polar alignment error history (for real-time trend graph)
-final polarAlignmentErrorHistoryProvider = StateNotifierProvider<
-    PolarAlignmentErrorHistoryNotifier, List<PolarAlignmentError>>((ref) {
-  return PolarAlignmentErrorHistoryNotifier();
-});
+final polarAlignmentErrorHistoryProvider =
+    StateNotifierProvider<
+      PolarAlignmentErrorHistoryNotifier,
+      List<PolarAlignmentError>
+    >((ref) {
+      return PolarAlignmentErrorHistoryNotifier();
+    });
 
 /// Notifier that maintains a rolling buffer of error measurements
 class PolarAlignmentErrorHistoryNotifier
@@ -642,12 +666,7 @@ class PolarAlignmentErrorHistoryNotifier
 }
 
 /// Error trend direction
-enum ErrorTrend {
-  improving,
-  stable,
-  worsening,
-  unknown,
-}
+enum ErrorTrend { improving, stable, worsening, unknown }
 
 extension ErrorTrendExtension on ErrorTrend {
   String get displayName {
@@ -683,38 +702,45 @@ extension ErrorTrendExtension on ErrorTrend {
 
 /// Provider for polar alignment history from database
 final polarAlignmentHistoryProvider =
-    FutureProvider.family<List<PolarAlignmentHistoryEntry>, int?>(
-        (ref, profileId) async {
-  final db = ref.watch(databaseProvider);
-  return db.polarAlignmentHistoryDao.getHistoryForProfile(
-    profileId,
-    limit: 20,
-  );
-});
+    FutureProvider.family<List<PolarAlignmentHistoryEntry>, int?>((
+      ref,
+      profileId,
+    ) async {
+      final db = ref.watch(databaseProvider);
+      return db.polarAlignmentHistoryDao.getHistoryForProfile(
+        profileId,
+        limit: 20,
+      );
+    });
 
 /// Provider for the last alignment result
 final lastPolarAlignmentProvider =
-    FutureProvider.family<PolarAlignmentHistoryEntry?, int?>(
-        (ref, profileId) async {
-  final db = ref.watch(databaseProvider);
-  return db.polarAlignmentHistoryDao.getLastAlignment(profileId);
-});
+    FutureProvider.family<PolarAlignmentHistoryEntry?, int?>((
+      ref,
+      profileId,
+    ) async {
+      final db = ref.watch(databaseProvider);
+      return db.polarAlignmentHistoryDao.getLastAlignment(profileId);
+    });
 
 /// Provider for watching history changes (stream)
 final polarAlignmentHistoryStreamProvider =
-    StreamProvider.family<List<PolarAlignmentHistoryEntry>, int?>(
-        (ref, profileId) {
-  final db = ref.watch(databaseProvider);
-  return db.polarAlignmentHistoryDao.watchHistory(profileId);
-});
+    StreamProvider.family<List<PolarAlignmentHistoryEntry>, int?>((
+      ref,
+      profileId,
+    ) {
+      final db = ref.watch(databaseProvider);
+      return db.polarAlignmentHistoryDao.watchHistory(profileId);
+    });
 
 // =============================================================================
 // POLAR ALIGNMENT CONTROLLER (Actions)
 // =============================================================================
 
 /// Controller provider for polar alignment actions
-final polarAlignmentControllerProvider =
-    Provider<PolarAlignmentController>((ref) {
+final polarAlignmentControllerProvider = Provider<PolarAlignmentController>((
+  ref,
+) {
   return PolarAlignmentController(ref);
 });
 

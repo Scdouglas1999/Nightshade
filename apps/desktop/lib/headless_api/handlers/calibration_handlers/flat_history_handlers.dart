@@ -53,8 +53,12 @@ extension CalibrationFlatHistoryHandlers on CalibrationHandlers {
     final histogramTarget = optionalDouble(payload, 'histogramTarget') ?? 50.0;
     final gain = optionalInt(payload, 'gain') ?? 0;
     final binning = optionalInt(payload, 'binning', min: 1) ?? 1;
-    final panelBrightness =
-        optionalInt(payload, 'panelBrightness', min: 0, max: 255);
+    final panelBrightness = optionalInt(
+      payload,
+      'panelBrightness',
+      min: 0,
+      max: 255,
+    );
     final skyAduRate = optionalDouble(payload, 'skyAduRate');
     final twilightPhase = optionalString(payload, 'twilightPhase');
     final equipmentProfileId = optionalInt(payload, 'equipmentProfileId');
@@ -118,15 +122,15 @@ extension CalibrationFlatHistoryHandlers on CalibrationHandlers {
       gain: gain,
     );
     if (entry == null) {
-      return jsonOk({
-        'recommended': null,
-        'reason': 'no_matching_history',
-      });
+      return jsonOk({'recommended': null, 'reason': 'no_matching_history'});
     }
-    final ageDays =
-        DateTime.now().toUtc().difference(entry.timestamp.toUtc()).inDays;
-    final confidence =
-        ageDays <= 7 ? 'high' : (ageDays <= 30 ? 'medium' : 'low');
+    final ageDays = DateTime.now()
+        .toUtc()
+        .difference(entry.timestamp.toUtc())
+        .inDays;
+    final confidence = ageDays <= 7
+        ? 'high'
+        : (ageDays <= 30 ? 'medium' : 'low');
     return jsonOk({
       'recommended': {
         'exposureDuration': entry.exposureTime,

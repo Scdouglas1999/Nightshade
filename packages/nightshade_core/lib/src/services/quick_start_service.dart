@@ -111,16 +111,22 @@ class EquipmentSnapshot {
         json['coolerTargetTemp'],
         context: 'equipment_snapshot.coolerTargetTemp',
       ),
-      cameraGain:
-          jsonInt(json['cameraGain'], context: 'equipment_snapshot.cameraGain'),
+      cameraGain: jsonInt(
+        json['cameraGain'],
+        context: 'equipment_snapshot.cameraGain',
+      ),
       cameraOffset: jsonInt(
         json['cameraOffset'],
         context: 'equipment_snapshot.cameraOffset',
       ),
-      cameraBinX:
-          jsonInt(json['cameraBinX'], context: 'equipment_snapshot.cameraBinX'),
-      cameraBinY:
-          jsonInt(json['cameraBinY'], context: 'equipment_snapshot.cameraBinY'),
+      cameraBinX: jsonInt(
+        json['cameraBinX'],
+        context: 'equipment_snapshot.cameraBinX',
+      ),
+      cameraBinY: jsonInt(
+        json['cameraBinY'],
+        context: 'equipment_snapshot.cameraBinY',
+      ),
       filterPosition: jsonInt(
         json['filterPosition'],
         context: 'equipment_snapshot.filterPosition',
@@ -133,7 +139,8 @@ class EquipmentSnapshot {
         json['exposureTime'],
         context: 'equipment_snapshot.exposureTime',
       ),
-      capturedAt: jsonDateTime(
+      capturedAt:
+          jsonDateTime(
             json['capturedAt'],
             context: 'equipment_snapshot.capturedAt',
           ) ??
@@ -434,8 +441,11 @@ class QuickStartService {
   ///
   /// Returns null if no suitable session is found.
   Future<QuickStartContext?> getQuickStartContext() async {
-    developer.log('QuickStartService: Getting quick start context...',
-        name: 'QuickStartService', level: 800);
+    developer.log(
+      'QuickStartService: Getting quick start context...',
+      name: 'QuickStartService',
+      level: 800,
+    );
 
     // First, check for active (interrupted) sessions
     final activeSessions = await sessionsDao.getActiveSessions();
@@ -443,9 +453,10 @@ class QuickStartService {
       // Return the most recent active session
       final session = activeSessions.first;
       developer.log(
-          'QuickStartService: Found active session ${session.id} from ${session.startTime}',
-          name: 'QuickStartService',
-          level: 800);
+        'QuickStartService: Found active session ${session.id} from ${session.startTime}',
+        name: 'QuickStartService',
+        level: 800,
+      );
       return _buildQuickStartContext(session);
     }
 
@@ -462,24 +473,27 @@ class QuickStartService {
 
     if (candidateSessions.isEmpty) {
       developer.log(
-          'QuickStartService: No suitable sessions found for quick start',
-          name: 'QuickStartService',
-          level: 800);
+        'QuickStartService: No suitable sessions found for quick start',
+        name: 'QuickStartService',
+        level: 800,
+      );
       return null;
     }
 
     // Return the most recent completed session with progress
     final session = candidateSessions.first;
     developer.log(
-        'QuickStartService: Found recent session ${session.id} from ${session.startTime}',
-        name: 'QuickStartService',
-        level: 800);
+      'QuickStartService: Found recent session ${session.id} from ${session.startTime}',
+      name: 'QuickStartService',
+      level: 800,
+    );
     return _buildQuickStartContext(session);
   }
 
   /// Build a QuickStartContext from a session record.
   Future<QuickStartContext> _buildQuickStartContext(
-      db.ImagingSession session) async {
+    db.ImagingSession session,
+  ) async {
     // Try to get extended session data (sequenceId, equipmentSnapshot) from raw SQL
     // since these fields may not be in the generated model yet
     final extendedData = await _getExtendedSessionData(session.id);
@@ -517,14 +531,16 @@ class QuickStartService {
     EquipmentSnapshot? equipmentSnapshot;
     if (equipmentSnapshotJson != null && equipmentSnapshotJson.isNotEmpty) {
       try {
-        equipmentSnapshot =
-            EquipmentSnapshot.fromJsonString(equipmentSnapshotJson);
+        equipmentSnapshot = EquipmentSnapshot.fromJsonString(
+          equipmentSnapshotJson,
+        );
       } catch (e) {
         developer.log(
-            'QuickStartService: Failed to parse equipment snapshot: $e',
-            name: 'QuickStartService',
-            level: 900,
-            error: e);
+          'QuickStartService: Failed to parse equipment snapshot: $e',
+          name: 'QuickStartService',
+          level: 900,
+          error: e,
+        );
       }
     }
 
@@ -568,10 +584,12 @@ class QuickStartService {
     try {
       final database = sessionsDao.attachedDatabase;
       // Try to select the extended columns - they may not exist yet
-      final result = await database.customSelect(
-        'SELECT sequence_id, equipment_snapshot FROM imaging_sessions WHERE id = ?',
-        variables: [Variable<int>(sessionId)],
-      ).getSingleOrNull();
+      final result = await database
+          .customSelect(
+            'SELECT sequence_id, equipment_snapshot FROM imaging_sessions WHERE id = ?',
+            variables: [Variable<int>(sessionId)],
+          )
+          .getSingleOrNull();
 
       if (result == null) {
         return {};
@@ -583,8 +601,12 @@ class QuickStartService {
       };
     } catch (e) {
       // Columns may not exist yet - this is fine, return empty
-      developer.log('QuickStartService: Extended columns not available: $e',
-          name: 'QuickStartService', level: 900, error: e);
+      developer.log(
+        'QuickStartService: Extended columns not available: $e',
+        name: 'QuickStartService',
+        level: 900,
+        error: e,
+      );
       return {};
     }
   }
@@ -633,11 +655,14 @@ class QuickStartService {
   /// The snapshot is serialized to JSON and stored in the session's
   /// equipmentSnapshot field.
   Future<void> saveEquipmentSnapshot(
-      int sessionId, EquipmentSnapshot snapshot) async {
+    int sessionId,
+    EquipmentSnapshot snapshot,
+  ) async {
     developer.log(
-        'QuickStartService: Saving equipment snapshot for session $sessionId',
-        name: 'QuickStartService',
-        level: 800);
+      'QuickStartService: Saving equipment snapshot for session $sessionId',
+      name: 'QuickStartService',
+      level: 800,
+    );
 
     try {
       final session = await sessionsDao.getSessionById(sessionId);
@@ -648,11 +673,13 @@ class QuickStartService {
       final snapshotJson = snapshot.toJsonString();
       await sessionsDao.updateEquipmentSnapshot(sessionId, snapshotJson);
     } catch (e, stackTrace) {
-      developer.log('QuickStartService: Error saving equipment snapshot: $e',
-          name: 'QuickStartService',
-          level: 1000,
-          error: e,
-          stackTrace: stackTrace);
+      developer.log(
+        'QuickStartService: Error saving equipment snapshot: $e',
+        name: 'QuickStartService',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
@@ -663,17 +690,19 @@ class QuickStartService {
   /// that has meaningful progress or an active (interrupted) session.
   Future<bool> isQuickStartAvailable() async {
     developer.log(
-        'QuickStartService: Checking if quick start is available...',
-        name: 'QuickStartService',
-        level: 800);
+      'QuickStartService: Checking if quick start is available...',
+      name: 'QuickStartService',
+      level: 800,
+    );
 
     // Check for active sessions first
     final hasActive = await sessionsDao.hasIncompleteSessions();
     if (hasActive) {
       developer.log(
-          'QuickStartService: Quick start available (active session found)',
-          name: 'QuickStartService',
-          level: 800);
+        'QuickStartService: Quick start available (active session found)',
+        name: 'QuickStartService',
+        level: 800,
+      );
       return true;
     }
 
@@ -687,15 +716,19 @@ class QuickStartService {
 
       if (sessionAge.inDays <= 7 && hasProgress) {
         developer.log(
-            'QuickStartService: Quick start available (recent session with progress found)',
-            name: 'QuickStartService',
-            level: 800);
+          'QuickStartService: Quick start available (recent session with progress found)',
+          name: 'QuickStartService',
+          level: 800,
+        );
         return true;
       }
     }
 
-    developer.log('QuickStartService: Quick start not available',
-        name: 'QuickStartService', level: 800);
+    developer.log(
+      'QuickStartService: Quick start not available',
+      name: 'QuickStartService',
+      level: 800,
+    );
     return false;
   }
 
@@ -705,9 +738,10 @@ class QuickStartService {
   /// ordered by recency.
   Future<List<QuickStartContext>> getQuickStartContexts({int limit = 5}) async {
     developer.log(
-        'QuickStartService: Getting quick start contexts (limit: $limit)...',
-        name: 'QuickStartService',
-        level: 800);
+      'QuickStartService: Getting quick start contexts (limit: $limit)...',
+      name: 'QuickStartService',
+      level: 800,
+    );
     final contexts = <QuickStartContext>[];
 
     // Get active sessions first
@@ -741,9 +775,10 @@ class QuickStartService {
     }
 
     developer.log(
-        'QuickStartService: Found ${contexts.length} quick start contexts',
-        name: 'QuickStartService',
-        level: 800);
+      'QuickStartService: Found ${contexts.length} quick start contexts',
+      name: 'QuickStartService',
+      level: 800,
+    );
     return contexts;
   }
 }
@@ -781,16 +816,18 @@ final quickStartServiceProvider = Provider<QuickStartService>((ref) {
         }
       }
 
-      final profile =
-          await ref.read(equipmentProfilesDaoProvider).getProfileById(profileId);
+      final profile = await ref
+          .read(equipmentProfilesDaoProvider)
+          .getProfileById(profileId);
       return profile?.name;
     },
   );
 });
 
 /// Provider for the quick start context (most recent session)
-final quickStartContextProvider =
-    FutureProvider<QuickStartContext?>((ref) async {
+final quickStartContextProvider = FutureProvider<QuickStartContext?>((
+  ref,
+) async {
   final service = ref.watch(quickStartServiceProvider);
   return service.getQuickStartContext();
 });
@@ -804,6 +841,6 @@ final quickStartAvailableProvider = FutureProvider<bool>((ref) async {
 /// Provider for multiple quick start contexts (for session list display)
 final quickStartContextsProvider =
     FutureProvider.family<List<QuickStartContext>, int>((ref, limit) async {
-  final service = ref.watch(quickStartServiceProvider);
-  return service.getQuickStartContexts(limit: limit);
-});
+      final service = ref.watch(quickStartServiceProvider);
+      return service.getQuickStartContexts(limit: limit);
+    });

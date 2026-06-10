@@ -37,7 +37,11 @@ void main() {
 
   test('upsertDesired creates a campaign with zero accepted', () async {
     final t = await seedTarget('M42');
-    final id = await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 60);
+    final id = await dao.upsertDesired(
+      targetId: t,
+      filter: 'Ha',
+      desiredCount: 60,
+    );
     expect(id, greaterThan(0));
 
     final c = await dao.getForTargetFilter(t, 'Ha');
@@ -48,22 +52,33 @@ void main() {
     expect(c.lastCaptureAt, isNull);
   });
 
-  test('upsertDesired re-tune preserves accepted_count and last_date',
-      () async {
-    final t = await seedTarget('M42');
-    await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 60);
-    final at = DateTime.utc(2026, 6, 8, 4);
-    await dao.recordAccepted(targetId: t, filter: 'Ha', delta: 10, capturedAt: at);
+  test(
+    'upsertDesired re-tune preserves accepted_count and last_date',
+    () async {
+      final t = await seedTarget('M42');
+      await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 60);
+      final at = DateTime.utc(2026, 6, 8, 4);
+      await dao.recordAccepted(
+        targetId: t,
+        filter: 'Ha',
+        delta: 10,
+        capturedAt: at,
+      );
 
-    // Re-tune the goal mid-campaign.
-    await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 90);
+      // Re-tune the goal mid-campaign.
+      await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 90);
 
-    final c = await dao.getForTargetFilter(t, 'Ha');
-    expect(c!.desiredCount, 90);
-    expect(c.acceptedCount, 10, reason: 'accepted progress survives a re-tune');
-    expect(c.lastCaptureAt, at);
-    expect(c.remaining, 80);
-  });
+      final c = await dao.getForTargetFilter(t, 'Ha');
+      expect(c!.desiredCount, 90);
+      expect(
+        c.acceptedCount,
+        10,
+        reason: 'accepted progress survives a re-tune',
+      );
+      expect(c.lastCaptureAt, at);
+      expect(c.remaining, 80);
+    },
+  );
 
   test('recordAccepted increments the count and stamps last_date', () async {
     final t = await seedTarget('NGC 7000');
@@ -73,7 +88,12 @@ void main() {
     await dao.recordAccepted(targetId: t, filter: 'OIII', capturedAt: at1);
     await dao.recordAccepted(targetId: t, filter: 'OIII', capturedAt: at1);
     final at2 = DateTime.utc(2026, 6, 9, 2);
-    await dao.recordAccepted(targetId: t, filter: 'OIII', delta: 3, capturedAt: at2);
+    await dao.recordAccepted(
+      targetId: t,
+      filter: 'OIII',
+      delta: 3,
+      capturedAt: at2,
+    );
 
     final c = await dao.getForTargetFilter(t, 'OIII');
     expect(c!.acceptedCount, 5);
@@ -97,19 +117,33 @@ void main() {
     expect(c.remaining, 0);
   });
 
-  test('recordAccepted with non-positive delta is a no-op (rejected frames)',
-      () async {
-    final t = await seedTarget('M51');
-    await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 10);
+  test(
+    'recordAccepted with non-positive delta is a no-op (rejected frames)',
+    () async {
+      final t = await seedTarget('M51');
+      await dao.upsertDesired(targetId: t, filter: 'Ha', desiredCount: 10);
 
-    final zero = await dao.recordAccepted(targetId: t, filter: 'Ha', delta: 0);
-    final neg = await dao.recordAccepted(targetId: t, filter: 'Ha', delta: -5);
-    expect(zero, isNull);
-    expect(neg, isNull);
+      final zero = await dao.recordAccepted(
+        targetId: t,
+        filter: 'Ha',
+        delta: 0,
+      );
+      final neg = await dao.recordAccepted(
+        targetId: t,
+        filter: 'Ha',
+        delta: -5,
+      );
+      expect(zero, isNull);
+      expect(neg, isNull);
 
-    final c = await dao.getForTargetFilter(t, 'Ha');
-    expect(c!.acceptedCount, 0, reason: 'rejected/no-op frames never advance');
-  });
+      final c = await dao.getForTargetFilter(t, 'Ha');
+      expect(
+        c!.acceptedCount,
+        0,
+        reason: 'rejected/no-op frames never advance',
+      );
+    },
+  );
 
   test('filter matching is case-insensitive', () async {
     final t = await seedTarget('M81');

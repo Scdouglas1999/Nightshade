@@ -57,15 +57,17 @@ class _FakeLiveStackingService implements LiveStackingService {
     return out;
   }
 
-  LiveStackingStats get _stats =>
-      LiveStackingStats(stackedFrameCount: _frames, totalFramesAttempted: _frames);
+  LiveStackingStats get _stats => LiveStackingStats(
+    stackedFrameCount: _frames,
+    totalFramesAttempted: _frames,
+  );
 
   LiveStackingResult get _result => LiveStackingResult(
-        width: _w,
-        height: _h,
-        data: _syntheticStack(),
-        stats: _stats,
-      );
+    width: _w,
+    height: _h,
+    data: _syntheticStack(),
+    stats: _stats,
+  );
 
   @override
   Future<LiveStackingStats> startFromFile({
@@ -143,9 +145,7 @@ Sequence _sequenceWith({
     parentId: 'root',
     durationSecs: 120.0,
   );
-  final nodes = <String, SequenceNode>{
-    'exp-1': exposure,
-  };
+  final nodes = <String, SequenceNode>{'exp-1': exposure};
   final childIds = <String>['exp-1'];
   if (withLiveStacking) {
     nodes['ls-1'] = LiveStackingNode(
@@ -160,7 +160,11 @@ Sequence _sequenceWith({
   }
   final root = InstructionSetNode(id: 'root', name: 'Root');
   nodes['root'] = root.copyWith(childIds: childIds);
-  return Sequence.create(name: 'Auto-feed test', rootNodeId: 'root', nodes: nodes);
+  return Sequence.create(
+    name: 'Auto-feed test',
+    rootNodeId: 'root',
+    nodes: nodes,
+  );
 }
 
 bridge_event.NightshadeEvent _frameAccepted({
@@ -195,8 +199,9 @@ void main() {
   ProviderContainer buildContainer() {
     final container = ProviderContainer(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
         liveStackingServiceProvider.overrideWithValue(fakeStacker),
       ],
     );
@@ -210,8 +215,9 @@ void main() {
     eventController =
         StreamController<bridge_event.NightshadeEvent>.broadcast();
     when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
   });
 
   tearDown(() async {
@@ -225,66 +231,91 @@ void main() {
     }
   }
 
-  test('first accepted frame arms broadcast and becomes the stack reference',
-      () async {
-    final container = buildContainer();
-    container
-        .read(currentSequenceProvider.notifier)
-        .loadSequence(_sequenceWith(withLiveStacking: true),
-            discardUnsaved: true);
-    final executor = container.read(sequenceExecutorProvider);
+  test(
+    'first accepted frame arms broadcast and becomes the stack reference',
+    () async {
+      final container = buildContainer();
+      container
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(
+            _sequenceWith(withLiveStacking: true),
+            discardUnsaved: true,
+          );
+      final executor = container.read(sequenceExecutorProvider);
 
-    executor.handleSequencerEventForTest(
-      _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
-    );
-    await settle();
+      executor.handleSequencerEventForTest(
+        _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
+      );
+      await settle();
 
-    // The first accepted frame must have started the stacker FROM THAT FILE
-    // (auto reference) — not been added on top of a hand-picked reference.
-    expect(fakeStacker.startedFrom, equals(['/captures/m42/L_0001.fits']),
-        reason: 'first accepted frame must become the reference automatically');
-    expect(fakeStacker.addedFrames, isEmpty);
+      // The first accepted frame must have started the stacker FROM THAT FILE
+      // (auto reference) — not been added on top of a hand-picked reference.
+      expect(
+        fakeStacker.startedFrom,
+        equals(['/captures/m42/L_0001.fits']),
+        reason: 'first accepted frame must become the reference automatically',
+      );
+      expect(fakeStacker.addedFrames, isEmpty);
 
-    // Broadcast armed + published the rendered reference stack.
-    final broadcast = container.read(liveStackingBroadcastServiceProvider);
-    expect(broadcast.state.active, isTrue,
-        reason: 'the broadcast must be armed by the auto-feed, not just by '
-            'a manual UI action');
-    expect(broadcast.state.framesStacked, 1);
-    expect(broadcast.state.integrationSecs, 120.0,
-        reason: 'integration must use the real exposure length, not a stub');
-    expect(broadcast.state.jpegBytes, isNotNull);
-    expect(broadcast.state.jpegBytes![0], 0xFF);
-    expect(broadcast.state.jpegBytes![1], 0xD8);
-  });
+      // Broadcast armed + published the rendered reference stack.
+      final broadcast = container.read(liveStackingBroadcastServiceProvider);
+      expect(
+        broadcast.state.active,
+        isTrue,
+        reason:
+            'the broadcast must be armed by the auto-feed, not just by '
+            'a manual UI action',
+      );
+      expect(broadcast.state.framesStacked, 1);
+      expect(
+        broadcast.state.integrationSecs,
+        120.0,
+        reason: 'integration must use the real exposure length, not a stub',
+      );
+      expect(broadcast.state.jpegBytes, isNotNull);
+      expect(broadcast.state.jpegBytes![0], 0xFF);
+      expect(broadcast.state.jpegBytes![1], 0xD8);
+    },
+  );
 
   test('subsequent accepted frames are added to the existing stack', () async {
     final container = buildContainer();
     container
         .read(currentSequenceProvider.notifier)
-        .loadSequence(_sequenceWith(withLiveStacking: true),
-            discardUnsaved: true);
+        .loadSequence(
+          _sequenceWith(withLiveStacking: true),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0001.fits', frame: 1));
+      _frameAccepted(savePath: '/captures/m42/L_0001.fits', frame: 1),
+    );
     await settle();
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0002.fits', frame: 2));
+      _frameAccepted(savePath: '/captures/m42/L_0002.fits', frame: 2),
+    );
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0003.fits', frame: 3));
+      _frameAccepted(savePath: '/captures/m42/L_0003.fits', frame: 3),
+    );
     await settle();
 
-    expect(fakeStacker.startedFrom, equals(['/captures/m42/L_0001.fits']),
-        reason: 'only the FIRST frame starts/references the stack');
     expect(
-        fakeStacker.addedFrames,
-        equals(
-            ['/captures/m42/L_0002.fits', '/captures/m42/L_0003.fits']));
+      fakeStacker.startedFrom,
+      equals(['/captures/m42/L_0001.fits']),
+      reason: 'only the FIRST frame starts/references the stack',
+    );
+    expect(
+      fakeStacker.addedFrames,
+      equals(['/captures/m42/L_0002.fits', '/captures/m42/L_0003.fits']),
+    );
 
     final broadcast = container.read(liveStackingBroadcastServiceProvider);
-    expect(broadcast.state.framesStacked, 3,
-        reason: 'the broadcast stack must grow without any manual step');
+    expect(
+      broadcast.state.framesStacked,
+      3,
+      reason: 'the broadcast stack must grow without any manual step',
+    );
     expect(broadcast.state.integrationSecs, 360.0);
   });
 
@@ -292,44 +323,55 @@ void main() {
     final container = buildContainer();
     container
         .read(currentSequenceProvider.notifier)
-        .loadSequence(_sequenceWith(withLiveStacking: false),
-            discardUnsaved: true);
+        .loadSequence(
+          _sequenceWith(withLiveStacking: false),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0001.fits'));
+      _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
+    );
     await settle();
 
     expect(fakeStacker.startedFrom, isEmpty);
     expect(fakeStacker.addedFrames, isEmpty);
     expect(
-        container.read(liveStackingBroadcastServiceProvider).state.active,
-        isFalse);
+      container.read(liveStackingBroadcastServiceProvider).state.active,
+      isFalse,
+    );
   });
 
   test('disabled LiveStacking node => not auto-fed', () async {
     final container = buildContainer();
-    container.read(currentSequenceProvider.notifier).loadSequence(
-        _sequenceWith(withLiveStacking: true, liveStackingEnabled: false),
-        discardUnsaved: true);
+    container
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(
+          _sequenceWith(withLiveStacking: true, liveStackingEnabled: false),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0001.fits'));
+      _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
+    );
     await settle();
 
     expect(fakeStacker.startedFrom, isEmpty);
     expect(
-        container.read(liveStackingBroadcastServiceProvider).state.active,
-        isFalse);
+      container.read(liveStackingBroadcastServiceProvider).state.active,
+      isFalse,
+    );
   });
 
   test('accepted frame with no save_path is not fed (fails loud)', () async {
     final container = buildContainer();
     container
         .read(currentSequenceProvider.notifier)
-        .loadSequence(_sequenceWith(withLiveStacking: true),
-            discardUnsaved: true);
+        .loadSequence(
+          _sequenceWith(withLiveStacking: true),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(_frameAccepted(savePath: ''));
@@ -341,61 +383,77 @@ void main() {
     expect(fakeStacker.startedFrom, isEmpty);
     expect(fakeStacker.addedFrames, isEmpty);
     expect(
-        container.read(liveStackingBroadcastServiceProvider).state.active,
-        isFalse);
+      container.read(liveStackingBroadcastServiceProvider).state.active,
+      isFalse,
+    );
   });
 
   test('frame cap stops adding frames past maxFramesToStack', () async {
     final container = buildContainer();
-    container.read(currentSequenceProvider.notifier).loadSequence(
-        _sequenceWith(withLiveStacking: true, maxFrames: 2),
-        discardUnsaved: true);
+    container
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(
+          _sequenceWith(withLiveStacking: true, maxFrames: 2),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     for (var i = 1; i <= 4; i++) {
       executor.handleSequencerEventForTest(
-          _frameAccepted(savePath: '/captures/m42/L_000$i.fits', frame: i));
+        _frameAccepted(savePath: '/captures/m42/L_000$i.fits', frame: i),
+      );
       await settle();
     }
 
     // Frame 1 = reference (start). Frame 2 = add (stack now has 2 == cap).
     // Frames 3 and 4 are over the cap and must NOT be added.
     expect(fakeStacker.startedFrom, hasLength(1));
-    expect(fakeStacker.addedFrames, equals(['/captures/m42/L_0002.fits']),
-        reason: 'maxFramesToStack must bound the stack; frames over the cap '
-            'are dropped from the stack rather than unbounded-growing');
+    expect(
+      fakeStacker.addedFrames,
+      equals(['/captures/m42/L_0002.fits']),
+      reason:
+          'maxFramesToStack must bound the stack; frames over the cap '
+          'are dropped from the stack rather than unbounded-growing',
+    );
   });
 
   test('stop() tears down the broadcast and stacker', () async {
     final container = buildContainer();
     container
         .read(currentSequenceProvider.notifier)
-        .loadSequence(_sequenceWith(withLiveStacking: true),
-            discardUnsaved: true);
+        .loadSequence(
+          _sequenceWith(withLiveStacking: true),
+          discardUnsaved: true,
+        );
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(
-        _frameAccepted(savePath: '/captures/m42/L_0001.fits'));
+      _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
+    );
     await settle();
     expect(
-        container.read(liveStackingBroadcastServiceProvider).state.active,
-        isTrue);
+      container.read(liveStackingBroadcastServiceProvider).state.active,
+      isTrue,
+    );
 
     // A Stopped event (the path a natural completion / user-stop takes
     // through the event stream) must tear the broadcast down.
-    executor.handleSequencerEventForTest(bridge_event.NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: bridge_event.EventSeverity.info,
-      category: bridge_event.EventCategory.sequencer,
-      eventType: 'Stopped',
-      data: const {},
-    ));
+    executor.handleSequencerEventForTest(
+      bridge_event.NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: bridge_event.EventSeverity.info,
+        category: bridge_event.EventCategory.sequencer,
+        eventType: 'Stopped',
+        data: const {},
+      ),
+    );
     await settle();
 
     expect(
-        container.read(liveStackingBroadcastServiceProvider).state.active,
-        isFalse,
-        reason: 'a stopped run must not keep serving a stale broadcast');
+      container.read(liveStackingBroadcastServiceProvider).state.active,
+      isFalse,
+      reason: 'a stopped run must not keep serving a stale broadcast',
+    );
     expect(fakeStacker.stopped, isTrue);
   });
 }

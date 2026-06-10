@@ -75,36 +75,37 @@ const _wcs = SolvedWcs(
 
 void main() {
   group('CatalogOverlayService.queryFov', () {
-    test('returns empty + catalogAvailable=false when WCS is invalid',
-        () async {
-      final svc = CatalogOverlayService(source: _FakeCatalogOverlaySource());
-      const badWcs = SolvedWcs(
-        raHours: 0,
-        decDegrees: 0,
-        rotationDeg: 0,
-        pixelScaleArcsec: 0,
-        imageWidth: 100,
-        imageHeight: 100,
-      );
+    test(
+      'returns empty + catalogAvailable=false when WCS is invalid',
+      () async {
+        final svc = CatalogOverlayService(source: _FakeCatalogOverlaySource());
+        const badWcs = SolvedWcs(
+          raHours: 0,
+          decDegrees: 0,
+          rotationDeg: 0,
+          pixelScaleArcsec: 0,
+          imageWidth: 100,
+          imageHeight: 100,
+        );
 
-      final result = await svc.queryFov(
-        wcs: badWcs,
-        magnitudeLimit: 10,
-      );
+        final result = await svc.queryFov(wcs: badWcs, magnitudeLimit: 10);
 
-      expect(result.objects, isEmpty);
-      expect(result.catalogAvailable, isFalse);
-    });
+        expect(result.objects, isEmpty);
+        expect(result.catalogAvailable, isFalse);
+      },
+    );
 
-    test('flags catalog unavailable when source.isAvailable is false',
-        () async {
-      final svc = CatalogOverlayService(
-        source: _FakeCatalogOverlaySource(available: false),
-      );
-      final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
-      expect(result.catalogAvailable, isFalse);
-      expect(result.objects, isEmpty);
-    });
+    test(
+      'flags catalog unavailable when source.isAvailable is false',
+      () async {
+        final svc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(available: false),
+        );
+        final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+        expect(result.catalogAvailable, isFalse);
+        expect(result.objects, isEmpty);
+      },
+    );
 
     test('drops objects outside the magnitude limit', () async {
       final svc = CatalogOverlayService(
@@ -133,12 +134,7 @@ void main() {
               catalogIds: ['M999'],
             ),
             // NGC without magnitude — dropped.
-            _dso(
-              id: 'NGC9001',
-              raHours: 5.5,
-              decDeg: -5.0,
-              magnitude: null,
-            ),
+            _dso(id: 'NGC9001', raHours: 5.5, decDeg: -5.0, magnitude: null),
           ],
         ),
       );
@@ -147,65 +143,69 @@ void main() {
       expect(result.objects.first.id, 'M999');
     });
 
-    test('projects objects to the image centre when they sit at the WCS centre',
-        () async {
-      final svc = CatalogOverlayService(
-        source: _FakeCatalogOverlaySource(
-          stars: [
-            _star(id: 'star1', raHours: 5.5, decDeg: -5.0, magnitude: 4.0),
-          ],
-        ),
-      );
-      final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
-      expect(result.objects.length, 1);
-      expect(result.objects.first.imageX, closeTo(1024, 1e-3));
-      expect(result.objects.first.imageY, closeTo(1024, 1e-3));
-    });
+    test(
+      'projects objects to the image centre when they sit at the WCS centre',
+      () async {
+        final svc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(
+            stars: [
+              _star(id: 'star1', raHours: 5.5, decDeg: -5.0, magnitude: 4.0),
+            ],
+          ),
+        );
+        final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+        expect(result.objects.length, 1);
+        expect(result.objects.first.imageX, closeTo(1024, 1e-3));
+        expect(result.objects.first.imageY, closeTo(1024, 1e-3));
+      },
+    );
 
-    test('derives DSO marker radius from angular size and plate scale',
-        () async {
-      final svc = CatalogOverlayService(
-        source: _FakeCatalogOverlaySource(
-          dsos: [
-            _dso(
-              id: 'M31',
-              raHours: 5.5,
-              decDeg: -5.0,
-              magnitude: 4.0,
-              sizeArcMin: 2.0,
-            ),
-          ],
-        ),
-      );
+    test(
+      'derives DSO marker radius from angular size and plate scale',
+      () async {
+        final svc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(
+            dsos: [
+              _dso(
+                id: 'M31',
+                raHours: 5.5,
+                decDeg: -5.0,
+                magnitude: 4.0,
+                sizeArcMin: 2.0,
+              ),
+            ],
+          ),
+        );
 
-      final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+        final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
 
-      expect(result.objects.single.markerRadiusPx, closeTo(40.0, 1e-6));
-      expect(result.objects.single.hitRadius, closeTo(40.0, 1e-6));
-    });
+        expect(result.objects.single.markerRadiusPx, closeTo(40.0, 1e-6));
+        expect(result.objects.single.hitRadius, closeTo(40.0, 1e-6));
+      },
+    );
 
-    test('does not load a selected source when that catalog is unavailable',
-        () async {
-      final svc = CatalogOverlayService(
-        source: _FakeCatalogOverlaySource(
-          dsos: [
-            _dso(id: 'M99', raHours: 5.5, decDeg: -5.0, magnitude: 9.0),
-          ],
-        ),
-      );
+    test(
+      'does not load a selected source when that catalog is unavailable',
+      () async {
+        final svc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(
+            dsos: [_dso(id: 'M99', raHours: 5.5, decDeg: -5.0, magnitude: 9.0)],
+          ),
+        );
 
-      final result = await svc.queryFov(
-        wcs: _wcs,
-        magnitudeLimit: 10,
-        includeDsos: false,
-        includeStars: true,
-      );
+        final result = await svc.queryFov(
+          wcs: _wcs,
+          magnitudeLimit: 10,
+          includeDsos: false,
+          includeStars: true,
+        );
 
-      expect(result.catalogAvailable, isTrue);
-      expect(result.dsoCatalogAvailable, isTrue);
-      expect(result.starCatalogAvailable, isFalse);
-      expect(result.objects, isEmpty);
-    });
+        expect(result.catalogAvailable, isTrue);
+        expect(result.dsoCatalogAvailable, isTrue);
+        expect(result.starCatalogAvailable, isFalse);
+        expect(result.objects, isEmpty);
+      },
+    );
 
     test('drops objects projecting outside the image bounds', () async {
       final svc = CatalogOverlayService(
@@ -280,50 +280,51 @@ void main() {
 
     // AUDIT-FIX-5B (audit-handoff §4.3 item 6): bboxPaddingFraction promoted
     // from hardcoded 0.05 to a user-configurable constructor parameter.
-    test(
-      'bboxPaddingFraction widens the catalog query bbox so off-frame DSOs '
-      'just past the chip edge are returned',
-      () async {
-        // Centre frame on (5.5h, -5°). At pixelScale 1.5"/px and 2048×2048,
-        // the chip is ~0.85° on a side, so ~0.43° half-FOV. Place a DSO
-        // 0.1° east of the centre — well inside the chip at any padding.
-        final inFovDso = _dso(
-          id: 'in-fov',
-          raHours: 5.5 + 0.1 / 15.0,
-          decDeg: -5.0,
-          magnitude: 6.0,
-        );
+    test('bboxPaddingFraction widens the catalog query bbox so off-frame DSOs '
+        'just past the chip edge are returned', () async {
+      // Centre frame on (5.5h, -5°). At pixelScale 1.5"/px and 2048×2048,
+      // the chip is ~0.85° on a side, so ~0.43° half-FOV. Place a DSO
+      // 0.1° east of the centre — well inside the chip at any padding.
+      final inFovDso = _dso(
+        id: 'in-fov',
+        raHours: 5.5 + 0.1 / 15.0,
+        decDeg: -5.0,
+        magnitude: 6.0,
+      );
 
-        // Default padding (5 %): the DSO should be returned (it's in-frame).
-        final defaultSvc = CatalogOverlayService(
-          source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
-        );
-        expect(defaultSvc.bboxPaddingFraction, 0.05);
-        final defaultResult =
-            await defaultSvc.queryFov(wcs: _wcs, magnitudeLimit: 10);
-        expect(
-          defaultResult.objects.map((o) => o.id),
-          contains('in-fov'),
-          reason: 'in-FOV DSO must be returned at default padding',
-        );
+      // Default padding (5 %): the DSO should be returned (it's in-frame).
+      final defaultSvc = CatalogOverlayService(
+        source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
+      );
+      expect(defaultSvc.bboxPaddingFraction, 0.05);
+      final defaultResult = await defaultSvc.queryFov(
+        wcs: _wcs,
+        magnitudeLimit: 10,
+      );
+      expect(
+        defaultResult.objects.map((o) => o.id),
+        contains('in-fov'),
+        reason: 'in-FOV DSO must be returned at default padding',
+      );
 
-        // Wide padding (50 %): same DSO still returned — the setting widens
-        // the query, never narrows it. This proves the parameter is wired
-        // through to the bounding-box computation rather than being silently
-        // ignored.
-        final widePaddingSvc = CatalogOverlayService(
-          source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
-          bboxPaddingFraction: 0.5,
-        );
-        expect(widePaddingSvc.bboxPaddingFraction, 0.5);
-        final wideResult =
-            await widePaddingSvc.queryFov(wcs: _wcs, magnitudeLimit: 10);
-        expect(
-          wideResult.objects.map((o) => o.id),
-          contains('in-fov'),
-          reason: 'wider padding must not drop in-FOV DSOs',
-        );
-      },
-    );
+      // Wide padding (50 %): same DSO still returned — the setting widens
+      // the query, never narrows it. This proves the parameter is wired
+      // through to the bounding-box computation rather than being silently
+      // ignored.
+      final widePaddingSvc = CatalogOverlayService(
+        source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
+        bboxPaddingFraction: 0.5,
+      );
+      expect(widePaddingSvc.bboxPaddingFraction, 0.5);
+      final wideResult = await widePaddingSvc.queryFov(
+        wcs: _wcs,
+        magnitudeLimit: 10,
+      );
+      expect(
+        wideResult.objects.map((o) => o.id),
+        contains('in-fov'),
+        reason: 'wider padding must not drop in-FOV DSOs',
+      );
+    });
   });
 }

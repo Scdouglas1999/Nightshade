@@ -27,89 +27,93 @@ void main() {
   });
 
   group('Recovery events over NetworkBackend', () {
-    test('nightshadeEventsProvider delivers typed RecoveryStarted from WS',
-        () async {
-      final started = Completer<void>();
-      final server = await _startServer((socket) {
-        Timer(const Duration(milliseconds: 50), () {
-          final now = DateTime.utc(2026, 5, 23, 14);
-          socket.add(jsonEncode({
-            'type': 'event',
-            'timestamp': now.millisecondsSinceEpoch,
-            'severity': 'critical',
-            'category': 'sequencer',
-            'eventType': 'RecoveryStarted',
-            'data': recoveryFieldsFromTyped(
-              startedAtIso: now.toIso8601String(),
-              causeKind: 'WeatherUnsafe',
-              causeCustomLabel: null,
-              lastAttemptAtIso: now.toIso8601String(),
-              attemptCount: 2,
-              maxAttempts: 5,
-              retryIntervalSecs: 300.0,
-              maxDurationSecs: 1800.0,
-              phase: 'Attempting',
-              lastError: 'cloud cover',
+    test(
+      'nightshadeEventsProvider delivers typed RecoveryStarted from WS',
+      () async {
+        final started = Completer<void>();
+        final server = await _startServer((socket) {
+          Timer(const Duration(milliseconds: 50), () {
+            final now = DateTime.utc(2026, 5, 23, 14);
+            socket.add(
+              jsonEncode({
+                'type': 'event',
+                'timestamp': now.millisecondsSinceEpoch,
+                'severity': 'critical',
+                'category': 'sequencer',
+                'eventType': 'RecoveryStarted',
+                'data': recoveryFieldsFromTyped(
+                  startedAtIso: now.toIso8601String(),
+                  causeKind: 'WeatherUnsafe',
+                  causeCustomLabel: null,
+                  lastAttemptAtIso: now.toIso8601String(),
+                  attemptCount: 2,
+                  maxAttempts: 5,
+                  retryIntervalSecs: 300.0,
+                  maxDurationSecs: 1800.0,
+                  phase: 'Attempting',
+                  lastError: 'cloud cover',
+                ),
+              }),
+            );
+          });
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
+        });
+
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: server.port,
+          webSocketPort: server.port,
+          webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+          webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+        );
+
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _NetworkBackendNotifier(ref, backend),
             ),
-          }));
-        });
-        socket.listen((message) {
-          final data = jsonDecode(message as String) as Map<String, dynamic>;
-          if (data['type'] == 'ping') {
-            socket.add(jsonEncode({'type': 'pong'}));
-          }
-        });
-      });
-
-      final backend = NetworkBackend(
-        serverHost: InternetAddress.loopbackIPv4.address,
-        serverPort: server.port,
-        webSocketPort: server.port,
-        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
-        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _NetworkBackendNotifier(ref, backend),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(recoveryEventBridgeProvider);
-
-      container.listen(nightshadeEventsProvider, (_, next) {
-        next.whenData((event) {
-          final envelope = recoveryEnvelopeFromBridgeForTest(event);
-          if (envelope?.kind == RecoveryEventKind.started) {
-            if (!started.isCompleted) started.complete();
-          }
-        });
-      }, fireImmediately: true);
-
-      try {
-        await started.future.timeout(const Duration(seconds: 3));
-        await _waitUntil(
-          () => container.read(currentRecoveryProvider) != null,
+          ],
         );
+        addTearDown(container.dispose);
 
-        final live = container.read(currentRecoveryProvider);
-        expect(live, isNotNull);
-        expect(live!.cause.kind, 'WeatherUnsafe');
-        expect(live.attemptCount, 2);
-        expect(live.maxAttempts, 5);
-        expect(live.phase, RecoveryPhase.attempting);
-        expect(
-          container.read(sequenceProgressProvider).state,
-          SequenceExecutionState.recovering,
-        );
-      } finally {
-        backend.dispose();
-        await server.close(force: true);
-      }
-    });
+        container.read(recoveryEventBridgeProvider);
+
+        container.listen(nightshadeEventsProvider, (_, next) {
+          next.whenData((event) {
+            final envelope = recoveryEnvelopeFromBridgeForTest(event);
+            if (envelope?.kind == RecoveryEventKind.started) {
+              if (!started.isCompleted) started.complete();
+            }
+          });
+        }, fireImmediately: true);
+
+        try {
+          await started.future.timeout(const Duration(seconds: 3));
+          await _waitUntil(
+            () => container.read(currentRecoveryProvider) != null,
+          );
+
+          final live = container.read(currentRecoveryProvider);
+          expect(live, isNotNull);
+          expect(live!.cause.kind, 'WeatherUnsafe');
+          expect(live.attemptCount, 2);
+          expect(live.maxAttempts, 5);
+          expect(live.phase, RecoveryPhase.attempting);
+          expect(
+            container.read(sequenceProgressProvider).state,
+            SequenceExecutionState.recovering,
+          );
+        } finally {
+          backend.dispose();
+          await server.close(force: true);
+        }
+      },
+    );
   });
 }
 

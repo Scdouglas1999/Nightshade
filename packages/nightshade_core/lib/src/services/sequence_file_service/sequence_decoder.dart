@@ -39,7 +39,8 @@ extension _SequenceFileDecoder on SequenceFileService {
           endBefore: _parseDate(json['endBefore']),
           mosaicPanel: json['mosaicPanel'] != null
               ? MosaicPanelInfo.fromJson(
-                  json['mosaicPanel'] as Map<String, dynamic>)
+                  json['mosaicPanel'] as Map<String, dynamic>,
+                )
               : null,
           parentId: parentId,
           childIds: childIds,
@@ -54,10 +55,10 @@ extension _SequenceFileDecoder on SequenceFileService {
           conditionType: _parseLoopConditionType(json['conditionType']),
           repeatCount: (json['repeatCount'] as num?)?.toInt(),
           repeatUntil: _parseDate(json['repeatUntil']),
-          repeatUntilAltitude:
-              (json['repeatUntilAltitude'] as num?)?.toDouble(),
-          integrationTimeTarget:
-              (json['integrationTimeTarget'] as num?)?.toDouble(),
+          repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)
+              ?.toDouble(),
+          integrationTimeTarget: (json['integrationTimeTarget'] as num?)
+              ?.toDouble(),
           maxSafetyIterations: (json['maxSafetyIterations'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
@@ -350,8 +351,9 @@ extension _SequenceFileDecoder on SequenceFileService {
           title: json['title'] as String? ?? '',
           message: json['message'] as String? ?? '',
           level: _parseNotificationLevel(json['level']),
-          explicitTransports:
-              _parseExplicitTransports(json['explicitTransports']),
+          explicitTransports: _parseExplicitTransports(
+            json['explicitTransports'],
+          ),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -478,22 +480,22 @@ extension _SequenceFileDecoder on SequenceFileService {
               json['finishIterationOnSwitch'] as bool? ?? true,
           swapOnConditionsBelow:
               (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
-                  (json['swap_on_conditions_below'] as num?)?.toDouble(),
+              (json['swap_on_conditions_below'] as num?)?.toDouble(),
           swapHysteresisSecs:
               (json['swapHysteresisSecs'] as num?)?.toDouble() ??
-                  (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
-                  180.0,
+              (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+              180.0,
           brightnessTierPreferences: _parseBrightnessTierPreferences(
             json['brightnessTierPreferences'] ??
                 json['brightness_tier_preferences'],
           ),
           maxConditionsScoreAgeSecs:
               (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
-                  (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
-                  300,
+              (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+              300,
           minMoonSeparationDeg:
               (json['minMoonSeparationDeg'] as num?)?.toDouble() ??
-                  (json['min_moon_separation_deg'] as num?)?.toDouble(),
+              (json['min_moon_separation_deg'] as num?)?.toDouble(),
           horizonProfile: _decodeHorizonProfile(
             json['horizonProfile'] ?? json['horizon_profile'],
           ),
@@ -554,8 +556,9 @@ extension _SequenceFileDecoder on SequenceFileService {
           id: id,
           name: name ?? 'Live Stacking',
           mode: LiveStackingMode.fromStorageKey(json['mode'] as String?),
-          stackMethod:
-              LiveStackingMethod.fromStorageKey(json['stackMethod'] as String?),
+          stackMethod: LiveStackingMethod.fromStorageKey(
+            json['stackMethod'] as String?,
+          ),
           maxFramesToStack: (json['maxFramesToStack'] as num?)?.toInt() ?? 0,
           broadcastEnabled: json['broadcastEnabled'] as bool? ?? true,
           broadcastPort: (json['broadcastPort'] as num?)?.toInt() ?? 8081,
@@ -637,7 +640,8 @@ extension _SequenceFileDecoder on SequenceFileService {
           applyDifferential: json['applyDifferential'] as bool? ?? true,
           quality: json['quality'] is Map
               ? PhotometryQualityGates.fromJson(
-                  (json['quality'] as Map).cast<String, dynamic>())
+                  (json['quality'] as Map).cast<String, dynamic>(),
+                )
               : const PhotometryQualityGates(),
           gain: (json['gain'] as num?)?.toInt(),
           offset: (json['offset'] as num?)?.toInt(),

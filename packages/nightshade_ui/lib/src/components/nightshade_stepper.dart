@@ -62,8 +62,8 @@ class NightshadeStepper extends StatelessWidget {
     this.step = 1,
     this.compact = false,
     this.semanticLabel,
-  })  : assert(min <= max, 'min must be <= max'),
-        assert(step > 0, 'step must be positive');
+  }) : assert(min <= max, 'min must be <= max'),
+       assert(step > 0, 'step must be positive');
 
   bool get _canDecrement => value > min;
   bool get _canIncrement => value < max;
@@ -81,8 +81,9 @@ class NightshadeStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final double iconSize =
-        compact ? NightshadeTokens.iconXs : NightshadeTokens.iconSm;
+    final double iconSize = compact
+        ? NightshadeTokens.iconXs
+        : NightshadeTokens.iconSm;
     // A min-width sized for four digits keeps the readout from reflowing as the
     // value changes; tabular figures handle digit-width parity.
     final double valueMinWidth = compact ? 24 : 30;
@@ -184,9 +185,7 @@ class _StepperButton extends StatelessWidget {
       enabled: isEnabled,
       label: semanticLabel,
       child: MouseRegion(
-        cursor: isEnabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
+        cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: InkWell(
           onTap: isEnabled ? onTap : null,
           borderRadius: NightshadeTokens.borderRadiusSm,

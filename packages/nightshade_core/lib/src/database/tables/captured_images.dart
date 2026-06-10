@@ -13,23 +13,36 @@ import 'targets.dart';
 @TableIndex(name: 'idx_images_filter', columns: {#filter})
 @TableIndex(name: 'idx_images_accepted', columns: {#isAccepted})
 @TableIndex(name: 'idx_images_session_frame', columns: {#sessionId, #frameType})
-@TableIndex(name: 'idx_images_session_captured_at', columns: {#sessionId, #capturedAt})
+@TableIndex(
+  name: 'idx_images_session_captured_at',
+  columns: {#sessionId, #capturedAt},
+)
 class CapturedImages extends Table {
   IntColumn get id => integer().autoIncrement()();
-  
+
   // File information
   TextColumn get filePath => text()();
   TextColumn get fileName => text()();
-  TextColumn get fileFormat => text().withDefault(const Constant('fits'))(); // fits, xisf, raw
+  TextColumn get fileFormat =>
+      text().withDefault(const Constant('fits'))(); // fits, xisf, raw
   IntColumn get fileSize => integer().nullable()();
-  
+
   // Foreign keys
-  IntColumn get sessionId => integer().nullable().references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
-  IntColumn get targetId => integer().nullable().references(Targets, #id, onDelete: KeyAction.setNull)();
-  
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get targetId => integer().nullable().references(
+    Targets,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
   // Frame type
-  TextColumn get frameType => text().withDefault(const Constant('light'))(); // light, dark, flat, bias
-  
+  TextColumn get frameType =>
+      text().withDefault(const Constant('light'))(); // light, dark, flat, bias
+
   // Exposure settings
   RealColumn get exposureDuration => real()();
   IntColumn get gain => integer().nullable()();
@@ -37,50 +50,53 @@ class CapturedImages extends Table {
   IntColumn get binX => integer().withDefault(const Constant(1))();
   IntColumn get binY => integer().withDefault(const Constant(1))();
   TextColumn get filter => text().nullable()();
-  
+
   // Camera state
   RealColumn get sensorTemp => real().nullable()();
   RealColumn get coolerPower => real().nullable()();
-  
+
   // Quality metrics
   RealColumn get hfr => real().nullable()();
   IntColumn get starCount => integer().nullable()();
   RealColumn get background => real().nullable()();
   RealColumn get noise => real().nullable()();
-  RealColumn get qualityScore => real().nullable()(); // 0-100 quality score based on HFR, stars, uniformity
-  
+  RealColumn get qualityScore => real()
+      .nullable()(); // 0-100 quality score based on HFR, stars, uniformity
+
   // Guiding data during exposure
   RealColumn get guidingRmsRa => real().nullable()();
   RealColumn get guidingRmsDec => real().nullable()();
   RealColumn get guidingRmsTotal => real().nullable()();
-  
+
   // Mount position
   RealColumn get mountRa => real().nullable()();
   RealColumn get mountDec => real().nullable()();
   RealColumn get mountAltitude => real().nullable()();
   RealColumn get mountAzimuth => real().nullable()();
   TextColumn get pierSide => text().nullable()();
-  
+
   // Focuser position
   IntColumn get focuserPosition => integer().nullable()();
   RealColumn get focuserTemp => real().nullable()();
-  
+
   // Rotator position
   RealColumn get rotatorAngle => real().nullable()();
-  
+
   // Plate solve result
-  BoolColumn get isPlateSolved => boolean().withDefault(const Constant(false))();
+  BoolColumn get isPlateSolved =>
+      boolean().withDefault(const Constant(false))();
   RealColumn get solvedRa => real().nullable()();
   RealColumn get solvedDec => real().nullable()();
   RealColumn get solvedRotation => real().nullable()();
   RealColumn get solvedPixelScale => real().nullable()();
-  
+
   // Timestamps
   DateTimeColumn get capturedAt => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  
+
   // Flags
-  BoolColumn get isAccepted => boolean().withDefault(const Constant(true))(); // For rejection marking
+  BoolColumn get isAccepted =>
+      boolean().withDefault(const Constant(true))(); // For rejection marking
   TextColumn get rejectionReason => text().nullable()();
 
   // Wave 6 Thumbnails: producing-instruction provenance lives in raw-DDL
@@ -100,13 +116,9 @@ class CapturedImages extends Table {
 @TableIndex(name: 'idx_metadata_key', columns: {#key})
 class ImageMetadata extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get imageId => integer().references(CapturedImages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get imageId =>
+      integer().references(CapturedImages, #id, onDelete: KeyAction.cascade)();
   TextColumn get key => text()();
   TextColumn get value => text()();
   TextColumn get comment => text().nullable()();
 }
-
-
-
-
-

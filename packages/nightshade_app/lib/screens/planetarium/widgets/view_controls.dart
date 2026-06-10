@@ -221,7 +221,9 @@ class ViewControls extends ConsumerWidget {
                 onTap: () {
                   final notifier = ref.read(showVariableStarsProvider.notifier);
                   notifier.state = !notifier.state;
-                  ref.read(skyRenderConfigProvider.notifier).toggleVariableStars();
+                  ref
+                      .read(skyRenderConfigProvider.notifier)
+                      .toggleVariableStars();
                 },
                 tooltip: 'Toggle Variable Stars',
               );
@@ -237,7 +239,9 @@ class ViewControls extends ConsumerWidget {
                 onTap: () {
                   final notifier = ref.read(showMinorPlanetsProvider.notifier);
                   notifier.state = !notifier.state;
-                  ref.read(skyRenderConfigProvider.notifier).toggleMinorPlanets();
+                  ref
+                      .read(skyRenderConfigProvider.notifier)
+                      .toggleMinorPlanets();
                 },
                 tooltip: 'Toggle Asteroids & Comets',
               );
@@ -321,9 +325,8 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
         objectName = obj.name;
         objectMagnitude = obj.magnitude;
         if (obj is Star) {
-          objectType = obj.spectralType != null
-              ? 'Star (${obj.spectralType})'
-              : 'Star';
+          objectType =
+              obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
         }
       }
     }
@@ -419,7 +422,8 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
       ),
       tooltip: 'Export finder chart',
       color: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-160, 0),
       onSelected: (printMode) => _exportChart(printMode: printMode),
       itemBuilder: (context) => [
@@ -427,7 +431,8 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
           value: false,
           child: Row(
             children: [
-              Icon(LucideIcons.fileDown, size: 16, color: widget.colors.textPrimary),
+              Icon(LucideIcons.fileDown,
+                  size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,7 +458,8 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
           value: true,
           child: Row(
             children: [
-              Icon(LucideIcons.printer, size: 16, color: widget.colors.textPrimary),
+              Icon(LucideIcons.printer,
+                  size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,7 +521,8 @@ class QualitySettingsButton extends ConsumerWidget {
       ),
       tooltip: 'Render quality',
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-120, 0),
       onSelected: (tier) {
         ref.read(renderQualityProvider.notifier).setQuality(tier);
@@ -616,7 +623,8 @@ class ProjectionSelectorButton extends ConsumerWidget {
       ),
       tooltip: 'Projection: ${_projectionName(currentProjection)}',
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-140, 0),
       onSelected: (projection) {
         ref.read(skyViewStateProvider.notifier).setProjection(projection);

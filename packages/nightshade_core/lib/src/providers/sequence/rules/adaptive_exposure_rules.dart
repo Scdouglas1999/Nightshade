@@ -26,44 +26,50 @@ class AdaptiveExposureBoundsRule implements SequenceValidator {
       if (cfg == null) continue;
 
       if (cfg.minExposureSecs <= 0) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'Adaptive exposure min must be > 0',
-          description:
-              'Exposure "${node.name}" has min_exposure_secs = ${cfg.minExposureSecs.toStringAsFixed(1)}s. '
-              'The minimum clamp must be positive.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Set the global minimum to a positive value (e.g. 5s).',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Adaptive exposure min must be > 0',
+            description:
+                'Exposure "${node.name}" has min_exposure_secs = ${cfg.minExposureSecs.toStringAsFixed(1)}s. '
+                'The minimum clamp must be positive.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Set the global minimum to a positive value (e.g. 5s).',
+          ),
+        );
       }
       if (cfg.maxExposureSecs <= 0) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'Adaptive exposure max must be > 0',
-          description:
-              'Exposure "${node.name}" has max_exposure_secs = ${cfg.maxExposureSecs.toStringAsFixed(1)}s. '
-              'The maximum clamp must be positive.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Set the global maximum to a positive value (e.g. 600s).',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Adaptive exposure max must be > 0',
+            description:
+                'Exposure "${node.name}" has max_exposure_secs = ${cfg.maxExposureSecs.toStringAsFixed(1)}s. '
+                'The maximum clamp must be positive.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Set the global maximum to a positive value (e.g. 600s).',
+          ),
+        );
       }
       if (cfg.minExposureSecs > cfg.maxExposureSecs) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'Adaptive exposure bounds inverted',
-          description:
-              'Exposure "${node.name}" has min_exposure_secs (${cfg.minExposureSecs.toStringAsFixed(1)}s) '
-              '> max_exposure_secs (${cfg.maxExposureSecs.toStringAsFixed(1)}s). '
-              'The clamp logic will pin every frame to the max value, defeating adaptation.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Either lower the minimum or raise the maximum so min ≤ max.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Adaptive exposure bounds inverted',
+            description:
+                'Exposure "${node.name}" has min_exposure_secs (${cfg.minExposureSecs.toStringAsFixed(1)}s) '
+                '> max_exposure_secs (${cfg.maxExposureSecs.toStringAsFixed(1)}s). '
+                'The clamp logic will pin every frame to the max value, defeating adaptation.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Either lower the minimum or raise the maximum so min ≤ max.',
+          ),
+        );
       }
 
       // Each per-filter override pair must also satisfy min <= max.
@@ -72,29 +78,34 @@ class AdaptiveExposureBoundsRule implements SequenceValidator {
         final min = entry.value;
         final max = cfg.perFilterMaxSecs[filter] ?? cfg.maxExposureSecs;
         if (min <= 0) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'Adaptive exposure per-filter min must be > 0',
-            description:
-                'Exposure "${node.name}" filter "$filter" has min_exposure_secs = ${min.toStringAsFixed(1)}s.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Set a positive per-filter minimum (or remove the override).',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'Adaptive exposure per-filter min must be > 0',
+              description:
+                  'Exposure "${node.name}" filter "$filter" has min_exposure_secs = ${min.toStringAsFixed(1)}s.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set a positive per-filter minimum (or remove the override).',
+            ),
+          );
         }
         if (min > max) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'Adaptive exposure per-filter bounds inverted',
-            description: 'Exposure "${node.name}" filter "$filter" has '
-                'per-filter min ${min.toStringAsFixed(1)}s > '
-                'effective max ${max.toStringAsFixed(1)}s.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Either lower the per-filter min or raise the per-filter / global max.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'Adaptive exposure per-filter bounds inverted',
+              description:
+                  'Exposure "${node.name}" filter "$filter" has '
+                  'per-filter min ${min.toStringAsFixed(1)}s > '
+                  'effective max ${max.toStringAsFixed(1)}s.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Either lower the per-filter min or raise the per-filter / global max.',
+            ),
+          );
         }
       }
     }
@@ -122,17 +133,19 @@ class AdaptiveExposureNoFilterEnabledRule implements SequenceValidator {
       if (cfg.perFilterEnabled.isEmpty) continue; // implicit-global is fine
       final anyEnabled = cfg.perFilterEnabled.values.any((v) => v);
       if (anyEnabled) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.exposures,
-        title: 'Adaptive exposure has no enabled filters',
-        description:
-            'Exposure "${node.name}" has adaptive exposure ON globally but every per-filter override '
-            'is disabled. No filter will actually be adapted.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Enable adaptive exposure for at least one filter, or remove the per-node config.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.exposures,
+          title: 'Adaptive exposure has no enabled filters',
+          description:
+              'Exposure "${node.name}" has adaptive exposure ON globally but every per-filter override '
+              'is disabled. No filter will actually be adapted.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Enable adaptive exposure for at least one filter, or remove the per-node config.',
+        ),
+      );
     }
     return issues;
   }
@@ -162,33 +175,37 @@ class AdaptiveExposureNominalOutOfBoundsRule implements SequenceValidator {
       if (min > max) continue; // covered by AdaptiveExposureBoundsRule
       final nominal = node.durationSecs;
       if (nominal < min) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.exposures,
-          title: 'Nominal exposure below adaptive min',
-          description:
-              'Exposure "${node.name}" has nominal duration ${nominal.toStringAsFixed(1)}s '
-              'but the adaptive minimum (for filter "${node.filter ?? "(none)"}") is ${min.toStringAsFixed(1)}s. '
-              'Every frame will be clamped to the minimum.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Raise the nominal duration to at least the adaptive minimum, '
-              'or lower the minimum clamp.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.exposures,
+            title: 'Nominal exposure below adaptive min',
+            description:
+                'Exposure "${node.name}" has nominal duration ${nominal.toStringAsFixed(1)}s '
+                'but the adaptive minimum (for filter "${node.filter ?? "(none)"}") is ${min.toStringAsFixed(1)}s. '
+                'Every frame will be clamped to the minimum.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Raise the nominal duration to at least the adaptive minimum, '
+                'or lower the minimum clamp.',
+          ),
+        );
       } else if (nominal > max) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.exposures,
-          title: 'Nominal exposure above adaptive max',
-          description:
-              'Exposure "${node.name}" has nominal duration ${nominal.toStringAsFixed(1)}s '
-              'but the adaptive maximum (for filter "${node.filter ?? "(none)"}") is ${max.toStringAsFixed(1)}s. '
-              'Every frame will be clamped to the maximum.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Lower the nominal duration to at most the adaptive maximum, '
-              'or raise the maximum clamp.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.exposures,
+            title: 'Nominal exposure above adaptive max',
+            description:
+                'Exposure "${node.name}" has nominal duration ${nominal.toStringAsFixed(1)}s '
+                'but the adaptive maximum (for filter "${node.filter ?? "(none)"}") is ${max.toStringAsFixed(1)}s. '
+                'Every frame will be clamped to the maximum.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Lower the nominal duration to at most the adaptive maximum, '
+                'or raise the maximum clamp.',
+          ),
+        );
       }
     }
     return issues;

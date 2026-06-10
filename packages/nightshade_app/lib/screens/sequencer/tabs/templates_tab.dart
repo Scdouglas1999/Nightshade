@@ -227,13 +227,15 @@ class TemplatesTab extends ConsumerWidget {
                           Text(
                             'Failed to load templates',
                             style: TextStyle(
-                                color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
+                                color: colors.textPrimary,
+                                fontSize: NightshadeTypography.fontSize16),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             error.toString(),
                             style: TextStyle(
-                                color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                                color: colors.textMuted,
+                                fontSize: NightshadeTypography.fontSize12),
                           ),
                         ],
                       ),

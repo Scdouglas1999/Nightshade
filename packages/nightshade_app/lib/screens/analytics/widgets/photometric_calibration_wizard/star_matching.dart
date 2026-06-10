@@ -18,7 +18,9 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
           'Nightshade is matching stars detected in the selected frame against '
           'the photometric catalog (APASS/Gaia). Stars with known B and V '
           'magnitudes will be used for the transformation fit.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12),
         ),
         const SizedBox(height: 16),
         if (_isComputing)
@@ -50,7 +52,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.success,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -79,8 +82,9 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                         width: 30,
                         child: Text(
                           '${index + 1}',
-                          style:
-                              TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                          style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: NightshadeTypography.fontSize11),
                         ),
                       ),
                       Expanded(

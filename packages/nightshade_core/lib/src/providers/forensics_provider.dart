@@ -34,26 +34,26 @@ final forensicsStreamProvider = StreamProvider<FrameForensicsRecord>((ref) {
 /// get an empty list).
 final forensicsRecordsForSessionProvider = FutureProvider.family
     .autoDispose<List<FrameForensicsRecord>, String?>((ref, sessionId) async {
-  if (sessionId == null) return const <FrameForensicsRecord>[];
-  final svc = ref.watch(forensicsServiceProvider);
-  return svc.loadRecentForSession(sessionId);
-});
+      if (sessionId == null) return const <FrameForensicsRecord>[];
+      final svc = ref.watch(forensicsServiceProvider);
+      return svc.loadRecentForSession(sessionId);
+    });
 
 /// Backfill provider — fetches every record for a sequence run. Used
 /// by the post-session report ("Frame Forensics" section).
 final forensicsRecordsForRunProvider = FutureProvider.family
     .autoDispose<List<FrameForensicsRecord>, int>((ref, sequenceRunId) async {
-  final svc = ref.watch(forensicsServiceProvider);
-  return svc.loadForSequenceRun(sequenceRunId);
-});
+      final svc = ref.watch(forensicsServiceProvider);
+      return svc.loadForSequenceRun(sequenceRunId);
+    });
 
 /// Cause-filtered records for the "Show all CloudPassage rejections"
 /// link.
 final forensicsRecordsByCauseProvider = FutureProvider.family
     .autoDispose<List<FrameForensicsRecord>, _CauseFilter>((ref, filter) async {
-  final svc = ref.watch(forensicsServiceProvider);
-  return svc.loadByCause(filter.cause, sequenceRunId: filter.sequenceRunId);
-});
+      final svc = ref.watch(forensicsServiceProvider);
+      return svc.loadByCause(filter.cause, sequenceRunId: filter.sequenceRunId);
+    });
 
 /// Composite key for [forensicsRecordsByCauseProvider].
 class _CauseFilter {
@@ -79,5 +79,4 @@ typedef ForensicsCauseFilter = _CauseFilter;
 ForensicsCauseFilter forensicsCauseFilter(
   LikelyCause cause, {
   int? sequenceRunId,
-}) =>
-    _CauseFilter(cause, sequenceRunId);
+}) => _CauseFilter(cause, sequenceRunId);

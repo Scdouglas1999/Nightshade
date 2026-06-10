@@ -1,4 +1,4 @@
-﻿import 'package:drift/drift.dart' show QueryExecutor, Value;
+import 'package:drift/drift.dart' show QueryExecutor, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -127,10 +127,8 @@ Future<ProviderContainer> _buildContainer({
     overrides: [
       databaseProvider.overrideWithValue(db),
       cameraStateProvider.overrideWith(
-        (ref) => _StubCameraNotifier(
-          ref,
-          camera ?? const CameraStateSnapshot(),
-        ),
+        (ref) =>
+            _StubCameraNotifier(ref, camera ?? const CameraStateSnapshot()),
       ),
       mountStateProvider.overrideWith(
         (ref) => _StubMountNotifier(
@@ -153,8 +151,9 @@ Future<ProviderContainer> _buildContainer({
       rotatorStateProvider.overrideWith(
         (ref) => _StubRotatorNotifier(ref, const RotatorState()),
       ),
-      appSettingsProvider
-          .overrideWith(() => _FakeAppSettingsNotifier(settings)),
+      appSettingsProvider.overrideWith(
+        () => _FakeAppSettingsNotifier(settings),
+      ),
       deviceHealthSnapshotsProvider.overrideWith((_) => deviceHealth),
       if (baseline != null)
         opticalTrainBaselineProvider.overrideWith((_) => baseline),
@@ -189,21 +188,23 @@ Future<void> _insertDark(
   String? masterDarkPath,
 }) async {
   final dao = DarkLibraryDao(db);
-  await dao.addEntry(DarkLibraryCompanion.insert(
-    filePath:
-        '/tmp/dark_${DateTime.now().microsecondsSinceEpoch}_${exposureTime.toInt()}.fits',
-    exposureTime: exposureTime,
-    frameType: const Value('dark'),
-    temperature: Value(temperature),
-    gain: Value(gain),
-    offset: Value(offset),
-    binX: Value(binX),
-    binY: Value(binY),
-    width: const Value(100),
-    height: const Value(100),
-    masterDarkPath: Value(masterDarkPath),
-    masterFrameCount: Value(masterDarkPath != null ? 10 : null),
-  ));
+  await dao.addEntry(
+    DarkLibraryCompanion.insert(
+      filePath:
+          '/tmp/dark_${DateTime.now().microsecondsSinceEpoch}_${exposureTime.toInt()}.fits',
+      exposureTime: exposureTime,
+      frameType: const Value('dark'),
+      temperature: Value(temperature),
+      gain: Value(gain),
+      offset: Value(offset),
+      binX: Value(binX),
+      binY: Value(binY),
+      width: const Value(100),
+      height: const Value(100),
+      masterDarkPath: Value(masterDarkPath),
+      masterFrameCount: Value(masterDarkPath != null ? 10 : null),
+    ),
+  );
 }
 
 Future<int> _insertTarget(
@@ -213,12 +214,14 @@ Future<int> _insertTarget(
   double ra = 10,
   double dec = 40,
 }) {
-  return TargetsDao(db).createTarget(TargetsCompanion.insert(
-    name: name,
-    catalogId: Value(catalogId),
-    ra: ra,
-    dec: dec,
-  ));
+  return TargetsDao(db).createTarget(
+    TargetsCompanion.insert(
+      name: name,
+      catalogId: Value(catalogId),
+      ra: ra,
+      dec: dec,
+    ),
+  );
 }
 
 Future<void> _insertLightFrame(
@@ -228,18 +231,20 @@ Future<void> _insertLightFrame(
   String filter = 'L',
   String? rejectionReason,
 }) {
-  return ImagesDao(db).createImage(CapturedImagesCompanion.insert(
-    filePath:
-        '/tmp/light_${DateTime.now().microsecondsSinceEpoch}_$targetId.fits',
-    fileName: 'light.fits',
-    targetId: Value(targetId),
-    frameType: const Value('light'),
-    exposureDuration: 120,
-    filter: Value(filter),
-    isAccepted: Value(isAccepted),
-    rejectionReason: Value(rejectionReason),
-    capturedAt: DateTime.now(),
-  ));
+  return ImagesDao(db).createImage(
+    CapturedImagesCompanion.insert(
+      filePath:
+          '/tmp/light_${DateTime.now().microsecondsSinceEpoch}_$targetId.fits',
+      fileName: 'light.fits',
+      targetId: Value(targetId),
+      frameType: const Value('light'),
+      exposureDuration: 120,
+      filter: Value(filter),
+      isAccepted: Value(isAccepted),
+      rejectionReason: Value(rejectionReason),
+      capturedAt: DateTime.now(),
+    ),
+  );
 }
 
 ExposureNode _exposure({
@@ -277,15 +282,15 @@ AppSettingsState _settings({
 }
 
 PolarAlignmentError _alignErr() => PolarAlignmentError(
-      azimuthError: 0.5,
-      altitudeError: 0.4,
-      totalError: 0.64,
-      currentRa: 0,
-      currentDec: 0,
-      targetRa: 0,
-      targetDec: 0,
-      timestamp: DateTime.now(),
-    );
+  azimuthError: 0.5,
+  altitudeError: 0.4,
+  totalError: 0.64,
+  currentRa: 0,
+  currentDec: 0,
+  targetRa: 0,
+  targetDec: 0,
+  timestamp: DateTime.now(),
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -340,11 +345,7 @@ void main() {
         camera: const CameraStateSnapshot(targetTemp: -10.0),
         seed: (db) async {
           for (var i = 0; i < 3; i++) {
-            await _insertDark(
-              db,
-              exposureTime: 180,
-              temperature: -10.0,
-            );
+            await _insertDark(db, exposureTime: 180, temperature: -10.0);
           }
         },
       );
@@ -384,80 +385,82 @@ void main() {
   });
 
   group('HistoryDrivenQualityRule', () {
-    test('uses host-backed target and image streams without local DAO',
-        () async {
-      final targetRow = Target(
-        id: 99,
-        name: 'M51',
-        catalogId: 'M51',
-        ra: 13.5,
-        dec: 47.2,
-        minAltitude: 30,
-        priority: 5,
-        totalPlannedSubs: 0,
-        capturedSubs: 0,
-        totalIntegrationSecs: 0,
-        goalIntegrationSecs: 0,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        isFavorite: false,
-      );
-      final frames = <CapturedImage>[
-        for (var i = 0; i < 10; i++)
-          CapturedImage(
-            id: i,
-            filePath: '/tmp/m51_$i.fits',
-            fileName: 'm51_$i.fits',
-            fileFormat: 'fits',
-            targetId: 99,
-            frameType: 'light',
-            exposureDuration: 120,
-            binX: 1,
-            binY: 1,
-            filter: 'L',
-            isPlateSolved: false,
-            capturedAt: DateTime.now(),
-            createdAt: DateTime.now(),
-            isAccepted: i >= 5,
-            rejectionReason: i < 5 ? 'cloud rejection' : null,
-          ),
-      ];
-
-      final container = await _buildContainer(
-        settings: _settings(),
-        hostTargets: [targetRow],
-        hostImages: frames,
-      );
-
-      final target = TargetHeaderNode(
-        id: 'target-m51',
-        targetName: 'M51',
-        raHours: 13.5,
-        decDegrees: 47.2,
-        childIds: const ['exp-l'],
-      );
-      final sequence = Sequence.create(
-        name: 'T',
-        nodes: {
-          target.id: target,
-          'exp-l': ExposureNode(
-            id: 'exp-l',
-            parentId: target.id,
-            filter: 'L',
-          ),
-        },
-      );
-
-      final issues = await _withRef(container, (ref) {
-        return HistoryDrivenQualityRule().validate(
-          sequence,
-          ValidationContext(ref),
+    test(
+      'uses host-backed target and image streams without local DAO',
+      () async {
+        final targetRow = Target(
+          id: 99,
+          name: 'M51',
+          catalogId: 'M51',
+          ra: 13.5,
+          dec: 47.2,
+          minAltitude: 30,
+          priority: 5,
+          totalPlannedSubs: 0,
+          capturedSubs: 0,
+          totalIntegrationSecs: 0,
+          goalIntegrationSecs: 0,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          isFavorite: false,
         );
-      });
+        final frames = <CapturedImage>[
+          for (var i = 0; i < 10; i++)
+            CapturedImage(
+              id: i,
+              filePath: '/tmp/m51_$i.fits',
+              fileName: 'm51_$i.fits',
+              fileFormat: 'fits',
+              targetId: 99,
+              frameType: 'light',
+              exposureDuration: 120,
+              binX: 1,
+              binY: 1,
+              filter: 'L',
+              isPlateSolved: false,
+              capturedAt: DateTime.now(),
+              createdAt: DateTime.now(),
+              isAccepted: i >= 5,
+              rejectionReason: i < 5 ? 'cloud rejection' : null,
+            ),
+        ];
 
-      expect(issues, hasLength(1));
-      expect(issues.single.title, 'High Previous Rejection Rate');
-    });
+        final container = await _buildContainer(
+          settings: _settings(),
+          hostTargets: [targetRow],
+          hostImages: frames,
+        );
+
+        final target = TargetHeaderNode(
+          id: 'target-m51',
+          targetName: 'M51',
+          raHours: 13.5,
+          decDegrees: 47.2,
+          childIds: const ['exp-l'],
+        );
+        final sequence = Sequence.create(
+          name: 'T',
+          nodes: {
+            target.id: target,
+            'exp-l': ExposureNode(
+              id: 'exp-l',
+              parentId: target.id,
+              filter: 'L',
+            ),
+          },
+        );
+
+        final issues = await _withRef(container, (ref) {
+          return HistoryDrivenQualityRule().validate(
+            sequence,
+            ValidationContext(ref),
+          );
+        });
+
+        expect(issues, hasLength(1));
+        expect(issues.single.title, 'High Previous Rejection Rate');
+      },
+    );
 
     test('warns when prior light-frame rejection rate is high', () async {
       final container = await _buildContainer(
@@ -473,11 +476,7 @@ void main() {
             );
           }
           for (var i = 0; i < 5; i++) {
-            await _insertLightFrame(
-              db,
-              targetId: targetId,
-              isAccepted: true,
-            );
+            await _insertLightFrame(db, targetId: targetId, isAccepted: true);
           }
         },
       );
@@ -492,11 +491,7 @@ void main() {
         name: 'T',
         nodes: {
           target.id: target,
-          'exp-l': ExposureNode(
-            id: 'exp-l',
-            parentId: target.id,
-            filter: 'L',
-          ),
+          'exp-l': ExposureNode(id: 'exp-l', parentId: target.id, filter: 'L'),
         },
       );
 
@@ -606,11 +601,7 @@ void main() {
         name: 'T',
         nodes: {
           target.id: target,
-          'exp-l': ExposureNode(
-            id: 'exp-l',
-            parentId: target.id,
-            filter: 'L',
-          ),
+          'exp-l': ExposureNode(id: 'exp-l', parentId: target.id, filter: 'L'),
         },
       );
 
@@ -625,9 +616,7 @@ void main() {
     });
 
     test('returns clean when target cannot be resolved', () async {
-      final container = await _buildContainer(
-        settings: _settings(),
-      );
+      final container = await _buildContainer(settings: _settings());
       final sequence = _sequenceWith([
         TargetHeaderNode(
           targetName: 'Unknown Target',
@@ -662,9 +651,10 @@ void main() {
       );
       final rule = UsbStabilityRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues, hasLength(1));
       expect(issues.first.severity, ValidationSeverity.warning);
       expect(issues.first.title, 'USB Stability Concern');
@@ -684,9 +674,10 @@ void main() {
       );
       final rule = UsbStabilityRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues, isEmpty);
     });
   });
@@ -703,9 +694,12 @@ void main() {
       );
       final rule = FocuserRangeRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([AutofocusNode()]), ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([AutofocusNode()]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues.first.title, 'Focuser Near Inner Travel Limit');
     });
 
@@ -720,9 +714,12 @@ void main() {
       );
       final rule = FocuserRangeRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([AutofocusNode()]), ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([AutofocusNode()]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues.first.title, 'Focuser Near Outer Travel Limit');
     });
 
@@ -737,9 +734,12 @@ void main() {
       );
       final rule = FocuserRangeRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([AutofocusNode()]), ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([AutofocusNode()]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues, isEmpty);
     });
   });
@@ -750,24 +750,28 @@ void main() {
         settings: _settings(polarAgeDays: 7),
         seed: (db) async {
           final dao = PolarAlignmentHistoryDao(db);
-          await dao.insertResult(PolarAlignmentResult(
-            initialError: _alignErr(),
-            finalError: _alignErr(),
-            startedAt: DateTime.now().subtract(const Duration(days: 14)),
-            completedAt: DateTime.now().subtract(const Duration(days: 14)),
-            config: const PolarAlignmentConfig(),
-            autoCompleted: true,
-            equipmentProfileId: null,
-          ));
+          await dao.insertResult(
+            PolarAlignmentResult(
+              initialError: _alignErr(),
+              finalError: _alignErr(),
+              startedAt: DateTime.now().subtract(const Duration(days: 14)),
+              completedAt: DateTime.now().subtract(const Duration(days: 14)),
+              config: const PolarAlignmentConfig(),
+              autoCompleted: true,
+              equipmentProfileId: null,
+            ),
+          );
         },
       );
       final rule = PolarAlignmentFreshnessRule();
       await container.read(lastPolarAlignmentAnywhereProvider.future);
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([SlewNode(useTargetCoords: true)]),
-              ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([SlewNode(useTargetCoords: true)]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues.first.title, 'Polar Alignment Is Stale');
     });
 
@@ -776,24 +780,28 @@ void main() {
         settings: _settings(polarAgeDays: 7),
         seed: (db) async {
           final dao = PolarAlignmentHistoryDao(db);
-          await dao.insertResult(PolarAlignmentResult(
-            initialError: _alignErr(),
-            finalError: _alignErr(),
-            startedAt: DateTime.now().subtract(const Duration(days: 1)),
-            completedAt: DateTime.now().subtract(const Duration(days: 1)),
-            config: const PolarAlignmentConfig(),
-            autoCompleted: true,
-            equipmentProfileId: null,
-          ));
+          await dao.insertResult(
+            PolarAlignmentResult(
+              initialError: _alignErr(),
+              finalError: _alignErr(),
+              startedAt: DateTime.now().subtract(const Duration(days: 1)),
+              completedAt: DateTime.now().subtract(const Duration(days: 1)),
+              config: const PolarAlignmentConfig(),
+              autoCompleted: true,
+              equipmentProfileId: null,
+            ),
+          );
         },
       );
       final rule = PolarAlignmentFreshnessRule();
       await container.read(lastPolarAlignmentAnywhereProvider.future);
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([SlewNode(useTargetCoords: true)]),
-              ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([SlewNode(useTargetCoords: true)]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues, isEmpty);
     });
   });
@@ -806,9 +814,10 @@ void main() {
       );
       final rule = TimeSyncRule();
       final issues = await _withRef(
-          container,
-          (ref) async => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) async =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues, isEmpty);
     });
 
@@ -819,9 +828,10 @@ void main() {
       );
       final rule = TimeSyncRule();
       final issues = await _withRef(
-          container,
-          (ref) async => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) async =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.severity, ValidationSeverity.warning);
     });
 
@@ -832,9 +842,10 @@ void main() {
       );
       final rule = TimeSyncRule();
       final issues = await _withRef(
-          container,
-          (ref) async => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) async =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.severity, ValidationSeverity.error);
       expect(issues.first.title, contains('Drift > 30'));
     });
@@ -846,9 +857,10 @@ void main() {
       );
       final rule = TimeSyncRule();
       final issues = await _withRef(
-          container,
-          (ref) async => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) async =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.severity, ValidationSeverity.info);
       expect(issues.first.title, 'Time Sync Check Unavailable');
     });
@@ -866,9 +878,10 @@ void main() {
       );
       final rule = CoolerDeltaRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.title, 'Cooler May Not Reach Setpoint');
     });
 
@@ -883,9 +896,10 @@ void main() {
       );
       final rule = CoolerDeltaRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues, isEmpty);
     });
   });
@@ -902,10 +916,12 @@ void main() {
       );
       final rule = FilterWheelHomingRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([FilterChangeNode(filterName: 'L')]),
-              ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([FilterChangeNode(filterName: 'L')]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues.first.title, 'Filter Wheel Not Homed');
     });
 
@@ -920,10 +936,12 @@ void main() {
       );
       final rule = FilterWheelHomingRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([FilterChangeNode(filterName: 'L')]),
-              ValidationContext(ref)));
+        container,
+        (ref) => rule.validate(
+          _sequenceWith([FilterChangeNode(filterName: 'L')]),
+          ValidationContext(ref),
+        ),
+      );
       expect(issues, isEmpty);
     });
   });
@@ -945,9 +963,10 @@ void main() {
       );
       final rule = OpticalTrainPreflightRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.title, 'Optical Train Has Shifted');
     });
 
@@ -962,9 +981,10 @@ void main() {
       );
       final rule = OpticalTrainPreflightRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues.first.severity, ValidationSeverity.info);
       expect(issues.first.title, contains('Baseline'));
     });
@@ -985,9 +1005,10 @@ void main() {
       );
       final rule = OpticalTrainPreflightRule();
       final issues = _withRef(
-          container,
-          (ref) => rule.validate(
-              _sequenceWith([_exposure()]), ValidationContext(ref)));
+        container,
+        (ref) =>
+            rule.validate(_sequenceWith([_exposure()]), ValidationContext(ref)),
+      );
       expect(issues, isEmpty);
     });
   });

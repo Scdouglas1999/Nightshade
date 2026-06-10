@@ -1,7 +1,7 @@
 part of '../science_processing_service.dart';
 
 extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
-Future<void> _processImmediateQualityLane({
+  Future<void> _processImmediateQualityLane({
     required String imagePath,
     required String? deviceId,
     required int? capturedImageId,
@@ -106,22 +106,30 @@ Future<void> _processImmediateQualityLane({
         frameCompanion,
       );
       await _scienceDao.replaceTileMetricsForImage(
-          capturedImageId, tileCompanions);
+        capturedImageId,
+        tileCompanions,
+      );
     } else {
       await _scienceDao.insertFrameQualityMetrics(frameCompanion);
       await _scienceDao.insertTileMetrics(tileCompanions);
     }
 
     final liveMs = laneStopwatch.elapsedMilliseconds;
-    _logger.debug('science.live_ms=$liveMs',
-        source: 'ScienceProcessingService');
+    _logger.debug(
+      'science.live_ms=$liveMs',
+      source: 'ScienceProcessingService',
+    );
     if (liveMs > 150) {
       _liveBudgetBreachCount++;
       if (_liveBudgetBreachCount >= 3) {
-        _adaptiveLiveGridRows =
-            math.max(6, (_adaptiveLiveGridRows * 0.8).floor());
-        _adaptiveLiveGridCols =
-            math.max(8, (_adaptiveLiveGridCols * 0.8).floor());
+        _adaptiveLiveGridRows = math.max(
+          6,
+          (_adaptiveLiveGridRows * 0.8).floor(),
+        );
+        _adaptiveLiveGridCols = math.max(
+          8,
+          (_adaptiveLiveGridCols * 0.8).floor(),
+        );
         _liveBudgetBreachCount = 0;
       }
     } else {
@@ -228,9 +236,10 @@ Future<void> _processImmediateQualityLane({
     if (comparisonObjects.length < 2) {
       final fallback = available.take(4).toList(growable: false);
       for (var index = 0; index < fallback.length; index++) {
-        comparisonObjects.add(
-          (objectId: 'comparison_${index + 1}', star: fallback[index]),
-        );
+        comparisonObjects.add((
+          objectId: 'comparison_${index + 1}',
+          star: fallback[index],
+        ));
       }
     }
 
@@ -238,14 +247,17 @@ Future<void> _processImmediateQualityLane({
       return 0;
     }
 
-    final comparisonFluxes = comparisonObjects
-        .map((entry) => entry.star.flux)
-        .toList(growable: false)
-      ..sort();
+    final comparisonFluxes =
+        comparisonObjects
+            .map((entry) => entry.star.flux)
+            .toList(growable: false)
+          ..sort();
     final medianComparisonFlux = _median(comparisonFluxes);
     final madComparisonFlux = _mad(comparisonFluxes, medianComparisonFlux);
-    final robustSigma =
-        (1.4826 * madComparisonFlux).clamp(0.0, double.infinity);
+    final robustSigma = (1.4826 * madComparisonFlux).clamp(
+      0.0,
+      double.infinity,
+    );
 
     final inliers = <({String objectId, StarMeasurement star})>[];
     final outlierObjectIds = <String>{};
@@ -262,8 +274,9 @@ Future<void> _processImmediateQualityLane({
       }
     }
 
-    final effectiveComparisons =
-        inliers.length >= 2 ? inliers : comparisonObjects;
+    final effectiveComparisons = inliers.length >= 2
+        ? inliers
+        : comparisonObjects;
     final weightedFluxTuple = _weightedComparisonFlux(effectiveComparisons);
     final comparisonFlux = weightedFluxTuple.$1;
     final comparisonFluxUncertainty = weightedFluxTuple.$2;
@@ -272,19 +285,24 @@ Future<void> _processImmediateQualityLane({
     }
 
     final targetFlux = target.flux.clamp(1e-6, double.infinity);
-    final targetSnr =
-        target.snr.isFinite ? target.snr.clamp(1.0, 1e6).toDouble() : 1.0;
+    final targetSnr = target.snr.isFinite
+        ? target.snr.clamp(1.0, 1e6).toDouble()
+        : 1.0;
     final targetFluxSigma = targetFlux / targetSnr;
 
-    final differentialMag = -2.5 *
+    final differentialMag =
+        -2.5 *
         math.log((targetFlux / comparisonFlux).clamp(1e-6, double.infinity)) /
         math.ln10;
-    final fractionalVariance = math.pow(targetFluxSigma / targetFlux, 2) +
+    final fractionalVariance =
+        math.pow(targetFluxSigma / targetFlux, 2) +
         math.pow(
-            comparisonFluxUncertainty /
-                comparisonFlux.clamp(1e-6, double.infinity),
-            2);
-    final uncertainty = 1.0857 *
+          comparisonFluxUncertainty /
+              comparisonFlux.clamp(1e-6, double.infinity),
+          2,
+        );
+    final uncertainty =
+        1.0857 *
         math.sqrt(fractionalVariance.isFinite ? fractionalVariance : 0.0);
 
     // Try to apply photometric transform for absolute magnitude
@@ -303,9 +321,8 @@ Future<void> _processImmediateQualityLane({
 
     double? targetStandardMag;
     if (transform != null && airmass != null && airmass > 0) {
-      final instMag = -2.5 *
-          math.log(targetFlux.clamp(1e-30, double.infinity)) /
-          math.ln10;
+      final instMag =
+          -2.5 * math.log(targetFlux.clamp(1e-30, double.infinity)) / math.ln10;
       // Use color index 0.0 as default when unknown — the color term
       // contribution is typically small for broadband filters.
       targetStandardMag = transform.applyTransform(
@@ -342,9 +359,8 @@ Future<void> _processImmediateQualityLane({
       double? compStandardMag;
       if (transform != null && airmass != null && airmass > 0) {
         final compFlux = star.flux.clamp(1e-6, double.infinity);
-        final compInstMag = -2.5 *
-            math.log(compFlux.clamp(1e-30, double.infinity)) /
-            math.ln10;
+        final compInstMag =
+            -2.5 * math.log(compFlux.clamp(1e-30, double.infinity)) / math.ln10;
         compStandardMag = transform.applyTransform(
           instrumentalMag: compInstMag,
           airmass: airmass,
@@ -415,7 +431,7 @@ Future<void> _processImmediateQualityLane({
     final xi = cosDec * math.sin(dRa) / denominator;
     final eta =
         (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) /
-            denominator;
+        denominator;
 
     final xiDeg = xi * 180.0 / math.pi;
     final etaDeg = eta * 180.0 / math.pi;
@@ -457,7 +473,8 @@ Future<void> _processImmediateQualityLane({
   }
 
   (double, double) _weightedComparisonFlux(
-      List<({String objectId, StarMeasurement star})> comparisons) {
+    List<({String objectId, StarMeasurement star})> comparisons,
+  ) {
     if (comparisons.isEmpty) {
       return (0.0, 0.0);
     }
@@ -467,8 +484,9 @@ Future<void> _processImmediateQualityLane({
     for (final entry in comparisons) {
       final star = entry.star;
       final flux = star.flux.clamp(1e-6, double.infinity);
-      final safeSnr =
-          star.snr.isFinite ? star.snr.clamp(1.0, 1e6).toDouble() : 1.0;
+      final safeSnr = star.snr.isFinite
+          ? star.snr.clamp(1.0, 1e6).toDouble()
+          : 1.0;
       final sigma = flux / safeSnr;
       final variance = math.max(1e-12, sigma * sigma);
       final weight = 1.0 / variance;
@@ -512,8 +530,9 @@ Future<void> _processImmediateQualityLane({
     if (values.isEmpty) {
       return 0.0;
     }
-    final deviations =
-        values.map((value) => (value - median).abs()).toList(growable: false);
+    final deviations = values
+        .map((value) => (value - median).abs())
+        .toList(growable: false);
     return _median(deviations);
   }
 
@@ -534,10 +553,12 @@ Future<void> _processImmediateQualityLane({
       var fieldHeight = 1.0;
       try {
         final fits = await apiReadFitsFile(filePath: imagePath);
-        fieldWidth =
-            (fits.width * pixelScale / 3600.0).clamp(0.05, 40.0).toDouble();
-        fieldHeight =
-            (fits.height * pixelScale / 3600.0).clamp(0.05, 40.0).toDouble();
+        fieldWidth = (fits.width * pixelScale / 3600.0)
+            .clamp(0.05, 40.0)
+            .toDouble();
+        fieldHeight = (fits.height * pixelScale / 3600.0)
+            .clamp(0.05, 40.0)
+            .toDouble();
       } catch (error, stack) {
         _logger.warning(
           'Unable to derive field size from FITS for stored WCS ($imagePath): $error\n$stack',
@@ -590,8 +611,9 @@ Future<void> _processImmediateQualityLane({
       );
     }
 
-    final fitsCapturedAt =
-        fits?.dateObs == null ? null : DateTime.tryParse(fits!.dateObs!);
+    final fitsCapturedAt = fits?.dateObs == null
+        ? null
+        : DateTime.tryParse(fits!.dateObs!);
     final capturedAt = capturedImage?.capturedAt ?? fitsCapturedAt;
     if (capturedAt == null) {
       throw StateError(
@@ -617,10 +639,7 @@ Future<void> _processImmediateQualityLane({
         timestamp: capturedAt,
       );
     } else if (wcs != null) {
-      airmass = await _airmassFromWcs(
-        wcs: wcs,
-        timestamp: capturedAt,
-      );
+      airmass = await _airmassFromWcs(wcs: wcs, timestamp: capturedAt);
     }
 
     return ScienceFrameContext(
@@ -725,7 +744,8 @@ Future<void> _processImmediateQualityLane({
     if (cosZ <= 0) {
       return null;
     }
-    final kastenYoung = 1.0 /
+    final kastenYoung =
+        1.0 /
         (math.sin(altitude * math.pi / 180.0) +
             0.50572 * math.pow(altitude + 6.07995, -1.6364));
     if (!kastenYoung.isFinite) {

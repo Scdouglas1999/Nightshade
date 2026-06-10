@@ -53,8 +53,10 @@ mixin _DisconnectedBackendProfileAndImage on Object
   }
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
-      {int maxCrops = 5}) async {
+  Future<List<StarCrop>> getStarCropsFromLastImage(
+    String deviceId, {
+    int maxCrops = 5,
+  }) async {
     _throwNotConnected();
   }
 
@@ -147,8 +149,11 @@ mixin _DisconnectedBackendProfileAndImage on Object
   }
 
   @override
-  Future<void> downloadImage(int imageId, String localPath,
-      {void Function(double)? onProgress}) async {
+  Future<void> downloadImage(
+    int imageId,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) async {
     _throwNotConnected();
   }
 

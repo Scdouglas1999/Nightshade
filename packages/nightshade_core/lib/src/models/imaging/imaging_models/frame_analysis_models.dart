@@ -130,20 +130,20 @@ class ImageStats extends Equatable {
 
   @override
   List<Object?> get props => [
-        hfr,
-        fwhm,
-        eccentricity,
-        starCount,
-        median,
-        mean,
-        stdDev,
-        min,
-        max,
-        mad,
-        snr,
-        background,
-        noise
-      ];
+    hfr,
+    fwhm,
+    eccentricity,
+    starCount,
+    median,
+    mean,
+    stdDev,
+    min,
+    max,
+    mad,
+    snr,
+    background,
+    noise,
+  ];
 }
 
 /// Detected star information
@@ -193,8 +193,15 @@ class StarDetectionResult extends Equatable {
   });
 
   @override
-  List<Object?> get props =>
-      [stars, starCount, medianHfr, medianFwhm, medianSnr, background, noise];
+  List<Object?> get props => [
+    stars,
+    starCount,
+    medianHfr,
+    medianFwhm,
+    medianSnr,
+    background,
+    noise,
+  ];
 }
 
 /// Stretch parameters for image display

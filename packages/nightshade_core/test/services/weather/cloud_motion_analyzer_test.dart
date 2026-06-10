@@ -30,27 +30,27 @@ void main() {
     /// opacity below the significance threshold (0.3). Because it is the largest
     /// box, the smaller cloud-band tile overrides it wherever they overlap.
     RadarFrame clearBackground(DateTime t) => RadarFrame(
-          timestamp: t,
-          tileUrlTemplate: 'clear',
-          north: userLat + 3.0,
-          south: userLat - 3.0,
-          east: userLon + 3.0,
-          west: userLon - 3.0,
-          opacity: 0.05, // below significance threshold -> "clear sky"
-        );
+      timestamp: t,
+      tileUrlTemplate: 'clear',
+      north: userLat + 3.0,
+      south: userLat - 3.0,
+      east: userLon + 3.0,
+      west: userLon - 3.0,
+      opacity: 0.05, // below significance threshold -> "clear sky"
+    );
 
     /// A dense cloud band: a small high-opacity tile spanning the full
     /// east-west extent but a narrow north-south band centred on [bandLat].
     /// Being the smallest enclosing box, its opacity wins inside the band.
     RadarFrame cloudBand(DateTime t, double bandLat) => RadarFrame(
-          timestamp: t,
-          tileUrlTemplate: 'band',
-          north: bandLat + 0.25,
-          south: bandLat - 0.25,
-          east: userLon + 3.0,
-          west: userLon - 3.0,
-          opacity: 0.9, // well above significance threshold
-        );
+      timestamp: t,
+      tileUrlTemplate: 'band',
+      north: bandLat + 0.25,
+      south: bandLat - 0.25,
+      east: userLon + 3.0,
+      west: userLon - 3.0,
+      opacity: 0.9, // well above significance threshold
+    );
 
     test('moving cloud band yields a non-null ETA and southward direction', () {
       final t0 = DateTime.utc(2024, 6, 15, 0, 0);
@@ -71,8 +71,11 @@ void main() {
         userLongitude: userLon,
       );
 
-      expect(result.isAvailable, isTrue,
-          reason: 'a moving band must produce a real motion estimate');
+      expect(
+        result.isAvailable,
+        isTrue,
+        reason: 'a moving band must produce a real motion estimate',
+      );
       final motion = result.motion!;
 
       // Speed must be physically plausible and non-trivial.
@@ -147,10 +150,7 @@ void main() {
       final t0 = DateTime.utc(2024, 6, 15, 0, 0);
       final t1 = DateTime.utc(2024, 6, 15, 0, 30);
 
-      final frames = <RadarFrame>[
-        clearBackground(t0),
-        clearBackground(t1),
-      ];
+      final frames = <RadarFrame>[clearBackground(t0), clearBackground(t1)];
 
       final result = analyzer.analyzeMotionDetailed(
         frames: frames,
@@ -260,35 +260,38 @@ void main() {
       );
     }
 
-    test('moving high-intensity band in the grid yields southward motion + ETA',
-        () {
-      final t0 = DateTime.utc(2024, 6, 15, 0, 0);
-      final t1 = DateTime.utc(2024, 6, 15, 0, 30);
+    test(
+      'moving high-intensity band in the grid yields southward motion + ETA',
+      () {
+        final t0 = DateTime.utc(2024, 6, 15, 0, 0);
+        final t1 = DateTime.utc(2024, 6, 15, 0, 30);
 
-      // Band starts near the north edge (row 8) and moves toward the user at the
-      // grid centre (row 12): it is approaching from the north.
-      final frames = <RadarFrame>[
-        bandFrame(t0, 8),
-        bandFrame(t1, 12),
-      ];
+        // Band starts near the north edge (row 8) and moves toward the user at the
+        // grid centre (row 12): it is approaching from the north.
+        final frames = <RadarFrame>[bandFrame(t0, 8), bandFrame(t1, 12)];
 
-      final result = analyzer.analyzeMotionDetailed(
-        frames: frames,
-        userLatitude: userLat,
-        userLongitude: userLon,
-      );
+        final result = analyzer.analyzeMotionDetailed(
+          frames: frames,
+          userLatitude: userLat,
+          userLongitude: userLon,
+        );
 
-      expect(result.isAvailable, isTrue,
-          reason: 'a band that moves within the intensity grid must yield '
-              'real motion, not noSpatialData');
-      final motion = result.motion!;
-      expect(motion.speedKmh, greaterThan(1.0));
-      expect(motion.speedKmh, lessThan(200.0));
-      // North→south displacement → bearing ~180 deg.
-      expect(motion.directionDegrees, closeTo(180.0, 25.0));
-      expect(motion.etaToLocation, isNotNull);
-      expect(motion.etaToLocation!.inMinutes, greaterThan(0));
-    });
+        expect(
+          result.isAvailable,
+          isTrue,
+          reason:
+              'a band that moves within the intensity grid must yield '
+              'real motion, not noSpatialData',
+        );
+        final motion = result.motion!;
+        expect(motion.speedKmh, greaterThan(1.0));
+        expect(motion.speedKmh, lessThan(200.0));
+        // North→south displacement → bearing ~180 deg.
+        expect(motion.directionDegrees, closeTo(180.0, 25.0));
+        expect(motion.etaToLocation, isNotNull);
+        expect(motion.etaToLocation!.inMinutes, greaterThan(0));
+      },
+    );
 
     test('a no-data frame contributes no density (honest, not fabricated)', () {
       final t0 = DateTime.utc(2024, 6, 15, 0, 0);

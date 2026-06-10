@@ -47,11 +47,12 @@ class _WebRtcLiveViewSubscription {
     required void Function() onDone,
   }) async {
     final pc = await createPeerConnection(<String, dynamic>{
-      'iceServers': iceServers ??
+      'iceServers':
+          iceServers ??
           const [
             {
-              'urls': ['stun:stun.l.google.com:19302']
-            }
+              'urls': ['stun:stun.l.google.com:19302'],
+            },
           ],
       'sdpSemantics': 'unified-plan',
     });
@@ -67,8 +68,10 @@ class _WebRtcLiveViewSubscription {
 
     // POST the offer to the server.
     final offerUri = backend._apiUri('webrtc/live-view/offer');
-    final headers =
-        backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/offer');
+    final headers = backend._addAuthHeaders(
+      {},
+      endpoint: 'webrtc/live-view/offer',
+    );
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
     final body = <String, Object?>{
       'deviceId': deviceId,
@@ -194,13 +197,15 @@ class _WebRtcLiveViewSubscription {
       if (decoded is! Map) return;
       final type = decoded['type'];
       if (type == 'frame_meta') {
-        _pendingMeta =
-            decoded.map((k, v) => MapEntry(k.toString(), v as Object?));
+        _pendingMeta = decoded.map(
+          (k, v) => MapEntry(k.toString(), v as Object?),
+        );
       } else if (type == 'error') {
         onError(
           dart_error.NightshadeError(
             category: dart_error.BackendErrorCategory.system,
-            message: (decoded['message'] as String?) ??
+            message:
+                (decoded['message'] as String?) ??
                 'live-view error: ${decoded['code']}',
           ),
         );
@@ -221,8 +226,10 @@ class _WebRtcLiveViewSubscription {
   Future<void> _onLocalIceCandidate(RTCIceCandidate candidate) async {
     if (_disposed) return;
     final uri = backend._apiUri('webrtc/live-view/ice/$sessionId');
-    final headers =
-        backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice');
+    final headers = backend._addAuthHeaders(
+      {},
+      endpoint: 'webrtc/live-view/ice',
+    );
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
     final body = jsonEncode({
       'candidate': {
@@ -232,8 +239,11 @@ class _WebRtcLiveViewSubscription {
       },
     });
     try {
-      final response =
-          await backend._http.post(uri, headers: headers, body: body);
+      final response = await backend._http.post(
+        uri,
+        headers: headers,
+        body: body,
+      );
       if (response.statusCode >= 400) {
         developer.log(
           '[NetworkBackend] webrtc: POST ICE candidate failed '
@@ -257,8 +267,8 @@ class _WebRtcLiveViewSubscription {
       final uri = backend._apiUri('webrtc/live-view/ice/$sessionId/events');
       final request = await _sseClient.getUrl(uri);
       backend
-          ._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice/events').forEach(
-              (k, v) => request.headers.add(k, v));
+          ._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice/events')
+          .forEach((k, v) => request.headers.add(k, v));
       request.headers.set('accept', 'text/event-stream');
       final response = await request.close();
       _sseResponse = response;
@@ -266,7 +276,8 @@ class _WebRtcLiveViewSubscription {
         onError(
           dart_error.NightshadeError(
             category: dart_error.BackendErrorCategory.system,
-            message: 'WebRTC ICE SSE returned ${response.statusCode} for '
+            message:
+                'WebRTC ICE SSE returned ${response.statusCode} for '
                 'session $sessionId',
           ),
         );
@@ -275,8 +286,9 @@ class _WebRtcLiveViewSubscription {
       // Decode UTF-8 + split into lines. SSE framing is line-oriented:
       // we buffer `data:` lines until a blank line marks end-of-event,
       // then dispatch by the most recent `event:` name.
-      final lines =
-          response.transform(utf8.decoder).transform(const LineSplitter());
+      final lines = response
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
       String? currentEvent;
       final dataBuf = StringBuffer();
       final completer = Completer<void>();
@@ -441,8 +453,10 @@ class _WebRtcLiveViewSubscription {
     // rather than waiting for the 30 s startup timer.
     try {
       final uri = backend._apiUri('webrtc/live-view/$sessionId');
-      final headers =
-          backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/delete');
+      final headers = backend._addAuthHeaders(
+        {},
+        endpoint: 'webrtc/live-view/delete',
+      );
       await backend._http.delete(uri, headers: headers);
     } catch (_) {
       // Server might already be unreachable; the startup timer will

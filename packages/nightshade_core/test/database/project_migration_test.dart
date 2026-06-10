@@ -51,58 +51,70 @@ void main() {
 
     Future<Set<String>> tableNames(NightshadeDatabase db) async {
       final rows = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE type='table'",
-          )
+          .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
           .get();
       return rows.map((r) => r.read<String>('name')).toSet();
     }
 
-    test('creates projects + project_targets and seeds active_project_id',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v39_v40_create_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV39Database(tempDir);
+    test(
+      'creates projects + project_targets and seeds active_project_id',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v39_v40_create_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV39Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final names = await tableNames(upgraded);
-        expect(names, contains('projects'),
-            reason: 'projects table missing after v39 -> v40 upgrade');
-        expect(names, contains('project_targets'),
-            reason: 'project_targets table missing after v39 -> v40 upgrade');
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final names = await tableNames(upgraded);
+          expect(
+            names,
+            contains('projects'),
+            reason: 'projects table missing after v39 -> v40 upgrade',
+          );
+          expect(
+            names,
+            contains('project_targets'),
+            reason: 'project_targets table missing after v39 -> v40 upgrade',
+          );
 
-        // Both indexes land.
-        final indexes = await upgraded
-            .customSelect(
-              "SELECT name FROM sqlite_master WHERE type='index' "
-              "AND tbl_name='project_targets'",
-            )
-            .get();
-        final indexNames =
-            indexes.map((r) => r.read<String>('name')).toSet();
-        expect(indexNames, contains('idx_project_targets_project'));
-        expect(indexNames, contains('idx_project_targets_target'));
+          // Both indexes land.
+          final indexes = await upgraded
+              .customSelect(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND tbl_name='project_targets'",
+              )
+              .get();
+          final indexNames = indexes.map((r) => r.read<String>('name')).toSet();
+          expect(indexNames, contains('idx_project_targets_project'));
+          expect(indexNames, contains('idx_project_targets_target'));
 
-        // The active-project settings row is seeded to the empty-string
-        // "no active project" sentinel.
-        final settings = await upgraded.customSelect(
-          "SELECT value FROM app_settings WHERE key = 'planning.active_project_id'",
-        ).getSingleOrNull();
-        expect(settings, isNotNull,
-            reason: 'planning.active_project_id settings row not seeded');
-        expect(settings!.read<String>('value'), '');
-      } finally {
-        await upgraded.close();
-      }
-    });
+          // The active-project settings row is seeded to the empty-string
+          // "no active project" sentinel.
+          final settings = await upgraded
+              .customSelect(
+                "SELECT value FROM app_settings WHERE key = 'planning.active_project_id'",
+              )
+              .getSingleOrNull();
+          expect(
+            settings,
+            isNotNull,
+            reason: 'planning.active_project_id settings row not seeded',
+          );
+          expect(settings!.read<String>('value'), '');
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test('a project + membership round-trips after the upgrade', () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v39_v40_roundtrip_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v39_v40_roundtrip_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -146,72 +158,85 @@ void main() {
           ],
         );
 
-        final project = await upgraded.customSelect(
-          'SELECT name, description, color_argb FROM projects WHERE id = ?',
-          variables: [Variable.withInt(projectId)],
-        ).getSingle();
+        final project = await upgraded
+            .customSelect(
+              'SELECT name, description, color_argb FROM projects WHERE id = ?',
+              variables: [Variable.withInt(projectId)],
+            )
+            .getSingle();
         expect(project.read<String>('name'), 'Galaxy Season');
         expect(project.read<String>('description'), 'Spring galaxies');
         expect(project.read<int>('color_argb'), 0xFF5B9EC4);
 
-        final member = await upgraded.customSelect(
-          'SELECT target_id, priority_override FROM project_targets '
-          'WHERE project_id = ?',
-          variables: [Variable.withInt(projectId)],
-        ).getSingle();
+        final member = await upgraded
+            .customSelect(
+              'SELECT target_id, priority_override FROM project_targets '
+              'WHERE project_id = ?',
+              variables: [Variable.withInt(projectId)],
+            )
+            .getSingle();
         expect(member.read<int>('target_id'), targetId);
         expect(member.read<int>('priority_override'), 9);
 
         // CASCADE: deleting the project tears down the membership row (FK
         // enforcement is enabled in beforeOpen).
-        await upgraded.customStatement(
-          'DELETE FROM projects WHERE id = ?',
-          [projectId],
+        await upgraded.customStatement('DELETE FROM projects WHERE id = ?', [
+          projectId,
+        ]);
+        final remaining = await upgraded
+            .customSelect(
+              'SELECT COUNT(*) AS c FROM project_targets WHERE project_id = ?',
+              variables: [Variable.withInt(projectId)],
+            )
+            .getSingle();
+        expect(
+          remaining.read<int>('c'),
+          0,
+          reason: 'project_targets row not cascaded on project delete',
         );
-        final remaining = await upgraded.customSelect(
-          'SELECT COUNT(*) AS c FROM project_targets WHERE project_id = ?',
-          variables: [Variable.withInt(projectId)],
-        ).getSingle();
-        expect(remaining.read<int>('c'), 0,
-            reason: 'project_targets row not cascaded on project delete');
       } finally {
         await upgraded.close();
       }
     });
 
-    test('re-running the v40 migration block is idempotent (no throw)',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v39_v40_idempotent_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV39Database(tempDir);
-
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        // First open already ran onUpgrade(39, 40). Drive it again directly to
-        // prove the v40 block (CREATE ... IF NOT EXISTS +
-        // INSERT ... ON CONFLICT DO NOTHING) is re-runnable without error and
-        // does not duplicate the tables or the settings seed.
-        await expectLater(
-          upgraded.migration.onUpgrade(upgraded.createMigrator(), 39, 40),
-          completes,
+    test(
+      're-running the v40 migration block is idempotent (no throw)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v39_v40_idempotent_',
         );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV39Database(tempDir);
 
-        final names = await tableNames(upgraded);
-        expect(names, contains('projects'));
-        expect(names, contains('project_targets'));
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          // First open already ran onUpgrade(39, 40). Drive it again directly to
+          // prove the v40 block (CREATE ... IF NOT EXISTS +
+          // INSERT ... ON CONFLICT DO NOTHING) is re-runnable without error and
+          // does not duplicate the tables or the settings seed.
+          await expectLater(
+            upgraded.migration.onUpgrade(upgraded.createMigrator(), 39, 40),
+            completes,
+          );
 
-        // Exactly one settings row for the key (the seed did not duplicate).
-        final count = await upgraded.customSelect(
-          "SELECT COUNT(*) AS c FROM app_settings "
-          "WHERE key = 'planning.active_project_id'",
-        ).getSingle();
-        expect(count.read<int>('c'), 1);
-      } finally {
-        await upgraded.close();
-      }
-    });
+          final names = await tableNames(upgraded);
+          expect(names, contains('projects'));
+          expect(names, contains('project_targets'));
+
+          // Exactly one settings row for the key (the seed did not duplicate).
+          final count = await upgraded
+              .customSelect(
+                "SELECT COUNT(*) AS c FROM app_settings "
+                "WHERE key = 'planning.active_project_id'",
+              )
+              .getSingle();
+          expect(count.read<int>('c'), 1);
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
   });
 }

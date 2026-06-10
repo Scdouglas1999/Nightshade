@@ -131,13 +131,15 @@ class DeviceDiscoveryHandlers {
 
       return jsonOk({
         "devices": allDevices
-            .map((d) => {
-                  'id': d.id,
-                  'name': d.name,
-                  'deviceType': d.deviceType.name,
-                  'driverType': d.driverType.name,
-                  'description': d.description,
-                })
+            .map(
+              (d) => {
+                'id': d.id,
+                'name': d.name,
+                'deviceType': d.deviceType.name,
+                'driverType': d.driverType.name,
+                'description': d.description,
+              },
+            )
             .toList(),
         if (discoveryErrors.isNotEmpty) 'discoveryErrors': discoveryErrors,
       });
@@ -173,7 +175,8 @@ class DeviceDiscoveryHandlers {
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
     } catch (e, stackTrace) {
       _logError(
-          '[API][$requestId] INDI address discovery error: $e\n$stackTrace');
+        '[API][$requestId] INDI address discovery error: $e\n$stackTrace',
+      );
       return jsonInternalServerError({'error': 'Internal server error'});
     }
   }
@@ -195,7 +198,8 @@ class DeviceDiscoveryHandlers {
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
     } catch (e, stackTrace) {
       _logError(
-          '[API][$requestId] Alpaca address discovery error: $e\n$stackTrace');
+        '[API][$requestId] Alpaca address discovery error: $e\n$stackTrace',
+      );
       return jsonInternalServerError({'error': 'Internal server error'});
     }
   }
@@ -234,18 +238,21 @@ class DeviceDiscoveryHandlers {
       final devices = await backend.getConnectedDevices();
       return jsonOk({
         "devices": devices
-            .map((d) => {
-                  'id': d.id,
-                  'name': d.name,
-                  'deviceType': d.deviceType.name,
-                  'driverType': d.driverType.name,
-                  'description': d.description,
-                })
+            .map(
+              (d) => {
+                'id': d.id,
+                'name': d.name,
+                'deviceType': d.deviceType.name,
+                'driverType': d.driverType.name,
+                'description': d.description,
+              },
+            )
             .toList(),
       });
     } catch (e, stackTrace) {
       _logError(
-          '[API][$requestId] Get connected devices error: $e\n$stackTrace');
+        '[API][$requestId] Get connected devices error: $e\n$stackTrace',
+      );
       return jsonInternalServerError({"error": "Internal server error"});
     }
   }

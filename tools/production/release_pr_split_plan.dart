@@ -149,8 +149,9 @@ void main() async {
     bucketById[_bucketIdFor(entry)]!.entries.add(entry);
   }
 
-  final nonEmptyBuckets =
-      buckets.where((bucket) => bucket.entries.isNotEmpty).toList();
+  final nonEmptyBuckets = buckets
+      .where((bucket) => bucket.entries.isNotEmpty)
+      .toList();
   final releaseLists = _buildReleaseLists(entries);
 
   await _writePathspecFiles(nonEmptyBuckets);
@@ -167,35 +168,39 @@ void main() async {
     'bucketCount': nonEmptyBuckets.length,
     'draftDescriptionsDirectory': _draftDescriptionsDirectory,
     'releaseListsDirectory': _releaseListsDirectory,
-    'untrackedReleaseCriticalCount': audit['untrackedReleaseCriticalCount'] ??
+    'untrackedReleaseCriticalCount':
+        audit['untrackedReleaseCriticalCount'] ??
         _countUntrackedCritical(entries),
     'summary': {
-      'trackedChangeCount':
-          entries.where((entry) => entry.isTrackedChange).length,
+      'trackedChangeCount': entries
+          .where((entry) => entry.isTrackedChange)
+          .length,
       'untrackedCount': entries.where((entry) => entry.isUntracked).length,
       'deletedCount': entries.where((entry) => entry.isDeleted).length,
       'generatedCount': entries.where((entry) => entry.generated).length,
       'binaryCount': entries.where((entry) => entry.binary).length,
-      'releaseCriticalCount':
-          entries.where((entry) => entry.releaseCritical).length,
+      'releaseCriticalCount': entries
+          .where((entry) => entry.releaseCritical)
+          .length,
     },
     'buckets': [
       for (var i = 0; i < nonEmptyBuckets.length; i++)
         nonEmptyBuckets[i].toJson(i + 1),
     ],
-    'releaseLists': [
-      for (final list in releaseLists) list.toJson(),
-    ],
+    'releaseLists': [for (final list in releaseLists) list.toJson()],
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    audit: audit,
-    buckets: nonEmptyBuckets,
-    entries: entries,
-    releaseLists: releaseLists,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(
+      audit: audit,
+      buckets: nonEmptyBuckets,
+      entries: entries,
+      releaseLists: releaseLists,
+    ),
+  );
 
   stdout.writeln('Release PR split plan complete.');
   stdout.writeln('Entries assigned: ${entries.length}');
@@ -211,10 +216,9 @@ Future<void> _writePathspecFiles(List<_PlannedBucket> buckets) async {
     directory.createSync(recursive: true);
   }
 
-  final staleFiles = directory
-      .listSync()
-      .whereType<File>()
-      .where((file) => _pathspecFilePattern.hasMatch(_fileName(file.path)));
+  final staleFiles = directory.listSync().whereType<File>().where(
+    (file) => _pathspecFilePattern.hasMatch(_fileName(file.path)),
+  );
   for (final file in staleFiles) {
     file.deleteSync();
   }
@@ -233,10 +237,9 @@ Future<void> _writeDraftDescriptionFiles(List<_PlannedBucket> buckets) async {
     directory.createSync(recursive: true);
   }
 
-  final staleFiles = directory
-      .listSync()
-      .whereType<File>()
-      .where((file) => _draftFilePattern.hasMatch(_fileName(file.path)));
+  final staleFiles = directory.listSync().whereType<File>().where(
+    (file) => _draftFilePattern.hasMatch(_fileName(file.path)),
+  );
   for (final file in staleFiles) {
     file.deleteSync();
   }
@@ -244,8 +247,9 @@ Future<void> _writeDraftDescriptionFiles(List<_PlannedBucket> buckets) async {
   for (var i = 0; i < buckets.length; i++) {
     final order = i + 1;
     final bucket = buckets[i];
-    await File(bucket.draftDescriptionPath(order))
-        .writeAsString(_renderDraftDescription(bucket, order));
+    await File(
+      bucket.draftDescriptionPath(order),
+    ).writeAsString(_renderDraftDescription(bucket, order));
   }
 }
 
@@ -255,18 +259,17 @@ Future<void> _writeReleaseListFiles(List<_ReleaseList> lists) async {
     directory.createSync(recursive: true);
   }
 
-  final staleFiles = directory
-      .listSync()
-      .whereType<File>()
-      .where((file) => _releaseListFilePattern.hasMatch(_fileName(file.path)));
+  final staleFiles = directory.listSync().whereType<File>().where(
+    (file) => _releaseListFilePattern.hasMatch(_fileName(file.path)),
+  );
   for (final file in staleFiles) {
     file.deleteSync();
   }
 
   for (final list in lists) {
-    await File(list.path).writeAsString(
-      '${list.entries.map((entry) => entry.path).join('\n')}\n',
-    );
+    await File(
+      list.path,
+    ).writeAsString('${list.entries.map((entry) => entry.path).join('\n')}\n');
   }
 }
 
@@ -280,10 +283,12 @@ List<_StatusEntry> _readEntries(Map<String, dynamic> audit) {
     final value = categoryEntry.value as Map<String, dynamic>? ?? const {};
     final paths = value['paths'] as List? ?? const [];
     for (final pathEntry in paths) {
-      entries.add(_StatusEntry.fromJson(
-        pathEntry as Map<String, dynamic>,
-        category: category,
-      ));
+      entries.add(
+        _StatusEntry.fromJson(
+          pathEntry as Map<String, dynamic>,
+          category: category,
+        ),
+      );
     }
   }
   entries.sort((a, b) => a.path.compareTo(b.path));
@@ -377,7 +382,8 @@ String _renderMarkdown({
 }) {
   final branch = audit['currentBranch']?.toString() ?? 'unknown';
   final head = audit['head']?.toString() ?? 'unknown';
-  final untrackedCritical = audit['untrackedReleaseCriticalCount'] ??
+  final untrackedCritical =
+      audit['untrackedReleaseCriticalCount'] ??
       _countUntrackedCritical(entries);
   final buffer = StringBuffer()
     ..writeln('# Release PR Split Plan')
@@ -386,7 +392,8 @@ String _renderMarkdown({
     ..writeln('- Branch: `$branch`')
     ..writeln('- HEAD: `$head`')
     ..writeln(
-        '- Entries assigned to proposed review buckets: `${entries.length}`')
+      '- Entries assigned to proposed review buckets: `${entries.length}`',
+    )
     ..writeln('- Non-empty buckets: `${buckets.length}`')
     ..writeln('- Untracked release-critical entries: `$untrackedCritical`')
     ..writeln('- Pathspec directory: `$_pathspecDirectory`')
@@ -481,8 +488,9 @@ String _renderMarkdown({
 
 String _renderDraftDescription(_PlannedBucket bucket, int order) {
   final pathspecPath = bucket.pathspecPath(order);
-  final mustShipCount =
-      bucket.entries.where((entry) => entry.releaseCritical).length;
+  final mustShipCount = bucket.entries
+      .where((entry) => entry.releaseCritical)
+      .length;
   final generatedCount = bucket.generatedCount;
   final binaryCount = bucket.binaryCount;
   final deferCount = bucket.entries.length - mustShipCount;
@@ -491,15 +499,19 @@ String _renderDraftDescription(_PlannedBucket bucket, int order) {
   final examples = bucket.entries.take(20).toList(growable: false);
 
   final buffer = StringBuffer()
-    ..writeln('# PR ${order.toString().padLeft(2, '0')}: '
-        '${bucket.definition.title}')
+    ..writeln(
+      '# PR ${order.toString().padLeft(2, '0')}: '
+      '${bucket.definition.title}',
+    )
     ..writeln()
     ..writeln('## Summary')
     ..writeln()
     ..writeln(bucket.definition.intent)
     ..writeln()
-    ..writeln('Recommended staging decision: '
-        '${bucket.definition.recommendedAction}')
+    ..writeln(
+      'Recommended staging decision: '
+      '${bucket.definition.recommendedAction}',
+    )
     ..writeln()
     ..writeln('## Scope')
     ..writeln()
@@ -514,7 +526,8 @@ String _renderDraftDescription(_PlannedBucket bucket, int order) {
     ..writeln('- Defer/exclude review paths: `$deferCount`')
     ..writeln()
     ..writeln(
-        'Decision lists are generated in `$_releaseListsDirectory` for must-ship, generated-only, binary/evidence, and defer/exclude paths.')
+      'Decision lists are generated in `$_releaseListsDirectory` for must-ship, generated-only, binary/evidence, and defer/exclude paths.',
+    )
     ..writeln()
     ..writeln('## Stage Command')
     ..writeln()
@@ -527,11 +540,13 @@ String _renderDraftDescription(_PlannedBucket bucket, int order) {
     ..writeln('- Confirm every untracked path is intentional before staging.')
     ..writeln('- Confirm generated files were produced from reviewed source.')
     ..writeln(
-        '- Keep binary payloads and evidence artifacts only when they are '
-        'required for this release PR.')
+      '- Keep binary payloads and evidence artifacts only when they are '
+      'required for this release PR.',
+    )
     ..writeln(
-        '- Move defer/exclude paths out of the staged set unless an owner '
-        'explicitly accepts them.')
+      '- Move defer/exclude paths out of the staged set unless an owner '
+      'explicitly accepts them.',
+    )
     ..writeln()
     ..writeln('## Category Mix')
     ..writeln();
@@ -561,11 +576,14 @@ String _renderDraftDescription(_PlannedBucket bucket, int order) {
     ..writeln()
     ..writeln('- [ ] Run the focused tests or audits named by this bucket.')
     ..writeln(
-        '- [ ] Re-run `dart run tools/production/release_staging_audit.dart`.')
+      '- [ ] Re-run `dart run tools/production/release_staging_audit.dart`.',
+    )
     ..writeln(
-        '- [ ] Re-run `dart run tools/production/release_pr_split_plan.dart`.')
+      '- [ ] Re-run `dart run tools/production/release_pr_split_plan.dart`.',
+    )
     ..writeln(
-        '- [ ] Re-run `dart run tools/production/release_pr_staged_branch_validator.dart` on the staged branch.')
+      '- [ ] Re-run `dart run tools/production/release_pr_staged_branch_validator.dart` on the staged branch.',
+    )
     ..writeln()
     ..writeln('## Release Gate Impact')
     ..writeln()
@@ -651,19 +669,21 @@ class _ReleaseList {
   String get path => '$_releaseListsDirectory/${definition.fileName}';
 
   Map<String, Object?> toJson() => {
-        'id': definition.id,
-        'title': definition.title,
-        'description': definition.description,
-        'pathspecFile': path,
-        'count': entries.length,
-        'trackedChangeCount':
-            entries.where((entry) => entry.isTrackedChange).length,
-        'untrackedCount': entries.where((entry) => entry.isUntracked).length,
-        'deletedCount': entries.where((entry) => entry.isDeleted).length,
-        'releaseCriticalCount':
-            entries.where((entry) => entry.releaseCritical).length,
-        'paths': entries.map((entry) => entry.toJson()).toList(),
-      };
+    'id': definition.id,
+    'title': definition.title,
+    'description': definition.description,
+    'pathspecFile': path,
+    'count': entries.length,
+    'trackedChangeCount': entries
+        .where((entry) => entry.isTrackedChange)
+        .length,
+    'untrackedCount': entries.where((entry) => entry.isUntracked).length,
+    'deletedCount': entries.where((entry) => entry.isDeleted).length,
+    'releaseCriticalCount': entries
+        .where((entry) => entry.releaseCritical)
+        .length,
+    'paths': entries.map((entry) => entry.toJson()).toList(),
+  };
 }
 
 class _PlannedBucket {
@@ -708,23 +728,23 @@ class _PlannedBucket {
   }
 
   Map<String, Object?> toJson(int order) => {
-        'id': definition.id,
-        'title': definition.title,
-        'intent': definition.intent,
-        'recommendedAction': definition.recommendedAction,
-        'pathspecFile': pathspecPath(order),
-        'draftDescriptionFile': draftDescriptionPath(order),
-        'stageCommand': 'git add --pathspec-from-file=${pathspecPath(order)}',
-        'count': entries.length,
-        'trackedChangeCount': trackedChangeCount,
-        'untrackedCount': untrackedCount,
-        'deletedCount': deletedCount,
-        'generatedCount': generatedCount,
-        'binaryCount': binaryCount,
-        'releaseCriticalCount': releaseCriticalCount,
-        'categoryCounts': categoryCounts,
-        'paths': entries.map((entry) => entry.toJson()).toList(),
-      };
+    'id': definition.id,
+    'title': definition.title,
+    'intent': definition.intent,
+    'recommendedAction': definition.recommendedAction,
+    'pathspecFile': pathspecPath(order),
+    'draftDescriptionFile': draftDescriptionPath(order),
+    'stageCommand': 'git add --pathspec-from-file=${pathspecPath(order)}',
+    'count': entries.length,
+    'trackedChangeCount': trackedChangeCount,
+    'untrackedCount': untrackedCount,
+    'deletedCount': deletedCount,
+    'generatedCount': generatedCount,
+    'binaryCount': binaryCount,
+    'releaseCriticalCount': releaseCriticalCount,
+    'categoryCounts': categoryCounts,
+    'paths': entries.map((entry) => entry.toJson()).toList(),
+  };
 }
 
 class _StatusEntry {
@@ -775,15 +795,15 @@ class _StatusEntry {
   bool get isTrackedChange => !untracked;
 
   Map<String, Object?> toJson() => {
-        'status': status,
-        'indexStatus': indexStatus,
-        'worktreeStatus': worktreeStatus,
-        'path': path,
-        'category': category,
-        'untracked': untracked,
-        'deleted': deleted,
-        'generated': generated,
-        'binary': binary,
-        'releaseCritical': releaseCritical,
-      };
+    'status': status,
+    'indexStatus': indexStatus,
+    'worktreeStatus': worktreeStatus,
+    'path': path,
+    'category': category,
+    'untracked': untracked,
+    'deleted': deleted,
+    'generated': generated,
+    'binary': binary,
+    'releaseCritical': releaseCritical,
+  };
 }

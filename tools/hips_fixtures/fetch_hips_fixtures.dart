@@ -108,7 +108,8 @@ const ({
   double fovHeightDeg,
   int pixelWidth,
   int pixelHeight,
-}) fixturePlate = (
+})
+fixturePlate = (
   fovWidthDeg: 3.0,
   fovHeightDeg: 2.0,
   pixelWidth: 900,
@@ -120,7 +121,9 @@ Future<int> main(List<String> args) async {
   final outRoot = flags.outDir ?? _defaultOutDir();
 
   stdout.writeln('HiPS fixture fetcher');
-  stdout.writeln('  field   : $fieldName  (RA $fieldRaDeg deg, Dec $fieldDecDeg deg)');
+  stdout.writeln(
+    '  field   : $fieldName  (RA $fieldRaDeg deg, Dec $fieldDecDeg deg)',
+  );
   stdout.writeln('  survey  : $surveyHipsId');
   stdout.writeln('  base    : $surveyBaseUrl');
   stdout.writeln('  out     : ${outRoot.path}');
@@ -176,8 +179,10 @@ Future<int> main(List<String> args) async {
   }
 
   stdout.writeln('');
-  stdout.writeln('Done. fetched=$fetched skipped=$skipped'
-      '${flags.dryRun ? ' (dry run)' : ''}');
+  stdout.writeln(
+    'Done. fetched=$fetched skipped=$skipped'
+    '${flags.dryRun ? ' (dry run)' : ''}',
+  );
   return 0;
 }
 
@@ -202,8 +207,10 @@ _Flags _parseArgs(List<String> args) {
       out = Directory(arg.substring('--out='.length));
     } else {
       stderr.writeln('Unknown argument: $arg');
-      stderr.writeln('Usage: dart run tools/hips_fixtures/fetch_hips_fixtures.dart '
-          '[--out=<dir>] [--dry-run] [--force]');
+      stderr.writeln(
+        'Usage: dart run tools/hips_fixtures/fetch_hips_fixtures.dart '
+        '[--out=<dir>] [--dry-run] [--force]',
+      );
       exit(64); // EX_USAGE
     }
   }

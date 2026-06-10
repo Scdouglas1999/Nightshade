@@ -192,26 +192,32 @@ class _AnnotationOverlayWrapperState
             children: [
               if (obj.commonName != null) ...[
                 Text('Common Name: ${obj.commonName}',
-                    style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize14)),
                 const SizedBox(height: 8),
               ],
               Text('Type: ${obj.type.toString().split('.').last}',
-                  style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                  style: const TextStyle(
+                      fontSize: NightshadeTypography.fontSize14)),
               const SizedBox(height: 8),
               Text('RA: ${obj.ra.toStringAsFixed(6)}°',
-                  style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                  style: const TextStyle(
+                      fontSize: NightshadeTypography.fontSize14)),
               const SizedBox(height: 8),
               Text('Dec: ${obj.dec.toStringAsFixed(6)}°',
-                  style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                  style: const TextStyle(
+                      fontSize: NightshadeTypography.fontSize14)),
               if (obj.magnitude != null) ...[
                 const SizedBox(height: 8),
                 Text('Magnitude: ${obj.magnitude!.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize14)),
               ],
               if (obj.size != null) ...[
                 const SizedBox(height: 8),
                 Text('Size: ${obj.size!.toStringAsFixed(2)}\'',
-                    style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize14)),
               ],
             ],
           ),

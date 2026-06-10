@@ -205,8 +205,10 @@ void main() {
           currentNodeName: '',
           updatedAtMillis: 0,
         );
-        expect(s.toSpokenSummary(),
-            'Sequence finished. 60 of 60 frames captured on M42.');
+        expect(
+          s.toSpokenSummary(),
+          'Sequence finished. 60 of 60 frames captured on M42.',
+        );
       });
     });
   });
@@ -222,24 +224,19 @@ void main() {
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        captured.add(call);
-        switch (call.method) {
-          case 'isSupported':
-            return true;
-          case 'publishStatus':
-          case 'clearStatus':
-            return null;
-          default:
-            throw MissingPluginException(
-              'No mock for ${call.method}',
-            );
-        }
-      });
+            captured.add(call);
+            switch (call.method) {
+              case 'isSupported':
+                return true;
+              case 'publishStatus':
+              case 'clearStatus':
+                return null;
+              default:
+                throw MissingPluginException('No mock for ${call.method}');
+            }
+          });
 
-      service = VoiceControlService(
-        channel: channel,
-        skipPlatformGuard: true,
-      );
+      service = VoiceControlService(channel: channel, skipPlatformGuard: true);
     });
 
     tearDown(() async {
@@ -290,11 +287,11 @@ void main() {
     test('PlatformException from publishStatus propagates', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(
-          code: 'app_group_unavailable',
-          message: 'simulated entitlement missing',
-        );
-      });
+            throw PlatformException(
+              code: 'app_group_unavailable',
+              message: 'simulated entitlement missing',
+            );
+          });
       const snapshot = SequenceStatusSnapshot(
         sequenceId: 's',
         sequenceName: 's',
@@ -310,11 +307,13 @@ void main() {
       );
       await expectLater(
         service.publishSequenceStatus(snapshot),
-        throwsA(isA<PlatformException>().having(
-          (e) => e.code,
-          'code',
-          'app_group_unavailable',
-        )),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'app_group_unavailable',
+          ),
+        ),
       );
     });
   });
@@ -325,10 +324,7 @@ void main() {
 
     setUp(() {
       channel = const MethodChannel(VoiceControlService.channelName);
-      service = VoiceControlService(
-        channel: channel,
-        skipPlatformGuard: true,
-      );
+      service = VoiceControlService(channel: channel, skipPlatformGuard: true);
     });
 
     tearDown(() async {
@@ -341,76 +337,84 @@ void main() {
       final message = codec.encodeMethodCall(
         MethodCall('onAction', <String, Object?>{'action': wireId}),
       );
-      await TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .handlePlatformMessage(
-        VoiceControlService.channelName,
-        message,
-        (data) {},
-      );
+            VoiceControlService.channelName,
+            message,
+            (data) {},
+          );
     }
 
-    test('pause_sequence surfaces as VoiceControlAction.pauseSequence',
-        () async {
-      final completer = service.actionStream.first;
-      await simulateInbound('pause_sequence');
-      expect(await completer, VoiceControlAction.pauseSequence);
-    });
+    test(
+      'pause_sequence surfaces as VoiceControlAction.pauseSequence',
+      () async {
+        final completer = service.actionStream.first;
+        await simulateInbound('pause_sequence');
+        expect(await completer, VoiceControlAction.pauseSequence);
+      },
+    );
 
-    test('resume_sequence surfaces as VoiceControlAction.resumeSequence',
-        () async {
-      final completer = service.actionStream.first;
-      await simulateInbound('resume_sequence');
-      expect(await completer, VoiceControlAction.resumeSequence);
-    });
+    test(
+      'resume_sequence surfaces as VoiceControlAction.resumeSequence',
+      () async {
+        final completer = service.actionStream.first;
+        await simulateInbound('resume_sequence');
+        expect(await completer, VoiceControlAction.resumeSequence);
+      },
+    );
 
-    test('open_last_image surfaces as VoiceControlAction.openLastImage',
-        () async {
-      final completer = service.actionStream.first;
-      await simulateInbound('open_last_image');
-      expect(await completer, VoiceControlAction.openLastImage);
-    });
+    test(
+      'open_last_image surfaces as VoiceControlAction.openLastImage',
+      () async {
+        final completer = service.actionStream.first;
+        await simulateInbound('open_last_image');
+        expect(await completer, VoiceControlAction.openLastImage);
+      },
+    );
 
-    test('refresh_status surfaces as VoiceControlAction.refreshStatus',
-        () async {
-      final completer = service.actionStream.first;
-      await simulateInbound('refresh_status');
-      expect(await completer, VoiceControlAction.refreshStatus);
-    });
+    test(
+      'refresh_status surfaces as VoiceControlAction.refreshStatus',
+      () async {
+        final completer = service.actionStream.first;
+        await simulateInbound('refresh_status');
+        expect(await completer, VoiceControlAction.refreshStatus);
+      },
+    );
 
-    test('unknown wire id raises a PlatformException, not silently no-op',
-        () async {
-      // The handler in VoiceControlService throws PlatformException for
-      // unknown ids; the platform messenger propagates it back to the
-      // caller. Per repo policy we WANT this to be loud, not silent.
-      const codec = StandardMethodCodec();
-      final message = codec.encodeMethodCall(
-        const MethodCall(
-          'onAction',
-          <String, Object?>{'action': 'this_is_not_a_known_action'},
-        ),
-      );
-      bool reported = false;
-      await TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
-          .handlePlatformMessage(
-        VoiceControlService.channelName,
-        message,
-        (data) {
-          // Decoder will throw if the reply is an error envelope.
-          if (data != null) {
-            try {
-              codec.decodeEnvelope(data);
-            } on PlatformException catch (e) {
-              expect(e.code, 'unknown_action');
-              reported = true;
-            }
-          }
-        },
-      );
-      expect(reported, isTrue,
-          reason: 'Unknown wire ids must surface a PlatformException');
-    });
+    test(
+      'unknown wire id raises a PlatformException, not silently no-op',
+      () async {
+        // The handler in VoiceControlService throws PlatformException for
+        // unknown ids; the platform messenger propagates it back to the
+        // caller. Per repo policy we WANT this to be loud, not silent.
+        const codec = StandardMethodCodec();
+        final message = codec.encodeMethodCall(
+          const MethodCall('onAction', <String, Object?>{
+            'action': 'this_is_not_a_known_action',
+          }),
+        );
+        bool reported = false;
+        await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(VoiceControlService.channelName, message, (
+              data,
+            ) {
+              // Decoder will throw if the reply is an error envelope.
+              if (data != null) {
+                try {
+                  codec.decodeEnvelope(data);
+                } on PlatformException catch (e) {
+                  expect(e.code, 'unknown_action');
+                  reported = true;
+                }
+              }
+            });
+        expect(
+          reported,
+          isTrue,
+          reason: 'Unknown wire ids must surface a PlatformException',
+        );
+      },
+    );
 
     test('missing action key raises PlatformException', () async {
       const codec = StandardMethodCodec();
@@ -418,22 +422,19 @@ void main() {
         const MethodCall('onAction', <String, Object?>{}),
       );
       bool reported = false;
-      await TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
-          .handlePlatformMessage(
-        VoiceControlService.channelName,
-        message,
-        (data) {
-          if (data != null) {
-            try {
-              codec.decodeEnvelope(data);
-            } on PlatformException catch (e) {
-              expect(e.code, 'missing_action');
-              reported = true;
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(VoiceControlService.channelName, message, (
+            data,
+          ) {
+            if (data != null) {
+              try {
+                codec.decodeEnvelope(data);
+              } on PlatformException catch (e) {
+                expect(e.code, 'missing_action');
+                reported = true;
+              }
             }
-          }
-        },
-      );
+          });
       expect(reported, isTrue);
     });
   });

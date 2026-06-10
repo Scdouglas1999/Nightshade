@@ -7,27 +7,27 @@ part of 'radar_frame.dart';
 // **************************************************************************
 
 _RadarFrame _$RadarFrameFromJson(Map<String, dynamic> json) => _RadarFrame(
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      tileUrlTemplate: json['tileUrlTemplate'] as String,
-      north: (json['north'] as num).toDouble(),
-      south: (json['south'] as num).toDouble(),
-      east: (json['east'] as num).toDouble(),
-      west: (json['west'] as num).toDouble(),
-      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
-      intensityGrid: (json['intensityGrid'] as List<dynamic>?)
-          ?.map((e) =>
-              (e as List<dynamic>).map((e) => (e as num).toDouble()).toList())
-          .toList(),
-      isNoData: json['isNoData'] as bool? ?? false,
-      isForecast: json['isForecast'] as bool? ?? false,
-      tileType: $enumDecodeNullable(_$RadarTileTypeEnumMap, json['tileType']) ??
-          RadarTileType.xyz,
-      wmsLayers: json['wmsLayers'] as String?,
-      wmsAdditionalOptions:
-          (json['wmsAdditionalOptions'] as Map<String, dynamic>?)?.map(
-        (k, e) => MapEntry(k, e as String),
-      ),
-    );
+  timestamp: DateTime.parse(json['timestamp'] as String),
+  tileUrlTemplate: json['tileUrlTemplate'] as String,
+  north: (json['north'] as num).toDouble(),
+  south: (json['south'] as num).toDouble(),
+  east: (json['east'] as num).toDouble(),
+  west: (json['west'] as num).toDouble(),
+  opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+  intensityGrid: (json['intensityGrid'] as List<dynamic>?)
+      ?.map(
+        (e) => (e as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
+      )
+      .toList(),
+  isNoData: json['isNoData'] as bool? ?? false,
+  isForecast: json['isForecast'] as bool? ?? false,
+  tileType:
+      $enumDecodeNullable(_$RadarTileTypeEnumMap, json['tileType']) ??
+      RadarTileType.xyz,
+  wmsLayers: json['wmsLayers'] as String?,
+  wmsAdditionalOptions: (json['wmsAdditionalOptions'] as Map<String, dynamic>?)
+      ?.map((k, e) => MapEntry(k, e as String)),
+);
 
 Map<String, dynamic> _$RadarFrameToJson(_RadarFrame instance) =>
     <String, dynamic>{

@@ -13,14 +13,16 @@ import 'package:http/testing.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  final baseUrl = Uri.parse('https://cloud.example.com/remote.php/dav/files/astro');
+  final baseUrl = Uri.parse(
+    'https://cloud.example.com/remote.php/dav/files/astro',
+  );
 
   WebDavSyncTarget targetWith(MockClient client) => WebDavSyncTarget(
-        baseUrl: baseUrl,
-        username: 'astro',
-        password: 's3cret!',
-        client: client,
-      );
+    baseUrl: baseUrl,
+    username: 'astro',
+    password: 's3cret!',
+    client: client,
+  );
 
   String expectedAuth() =>
       'Basic ${base64Encode(utf8.encode('astro:s3cret!'))}';
@@ -33,8 +35,9 @@ void main() {
         return http.Response('', 201);
       });
 
-      await targetWith(client)
-          .uploadFile('nightshade-sync/my laptop/bundle-1.nsbak', [1, 2, 3]);
+      await targetWith(
+        client,
+      ).uploadFile('nightshade-sync/my laptop/bundle-1.nsbak', [1, 2, 3]);
 
       expect(seen, isNotNull);
       expect(seen!.method, 'PUT');
@@ -48,40 +51,44 @@ void main() {
       );
     });
 
-    test('listDirectory issues PROPFIND with Depth: 1 and trailing slash',
-        () async {
-      http.Request? seen;
-      final client = MockClient((request) async {
-        seen = request;
-        return http.Response(_sampleMultistatus, 207);
-      });
+    test(
+      'listDirectory issues PROPFIND with Depth: 1 and trailing slash',
+      () async {
+        http.Request? seen;
+        final client = MockClient((request) async {
+          seen = request;
+          return http.Response(_sampleMultistatus, 207);
+        });
 
-      await targetWith(client).listDirectory('nightshade-sync');
+        await targetWith(client).listDirectory('nightshade-sync');
 
-      expect(seen!.method, 'PROPFIND');
-      expect(seen!.headers['Depth'], '1');
-      expect(seen!.headers['Authorization'], expectedAuth());
-      expect(seen!.body, contains('propfind'));
-      expect(seen!.url.path, endsWith('/nightshade-sync/'));
-    });
+        expect(seen!.method, 'PROPFIND');
+        expect(seen!.headers['Depth'], '1');
+        expect(seen!.headers['Authorization'], expectedAuth());
+        expect(seen!.body, contains('propfind'));
+        expect(seen!.url.path, endsWith('/nightshade-sync/'));
+      },
+    );
 
-    test('ensureDirectory issues MKCOL per segment and tolerates 405',
-        () async {
-      final methods = <String>[];
-      final paths = <String>[];
-      final client = MockClient((request) async {
-        methods.add(request.method);
-        paths.add(request.url.path);
-        // First segment "already exists", second is created.
-        return http.Response('', paths.length == 1 ? 405 : 201);
-      });
+    test(
+      'ensureDirectory issues MKCOL per segment and tolerates 405',
+      () async {
+        final methods = <String>[];
+        final paths = <String>[];
+        final client = MockClient((request) async {
+          methods.add(request.method);
+          paths.add(request.url.path);
+          // First segment "already exists", second is created.
+          return http.Response('', paths.length == 1 ? 405 : 201);
+        });
 
-      await targetWith(client).ensureDirectory('nightshade-sync/obsy-pi');
+        await targetWith(client).ensureDirectory('nightshade-sync/obsy-pi');
 
-      expect(methods, ['MKCOL', 'MKCOL']);
-      expect(paths[0], endsWith('/nightshade-sync/'));
-      expect(paths[1], endsWith('/nightshade-sync/obsy-pi/'));
-    });
+        expect(methods, ['MKCOL', 'MKCOL']);
+        expect(paths[0], endsWith('/nightshade-sync/'));
+        expect(paths[1], endsWith('/nightshade-sync/obsy-pi/'));
+      },
+    );
 
     test('downloadFile returns body bytes on 200', () async {
       final client = MockClient((request) async {
@@ -89,8 +96,9 @@ void main() {
         return http.Response.bytes([9, 8, 7], 200);
       });
 
-      final bytes =
-          await targetWith(client).downloadFile('nightshade-sync/m/f.nsbak');
+      final bytes = await targetWith(
+        client,
+      ).downloadFile('nightshade-sync/m/f.nsbak');
       expect(bytes, [9, 8, 7]);
     });
 
@@ -142,8 +150,13 @@ void main() {
       });
       expect(
         () => targetWith(client).downloadFile('x/y.nsbak'),
-        throwsA(isA<SyncTargetException>().having(
-            (e) => e.kind, 'kind', SyncTargetErrorKind.network)),
+        throwsA(
+          isA<SyncTargetException>().having(
+            (e) => e.kind,
+            'kind',
+            SyncTargetErrorKind.network,
+          ),
+        ),
       );
     });
   });
@@ -151,18 +164,19 @@ void main() {
   group('multistatus parsing', () {
     test('parses entries, skips self, decodes names and metadata', () async {
       final client = MockClient(
-          (request) async => http.Response(_sampleMultistatus, 207));
+        (request) async => http.Response(_sampleMultistatus, 207),
+      );
 
-      final entries =
-          await targetWith(client).listDirectory('nightshade-sync');
+      final entries = await targetWith(client).listDirectory('nightshade-sync');
 
       expect(entries, hasLength(3));
 
       final dir = entries.firstWhere((e) => e.isDirectory);
       expect(dir.name, 'obsy-pi');
 
-      final bundle =
-          entries.firstWhere((e) => e.name == 'bundle-2026-06-09.nsbak');
+      final bundle = entries.firstWhere(
+        (e) => e.name == 'bundle-2026-06-09.nsbak',
+      );
       expect(bundle.isDirectory, isFalse);
       expect(bundle.sizeBytes, 4242);
       expect(bundle.modified, DateTime.utc(2026, 6, 9, 4, 30, 0));
@@ -187,8 +201,7 @@ void main() {
 </D:multistatus>''';
       final client = MockClient((request) async => http.Response(body, 207));
 
-      final entries =
-          await targetWith(client).listDirectory('nightshade-sync');
+      final entries = await targetWith(client).listDirectory('nightshade-sync');
       expect(entries, hasLength(1));
       expect(entries.single.name, 'manifest.json');
       expect(entries.single.isDirectory, isFalse);

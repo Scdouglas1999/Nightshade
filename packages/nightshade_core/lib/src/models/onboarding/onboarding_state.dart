@@ -226,10 +226,12 @@ class OnboardingDraft {
       mountName: clearMount ? null : (mountName ?? this.mountName),
       focuserId: clearFocuser ? null : (focuserId ?? this.focuserId),
       focuserName: clearFocuser ? null : (focuserName ?? this.focuserName),
-      filterWheelId:
-          clearFilterWheel ? null : (filterWheelId ?? this.filterWheelId),
-      filterWheelName:
-          clearFilterWheel ? null : (filterWheelName ?? this.filterWheelName),
+      filterWheelId: clearFilterWheel
+          ? null
+          : (filterWheelId ?? this.filterWheelId),
+      filterWheelName: clearFilterWheel
+          ? null
+          : (filterWheelName ?? this.filterWheelName),
       guiderId: clearGuider ? null : (guiderId ?? this.guiderId),
       guiderName: clearGuider ? null : (guiderName ?? this.guiderName),
       pixelSizeMicrons: pixelSizeMicrons ?? this.pixelSizeMicrons,
@@ -271,34 +273,34 @@ class OnboardingDraft {
   }
 
   Map<String, dynamic> toJson() => {
-        'currentStep': currentStep.name,
-        'selectedDrivers': selectedDrivers.map((d) => d.name).toList(),
-        'cameraId': cameraId,
-        'cameraName': cameraName,
-        'mountId': mountId,
-        'mountName': mountName,
-        'focuserId': focuserId,
-        'focuserName': focuserName,
-        'filterWheelId': filterWheelId,
-        'filterWheelName': filterWheelName,
-        'guiderId': guiderId,
-        'guiderName': guiderName,
-        'pixelSizeMicrons': pixelSizeMicrons,
-        'focalLengthMm': focalLengthMm,
-        'apertureMm': apertureMm,
-        'reducerFactor': reducerFactor,
-        'filterNames': filterNames,
-        'captureDirectory': captureDirectory,
-        'profileName': profileName,
-        'telescopePresetId': telescopePresetId,
-        'telescopeName': telescopeName,
-        'cameraPresetId': cameraPresetId,
-        'defaultGain': defaultGain,
-        'defaultOffset': defaultOffset,
-        'defaultBinX': defaultBinX,
-        'defaultBinY': defaultBinY,
-        'defaultCoolingTempC': defaultCoolingTempC,
-      };
+    'currentStep': currentStep.name,
+    'selectedDrivers': selectedDrivers.map((d) => d.name).toList(),
+    'cameraId': cameraId,
+    'cameraName': cameraName,
+    'mountId': mountId,
+    'mountName': mountName,
+    'focuserId': focuserId,
+    'focuserName': focuserName,
+    'filterWheelId': filterWheelId,
+    'filterWheelName': filterWheelName,
+    'guiderId': guiderId,
+    'guiderName': guiderName,
+    'pixelSizeMicrons': pixelSizeMicrons,
+    'focalLengthMm': focalLengthMm,
+    'apertureMm': apertureMm,
+    'reducerFactor': reducerFactor,
+    'filterNames': filterNames,
+    'captureDirectory': captureDirectory,
+    'profileName': profileName,
+    'telescopePresetId': telescopePresetId,
+    'telescopeName': telescopeName,
+    'cameraPresetId': cameraPresetId,
+    'defaultGain': defaultGain,
+    'defaultOffset': defaultOffset,
+    'defaultBinX': defaultBinX,
+    'defaultBinY': defaultBinY,
+    'defaultCoolingTempC': defaultCoolingTempC,
+  };
 
   /// Deserialize a draft. Returns the default draft on parse failure so a
   /// corrupted settings row never wedges the wizard — the user just starts
@@ -413,33 +415,33 @@ class OnboardingDraft {
 
   @override
   int get hashCode => Object.hash(
-        currentStep,
-        Object.hashAllUnordered(selectedDrivers),
-        cameraId,
-        mountId,
-        focuserId,
-        filterWheelId,
-        guiderId,
-        pixelSizeMicrons,
-        focalLengthMm,
-        apertureMm,
-        reducerFactor,
-        Object.hashAll(filterNames),
-        captureDirectory,
-        profileName,
-        // Group the camera-defaults + telescope-preset fields into a single
-        // nested hash to stay under Object.hash's 20-argument limit.
-        Object.hash(
-          telescopePresetId,
-          telescopeName,
-          cameraPresetId,
-          defaultGain,
-          defaultOffset,
-          defaultBinX,
-          defaultBinY,
-          defaultCoolingTempC,
-        ),
-      );
+    currentStep,
+    Object.hashAllUnordered(selectedDrivers),
+    cameraId,
+    mountId,
+    focuserId,
+    filterWheelId,
+    guiderId,
+    pixelSizeMicrons,
+    focalLengthMm,
+    apertureMm,
+    reducerFactor,
+    Object.hashAll(filterNames),
+    captureDirectory,
+    profileName,
+    // Group the camera-defaults + telescope-preset fields into a single
+    // nested hash to stay under Object.hash's 20-argument limit.
+    Object.hash(
+      telescopePresetId,
+      telescopeName,
+      cameraPresetId,
+      defaultGain,
+      defaultOffset,
+      defaultBinX,
+      defaultBinY,
+      defaultCoolingTempC,
+    ),
+  );
 }
 
 bool _setEquals<T>(Set<T> a, Set<T> b) {

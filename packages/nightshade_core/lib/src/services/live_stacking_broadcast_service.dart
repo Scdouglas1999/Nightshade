@@ -171,22 +171,22 @@ class BroadcastSessionState {
 
   /// JSON view returned by `/api/broadcast/info`.
   Map<String, dynamic> toInfoJson() => {
-        'active': active,
-        'port': port,
-        'path': path,
-        'mode': mode.storageKey,
-        'stackMethod': stackMethod.storageKey,
-        'isPublic': isPublic,
-        'requiresAuth': !isPublic,
-        'framesStacked': framesStacked,
-        'integrationSecs': integrationSecs,
-        'integrationHms': integrationHms,
-        'currentTarget': currentTarget,
-        'activatedAt': activatedAt?.toUtc().toIso8601String(),
-        'thumbnailWidth': thumbnailWidth,
-        'thumbnailHeight': thumbnailHeight,
-        'viewerCount': viewerCount,
-      };
+    'active': active,
+    'port': port,
+    'path': path,
+    'mode': mode.storageKey,
+    'stackMethod': stackMethod.storageKey,
+    'isPublic': isPublic,
+    'requiresAuth': !isPublic,
+    'framesStacked': framesStacked,
+    'integrationSecs': integrationSecs,
+    'integrationHms': integrationHms,
+    'currentTarget': currentTarget,
+    'activatedAt': activatedAt?.toUtc().toIso8601String(),
+    'thumbnailWidth': thumbnailWidth,
+    'thumbnailHeight': thumbnailHeight,
+    'viewerCount': viewerCount,
+  };
 }
 
 /// Event the broadcast SSE handler emits to subscribers.
@@ -207,10 +207,10 @@ class BroadcastUpdate {
   });
 
   Map<String, dynamic> toJson() => {
-        'framesStacked': framesStacked,
-        'integrationSecs': integrationSecs,
-        'timestamp': timestamp.toUtc().toIso8601String(),
-      };
+    'framesStacked': framesStacked,
+    'integrationSecs': integrationSecs,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+  };
 }
 
 /// Coordinates between the LiveStacking node, the live-stacking
@@ -469,10 +469,10 @@ class LiveStackingBroadcastService {
 /// handler reads from this every request.
 final liveStackingBroadcastServiceProvider =
     Provider<LiveStackingBroadcastService>((ref) {
-  final svc = LiveStackingBroadcastService(ref);
-  ref.onDispose(svc.dispose);
-  return svc;
-});
+      final svc = LiveStackingBroadcastService(ref);
+      ref.onDispose(svc.dispose);
+      return svc;
+    });
 
 /// Wave 7.5 — bridges the "Disable broadcast everywhere" toggle in
 /// Sequencer Settings (`SequencerDefaults.livestackingDisableEverywhere`)

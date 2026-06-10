@@ -245,7 +245,8 @@ extension CameraDeviceHandlers on DeviceHandlers {
         'error': 'live_view_unavailable',
         'message': message,
         'deviceId': deviceId,
-        'hint': 'Use GET /api/run-watch/frame-thumbnail for the last captured frame, '
+        'hint':
+            'Use GET /api/run-watch/frame-thumbnail for the last captured frame, '
             'or connect a camera with native preview support (gPhoto2 / Fujifilm).',
       });
     } catch (e) {

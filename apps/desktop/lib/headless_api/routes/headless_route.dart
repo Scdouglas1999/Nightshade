@@ -36,15 +36,7 @@ import 'package:shelf_router/shelf_router.dart';
 /// Mirrors the shelf_router public surface (`get`/`post`/`put`/
 /// `delete`/`patch`) plus `head` and `options` so future audit
 /// findings can wire those without adding a new enum value first.
-enum HttpMethod {
-  get,
-  post,
-  put,
-  delete,
-  patch,
-  head,
-  options,
-}
+enum HttpMethod { get, post, put, delete, patch, head, options }
 
 /// A single declarative entry in the headless route table.
 ///

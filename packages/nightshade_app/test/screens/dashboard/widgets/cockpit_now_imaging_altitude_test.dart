@@ -30,7 +30,8 @@ Color _altColorFor(WidgetTester tester, String text) {
 void main() {
   const colors = NightshadeColors.dark;
 
-  testWidgets('altitude below the effective horizon grades error', (tester) async {
+  testWidgets('altitude below the effective horizon grades error',
+      (tester) async {
     const sky = RunDashboardSkyStats(
       altitudeDeg: 18.0,
       azimuthDeg: 90.0,
@@ -84,7 +85,8 @@ void main() {
     expect(_altColorFor(tester, '62.0°'), colors.success);
   });
 
-  testWidgets('with a 0° horizon a 25° target is still warning (low), not error',
+  testWidgets(
+      'with a 0° horizon a 25° target is still warning (low), not error',
       (tester) async {
     // Old behaviour used a hardcoded <30° warning; with horizon 0 the margin
     // is min(90*0.25,15)=15 → 0..15 warning, 15+ success. 25° → success now,

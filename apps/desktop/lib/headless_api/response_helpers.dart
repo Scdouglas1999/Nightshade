@@ -13,10 +13,7 @@ Response jsonResponse(
   return Response(
     statusCode,
     body: jsonEncode(body),
-    headers: {
-      ...jsonResponseHeaders,
-      if (headers != null) ...headers,
-    },
+    headers: {...jsonResponseHeaders, if (headers != null) ...headers},
   );
 }
 
@@ -96,10 +93,7 @@ Response streamResponse(
 }) {
   return Response.ok(
     body,
-    headers: {
-      'content-type': contentType,
-      if (headers != null) ...headers,
-    },
+    headers: {'content-type': contentType, if (headers != null) ...headers},
     context: context,
   );
 }

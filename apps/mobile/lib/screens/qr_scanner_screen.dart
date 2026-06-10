@@ -175,9 +175,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           text: '${data.host}:${data.webPort}',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        const TextSpan(
-                          text: '?\n\nServer fingerprint: ',
-                        ),
+                        const TextSpan(text: '?\n\nServer fingerprint: '),
                         TextSpan(
                           text: data.shortFingerprint,
                           style: NightshadeTypography.mono.copyWith(
@@ -270,25 +268,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                   )
                 else if (_controller != null)
-                  MobileScanner(
-                    controller: _controller,
-                    onDetect: _onDetect,
-                  ),
+                  MobileScanner(controller: _controller, onDetect: _onDetect),
                 if (_controller != null)
                   Center(
                     child: Builder(
                       builder: (context) {
                         final viewport = MediaQuery.sizeOf(context);
-                        final overlaySize =
-                            (viewport.shortestSide * 0.65).clamp(200.0, 280.0);
+                        final overlaySize = (viewport.shortestSide * 0.65)
+                            .clamp(200.0, 280.0);
                         return Container(
                           width: overlaySize,
                           height: overlaySize,
                           decoration: BoxDecoration(
-                            border: Border.all(
-                              color: colors.primary,
-                              width: 3,
-                            ),
+                            border: Border.all(color: colors.primary, width: 3),
                             borderRadius: BorderRadius.circular(8),
                           ),
                         );
@@ -307,20 +299,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 Text(
                   'Scan the QR code displayed on your Nightshade server',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'On the desktop: Settings → Remote Access → Start pairing, '
                   'then scan the QR shown there.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
                 ),
               ],
             ),

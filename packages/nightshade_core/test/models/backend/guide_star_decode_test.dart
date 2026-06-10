@@ -109,36 +109,42 @@ void main() {
       expect(decodeTrackedStars(''), isEmpty);
       expect(decodeTrackedStars('not json {{{'), isEmpty);
       expect(decodeTrackedStars(42), isEmpty);
-      expect(decodeTrackedStars(const {'count': 0, 'stars': <dynamic>[]}),
-          isEmpty);
+      expect(
+        decodeTrackedStars(const {'count': 0, 'stars': <dynamic>[]}),
+        isEmpty,
+      );
     });
   });
 
   group('Phd2Status.trackedStars', () {
-    test('defaults to empty (PHD2 / external guiders report no per-star list)',
-        () {
-      const status = Phd2Status(state: 'Guiding', connected: true);
-      expect(status.trackedStars, isEmpty);
-    });
+    test(
+      'defaults to empty (PHD2 / external guiders report no per-star list)',
+      () {
+        const status = Phd2Status(state: 'Guiding', connected: true);
+        expect(status.trackedStars, isEmpty);
+      },
+    );
 
-    test('fromJson decodes a trackedStars array from the network status JSON',
-        () {
-      final status = Phd2Status.fromJson(const {
-        'state': 'Guiding',
-        'connected': true,
-        'rmsRa': 0.4,
-        'rmsDec': 0.3,
-        'rmsTotal': 0.5,
-        'trackedStars': [
-          {'id': 0, 'x': 10.0, 'y': 12.0, 'snr': 18.0, 'is_lock': true},
-          {'id': 1, 'x': 60.0, 'y': 64.0, 'snr': 9.0, 'is_lock': false},
-        ],
-      });
+    test(
+      'fromJson decodes a trackedStars array from the network status JSON',
+      () {
+        final status = Phd2Status.fromJson(const {
+          'state': 'Guiding',
+          'connected': true,
+          'rmsRa': 0.4,
+          'rmsDec': 0.3,
+          'rmsTotal': 0.5,
+          'trackedStars': [
+            {'id': 0, 'x': 10.0, 'y': 12.0, 'snr': 18.0, 'is_lock': true},
+            {'id': 1, 'x': 60.0, 'y': 64.0, 'snr': 9.0, 'is_lock': false},
+          ],
+        });
 
-      expect(status.trackedStars, hasLength(2));
-      expect(status.trackedStars.first.isLock, isTrue);
-      expect(status.rmsTotal, 0.5);
-    });
+        expect(status.trackedStars, hasLength(2));
+        expect(status.trackedStars.first.isLock, isTrue);
+        expect(status.rmsTotal, 0.5);
+      },
+    );
 
     test('toJson emits trackedStars so the network transport carries them', () {
       const status = Phd2Status(

@@ -17,8 +17,8 @@ class GuideRmsCollector {
   const GuideRmsCollector({
     required ImagesDao imagesDao,
     required GuideRmsHistoryDao guideRmsHistoryDao,
-  })  : _imagesDao = imagesDao,
-        _guideRmsHistoryDao = guideRmsHistoryDao;
+  }) : _imagesDao = imagesDao,
+       _guideRmsHistoryDao = guideRmsHistoryDao;
 
   /// Collect a single history sample for [sessionId].
   ///
@@ -61,8 +61,9 @@ class GuideRmsCollector {
       GuideRmsHistoryCompanion.insert(
         sessionId: sessionId.toString(),
         mountId: trimmedMountId,
-        targetId:
-            targetIds.length == 1 ? Value(targetIds.single) : const Value.absent(),
+        targetId: targetIds.length == 1
+            ? Value(targetIds.single)
+            : const Value.absent(),
         totalRmsArcsec: rmsTotal / samples.length,
         sampleCount: samples.length,
         exposureSeconds: Value(exposureTotal / samples.length),

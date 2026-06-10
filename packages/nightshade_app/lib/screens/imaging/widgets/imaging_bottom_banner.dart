@@ -208,7 +208,9 @@ class _CaptureGroup extends StatelessWidget {
         SmallButton(
           key: ImagingTutorialKeys.snapshotBtn,
           label: isSingleCapture ? 'Taking…' : 'Snapshot$hostSuffix',
-          icon: isSingleCapture ? NightshadeIcons.loading : NightshadeIcons.camera,
+          icon: isSingleCapture
+              ? NightshadeIcons.loading
+              : NightshadeIcons.camera,
           colors: colors,
           isEnabled: isConnected && !isCapturing,
           onTap: onSnapshot,
@@ -360,7 +362,10 @@ class _DurationFieldState extends State<_DurationField> {
                     ),
             ),
             const SizedBox(width: 2),
-            Text('s', style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
+            Text('s',
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted)),
           ],
         ),
       ),
@@ -445,7 +450,8 @@ class _ExposurePopover extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(NightshadeIcons.sliders, size: 14, color: colors.textSecondary),
+            Icon(NightshadeIcons.sliders,
+                size: 14, color: colors.textSecondary),
             const SizedBox(width: 6),
             Text(
               'G${settings.gain}',
@@ -457,7 +463,8 @@ class _ExposurePopover extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 2),
-            Icon(NightshadeIcons.chevronDown, size: 13, color: colors.textMuted),
+            Icon(NightshadeIcons.chevronDown,
+                size: 13, color: colors.textMuted),
           ],
         ),
       ),

@@ -12,26 +12,25 @@ Map<String, dynamic> decodeJsonObjectString(
   return decoded;
 }
 
-List<String> decodeStringListJson(
-  String? jsonStr, {
-  required String context,
-}) {
+List<String> decodeStringListJson(String? jsonStr, {required String context}) {
   if (jsonStr == null || jsonStr.trim().isEmpty) return const [];
   final decoded = jsonDecode(jsonStr);
   if (decoded is! List) {
     throw FormatException('$context must be a JSON array');
   }
 
-  return decoded.map((value) {
-    if (value is! String) {
-      throw FormatException('$context entries must be strings');
-    }
-    final normalized = value.trim();
-    if (normalized.isEmpty) {
-      throw FormatException('$context entries must not be empty');
-    }
-    return normalized;
-  }).toList(growable: false);
+  return decoded
+      .map((value) {
+        if (value is! String) {
+          throw FormatException('$context entries must be strings');
+        }
+        final normalized = value.trim();
+        if (normalized.isEmpty) {
+          throw FormatException('$context entries must not be empty');
+        }
+        return normalized;
+      })
+      .toList(growable: false);
 }
 
 Map<String, int> decodeStringIntMapJson(
@@ -104,9 +103,11 @@ DateTime? jsonDateTime(dynamic value, {required String context}) {
 }
 
 void logJsonWarning(String context, Object error, [StackTrace? stackTrace]) {
-  developer.log('$context: $error',
-      name: 'JsonValidation',
-      level: 900,
-      error: error,
-      stackTrace: stackTrace);
+  developer.log(
+    '$context: $error',
+    name: 'JsonValidation',
+    level: 900,
+    error: error,
+    stackTrace: stackTrace,
+  );
 }

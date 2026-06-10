@@ -10,8 +10,8 @@ import 'equipment_retry_defaults.dart';
 /// Guider state provider
 final guiderStateProvider =
     StateNotifierProvider<GuiderStateNotifier, GuiderState>((ref) {
-  return GuiderStateNotifier(ref);
-});
+      return GuiderStateNotifier(ref);
+    });
 
 class GuiderStateNotifier extends StateNotifier<GuiderState> {
   final Ref _ref;
@@ -19,8 +19,10 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
 
   GuiderStateNotifier(this._ref) : super(const GuiderState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

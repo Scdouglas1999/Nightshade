@@ -87,41 +87,43 @@ void main() {
       expect(rows.any((t) => t.id == id && t.name == 'M31'), isTrue);
     });
 
-    test('ensureCatalogTarget returns existing row without duplicate',
-        () async {
-      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(() async => db.close());
+    test(
+      'ensureCatalogTarget returns existing row without duplicate',
+      () async {
+        final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(() async => db.close());
 
-      final existingId = await db.targetsDao.createTarget(
-        TargetsCompanion.insert(
-          name: 'M42',
-          ra: 5.58,
-          dec: -5.39,
-          catalogId: const Value('M42'),
-        ),
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, DisconnectedBackend()),
+        final existingId = await db.targetsDao.createTarget(
+          TargetsCompanion.insert(
+            name: 'M42',
+            ra: 5.58,
+            dec: -5.39,
+            catalogId: const Value('M42'),
           ),
-        ],
-      );
-      addTearDown(container.dispose);
+        );
 
-      final resolved = await container
-          .read(targetLibraryServiceProvider)
-          .ensureCatalogTarget(
-            targetName: 'M42',
-            raHours: 5.58,
-            decDegrees: -5.39,
-            catalogId: 'M42',
-          );
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, DisconnectedBackend()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      expect(resolved.id, existingId);
-      expect(await db.targetsDao.getAllTargets(), hasLength(1));
-    });
+        final resolved = await container
+            .read(targetLibraryServiceProvider)
+            .ensureCatalogTarget(
+              targetName: 'M42',
+              raHours: 5.58,
+              decDegrees: -5.39,
+              catalogId: 'M42',
+            );
+
+        expect(resolved.id, existingId);
+        expect(await db.targetsDao.getAllTargets(), hasLength(1));
+      },
+    );
   });
 }

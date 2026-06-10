@@ -15,20 +15,22 @@ void main(List<String> args) {
     exit(2);
   }
 
-  final markdownFiles = docsDir
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((file) => file.path.toLowerCase().endsWith('.md'))
-      .toList()
-    ..sort((a, b) => _normalize(a.path).compareTo(_normalize(b.path)));
+  final markdownFiles =
+      docsDir
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .where((file) => file.path.toLowerCase().endsWith('.md'))
+          .toList()
+        ..sort((a, b) => _normalize(a.path).compareTo(_normalize(b.path)));
 
   final checkedLinks = <_CheckedLink>[];
   for (final file in markdownFiles) {
     checkedLinks.addAll(_linksForFile(file));
   }
 
-  final localLinks =
-      checkedLinks.where((link) => link.kind == _LinkKind.local).toList();
+  final localLinks = checkedLinks
+      .where((link) => link.kind == _LinkKind.local)
+      .toList();
   final brokenLocalLinks = localLinks.where((link) => !link.exists).toList();
 
   final report = {
@@ -36,20 +38,24 @@ void main(List<String> args) {
     'markdownFileCount': markdownFiles.length,
     'checkedLocalLinkCount': localLinks.length,
     'brokenLocalLinkCount': brokenLocalLinks.length,
-    'externalOrSkippedLinkCount':
-        checkedLinks.where((link) => link.kind != _LinkKind.local).length,
+    'externalOrSkippedLinkCount': checkedLinks
+        .where((link) => link.kind != _LinkKind.local)
+        .length,
     'brokenLocalLinks': brokenLocalLinks.map((link) => link.toJson()).toList(),
   };
 
   File(_jsonOutputPath).parent.createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
   File(_markdownOutputPath).parent.createSync(recursive: true);
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    markdownFileCount: markdownFiles.length,
-    localLinks: localLinks,
-    brokenLocalLinks: brokenLocalLinks,
-  ));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(
+      markdownFileCount: markdownFiles.length,
+      localLinks: localLinks,
+      brokenLocalLinks: brokenLocalLinks,
+    ),
+  );
 
   stdout.writeln('Docs link audit complete.');
   stdout.writeln('Markdown files: ${markdownFiles.length}');
@@ -84,15 +90,18 @@ List<_CheckedLink> _linksForFile(File file) {
       '${file.parent.path}${Platform.pathSeparator}$decodedTarget',
     ).absolute.path;
     final normalizedResolvedPath = _normalizePathForPlatform(resolvedPath);
-    final exists = File(normalizedResolvedPath).existsSync() ||
+    final exists =
+        File(normalizedResolvedPath).existsSync() ||
         Directory(normalizedResolvedPath).existsSync();
 
-    links.add(_CheckedLink.local(
-      sourcePath: file.path,
-      target: rawTarget,
-      resolvedPath: normalizedResolvedPath,
-      exists: exists,
-    ));
+    links.add(
+      _CheckedLink.local(
+        sourcePath: file.path,
+        target: rawTarget,
+        resolvedPath: normalizedResolvedPath,
+        exists: exists,
+      ),
+    );
   }
 
   return links;
@@ -205,9 +214,9 @@ class _CheckedLink {
   final bool exists;
 
   Map<String, Object?> toJson() => {
-        'sourcePath': sourcePath,
-        'target': target,
-        'resolvedPath': resolvedPath,
-        'exists': exists,
-      };
+    'sourcePath': sourcePath,
+    'target': target,
+    'resolvedPath': resolvedPath,
+    'exists': exists,
+  };
 }

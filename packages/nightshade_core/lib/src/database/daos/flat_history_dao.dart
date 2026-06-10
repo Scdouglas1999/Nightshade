@@ -60,24 +60,27 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     int gain = 0,
     int binning = 1,
   }) {
-    return into(flatHistory).insert(FlatHistoryCompanion.insert(
-      filterName: filterName,
-      exposureTime: exposureTime,
-      histogramTarget: histogramTarget,
-      actualAdu: actualAdu,
-      equipmentProfileId: Value(equipmentProfileId),
-      panelBrightness: Value(panelBrightness),
-      skyAduRate: Value(skyAduRate),
-      twilightPhase: Value(twilightPhase),
-      gain: Value(gain),
-      binning: Value(binning),
-    ));
+    return into(flatHistory).insert(
+      FlatHistoryCompanion.insert(
+        filterName: filterName,
+        exposureTime: exposureTime,
+        histogramTarget: histogramTarget,
+        actualAdu: actualAdu,
+        equipmentProfileId: Value(equipmentProfileId),
+        panelBrightness: Value(panelBrightness),
+        skyAduRate: Value(skyAduRate),
+        twilightPhase: Value(twilightPhase),
+        gain: Value(gain),
+        binning: Value(binning),
+      ),
+    );
   }
 
   /// P1-10: remote calibration API — fetch by id.
   Future<FlatHistoryEntry?> getById(int id) {
-    return (select(flatHistory)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      flatHistory,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
   /// P1-10: remote calibration API — filtered listing.
@@ -142,10 +145,7 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// P2-8: row count matching [listPaginated]'s filters.
-  Future<int> countFiltered({
-    String? filterName,
-    int? panelBrightness,
-  }) async {
+  Future<int> countFiltered({String? filterName, int? panelBrightness}) async {
     final countExpr = flatHistory.id.count();
     final query = selectOnly(flatHistory)..addColumns([countExpr]);
     if (filterName != null) {
@@ -194,25 +194,27 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> pruneHistory({int keepPerFilter = 50}) async {
     await transaction(() async {
       // Get distinct filter names
-      final filters = await (selectOnly(flatHistory, distinct: true)
-            ..addColumns([flatHistory.filterName]))
-          .map((row) => row.read(flatHistory.filterName)!)
-          .get();
+      final filters =
+          await (selectOnly(flatHistory, distinct: true)
+                ..addColumns([flatHistory.filterName]))
+              .map((row) => row.read(flatHistory.filterName)!)
+              .get();
 
       for (final filter in filters) {
         // Get IDs to keep
-        final keepIds = await (select(flatHistory)
-              ..where((t) => t.filterName.equals(filter))
-              ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
-              ..limit(keepPerFilter))
-            .map((e) => e.id)
-            .get();
+        final keepIds =
+            await (select(flatHistory)
+                  ..where((t) => t.filterName.equals(filter))
+                  ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+                  ..limit(keepPerFilter))
+                .map((e) => e.id)
+                .get();
 
         if (keepIds.isNotEmpty) {
           // Delete entries not in keep list
-          await (delete(flatHistory)
-                ..where((t) =>
-                    t.filterName.equals(filter) & t.id.isNotIn(keepIds)))
+          await (delete(flatHistory)..where(
+                (t) => t.filterName.equals(filter) & t.id.isNotIn(keepIds),
+              ))
               .go();
         }
       }

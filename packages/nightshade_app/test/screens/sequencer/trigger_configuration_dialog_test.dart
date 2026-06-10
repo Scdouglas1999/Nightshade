@@ -86,8 +86,8 @@ void main() {
         threshold: 1.8,
         action: TriggerActionType.abort,
       );
-      expect((guiding.toNativeJson()['condition'] as Map)['GuidingRmsAbove'],
-          1.8);
+      expect(
+          (guiding.toNativeJson()['condition'] as Map)['GuidingRmsAbove'], 1.8);
 
       final hfr = ExposureTriggerConfig(
         condition: TriggerConditionType.hfr,
@@ -142,7 +142,8 @@ void main() {
         await openEditForFirstTrigger(tester);
 
         // Switch the condition dropdown from "Guiding RMS" to "Drift".
-        final dropdown = find.byKey(const ValueKey('trigger_condition_dropdown'));
+        final dropdown =
+            find.byKey(const ValueKey('trigger_condition_dropdown'));
         expect(dropdown, findsOneWidget);
         await tester.tap(dropdown);
         await tester.pumpAndSettle();

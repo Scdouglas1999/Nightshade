@@ -58,14 +58,14 @@ Map<String, dynamic> _$UpdateManifestToJson(_UpdateManifest instance) =>
     };
 
 _VersionInfo _$VersionInfoFromJson(Map<String, dynamic> json) => _VersionInfo(
-      latestVersion: json['latestVersion'] as String,
-      latestBuildNumber: (json['latestBuildNumber'] as num).toInt(),
-      channels: (json['channels'] as Map<String, dynamic>).map(
-        (k, e) => MapEntry(k, ChannelInfo.fromJson(e as Map<String, dynamic>)),
-      ),
-      minSupportedVersion: json['minSupportedVersion'] as String?,
-      serverVersion: json['serverVersion'] as String?,
-    );
+  latestVersion: json['latestVersion'] as String,
+  latestBuildNumber: (json['latestBuildNumber'] as num).toInt(),
+  channels: (json['channels'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, ChannelInfo.fromJson(e as Map<String, dynamic>)),
+  ),
+  minSupportedVersion: json['minSupportedVersion'] as String?,
+  serverVersion: json['serverVersion'] as String?,
+);
 
 Map<String, dynamic> _$VersionInfoToJson(_VersionInfo instance) =>
     <String, dynamic>{
@@ -77,9 +77,9 @@ Map<String, dynamic> _$VersionInfoToJson(_VersionInfo instance) =>
     };
 
 _ChannelInfo _$ChannelInfoFromJson(Map<String, dynamic> json) => _ChannelInfo(
-      version: json['version'] as String,
-      manifestUrl: json['manifestUrl'] as String,
-    );
+  version: json['version'] as String,
+  manifestUrl: json['manifestUrl'] as String,
+);
 
 Map<String, dynamic> _$ChannelInfoToJson(_ChannelInfo instance) =>
     <String, dynamic>{

@@ -116,8 +116,7 @@ void main() {
 
   testWidgets(
       'tapping_adaptive_exposure_renders_widget: the sidebar entry maps to '
-      'AdaptiveExposureSettings in the content pane',
-      (tester) async {
+      'AdaptiveExposureSettings in the content pane', (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
       tester,
@@ -134,8 +133,7 @@ void main() {
     await _selectSection(tester, 'Adaptive Exposure');
 
     expect(find.byType(AdaptiveExposureSettings), findsOneWidget,
-        reason:
-            'Tapping Adaptive Exposure must swap the content pane to '
+        reason: 'Tapping Adaptive Exposure must swap the content pane to '
             'AdaptiveExposureSettings — otherwise the case-index dispatch '
             'in _buildContent has drifted.');
   });
@@ -160,12 +158,10 @@ void main() {
     await _selectSection(tester, 'Pre-flight Checks');
 
     expect(find.byType(PreflightSettings), findsOneWidget,
-        reason:
-            'Tapping Pre-flight Checks must render PreflightSettings.');
+        reason: 'Tapping Pre-flight Checks must render PreflightSettings.');
     // The radio group has three Radio<PreflightStrictness> widgets.
     expect(find.byType(Radio<PreflightStrictness>), findsNWidgets(3),
-        reason:
-            'PreflightSettings must surface three strictness options '
+        reason: 'PreflightSettings must surface three strictness options '
             '(lax / normal / strict).');
   });
 
@@ -202,8 +198,7 @@ void main() {
     final state = handle.container.read(appSettingsProvider).value;
     expect(state, isNotNull);
     expect(state!.preflightStrictness, PreflightStrictness.strict,
-        reason:
-            'Tapping the Strict option must call '
+        reason: 'Tapping the Strict option must call '
             'setPreflightStrictness(PreflightStrictness.strict).');
   });
 }

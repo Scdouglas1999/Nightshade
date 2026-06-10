@@ -36,14 +36,14 @@ class PushNotification {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': 'push_notification',
-        'title': title,
-        'body': body,
-        'priority': priority.name,
-        'eventType': eventType,
-        'category': category.name,
-        'timestamp': timestamp.millisecondsSinceEpoch,
-      };
+    'type': 'push_notification',
+    'title': title,
+    'body': body,
+    'priority': priority.name,
+    'eventType': eventType,
+    'category': category.name,
+    'timestamp': timestamp.millisecondsSinceEpoch,
+  };
 }
 
 /// Configuration for which events should generate push notifications.
@@ -91,14 +91,11 @@ class PushNotificationConfig {
       enabled: enabled ?? this.enabled,
       notifySequenceCompleted:
           notifySequenceCompleted ?? this.notifySequenceCompleted,
-      notifySequenceFailed:
-          notifySequenceFailed ?? this.notifySequenceFailed,
+      notifySequenceFailed: notifySequenceFailed ?? this.notifySequenceFailed,
       notifyMeridianFlip: notifyMeridianFlip ?? this.notifyMeridianFlip,
-      notifyWeatherUnsafe:
-          notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
+      notifyWeatherUnsafe: notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
       notifyGuidingLost: notifyGuidingLost ?? this.notifyGuidingLost,
-      notifyExposureFailed:
-          notifyExposureFailed ?? this.notifyExposureFailed,
+      notifyExposureFailed: notifyExposureFailed ?? this.notifyExposureFailed,
       notifyAutofocusFailed:
           notifyAutofocusFailed ?? this.notifyAutofocusFailed,
       notifyEquipmentDisconnected:
@@ -163,27 +160,30 @@ class PushNotificationService {
     required String eventType,
     required EventCategory category,
   }) {
-    enqueue(PushNotification(
-      title: title,
-      body: body,
-      priority: PushNotificationPriority.critical,
-      eventType: eventType,
-      category: category,
-      timestamp: DateTime.now(),
-    ));
+    enqueue(
+      PushNotification(
+        title: title,
+        body: body,
+        priority: PushNotificationPriority.critical,
+        eventType: eventType,
+        category: category,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   /// Emit a test push notification
   void sendTestNotification() {
-    enqueue(PushNotification(
-      title: 'Test Notification',
-      body:
-          'Push notifications are working! This is a test from Nightshade.',
-      priority: PushNotificationPriority.normal,
-      eventType: 'Test',
-      category: EventCategory.system,
-      timestamp: DateTime.now(),
-    ));
+    enqueue(
+      PushNotification(
+        title: 'Test Notification',
+        body: 'Push notifications are working! This is a test from Nightshade.',
+        priority: PushNotificationPriority.normal,
+        eventType: 'Test',
+        category: EventCategory.system,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   /// Dispose of resources

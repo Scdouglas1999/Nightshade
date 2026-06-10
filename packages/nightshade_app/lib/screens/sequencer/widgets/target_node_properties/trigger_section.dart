@@ -100,7 +100,9 @@ class _TriggerSection extends ConsumerWidget {
           ] else ...[
             const SizedBox(height: 6),
             Text(_helpText,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted)),
           ],
         ],
       ),
@@ -131,7 +133,9 @@ class _TriggerBuilder extends StatelessWidget {
           isExpanded: true,
           value: _kindKey(trigger),
           dropdownColor: colors.surfaceAlt,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textPrimary),
           items: const [
             DropdownMenuItem(
                 value: 'AltitudeAbove', child: Text('Altitude above')),

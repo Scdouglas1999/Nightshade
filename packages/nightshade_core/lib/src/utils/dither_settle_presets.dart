@@ -21,27 +21,27 @@ enum DitherSettlePreset {
 extension DitherSettlePresetLabel on DitherSettlePreset {
   /// Short human label for chip UI.
   String get label => switch (this) {
-        DitherSettlePreset.goodSeeing => 'Good seeing',
-        DitherSettlePreset.windy => 'Windy',
-        DitherSettlePreset.fastOptics => 'Fast optics',
-      };
+    DitherSettlePreset.goodSeeing => 'Good seeing',
+    DitherSettlePreset.windy => 'Windy',
+    DitherSettlePreset.fastOptics => 'Fast optics',
+  };
 
   /// Target guide-error tolerance in arcseconds for this scenario. The pixel
   /// threshold is `toleranceArcsec / pixelScale`, so a wider sensor scale
   /// (arcsec/px) yields a smaller pixel number for the same physical tolerance.
   double get toleranceArcsec => switch (this) {
-        DitherSettlePreset.goodSeeing => 1.0,
-        DitherSettlePreset.windy => 2.5,
-        DitherSettlePreset.fastOptics => 1.5,
-      };
+    DitherSettlePreset.goodSeeing => 1.0,
+    DitherSettlePreset.windy => 2.5,
+    DitherSettlePreset.fastOptics => 1.5,
+  };
 
   /// Settle dwell time in seconds (how long the guide error must stay below the
   /// threshold before settling is declared complete).
   double get settleTimeSeconds => switch (this) {
-        DitherSettlePreset.goodSeeing => 8.0,
-        DitherSettlePreset.windy => 20.0,
-        DitherSettlePreset.fastOptics => 5.0,
-      };
+    DitherSettlePreset.goodSeeing => 8.0,
+    DitherSettlePreset.windy => 20.0,
+    DitherSettlePreset.fastOptics => 5.0,
+  };
 }
 
 /// A derived settle threshold + dwell time pair for a given preset and rig.
@@ -112,8 +112,10 @@ DitherSettleValues deriveDitherSettleValues({
   final rawPixels = (scale != null && scale > 0)
       ? preset.toleranceArcsec / scale
       : preset.toleranceArcsec;
-  final clamped =
-      rawPixels.clamp(kDitherSettleMinPixels, kDitherSettleMaxPixels);
+  final clamped = rawPixels.clamp(
+    kDitherSettleMinPixels,
+    kDitherSettleMaxPixels,
+  );
   // Round to one decimal to match the settle-pixel input's precision.
   final settlePixels = (clamped * 10).roundToDouble() / 10;
   return DitherSettleValues(

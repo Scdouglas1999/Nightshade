@@ -1,9 +1,9 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
-// =========================================================================
-// Device Discovery & Connection
-// =========================================================================
+  // =========================================================================
+  // Device Discovery & Connection
+  // =========================================================================
 
   @override
   Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) async {
@@ -11,14 +11,16 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     final bridgeDevices = await bridge.NativeBridge.discoverDevices(bridgeType);
 
     return bridgeDevices
-        .map((d) => DeviceInfo(
-              id: d.id,
-              name: d.name,
-              deviceType: deviceType,
-              driverType: _fromBridgeDriverType(d.driverType),
-              description: d.description,
-              driverVersion: d.driverVersion,
-            ))
+        .map(
+          (d) => DeviceInfo(
+            id: d.id,
+            name: d.name,
+            deviceType: deviceType,
+            driverType: _fromBridgeDriverType(d.driverType),
+            description: d.description,
+            driverVersion: d.driverVersion,
+          ),
+        )
         .toList();
   }
 
@@ -28,44 +30,46 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
       label: 'INDI',
       host: host,
       port: port,
-      discover: () => bridge_api.apiDiscoverIndiAtAddress(
-        host: host,
-        port: port,
-      ),
+      discover: () =>
+          bridge_api.apiDiscoverIndiAtAddress(host: host, port: port),
     );
     return bridgeDevices
-        .map((d) => DeviceInfo(
-              id: d.id,
-              name: d.name,
-              deviceType: _fromBridgeDeviceType(d.deviceType),
-              driverType: _fromBridgeDriverType(d.driverType),
-              description: d.description,
-              driverVersion: d.driverVersion,
-            ))
+        .map(
+          (d) => DeviceInfo(
+            id: d.id,
+            name: d.name,
+            deviceType: _fromBridgeDeviceType(d.deviceType),
+            driverType: _fromBridgeDriverType(d.driverType),
+            description: d.description,
+            driverVersion: d.driverVersion,
+          ),
+        )
         .toList();
   }
 
   @override
   Future<List<DeviceInfo>> discoverAlpacaAtAddress(
-      String host, int port) async {
+    String host,
+    int port,
+  ) async {
     final bridgeDevices = await _discoverAddressDevices(
       label: 'Alpaca',
       host: host,
       port: port,
-      discover: () => bridge_api.apiDiscoverAlpacaAtAddress(
-        host: host,
-        port: port,
-      ),
+      discover: () =>
+          bridge_api.apiDiscoverAlpacaAtAddress(host: host, port: port),
     );
     return bridgeDevices
-        .map((d) => DeviceInfo(
-              id: d.id,
-              name: d.name,
-              deviceType: _fromBridgeDeviceType(d.deviceType),
-              driverType: _fromBridgeDriverType(d.driverType),
-              description: d.description,
-              driverVersion: d.driverVersion,
-            ))
+        .map(
+          (d) => DeviceInfo(
+            id: d.id,
+            name: d.name,
+            deviceType: _fromBridgeDeviceType(d.deviceType),
+            driverType: _fromBridgeDriverType(d.driverType),
+            description: d.description,
+            driverVersion: d.driverVersion,
+          ),
+        )
         .toList();
   }
 
@@ -112,20 +116,22 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     final bridgeDevices = await bridge.NativeBridge.getConnectedDevices();
 
     return bridgeDevices
-        .map((d) => DeviceInfo(
-              id: d.id,
-              name: d.name,
-              deviceType: _fromBridgeDeviceType(d.deviceType),
-              driverType: _fromBridgeDriverType(d.driverType),
-              description: d.description,
-              driverVersion: d.driverVersion,
-            ))
+        .map(
+          (d) => DeviceInfo(
+            id: d.id,
+            name: d.name,
+            deviceType: _fromBridgeDeviceType(d.deviceType),
+            driverType: _fromBridgeDriverType(d.driverType),
+            description: d.description,
+            driverVersion: d.driverVersion,
+          ),
+        )
         .toList();
   }
 
-// =========================================================================
-// Camera Control
-// =========================================================================
+  // =========================================================================
+  // Camera Control
+  // =========================================================================
 
   @override
   Future<void> cameraStartExposure({
@@ -192,7 +198,6 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     return await bridge_api.apiGetLastRawImageData(deviceId: deviceId);
   }
 
-
   @override
   Future<void> saveFitsFromLastCapture({
     required String deviceId,
@@ -217,11 +222,7 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     required bool enabled,
     double? targetTemp,
   }) async {
-    await bridge.NativeBridge.setCameraCooler(
-      deviceId,
-      enabled,
-      targetTemp,
-    );
+    await bridge.NativeBridge.setCameraCooler(deviceId, enabled, targetTemp);
   }
 
   @override
@@ -244,7 +245,8 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
 
   @override
   Future<bridge_caps.CameraRecommendedSettings> cameraGetRecommendedSettings(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     // Direct passthrough: the Rust bridge returns an empty struct when the
     // vendor SDK doesn't expose a recommendation, so we never need to invent
     // values here. Errors propagate to the caller — silent fallbacks would

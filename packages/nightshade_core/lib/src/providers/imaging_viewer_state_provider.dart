@@ -63,12 +63,12 @@ class ImagingViewerState {
 
   @override
   int get hashCode => Object.hash(
-        zoomLevel,
-        panOffset,
-        showCrosshair,
-        showGrid,
-        showStarOverlay,
-      );
+    zoomLevel,
+    panOffset,
+    showCrosshair,
+    showGrid,
+    showStarOverlay,
+  );
 }
 
 /// Notifier exposing intent-based mutators so callers don't have to hand-roll
@@ -125,5 +125,5 @@ class ImagingViewerStateNotifier extends StateNotifier<ImagingViewerState> {
 /// View state for the imaging preview area (zoom, pan, overlay flags).
 final imagingViewerStateProvider =
     StateNotifierProvider<ImagingViewerStateNotifier, ImagingViewerState>(
-  (ref) => ImagingViewerStateNotifier(),
-);
+      (ref) => ImagingViewerStateNotifier(),
+    );

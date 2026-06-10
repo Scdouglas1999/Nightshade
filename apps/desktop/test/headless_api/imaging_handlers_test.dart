@@ -23,9 +23,11 @@ void main() {
     });
 
     test('star crops missing device ID returns JSON bad request', () async {
-      final response = await translateHandlerErrors(handlers.handleGetStarCrops(
-        Request('GET', Uri.parse('http://localhost/api/imaging/star-crops')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetStarCrops(
+          Request('GET', Uri.parse('http://localhost/api/imaging/star-crops')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -34,36 +36,45 @@ void main() {
     });
 
     test('plate solve malformed payload returns JSON internal error', () async {
-      final response = await translateHandlerErrors(handlers.handlePlateSolve(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/plate-solve'),
-          body: jsonEncode({}),
+      final response = await translateHandlerErrors(
+        handlers.handlePlateSolve(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/plate-solve'),
+            body: jsonEncode({}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
-    test('raw image invalid backend call returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetLastRawImageData(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/imaging/raw?deviceId=camera-1'),
-        ),
-      ));
+    test(
+      'raw image invalid backend call returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetLastRawImageData(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/imaging/raw?deviceId=camera-1'),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
   });
 }

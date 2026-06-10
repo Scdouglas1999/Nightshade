@@ -103,10 +103,7 @@ class LlmAssistantSettings {
   /// with [defaultConfigFor] so the UI always has something to render.
   final Map<LlmProviderKind, LlmProviderConfig> perKind;
 
-  const LlmAssistantSettings({
-    required this.activeKind,
-    required this.perKind,
-  });
+  const LlmAssistantSettings({required this.activeKind, required this.perKind});
 
   /// Convenience: the config for the currently selected provider,
   /// including the API key fetched from the secure store.
@@ -136,8 +133,7 @@ class LlmSettingsService {
   /// Optional broadcast stream surface — the settings provider exposes
   /// it as a Riverpod stream so the dialog's "Configured?" badge stays
   /// in sync without a manual ref.invalidate().
-  final StreamController<void> _changes =
-      StreamController<void>.broadcast();
+  final StreamController<void> _changes = StreamController<void>.broadcast();
 
   LlmSettingsService(this._settingsDao, this._secrets);
 
@@ -147,13 +143,15 @@ class LlmSettingsService {
   /// per-kind defaults so the settings UI always renders a complete
   /// form.
   Future<LlmAssistantSettings> load() async {
-    final activeKindRaw =
-        await _settingsDao.getSetting(LlmSettingsKeys.activeProviderKind);
+    final activeKindRaw = await _settingsDao.getSetting(
+      LlmSettingsKeys.activeProviderKind,
+    );
     final activeKind = LlmProviderKindLabel.fromStorageKey(activeKindRaw);
     final perKind = <LlmProviderKind, LlmProviderConfig>{};
     for (final kind in LlmProviderKind.values) {
-      final blob = await _settingsDao
-          .getSetting(LlmSettingsKeys.providerBlobFor(kind));
+      final blob = await _settingsDao.getSetting(
+        LlmSettingsKeys.providerBlobFor(kind),
+      );
       perKind[kind] = _decodeBlob(blob) ?? defaultConfigFor(kind);
     }
     return LlmAssistantSettings(activeKind: activeKind, perKind: perKind);

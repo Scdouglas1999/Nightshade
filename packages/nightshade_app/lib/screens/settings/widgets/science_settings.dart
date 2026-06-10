@@ -9,8 +9,7 @@ import 'settings_widgets.dart';
 class ScienceSettingsPage extends ConsumerWidget {
   final bool isMobile;
 
-  const ScienceSettingsPage(
-      {super.key, this.isMobile = false});
+  const ScienceSettingsPage({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,7 +307,8 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide: BorderSide(color: NightshadeColors.of(context).border),
+              borderSide:
+                  BorderSide(color: NightshadeColors.of(context).border),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -319,8 +319,7 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
             final trimmed = value.trim().toUpperCase();
             if (trimmed.isNotEmpty && trimmed.length > 5) {
               setState(() {
-                _validationError =
-                    'AAVSO codes must be 1-5 characters';
+                _validationError = 'AAVSO codes must be 1-5 characters';
               });
               return;
             }
@@ -400,7 +399,8 @@ class _MpcObservatoryCodeRowState
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide: BorderSide(color: NightshadeColors.of(context).border),
+              borderSide:
+                  BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           onSubmitted: (value) async {
@@ -477,7 +477,8 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide: BorderSide(color: NightshadeColors.of(context).border),
+              borderSide:
+                  BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           onSubmitted: (value) async {

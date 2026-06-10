@@ -55,13 +55,13 @@ class TargetScore extends Equatable {
 
   @override
   List<Object?> get props => [
-        targetId,
-        targetName,
-        totalScore,
-        factors,
-        hardConstraintFailed,
-        rejectionReasons,
-      ];
+    targetId,
+    targetName,
+    totalScore,
+    factors,
+    hardConstraintFailed,
+    rejectionReasons,
+  ];
 }
 
 /// A rejected candidate's why-not summary surfaced alongside the chosen
@@ -102,13 +102,13 @@ class RejectedCandidate extends Equatable {
 
   @override
   List<Object?> get props => [
-        targetId,
-        targetName,
-        score,
-        primaryReason,
-        hardConstraintFailures,
-        factors,
-      ];
+    targetId,
+    targetName,
+    score,
+    primaryReason,
+    hardConstraintFailures,
+    factors,
+  ];
 }
 
 /// The decision the scheduler made at a particular tick.
@@ -155,13 +155,13 @@ class SchedulerDecision extends Equatable {
 
   @override
   List<Object?> get props => [
-        chosenTargetId,
-        chosenTargetName,
-        score,
-        reasoning,
-        scoredCandidates,
-        evaluatedAt,
-        isSwitch,
-        rejected,
-      ];
+    chosenTargetId,
+    chosenTargetName,
+    score,
+    reasoning,
+    scoredCandidates,
+    evaluatedAt,
+    isSwitch,
+    rejected,
+  ];
 }

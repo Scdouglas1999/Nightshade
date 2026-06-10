@@ -42,10 +42,7 @@ class UpdateHandlers {
   final UpdateController controller;
   final JobManager jobManager;
 
-  UpdateHandlers({
-    required this.controller,
-    required this.jobManager,
-  });
+  UpdateHandlers({required this.controller, required this.jobManager});
 
   /// `GET /api/system/version` — current build metadata.
   Future<Response> handleGetVersion(Request request) async {
@@ -58,11 +55,13 @@ class UpdateHandlers {
       if (controller.updateServerUrl != null)
         'updateServerUrl': controller.updateServerUrl,
       if (controller.lastUpdateCheck != null)
-        'lastUpdateCheck':
-            controller.lastUpdateCheck!.toUtc().toIso8601String(),
+        'lastUpdateCheck': controller.lastUpdateCheck!
+            .toUtc()
+            .toIso8601String(),
       if (controller.lastUpdateApplied != null)
-        'lastUpdateApplied':
-            controller.lastUpdateApplied!.toUtc().toIso8601String(),
+        'lastUpdateApplied': controller.lastUpdateApplied!
+            .toUtc()
+            .toIso8601String(),
     });
   }
 
@@ -75,18 +74,16 @@ class UpdateHandlers {
       operation: 'system.update.check',
       work: (sink, cancellation) async {
         sink.update(null, 'Querying update server');
-        final outcome =
-            await controller.checkForUpdates(channelOverride: channelOverride);
+        final outcome = await controller.checkForUpdates(
+          channelOverride: channelOverride,
+        );
         if (cancellation.isCancelled) {
           throw const JobCancelledException('check_cancelled');
         }
         return outcome.toJson();
       },
     );
-    return jsonOk({
-      'jobId': job.jobId,
-      'status': job.state.wireName,
-    });
+    return jsonOk({'jobId': job.jobId, 'status': job.state.wireName});
   }
 
   /// `GET /api/system/update/status` — current update phase snapshot.
@@ -114,10 +111,7 @@ class UpdateHandlers {
     // event with the placeholder 'pending' jobId because we didn't have
     // the real one at the time start() returned; here we don't replay
     // the event, we just hand the caller the jobId for tracking.
-    return jsonOk({
-      'jobId': job.jobId,
-      'status': job.state.wireName,
-    });
+    return jsonOk({'jobId': job.jobId, 'status': job.state.wireName});
   }
 
   /// `POST /api/system/update/apply` — apply the staged update.
@@ -179,10 +173,7 @@ class UpdateHandlers {
         }
       }
     }
-    return jsonOk({
-      'aborted': true,
-      'cancelledJobs': cancelled,
-    });
+    return jsonOk({'aborted': true, 'cancelledJobs': cancelled});
   }
 
   /// `POST /api/system/update/rollback` — admin-only rollback of the
@@ -208,10 +199,7 @@ class UpdateHandlers {
         return {'status': 'rolled_back'};
       },
     );
-    return jsonOk({
-      'jobId': job.jobId,
-      'status': job.state.wireName,
-    });
+    return jsonOk({'jobId': job.jobId, 'status': job.state.wireName});
   }
 
   /// `GET /api/system/update/staged` — info about the staged update.
@@ -273,7 +261,7 @@ class UpdateHandlers {
       final sep = Platform.pathSeparator;
       final idx = exe.lastIndexOf(sep);
       return idx >= 0 ? exe.substring(0, idx) : exe;
-    } catch (_, __) {
+    } catch (_) {
       // Why: best-effort install-dir resolution; fall back to the OS name
       // rather than failing the request if the executable path can't be parsed.
       return Platform.operatingSystem;

@@ -32,8 +32,8 @@ class FlatPreviewPanel extends ConsumerWidget {
         // flex split would crush the visualization charts into overflow.
         // Below a threshold, scroll the panel with sensible fixed heights
         // instead of fighting for pixels.
-        final isShort = constraints.maxHeight.isFinite &&
-            constraints.maxHeight < 560;
+        final isShort =
+            constraints.maxHeight.isFinite && constraints.maxHeight < 560;
 
         if (isShort) {
           return SingleChildScrollView(
@@ -88,23 +88,23 @@ class _ImagePreview extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
           child: Stack(
-          children: [
-            // Image or empty state
-            Positioned.fill(
-              child: imageResult != null
-                  ? _buildImage(imageResult, colors)
-                  : _buildEmptyState(colors),
-            ),
-
-            // Histogram overlay (top right)
-            if (showHistogram && imageResult != null)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: _buildHistogramOverlay(imageResult, colors),
+            children: [
+              // Image or empty state
+              Positioned.fill(
+                child: imageResult != null
+                    ? _buildImage(imageResult, colors)
+                    : _buildEmptyState(colors),
               ),
-          ],
-        ),
+
+              // Histogram overlay (top right)
+              if (showHistogram && imageResult != null)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _buildHistogramOverlay(imageResult, colors),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -281,7 +281,9 @@ class _HistogramChart extends StatelessWidget {
         child: Center(
           child: Text(
             'No data',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -436,33 +438,34 @@ class _StatsBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: LayoutBuilder(
           builder: (context, constraints) {
-          // Keep stats + status on one line only when there is comfortable
-          // room; otherwise stack the status under the wrapped stats.
-          final inline = constraints.maxWidth >= 460;
-          final statStrip = ResponsiveStatStrip(stats: stats, minCellWidth: 96);
-          final status = _StatusIndicator(
-            status: currentFilter?.status ?? FilterCalibrationStatus.pending,
-            colors: colors,
-          );
+            // Keep stats + status on one line only when there is comfortable
+            // room; otherwise stack the status under the wrapped stats.
+            final inline = constraints.maxWidth >= 460;
+            final statStrip =
+                ResponsiveStatStrip(stats: stats, minCellWidth: 96);
+            final status = _StatusIndicator(
+              status: currentFilter?.status ?? FilterCalibrationStatus.pending,
+              colors: colors,
+            );
 
-          if (inline) {
-            return Row(
+            if (inline) {
+              return Row(
+                children: [
+                  Expanded(child: statStrip),
+                  const SizedBox(width: 16),
+                  status,
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: statStrip),
-                const SizedBox(width: 16),
-                status,
+                statStrip,
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerRight, child: status),
               ],
             );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              statStrip,
-              const SizedBox(height: 10),
-              Align(alignment: Alignment.centerRight, child: status),
-            ],
-          );
-        },
+          },
         ),
       ),
     );
@@ -600,7 +603,8 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
           const SizedBox(width: 12),
           Text(
             'CAPTURING: ${remaining.toStringAsFixed(1)}s remaining',
-            style: NightshadeTypography.labelStrong.copyWith(color: colors.primary),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -646,7 +650,8 @@ class _VisualizationsSection extends ConsumerWidget {
             children: [
               Text(
                 'Visualizations',
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
               const Spacer(),
               _ToggleButton(
@@ -731,7 +736,8 @@ class _ToggleButton extends StatelessWidget {
           decoration: isActive
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
               : const BoxDecoration(
                   borderRadius: BorderRadius.all(Radius.circular(6)),
@@ -767,7 +773,8 @@ class _AduConvergenceGraph extends StatelessWidget {
           children: [
             Text(
               'ADU Convergence',
-              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+              style: NightshadeTypography.labelStrongSm
+                  .copyWith(color: colors.textSecondary),
             ),
             const Spacer(),
             Center(

@@ -209,12 +209,14 @@ class TonightTab extends ConsumerWidget {
                   children: [
                     Text(
                       'Phase',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textSecondary),
                     ),
                     Text(
                       moonInfo.phaseName,
-                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -224,16 +226,18 @@ class TonightTab extends ConsumerWidget {
                   children: [
                     Text(
                       'Illumination',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textSecondary),
                     ),
                     Text(
                       '${moonInfo.illumination.toStringAsFixed(0)}%',
-                      style: NightshadeTypography.labelStrong.copyWith(color: moonInfo.illumination < 25
-                            ? colors.success
-                            : moonInfo.illumination > 75
-                                ? colors.error
-                                : colors.warning),
+                      style: NightshadeTypography.labelStrong.copyWith(
+                          color: moonInfo.illumination < 25
+                              ? colors.success
+                              : moonInfo.illumination > 75
+                                  ? colors.error
+                                  : colors.warning),
                     ),
                   ],
                 ),
@@ -264,7 +268,8 @@ class TonightTab extends ConsumerWidget {
             children: [
               Text(
                 'Best Targets Tonight',
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
               Tooltip(
                 message: 'Objects sorted by transit altitude (>30\u00b0)',
@@ -359,7 +364,8 @@ class TonightTab extends ConsumerWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: colors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -368,7 +374,9 @@ class TonightTab extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Error loading targets',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.error),
                     ),
                   ),
                 ],
@@ -426,7 +434,8 @@ class _SatellitePassesSectionState
                   const SizedBox(width: 4),
                   Text(
                     'Satellite Passes',
-                    style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: widget.colors.textPrimary),
                   ),
                 ],
               ),
@@ -459,11 +468,14 @@ class _SatellitePassesSectionState
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: widget.colors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Text(
                 passState.error!,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.error),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: widget.colors.error),
               ),
             )
           else if (upcomingPasses.isEmpty)
@@ -476,8 +488,9 @@ class _SatellitePassesSectionState
                   const SizedBox(height: 6),
                   Text(
                     'No upcoming passes',
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: widget.colors.textMuted),
                   ),
                   const SizedBox(height: 4),
                   TextButton(
@@ -486,8 +499,9 @@ class _SatellitePassesSectionState
                     },
                     child: Text(
                       'Compute Passes',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.accent),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: widget.colors.accent),
                     ),
                   ),
                 ],
@@ -504,7 +518,9 @@ class _SatellitePassesSectionState
             padding: const EdgeInsets.all(12),
             child: Text(
               'Enable satellite tracking to see pass predictions.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: widget.colors.textMuted),
             ),
           ),
         ],
@@ -551,7 +567,8 @@ class _SatellitePassCard extends StatelessWidget {
                   margin: const EdgeInsets.only(right: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFD740).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusXs),
                   ),
                   child: const Text(
                     'ISS',
@@ -565,15 +582,17 @@ class _SatellitePassCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   isIss ? 'International Space Station' : pass.name,
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Text(
                 'Max ${pass.maxElevation.toStringAsFixed(0)}\u00b0',
-                style: NightshadeTypography.labelQuiet.copyWith(color: pass.isBrightPass
-                      ? const Color(0xFFFFD740)
-                      : colors.textSecondary),
+                style: NightshadeTypography.labelQuiet.copyWith(
+                    color: pass.isBrightPass
+                        ? const Color(0xFFFFD740)
+                        : colors.textSecondary),
               ),
             ],
           ),
@@ -587,7 +606,8 @@ class _SatellitePassCard extends StatelessWidget {
                 colors: colors,
               ),
               const SizedBox(width: 8),
-              Icon(NightshadeIcons.arrowRight, size: 10, color: colors.textMuted),
+              Icon(NightshadeIcons.arrowRight,
+                  size: 10, color: colors.textMuted),
               const SizedBox(width: 8),
               _PassTimeLabel(
                 label: 'Max',
@@ -596,7 +616,8 @@ class _SatellitePassCard extends StatelessWidget {
                 colors: colors,
               ),
               const SizedBox(width: 8),
-              Icon(NightshadeIcons.arrowRight, size: 10, color: colors.textMuted),
+              Icon(NightshadeIcons.arrowRight,
+                  size: 10, color: colors.textMuted),
               const SizedBox(width: 8),
               _PassTimeLabel(
                 label: 'Set',
@@ -607,7 +628,9 @@ class _SatellitePassCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${pass.duration.inMinutes}m',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -637,15 +660,20 @@ class _PassTimeLabel extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize9,
+              color: colors.textMuted),
         ),
         Text(
           time,
-          style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
+          style: NightshadeTypography.labelQuiet
+              .copyWith(color: colors.textPrimary),
         ),
         Text(
           az,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize9,
+              color: colors.textMuted),
         ),
       ],
     );
@@ -694,7 +722,9 @@ class _LocationIndicator extends StatelessWidget {
                   isDefaultLocation
                       ? 'Using default location'
                       : location.locationName ?? 'Custom Location',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: isDefaultLocation ? colors.warning : colors.success),
+                  style: NightshadeTypography.labelStrongSm.copyWith(
+                      color:
+                          isDefaultLocation ? colors.warning : colors.success),
                 ),
                 Text(
                   '${location.latitude.toStringAsFixed(2)}\u00b0N, ${location.longitude.abs().toStringAsFixed(2)}\u00b0${location.longitude >= 0 ? 'E' : 'W'}',
@@ -721,7 +751,8 @@ class _LocationIndicator extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: colors.warning.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   'Set Location',

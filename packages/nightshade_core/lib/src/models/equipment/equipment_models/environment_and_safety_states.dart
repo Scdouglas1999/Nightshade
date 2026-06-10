@@ -84,23 +84,23 @@ class WeatherState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        temperature,
-        humidity,
-        pressure,
-        cloudCover,
-        dewPoint,
-        windSpeed,
-        windDirection,
-        skyQuality,
-        skyTemperature,
-        rainRate,
-        lastUpdated,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    temperature,
+    humidity,
+    pressure,
+    cloudCover,
+    dewPoint,
+    windSpeed,
+    windDirection,
+    skyQuality,
+    skyTemperature,
+    rainRate,
+    lastUpdated,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }
 
 /// Safety monitor state
@@ -151,12 +151,12 @@ class SafetyMonitorState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        isSafe,
-        lastChecked,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    isSafe,
+    lastChecked,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }

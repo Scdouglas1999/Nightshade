@@ -22,25 +22,13 @@ void main() {
 
     // Seed FK dependencies used by session tests
     await targetsDao.createTarget(
-      TargetsCompanion.insert(
-        name: 'Target 1',
-        ra: 5.0,
-        dec: 25.0,
-      ),
+      TargetsCompanion.insert(name: 'Target 1', ra: 5.0, dec: 25.0),
     );
     await targetsDao.createTarget(
-      TargetsCompanion.insert(
-        name: 'Target 2',
-        ra: 10.0,
-        dec: -15.0,
-      ),
+      TargetsCompanion.insert(name: 'Target 2', ra: 10.0, dec: -15.0),
     );
     await targetsDao.createTarget(
-      TargetsCompanion.insert(
-        name: 'Target 3',
-        ra: 15.0,
-        dec: 35.0,
-      ),
+      TargetsCompanion.insert(name: 'Target 3', ra: 15.0, dec: 35.0),
     );
 
     await profilesDao.createProfile(
@@ -171,57 +159,73 @@ void main() {
       expect(session.avgHfr, equals(2.3));
     });
 
-    test('updateSessionProgress triggers checkpoint after image threshold',
-        () async {
-      const config = SessionCheckpointConfig(
-        checkpointImageInterval: 3,
-        checkpointTimeInterval:
-            Duration(hours: 1), // Long time to avoid time-based trigger
-        enabled: true,
-      );
-      sessionService.updateConfig(config);
+    test(
+      'updateSessionProgress triggers checkpoint after image threshold',
+      () async {
+        const config = SessionCheckpointConfig(
+          checkpointImageInterval: 3,
+          checkpointTimeInterval: Duration(
+            hours: 1,
+          ), // Long time to avoid time-based trigger
+          enabled: true,
+        );
+        sessionService.updateConfig(config);
 
-      final sessionId = await sessionService.startSession(name: 'Test Session');
+        final sessionId = await sessionService.startSession(
+          name: 'Test Session',
+        );
 
-      // First update - no checkpoint
-      await sessionService.updateSessionProgress(SessionStats(
-        completedExposures: 1,
-        failedExposures: 0,
-        totalIntegrationSecs: 30.0,
-        lastUpdated: DateTime.now(),
-      ));
+        // First update - no checkpoint
+        await sessionService.updateSessionProgress(
+          SessionStats(
+            completedExposures: 1,
+            failedExposures: 0,
+            totalIntegrationSecs: 30.0,
+            lastUpdated: DateTime.now(),
+          ),
+        );
 
-      var session = await sessionsDao.getSessionById(sessionId);
-      expect(session!.successfulExposures, equals(0)); // Not checkpointed yet
+        var session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.successfulExposures, equals(0)); // Not checkpointed yet
 
-      // Second update - no checkpoint
-      await sessionService.updateSessionProgress(SessionStats(
-        completedExposures: 2,
-        failedExposures: 0,
-        totalIntegrationSecs: 60.0,
-        lastUpdated: DateTime.now(),
-      ));
+        // Second update - no checkpoint
+        await sessionService.updateSessionProgress(
+          SessionStats(
+            completedExposures: 2,
+            failedExposures: 0,
+            totalIntegrationSecs: 60.0,
+            lastUpdated: DateTime.now(),
+          ),
+        );
 
-      session = await sessionsDao.getSessionById(sessionId);
-      expect(session!.successfulExposures, equals(0)); // Still not checkpointed
+        session = await sessionsDao.getSessionById(sessionId);
+        expect(
+          session!.successfulExposures,
+          equals(0),
+        ); // Still not checkpointed
 
-      // Third update - should trigger checkpoint
-      await sessionService.updateSessionProgress(SessionStats(
-        completedExposures: 3,
-        failedExposures: 0,
-        totalIntegrationSecs: 90.0,
-        lastUpdated: DateTime.now(),
-      ));
+        // Third update - should trigger checkpoint
+        await sessionService.updateSessionProgress(
+          SessionStats(
+            completedExposures: 3,
+            failedExposures: 0,
+            totalIntegrationSecs: 90.0,
+            lastUpdated: DateTime.now(),
+          ),
+        );
 
-      session = await sessionsDao.getSessionById(sessionId);
-      expect(session!.successfulExposures, equals(3)); // Now checkpointed
-      expect(session.totalIntegrationSecs, equals(90.0));
-    });
+        session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.successfulExposures, equals(3)); // Now checkpointed
+        expect(session.totalIntegrationSecs, equals(90.0));
+      },
+    );
 
     test('checkpoint configuration can be updated', () async {
       expect(sessionService.config.checkpointImageInterval, equals(5));
-      expect(sessionService.config.checkpointTimeInterval,
-          equals(const Duration(minutes: 5)));
+      expect(
+        sessionService.config.checkpointTimeInterval,
+        equals(const Duration(minutes: 5)),
+      );
 
       const newConfig = SessionCheckpointConfig(
         checkpointImageInterval: 10,
@@ -231,8 +235,10 @@ void main() {
       sessionService.updateConfig(newConfig);
 
       expect(sessionService.config.checkpointImageInterval, equals(10));
-      expect(sessionService.config.checkpointTimeInterval,
-          equals(const Duration(minutes: 10)));
+      expect(
+        sessionService.config.checkpointTimeInterval,
+        equals(const Duration(minutes: 10)),
+      );
     });
   });
 
@@ -249,13 +255,15 @@ void main() {
         name: 'Completed Session',
         targetId: 2,
       );
-      await sessionsDao.updateSessionStats(completedId,
-          successfulExposures: 10);
+      await sessionsDao.updateSessionStats(
+        completedId,
+        successfulExposures: 10,
+      );
       await sessionsDao.endSession(completedId, status: 'completed');
 
       // Find incomplete sessions
-      final incompleteSessions =
-          await sessionService.findIncompleteSessionsForRecovery();
+      final incompleteSessions = await sessionService
+          .findIncompleteSessionsForRecovery();
 
       expect(incompleteSessions.length, equals(1));
       expect(incompleteSessions[0].sessionId, equals(activeId));
@@ -264,8 +272,9 @@ void main() {
 
     test('recoverSession restores session state', () async {
       // Create a session with stats
-      final sessionId =
-          await sessionsDao.startSession(name: 'Recoverable Session');
+      final sessionId = await sessionsDao.startSession(
+        name: 'Recoverable Session',
+      );
       await sessionsDao.updateSessionStats(
         sessionId,
         successfulExposures: 15,
@@ -305,20 +314,14 @@ void main() {
     });
 
     test('recoverSession throws when session not found', () async {
-      expect(
-        () => sessionService.recoverSession(999),
-        throwsException,
-      );
+      expect(() => sessionService.recoverSession(999), throwsException);
     });
 
     test('recoverSession throws when session is not active', () async {
       final sessionId = await sessionsDao.startSession(name: 'Test');
       await sessionsDao.endSession(sessionId, status: 'completed');
 
-      expect(
-        () => sessionService.recoverSession(sessionId),
-        throwsException,
-      );
+      expect(() => sessionService.recoverSession(sessionId), throwsException);
     });
 
     test('recoverSession throws when another session is active', () async {
@@ -332,17 +335,19 @@ void main() {
       );
     });
 
-    test('markSessionAborted marks session as aborted without active session',
-        () async {
-      final sessionId = await sessionsDao.startSession(name: 'Test Session');
+    test(
+      'markSessionAborted marks session as aborted without active session',
+      () async {
+        final sessionId = await sessionsDao.startSession(name: 'Test Session');
 
-      // Mark as aborted without making it active
-      await sessionService.markSessionAborted(sessionId);
+        // Mark as aborted without making it active
+        await sessionService.markSessionAborted(sessionId);
 
-      final session = await sessionsDao.getSessionById(sessionId);
-      expect(session!.status, equals('aborted'));
-      expect(session.endTime, isNotNull);
-    });
+        final session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.status, equals('aborted'));
+        expect(session.endTime, isNotNull);
+      },
+    );
   });
 
   group('SessionService - Statistics Tracking', () {
@@ -393,7 +398,9 @@ void main() {
       );
 
       expect(
-          stats.successRate, equals(1.0)); // Default to 1.0 when no exposures
+        stats.successRate,
+        equals(1.0),
+      ); // Default to 1.0 when no exposures
     });
   });
 
@@ -476,8 +483,8 @@ void main() {
       await sessionsDao.startSession(name: 'Session 2', targetId: 2);
       await sessionsDao.startSession(name: 'Session 3', targetId: 3);
 
-      final incompleteSessions =
-          await sessionService.findIncompleteSessionsForRecovery();
+      final incompleteSessions = await sessionService
+          .findIncompleteSessionsForRecovery();
 
       expect(incompleteSessions.length, equals(3));
       final names = incompleteSessions
@@ -493,8 +500,9 @@ void main() {
 
   group('SessionRecoveryInfo', () {
     test('calculates duration correctly', () {
-      final startTime =
-          DateTime.now().subtract(const Duration(hours: 2, minutes: 30));
+      final startTime = DateTime.now().subtract(
+        const Duration(hours: 2, minutes: 30),
+      );
       final recoveryInfo = SessionRecoveryInfo(
         sessionId: 1,
         startTime: startTime,

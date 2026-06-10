@@ -23,17 +23,13 @@ void main(List<String> args) async {
 
   final port = await _reservePort();
   final processLog = _ProcessLog();
-  final process = await Process.start(
-    exe.absolute.path,
-    [
-      '--headless',
-      '--port=$port',
-      '--auth-token=$_adminToken',
-      '--view-token=$_viewToken',
-      '--control-token=$_controlToken',
-    ],
-    workingDirectory: exe.parent.absolute.path,
-  );
+  final process = await Process.start(exe.absolute.path, [
+    '--headless',
+    '--port=$port',
+    '--auth-token=$_adminToken',
+    '--view-token=$_viewToken',
+    '--control-token=$_controlToken',
+  ], workingDirectory: exe.parent.absolute.path);
 
   process.stdout
       .transform(utf8.decoder)
@@ -46,10 +42,12 @@ void main(List<String> args) async {
 
   var exited = false;
   int? exitCode;
-  unawaited(process.exitCode.then((code) {
-    exited = true;
-    exitCode = code;
-  }));
+  unawaited(
+    process.exitCode.then((code) {
+      exited = true;
+      exitCode = code;
+    }),
+  );
 
   final client = HttpClient();
   final baseUri = Uri.parse('http://127.0.0.1:$port');
@@ -90,7 +88,8 @@ void main(List<String> args) async {
     _expectStatus('/api/openapi.json view token', openApi, HttpStatus.ok);
     if (openApi.json['openapi'] != '3.0.3') {
       throw StateError(
-          'Unexpected OpenAPI version: ${openApi.json['openapi']}');
+        'Unexpected OpenAPI version: ${openApi.json['openapi']}',
+      );
     }
 
     final forbiddenControl = await _request(
@@ -237,7 +236,8 @@ void _expectRuntimeMetadata(
   }
   if (server['authRequired'] != true) {
     throw StateError(
-        'Expected authRequired=true, got ${server['authRequired']}');
+      'Expected authRequired=true, got ${server['authRequired']}',
+    );
   }
 
   final scopes = (server['authScopes'] as List).cast<String>();

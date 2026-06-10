@@ -21,23 +21,25 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get existing settings or create with defaults
   Future<WeatherSettingRow> getOrCreateSettings() async {
     return transaction(() async {
-      final rows = await (select(weatherSettings)
-            ..orderBy([(s) => OrderingTerm.asc(s.id)]))
-          .get();
+      final rows = await (select(
+        weatherSettings,
+      )..orderBy([(s) => OrderingTerm.asc(s.id)])).get();
 
       if (rows.isEmpty) {
-        await into(weatherSettings).insert(
-          WeatherSettingsCompanion.insert(id: const Value(1)),
-        );
-        return (await (select(weatherSettings)..where((s) => s.id.equals(1)))
-            .getSingle());
+        await into(
+          weatherSettings,
+        ).insert(WeatherSettingsCompanion.insert(id: const Value(1)));
+        return (await (select(
+          weatherSettings,
+        )..where((s) => s.id.equals(1))).getSingle());
       }
 
       final primary = rows.first;
       if (rows.length > 1) {
         final duplicateIds = rows.skip(1).map((row) => row.id).toList();
-        await (delete(weatherSettings)..where((s) => s.id.isIn(duplicateIds)))
-            .go();
+        await (delete(
+          weatherSettings,
+        )..where((s) => s.id.isIn(duplicateIds))).go();
       }
 
       return primary;
@@ -62,8 +64,9 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
     final existing = await getOrCreateSettings();
 
     // Update the row by ID
-    await (update(weatherSettings)..where((s) => s.id.equals(existing.id)))
-        .write(
+    await (update(
+      weatherSettings,
+    )..where((s) => s.id.equals(existing.id))).write(
       WeatherSettingsCompanion(
         triggerDistanceKm: triggerDistanceKm != null
             ? Value(triggerDistanceKm)
@@ -107,9 +110,9 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> resetToDefaults() async {
     await transaction(() async {
       await delete(weatherSettings).go();
-      await into(weatherSettings).insert(
-        WeatherSettingsCompanion.insert(id: const Value(1)),
-      );
+      await into(
+        weatherSettings,
+      ).insert(WeatherSettingsCompanion.insert(id: const Value(1)));
     });
   }
 

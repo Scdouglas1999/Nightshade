@@ -41,7 +41,7 @@ class DeviceNotConnectedException implements Exception {
   final String message;
 
   const DeviceNotConnectedException(this.deviceType, [String? message])
-      : message = message ?? 'No $deviceType is currently connected';
+    : message = message ?? 'No $deviceType is currently connected';
 
   @override
   String toString() => 'DeviceNotConnectedException($deviceType): $message';
@@ -134,6 +134,7 @@ class DeviceConnectProgress {
   });
 
   @override
-  String toString() => 'DeviceConnectProgress($deviceType=$deviceId, '
+  String toString() =>
+      'DeviceConnectProgress($deviceType=$deviceId, '
       'status=$status${errorMessage != null ? ", error=$errorMessage" : ""})';
 }

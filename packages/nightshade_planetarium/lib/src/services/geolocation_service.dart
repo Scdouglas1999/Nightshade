@@ -7,13 +7,11 @@ class GeolocationService {
   /// Fetch location from IP using ipapi.co (free, no API key required)
   /// Returns (latitude, longitude, locationName) or null if failed
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromIP() async {
+  fetchLocationFromIP() async {
     try {
       // Use ipapi.co for free IP geolocation (no API key required)
       final response = await http
-          .get(
-            Uri.parse('https://ipapi.co/json/'),
-          )
+          .get(Uri.parse('https://ipapi.co/json/'))
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
@@ -41,8 +39,12 @@ class GeolocationService {
       }
     } catch (e) {
       // Silently fail - network might be unavailable
-      developer.log('[Geolocation] IP-based location failed: $e',
-          name: 'GeolocationService', level: 900, error: e);
+      developer.log(
+        '[Geolocation] IP-based location failed: $e',
+        name: 'GeolocationService',
+        level: 900,
+        error: e,
+      );
     }
 
     return null;
@@ -50,12 +52,10 @@ class GeolocationService {
 
   /// Alternative: Use ip-api.com (also free, no API key)
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromIPAlternative() async {
+  fetchLocationFromIPAlternative() async {
     try {
       final response = await http
-          .get(
-            Uri.parse('http://ip-api.com/json/'),
-          )
+          .get(Uri.parse('http://ip-api.com/json/'))
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
@@ -83,8 +83,12 @@ class GeolocationService {
         }
       }
     } catch (e) {
-      developer.log('[Geolocation] Alternative IP-based location failed: $e',
-          name: 'GeolocationService', level: 900, error: e);
+      developer.log(
+        '[Geolocation] Alternative IP-based location failed: $e',
+        name: 'GeolocationService',
+        level: 900,
+        error: e,
+      );
     }
 
     return null;
@@ -92,7 +96,7 @@ class GeolocationService {
 
   /// Try to fetch location, using primary service first, then fallback
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocation() async {
+  fetchLocation() async {
     // Try primary service first
     final result = await fetchLocationFromIP();
     if (result != null) return result;
@@ -114,15 +118,16 @@ class GeolocationService {
   /// - Mobile (iOS/Android): Uses device GPS
   /// - Desktop (Windows/macOS/Linux): May not have GPS hardware, will fallback to IP
   static Future<(double latitude, double longitude, String? locationName)?>
-      fetchLocationFromGPS() async {
+  fetchLocationFromGPS() async {
     try {
       // Check if location services are enabled on the device
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         developer.log(
-            '[Geolocation] Location services are disabled on device',
-            name: 'GeolocationService',
-            level: 900);
+          '[Geolocation] Location services are disabled on device',
+          name: 'GeolocationService',
+          level: 900,
+        );
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -132,8 +137,11 @@ class GeolocationService {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          developer.log('[Geolocation] Location permission denied by user',
-              name: 'GeolocationService', level: 900);
+          developer.log(
+            '[Geolocation] Location permission denied by user',
+            name: 'GeolocationService',
+            level: 900,
+          );
           // Fallback to IP-based location
           return await fetchLocation();
         }
@@ -141,9 +149,10 @@ class GeolocationService {
 
       if (permission == LocationPermission.deniedForever) {
         developer.log(
-            '[Geolocation] Location permissions are permanently denied',
-            name: 'GeolocationService',
-            level: 900);
+          '[Geolocation] Location permissions are permanently denied',
+          name: 'GeolocationService',
+          level: 900,
+        );
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -170,15 +179,15 @@ class GeolocationService {
         locationName = 'GPS Location';
       }
 
-      return (
-        position.latitude,
-        position.longitude,
-        locationName,
-      );
+      return (position.latitude, position.longitude, locationName);
     } catch (e) {
       // GPS failed (timeout, no GPS hardware, etc.)
-      developer.log('[Geolocation] GPS location fetch failed: $e',
-          name: 'GeolocationService', level: 900, error: e);
+      developer.log(
+        '[Geolocation] GPS location fetch failed: $e',
+        name: 'GeolocationService',
+        level: 900,
+        error: e,
+      );
 
       // Fallback to IP-based location
       return await fetchLocation();
@@ -188,7 +197,7 @@ class GeolocationService {
   /// Get the best available location using GPS first, then IP fallback
   /// This is the recommended method for most use cases
   static Future<(double latitude, double longitude, String? locationName)?>
-      getBestLocation() async {
+  getBestLocation() async {
     // Try GPS first (will auto-fallback to IP if GPS unavailable)
     return await fetchLocationFromGPS();
   }

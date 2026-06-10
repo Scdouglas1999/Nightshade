@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/equipment/equipment_models.dart';
@@ -13,8 +13,8 @@ import 'equipment_retry_defaults.dart';
 /// Filter wheel state provider
 final filterWheelStateProvider =
     StateNotifierProvider<FilterWheelStateNotifier, FilterWheelState>((ref) {
-  return FilterWheelStateNotifier(ref);
-});
+      return FilterWheelStateNotifier(ref);
+    });
 
 class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   final Ref _ref;
@@ -23,8 +23,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   FilterWheelStateNotifier(this._ref) : super(const FilterWheelState()) {
     // Watch for profile changes and re-sync filter names when the active
     // profile's filter names are updated (e.g. user edits profile and saves).
-    _ref.listen<EquipmentProfileModel?>(activeEquipmentProfileProvider,
-        (previous, next) {
+    _ref.listen<EquipmentProfileModel?>(activeEquipmentProfileProvider, (
+      previous,
+      next,
+    ) {
       if (!mounted) return;
       if (state.connectionState != DeviceConnectionState.connected) return;
       if (state.deviceId == null) return;
@@ -35,9 +37,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       if (_filterNamesEqual(previousNames, nextNames)) return;
 
       developer.log(
-          'FilterWheelStateNotifier: Active profile filter names changed, re-syncing',
-          name: 'FilterWheelStateNotifier',
-          level: 800);
+        'FilterWheelStateNotifier: Active profile filter names changed, re-syncing',
+        name: 'FilterWheelStateNotifier',
+        level: 800,
+      );
       _syncProfileFilterNamesToDriver(state.deviceId!);
     });
   }
@@ -51,8 +54,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     return true;
   }
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -106,9 +111,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         final profileFilterNames = activeProfile.filterNames;
         final driverNames = state.filterNames;
         developer.log(
-            'FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
+          'FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
 
         // Pad profile names to match the wheel's actual slot count so no slots are lost
         final List<String> syncedNames;
@@ -118,25 +124,26 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
             ...driverNames.sublist(profileFilterNames.length),
           ];
           developer.log(
-              'FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames',
-              name: 'FilterWheelStateNotifier',
-              level: 800);
+            'FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames',
+            name: 'FilterWheelStateNotifier',
+            level: 800,
+          );
         } else {
           syncedNames = profileFilterNames.length > driverNames.length
               ? profileFilterNames.sublist(0, driverNames.length)
               : profileFilterNames;
         }
 
-        await _ref.read(deviceBackendProvider).filterWheelSetNames(
-              deviceId,
-              syncedNames,
-            );
+        await _ref
+            .read(deviceBackendProvider)
+            .filterWheelSetNames(deviceId, syncedNames);
 
         state = state.copyWith(filterNames: syncedNames);
         developer.log(
-            'FilterWheelStateNotifier: Profile filter names synced successfully',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
+          'FilterWheelStateNotifier: Profile filter names synced successfully',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
         return;
       }
 
@@ -145,9 +152,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
         final driverNames = state.filterNames;
         developer.log(
-            'FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
+          'FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
 
         // Pad session names to match the wheel's actual slot count
         final List<String> syncedNames;
@@ -162,28 +170,33 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
               : sessionFilterNames;
         }
 
-        await _ref.read(deviceBackendProvider).filterWheelSetNames(
-              deviceId,
-              syncedNames,
-            );
+        await _ref
+            .read(deviceBackendProvider)
+            .filterWheelSetNames(deviceId, syncedNames);
 
         state = state.copyWith(filterNames: syncedNames);
         developer.log(
-            'FilterWheelStateNotifier: Session filter names synced successfully',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
+          'FilterWheelStateNotifier: Session filter names synced successfully',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
         return;
       }
 
       // Priority 3: Use driver-reported names (no sync needed, they're already there)
       developer.log(
-          'FilterWheelStateNotifier: No profile or session filter names - using driver-reported names',
-          name: 'FilterWheelStateNotifier',
-          level: 800);
+        'FilterWheelStateNotifier: No profile or session filter names - using driver-reported names',
+        name: 'FilterWheelStateNotifier',
+        level: 800,
+      );
     } catch (e) {
       // Don't fail connection if filter name sync fails - log and continue
-      developer.log('FilterWheelStateNotifier: Failed to sync filter names: $e',
-          name: 'FilterWheelStateNotifier', level: 1000, error: e);
+      developer.log(
+        'FilterWheelStateNotifier: Failed to sync filter names: $e',
+        name: 'FilterWheelStateNotifier',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
@@ -282,23 +295,25 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         state.deviceId != null) {
       try {
         developer.log(
-            'FilterWheelStateNotifier: Syncing session filter names to driver: $names',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
-        await _ref.read(deviceBackendProvider).filterWheelSetNames(
-              state.deviceId!,
-              names,
-            );
+          'FilterWheelStateNotifier: Syncing session filter names to driver: $names',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
+        await _ref
+            .read(deviceBackendProvider)
+            .filterWheelSetNames(state.deviceId!, names);
         developer.log(
-            'FilterWheelStateNotifier: Session filter names synced to driver',
-            name: 'FilterWheelStateNotifier',
-            level: 800);
+          'FilterWheelStateNotifier: Session filter names synced to driver',
+          name: 'FilterWheelStateNotifier',
+          level: 800,
+        );
       } catch (e) {
         developer.log(
-            'FilterWheelStateNotifier: Failed to sync session filter names to driver: $e',
-            name: 'FilterWheelStateNotifier',
-            level: 1000,
-            error: e);
+          'FilterWheelStateNotifier: Failed to sync session filter names to driver: $e',
+          name: 'FilterWheelStateNotifier',
+          level: 1000,
+          error: e,
+        );
         // Don't throw - the names are still stored locally
       }
     }
@@ -318,8 +333,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
 // =============================================================================
 
 /// Matches generic ASCOM/INDI slot labels such as "Filter 1" or "filter2".
-final genericFilterSlotNamePattern =
-    RegExp(r'^filter\s*\d+$', caseSensitive: false);
+final genericFilterSlotNamePattern = RegExp(
+  r'^filter\s*\d+$',
+  caseSensitive: false,
+);
 
 /// Returns true when [name] is a driver-default slot label with no band info.
 bool isGenericFilterSlotName(String name) =>
@@ -337,17 +354,15 @@ List<String> resolveEffectiveFilterNames({
   if (wheelNames.isEmpty) return profileNames;
 
   final wheelAllGeneric = wheelNames.every(isGenericFilterSlotName);
-  final profileHasRealNames = profileNames.isNotEmpty &&
+  final profileHasRealNames =
+      profileNames.isNotEmpty &&
       profileNames.any((name) => !isGenericFilterSlotName(name));
 
   if (wheelAllGeneric && profileHasRealNames) {
     if (profileNames.length >= wheelNames.length) {
       return profileNames.sublist(0, wheelNames.length);
     }
-    return [
-      ...profileNames,
-      ...wheelNames.sublist(profileNames.length),
-    ];
+    return [...profileNames, ...wheelNames.sublist(profileNames.length)];
   }
 
   return wheelNames;

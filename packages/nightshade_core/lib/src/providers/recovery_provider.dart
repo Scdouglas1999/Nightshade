@@ -1,4 +1,4 @@
-﻿/// Wave 4 Recovery Mode — Riverpod providers for the recovery state machine.
+/// Wave 4 Recovery Mode — Riverpod providers for the recovery state machine.
 ///
 /// Reads:
 ///   * the typed bridge event stream — `SequencerEvent_Recovery{Started,
@@ -60,7 +60,8 @@ class RecoveryNotifier extends StateNotifier<RecoveryStatus?> {
 
 final currentRecoveryProvider =
     StateNotifierProvider<RecoveryNotifier, RecoveryStatus?>(
-        (ref) => RecoveryNotifier());
+      (ref) => RecoveryNotifier(),
+    );
 
 /// List of every completed recovery loop in the current run. The
 /// post-session report dialog reads from this notifier.
@@ -81,8 +82,8 @@ class RecoveryHistoryNotifier
 
 final recoveryHistoryProvider =
     StateNotifierProvider<RecoveryHistoryNotifier, List<RecoveryHistoryEntry>>(
-  (ref) => RecoveryHistoryNotifier(),
-);
+      (ref) => RecoveryHistoryNotifier(),
+    );
 
 /// Convenience: whether the executor is currently in `Recovering`. Reads
 /// `sequenceProgressProvider` so it never gets out of sync with the rest
@@ -211,7 +212,8 @@ final recoveryEventBridgeProvider = Provider<void>((ref) {
 /// `SequencerEvent_Recovery*` variants. Returns `null` for anything else
 /// so the caller can short-circuit.
 RecoveryEventEnvelope? _recoveryEnvelopeFromBridge(
-    bridge_event.NightshadeEvent event) {
+  bridge_event.NightshadeEvent event,
+) {
   final payload = event.payload;
   if (payload is! bridge_event.EventPayload_Sequencer) return null;
   final inner = payload.field0;
@@ -258,7 +260,8 @@ RecoveryEventEnvelope? _recoveryEnvelopeFromBridge(
 // Dart side without bridging the Rust struct.
 
 RecoveryStatus _recoveryStatusFromTypedStarted(
-    bridge_event.SequencerEvent_RecoveryStarted ev) {
+  bridge_event.SequencerEvent_RecoveryStarted ev,
+) {
   return _rebuildRecoveryStatus(
     startedAtIso: ev.startedAtIso,
     causeKind: ev.causeKind,
@@ -274,7 +277,8 @@ RecoveryStatus _recoveryStatusFromTypedStarted(
 }
 
 RecoveryStatus _recoveryStatusFromTypedProgress(
-    bridge_event.SequencerEvent_RecoveryProgress ev) {
+  bridge_event.SequencerEvent_RecoveryProgress ev,
+) {
   return _rebuildRecoveryStatus(
     startedAtIso: ev.startedAtIso,
     causeKind: ev.causeKind,
@@ -290,7 +294,8 @@ RecoveryStatus _recoveryStatusFromTypedProgress(
 }
 
 RecoveryStatus _recoveryStatusFromTypedCompleted(
-    bridge_event.SequencerEvent_RecoveryCompleted ev) {
+  bridge_event.SequencerEvent_RecoveryCompleted ev,
+) {
   return _rebuildRecoveryStatus(
     startedAtIso: ev.startedAtIso,
     causeKind: ev.causeKind,
@@ -306,7 +311,8 @@ RecoveryStatus _recoveryStatusFromTypedCompleted(
 }
 
 RecoveryStatus _recoveryStatusFromTypedGaveUp(
-    bridge_event.SequencerEvent_RecoveryGaveUp ev) {
+  bridge_event.SequencerEvent_RecoveryGaveUp ev,
+) {
   return _rebuildRecoveryStatus(
     startedAtIso: ev.startedAtIso,
     causeKind: ev.causeKind,
@@ -338,8 +344,9 @@ RecoveryStatus _rebuildRecoveryStatus({
   return RecoveryStatus(
     startedAt: DateTime.parse(startedAtIso),
     cause: _causeFromTyped(causeKind, causeCustomLabel),
-    lastAttemptAt:
-        lastAttemptAtIso == null ? null : DateTime.parse(lastAttemptAtIso),
+    lastAttemptAt: lastAttemptAtIso == null
+        ? null
+        : DateTime.parse(lastAttemptAtIso),
     attemptCount: attemptCount,
     maxAttempts: maxAttempts,
     retryIntervalSecs: retryIntervalSecs,
@@ -375,7 +382,8 @@ RecoveryCause _causeFromTyped(String kind, String? customLabel) {
       // switch — surface it instead of silently falling back to a wrong
       // cause.
       throw FormatException(
-          'Unknown RecoveryCause kind from typed bridge event: $kind');
+        'Unknown RecoveryCause kind from typed bridge event: $kind',
+      );
   }
 }
 
@@ -391,7 +399,8 @@ RecoveryPhase _phaseFromTyped(String phase) {
       return RecoveryPhase.gaveUp;
     default:
       throw FormatException(
-          'Unknown RecoveryPhase wire value from typed bridge event: $phase');
+        'Unknown RecoveryPhase wire value from typed bridge event: $phase',
+      );
   }
 }
 
@@ -412,30 +421,34 @@ void _applyRecoveryEvent(Ref ref, RecoveryEventEnvelope envelope) {
       break;
     case RecoveryEventKind.completed:
       currentNotifier.clear();
-      historyNotifier.append(RecoveryHistoryEntry(
-        startedAt: envelope.context.startedAt,
-        endedAt: DateTime.now().toUtc(),
-        cause: envelope.context.cause,
-        attempts: envelope.context.attemptCount,
-        recovered: true,
-        abortedByUser: false,
-        lastError: envelope.context.lastError,
-      ));
+      historyNotifier.append(
+        RecoveryHistoryEntry(
+          startedAt: envelope.context.startedAt,
+          endedAt: DateTime.now().toUtc(),
+          cause: envelope.context.cause,
+          attempts: envelope.context.attemptCount,
+          recovered: true,
+          abortedByUser: false,
+          lastError: envelope.context.lastError,
+        ),
+      );
       // Recovery succeeded — the Rust executor flips back to Running.
       // Mirror that on the Dart side so the LED returns to green.
       progressNotifier.updateState(SequenceExecutionState.running);
       break;
     case RecoveryEventKind.gaveUp:
       currentNotifier.clear();
-      historyNotifier.append(RecoveryHistoryEntry(
-        startedAt: envelope.context.startedAt,
-        endedAt: DateTime.now().toUtc(),
-        cause: envelope.context.cause,
-        attempts: envelope.context.attemptCount,
-        recovered: false,
-        abortedByUser: envelope.abortedByUser ?? false,
-        lastError: envelope.context.lastError,
-      ));
+      historyNotifier.append(
+        RecoveryHistoryEntry(
+          startedAt: envelope.context.startedAt,
+          endedAt: DateTime.now().toUtc(),
+          cause: envelope.context.cause,
+          attempts: envelope.context.attemptCount,
+          recovered: false,
+          abortedByUser: envelope.abortedByUser ?? false,
+          lastError: envelope.context.lastError,
+        ),
+      );
       // Recovery exhausted — the Rust executor flips to Failed.
       progressNotifier.updateState(SequenceExecutionState.failed);
       break;
@@ -446,25 +459,24 @@ void _applyRecoveryEvent(Ref ref, RecoveryEventEnvelope envelope) {
 /// recovery entry. Gated by both [recoveryAudibleAlertWhenEntered] and
 /// the global [audibleAlertsOnCritical] toggle.
 final recoveryAudibleBridgeProvider = Provider<void>((ref) {
-  ref.listen<RecoveryStatus?>(
-    currentRecoveryProvider,
-    (previous, next) {
-      // Only ring on transition None -> Some (entry into a recovery).
-      if (previous != null) return;
-      if (next == null) return;
-      final settings = ref.read(appSettingsProvider).valueOrNull;
-      if (settings == null) return;
-      if (!settings.recoveryAudibleAlertWhenEntered) return;
-      if (!settings.audibleAlertsOnCritical) return;
-      final player = ref.read(criticalAlertPlayerProvider);
-      // Fire-and-forget; surface platform failures in developer.log.
-      // ignore: discarded_futures
-      player.play(sound: settings.criticalAlertSound).catchError((Object e) {
-        developer.log('Recovery audible alert failed: $e',
-            name: 'recovery_provider');
-      });
-    },
-  );
+  ref.listen<RecoveryStatus?>(currentRecoveryProvider, (previous, next) {
+    // Only ring on transition None -> Some (entry into a recovery).
+    if (previous != null) return;
+    if (next == null) return;
+    final settings = ref.read(appSettingsProvider).valueOrNull;
+    if (settings == null) return;
+    if (!settings.recoveryAudibleAlertWhenEntered) return;
+    if (!settings.audibleAlertsOnCritical) return;
+    final player = ref.read(criticalAlertPlayerProvider);
+    // Fire-and-forget; surface platform failures in developer.log.
+    // ignore: discarded_futures
+    player.play(sound: settings.criticalAlertSound).catchError((Object e) {
+      developer.log(
+        'Recovery audible alert failed: $e',
+        name: 'recovery_provider',
+      );
+    });
+  });
 });
 
 /// Side-effect provider: forwards recovery entry **and exit** events to
@@ -516,39 +528,35 @@ final recoveryPushBridgeProvider = Provider<void>((ref) {
   }
 
   // Entry push — fires once on the None -> Some transition.
-  ref.listen<RecoveryStatus?>(
-    currentRecoveryProvider,
-    (previous, next) {
-      if (previous != null) return; // only on entry
-      if (next == null) return;
-      enqueue(
-        title: 'Recovering — ${next.cause.displayLabel}',
-        body:
-            'Sequence entered recovery mode. Attempt 1 of ${next.maxAttempts}.',
-        eventType: 'recovery_started_${next.cause.wireKey}',
-      );
-    },
-  );
+  ref.listen<RecoveryStatus?>(currentRecoveryProvider, (previous, next) {
+    if (previous != null) return; // only on entry
+    if (next == null) return;
+    enqueue(
+      title: 'Recovering — ${next.cause.displayLabel}',
+      body: 'Sequence entered recovery mode. Attempt 1 of ${next.maxAttempts}.',
+      eventType: 'recovery_started_${next.cause.wireKey}',
+    );
+  });
 
   // Exit push — fires once per newly appended history entry. The history
   // notifier appends exactly one entry on every completed/gaveUp transition
   // (see [_applyRecoveryEvent]), and carries the cause + attempt count +
   // recovered/abortedByUser flags needed for the "here's what I did" copy.
-  ref.listen<List<RecoveryHistoryEntry>>(
-    recoveryHistoryProvider,
-    (previous, next) {
-      final prevLen = previous?.length ?? 0;
-      if (next.length <= prevLen) return; // only on growth (a new exit)
-      for (final entry in next.sublist(prevLen)) {
-        enqueue(
-          title: _recoveryExitTitle(entry),
-          body: _recoveryExitBody(entry),
-          eventType:
-              'recovery_${entry.recovered ? 'recovered' : 'gave_up'}_${entry.cause.wireKey}',
-        );
-      }
-    },
-  );
+  ref.listen<List<RecoveryHistoryEntry>>(recoveryHistoryProvider, (
+    previous,
+    next,
+  ) {
+    final prevLen = previous?.length ?? 0;
+    if (next.length <= prevLen) return; // only on growth (a new exit)
+    for (final entry in next.sublist(prevLen)) {
+      enqueue(
+        title: _recoveryExitTitle(entry),
+        body: _recoveryExitBody(entry),
+        eventType:
+            'recovery_${entry.recovered ? 'recovered' : 'gave_up'}_${entry.cause.wireKey}',
+      );
+    }
+  });
 });
 
 /// Notification primary line for a recovery exit. Leads with the outcome so a
@@ -567,8 +575,9 @@ String _recoveryExitTitle(RecoveryHistoryEntry entry) {
 /// "Here's what I did" body for a recovery exit — the cause, the action taken,
 /// and the attempt count, so the alert closes the loop the entry push opened.
 String _recoveryExitBody(RecoveryHistoryEntry entry) {
-  final attempts =
-      entry.attempts == 1 ? '1 attempt' : '${entry.attempts} attempts';
+  final attempts = entry.attempts == 1
+      ? '1 attempt'
+      : '${entry.attempts} attempts';
   if (entry.recovered) {
     return '${entry.cause.displayLabel} -> re-acquired after $attempts, '
         'imaging resumed.';
@@ -589,8 +598,8 @@ String _recoveryExitBody(RecoveryHistoryEntry entry) {
 /// exercises the actual envelope-building logic.
 @visibleForTesting
 RecoveryEventEnvelope? recoveryEnvelopeFromBridgeForTest(
-        bridge_event.NightshadeEvent event) =>
-    _recoveryEnvelopeFromBridge(event);
+  bridge_event.NightshadeEvent event,
+) => _recoveryEnvelopeFromBridge(event);
 
 /// Visibility shim: the test rig drives `_applyRecoveryEvent` directly
 /// instead of routing through the stream subscription so it can fire a

@@ -207,7 +207,9 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               child: Text(
                 'Tip: Start with a Target Header',
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize11
+                      : NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
                 softWrap: false,

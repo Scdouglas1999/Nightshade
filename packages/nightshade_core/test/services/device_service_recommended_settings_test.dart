@@ -36,10 +36,12 @@ void main() {
   setUp(() {
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
-    when(() => mockBackend.eventStream)
-        .thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
   });
 
   tearDown(() {
@@ -48,12 +50,14 @@ void main() {
 
   ProviderContainer buildContainer(EquipmentProfileModel? activeProfile) {
     final overrides = <Override>[
-      backendProvider
-          .overrideWith((ref) => _TestBackendNotifier(ref, mockBackend)),
+      backendProvider.overrideWith(
+        (ref) => _TestBackendNotifier(ref, mockBackend),
+      ),
     ];
     if (activeProfile != null) {
-      overrides
-          .add(activeEquipmentProfileProvider.overrideWithValue(activeProfile));
+      overrides.add(
+        activeEquipmentProfileProvider.overrideWithValue(activeProfile),
+      );
     }
     final c = ProviderContainer(overrides: overrides);
     // Initialize DeviceService so event listeners are active.
@@ -63,12 +67,13 @@ void main() {
 
   group('queryRecommendedCameraSettings (public re-entry)', () {
     test('proxies the backend faithfully', () async {
-      when(() => mockBackend.cameraGetRecommendedSettings('cam-1'))
-          .thenAnswer((_) async => const CameraRecommendedSettings(
-                unityGain: 100,
-                defaultOffset: 30,
-                notes: 'ZWO SDK reports default gain = 100',
-              ));
+      when(() => mockBackend.cameraGetRecommendedSettings('cam-1')).thenAnswer(
+        (_) async => const CameraRecommendedSettings(
+          unityGain: 100,
+          defaultOffset: 30,
+          notes: 'ZWO SDK reports default gain = 100',
+        ),
+      );
 
       final container = buildContainer(null);
       addTearDown(container.dispose);
@@ -90,8 +95,9 @@ void main() {
       // when the stubbed method is called, but the real backend signature
       // returns Future. Using `.thenAnswer((_) async => throw ...)` simulates
       // a Future that completes with an error, which is the realistic path.
-      when(() => mockBackend.cameraGetRecommendedSettings('cam-broken'))
-          .thenAnswer((_) async => throw Exception('SDK call failed'));
+      when(
+        () => mockBackend.cameraGetRecommendedSettings('cam-broken'),
+      ).thenAnswer((_) async => throw Exception('SDK call failed'));
 
       final container = buildContainer(null);
       addTearDown(container.dispose);
@@ -121,10 +127,9 @@ void main() {
     });
 
     test('returns false when SDK reported nothing', () async {
-      final container = buildContainer(const EquipmentProfileModel(
-        id: 1,
-        name: 'Test rig',
-      ));
+      final container = buildContainer(
+        const EquipmentProfileModel(id: 1, name: 'Test rig'),
+      );
       addTearDown(container.dispose);
 
       final service = container.read(deviceServiceProvider);

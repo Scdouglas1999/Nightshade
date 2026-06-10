@@ -133,7 +133,8 @@ class ProfileSidebar extends ConsumerWidget {
                 foregroundColor: colors.textSecondary,
                 backgroundColor: colors.surfaceAlt,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
               ),
               tooltip: 'Create new profile',
@@ -145,7 +146,8 @@ class ProfileSidebar extends ConsumerWidget {
               message: 'Collapse panel',
               child: InkWell(
                 onTap: onCollapse,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: Icon(
@@ -177,7 +179,8 @@ class ProfileSidebar extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No profiles yet',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -335,7 +338,8 @@ class ProfileSidebar extends ConsumerWidget {
       context: context,
       position: position,
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       items: [
         PopupMenuItem(
           value: 'default',
@@ -562,121 +566,123 @@ class _ProfileCardState extends State<_ProfileCard>
       child: FocusRing(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         child: GestureDetector(
-        onTap: widget.onTap,
-        onDoubleTap: widget.onDoubleTap,
-        onSecondaryTapUp: (details) {
-          widget.onShowContextMenu(details.globalPosition);
-        },
-        onLongPressStart: (details) {
-          widget.onShowContextMenu(details.globalPosition);
-        },
-        child: ReorderableDragStartListener(
-          index: widget.index,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: widget.isSelected
-                  ? widget.colors.surfaceAlt
-                  : _isHovered
-                      ? widget.colors.surface
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              border: Border.all(
+          onTap: widget.onTap,
+          onDoubleTap: widget.onDoubleTap,
+          onSecondaryTapUp: (details) {
+            widget.onShowContextMenu(details.globalPosition);
+          },
+          onLongPressStart: (details) {
+            widget.onShowContextMenu(details.globalPosition);
+          },
+          child: ReorderableDragStartListener(
+            index: widget.index,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
                 color: widget.isSelected
-                    ? profileColor
+                    ? widget.colors.surfaceAlt
                     : _isHovered
-                        ? widget.colors.border
+                        ? widget.colors.surface
                         : Colors.transparent,
-                width: widget.isSelected ? 2 : 1,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                border: Border.all(
+                  color: widget.isSelected
+                      ? profileColor
+                      : _isHovered
+                          ? widget.colors.border
+                          : Colors.transparent,
+                  width: widget.isSelected ? 2 : 1,
+                ),
+                boxShadow: widget.isSelected
+                    ? [
+                        BoxShadow(
+                          color: profileColor.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
-              boxShadow: widget.isSelected
-                  ? [
-                      BoxShadow(
-                        color: profileColor.withValues(alpha: 0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top row: icon, name, default star
-                Row(
-                  children: [
-                    // Profile icon
-                    Text(
-                      widget.profile.profileIcon ??
-                          '\u{1F52D}', // Default telescope emoji
-                      style: const TextStyle(fontSize: NightshadeTypography.fontSize18),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Profile name
-                    Expanded(
-                      child: Text(
-                        widget.profile.name,
-                        style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-
-                    // Default star indicator
-                    if (widget.profile.isDefault)
-                      Icon(
-                        LucideIcons.star,
-                        size: 14,
-                        color: widget.colors.warning,
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                // Subtitle row
-                Text(
-                  widget.profile.subtitle,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: widget.colors.textMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                const SizedBox(height: 8),
-
-                // Bottom row: device dots + connection count
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Device dots
-                    _buildDeviceDots(),
-
-                    // Connection count
-                    if (widget.totalCount > 0)
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top row: icon, name, default star
+                  Row(
+                    children: [
+                      // Profile icon
                       Text(
-                        '${widget.connectedCount}/${widget.totalCount}',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize10,
-                          fontWeight: FontWeight.w500,
-                          color: widget.connectedCount == widget.totalCount
-                              ? widget.colors.success
-                              : widget.connectedCount > 0
-                                  ? widget.colors.warning
-                                  : widget.colors.textMuted,
+                        widget.profile.profileIcon ??
+                            '\u{1F52D}', // Default telescope emoji
+                        style: const TextStyle(
+                            fontSize: NightshadeTypography.fontSize18),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Profile name
+                      Expanded(
+                        child: Text(
+                          widget.profile.name,
+                          style: NightshadeTypography.labelStrong
+                              .copyWith(color: widget.colors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                  ],
-                ),
-              ],
+
+                      // Default star indicator
+                      if (widget.profile.isDefault)
+                        Icon(
+                          LucideIcons.star,
+                          size: 14,
+                          color: widget.colors.warning,
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // Subtitle row
+                  Text(
+                    widget.profile.subtitle,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: widget.colors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Bottom row: device dots + connection count
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Device dots
+                      _buildDeviceDots(),
+
+                      // Connection count
+                      if (widget.totalCount > 0)
+                        Text(
+                          '${widget.connectedCount}/${widget.totalCount}',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            fontWeight: FontWeight.w500,
+                            color: widget.connectedCount == widget.totalCount
+                                ? widget.colors.success
+                                : widget.connectedCount > 0
+                                    ? widget.colors.warning
+                                    : widget.colors.textMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         ),
       ),
     );

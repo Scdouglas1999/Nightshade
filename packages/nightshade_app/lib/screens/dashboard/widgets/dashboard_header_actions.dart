@@ -140,7 +140,9 @@ class EditModeBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Edit mode: long-press the grip handle to drag and reorder tiles.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
         ],

@@ -116,7 +116,10 @@ class GladePlusCatalogLoader {
         galaxies.add(galaxy);
 
         final key = _gridKey(galaxy.ra, galaxy.dec);
-        _spatialIndex!.putIfAbsent(key, () => _SpatialGridCell()).objects.add(galaxy);
+        _spatialIndex!
+            .putIfAbsent(key, () => _SpatialGridCell())
+            .objects
+            .add(galaxy);
       } catch (e) {
         // Why: GLADE+ catalog has ~22M entries; a single malformed line must
         // not abort the load. The rest of the catalog remains usable. Log
@@ -167,8 +170,7 @@ class GladePlusCatalogLoader {
         if (cell == null) continue;
 
         for (final galaxy in cell.objects) {
-          if (maxMagnitude != null &&
-              (galaxy.magnitude ?? 99) > maxMagnitude) {
+          if (maxMagnitude != null && (galaxy.magnitude ?? 99) > maxMagnitude) {
             continue;
           }
 

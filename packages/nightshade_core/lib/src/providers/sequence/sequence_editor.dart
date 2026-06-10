@@ -61,9 +61,7 @@ bool _isEditable(SequenceExecutionState state) {
 /// gate; production wiring in `sequence_provider.dart` always passes a Ref.
 class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     with UndoBatchMixin {
-  CurrentSequenceNotifier({Ref? ref})
-      : _ref = ref,
-        super(null);
+  CurrentSequenceNotifier({Ref? ref}) : _ref = ref, super(null);
 
   final Ref? _ref;
   final _undoStack = <Sequence>[];
@@ -202,10 +200,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     _saveUndo();
 
     final rootId = const Uuid().v4();
-    final rootNode = InstructionSetNode(
-      id: rootId,
-      name: 'Sequence',
-    );
+    final rootNode = InstructionSetNode(id: rootId, name: 'Sequence');
 
     state = Sequence.create(
       name: name,
@@ -261,10 +256,12 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     for (final entry in source.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
-      final newParentId =
-          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
-      final newChildIds =
-          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      final newParentId = oldNode.parentId != null
+          ? idMapping[oldNode.parentId]
+          : null;
+      final newChildIds = oldNode.childIds
+          .map((id) => idMapping[id] ?? id)
+          .toList();
       newNodes[newId] = oldNode.copyWith(
         id: newId,
         parentId: newParentId,
@@ -272,8 +269,9 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
       );
     }
 
-    final newRootId =
-        source.rootNodeId != null ? idMapping[source.rootNodeId] : null;
+    final newRootId = source.rootNodeId != null
+        ? idMapping[source.rootNodeId]
+        : null;
 
     final copy = Sequence.create(
       name: source.name,
@@ -318,10 +316,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     if (state == null) return;
     _ensureEditable('rename sequence');
     _saveUndo();
-    state = state!.copyWith(
-      name: name,
-      modifiedAt: DateTime.now(),
-    );
+    state = state!.copyWith(name: name, modifiedAt: DateTime.now());
   }
 
   /// Update sequence description

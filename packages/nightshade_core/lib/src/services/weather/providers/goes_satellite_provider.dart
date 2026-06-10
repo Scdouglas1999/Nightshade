@@ -56,8 +56,8 @@ class GoesSatelliteProvider extends RadarProvider {
 
   /// Creates a new GOES satellite provider.
   GoesSatelliteProvider({http.Client? client})
-      : _client = client ?? http.Client(),
-        _decoder = const RadarTileDecoder();
+    : _client = client ?? http.Client(),
+      _decoder = const RadarTileDecoder();
 
   @override
   String get name => 'GOES Satellite';
@@ -110,16 +110,21 @@ class GoesSatelliteProvider extends RadarProvider {
       final frame = await _decodeFrame(timestamp, fov);
 
       developer.log(
-          'Built satellite frame for $timestamp, layer: $_layerName '
-          '(${frame.isNoData ? "no-data" : "with spatial data"})',
-          name: 'GoesSatellite',
-          level: 800);
+        'Built satellite frame for $timestamp, layer: $_layerName '
+        '(${frame.isNoData ? "no-data" : "with spatial data"})',
+        name: 'GoesSatellite',
+        level: 800,
+      );
 
       return RadarFetchResult.success([frame]);
     } on http.ClientException catch (e) {
-      return RadarFetchResult.error('Network error fetching GOES satellite: $e');
+      return RadarFetchResult.error(
+        'Network error fetching GOES satellite: $e',
+      );
     } catch (e) {
-      return RadarFetchResult.error('Unexpected error fetching GOES satellite: $e');
+      return RadarFetchResult.error(
+        'Unexpected error fetching GOES satellite: $e',
+      );
     }
   }
 
@@ -172,12 +177,18 @@ class GoesSatelliteProvider extends RadarProvider {
       if (response.statusCode == 200) {
         image = _decoder.decodePng(response.bodyBytes);
       } else {
-        developer.log('GOES GetMap status ${response.statusCode}',
-            name: 'GoesSatellite', level: 900);
+        developer.log(
+          'GOES GetMap status ${response.statusCode}',
+          name: 'GoesSatellite',
+          level: 900,
+        );
       }
     } catch (e) {
-      developer.log('GOES GetMap fetch failed: $e',
-          name: 'GoesSatellite', level: 900);
+      developer.log(
+        'GOES GetMap fetch failed: $e',
+        name: 'GoesSatellite',
+        level: 900,
+      );
     }
 
     if (image == null) {
@@ -228,18 +239,22 @@ class GoesSatelliteProvider extends RadarProvider {
   /// Builds a WMS GetMap URL for the FOV in EPSG:4326 (plate-carrée).
   String _getMapUrl(_FovBounds fov) {
     final bbox = '${fov.west},${fov.south},${fov.east},${fov.north}';
-    return Uri.parse(_baseWmsUrl).replace(queryParameters: {
-      'service': 'WMS',
-      'version': '1.1.1',
-      'request': 'GetMap',
-      'layers': _layerName,
-      'format': 'image/png',
-      'transparent': 'true',
-      'srs': 'EPSG:4326',
-      'width': '$_wmsImageSize',
-      'height': '$_wmsImageSize',
-      'bbox': bbox,
-    }).toString();
+    return Uri.parse(_baseWmsUrl)
+        .replace(
+          queryParameters: {
+            'service': 'WMS',
+            'version': '1.1.1',
+            'request': 'GetMap',
+            'layers': _layerName,
+            'format': 'image/png',
+            'transparent': 'true',
+            'srs': 'EPSG:4326',
+            'width': '$_wmsImageSize',
+            'height': '$_wmsImageSize',
+            'bbox': bbox,
+          },
+        )
+        .toString();
   }
 
   /// Computes the padded geographic bounding box of a [radiusKm] circle around

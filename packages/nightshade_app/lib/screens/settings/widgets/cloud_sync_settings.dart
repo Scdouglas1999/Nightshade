@@ -144,8 +144,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
             'Pushed backup to ${result.remotePath ?? 'remote'}');
       } else {
         setState(() => _lastError = result.errorMessage);
-        context
-            .showErrorSnackBar('Push failed: ${result.errorMessage ?? '?'}');
+        context.showErrorSnackBar('Push failed: ${result.errorMessage ?? '?'}');
       }
     } finally {
       if (mounted) setState(() => _pushing = false);
@@ -238,7 +237,8 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                   _field(
                     controller: _serverUrlController,
                     label: 'Server URL',
-                    hint: 'https://cloud.example.com/remote.php/dav/files/user/',
+                    hint:
+                        'https://cloud.example.com/remote.php/dav/files/user/',
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -309,7 +309,8 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                         icon: LucideIcons.plugZap,
                         variant: ButtonVariant.outline,
                         isLoading: _testing,
-                        onPressed: _testing || _pushing ? null : _testConnection,
+                        onPressed:
+                            _testing || _pushing ? null : _testConnection,
                       ),
                       NightshadeButton(
                         label: _pushing ? 'Working...' : 'Push Now',
@@ -515,8 +516,7 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
           final m = _machines[index];
           return ListTile(
             leading: Icon(LucideIcons.monitor, color: colors.primary),
-            title: Text(m.name,
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(m.name, style: TextStyle(color: colors.textPrimary)),
             trailing: const Icon(LucideIcons.chevronRight, size: 16),
             onTap: () => _loadBundles(m.name),
           );
@@ -555,8 +555,7 @@ class _RemoteBrowserDialogState extends State<_RemoteBrowserDialog> {
             ),
           ),
           trailing: TextButton(
-            onPressed: () =>
-                Navigator.of(context).pop((machine, bundle)),
+            onPressed: () => Navigator.of(context).pop((machine, bundle)),
             child: const Text('Restore'),
           ),
         );

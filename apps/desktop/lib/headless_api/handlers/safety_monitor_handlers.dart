@@ -34,23 +34,23 @@ class SafetyMonitorHandlers {
   static const _kLastAckKey = 'safety_last_acknowledgement';
 
   String _failModeToApi(SafetyFailMode mode) => switch (mode) {
-        SafetyFailMode.failOpen => 'fail_open',
-        SafetyFailMode.failClosed => 'fail_closed',
-        SafetyFailMode.warnOnly => 'warn_only',
-      };
+    SafetyFailMode.failOpen => 'fail_open',
+    SafetyFailMode.failClosed => 'fail_closed',
+    SafetyFailMode.warnOnly => 'warn_only',
+  };
 
   SafetyFailMode _failModeFromApi(String value) => switch (value) {
-        'fail_open' => SafetyFailMode.failOpen,
-        'fail_closed' => SafetyFailMode.failClosed,
-        'warn_only' => SafetyFailMode.warnOnly,
-        _ => SafetyFailMode.failClosed,
-      };
+    'fail_open' => SafetyFailMode.failOpen,
+    'fail_closed' => SafetyFailMode.failClosed,
+    'warn_only' => SafetyFailMode.warnOnly,
+    _ => SafetyFailMode.failClosed,
+  };
 
   String _failModeToSequencer(SafetyFailMode mode) => switch (mode) {
-        SafetyFailMode.failOpen => 'fail_open',
-        SafetyFailMode.failClosed => 'fail_closed',
-        SafetyFailMode.warnOnly => 'warn_only',
-      };
+    SafetyFailMode.failOpen => 'fail_open',
+    SafetyFailMode.failClosed => 'fail_closed',
+    SafetyFailMode.warnOnly => 'warn_only',
+  };
 
   int _parseIntSetting(Map<String, String> settings, String key, int fallback) {
     final raw = settings[key];
@@ -75,7 +75,8 @@ class SafetyMonitorHandlers {
     final stored = await dao.getAllSettings();
 
     final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
-    final autoParkOnUnsafe = (appSettings?.parkOnUnsafeWeather ?? true) &&
+    final autoParkOnUnsafe =
+        (appSettings?.parkOnUnsafeWeather ?? true) &&
         weatherSettings.autoParkEnabled;
 
     return {
@@ -93,8 +94,11 @@ class SafetyMonitorHandlers {
         weatherSettings.weatherSafetyEnabled,
       ),
       'warningDelaySeconds': _parseIntSetting(stored, _kWarningDelayKey, 60),
-      'requiredSafeDurationSeconds':
-          _parseIntSetting(stored, _kRequiredSafeDurationKey, 300),
+      'requiredSafeDurationSeconds': _parseIntSetting(
+        stored,
+        _kRequiredSafeDurationKey,
+        300,
+      ),
       'enabledMonitors': <String>[],
     };
   }
@@ -119,9 +123,7 @@ class SafetyMonitorHandlers {
 
     // Filter to safety monitors
     final safetyMonitors = connectedDevices
-        .where(
-          (d) => d.deviceType == DeviceType.safetyMonitor,
-        )
+        .where((d) => d.deviceType == DeviceType.safetyMonitor)
         .toList();
 
     // Read the real safety monitor device state from the provider
@@ -142,44 +144,37 @@ class SafetyMonitorHandlers {
       );
 
       if (monitor.id.isEmpty) {
-        return jsonResponse(
-          {
-            "connected": false,
-            "deviceId": deviceId,
-            "error":
-                "Safety monitor '$deviceId' not connected - cannot determine safety state",
-          },
-          statusCode: 503,
-        );
+        return jsonResponse({
+          "connected": false,
+          "deviceId": deviceId,
+          "error":
+              "Safety monitor '$deviceId' not connected - cannot determine safety state",
+        }, statusCode: 503);
       }
 
       // Use real safety state from the connected device
       final isDeviceMatch = safetyMonitorState.deviceId == deviceId;
-      final isConnected = isDeviceMatch &&
+      final isConnected =
+          isDeviceMatch &&
           safetyMonitorState.connectionState == DeviceConnectionState.connected;
 
       if (!isConnected) {
-        return jsonResponse(
-          {
-            "connected": false,
-            "deviceId": deviceId,
-            "error":
-                "Safety monitor '$deviceId' found but not in connected state - cannot determine safety state",
-          },
-          statusCode: 503,
-        );
+        return jsonResponse({
+          "connected": false,
+          "deviceId": deviceId,
+          "error":
+              "Safety monitor '$deviceId' found but not in connected state - cannot determine safety state",
+        }, statusCode: 503);
       }
 
-      return jsonOk(
-        {
-          "connected": true,
-          "deviceId": deviceId,
-          "deviceName": monitor.name,
-          "isSafe": safetyMonitorState.isSafe,
-          "lastChecked": safetyMonitorState.lastChecked?.toIso8601String(),
-          "lastUpdate": DateTime.now().toIso8601String(),
-        },
-      );
+      return jsonOk({
+        "connected": true,
+        "deviceId": deviceId,
+        "deviceName": monitor.name,
+        "isSafe": safetyMonitorState.isSafe,
+        "lastChecked": safetyMonitorState.lastChecked?.toIso8601String(),
+        "lastUpdate": DateTime.now().toIso8601String(),
+      });
     }
 
     // Return aggregate status from all monitors using the weather safety provider
@@ -189,23 +184,22 @@ class SafetyMonitorHandlers {
     if (safetyMonitors.isEmpty) {
       // No safety monitors connected - use aggregate weather safety state
       // but report accurately that no monitors are connected
-      return jsonOk(
-        {
-          "isSafe": weatherSafety.isSafe,
-          "monitorsConnected": 0,
-          "monitors": <Map<String, dynamic>>[],
-          "dataSource": weatherSafety.dataSource.name,
-          "safetyStatus": weatherSafety.status.name,
-          "failModeWarning": weatherSafety.failModeWarning,
-          "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
-        },
-      );
+      return jsonOk({
+        "isSafe": weatherSafety.isSafe,
+        "monitorsConnected": 0,
+        "monitors": <Map<String, dynamic>>[],
+        "dataSource": weatherSafety.dataSource.name,
+        "safetyStatus": weatherSafety.status.name,
+        "failModeWarning": weatherSafety.failModeWarning,
+        "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
+      });
     }
 
     // Build per-monitor status using real device state
     final monitorStatuses = safetyMonitors.map((m) {
       final isThisDevice = safetyMonitorState.deviceId == m.id;
-      final isConnected = isThisDevice &&
+      final isConnected =
+          isThisDevice &&
           safetyMonitorState.connectionState == DeviceConnectionState.connected;
 
       return {
@@ -219,21 +213,19 @@ class SafetyMonitorHandlers {
       };
     }).toList();
 
-    return jsonOk(
-      {
-        "isSafe": weatherSafety.isSafe,
-        "safetyStatus": weatherSafety.status.name,
-        "monitorsConnected": safetyMonitors.length,
-        "monitors": monitorStatuses,
-        "dataSource": weatherSafety.dataSource.name,
-        "hardwareWeatherSafe": weatherSafety.hardwareWeatherSafe,
-        "safetyMonitorSafe": weatherSafety.safetyMonitorSafe,
-        "apiWeatherSafe": weatherSafety.apiWeatherSafe,
-        "failModeWarning": weatherSafety.failModeWarning,
-        "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
-        "lastUpdate": DateTime.now().toIso8601String(),
-      },
-    );
+    return jsonOk({
+      "isSafe": weatherSafety.isSafe,
+      "safetyStatus": weatherSafety.status.name,
+      "monitorsConnected": safetyMonitors.length,
+      "monitors": monitorStatuses,
+      "dataSource": weatherSafety.dataSource.name,
+      "hardwareWeatherSafe": weatherSafety.hardwareWeatherSafe,
+      "safetyMonitorSafe": weatherSafety.safetyMonitorSafe,
+      "apiWeatherSafe": weatherSafety.apiWeatherSafe,
+      "failModeWarning": weatherSafety.failModeWarning,
+      "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
+      "lastUpdate": DateTime.now().toIso8601String(),
+    });
   }
 
   // ===========================================================================
@@ -311,8 +303,10 @@ class SafetyMonitorHandlers {
       toPersist[_kAutoStopKey] = autoStopOnUnsafe.toString();
     }
 
-    final autoCloseRoofOnUnsafe =
-        optionalBool(payload, 'autoCloseRoofOnUnsafe');
+    final autoCloseRoofOnUnsafe = optionalBool(
+      payload,
+      'autoCloseRoofOnUnsafe',
+    );
     if (autoCloseRoofOnUnsafe != null) {
       toPersist[_kAutoCloseRoofKey] = autoCloseRoofOnUnsafe.toString();
     }
@@ -338,10 +332,7 @@ class SafetyMonitorHandlers {
     }
 
     final updated = await _buildSettingsPayload();
-    return jsonOk({
-      'status': 'updated',
-      'settings': updated,
-    });
+    return jsonOk({'status': 'updated', 'settings': updated});
   }
 
   // ===========================================================================
@@ -366,18 +357,15 @@ class SafetyMonitorHandlers {
       'durationMinutes': durationMinutes,
       'acknowledgedAt': DateTime.now().toUtc().toIso8601String(),
     };
-    await container.read(settingsDaoProvider).setSetting(
-          _kLastAckKey,
-          jsonEncode(ackRecord),
-        );
+    await container
+        .read(settingsDaoProvider)
+        .setSetting(_kLastAckKey, jsonEncode(ackRecord));
 
     container
         .read(weatherSafetyProvider.notifier)
         .snooze(Duration(minutes: durationMinutes));
 
-    _logInfo(
-      'Safety conditions acknowledged for ${durationMinutes}m: $reason',
-    );
+    _logInfo('Safety conditions acknowledged for ${durationMinutes}m: $reason');
 
     return jsonOk({
       'status': 'acknowledged',

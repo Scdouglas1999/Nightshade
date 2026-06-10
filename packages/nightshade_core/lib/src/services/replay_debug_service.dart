@@ -178,14 +178,16 @@ class ReplayDebugService {
   /// when there are no rows.
   Future<List<ReplayDecision>> listByRun(int sequenceRunId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, sequence_run_id, timestamp_unix_ms, category, summary, '
-      'details_json, node_id '
-      'FROM sequence_decisions '
-      'WHERE sequence_run_id = ? '
-      'ORDER BY timestamp_unix_ms ASC, id ASC',
-      variables: [drift.Variable.withInt(sequenceRunId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, sequence_run_id, timestamp_unix_ms, category, summary, '
+          'details_json, node_id '
+          'FROM sequence_decisions '
+          'WHERE sequence_run_id = ? '
+          'ORDER BY timestamp_unix_ms ASC, id ASC',
+          variables: [drift.Variable.withInt(sequenceRunId)],
+        )
+        .get();
     return rows
         .map((r) => ReplayDecision.fromDbRow(r.data))
         .toList(growable: false);
@@ -198,17 +200,19 @@ class ReplayDebugService {
     DecisionCategory category,
   ) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, sequence_run_id, timestamp_unix_ms, category, summary, '
-      'details_json, node_id '
-      'FROM sequence_decisions '
-      'WHERE sequence_run_id = ? AND category = ? '
-      'ORDER BY timestamp_unix_ms ASC, id ASC',
-      variables: [
-        drift.Variable.withInt(sequenceRunId),
-        drift.Variable.withString(category.wireKey),
-      ],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, sequence_run_id, timestamp_unix_ms, category, summary, '
+          'details_json, node_id '
+          'FROM sequence_decisions '
+          'WHERE sequence_run_id = ? AND category = ? '
+          'ORDER BY timestamp_unix_ms ASC, id ASC',
+          variables: [
+            drift.Variable.withInt(sequenceRunId),
+            drift.Variable.withString(category.wireKey),
+          ],
+        )
+        .get();
     return rows
         .map((r) => ReplayDecision.fromDbRow(r.data))
         .toList(growable: false);
@@ -257,10 +261,12 @@ class ReplayDebugService {
   /// a "X decisions" badge next to each run).
   Future<int> countByRun(int sequenceRunId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT COUNT(*) AS n FROM sequence_decisions WHERE sequence_run_id = ?',
-      variables: [drift.Variable.withInt(sequenceRunId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT COUNT(*) AS n FROM sequence_decisions WHERE sequence_run_id = ?',
+          variables: [drift.Variable.withInt(sequenceRunId)],
+        )
+        .get();
     if (rows.isEmpty) return 0;
     return (rows.first.data['n'] as int?) ?? 0;
   }

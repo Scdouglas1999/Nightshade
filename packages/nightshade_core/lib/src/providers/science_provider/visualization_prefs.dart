@@ -13,9 +13,10 @@ class ScienceVisualizationPrefsNotifier
     final raw = await _loadScienceSettingsMap(ref);
 
     return ScienceVisualizationPrefs(
-      overlayOpacity: _parseDouble(raw[_overlayOpacityKey], 0.35)
-          .clamp(0.05, 0.95)
-          .toDouble(),
+      overlayOpacity: _parseDouble(
+        raw[_overlayOpacityKey],
+        0.35,
+      ).clamp(0.05, 0.95).toDouble(),
       liveGridRows: _parseInt(raw[_liveGridRowsKey], 12).clamp(4, 64),
       liveGridCols: _parseInt(raw[_liveGridColsKey], 16).clamp(4, 64),
       analysisGridRows: _parseInt(raw[_analysisGridRowsKey], 24).clamp(4, 96),
@@ -45,7 +46,8 @@ class ScienceVisualizationPrefsNotifier
   }
 }
 
-final scienceVisualizationPrefsProvider = AsyncNotifierProvider<
-    ScienceVisualizationPrefsNotifier, ScienceVisualizationPrefs>(
-  ScienceVisualizationPrefsNotifier.new,
-);
+final scienceVisualizationPrefsProvider =
+    AsyncNotifierProvider<
+      ScienceVisualizationPrefsNotifier,
+      ScienceVisualizationPrefs
+    >(ScienceVisualizationPrefsNotifier.new);

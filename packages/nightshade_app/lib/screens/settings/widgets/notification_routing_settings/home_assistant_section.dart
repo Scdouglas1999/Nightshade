@@ -23,13 +23,12 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
     super.dispose();
   }
 
-  Future<void> _save(HomeAssistantDiscoveryConfig Function(
-          HomeAssistantDiscoveryConfig) change) async {
+  Future<void> _save(
+      HomeAssistantDiscoveryConfig Function(HomeAssistantDiscoveryConfig)
+          change) async {
     final current = ref.read(homeAssistantConfigProvider).valueOrNull ??
         const HomeAssistantDiscoveryConfig();
-    await ref
-        .read(homeAssistantConfigProvider.notifier)
-        .save(change(current));
+    await ref.read(homeAssistantConfigProvider.notifier).save(change(current));
   }
 
   @override
@@ -89,8 +88,7 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
             SettingRow(
               icon: LucideIcons.shieldAlert,
               title: 'Allow control from Home Assistant',
-              subtitle:
-                  'Lets HA pause/resume and abort the running sequence. '
+              subtitle: 'Lets HA pause/resume and abort the running sequence. '
                   'Off = read-only sensors.',
               trailing: SettingsSwitch(
                 value: cfg.allowControl,

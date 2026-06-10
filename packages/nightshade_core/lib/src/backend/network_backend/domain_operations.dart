@@ -19,8 +19,12 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
       final response = await _get('targets/$id');
       return response['target'] as Map<String, dynamic>?;
     } catch (e) {
-      developer.log('Failed to get target $id: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get target $id: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -54,8 +58,11 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
   }
 
   /// Update target progress
-  Future<void> updateTargetProgress(int id,
-      {int? capturedSubs, double? totalIntegrationSecs}) async {
+  Future<void> updateTargetProgress(
+    int id, {
+    int? capturedSubs,
+    double? totalIntegrationSecs,
+  }) async {
     await _put('targets/$id/progress', {
       if (capturedSubs != null) 'capturedSubs': capturedSubs,
       if (totalIntegrationSecs != null)
@@ -79,8 +86,9 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Get targets by priority
   Future<List<Map<String, dynamic>>> getTargetsByPriority(int priority) async {
-    final response =
-        await _get('targets/by-priority', {'priority': priority.toString()});
+    final response = await _get('targets/by-priority', {
+      'priority': priority.toString(),
+    });
     final targetsList = response['targets'] as List? ?? [];
     return targetsList.cast<Map<String, dynamic>>();
   }
@@ -109,8 +117,12 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
       final response = await _get('sequence-management/$id');
       return response['sequence'] as Map<String, dynamic>?;
     } catch (e) {
-      developer.log('Failed to get sequence $id: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get sequence $id: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -140,8 +152,9 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Duplicate a sequence
   Future<int> duplicateSequence(int sourceId, String newName) async {
-    final response = await _post(
-        'sequence-management/$sourceId/duplicate', {'newName': newName});
+    final response = await _post('sequence-management/$sourceId/duplicate', {
+      'newName': newName,
+    });
     return response['id'] as int;
   }
 
@@ -175,13 +188,17 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Create a new sequence node
   Future<void> createSequenceNode(
-      int sequenceId, Map<String, dynamic> node) async {
+    int sequenceId,
+    Map<String, dynamic> node,
+  ) async {
     await _post('sequence-management/$sequenceId/nodes', node);
   }
 
   /// Update a sequence node
   Future<void> updateSequenceNode(
-      String nodeId, Map<String, dynamic> node) async {
+    String nodeId,
+    Map<String, dynamic> node,
+  ) async {
     await _put('sequence-management/nodes/$nodeId', node);
   }
 
@@ -192,9 +209,12 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Reorder sequence nodes
   Future<void> reorderSequenceNodes(
-      int sequenceId, List<String> nodeIds) async {
-    await _post(
-        'sequence-management/$sequenceId/reorder', {'nodeIds': nodeIds});
+    int sequenceId,
+    List<String> nodeIds,
+  ) async {
+    await _post('sequence-management/$sequenceId/reorder', {
+      'nodeIds': nodeIds,
+    });
   }
 
   // =========================================================================
@@ -271,7 +291,8 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Generate mosaic panels
   Future<Map<String, dynamic>> mosaicGeneratePanels(
-      Map<String, dynamic> config) async {
+    Map<String, dynamic> config,
+  ) async {
     final response = await _post('mosaic/generate-panels', config);
     return response;
   }
@@ -292,14 +313,16 @@ mixin _NetworkBackendDomainOperations on _NetworkBackendTransport {
 
   /// Calculate mosaic area
   Future<Map<String, dynamic>> mosaicCalculateArea(
-      Map<String, dynamic> config) async {
+    Map<String, dynamic> config,
+  ) async {
     final response = await _post('mosaic/calculate-area', config);
     return response;
   }
 
   /// Validate mosaic configuration
   Future<Map<String, dynamic>> mosaicValidate(
-      Map<String, dynamic> config) async {
+    Map<String, dynamic> config,
+  ) async {
     final response = await _post('mosaic/validate', config);
     return response;
   }

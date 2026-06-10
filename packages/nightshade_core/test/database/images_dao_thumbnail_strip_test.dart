@@ -235,10 +235,7 @@ void main() {
         eccentricity: 0.1,
       );
       // Stamp only the run id — grade and eccentricity must survive.
-      await imagesDao.stampProducingNode(
-        imageId: id,
-        producingRunId: 'run-99',
-      );
+      await imagesDao.stampProducingNode(imageId: id, producingRunId: 'run-99');
       final rows = await imagesDao.getImagesByProducingNode(
         producingNodeId: 'starting-node',
       );
@@ -250,8 +247,9 @@ void main() {
 
   group('watchImagesByProducingNode', () {
     test('emits a new value when a fresh row is inserted', () async {
-      final stream =
-          imagesDao.watchImagesByProducingNode(producingNodeId: 'live-node');
+      final stream = imagesDao.watchImagesByProducingNode(
+        producingNodeId: 'live-node',
+      );
       final received = <List<ProducingNodeThumbnail>>[];
       final sub = stream.listen(received.add);
 

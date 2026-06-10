@@ -95,19 +95,22 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                 height: 28,
                 decoration: NightshadeDecorations.tintedBadge(
                   NightshadeColors.of(context).primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Center(
                   child: Text(
                     '${widget.position}',
-                    style: NightshadeTypography.h6.copyWith(color: NightshadeColors.of(context).primary),
+                    style: NightshadeTypography.h6
+                        .copyWith(color: NightshadeColors.of(context).primary),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 widget.filterName,
-                style: NightshadeTypography.h5.copyWith(color: NightshadeColors.of(context).textPrimary),
+                style: NightshadeTypography.h5
+                    .copyWith(color: NightshadeColors.of(context).textPrimary),
               ),
             ],
           ),

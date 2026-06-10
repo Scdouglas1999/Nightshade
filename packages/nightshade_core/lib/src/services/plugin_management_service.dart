@@ -114,20 +114,20 @@ class InstalledPluginManifest {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'version': version,
-        'author': author,
-        'description': description,
-        'enabled': enabled,
-        'signed': signed,
-        'signatureValid': signatureValid,
-        'sha256': sha256,
-        'sizeBytes': sizeBytes,
-        'installedAt': installedAt?.toIso8601String(),
-        'installedFilename': installedFilename,
-        'loadError': loadError,
-      };
+    'id': id,
+    'name': name,
+    'version': version,
+    'author': author,
+    'description': description,
+    'enabled': enabled,
+    'signed': signed,
+    'signatureValid': signatureValid,
+    'sha256': sha256,
+    'sizeBytes': sizeBytes,
+    'installedAt': installedAt?.toIso8601String(),
+    'installedFilename': installedFilename,
+    'loadError': loadError,
+  };
 
   InstalledPluginManifest copyWith({
     String? id,
@@ -199,8 +199,8 @@ class PluginManagementService {
   PluginManagementService({
     required LoggingService logger,
     Future<Directory> Function()? directoryOverride,
-  })  : _logger = logger,
-        _directoryOverride = directoryOverride;
+  }) : _logger = logger,
+       _directoryOverride = directoryOverride;
 
   Future<Directory> _pluginDirectory() async {
     final override = _directoryOverride;
@@ -212,8 +212,9 @@ class PluginManagementService {
       return dir;
     }
     final appDir = await getApplicationSupportDirectory();
-    final pluginDir =
-        Directory(path.join(appDir.path, 'Nightshade', 'plugins'));
+    final pluginDir = Directory(
+      path.join(appDir.path, 'Nightshade', 'plugins'),
+    );
     if (!await pluginDir.exists()) {
       await pluginDir.create(recursive: true);
     }
@@ -339,15 +340,18 @@ class PluginManagementService {
     if (previous != null &&
         previous.installedFilename != null &&
         previous.installedFilename != safeFilename) {
-      final oldFile =
-          File(path.join(pluginDir.path, previous.installedFilename!));
+      final oldFile = File(
+        path.join(pluginDir.path, previous.installedFilename!),
+      );
       try {
         if (await oldFile.exists()) {
           await oldFile.delete();
         }
       } catch (e) {
-        _logger.debug('Failed to delete old plugin archive: $e',
-            source: 'PluginManagementService');
+        _logger.debug(
+          'Failed to delete old plugin archive: $e',
+          source: 'PluginManagementService',
+        );
       }
     }
 
@@ -362,7 +366,9 @@ class PluginManagementService {
 
   /// Set the enabled flag for [pluginId]. Returns the updated manifest.
   Future<InstalledPluginManifest> setEnabled(
-      String pluginId, bool enabled) async {
+    String pluginId,
+    bool enabled,
+  ) async {
     final registry = await _loadRegistry();
     final existing = registry[pluginId];
     if (existing == null) {
@@ -388,8 +394,7 @@ class PluginManagementService {
     }
     if (existing.installedFilename != null) {
       final pluginDir = await _pluginDirectory();
-      final file =
-          File(path.join(pluginDir.path, existing.installedFilename!));
+      final file = File(path.join(pluginDir.path, existing.installedFilename!));
       if (await file.exists()) {
         await file.delete();
       }
@@ -482,8 +487,7 @@ class PluginManagementService {
     await file.writeAsString(encoded, flush: true);
   }
 
-  InstalledPluginManifest _manifestFromRegistryJson(
-      Map<String, dynamic> json) {
+  InstalledPluginManifest _manifestFromRegistryJson(Map<String, dynamic> json) {
     return InstalledPluginManifest(
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
@@ -582,9 +586,8 @@ class PluginManagementService {
 /// Riverpod provider for [PluginManagementService]. The directory
 /// override is null in production; tests inject a temp directory via
 /// `overrideWithProvider`/`overrideWith`.
-final pluginManagementServiceProvider =
-    Provider<PluginManagementService>((ref) {
-  return PluginManagementService(
-    logger: ref.watch(loggingServiceProvider),
-  );
+final pluginManagementServiceProvider = Provider<PluginManagementService>((
+  ref,
+) {
+  return PluginManagementService(logger: ref.watch(loggingServiceProvider));
 });

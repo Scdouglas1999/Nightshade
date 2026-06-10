@@ -39,13 +39,19 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     return AppSettingsState(
       // General
       startMinimized: _parseBool(allSettings['start_minimized'], false),
-      autoConnectEquipment:
-          _parseBool(allSettings['auto_connect_equipment'], true),
+      autoConnectEquipment: _parseBool(
+        allSettings['auto_connect_equipment'],
+        true,
+      ),
       autoSaveSequences: _parseBool(allSettings['auto_save_sequences'], true),
-      confirmBeforeClosing:
-          _parseBool(allSettings['confirm_before_closing'], true),
-      autoDiscoverOnLaunch:
-          _parseBool(allSettings['auto_discover_on_launch'], true),
+      confirmBeforeClosing: _parseBool(
+        allSettings['confirm_before_closing'],
+        true,
+      ),
+      autoDiscoverOnLaunch: _parseBool(
+        allSettings['auto_discover_on_launch'],
+        true,
+      ),
 
       // Appearance
       theme: allSettings['theme'] ?? 'dark',
@@ -69,16 +75,24 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       bitDepth: allSettings['bit_depth'] ?? '16-bit',
 
       // Sequencer
-      parkOnUnsafeWeather:
-          _parseBool(allSettings['park_on_unsafe_weather'], true),
+      parkOnUnsafeWeather: _parseBool(
+        allSettings['park_on_unsafe_weather'],
+        true,
+      ),
       parkBeforeDawn: _parseBool(allSettings['park_before_dawn'], true),
       meridianFlipMinutes: _parseInt(allSettings['meridian_flip_minutes'], 5),
-      autoFocusOnFilterChange:
-          _parseBool(allSettings['auto_focus_on_filter_change'], true),
-      useFilterFocusOffsets:
-          _parseBool(allSettings['use_filter_focus_offsets'], true),
-      autoFocusEveryMinutes:
-          _parseInt(allSettings['auto_focus_every_minutes'], 60),
+      autoFocusOnFilterChange: _parseBool(
+        allSettings['auto_focus_on_filter_change'],
+        true,
+      ),
+      useFilterFocusOffsets: _parseBool(
+        allSettings['use_filter_focus_offsets'],
+        true,
+      ),
+      autoFocusEveryMinutes: _parseInt(
+        allSettings['auto_focus_every_minutes'],
+        60,
+      ),
       ditherEnabled: _parseBool(allSettings['dither_enabled'], true),
       ditherEveryFrames: _parseInt(allSettings['dither_every_frames'], 3),
       safetyFailMode: _parseSafetyFailMode(allSettings['safety_fail_mode']),
@@ -88,8 +102,10 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       astapPath: allSettings['astap_path'] ?? '',
       astrometryPath: allSettings['astrometry_path'] ?? '',
       plateSolveTimeout: _parseInt(allSettings['plate_solve_timeout'], 60),
-      plateSolveSearchRadius:
-          _parseDouble(allSettings['plate_solve_search_radius'], 30.0),
+      plateSolveSearchRadius: _parseDouble(
+        allSettings['plate_solve_search_radius'],
+        30.0,
+      ),
       blindSolve: _parseBool(allSettings['blind_solve'], false),
 
       // PHD2 Guiding
@@ -98,16 +114,22 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       phd2Port: _parseInt(allSettings['phd2_port'], 4400),
 
       // Notifications
-      notificationsEnabled:
-          _parseBool(allSettings['notifications_enabled'], true),
+      notificationsEnabled: _parseBool(
+        allSettings['notifications_enabled'],
+        true,
+      ),
       discordWebhook: allSettings['discord_webhook'] ?? '',
       pushoverKey: allSettings['pushover_key'] ?? '',
       pushoverUser: allSettings['pushover_user'] ?? '',
-      notifyOnSequenceComplete:
-          _parseBool(allSettings['notify_on_sequence_complete'], true),
+      notifyOnSequenceComplete: _parseBool(
+        allSettings['notify_on_sequence_complete'],
+        true,
+      ),
       notifyOnError: _parseBool(allSettings['notify_on_error'], true),
-      notifyOnMeridianFlip:
-          _parseBool(allSettings['notify_on_meridian_flip'], false),
+      notifyOnMeridianFlip: _parseBool(
+        allSettings['notify_on_meridian_flip'],
+        false,
+      ),
       soundEnabled: _parseBool(allSettings['sound_enabled'], true),
 
       // File Paths
@@ -122,8 +144,10 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       indiAutoConnect: _parseBool(allSettings['indi_auto_connect'], false),
       alpacaServerHost: allSettings['alpaca_server_host'] ?? 'localhost',
       alpacaServerPort: _parseInt(allSettings['alpaca_server_port'], 11111),
-      alpacaAutoDiscover:
-          _parseBool(allSettings['alpaca_auto_discover'], false),
+      alpacaAutoDiscover: _parseBool(
+        allSettings['alpaca_auto_discover'],
+        false,
+      ),
 
       // Sequencer Execution
       useNativeExecution: _parseBool(allSettings['use_native_execution'], true),
@@ -154,14 +178,20 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       // Autofocus Settings
       // Observing Environment
       bortleClass: _parseInt(allSettings['bortle_class'], 5),
-      horizonProfileJson: allSettings['horizon_profile_json'] ??
+      horizonProfileJson:
+          allSettings['horizon_profile_json'] ??
           '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
-      effectiveHorizonDeg:
-          _parseDouble(allSettings['effective_horizon_deg'], 0.0),
-      audibleAlertsOnCritical:
-          _parseBool(allSettings['audible_alerts_on_critical'], false),
-      criticalAlertSound:
-          _normaliseCriticalAlertSound(allSettings['critical_alert_sound']),
+      effectiveHorizonDeg: _parseDouble(
+        allSettings['effective_horizon_deg'],
+        0.0,
+      ),
+      audibleAlertsOnCritical: _parseBool(
+        allSettings['audible_alerts_on_critical'],
+        false,
+      ),
+      criticalAlertSound: _normaliseCriticalAlertSound(
+        allSettings['critical_alert_sound'],
+      ),
       pushCriticalAlerts: _parseBool(allSettings['push_critical_alerts'], true),
 
       // Wave 4 Recovery Mode — persisted defaults. Missing keys (first
@@ -194,20 +224,30 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       afCurveFitting: allSettings['af_curve_fitting'] ?? 'Hyperbolic',
       afStepSize: _parseInt(allSettings['af_step_size'], 50),
       afExposureTime: _parseDouble(allSettings['af_exposure_time'], 4.0),
-      afInitialOffsetSteps:
-          _parseInt(allSettings['af_initial_offset_steps'], 4),
+      afInitialOffsetSteps: _parseInt(
+        allSettings['af_initial_offset_steps'],
+        4,
+      ),
       afNumberOfAttempts: _parseInt(allSettings['af_number_of_attempts'], 1),
-      afUseBrightestNStars:
-          _parseInt(allSettings['af_use_brightest_n_stars'], 0),
+      afUseBrightestNStars: _parseInt(
+        allSettings['af_use_brightest_n_stars'],
+        0,
+      ),
       afOuterCropRatio: _parseDouble(allSettings['af_outer_crop_ratio'], 1.0),
       afInnerCropRatio: _parseDouble(allSettings['af_inner_crop_ratio'], 0.0),
       afBinning: _parseInt(allSettings['af_binning'], 1),
-      afRSquaredThreshold:
-          _parseDouble(allSettings['af_r_squared_threshold'], 0.7),
-      afDisableGuidingDuringAf:
-          _parseBool(allSettings['af_disable_guiding'], false),
-      afFocuserSettleTimeMs:
-          _parseInt(allSettings['af_focuser_settle_time_ms'], 500),
+      afRSquaredThreshold: _parseDouble(
+        allSettings['af_r_squared_threshold'],
+        0.7,
+      ),
+      afDisableGuidingDuringAf: _parseBool(
+        allSettings['af_disable_guiding'],
+        false,
+      ),
+      afFocuserSettleTimeMs: _parseInt(
+        allSettings['af_focuser_settle_time_ms'],
+        500,
+      ),
       afExposuresPerPoint: _parseInt(allSettings['af_exposures_per_point'], 1),
       afBacklashCompMethod:
           allSettings['af_backlash_comp_method'] ?? 'Overshoot',
@@ -250,9 +290,9 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       ),
       imageGradingRejectFolderPath:
           (allSettings['image_grading_reject_folder_path'] == null ||
-                  allSettings['image_grading_reject_folder_path']!.isEmpty)
-              ? null
-              : allSettings['image_grading_reject_folder_path'],
+              allSettings['image_grading_reject_folder_path']!.isEmpty)
+          ? null
+          : allSettings['image_grading_reject_folder_path'],
 
       // Wave 5 Agent 2 — Sky-brightness adaptive exposure. Per-filter
       // maps are stored as JSON strings in app_settings; an empty map
@@ -278,18 +318,22 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         600.0,
       ),
       adaptiveExposurePerFilterEnabled: _parseFilterBoolMap(
-          allSettings['adaptive_exposure_per_filter_enabled']),
+        allSettings['adaptive_exposure_per_filter_enabled'],
+      ),
       adaptiveExposurePerFilterMinSecs: _parseFilterDoubleMap(
-          allSettings['adaptive_exposure_per_filter_min_secs']),
+        allSettings['adaptive_exposure_per_filter_min_secs'],
+      ),
       adaptiveExposurePerFilterMaxSecs: _parseFilterDoubleMap(
-          allSettings['adaptive_exposure_per_filter_max_secs']),
+        allSettings['adaptive_exposure_per_filter_max_secs'],
+      ),
 
       // Wave 5 Agent 3 — Pre-flight checks. Values are clamped to defend
       // against pathological persisted values (zero / negative days, zero
       // coverage quorum). The drift threshold has no upper bound — a user
       // who wants the optical-train check silenced can crank it sky-high.
-      preflightStrictness:
-          _parsePreflightStrictness(allSettings['preflight_strictness']),
+      preflightStrictness: _parsePreflightStrictness(
+        allSettings['preflight_strictness'],
+      ),
       polarAlignmentMaxAgeDays: _parseInt(
         allSettings['polar_alignment_max_age_days'],
         7,
@@ -444,10 +488,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     return double.tryParse(value) ?? defaultIfMissing;
   }
 
-  int? _parseOptionalInt(
-    String? value, {
-    required int? defaultIfMissing,
-  }) {
+  int? _parseOptionalInt(String? value, {required int? defaultIfMissing}) {
     if (value == null) return defaultIfMissing;
     if (value == 'null' || value.isEmpty) return null;
     return int.tryParse(value) ?? defaultIfMissing;

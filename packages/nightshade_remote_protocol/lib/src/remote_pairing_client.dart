@@ -21,7 +21,8 @@ class RemotePairingStartResult {
         : DateTime.now().toUtc().add(const Duration(minutes: 5));
     return RemotePairingStartResult(
       expiresAt: expiresAt,
-      expiresInSeconds: json['expiresInSeconds'] as int? ??
+      expiresInSeconds:
+          json['expiresInSeconds'] as int? ??
           expiresAt.difference(DateTime.now().toUtc()).inSeconds,
     );
   }
@@ -47,9 +48,7 @@ class RemotePairingVerifyResult {
     this.statusCode,
   });
 
-  factory RemotePairingVerifyResult.successFromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory RemotePairingVerifyResult.successFromJson(Map<String, dynamic> json) {
     final expiresAtRaw = json['expiresAt'] as String?;
     return RemotePairingVerifyResult(
       success: true,
@@ -119,18 +118,18 @@ class RemotePairingClient {
     this.pinnedFingerprint,
     this.timeout = const Duration(seconds: 15),
   }) : assert(
-          scheme == 'http' || scheme == 'https',
-          'scheme must be "http" or "https"',
-        );
+         scheme == 'http' || scheme == 'https',
+         'scheme must be "http" or "https"',
+       );
 
   Uri _uri(String path) => Uri.parse('$scheme://$host:$port$path');
 
   Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        NightshadeServerCompatibility.apiVersionHeader:
-            NightshadeServerCompatibility.clientApiVersion.format(),
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    NightshadeServerCompatibility.apiVersionHeader:
+        NightshadeServerCompatibility.clientApiVersion.format(),
+  };
 
   /// Opens a pairing session on the desktop host. The pairing code itself is
   /// shown on the desktop UI / QR — it is intentionally omitted from the HTTP
@@ -157,8 +156,9 @@ class RemotePairingClient {
   /// JSON response so a genuinely broken endpoint is not mistaken for "no
   /// fingerprint".
   Future<String?> fetchFingerprint() async {
-    final response =
-        await http.get(_uri('/api/info'), headers: _headers).timeout(timeout);
+    final response = await http
+        .get(_uri('/api/info'), headers: _headers)
+        .timeout(timeout);
     if (response.statusCode != 200) {
       throw RemotePairingException(
         'Fingerprint pre-flight failed (${response.statusCode}): '
@@ -191,19 +191,13 @@ class RemotePairingClient {
     if (pin == null || pin.isEmpty) return;
     final live = await fetchFingerprint();
     if (live == null) {
-      throw RemotePairingFingerprintMismatch(
-        expected: pin,
-        actual: null,
-      );
+      throw RemotePairingFingerprintMismatch(expected: pin, actual: null);
     }
     // Constant-time-ish comparison is unnecessary here (the fingerprint is not
     // secret — it travels in the QR), but a case-insensitive exact match keeps
     // hex-casing differences from causing false mismatches.
     if (live.toLowerCase() != pin.toLowerCase()) {
-      throw RemotePairingFingerprintMismatch(
-        expected: pin,
-        actual: live,
-      );
+      throw RemotePairingFingerprintMismatch(expected: pin, actual: live);
     }
   }
 
@@ -241,8 +235,9 @@ class RemotePairingClient {
     final dynamic decoded = response.body.isNotEmpty
         ? jsonDecode(response.body)
         : <String, dynamic>{};
-    final body =
-        decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    final body = decoded is Map<String, dynamic>
+        ? decoded
+        : <String, dynamic>{};
 
     if (response.statusCode == 200) {
       return RemotePairingVerifyResult.successFromJson(body);
@@ -274,13 +269,12 @@ class RemotePairingFingerprintMismatch extends RemotePairingException {
     required this.expected,
     required this.actual,
   }) : super(
-          actual == null
-              ? 'Server reported no fingerprint; expected '
-                  '${_short(expected)}. Refusing to pair.'
-              : 'Server fingerprint ${_short(actual)} does not match the '
-                  'pinned ${_short(expected)}. Refusing to pair.',
-        );
+         actual == null
+             ? 'Server reported no fingerprint; expected '
+                   '${_short(expected)}. Refusing to pair.'
+             : 'Server fingerprint ${_short(actual)} does not match the '
+                   'pinned ${_short(expected)}. Refusing to pair.',
+       );
 
-  static String _short(String fp) =>
-      fp.length <= 16 ? fp : fp.substring(0, 16);
+  static String _short(String fp) => fp.length <= 16 ? fp : fp.substring(0, 16);
 }

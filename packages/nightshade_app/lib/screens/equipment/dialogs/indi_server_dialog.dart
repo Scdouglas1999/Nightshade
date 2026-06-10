@@ -121,7 +121,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,10 +203,9 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: NightshadeDecorations.emphasisSurface(
-                  (_connectionSuccess ?? false)
-                      ? colors.success
-                      : colors.error,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  (_connectionSuccess ?? false) ? colors.success : colors.error,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   children: [

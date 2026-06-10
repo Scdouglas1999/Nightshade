@@ -372,7 +372,9 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
 
   void _jumpToTonight(TwilightTimes twilight) {
     if (twilight.astronomicalDusk != null) {
-      ref.read(observationTimeProvider.notifier).setTime(twilight.astronomicalDusk!);
+      ref
+          .read(observationTimeProvider.notifier)
+          .setTime(twilight.astronomicalDusk!);
       ref.read(observationTimeProvider.notifier).setRealTime(false);
     }
   }

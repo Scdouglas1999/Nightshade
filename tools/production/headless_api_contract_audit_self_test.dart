@@ -4,7 +4,8 @@ import 'dart:io';
 Future<void> main() async {
   final repoRoot = Directory.current;
   final script = File(
-      '${repoRoot.path}/tools/production/headless_api_contract_audit.dart');
+    '${repoRoot.path}/tools/production/headless_api_contract_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Headless API contract audit not found: ${script.path}');
   }
@@ -85,10 +86,7 @@ Future<void> main() async {
 }
 
 Future<void> _writePassingFixture(Directory root) async {
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    r'''
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', r'''
 void start() {
   router.get('/api/info', _handleInfo);
   router.post('/api/devices/connect', _handleConnect);
@@ -106,8 +104,7 @@ List<String> _getAvailableEndpoints() {
     'WS /events',
   ];
 }
-''',
-  );
+''');
   await _writeFile(
     root,
     'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
@@ -149,10 +146,7 @@ void calls() {
 }
 
 Future<void> _writeFailingFixture(Directory root) async {
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    r'''
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', r'''
 void start() {
   router.get('/api/info', _handleInfo);
   router.get('/api/status', _handleStatus);
@@ -163,8 +157,7 @@ List<String> _getAvailableEndpoints() {
     'GET /api/info',
   ];
 }
-''',
-  );
+''');
   await _writeFile(
     root,
     'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
@@ -227,11 +220,7 @@ void main() {}
     'apps/desktop/web_dashboard/js/api.js',
     'class NightshadeApi {}',
   );
-  await _writeFile(
-    root,
-    'docs/api/web-server-api.md',
-    '# API',
-  );
+  await _writeFile(root, 'docs/api/web-server-api.md', '# API');
 }
 
 Future<void> _writePassingRouteMetadataFixture(Directory root) async {
@@ -361,10 +350,7 @@ void main() {
 }
 ''',
   );
-  await _writeFile(
-    root,
-    'apps/desktop/web_dashboard/js/api.js',
-    r'''
+  await _writeFile(root, 'apps/desktop/web_dashboard/js/api.js', r'''
 class NightshadeApi {
   constructor() { this._apiVersion = '2.5.0'; }
   _headers() {
@@ -374,18 +360,13 @@ class NightshadeApi {
     query.push('apiVersion=' + encodeURIComponent(this._apiVersion));
   }
 }
-''',
-  );
-  await _writeFile(
-    root,
-    'docs/api/web-server-api.md',
-    r'''
+''');
+  await _writeFile(root, 'docs/api/web-server-api.md', r'''
 Remote clients use `/api/info.apiVersion` for API compatibility checks and
 fall back to `version` for older servers. The current client accepts server API
 versions `2.4.0` and newer within major version `2`. Incompatible versions show
 server too old/new guidance.
-''',
-  );
+''');
 }
 
 Future<ProcessResult> _runAudit(

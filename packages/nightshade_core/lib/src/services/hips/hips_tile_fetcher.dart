@@ -136,7 +136,7 @@ final class HipsFetchDecodeException extends HipsFetchException {
 /// proceeds to use a half-loaded result.
 final class HipsFetchCancelledException extends HipsFetchException {
   HipsFetchCancelledException(String requestUrl)
-      : super('HiPS fetch was cancelled before it completed', requestUrl);
+    : super('HiPS fetch was cancelled before it completed', requestUrl);
 }
 
 /// A cooperative cancellation token for one or more in-flight HiPS fetches.
@@ -247,11 +247,12 @@ class HipsTileFetcher {
     http.Client? httpClient,
     this.timeout = defaultTimeout,
     this.maxResponseBytes = defaultMaxResponseBytes,
-    String appUserAgent = 'Nightshade/2.5 (+https://github.com/Scoduglas1999) '
+    String appUserAgent =
+        'Nightshade/2.5 (+https://github.com/Scoduglas1999) '
         'HiPS-framing-tile-layer',
-  })  : _client = httpClient ?? http.Client(),
-        _ownsClient = httpClient == null,
-        _userAgent = appUserAgent {
+  }) : _client = httpClient ?? http.Client(),
+       _ownsClient = httpClient == null,
+       _userAgent = appUserAgent {
     if (timeout <= Duration.zero) {
       throw ArgumentError.value(
         timeout,
@@ -300,10 +301,7 @@ class HipsTileFetcher {
     }
 
     if (text.trim().isEmpty) {
-      throw HipsFetchDecodeException(
-        'properties document is empty',
-        url,
-      );
+      throw HipsFetchDecodeException('properties document is empty', url);
     }
 
     try {
@@ -431,7 +429,9 @@ class HipsTileFetcher {
     try {
       final http.StreamedResponse streamed;
       try {
-        final sendFuture = _client.send(request).timeout(
+        final sendFuture = _client
+            .send(request)
+            .timeout(
               timeout,
               onTimeout: () => throw HipsFetchHttpException(
                 'request timed out after ${timeout.inMilliseconds} ms',
@@ -444,24 +444,24 @@ class HipsTileFetcher {
         // to the pool instead of dangling) *only* when the cancel completer has
         // fired — i.e. only when this response is the one we abandoned, never
         // the one [_collectCapped] is about to read on the success path.
-        unawaited(sendFuture.then(
-          (response) {
-            if (cancelCompleter.isCompleted) {
-              return response.stream.drain<void>().catchError((_) {});
-            }
-            return null;
-          },
-          // A send that errors *after* we unwound on cancel has nothing to
-          // drain; swallow it so it is not reported as an unhandled async error.
-          onError: (_) {},
-        ));
+        unawaited(
+          sendFuture.then(
+            (response) {
+              if (cancelCompleter.isCompleted) {
+                return response.stream.drain<void>().catchError((_) {});
+              }
+              return null;
+            },
+            // A send that errors *after* we unwound on cancel has nothing to
+            // drain; swallow it so it is not reported as an unhandled async error.
+            onError: (_) {},
+          ),
+        );
         // Race the send against cancellation: whichever settles first wins. On
         // cancel, [cancelCompleter] throws [HipsFetchCancelledException] here.
-        streamed =
-            await Future.any<http.StreamedResponse>(<Future<http.StreamedResponse>>[
-          sendFuture,
-          cancelCompleter.future,
-        ]);
+        streamed = await Future.any<http.StreamedResponse>(
+          <Future<http.StreamedResponse>>[sendFuture, cancelCompleter.future],
+        );
       } on HipsFetchException {
         rethrow;
       } on http.ClientException catch (e) {
@@ -471,11 +471,7 @@ class HipsTileFetcher {
           cause: e,
         );
       } catch (e) {
-        throw HipsFetchHttpException(
-          'HTTP request failed',
-          url,
-          cause: e,
-        );
+        throw HipsFetchHttpException('HTTP request failed', url, cause: e);
       }
 
       if (streamed.statusCode != 200) {
@@ -625,8 +621,9 @@ class HipsTileFetcher {
   /// (matching [HipsTileId.tileUrl]'s normalisation so all three URL shapes
   /// agree).
   static String _propertiesUrl(String baseUrl) {
-    final normalized =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalized = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     return '$normalized/properties';
   }
 }

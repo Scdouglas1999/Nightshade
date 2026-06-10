@@ -60,24 +60,26 @@ void main() {
       expect(resolved, same(_loadedScale));
     });
 
-    test('mirrors FramingCanvas._resolvePlateScale for the no-image fallback',
-        () {
-      // Byte-identical to framing_canvas.dart:99-110: pixelHeight=1000,
-      // pixelWidth = round(1000 * aspect), FOV width = previewFov, FOV height =
-      // previewFov / aspect.
-      const canvas = Size(1280, 800);
-      const previewFov = 5.0;
-      final resolved = FramingPlateScaleResolution.resolveForCanvas(
-        canvas,
-        _view(plateScale: null, previewFovDegrees: previewFov),
-      );
+    test(
+      'mirrors FramingCanvas._resolvePlateScale for the no-image fallback',
+      () {
+        // Byte-identical to framing_canvas.dart:99-110: pixelHeight=1000,
+        // pixelWidth = round(1000 * aspect), FOV width = previewFov, FOV height =
+        // previewFov / aspect.
+        const canvas = Size(1280, 800);
+        const previewFov = 5.0;
+        final resolved = FramingPlateScaleResolution.resolveForCanvas(
+          canvas,
+          _view(plateScale: null, previewFovDegrees: previewFov),
+        );
 
-      final aspect = canvas.width / canvas.height; // 1.6
-      expect(resolved.imagePixelHeight, 1000);
-      expect(resolved.imagePixelWidth, (1000 * aspect).round()); // 1600
-      expect(resolved.surveyFovWidthDeg, previewFov);
-      expect(resolved.surveyFovHeightDeg, closeTo(previewFov / aspect, 1e-9));
-    });
+        final aspect = canvas.width / canvas.height; // 1.6
+        expect(resolved.imagePixelHeight, 1000);
+        expect(resolved.imagePixelWidth, (1000 * aspect).round()); // 1600
+        expect(resolved.surveyFovWidthDeg, previewFov);
+        expect(resolved.surveyFovHeightDeg, closeTo(previewFov / aspect, 1e-9));
+      },
+    );
 
     test('falls back to unit aspect for an empty canvas', () {
       final resolved = FramingPlateScaleResolution.resolveForCanvas(
@@ -111,8 +113,7 @@ void main() {
       );
     });
 
-    test(
-        'a sky offset lands at canvas center + Δdeg·pxPerDeg relative to the '
+    test('a sky offset lands at canvas center + Δdeg·pxPerDeg relative to the '
         'survey draw rect center (overlay registration)', () {
       // This is the registration invariant the overlays rely on: a sky point at
       // angular offset Δ from center maps to drawRect.center + (sign·Δ·pxPerDeg).
@@ -133,14 +134,8 @@ void main() {
       final screen = proj.raDecToScreen(raHours, decDeg);
 
       // +RA -> +x (because +pan x lowers the center RA), +Dec -> -y (north up).
-      expect(
-        screen.dx,
-        closeTo(drawRect.center.dx + dRaDeg * pxPerDeg, 1e-4),
-      );
-      expect(
-        screen.dy,
-        closeTo(drawRect.center.dy - dDecDeg * pxPerDeg, 1e-4),
-      );
+      expect(screen.dx, closeTo(drawRect.center.dx + dRaDeg * pxPerDeg, 1e-4));
+      expect(screen.dy, closeTo(drawRect.center.dy - dDecDeg * pxPerDeg, 1e-4));
     });
   });
 
@@ -161,8 +156,8 @@ void main() {
       final atCenter = proj.screenToRaDec(const Offset(500, 500));
       final pxPerDeg = _loadedScale.pixelsPerDegree(canvas, 1.0);
       final raDisplacementDeg = 100 / pxPerDeg;
-      final expectedRaHours = (6.0 +
-              (-raDisplacementDeg / 15.0) / math.cos(30.0 * math.pi / 180)) %
+      final expectedRaHours =
+          (6.0 + (-raDisplacementDeg / 15.0) / math.cos(30.0 * math.pi / 180)) %
           24.0;
       expect(atCenter.raHours, closeTo(expectedRaHours, 1e-6));
     });
@@ -180,12 +175,7 @@ void main() {
   group('Forward/inverse round-trip', () {
     test('screenToRaDec ∘ raDecToScreen is identity over a grid', () {
       const canvas = Size(1280, 800);
-      final view = _view(
-        zoom: 1.7,
-        panX: 37,
-        panY: -52,
-        rotationDegrees: 23.0,
-      );
+      final view = _view(zoom: 1.7, panX: 37, panY: -52, rotationDegrees: 23.0);
       final proj = FramingSkyProjection.fromView(canvas, view);
 
       for (final sx in [0.0, 200.0, 640.0, 1100.0, 1280.0]) {
@@ -193,10 +183,16 @@ void main() {
           final screen = Offset(sx, sy);
           final sky = proj.screenToRaDec(screen);
           final back = proj.raDecToScreen(sky.raHours, sky.decDegrees);
-          expect(back.dx, closeTo(screen.dx, 1e-3),
-              reason: 'dx mismatch at $screen');
-          expect(back.dy, closeTo(screen.dy, 1e-3),
-              reason: 'dy mismatch at $screen');
+          expect(
+            back.dx,
+            closeTo(screen.dx, 1e-3),
+            reason: 'dx mismatch at $screen',
+          );
+          expect(
+            back.dy,
+            closeTo(screen.dy, 1e-3),
+            reason: 'dy mismatch at $screen',
+          );
         }
       }
     });
@@ -225,8 +221,10 @@ void main() {
     test('a 90deg rotation maps the +x screen direction to +y', () {
       const canvas = Size(1000, 1000);
       final unrot = FramingSkyProjection.fromView(canvas, _view());
-      final rot90 =
-          FramingSkyProjection.fromView(canvas, _view(rotationDegrees: 90));
+      final rot90 = FramingSkyProjection.fromView(
+        canvas,
+        _view(rotationDegrees: 90),
+      );
 
       // Take the sky point that (unrotated) sits 100px to the right of center.
       final skyRight = unrot.screenToRaDec(const Offset(600, 500));
@@ -243,10 +241,7 @@ void main() {
     test('is 3600 / pixelsPerDegree', () {
       const canvas = Size(1000, 1000);
       final proj = FramingSkyProjection.fromView(canvas, _view());
-      expect(
-        proj.arcsecPerPixel,
-        closeTo(3600.0 / proj.pixelsPerDegree, 1e-9),
-      );
+      expect(proj.arcsecPerPixel, closeTo(3600.0 / proj.pixelsPerDegree, 1e-9));
     });
 
     test('halves when zoom doubles (finer resolution -> higher Norder)', () {
@@ -275,8 +270,10 @@ void main() {
         rotationDegrees: 0.0,
       );
       expect(proj.arcsecPerPixel, double.infinity);
-      expect(() => proj.screenToRaDec(const Offset(500, 500)),
-          throwsStateError);
+      expect(
+        () => proj.screenToRaDec(const Offset(500, 500)),
+        throwsStateError,
+      );
     });
   });
 

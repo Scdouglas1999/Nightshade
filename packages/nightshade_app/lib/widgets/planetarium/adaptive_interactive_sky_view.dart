@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart' as planetarium_v1;
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    as planetarium_v1;
 
 /// Renders the planetarium sky using the v1 `nightshade_planetarium` engine.
 ///

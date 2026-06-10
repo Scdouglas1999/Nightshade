@@ -86,11 +86,21 @@ void main() {
         _starAtOffset(id: 'inA', eastDeg: 0.2, northDeg: 0.1, magnitude: 8.0),
         _starAtOffset(id: 'inB', eastDeg: -0.3, northDeg: -0.2, magnitude: 6.5),
         // Inside but too faint (V > 10) -> REJECT.
-        _starAtOffset(id: 'faint', eastDeg: 0.1, northDeg: 0.1, magnitude: 11.2),
+        _starAtOffset(
+          id: 'faint',
+          eastDeg: 0.1,
+          northDeg: 0.1,
+          magnitude: 11.2,
+        ),
         // Just outside the FOV in RA (0.6deg > 0.5deg half-width) -> REJECT.
         _starAtOffset(id: 'outRa', eastDeg: 0.6, northDeg: 0.0, magnitude: 5.0),
         // Just outside the FOV in Dec (0.7deg > 0.5deg half-height) -> REJECT.
-        _starAtOffset(id: 'outDec', eastDeg: 0.0, northDeg: 0.7, magnitude: 4.0),
+        _starAtOffset(
+          id: 'outDec',
+          eastDeg: 0.0,
+          northDeg: 0.7,
+          magnitude: 4.0,
+        ),
         // No photometry -> REJECT (cannot be a guide star).
         const GuideStarInput(
           id: 'noMag',
@@ -168,8 +178,10 @@ void main() {
       expect(result.where((c) => c.id == 'dup').length, lessThanOrEqualTo(1));
       // Sorted brightest-first (non-decreasing magnitude).
       for (var i = 1; i < result.length; i++) {
-        expect(result[i].magnitude,
-            greaterThanOrEqualTo(result[i - 1].magnitude));
+        expect(
+          result[i].magnitude,
+          greaterThanOrEqualTo(result[i - 1].magnitude),
+        );
       }
     });
 
@@ -189,8 +201,12 @@ void main() {
   group('findGuideStarCandidates — screen registration', () {
     test('candidate screen position matches the shared projection exactly', () {
       final proj = _projection();
-      final star =
-          _starAtOffset(id: 's', eastDeg: 0.3, northDeg: -0.2, magnitude: 7.0);
+      final star = _starAtOffset(
+        id: 's',
+        eastDeg: 0.3,
+        northDeg: -0.2,
+        magnitude: 7.0,
+      );
 
       final result = findGuideStarCandidates(
         projection: proj,
@@ -208,13 +224,16 @@ void main() {
       expect(result.single.screenPosition.dy, closeTo(500 + 100, 1e-3));
     });
 
-    test('inside-FOV test is rotation-invariant (sky-space, not screen-space)',
-        () {
+    test('inside-FOV test is rotation-invariant (sky-space, not screen-space)', () {
       // A star 0.45deg east is inside the 1deg FOV (half-width 0.5deg). Rotating
       // the field must NOT change whether it is selected (the inside test is in
       // sky space), though its screen position rotates.
-      final star =
-          _starAtOffset(id: 'edge', eastDeg: 0.45, northDeg: 0.0, magnitude: 6.0);
+      final star = _starAtOffset(
+        id: 'edge',
+        eastDeg: 0.45,
+        northDeg: 0.0,
+        magnitude: 6.0,
+      );
 
       final unrotated = findGuideStarCandidates(
         projection: _projection(),

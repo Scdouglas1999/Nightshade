@@ -116,8 +116,7 @@ class _OnboardingCaptureDirStepState
             children: [
               Row(
                 children: [
-                  Icon(NightshadeIcons.folder,
-                      color: colors.primary, size: 18),
+                  Icon(NightshadeIcons.folder, color: colors.primary, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

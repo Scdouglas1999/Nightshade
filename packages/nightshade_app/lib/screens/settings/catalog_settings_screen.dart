@@ -477,7 +477,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                         ),
                         decoration: BoxDecoration(
                           color: colors.border,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           '~${package.approximateSizeMB} MB',
@@ -595,7 +596,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 padding: const EdgeInsets.all(12),
                 decoration: NightshadeDecorations.iconChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child:
                     Icon(NightshadeIcons.tag, color: colors.primary, size: 24),
@@ -609,7 +611,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                       children: [
                         Text(
                           'GLADE+ Galaxy Catalog',
-                          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                          style: NightshadeTypography.h4
+                              .copyWith(color: colors.textPrimary),
                         ),
                         const SizedBox(width: 8),
                         if (isInstalled)
@@ -620,11 +623,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                             ),
                             decoration: BoxDecoration(
                               color: colors.success.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Installed',
-                              style: NightshadeTypography.labelQuiet.copyWith(color: colors.success),
+                              style: NightshadeTypography.labelQuiet
+                                  .copyWith(color: colors.success),
                             ),
                           ),
                       ],
@@ -803,7 +808,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                     children: [
                       Text(
                         package.displayName,
-                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
                       ),
                       const SizedBox(width: 8),
                       Container(
@@ -813,7 +819,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                         ),
                         decoration: BoxDecoration(
                           color: colors.border,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           package == AnnotationPackage.complete

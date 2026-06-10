@@ -49,13 +49,10 @@ class WeatherHandlers {
     // Why: upstream radar fetch failed — surface the failure with a non-2xx
     // status (502 Bad Gateway). Previously this returned 200 with an empty
     // frames list, hiding the failure from clients/observability.
-    return jsonResponse(
-      {
-        "error": result.errorMessage ?? 'radar_fetch_failed',
-        "frames": [],
-      },
-      statusCode: 502,
-    );
+    return jsonResponse({
+      "error": result.errorMessage ?? 'radar_fetch_failed',
+      "frames": [],
+    }, statusCode: 502);
   }
 
   // ===========================================================================
@@ -254,8 +251,7 @@ class WeatherHandlers {
       'safeToImage': isSafe,
       'alertLevel': currentAlert?.level.name ?? 'none',
       'message': currentAlert?.message ?? 'No weather data available',
-      'currentAlert':
-          currentAlert != null ? _alertToJson(currentAlert) : null,
+      'currentAlert': currentAlert != null ? _alertToJson(currentAlert) : null,
       'hardwareConnected': hardwareConnected,
       'deviceId': weatherState.deviceId,
       'deviceName': weatherState.deviceName,
@@ -266,8 +262,7 @@ class WeatherHandlers {
       'windSpeed': windSpeed,
       'dewPoint': dewPoint,
       'pressure': hardwareConnected ? weatherState.pressure : null,
-      'windDirection':
-          hardwareConnected ? weatherState.windDirection : null,
+      'windDirection': hardwareConnected ? weatherState.windDirection : null,
       'skyQuality': hardwareConnected ? weatherState.skyQuality : null,
       'rainRate': hardwareConnected ? weatherState.rainRate : null,
     });

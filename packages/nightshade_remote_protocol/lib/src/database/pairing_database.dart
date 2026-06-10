@@ -58,15 +58,16 @@ class PairingDatabase extends _$PairingDatabase {
 
   /// Get all active paired devices
   Future<List<PairedDevice>> getActivePairedDevices() async {
-    return (select(pairedDevices)..where((tbl) => tbl.isActive.equals(true)))
-        .get();
+    return (select(
+      pairedDevices,
+    )..where((tbl) => tbl.isActive.equals(true))).get();
   }
 
   /// Get a specific paired device by device ID
   Future<PairedDevice?> getPairedDevice(String deviceId) async {
-    return (select(pairedDevices)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .getSingleOrNull();
+    return (select(
+      pairedDevices,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).getSingleOrNull();
   }
 
   /// Resolve the ACTIVE paired device whose session token digests to
@@ -125,13 +126,8 @@ class PairingDatabase extends _$PairingDatabase {
 
   /// Update the last connected timestamp for a device
   Future<void> updateLastConnected(String deviceId) async {
-    await (update(pairedDevices)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .write(
-      PairedDevicesCompanion(
-        lastConnectedAt: Value(DateTime.now()),
-      ),
-    );
+    await (update(pairedDevices)..where((tbl) => tbl.deviceId.equals(deviceId)))
+        .write(PairedDevicesCompanion(lastConnectedAt: Value(DateTime.now())));
   }
 
   /// Revoke a paired device (mark as inactive).
@@ -142,13 +138,8 @@ class PairingDatabase extends _$PairingDatabase {
   /// Leaving the token rows would keep fanning out to the revoked device on
   /// every subsequent alert.
   Future<void> revokeDevice(String deviceId) async {
-    await (update(pairedDevices)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .write(
-      const PairedDevicesCompanion(
-        isActive: Value(false),
-      ),
-    );
+    await (update(pairedDevices)..where((tbl) => tbl.deviceId.equals(deviceId)))
+        .write(const PairedDevicesCompanion(isActive: Value(false)));
     await deletePushTokensForDevice(deviceId);
     await deletePushPrefsForDevice(deviceId);
   }
@@ -162,9 +153,9 @@ class PairingDatabase extends _$PairingDatabase {
   /// device's stale mute preferences (suppressing safety alerts) and resurrect
   /// a dead push token. Deleting them here keeps a hard-delete clean.
   Future<void> deletePairedDevice(String deviceId) async {
-    await (delete(pairedDevices)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .go();
+    await (delete(
+      pairedDevices,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).go();
     await deletePushTokensForDevice(deviceId);
     await deletePushPrefsForDevice(deviceId);
   }
@@ -192,34 +183,31 @@ class PairingDatabase extends _$PairingDatabase {
 
   /// Get a pairing session by code
   Future<PairingSession?> getPairingSession(String pairingCode) async {
-    return (select(pairingSessions)
-          ..where((tbl) => tbl.pairingCode.equals(pairingCode)))
-        .getSingleOrNull();
+    return (select(
+      pairingSessions,
+    )..where((tbl) => tbl.pairingCode.equals(pairingCode))).getSingleOrNull();
   }
 
   /// Mark a pairing session as used
   Future<void> markPairingSessionUsed(String pairingCode) async {
     await (update(pairingSessions)
           ..where((tbl) => tbl.pairingCode.equals(pairingCode)))
-        .write(
-      const PairingSessionsCompanion(
-        isUsed: Value(true),
-      ),
-    );
+        .write(const PairingSessionsCompanion(isUsed: Value(true)));
   }
 
   /// Delete expired pairing sessions (cleanup)
   Future<void> deleteExpiredPairingSessions() async {
     final now = DateTime.now();
-    await (delete(pairingSessions)
-          ..where((tbl) => tbl.expiresAt.isSmallerThanValue(now)))
-        .go();
+    await (delete(
+      pairingSessions,
+    )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
   }
 
   /// Delete all used pairing sessions
   Future<void> deleteUsedPairingSessions() async {
-    await (delete(pairingSessions)..where((tbl) => tbl.isUsed.equals(true)))
-        .go();
+    await (delete(
+      pairingSessions,
+    )..where((tbl) => tbl.isUsed.equals(true))).go();
   }
 
   /// Find all paired-device rows whose session token has either expired
@@ -247,10 +235,11 @@ class PairingDatabase extends _$PairingDatabase {
   /// callers (the headless sweep uses [deletePairedDevice] on the revoked
   /// half only when explicitly requested).
   Future<void> deleteExpiredPairedDevices(DateTime now) async {
-    await (delete(pairedDevices)
-          ..where((tbl) =>
+    await (delete(pairedDevices)..where(
+          (tbl) =>
               tbl.expiresAt.isNotNull() &
-              tbl.expiresAt.isSmallerOrEqualValue(now)))
+              tbl.expiresAt.isSmallerOrEqualValue(now),
+        ))
         .go();
   }
 
@@ -259,7 +248,8 @@ class PairingDatabase extends _$PairingDatabase {
   /// should accept" snapshot, used to hydrate the in-memory token map at
   /// server startup.
   Future<List<PairedDevice>> getActiveUnexpiredPairedDevices(
-      DateTime now) async {
+    DateTime now,
+  ) async {
     final query = select(pairedDevices)
       ..where(
         (tbl) =>
@@ -310,8 +300,7 @@ class PairingDatabase extends _$PairingDatabase {
         pairedDevices.deviceId.equalsExp(devicePushTokens.deviceId) &
             pairedDevices.isActive.equals(true),
       ),
-    ])
-      ..where(devicePushTokens.platform.equals(platform));
+    ])..where(devicePushTokens.platform.equals(platform));
     final rows = await query.get();
     return rows.map((r) => r.readTable(devicePushTokens)).toList();
   }
@@ -325,23 +314,24 @@ class PairingDatabase extends _$PairingDatabase {
   /// Tokens registered for a single device (both platforms). Used by the
   /// `DELETE /api/push/token` `{deviceId}` path and by tests.
   Future<List<DevicePushToken>> getPushTokensForDevice(String deviceId) async {
-    return (select(devicePushTokens)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .get();
+    return (select(
+      devicePushTokens,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).get();
   }
 
   /// Delete every push-token row for a device (unpair / sign-out / revoke).
   Future<void> deletePushTokensForDevice(String deviceId) async {
-    await (delete(devicePushTokens)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .go();
+    await (delete(
+      devicePushTokens,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).go();
   }
 
   /// Delete a single token value — the stale-token cleanup path when the
   /// cloud provider returns `404 UNREGISTERED` (FCM) or `410 Gone` (APNs).
   Future<void> deletePushToken(String token) async {
-    await (delete(devicePushTokens)..where((tbl) => tbl.token.equals(token)))
-        .go();
+    await (delete(
+      devicePushTokens,
+    )..where((tbl) => tbl.token.equals(token))).go();
   }
 
   // ============================================================================
@@ -352,9 +342,9 @@ class PairingDatabase extends _$PairingDatabase {
   /// one. A null result means "all categories enabled" (the delivery's
   /// conservative default), so callers do not have to seed a row at pairing.
   Future<DevicePushPref?> getPushPrefs(String deviceId) async {
-    return (select(devicePushPrefs)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .getSingleOrNull();
+    return (select(
+      devicePushPrefs,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).getSingleOrNull();
   }
 
   /// Insert-or-update a device's preferences row. The endpoint sends the full
@@ -385,9 +375,9 @@ class PairingDatabase extends _$PairingDatabase {
 
   /// Delete a device's preferences row (unpair / revoke). Idempotent.
   Future<void> deletePushPrefsForDevice(String deviceId) async {
-    await (delete(devicePushPrefs)
-          ..where((tbl) => tbl.deviceId.equals(deviceId)))
-        .go();
+    await (delete(
+      devicePushPrefs,
+    )..where((tbl) => tbl.deviceId.equals(deviceId))).go();
   }
 }
 

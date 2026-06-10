@@ -165,15 +165,15 @@ void main() {
     }
   });
 
-  testWidgets('selecting a survey source drives FramingNotifier.setSurveySource',
+  testWidgets(
+      'selecting a survey source drives FramingNotifier.setSurveySource',
       (tester) async {
     final container = await _pumpCanvas(
       tester,
       framingState: const FramingState(surveySource: SurveySource.dss2Red),
     );
 
-    expect(container.read(framingProvider).surveySource,
-        SurveySource.dss2Red);
+    expect(container.read(framingProvider).surveySource, SurveySource.dss2Red);
 
     await tester.tap(find.byType(NightshadeDropdown));
     await tester.pumpAndSettle();

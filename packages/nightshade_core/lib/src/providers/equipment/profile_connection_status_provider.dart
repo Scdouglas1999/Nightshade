@@ -102,8 +102,7 @@ class ProfileDeviceConnection {
   DeviceConnectionState get profileState {
     if (!isAssigned) return DeviceConnectionState.disconnected;
     final cid = connectedId;
-    if (cid == null ||
-        connectedState == DeviceConnectionState.disconnected) {
+    if (cid == null || connectedState == DeviceConnectionState.disconnected) {
       return DeviceConnectionState.disconnected;
     }
     if (deviceIdsMatch(profileId!, cid)) {
@@ -164,18 +163,22 @@ class ProfileConnectionStatus {
   /// Number of assigned core slots whose matched device is `connected` (the
   /// numerator of the sidebar badge).
   int get coreConnectedCount => connections
-      .where((c) =>
-          c.slot.isCore &&
-          c.isAssigned &&
-          c.profileState == DeviceConnectionState.connected)
+      .where(
+        (c) =>
+            c.slot.isCore &&
+            c.isAssigned &&
+            c.profileState == DeviceConnectionState.connected,
+      )
       .length;
 
   /// Whether any assigned core slot currently matches a `connected` device.
   /// Drives the sidebar footer's "Disconnect All" affordance.
-  bool get hasConnectedCore => connections.any((c) =>
-      c.slot.isCore &&
-      c.isAssigned &&
-      c.profileState == DeviceConnectionState.connected);
+  bool get hasConnectedCore => connections.any(
+    (c) =>
+        c.slot.isCore &&
+        c.isAssigned &&
+        c.profileState == DeviceConnectionState.connected,
+  );
 
   /// Whether any assigned core slot is not currently a matched, `connected`
   /// device. Drives the sidebar footer's "Connect All" affordance.
@@ -183,17 +186,19 @@ class ProfileConnectionStatus {
   /// Mirrors the old `_getProfileDeviceStatus`: an assigned slot that is
   /// connecting, errored, mismatched, or absent all count as "disconnected"
   /// for the purpose of offering Connect All.
-  bool get hasDisconnectedCore => connections.any((c) =>
-      c.slot.isCore &&
-      c.isAssigned &&
-      c.profileState != DeviceConnectionState.connected);
+  bool get hasDisconnectedCore => connections.any(
+    (c) =>
+        c.slot.isCore &&
+        c.isAssigned &&
+        c.profileState != DeviceConnectionState.connected,
+  );
 
   /// The per-slot `profileState` for every assigned core slot, in display
   /// order. Used to build the sidebar's connection dots.
   Map<ProfileDeviceSlot, DeviceConnectionState> get coreSlotStates => {
-        for (final c in connections)
-          if (c.slot.isCore && c.isAssigned) c.slot: c.profileState,
-      };
+    for (final c in connections)
+      if (c.slot.isCore && c.isAssigned) c.slot: c.profileState,
+  };
 
   // --- Banner rollups (all slots) ----------------------------------------
 
@@ -220,91 +225,94 @@ class ProfileConnectionStatus {
 /// (the sidebar iterates the profile list) can read per-profile status without
 /// a separate id→profile lookup. The family equality is the profile's
 /// value-equality, so the same profile produces the same provider instance.
-final profileConnectionStatusProvider = Provider.family<ProfileConnectionStatus,
-    EquipmentProfileModel>((ref, profile) {
-  final camera = ref.watch(cameraStateProvider);
-  final mount = ref.watch(mountStateProvider);
-  final focuser = ref.watch(focuserStateProvider);
-  final filterWheel = ref.watch(filterWheelStateProvider);
-  final guider = ref.watch(guiderStateProvider);
-  final rotator = ref.watch(rotatorStateProvider);
-  final dome = ref.watch(domeStateProvider);
-  final weather = ref.watch(weatherStateProvider);
-  final safetyMonitor = ref.watch(safetyMonitorStateProvider);
-  final switchDevice = ref.watch(switchStateProvider);
-  final coverCalibrator = ref.watch(coverCalibratorStateProvider);
+final profileConnectionStatusProvider =
+    Provider.family<ProfileConnectionStatus, EquipmentProfileModel>((
+      ref,
+      profile,
+    ) {
+      final camera = ref.watch(cameraStateProvider);
+      final mount = ref.watch(mountStateProvider);
+      final focuser = ref.watch(focuserStateProvider);
+      final filterWheel = ref.watch(filterWheelStateProvider);
+      final guider = ref.watch(guiderStateProvider);
+      final rotator = ref.watch(rotatorStateProvider);
+      final dome = ref.watch(domeStateProvider);
+      final weather = ref.watch(weatherStateProvider);
+      final safetyMonitor = ref.watch(safetyMonitorStateProvider);
+      final switchDevice = ref.watch(switchStateProvider);
+      final coverCalibrator = ref.watch(coverCalibratorStateProvider);
 
-  final connections = <ProfileDeviceConnection>[
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.camera,
-      profileId: profile.cameraId,
-      connectedId: camera.deviceId,
-      connectedState: camera.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.mount,
-      profileId: profile.mountId,
-      connectedId: mount.deviceId,
-      connectedState: mount.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.focuser,
-      profileId: profile.focuserId,
-      connectedId: focuser.deviceId,
-      connectedState: focuser.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.filterWheel,
-      profileId: profile.filterWheelId,
-      connectedId: filterWheel.deviceId,
-      connectedState: filterWheel.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.guider,
-      profileId: profile.guiderId,
-      connectedId: guider.deviceId,
-      connectedState: guider.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.rotator,
-      profileId: profile.rotatorId,
-      connectedId: rotator.deviceId,
-      connectedState: rotator.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.dome,
-      profileId: profile.domeId,
-      connectedId: dome.deviceId,
-      connectedState: dome.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.weather,
-      profileId: profile.weatherId,
-      connectedId: weather.deviceId,
-      connectedState: weather.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.safetyMonitor,
-      profileId: profile.safetyMonitorId,
-      connectedId: safetyMonitor.deviceId,
-      connectedState: safetyMonitor.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.switchDevice,
-      profileId: profile.switchId,
-      connectedId: switchDevice.deviceId,
-      connectedState: switchDevice.connectionState,
-    ),
-    ProfileDeviceConnection(
-      slot: ProfileDeviceSlot.coverCalibrator,
-      profileId: profile.coverCalibratorId,
-      connectedId: coverCalibrator.deviceId,
-      connectedState: coverCalibrator.connectionState,
-    ),
-  ];
+      final connections = <ProfileDeviceConnection>[
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.camera,
+          profileId: profile.cameraId,
+          connectedId: camera.deviceId,
+          connectedState: camera.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.mount,
+          profileId: profile.mountId,
+          connectedId: mount.deviceId,
+          connectedState: mount.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.focuser,
+          profileId: profile.focuserId,
+          connectedId: focuser.deviceId,
+          connectedState: focuser.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.filterWheel,
+          profileId: profile.filterWheelId,
+          connectedId: filterWheel.deviceId,
+          connectedState: filterWheel.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.guider,
+          profileId: profile.guiderId,
+          connectedId: guider.deviceId,
+          connectedState: guider.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.rotator,
+          profileId: profile.rotatorId,
+          connectedId: rotator.deviceId,
+          connectedState: rotator.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.dome,
+          profileId: profile.domeId,
+          connectedId: dome.deviceId,
+          connectedState: dome.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.weather,
+          profileId: profile.weatherId,
+          connectedId: weather.deviceId,
+          connectedState: weather.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.safetyMonitor,
+          profileId: profile.safetyMonitorId,
+          connectedId: safetyMonitor.deviceId,
+          connectedState: safetyMonitor.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.switchDevice,
+          profileId: profile.switchId,
+          connectedId: switchDevice.deviceId,
+          connectedState: switchDevice.connectionState,
+        ),
+        ProfileDeviceConnection(
+          slot: ProfileDeviceSlot.coverCalibrator,
+          profileId: profile.coverCalibratorId,
+          connectedId: coverCalibrator.deviceId,
+          connectedState: coverCalibrator.connectionState,
+        ),
+      ];
 
-  return ProfileConnectionStatus(
-    profileId: profile.id,
-    connections: connections,
-  );
-});
+      return ProfileConnectionStatus(
+        profileId: profile.id,
+        connections: connections,
+      );
+    });

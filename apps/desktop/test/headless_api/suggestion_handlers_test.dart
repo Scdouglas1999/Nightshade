@@ -23,9 +23,11 @@ void main() {
     });
 
     test('get config returns JSON default config', () async {
-      final response = await translateHandlerErrors(handlers.handleGetConfig(
-        Request('GET', Uri.parse('http://localhost/api/suggestions/config')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetConfig(
+          Request('GET', Uri.parse('http://localhost/api/suggestions/config')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -34,17 +36,20 @@ void main() {
     });
 
     test('invalid target ID returns JSON internal error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetTargetScore(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/suggestions/score/not-an-id'),
+      final response = await translateHandlerErrors(
+        handlers.handleGetTargetScore(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/suggestions/score/not-an-id'),
+          ),
+          'not-an-id',
         ),
-        'not-an-id',
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

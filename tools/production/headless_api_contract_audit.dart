@@ -79,16 +79,18 @@ void main(List<String> args) {
   final serverSource = server.readAsStringSync();
   final networkBackendSource = _readNetworkBackendSource(networkBackend);
   final routeMetadataSource = routeMetadata.readAsStringSync();
-  final networkBackendWebSocketTestSource =
-      networkBackendWebSocketTest.readAsStringSync();
-  final networkBackendContractTestSource =
-      networkBackendContractTest.readAsStringSync();
+  final networkBackendWebSocketTestSource = networkBackendWebSocketTest
+      .readAsStringSync();
+  final networkBackendContractTestSource = networkBackendContractTest
+      .readAsStringSync();
   final versionNegotiationCoverage = _versionNegotiationCoverage(
     remoteApiCompatibilitySource: _readSource(_remoteApiCompatibilityPath),
-    remoteApiCompatibilityTestSource:
-        _readSource(_remoteApiCompatibilityTestPath),
-    headlessAuthMiddlewareTestSource:
-        _readSource(_headlessAuthMiddlewareTestPath),
+    remoteApiCompatibilityTestSource: _readSource(
+      _remoteApiCompatibilityTestPath,
+    ),
+    headlessAuthMiddlewareTestSource: _readSource(
+      _headlessAuthMiddlewareTestPath,
+    ),
     networkBackendSource: networkBackendSource,
     dashboardApiSource: _readSource(_dashboardApiPath),
     apiDocsSource: _readSource(_apiDocsPath),
@@ -106,12 +108,15 @@ void main(List<String> args) {
   final advertised = _advertisedApiRoutes(systemHandlersSource);
   final networkBackendRoutes = _networkBackendRoutes(networkBackendSource);
   final openApiMetadata = _openApiMetadataCoverage(routeMetadataSource);
-  final webSocketContractCoverage =
-      _webSocketContractCoverage(networkBackendWebSocketTestSource);
-  final networkBackendContractCoverage =
-      _networkBackendContractCoverage(networkBackendContractTestSource);
-  final advertisedHttp =
-      advertised.where((route) => !route.startsWith('WS ')).toSet();
+  final webSocketContractCoverage = _webSocketContractCoverage(
+    networkBackendWebSocketTestSource,
+  );
+  final networkBackendContractCoverage = _networkBackendContractCoverage(
+    networkBackendContractTestSource,
+  );
+  final advertisedHttp = advertised
+      .where((route) => !route.startsWith('WS '))
+      .toSet();
   final openApiPaths = advertisedHttp.map(_openApiPathForRoute).toSet();
 
   final registeredNotAdvertised = registered.difference(advertised).toList()
@@ -120,12 +125,14 @@ void main(List<String> args) {
     ..sort();
   final networkBackendMissingOnServer =
       networkBackendRoutes.difference(registered).toList()..sort();
-  final advertisedHttpMissingOpenApi = advertisedHttp
-      .where((route) => !_openApiContainsRoute(openApiPaths, route))
-      .toList()
-    ..sort();
+  final advertisedHttpMissingOpenApi =
+      advertisedHttp
+          .where((route) => !_openApiContainsRoute(openApiPaths, route))
+          .toList()
+        ..sort();
 
-  final passed = registered.isNotEmpty &&
+  final passed =
+      registered.isNotEmpty &&
       advertised.isNotEmpty &&
       registeredNotAdvertised.isEmpty &&
       advertisedNotRegistered.isEmpty &&
@@ -161,18 +168,21 @@ void main(List<String> args) {
     'networkBackendMissingOnServerCount': networkBackendMissingOnServer.length,
     'advertisedHttpMissingOpenApiCount': advertisedHttpMissingOpenApi.length,
     'openApiMetadataCoverage': openApiMetadata,
-    'openApiMetadataCoverageCount':
-        openApiMetadata.values.where((present) => present).length,
+    'openApiMetadataCoverageCount': openApiMetadata.values
+        .where((present) => present)
+        .length,
     'webSocketContractCoverage': webSocketContractCoverage,
-    'webSocketContractCoverageCount':
-        webSocketContractCoverage.values.where((present) => present).length,
+    'webSocketContractCoverageCount': webSocketContractCoverage.values
+        .where((present) => present)
+        .length,
     'networkBackendContractCoverage': networkBackendContractCoverage,
     'networkBackendContractCoverageCount': networkBackendContractCoverage.values
         .where((present) => present)
         .length,
     'versionNegotiationCoverage': versionNegotiationCoverage,
-    'versionNegotiationCoverageCount':
-        versionNegotiationCoverage.values.where((present) => present).length,
+    'versionNegotiationCoverageCount': versionNegotiationCoverage.values
+        .where((present) => present)
+        .length,
     'registeredNotAdvertised': registeredNotAdvertised,
     'advertisedNotRegistered': advertisedNotRegistered,
     'networkBackendMissingOnServer': networkBackendMissingOnServer,
@@ -180,25 +190,28 @@ void main(List<String> args) {
   };
 
   File(_jsonOutputPath).parent.createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
   File(_markdownOutputPath).parent.createSync(recursive: true);
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    passed: passed,
-    registered: registered,
-    advertised: advertised,
-    advertisedHttp: advertisedHttp,
-    openApiPaths: openApiPaths,
-    networkBackendRoutes: networkBackendRoutes,
-    registeredNotAdvertised: registeredNotAdvertised,
-    advertisedNotRegistered: advertisedNotRegistered,
-    networkBackendMissingOnServer: networkBackendMissingOnServer,
-    advertisedHttpMissingOpenApi: advertisedHttpMissingOpenApi,
-    openApiMetadata: openApiMetadata,
-    webSocketContractCoverage: webSocketContractCoverage,
-    networkBackendContractCoverage: networkBackendContractCoverage,
-    versionNegotiationCoverage: versionNegotiationCoverage,
-  ));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(
+      passed: passed,
+      registered: registered,
+      advertised: advertised,
+      advertisedHttp: advertisedHttp,
+      openApiPaths: openApiPaths,
+      networkBackendRoutes: networkBackendRoutes,
+      registeredNotAdvertised: registeredNotAdvertised,
+      advertisedNotRegistered: advertisedNotRegistered,
+      networkBackendMissingOnServer: networkBackendMissingOnServer,
+      advertisedHttpMissingOpenApi: advertisedHttpMissingOpenApi,
+      openApiMetadata: openApiMetadata,
+      webSocketContractCoverage: webSocketContractCoverage,
+      networkBackendContractCoverage: networkBackendContractCoverage,
+      versionNegotiationCoverage: versionNegotiationCoverage,
+    ),
+  );
 
   stdout.writeln('Headless API contract audit complete.');
   stdout.writeln('Registered routes: ${registered.length}');
@@ -206,22 +219,30 @@ void main(List<String> args) {
   stdout.writeln('Advertised HTTP routes: ${advertisedHttp.length}');
   stdout.writeln('OpenAPI paths: ${openApiPaths.length}');
   stdout.writeln('NetworkBackend routes: ${networkBackendRoutes.length}');
-  stdout
-      .writeln('Registered not advertised: ${registeredNotAdvertised.length}');
-  stdout
-      .writeln('Advertised not registered: ${advertisedNotRegistered.length}');
   stdout.writeln(
-      'NetworkBackend missing on server: ${networkBackendMissingOnServer.length}');
+    'Registered not advertised: ${registeredNotAdvertised.length}',
+  );
   stdout.writeln(
-      'Advertised HTTP missing OpenAPI: ${advertisedHttpMissingOpenApi.length}');
+    'Advertised not registered: ${advertisedNotRegistered.length}',
+  );
   stdout.writeln(
-      'OpenAPI metadata coverage: ${openApiMetadata.values.where((present) => present).length}/${openApiMetadata.length}');
+    'NetworkBackend missing on server: ${networkBackendMissingOnServer.length}',
+  );
   stdout.writeln(
-      'WebSocket contract coverage: ${webSocketContractCoverage.values.where((present) => present).length}/${webSocketContractCoverage.length}');
+    'Advertised HTTP missing OpenAPI: ${advertisedHttpMissingOpenApi.length}',
+  );
   stdout.writeln(
-      'NetworkBackend contract coverage: ${networkBackendContractCoverage.values.where((present) => present).length}/${networkBackendContractCoverage.length}');
+    'OpenAPI metadata coverage: ${openApiMetadata.values.where((present) => present).length}/${openApiMetadata.length}',
+  );
   stdout.writeln(
-      'Version negotiation coverage: ${versionNegotiationCoverage.values.where((present) => present).length}/${versionNegotiationCoverage.length}');
+    'WebSocket contract coverage: ${webSocketContractCoverage.values.where((present) => present).length}/${webSocketContractCoverage.length}',
+  );
+  stdout.writeln(
+    'NetworkBackend contract coverage: ${networkBackendContractCoverage.values.where((present) => present).length}/${networkBackendContractCoverage.length}',
+  );
+  stdout.writeln(
+    'Version negotiation coverage: ${versionNegotiationCoverage.values.where((present) => present).length}/${versionNegotiationCoverage.length}',
+  );
   stdout.writeln('JSON: $_jsonOutputPath');
   stdout.writeln('Markdown: $_markdownOutputPath');
 
@@ -241,12 +262,13 @@ String _readNetworkBackendSource(File networkBackend) {
   if (!partsDirectory.existsSync()) {
     return sources.single;
   }
-  final partFiles = partsDirectory
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((file) => file.path.endsWith('.dart'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final partFiles =
+      partsDirectory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   sources.addAll(partFiles.map((file) => file.readAsStringSync()));
   return sources.join('\n');
 }
@@ -255,24 +277,30 @@ Map<String, bool> _openApiMetadataCoverage(String source) {
   return {
     'request_body_limit_extension':
         source.contains('x-max-request-body-bytes') &&
-            source.contains('requestBodyLimitForPath'),
-    'rate_limit_extension': source.contains('x-rate-limit') &&
+        source.contains('requestBodyLimitForPath'),
+    'rate_limit_extension':
+        source.contains('x-rate-limit') &&
         source.contains('endpointRateLimitFor') &&
         source.contains('Rate limit exceeded'),
-    'audit_action_extension': source.contains('x-audit-action') &&
+    'audit_action_extension':
+        source.contains('x-audit-action') &&
         source.contains('highRiskAuditActionFor'),
     'oversized_response':
         source.contains("'413'") && source.contains('Request body too large'),
     'rate_limited_response':
         source.contains("'429'") && source.contains('Rate limit exceeded'),
-    'bearer_security_scheme': source.contains('securitySchemes') &&
+    'bearer_security_scheme':
+        source.contains('securitySchemes') &&
         source.contains('bearerAuth') &&
         source.contains("'scheme': 'bearer'"),
-    'required_scope_extension': source.contains('x-required-scope') &&
+    'required_scope_extension':
+        source.contains('x-required-scope') &&
         source.contains('requiredAuthScopeNameForEndpoint'),
-    'public_endpoint_extension': source.contains('x-auth-required') &&
+    'public_endpoint_extension':
+        source.contains('x-auth-required') &&
         source.contains('isPublicEndpoint'),
-    'api_version_mismatch_response': source.contains("'426'") &&
+    'api_version_mismatch_response':
+        source.contains("'426'") &&
         source.contains('Upgrade required for API version mismatch'),
   };
 }
@@ -281,19 +309,22 @@ Map<String, bool> _webSocketContractCoverage(String source) {
   return {
     'heartbeat_ping_pong':
         source.contains('sends ping heartbeats and accepts pong replies') &&
-            source.contains("data['type'] == 'ping'") &&
-            source.contains("'type': 'pong'"),
-    'compatibility_before_socket': source
-        .contains('rejects incompatible servers before opening WebSocket'),
-    'headless_event_wrapper_to_event_stream': source.contains(
-            'routes headless event wrappers to event and polar alignment streams') &&
+        source.contains("data['type'] == 'ping'") &&
+        source.contains("'type': 'pong'"),
+    'compatibility_before_socket': source.contains(
+      'rejects incompatible servers before opening WebSocket',
+    ),
+    'headless_event_wrapper_to_event_stream':
+        source.contains(
+          'routes headless event wrappers to event and polar alignment streams',
+        ) &&
         source.contains("'type': 'event'") &&
         source.contains('backend.eventStream') &&
         source.contains('PolarAlignmentProgress'),
     'polar_alignment_event_stream':
         source.contains('backend.polarAlignmentEvents') &&
-            source.contains('azimuthErrorArcmin') &&
-            source.contains('EventCategory.polarAlignment'),
+        source.contains('azimuthErrorArcmin') &&
+        source.contains('EventCategory.polarAlignment'),
   };
 }
 
@@ -301,20 +332,24 @@ Map<String, bool> _networkBackendContractCoverage(String source) {
   return {
     'advertised_endpoints_match_registered_routes':
         source.contains('advertised endpoints match registered API routes') &&
-            source.contains('advertised.difference(registered)') &&
-            source.contains('registered.difference(advertised)'),
-    'network_backend_calls_registered_routes': source.contains(
-            'NetworkBackend call sites map to registered server routes') &&
+        source.contains('advertised.difference(registered)') &&
+        source.contains('registered.difference(advertised)'),
+    'network_backend_calls_registered_routes':
+        source.contains(
+          'NetworkBackend call sites map to registered server routes',
+        ) &&
         source.contains('clientRoutes.difference(registered)') &&
         source.contains('_networkBackendRoutes'),
-    'openapi_includes_every_http_route': source.contains(
-            'OpenAPI spec advertises every HTTP route from the route table') &&
+    'openapi_includes_every_http_route':
+        source.contains(
+          'OpenAPI spec advertises every HTTP route from the route table',
+        ) &&
         source.contains('buildOpenApiSpec') &&
         source.contains('WebSocket endpoints are advertised in /api/info'),
     'openapi_generated_spec_path_method_assertions':
         source.contains('paths[path]') &&
-            source.contains('contains(method)') &&
-            source.contains('OpenAPI must include advertised route'),
+        source.contains('contains(method)') &&
+        source.contains('OpenAPI must include advertised route'),
   };
 }
 
@@ -328,59 +363,83 @@ Map<String, bool> _versionNegotiationCoverage({
 }) {
   final normalizedApiDocsSource = apiDocsSource.replaceAll(RegExp(r'\s+'), ' ');
   return {
-    'shared_compatibility_policy': remoteApiCompatibilitySource
-            .contains('minimumSupportedVersion = SemanticVersion(2, 4, 0)') &&
-        remoteApiCompatibilitySource
-            .contains('serverApiVersion = SemanticVersion(') &&
+    'shared_compatibility_policy':
+        remoteApiCompatibilitySource.contains(
+          'minimumSupportedVersion = SemanticVersion(2, 4, 0)',
+        ) &&
+        remoteApiCompatibilitySource.contains(
+          'serverApiVersion = SemanticVersion(',
+        ) &&
         remoteApiCompatibilitySource.contains('server_too_old') &&
         remoteApiCompatibilitySource.contains('server_too_new') &&
         remoteApiCompatibilitySource.contains('client_too_old'),
-    'shared_compatibility_tests': remoteApiCompatibilityTestSource
-            .contains('rejects old servers with a clear code and message') &&
+    'shared_compatibility_tests':
         remoteApiCompatibilityTestSource.contains(
-            'rejects newer major servers with a clear code and message') &&
-        remoteApiCompatibilityTestSource
-            .contains('rejects old clients with a clear code and message') &&
-        remoteApiCompatibilityTestSource
-            .contains('rejects clients that require a newer server major'),
+          'rejects old servers with a clear code and message',
+        ) &&
+        remoteApiCompatibilityTestSource.contains(
+          'rejects newer major servers with a clear code and message',
+        ) &&
+        remoteApiCompatibilityTestSource.contains(
+          'rejects old clients with a clear code and message',
+        ) &&
+        remoteApiCompatibilityTestSource.contains(
+          'rejects clients that require a newer server major',
+        ),
     'server_http_version_middleware_test':
         headlessAuthMiddlewareTestSource.contains(
-                'rejects explicit incompatible client API versions before auth') &&
-            headlessAuthMiddlewareTestSource
-                .contains('HttpStatus.upgradeRequired') &&
-            headlessAuthMiddlewareTestSource
-                .contains("tooOld.body['error'], 'client_too_old'") &&
-            headlessAuthMiddlewareTestSource
-                .contains("tooNew.body['error'], 'server_too_old'"),
+          'rejects explicit incompatible client API versions before auth',
+        ) &&
+        headlessAuthMiddlewareTestSource.contains(
+          'HttpStatus.upgradeRequired',
+        ) &&
+        headlessAuthMiddlewareTestSource.contains(
+          "tooOld.body['error'], 'client_too_old'",
+        ) &&
+        headlessAuthMiddlewareTestSource.contains(
+          "tooNew.body['error'], 'server_too_old'",
+        ),
     'server_websocket_version_middleware_test':
         headlessAuthMiddlewareTestSource.contains(
-                'rejects incompatible WebSocket API versions before auth') &&
-            headlessAuthMiddlewareTestSource
-                .contains('GET /events?apiVersion=1.9.9 HTTP/1.1') &&
-            headlessAuthMiddlewareTestSource
-                .contains('GET /events?apiVersion=3.0.0 HTTP/1.1'),
-    'network_backend_preflight': networkBackendSource.contains(
-            'Future<RemoteApiCompatibilityResult> _checkServerCompatibility()') &&
+          'rejects incompatible WebSocket API versions before auth',
+        ) &&
+        headlessAuthMiddlewareTestSource.contains(
+          'GET /events?apiVersion=1.9.9 HTTP/1.1',
+        ) &&
+        headlessAuthMiddlewareTestSource.contains(
+          'GET /events?apiVersion=3.0.0 HTTP/1.1',
+        ),
+    'network_backend_preflight':
         networkBackendSource.contains(
-            "info['apiVersion'] as String? ?? info['version'] as String?"),
-    'network_backend_version_headers': networkBackendSource
-            .contains('RemoteApiCompatibility.apiVersionHeader') &&
-        networkBackendSource
-            .contains('RemoteApiCompatibility.clientApiVersion.format()'),
+          'Future<RemoteApiCompatibilityResult> _checkServerCompatibility()',
+        ) &&
+        networkBackendSource.contains(
+          "info['apiVersion'] as String? ?? info['version'] as String?",
+        ),
+    'network_backend_version_headers':
+        networkBackendSource.contains(
+          'RemoteApiCompatibility.apiVersionHeader',
+        ) &&
+        networkBackendSource.contains(
+          'RemoteApiCompatibility.clientApiVersion.format()',
+        ),
     'network_backend_websocket_query_version':
         networkBackendSource.contains("queryParameters['apiVersion']") &&
-            networkBackendSource
-                .contains('RemoteApiCompatibility.clientApiVersion.format()'),
-    'dashboard_http_version_header': dashboardApiSource
-        .contains("'X-Nightshade-API-Version': this._apiVersion"),
-    'dashboard_websocket_query_version': dashboardApiSource
-        .contains("apiVersion=' + encodeURIComponent(this._apiVersion)"),
+        networkBackendSource.contains(
+          'RemoteApiCompatibility.clientApiVersion.format()',
+        ),
+    'dashboard_http_version_header': dashboardApiSource.contains(
+      "'X-Nightshade-API-Version': this._apiVersion",
+    ),
+    'dashboard_websocket_query_version': dashboardApiSource.contains(
+      "apiVersion=' + encodeURIComponent(this._apiVersion)",
+    ),
     'docs_user_facing_compatibility':
         normalizedApiDocsSource.contains('/api/info.apiVersion') &&
-            normalizedApiDocsSource.contains('fall back to `version`') &&
-            normalizedApiDocsSource.contains('server too old/new') &&
-            normalizedApiDocsSource.contains('`2.4.0`') &&
-            normalizedApiDocsSource.contains('major version `2`'),
+        normalizedApiDocsSource.contains('fall back to `version`') &&
+        normalizedApiDocsSource.contains('server too old/new') &&
+        normalizedApiDocsSource.contains('`2.4.0`') &&
+        normalizedApiDocsSource.contains('major version `2`'),
   };
 }
 
@@ -393,8 +452,9 @@ Set<String> _registeredApiRoutes(String source) {
   // under `apps/desktop/lib/headless_api/routes/` (scanned below).
   // The pattern is still scanned in the server source so any one-off
   // legacy registration that hasn't been migrated is still seen.
-  final routerPattern =
-      RegExp(r"router\.(get|post|put|delete|patch)\(\s*'([^']+)'");
+  final routerPattern = RegExp(
+    r"router\.(get|post|put|delete|patch)\(\s*'([^']+)'",
+  );
   for (final match in routerPattern.allMatches(source)) {
     final path = match.group(2)!;
     if (!path.startsWith('/api/') && path != '/events') {
@@ -514,22 +574,10 @@ Set<String> _networkBackendRoutes(String source) {
 String _normalizeRoute(String path) {
   final querylessPath = path.split('?').first;
   return querylessPath
-      .replaceAllMapped(
-        RegExp(r'<([^>|]+)(?:\|[^>]+)?>'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\$\{[^}]+\}'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\{[^}]+\}'),
-        (_) => '{param}',
-      );
+      .replaceAllMapped(RegExp(r'<([^>|]+)(?:\|[^>]+)?>'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\$\{[^}]+\}'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\{[^}]+\}'), (_) => '{param}');
 }
 
 String _openApiPathForRoute(String route) {
@@ -568,9 +616,11 @@ String _renderMarkdown({
     ..writeln('- OpenAPI paths: `${openApiPaths.length}`')
     ..writeln('- NetworkBackend routes: `${networkBackendRoutes.length}`')
     ..writeln(
-        '- Registered not advertised: `${registeredNotAdvertised.length}`')
+      '- Registered not advertised: `${registeredNotAdvertised.length}`',
+    )
     ..writeln(
-        '- Advertised not registered: `${advertisedNotRegistered.length}`')
+      '- Advertised not registered: `${advertisedNotRegistered.length}`',
+    )
     ..writeln(
       '- NetworkBackend missing on server: `${networkBackendMissingOnServer.length}`',
     )

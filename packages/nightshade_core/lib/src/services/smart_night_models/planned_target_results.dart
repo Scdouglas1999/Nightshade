@@ -30,23 +30,27 @@ class SmartNightPlannedTarget {
   });
 
   Map<String, dynamic> toJson() => {
-        'suggestion': suggestion.toJson(),
-        'windowStart': windowStart.toIso8601String(),
-        'windowEnd': windowEnd.toIso8601String(),
-        'filterPlans': filterPlans.map((p) => p.toJson()).toList(),
-        'integrationSecs': integrationSecs,
-        'rationale': rationale,
-      };
+    'suggestion': suggestion.toJson(),
+    'windowStart': windowStart.toIso8601String(),
+    'windowEnd': windowEnd.toIso8601String(),
+    'filterPlans': filterPlans.map((p) => p.toJson()).toList(),
+    'integrationSecs': integrationSecs,
+    'rationale': rationale,
+  };
 
   factory SmartNightPlannedTarget.fromJson(Map<String, dynamic> json) {
     return SmartNightPlannedTarget(
       suggestion: TargetSuggestion.fromJson(
-          (json['suggestion'] as Map).cast<String, dynamic>()),
+        (json['suggestion'] as Map).cast<String, dynamic>(),
+      ),
       windowStart: DateTime.parse(json['windowStart'] as String),
       windowEnd: DateTime.parse(json['windowEnd'] as String),
       filterPlans: (json['filterPlans'] as List? ?? const [])
-          .map((e) =>
-              SmartNightFilterPlan.fromJson((e as Map).cast<String, dynamic>()))
+          .map(
+            (e) => SmartNightFilterPlan.fromJson(
+              (e as Map).cast<String, dynamic>(),
+            ),
+          )
           .toList(),
       integrationSecs: _jsonDouble(json['integrationSecs'], 0.0),
       rationale: json['rationale'] as String? ?? '',
@@ -72,11 +76,11 @@ class SmartNightFilterPlan {
   double get integrationSecs => count * durationSecs;
 
   Map<String, dynamic> toJson() => {
-        'filterName': filterName,
-        'count': count,
-        'durationSecs': durationSecs,
-        'recommendation': _recommendationToJson(recommendation),
-      };
+    'filterName': filterName,
+    'count': count,
+    'durationSecs': durationSecs,
+    'recommendation': _recommendationToJson(recommendation),
+  };
 
   factory SmartNightFilterPlan.fromJson(Map<String, dynamic> json) {
     return SmartNightFilterPlan(

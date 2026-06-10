@@ -49,10 +49,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
 
         // Grid overlay
         CustomPaint(
-          painter: _GridPainter(
-            zoom: _zoom,
-            pan: _pan,
-          ),
+          painter: _GridPainter(zoom: _zoom, pan: _pan),
           size: Size.infinite,
         ),
 
@@ -153,11 +150,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
         ),
 
         // Scale indicator
-        Positioned(
-          left: 16,
-          bottom: 16,
-          child: _ScaleIndicator(zoom: _zoom),
-        ),
+        Positioned(left: 16, bottom: 16, child: _ScaleIndicator(zoom: _zoom)),
       ],
     );
   }
@@ -187,10 +180,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.5,
-          colors: [
-            Color(0xFF15151F),
-            Color(0xFF0A0A12),
-          ],
+          colors: [Color(0xFF15151F), Color(0xFF0A0A12)],
         ),
       ),
       child: CustomPaint(
@@ -274,11 +264,7 @@ class _GridPainter extends CustomPainter {
       Offset(center.dx, size.height),
       paint,
     );
-    canvas.drawLine(
-      Offset(0, center.dy),
-      Offset(size.width, center.dy),
-      paint,
-    );
+    canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
   }
 
   @override
@@ -553,11 +539,7 @@ class _CrosshairPainter extends CustomPainter {
       ..strokeWidth = 1;
 
     // Draw crosshair
-    canvas.drawLine(
-      Offset(0, center.dy),
-      Offset(size.width, center.dy),
-      paint,
-    );
+    canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
     canvas.drawLine(
       Offset(center.dx, 0),
       Offset(center.dx, size.height),
@@ -601,10 +583,7 @@ class _ZoomControls extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
             child: Text(
               '${(zoom * 100).round()}%',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
           ),
           _ZoomButton(icon: Icons.remove, onTap: onZoomOut),
@@ -628,11 +607,7 @@ class _ZoomButton extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(
-          icon,
-          color: Colors.white70,
-          size: 18,
-        ),
+        child: Icon(icon, color: Colors.white70, size: 18),
       ),
     );
   }
@@ -660,10 +635,7 @@ class _ScaleIndicator extends StatelessWidget {
         children: [
           const Text(
             'Scale',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 9,
-            ),
+            style: TextStyle(color: Colors.white54, fontSize: 9),
           ),
           const SizedBox(height: 4),
           Row(
@@ -677,10 +649,7 @@ class _ScaleIndicator extends StatelessWidget {
               const SizedBox(width: 4),
               const Text(
                 "10'",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 10,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 10),
               ),
             ],
           ),

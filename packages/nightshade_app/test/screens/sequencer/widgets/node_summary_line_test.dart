@@ -94,10 +94,12 @@ void main() {
 
       // Editable chips expose button semantics with their label.
       final semantics = tester.getSemantics(
-        find.ancestor(
-          of: find.text('12'),
-          matching: find.byType(Semantics),
-        ).first,
+        find
+            .ancestor(
+              of: find.text('12'),
+              matching: find.byType(Semantics),
+            )
+            .first,
       );
       expect(semantics.label, contains('exposure count'));
     },

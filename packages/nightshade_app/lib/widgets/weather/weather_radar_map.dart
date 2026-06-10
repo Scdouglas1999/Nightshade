@@ -141,7 +141,8 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   }
 
   /// Wraps a tile widget with contrast enhancement and opacity.
-  Widget _buildEnhancedTile(Widget tileWidget, double opacity, double contrast) {
+  Widget _buildEnhancedTile(
+      Widget tileWidget, double opacity, double contrast) {
     Widget result = tileWidget;
 
     // Apply contrast enhancement if enabled
@@ -164,7 +165,8 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   }
 
   /// Builds the appropriate tile layer based on the frame's tile type
-  Widget _buildRadarTileLayer(RadarFrame frame, double opacity, double contrast) {
+  Widget _buildRadarTileLayer(
+      RadarFrame frame, double opacity, double contrast) {
     // Create tile bounds from frame coverage to prevent NaN errors
     // when requesting tiles outside the provider's coverage area
     final tileBounds = LatLngBounds(
@@ -226,9 +228,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               // Users can still zoom via pinch, double-tap, or the +/- buttons.
               : InteractiveFlag.all & ~InteractiveFlag.scrollWheelZoom,
         ),
-        onTap: widget.onTap != null
-            ? (_, __) => widget.onTap?.call()
-            : null,
+        onTap: widget.onTap != null ? (_, __) => widget.onTap?.call() : null,
       ),
       children: [
         // Base map layer (dark theme)

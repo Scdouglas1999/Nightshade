@@ -178,7 +178,9 @@ class _BannerRow extends StatelessWidget {
                       child: Text(
                         event.title,
                         style: TextStyle(
-                          fontSize: compact ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize14,
+                          fontSize: compact
+                              ? NightshadeTypography.fontSize12
+                              : NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w700,
                           color: colors.textPrimary,
                         ),
@@ -201,7 +203,9 @@ class _BannerRow extends StatelessWidget {
                   Text(
                     event.message,
                     style: TextStyle(
-                      fontSize: compact ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+                      fontSize: compact
+                          ? NightshadeTypography.fontSize11
+                          : NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                     maxLines: 2,

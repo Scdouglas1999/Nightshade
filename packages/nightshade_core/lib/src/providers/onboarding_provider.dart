@@ -45,8 +45,9 @@ final shouldRunEquipmentOnboardingProvider = FutureProvider<bool>((ref) async {
   }
 
   final tutorialDao = ref.read(tutorialProgressDaoProvider);
-  final progress =
-      await tutorialDao.getProgress(OnboardingDraft.persistenceCategory);
+  final progress = await tutorialDao.getProgress(
+    OnboardingDraft.persistenceCategory,
+  );
   if (progress != null && (progress.completed || progress.dismissed)) {
     // The user explicitly finished or skipped the wizard; trust that
     // even though they have no profile yet.
@@ -58,12 +59,12 @@ final shouldRunEquipmentOnboardingProvider = FutureProvider<bool>((ref) async {
 /// State notifier owning the live draft + persistence.
 final onboardingDraftProvider =
     StateNotifierProvider<OnboardingNotifier, OnboardingDraft>((ref) {
-  final notifier = OnboardingNotifier(ref);
-  // Kick off the async hydrate immediately — the UI shows a small
-  // spinner until `isLoaded` flips true via [OnboardingNotifier.isLoaded].
-  notifier._loadDraft();
-  return notifier;
-});
+      final notifier = OnboardingNotifier(ref);
+      // Kick off the async hydrate immediately — the UI shows a small
+      // spinner until `isLoaded` flips true via [OnboardingNotifier.isLoaded].
+      notifier._loadDraft();
+      return notifier;
+    });
 
 /// Set of drivers available on the current platform. ASCOM is Windows-only;
 /// the other backends work everywhere. Exposed as a provider so widget
@@ -106,7 +107,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
   Future<void> _loadDraft() async {
     try {
       final settingsDao = _ref.read(settingsDaoProvider);
-      final raw = await settingsDao.getSetting(OnboardingDraft.draftSettingsKey);
+      final raw = await settingsDao.getSetting(
+        OnboardingDraft.draftSettingsKey,
+      );
       final draft = OnboardingDraft.fromJsonStringOrEmpty(raw);
       // If the user has not selected any drivers yet (truly fresh start),
       // seed sensible defaults so the discovery step doesn't show an
@@ -349,7 +352,8 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     // as default+active on insert so the user lands on the dashboard
     // already pointed at their new rig.
     final dao = _ref.read(equipmentProfilesDaoProvider);
-    final focalRatio = (draft.focalLengthMm != null &&
+    final focalRatio =
+        (draft.focalLengthMm != null &&
             draft.apertureMm != null &&
             draft.apertureMm! > 0)
         ? (draft.focalLengthMm! * draft.reducerFactor) / draft.apertureMm!
@@ -371,8 +375,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       guiderId: draft.guiderId,
       guiderName: draft.guiderName,
       telescopeName: draft.telescopeName,
-      focalLength:
-          draft.focalLengthMm != null ? draft.focalLengthMm! * draft.reducerFactor : 0.0,
+      focalLength: draft.focalLengthMm != null
+          ? draft.focalLengthMm! * draft.reducerFactor
+          : 0.0,
       aperture: draft.apertureMm ?? 0.0,
       focalRatio: focalRatio,
       telescopeFocalLength: draft.focalLengthMm,
@@ -432,7 +437,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     if (draft.captureDirectory != null &&
         draft.captureDirectory!.trim().isNotEmpty) {
       final settingsDao = _ref.read(settingsDaoProvider);
-      await settingsDao.setDefaultImageDirectory(draft.captureDirectory!.trim());
+      await settingsDao.setDefaultImageDirectory(
+        draft.captureDirectory!.trim(),
+      );
     }
 
     // Note: marking the tutorial complete, wiping the draft blob, and flipping
@@ -470,8 +477,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
   /// on the welcome step (and by tests).
   Future<void> reset() async {
     final available = _ref.read(availableOnboardingDriversProvider);
-    final defaults =
-        available.where((d) => d != DriverType.simulator).toSet();
+    final defaults = available.where((d) => d != DriverType.simulator).toSet();
     state = OnboardingDraft(selectedDrivers: defaults);
     await _persistDraft();
   }

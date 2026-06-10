@@ -95,8 +95,7 @@ class _SubGalleryPanelState extends ConsumerState<SubGalleryPanel> {
             hfrThreshold: _hfrCull,
             onToggleBlink: _toggleBlink,
             onHfrChanged: (v) => setState(() => _hfrCull = v),
-            onBulkCull: () =>
-                widget.onBulkCull(hfrThreshold: _hfrCull),
+            onBulkCull: () => widget.onBulkCull(hfrThreshold: _hfrCull),
           ),
         ),
         if (_blink)
@@ -184,8 +183,8 @@ class _Toolbar extends StatelessWidget {
               width: 36,
               child: Text(
                 hfrThreshold.toStringAsFixed(1),
-                style:
-                    NightshadeTypography.mono.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.mono
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
           ],
@@ -330,7 +329,8 @@ class _SubThumbnailState extends ConsumerState<_SubThumbnail> {
   @override
   void initState() {
     super.initState();
-    _future = ref.read(imagingBackendProvider).getImageThumbnail(widget.imageId);
+    _future =
+        ref.read(imagingBackendProvider).getImageThumbnail(widget.imageId);
   }
 
   @override
@@ -473,8 +473,8 @@ class _BlinkView extends ConsumerWidget {
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style:
-                NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.bodySm
+                .copyWith(color: colors.textSecondary),
           ),
         ],
       ),

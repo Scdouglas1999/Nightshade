@@ -73,8 +73,9 @@ class MobileNotificationService implements MobileNotificationSink {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     // requestCriticalPermission triggers the iOS Critical Alerts prompt at
     // initialization time. The prompt only ever appears if the build is
     // signed with a provisioning profile that carries the
@@ -114,8 +115,10 @@ class MobileNotificationService implements MobileNotificationSink {
 
     // Request permissions for iOS
     if (Platform.isIOS) {
-      final ios = _notifications.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+      final ios = _notifications
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
       // Re-request explicitly so the `critical` flag is included even when
       // a previous app version initialized without it. iOS only shows the
       // critical-alerts prompt once; subsequent calls return the cached
@@ -148,8 +151,10 @@ class MobileNotificationService implements MobileNotificationSink {
   /// log it and treat it as denied so the banner pops up and the
   /// operator notices something is wrong.
   Future<bool> _requestAndroidNotificationPermission() async {
-    final android = _notifications.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android == null) {
       // Plugin not registered on Android — would only happen if the
       // package was installed wrong. Surface loudly.
@@ -198,8 +203,10 @@ class MobileNotificationService implements MobileNotificationSink {
       _androidNotificationsAuthorized = true;
       return true;
     }
-    final android = _notifications.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android == null) {
       _androidNotificationsAuthorized = false;
       return false;
@@ -218,8 +225,10 @@ class MobileNotificationService implements MobileNotificationSink {
       _criticalAlertsAuthorized = false;
       return false;
     }
-    final ios = _notifications.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final ios = _notifications
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     final status = await ios?.checkPermissions();
     _criticalAlertsAuthorized = status?.isCriticalEnabled ?? false;
     return _criticalAlertsAuthorized;
@@ -274,9 +283,10 @@ class MobileNotificationService implements MobileNotificationSink {
       enableVibration: true,
     );
 
-    final androidImplementation =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidImplementation?.createNotificationChannel(sequenceChannel);
     await androidImplementation?.createNotificationChannel(warningChannel);
@@ -299,9 +309,10 @@ class MobileNotificationService implements MobileNotificationSink {
     if (route == null) {
       // Unknown payload shape — surfacing it loudly beats silent fallback.
       developer.log(
-          '[MobileNotificationService] Notification payload has no route: $payload',
-          name: 'MobileNotificationService',
-          level: 900);
+        '[MobileNotificationService] Notification payload has no route: $payload',
+        name: 'MobileNotificationService',
+        level: 900,
+      );
       return;
     }
 
@@ -310,9 +321,10 @@ class MobileNotificationService implements MobileNotificationSink {
       // The app hasn't wired up the router yet (cold start path). Record
       // the route so we don't pretend the tap did something.
       developer.log(
-          '[MobileNotificationService] No navigator installed; dropped tap to $route ($payload)',
-          name: 'MobileNotificationService',
-          level: 900);
+        '[MobileNotificationService] No navigator installed; dropped tap to $route ($payload)',
+        name: 'MobileNotificationService',
+        level: 900,
+      );
       return;
     }
 
@@ -404,7 +416,9 @@ class MobileNotificationService implements MobileNotificationSink {
 
   @override
   Future<void> notifySequenceFailed(
-      String targetName, String errorMessage) async {
+    String targetName,
+    String errorMessage,
+  ) async {
     if (!enableSequenceNotifications) return;
 
     await _notifications.show(
@@ -698,7 +712,9 @@ class MobileNotificationService implements MobileNotificationSink {
 
   @override
   Future<void> notifyEquipmentDisconnected(
-      String deviceType, String deviceId) async {
+    String deviceType,
+    String deviceId,
+  ) async {
     await _notifications.show(
       _equipmentDisconnectedId,
       'Device Disconnected',

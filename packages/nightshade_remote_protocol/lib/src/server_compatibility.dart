@@ -42,9 +42,7 @@ class NightshadeServerCompatibility {
       );
     }
 
-    return ServerCompatibilityResult.compatible(
-      serverVersion: parsed.format(),
-    );
+    return ServerCompatibilityResult.compatible(serverVersion: parsed.format());
   }
 
   static ServerCompatibilityResult checkClient(String? clientVersion) {
@@ -139,8 +137,9 @@ class ServerSemanticVersion implements Comparable<ServerSemanticVersion> {
 
   static ServerSemanticVersion? tryParse(String? value) {
     if (value == null) return null;
-    final match =
-        RegExp(r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(value.trim());
+    final match = RegExp(
+      r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?',
+    ).firstMatch(value.trim());
     if (match == null) return null;
 
     return ServerSemanticVersion(

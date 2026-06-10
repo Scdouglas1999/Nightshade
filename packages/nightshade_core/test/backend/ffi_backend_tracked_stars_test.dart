@@ -33,8 +33,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FfiBackend.phd2GetStatus tracked-star wiring (real backend)', () {
-    test('runs end-to-end and populates trackedStars from the native accessor',
-        () async {
+    test('runs end-to-end and populates trackedStars from the native accessor', () async {
       // The REAL host FFI backend — not a mock. This is the exact seam that was
       // broken: a mock backend would never exercise it.
       final backend = FfiBackend();
@@ -57,11 +56,11 @@ void main() {
   });
 
   group('host status build decodes the native tracked-star JSON', () {
-    test('a populated native snapshot becomes a populated trackedStars list',
-        () {
+    test('a populated native snapshot becomes a populated trackedStars list', () {
       // Exactly the JSON `builtin_guider::get_tracked_stars_json()` serializes
       // and the FFI backend feeds to `decodeTrackedStars` in `phd2GetStatus()`.
-      const nativeJson = '{"count":2,"stars":['
+      const nativeJson =
+          '{"count":2,"stars":['
           '{"id":0,"x":410.0,"y":286.0,"flux":9100.0,"snr":24.6,"is_lock":true,"residual":0.18},'
           '{"id":1,"x":128.0,"y":512.0,"flux":6400.0,"snr":17.2,"is_lock":false,"residual":null}'
           ']}';
@@ -85,9 +84,11 @@ void main() {
       expect(status.toJson()['trackedStars'], hasLength(2));
     });
 
-    test('an empty native snapshot yields an empty list (PHD2/external guiders)',
-        () {
-      expect(decodeTrackedStars('{"count":0,"stars":[]}'), isEmpty);
-    });
+    test(
+      'an empty native snapshot yields an empty list (PHD2/external guiders)',
+      () {
+        expect(decodeTrackedStars('{"count":0,"stars":[]}'), isEmpty);
+      },
+    );
   });
 }

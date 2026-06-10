@@ -76,7 +76,9 @@ class _TimeWindowField extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             '(crosses midnight)',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
           ),
         ],
       ],
@@ -175,7 +177,8 @@ class _HorizonField extends StatelessWidget {
     if (profiles.isEmpty) {
       return Text(
         'No horizon profiles defined yet.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.warning),
       );
     }
     return DropdownButton<int>(
@@ -231,7 +234,9 @@ class _ScheduledWindowField extends StatelessWidget {
               width: 92,
               child: Text(
                 'Priority boost',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textSecondary),
               ),
             ),
             Expanded(

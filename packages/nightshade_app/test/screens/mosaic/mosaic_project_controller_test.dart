@@ -306,7 +306,8 @@ void main() {
     c.dispose();
   });
 
-  test('startCapture is unavailable (clear error) without a launcher', () async {
+  test('startCapture is unavailable (clear error) without a launcher',
+      () async {
     final projectId = await seedProject(cols: 3);
     final c = makeController(projectId); // no launcher injected
     await waitForLoad(c);

@@ -35,7 +35,9 @@ class _Section extends StatelessWidget {
               child: Text(
                 title,
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize13
+                      : NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -78,7 +80,7 @@ class _FieldCard extends StatelessWidget {
     this.suffix,
     this.hint,
     this.readOnly = false,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +110,8 @@ class _FieldCard extends StatelessWidget {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
@@ -135,9 +138,10 @@ class _FieldCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 value ?? 'Not set',
-                style: NightshadeTypography.h5.copyWith(color: value != null && value != 'Not set' && value != 'N/A'
-                      ? colors.textPrimary
-                      : colors.textMuted),
+                style: NightshadeTypography.h5.copyWith(
+                    color: value != null && value != 'Not set' && value != 'N/A'
+                        ? colors.textPrimary
+                        : colors.textMuted),
               ),
             ),
           ),
@@ -157,7 +161,7 @@ class _BinningSelector extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.onChanged,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,9 +202,10 @@ class _BinningSelector extends StatelessWidget {
                       child: Center(
                         child: Text(
                           '$i',
-                          style: NightshadeTypography.h6.copyWith(color: value == i
-                                ? colors.background
-                                : colors.textSecondary),
+                          style: NightshadeTypography.h6.copyWith(
+                              color: value == i
+                                  ? colors.background
+                                  : colors.textSecondary),
                         ),
                       ),
                     ),
@@ -219,7 +224,7 @@ class _FilterChip extends StatelessWidget {
 
   const _FilterChip({
     required this.name,
-    });
+  });
 
   Color _getFilterColor(NightshadeColors colors, String name) {
     final lowerName = name.toLowerCase();
@@ -282,7 +287,7 @@ class _EditableFilterChip extends StatelessWidget {
   const _EditableFilterChip({
     required this.controller,
     required this.onRemove,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +342,7 @@ class _DeviceChip extends StatelessWidget {
   const _DeviceChip({
     required this.type,
     required this.id,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +371,8 @@ class _DeviceChip extends StatelessWidget {
               ),
               Text(
                 id,
-                style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -387,7 +393,7 @@ class _EditableDeviceChip extends StatelessWidget {
     required this.id,
     required this.fullId,
     required this.onClear,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +424,8 @@ class _EditableDeviceChip extends StatelessWidget {
                 message: fullId,
                 child: Text(
                   id,
-                  style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelSm
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -454,7 +461,7 @@ class _EditableField extends StatelessWidget {
     required this.controller,
     this.hint,
     required this.style,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {

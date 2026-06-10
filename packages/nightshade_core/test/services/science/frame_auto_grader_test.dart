@@ -1,13 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' as drift
+import 'package:nightshade_core/src/database/database.dart'
+    as drift
     show CapturedImage;
 
-drift.CapturedImage _light({
-  int id = 1,
-  double? hfr,
-  bool accepted = true,
-}) {
+drift.CapturedImage _light({int id = 1, double? hfr, bool accepted = true}) {
   final ts = DateTime(2026, 1, 1);
   return drift.CapturedImage(
     id: id,

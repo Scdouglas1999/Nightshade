@@ -136,7 +136,8 @@ class _TimingSection extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -203,7 +204,8 @@ class _TimingSection extends ConsumerWidget {
                       _formatDurationNice(duration),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: NightshadeTypography.h6.copyWith(color: colors.primary),
+                      style: NightshadeTypography.h6
+                          .copyWith(color: colors.primary),
                     ),
                   ),
                 ],

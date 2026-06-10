@@ -49,20 +49,23 @@ void main() {
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-    when(() => mockBackend.eventStream)
-        .thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
     // Default: no recommended settings on connect so tests that don't care
     // about the auto-detect path don't blow up on unstubbed calls.
-    when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
-      (_) async => const CameraRecommendedSettings(notes: ''),
-    );
+    when(
+      () => mockBackend.cameraGetRecommendedSettings(any()),
+    ).thenAnswer((_) async => const CameraRecommendedSettings(notes: ''));
 
     container = ProviderContainer(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, mockBackend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, mockBackend),
+        ),
       ],
     );
     // Initialize DeviceService so event listeners are active.
@@ -117,9 +120,11 @@ void main() {
 
       await expectLater(
         service.connectCamera('camera-1'),
-        throwsA(isA<InvalidDeviceIdException>()
-            .having((e) => e.deviceType, 'deviceType', 'camera')
-            .having((e) => e.deviceId, 'deviceId', 'camera-1')),
+        throwsA(
+          isA<InvalidDeviceIdException>()
+              .having((e) => e.deviceType, 'deviceType', 'camera')
+              .having((e) => e.deviceId, 'deviceId', 'camera-1'),
+        ),
       );
 
       verifyNever(() => mockBackend.discoverDevices(any()));
@@ -134,8 +139,9 @@ void main() {
       // implementation would have called it as a precondition and failed
       // with "Camera not found". After DEV-P1-7 we go straight to
       // connectDevice.
-      when(() => mockBackend.connectDevice(DeviceType.camera, deviceId))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.camera, deviceId),
+      ).thenAnswer((_) async {});
       when(() => mockBackend.getCameraStatus(deviceId)).thenAnswer(
         (_) async => const CameraStatus(
           connected: true,
@@ -158,11 +164,13 @@ void main() {
           canSetOffset: true,
         ),
       );
-      when(() => mockBackend.startDeviceHeartbeat(
-            deviceType: any(named: 'deviceType'),
-            deviceId: any(named: 'deviceId'),
-            intervalMs: any(named: 'intervalMs'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: any(named: 'deviceType'),
+          deviceId: any(named: 'deviceId'),
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(deviceServiceProvider);
       await service.connectCamera(deviceId);
@@ -170,8 +178,9 @@ void main() {
       // Discovery was NOT a precondition.
       verifyNever(() => mockBackend.discoverDevices(any()));
       // Backend connect call DID happen with the id verbatim.
-      verify(() => mockBackend.connectDevice(DeviceType.camera, deviceId))
-          .called(1);
+      verify(
+        () => mockBackend.connectDevice(DeviceType.camera, deviceId),
+      ).called(1);
       // State reflects the success.
       expect(
         container.read(cameraStateProvider).connectionState,
@@ -182,14 +191,16 @@ void main() {
     test('connectMount preserves backend error when id is well-formed but '
         'device is not reachable', () async {
       const deviceId = 'ascom:ASCOM.ZWO.Mount';
-      when(() => mockBackend.connectDevice(DeviceType.mount, deviceId))
-          .thenThrow(Exception('Driver refused: COM port busy'));
+      when(
+        () => mockBackend.connectDevice(DeviceType.mount, deviceId),
+      ).thenThrow(Exception('Driver refused: COM port busy'));
 
       final service = container.read(deviceServiceProvider);
       await expectLater(
         service.connectMount(deviceId),
-        throwsA(predicate<Object>(
-            (e) => e.toString().contains('COM port busy'))),
+        throwsA(
+          predicate<Object>((e) => e.toString().contains('COM port busy')),
+        ),
       );
 
       // Critically: the error came from the backend, not from a "device
@@ -211,8 +222,13 @@ void main() {
       ) async {
         await expectLater(
           call(),
-          throwsA(isA<InvalidDeviceIdException>().having(
-              (e) => e.deviceType, 'deviceType', expectedDeviceType)),
+          throwsA(
+            isA<InvalidDeviceIdException>().having(
+              (e) => e.deviceType,
+              'deviceType',
+              expectedDeviceType,
+            ),
+          ),
         );
       }
 
@@ -220,18 +236,26 @@ void main() {
       await expectInvalid(() => service.connectMount('bad'), 'mount');
       await expectInvalid(() => service.connectFocuser('bad'), 'focuser');
       await expectInvalid(
-          () => service.connectFilterWheel('bad'), 'filter wheel');
+        () => service.connectFilterWheel('bad'),
+        'filter wheel',
+      );
       // Guider has a PHD2 short-circuit; a non-PHD2 unknown id still hits
       // the standard format check.
       await expectInvalid(() => service.connectGuider('bad'), 'guider');
       await expectInvalid(() => service.connectRotator('bad'), 'rotator');
       await expectInvalid(() => service.connectDome('bad'), 'dome');
       await expectInvalid(
-          () => service.connectWeather('bad'), 'weather station');
+        () => service.connectWeather('bad'),
+        'weather station',
+      );
       await expectInvalid(
-          () => service.connectSafetyMonitor('bad'), 'safety monitor');
-      await expectInvalid(() => service.connectCoverCalibrator('bad'),
-          'cover calibrator');
+        () => service.connectSafetyMonitor('bad'),
+        'safety monitor',
+      );
+      await expectInvalid(
+        () => service.connectCoverCalibrator('bad'),
+        'cover calibrator',
+      );
 
       // None of these attempts should have reached the backend.
       verifyNever(() => mockBackend.connectDevice(any(), any()));
@@ -261,12 +285,15 @@ void main() {
       const mountId = 'simulator:mount-1';
       const focuserId = 'simulator:foc-1';
 
-      when(() => mockBackend.connectDevice(DeviceType.camera, cameraId))
-          .thenAnswer((_) async {});
-      when(() => mockBackend.connectDevice(DeviceType.mount, mountId))
-          .thenAnswer((_) async {});
-      when(() => mockBackend.connectDevice(DeviceType.focuser, focuserId))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.camera, cameraId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.mount, mountId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.focuser, focuserId),
+      ).thenAnswer((_) async {});
       when(() => mockBackend.getCameraStatus(any())).thenAnswer(
         (_) async => const CameraStatus(
           connected: true,
@@ -321,11 +348,13 @@ void main() {
           hasTemperature: false,
         ),
       );
-      when(() => mockBackend.startDeviceHeartbeat(
-            deviceType: any(named: 'deviceType'),
-            deviceId: any(named: 'deviceId'),
-            intervalMs: any(named: 'intervalMs'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: any(named: 'deviceType'),
+          deviceId: any(named: 'deviceId'),
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(deviceServiceProvider);
       final profile = buildProfile(
@@ -350,8 +379,11 @@ void main() {
       expect(byType.keys, containsAll(['camera', 'mount', 'focuser']));
       for (final type in ['camera', 'mount', 'focuser']) {
         final list = byType[type]!;
-        expect(list, hasLength(2),
-            reason: 'Expected connecting+connected for $type');
+        expect(
+          list,
+          hasLength(2),
+          reason: 'Expected connecting+connected for $type',
+        );
         expect(list[0].status, DeviceConnectProgressStatus.connecting);
         expect(list[1].status, DeviceConnectProgressStatus.connected);
       }
@@ -364,10 +396,12 @@ void main() {
       // Camera succeeds; mount fails. We must still see the camera's
       // connected event AND the mount's failed event with the original
       // error preserved.
-      when(() => mockBackend.connectDevice(DeviceType.camera, cameraId))
-          .thenAnswer((_) async {});
-      when(() => mockBackend.connectDevice(DeviceType.mount, mountId))
-          .thenThrow(Exception('Mount driver refused'));
+      when(
+        () => mockBackend.connectDevice(DeviceType.camera, cameraId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.mount, mountId),
+      ).thenThrow(Exception('Mount driver refused'));
       when(() => mockBackend.getCameraStatus(any())).thenAnswer(
         (_) async => const CameraStatus(
           connected: true,
@@ -390,11 +424,13 @@ void main() {
           canSetOffset: false,
         ),
       );
-      when(() => mockBackend.startDeviceHeartbeat(
-            deviceType: any(named: 'deviceType'),
-            deviceId: any(named: 'deviceId'),
-            intervalMs: any(named: 'intervalMs'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: any(named: 'deviceType'),
+          deviceId: any(named: 'deviceId'),
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(deviceServiceProvider);
       final profile = buildProfile(cameraId: cameraId, mountId: mountId);
@@ -405,17 +441,22 @@ void main() {
       }
 
       // Final state per device-type.
-      final cameraEvents =
-          events.where((e) => e.deviceType == 'camera').toList();
-      final mountEvents =
-          events.where((e) => e.deviceType == 'mount').toList();
+      final cameraEvents = events
+          .where((e) => e.deviceType == 'camera')
+          .toList();
+      final mountEvents = events.where((e) => e.deviceType == 'mount').toList();
 
-      expect(cameraEvents.last.status,
-          DeviceConnectProgressStatus.connected,
-          reason: 'Camera should have succeeded despite mount failure.');
+      expect(
+        cameraEvents.last.status,
+        DeviceConnectProgressStatus.connected,
+        reason: 'Camera should have succeeded despite mount failure.',
+      );
       expect(mountEvents.last.status, DeviceConnectProgressStatus.failed);
-      expect(mountEvents.last.errorMessage, contains('Mount driver refused'),
-          reason: 'Backend error must be preserved verbatim on the event.');
+      expect(
+        mountEvents.last.errorMessage,
+        contains('Mount driver refused'),
+        reason: 'Backend error must be preserved verbatim on the event.',
+      );
       expect(mountEvents.last.error, isA<Exception>());
 
       // State reflects the per-device outcome.
@@ -429,19 +470,21 @@ void main() {
       );
     });
 
-    test('emits nothing and closes immediately when profile has no devices',
-        () async {
-      final service = container.read(deviceServiceProvider);
-      final profile = buildProfile();
+    test(
+      'emits nothing and closes immediately when profile has no devices',
+      () async {
+        final service = container.read(deviceServiceProvider);
+        final profile = buildProfile();
 
-      final events = <DeviceConnectProgress>[];
-      await for (final e in service.connectAllFromProfile(profile)) {
-        events.add(e);
-      }
+        final events = <DeviceConnectProgress>[];
+        await for (final e in service.connectAllFromProfile(profile)) {
+          events.add(e);
+        }
 
-      expect(events, isEmpty);
-      verifyNever(() => mockBackend.connectDevice(any(), any()));
-    });
+        expect(events, isEmpty);
+        verifyNever(() => mockBackend.connectDevice(any(), any()));
+      },
+    );
 
     test('malformed device id surfaces as a per-device failed event, not a '
         'stream error', () async {
@@ -453,8 +496,9 @@ void main() {
       const goodCamera = 'simulator:cam-good';
       const badMountId = 'totally-malformed';
 
-      when(() => mockBackend.connectDevice(DeviceType.camera, goodCamera))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(DeviceType.camera, goodCamera),
+      ).thenAnswer((_) async {});
       when(() => mockBackend.getCameraStatus(any())).thenAnswer(
         (_) async => const CameraStatus(
           connected: true,
@@ -477,17 +521,16 @@ void main() {
           canSetOffset: false,
         ),
       );
-      when(() => mockBackend.startDeviceHeartbeat(
-            deviceType: any(named: 'deviceType'),
-            deviceId: any(named: 'deviceId'),
-            intervalMs: any(named: 'intervalMs'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: any(named: 'deviceType'),
+          deviceId: any(named: 'deviceId'),
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(deviceServiceProvider);
-      final profile = buildProfile(
-        cameraId: goodCamera,
-        mountId: badMountId,
-      );
+      final profile = buildProfile(cameraId: goodCamera, mountId: badMountId);
 
       final events = <DeviceConnectProgress>[];
       // The stream itself must close cleanly without errors.
@@ -496,8 +539,7 @@ void main() {
         completes,
       );
 
-      final mountEvents =
-          events.where((e) => e.deviceType == 'mount').toList();
+      final mountEvents = events.where((e) => e.deviceType == 'mount').toList();
       expect(mountEvents.last.status, DeviceConnectProgressStatus.failed);
       expect(mountEvents.last.error, isA<InvalidDeviceIdException>());
 

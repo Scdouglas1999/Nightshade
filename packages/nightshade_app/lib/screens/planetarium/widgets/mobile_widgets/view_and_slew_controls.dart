@@ -108,7 +108,8 @@ class MobileViewControls extends ConsumerWidget {
                             decoration: isEnabled
                                 ? NightshadeDecorations.selectedSurface(
                                     colors.info,
-                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                    borderRadius: BorderRadius.circular(
+                                        NightshadeTokens.radiusInline4),
                                   )
                                 : null,
                             child: Stack(
@@ -163,7 +164,8 @@ class MobileViewControls extends ConsumerWidget {
                               decoration: mountSyncActive
                                   ? NightshadeDecorations.selectedSurface(
                                       colors.warning,
-                                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                      borderRadius: BorderRadius.circular(
+                                          NightshadeTokens.radiusInline4),
                                     )
                                   : null,
                               child: Icon(
@@ -328,7 +330,8 @@ class MobileControlButton extends StatelessWidget {
             decoration: BoxDecoration(
               color:
                   isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               icon,

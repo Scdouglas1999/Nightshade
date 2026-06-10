@@ -109,8 +109,8 @@ class InMemoryPushTokenStore implements PushTokenStore {
   InMemoryPushTokenStore({
     List<RegisteredPushToken>? tokens,
     Map<String, DevicePushPreferences>? prefs,
-  })  : tokens = tokens ?? <RegisteredPushToken>[],
-        prefs = prefs ?? <String, DevicePushPreferences>{};
+  }) : tokens = tokens ?? <RegisteredPushToken>[],
+       prefs = prefs ?? <String, DevicePushPreferences>{};
 
   @override
   Future<List<RegisteredPushToken>> tokensForPlatform(String platform) async {

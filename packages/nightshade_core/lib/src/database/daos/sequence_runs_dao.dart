@@ -38,24 +38,22 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Update stats during execution (for live tracking).
   Future<void> updateStats(int runId, String statsJson) async {
     await (update(sequenceRuns)..where((r) => r.id.equals(runId))).write(
-      SequenceRunsCompanion(
-        statsJson: Value(statsJson),
-      ),
+      SequenceRunsCompanion(statsJson: Value(statsJson)),
     );
   }
 
   /// Get all runs ordered by most recent first.
   Future<List<SequenceRun>> getAllRuns() {
-    return (select(sequenceRuns)
-          ..orderBy([(r) => OrderingTerm.desc(r.startedAt)]))
-        .get();
+    return (select(
+      sequenceRuns,
+    )..orderBy([(r) => OrderingTerm.desc(r.startedAt)])).get();
   }
 
   /// Watch all runs for reactive UI.
   Stream<List<SequenceRun>> watchAllRuns() {
-    return (select(sequenceRuns)
-          ..orderBy([(r) => OrderingTerm.desc(r.startedAt)]))
-        .watch();
+    return (select(
+      sequenceRuns,
+    )..orderBy([(r) => OrderingTerm.desc(r.startedAt)])).watch();
   }
 
   /// Get runs for a specific sequence.
@@ -76,8 +74,9 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get a single run by ID.
   Future<SequenceRun?> getRunById(int id) {
-    return (select(sequenceRuns)..where((r) => r.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      sequenceRuns,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
   }
 
   /// Delete a run.
@@ -87,9 +86,9 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Delete all runs older than a given date.
   Future<int> deleteRunsOlderThan(DateTime cutoff) {
-    return (delete(sequenceRuns)
-          ..where((r) => r.startedAt.isSmallerThanValue(cutoff)))
-        .go();
+    return (delete(
+      sequenceRuns,
+    )..where((r) => r.startedAt.isSmallerThanValue(cutoff))).go();
   }
 
   /// P2-8: paginated listing for the remote read API. Newest-first by

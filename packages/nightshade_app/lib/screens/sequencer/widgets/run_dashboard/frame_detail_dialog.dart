@@ -1,4 +1,4 @@
-﻿/// Wave 8 — Frame-Failure Forensics: detail dialog.
+/// Wave 8 — Frame-Failure Forensics: detail dialog.
 ///
 /// Modal that shows the rejected frame's preview, the grader's reason
 /// string, the classifier's verdict + evidence bullets, and the
@@ -231,7 +231,9 @@ class _ImagePreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (capturedImageId != null) {
       return FutureBuilder<Uint8List>(
-        future: ref.read(imagingBackendProvider).getImageThumbnail(capturedImageId!),
+        future: ref
+            .read(imagingBackendProvider)
+            .getImageThumbnail(capturedImageId!),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
@@ -269,7 +271,8 @@ class _ImagePreview extends ConsumerWidget {
       return _PathFallback(
         path: rejectPath,
         colors: colors,
-        subtitle: 'Preview loads from the imaging host when a thumbnail is available.',
+        subtitle:
+            'Preview loads from the imaging host when a thumbnail is available.',
       );
     }
 
@@ -349,7 +352,8 @@ class _PathFallback extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           Text(
             'Preview unavailable',
-            style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+            style:
+                NightshadeTypography.h6.copyWith(color: colors.textSecondary),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
@@ -431,7 +435,8 @@ class _DetailSidePanel extends StatelessWidget {
                       height: 4,
                       decoration: BoxDecoration(
                         color: causeColor,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline2),
                       ),
                     ),
                   ),

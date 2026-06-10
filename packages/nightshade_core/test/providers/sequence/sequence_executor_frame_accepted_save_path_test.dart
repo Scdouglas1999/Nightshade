@@ -45,8 +45,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         databaseProvider.overrideWithValue(db),
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -58,8 +59,9 @@ void main() {
     eventController =
         StreamController<bridge_event.NightshadeEvent>.broadcast();
     when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     imagesDao = ImagesDao(db);
   });
@@ -69,98 +71,112 @@ void main() {
     await db.close();
   });
 
-  test('FrameAccepted with save_path inserts captured_images row with file_path',
-      () async {
-    final container = buildContainer();
-    final executor = container.read(sequenceExecutorProvider);
+  test(
+    'FrameAccepted with save_path inserts captured_images row with file_path',
+    () async {
+      final container = buildContainer();
+      final executor = container.read(sequenceExecutorProvider);
 
-    const savePath = '/captures/m31/L_0001.fits';
+      const savePath = '/captures/m31/L_0001.fits';
 
-    // Pump the event through the same handler the live native event
-    // subscription uses. We don't need to spin up the Rust backend
-    // because the FrameAccepted path is entirely Dart-side once the
-    // event lands in `_handleSequencerEvent`.
-    executor.handleSequencerEventForTest(bridge_event.NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: bridge_event.EventSeverity.info,
-      category: bridge_event.EventCategory.sequencer,
-      eventType: 'FrameAccepted',
-      data: const {
-        'node_id': 'exposure-node-1',
-        'frame': 1,
-        'total': 10,
-        'hfr': 2.35,
-        'eccentricity': 0.25,
-        'star_count': 145,
-        'accepted_total': 1,
-        'rejected_total': 0,
-        // The new save_path field introduced by Pack P.
-        'save_path': savePath,
-      },
-    ));
-
-    // Let the fire-and-forget `unawaited(insertSequenceFrame(...))`
-    // complete.
-    for (var i = 0; i < 20; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      final rows = await imagesDao.getImagesByProducingNode(
-        producingNodeId: 'exposure-node-1',
+      // Pump the event through the same handler the live native event
+      // subscription uses. We don't need to spin up the Rust backend
+      // because the FrameAccepted path is entirely Dart-side once the
+      // event lands in `_handleSequencerEvent`.
+      executor.handleSequencerEventForTest(
+        bridge_event.NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: bridge_event.EventSeverity.info,
+          category: bridge_event.EventCategory.sequencer,
+          eventType: 'FrameAccepted',
+          data: const {
+            'node_id': 'exposure-node-1',
+            'frame': 1,
+            'total': 10,
+            'hfr': 2.35,
+            'eccentricity': 0.25,
+            'star_count': 145,
+            'accepted_total': 1,
+            'rejected_total': 0,
+            // The new save_path field introduced by Pack P.
+            'save_path': savePath,
+          },
+        ),
       );
-      if (rows.isNotEmpty) {
-        // Assert the row was tagged correctly and the path landed.
-        expect(rows, hasLength(1));
-        final row = rows.single;
-        expect(row.filePath, equals(savePath),
+
+      // Let the fire-and-forget `unawaited(insertSequenceFrame(...))`
+      // complete.
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final rows = await imagesDao.getImagesByProducingNode(
+          producingNodeId: 'exposure-node-1',
+        );
+        if (rows.isNotEmpty) {
+          // Assert the row was tagged correctly and the path landed.
+          expect(rows, hasLength(1));
+          final row = rows.single;
+          expect(
+            row.filePath,
+            equals(savePath),
             reason:
-                'accepted frame must persist save_path → file_path; the thumbnail strip relies on this for the inline preview');
-        expect(row.fileName, equals('L_0001.fits'));
-        expect(row.isAccepted, isTrue);
-        expect(row.runtimeGrade, equals('pass'));
-        expect(row.hfr, closeTo(2.35, 1e-9));
-        expect(row.starCount, equals(145));
-        expect(row.producingNodeId, equals('exposure-node-1'));
-        return;
+                'accepted frame must persist save_path → file_path; the thumbnail strip relies on this for the inline preview',
+          );
+          expect(row.fileName, equals('L_0001.fits'));
+          expect(row.isAccepted, isTrue);
+          expect(row.runtimeGrade, equals('pass'));
+          expect(row.hfr, closeTo(2.35, 1e-9));
+          expect(row.starCount, equals(145));
+          expect(row.producingNodeId, equals('exposure-node-1'));
+          return;
+        }
       }
-    }
-    fail('captured_images row for accepted frame was never written');
-  });
+      fail('captured_images row for accepted frame was never written');
+    },
+  );
 
-  test('FrameAccepted without save_path falls back to empty file_path (legacy)',
-      () async {
-    final container = buildContainer();
-    final executor = container.read(sequenceExecutorProvider);
+  test(
+    'FrameAccepted without save_path falls back to empty file_path (legacy)',
+    () async {
+      final container = buildContainer();
+      final executor = container.read(sequenceExecutorProvider);
 
-    executor.handleSequencerEventForTest(bridge_event.NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: bridge_event.EventSeverity.info,
-      category: bridge_event.EventCategory.sequencer,
-      eventType: 'FrameAccepted',
-      data: const {
-        'node_id': 'exposure-node-legacy',
-        'frame': 1,
-        'total': 1,
-        'accepted_total': 1,
-        'rejected_total': 0,
-        // No save_path: simulates a back-compat emit site.
-      },
-    ));
-
-    for (var i = 0; i < 20; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      final rows = await imagesDao.getImagesByProducingNode(
-        producingNodeId: 'exposure-node-legacy',
+      executor.handleSequencerEventForTest(
+        bridge_event.NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: bridge_event.EventSeverity.info,
+          category: bridge_event.EventCategory.sequencer,
+          eventType: 'FrameAccepted',
+          data: const {
+            'node_id': 'exposure-node-legacy',
+            'frame': 1,
+            'total': 1,
+            'accepted_total': 1,
+            'rejected_total': 0,
+            // No save_path: simulates a back-compat emit site.
+          },
+        ),
       );
-      if (rows.isNotEmpty) {
-        final row = rows.single;
-        expect(row.filePath, isEmpty,
+
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final rows = await imagesDao.getImagesByProducingNode(
+          producingNodeId: 'exposure-node-legacy',
+        );
+        if (rows.isNotEmpty) {
+          final row = rows.single;
+          expect(
+            row.filePath,
+            isEmpty,
             reason:
                 'legacy emit without save_path must still insert the row '
                 '(with an empty file_path) so the strip can show its '
-                'colour-bordered placeholder tile rather than skipping');
-        expect(row.isAccepted, isTrue);
-        return;
+                'colour-bordered placeholder tile rather than skipping',
+          );
+          expect(row.isAccepted, isTrue);
+          return;
+        }
       }
-    }
-    fail('captured_images row for legacy accepted frame was never written');
-  });
+      fail('captured_images row for legacy accepted frame was never written');
+    },
+  );
 }

@@ -388,7 +388,8 @@ class _InsightCard extends StatelessWidget {
               children: [
                 Text(
                   insight.title,
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -433,8 +434,8 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final statusColor = snapshot.isHealthy ? colors.success : colors.error;
-    final lastSeen = DateTime.fromMillisecondsSinceEpoch(
-        snapshot.lastSuccessfulTimestampMs);
+    final lastSeen =
+        DateTime.fromMillisecondsSinceEpoch(snapshot.lastSuccessfulTimestampMs);
     final age = DateTime.now().difference(lastSeen);
 
     return Container(
@@ -465,7 +466,8 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
                 Text(
                   _resolveDeviceName(ref, snapshot.deviceId),
                   overflow: TextOverflow.ellipsis,
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   snapshot.isHealthy
@@ -474,9 +476,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize9,
-                    color: snapshot.isHealthy
-                        ? colors.textMuted
-                        : colors.error,
+                    color: snapshot.isHealthy ? colors.textMuted : colors.error,
                   ),
                 ),
               ],

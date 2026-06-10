@@ -93,8 +93,9 @@ class SequenceMinimap extends ConsumerWidget {
     if (flatNodes.isEmpty) return;
 
     // Map tap position to a node index
-    final nodeIndex =
-        (tapY / totalHeight * flatNodes.length).floor().clamp(0, flatNodes.length - 1);
+    final nodeIndex = (tapY / totalHeight * flatNodes.length)
+        .floor()
+        .clamp(0, flatNodes.length - 1);
     final tappedNode = flatNodes[nodeIndex].node;
 
     // Select the node
@@ -149,9 +150,8 @@ class _MinimapPainter extends CustomPainter {
     for (int i = 0; i < flatNodes.length; i++) {
       final entry = flatNodes[i];
       final y = i * nodeHeight;
-      final indent = maxDepth > 0
-          ? (entry.depth / (maxDepth + 1)) * depthWidth
-          : 0.0;
+      final indent =
+          maxDepth > 0 ? (entry.depth / (maxDepth + 1)) * depthWidth : 0.0;
 
       // Determine color based on node category
       Color blockColor;
@@ -220,8 +220,7 @@ class _MinimapPainter extends CustomPainter {
 
       final viewportTop =
           (scrollController.offset / totalContentHeight) * size.height;
-      final viewportSize =
-          (viewportHeight / totalContentHeight) * size.height;
+      final viewportSize = (viewportHeight / totalContentHeight) * size.height;
 
       final viewportRect = Rect.fromLTWH(
         0,
@@ -238,8 +237,7 @@ class _MinimapPainter extends CustomPainter {
           ..style = PaintingStyle.fill,
       );
       canvas.drawRect(
-        Rect.fromLTWH(
-            0, viewportTop + viewportSize, size.width, size.height),
+        Rect.fromLTWH(0, viewportTop + viewportSize, size.width, size.height),
         Paint()
           ..color = colors.background.withValues(alpha: 0.5)
           ..style = PaintingStyle.fill,
@@ -257,8 +255,8 @@ class _MinimapPainter extends CustomPainter {
 
     // Draw current execution position line
     if (progress.currentNodeId != null) {
-      final execIndex = flatNodes
-          .indexWhere((e) => e.node.id == progress.currentNodeId);
+      final execIndex =
+          flatNodes.indexWhere((e) => e.node.id == progress.currentNodeId);
       if (execIndex >= 0) {
         final y = execIndex * nodeHeight + nodeHeight / 2;
         canvas.drawLine(

@@ -83,16 +83,16 @@ class SwitchState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        channelCount,
-        channelNames,
-        channelStates,
-        lastChannelRefresh,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    channelCount,
+    channelNames,
+    channelStates,
+    lastChannelRefresh,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }
 
 // ============================================================================
@@ -100,24 +100,10 @@ class SwitchState extends Equatable {
 // ============================================================================
 
 /// Cover position status
-enum CoverStatus {
-  notPresent,
-  closed,
-  moving,
-  open,
-  unknown,
-  error,
-}
+enum CoverStatus { notPresent, closed, moving, open, unknown, error }
 
 /// Calibrator (flat light) status
-enum CalibratorStatus {
-  notPresent,
-  off,
-  notReady,
-  ready,
-  unknown,
-  error,
-}
+enum CalibratorStatus { notPresent, off, notReady, ready, unknown, error }
 
 class CoverCalibratorState extends Equatable {
   final DeviceConnectionState connectionState;
@@ -181,14 +167,14 @@ class CoverCalibratorState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        coverStatus,
-        calibratorStatus,
-        brightness,
-        maxBrightness,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    coverStatus,
+    calibratorStatus,
+    brightness,
+    maxBrightness,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }

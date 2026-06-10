@@ -82,14 +82,13 @@ void showApiError(BuildContext context, Object error) {
   // Replace any in-flight error so a rapid burst of failures doesn't
   // stack up an unreadable queue.
   messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(
-    backgroundColor: background,
-    content: Text(
-      text,
-      style: TextStyle(color: foreground),
+  messenger.showSnackBar(
+    SnackBar(
+      backgroundColor: background,
+      content: Text(text, style: TextStyle(color: foreground)),
+      duration: duration,
     ),
-    duration: duration,
-  ));
+  );
 }
 
 /// Show a prefixed API error: "<prefix>: <message> (<code>)".
@@ -97,11 +96,7 @@ void showApiError(BuildContext context, Object error) {
 /// Useful when the operator needs additional context that isn't in the
 /// server's message ("Capture failed: rate limited (rate_limited)"). For
 /// non-[ServerError] inputs, formats as "<prefix>: <error>".
-void showApiErrorWithPrefix(
-  BuildContext context,
-  String prefix,
-  Object error,
-) {
+void showApiErrorWithPrefix(BuildContext context, String prefix, Object error) {
   if (error is ServerError) {
     showApiError(
       context,
@@ -121,12 +116,14 @@ void showApiErrorWithPrefix(
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) return;
   messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(
-    backgroundColor: colors?.error ?? Theme.of(context).colorScheme.error,
-    content: Text(
-      '$prefix: $error',
-      style: TextStyle(color: Theme.of(context).colorScheme.onError),
+  messenger.showSnackBar(
+    SnackBar(
+      backgroundColor: colors?.error ?? Theme.of(context).colorScheme.error,
+      content: Text(
+        '$prefix: $error',
+        style: TextStyle(color: Theme.of(context).colorScheme.onError),
+      ),
+      duration: const Duration(seconds: 6),
     ),
-    duration: const Duration(seconds: 6),
-  ));
+  );
 }

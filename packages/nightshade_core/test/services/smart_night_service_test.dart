@@ -140,10 +140,7 @@ void main() {
         plan.sequence.nodes.values.whereType<CoolCameraNode>(),
         isNotEmpty,
       );
-      expect(
-        plan.sequence.nodes.values.whereType<UnparkNode>(),
-        isNotEmpty,
-      );
+      expect(plan.sequence.nodes.values.whereType<UnparkNode>(), isNotEmpty);
       expect(
         plan.sequence.nodes.values.whereType<TargetHeaderNode>(),
         hasLength(1),
@@ -214,9 +211,7 @@ void main() {
         ],
         strategy: SmartNightStrategy.autoLrgb,
         // Short per-target budget so all 3 fit in the 7-hour window.
-        settings: const SmartNightSettings(
-          defaultIntegrationBudgetHours: 1.5,
-        ),
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
       );
 
       // Three TargetHeaders should fit when each is only 1.5h.
@@ -268,17 +263,15 @@ void main() {
       final baselineL = baseline.plannedTargets.first.filterPlans.firstWhere(
         (plan) => plan.filterName == 'L',
       );
-      final lowFullWellL =
-          lowFullWell.plannedTargets.first.filterPlans.firstWhere(
-        (plan) => plan.filterName == 'L',
-      );
+      final lowFullWellL = lowFullWell.plannedTargets.first.filterPlans
+          .firstWhere((plan) => plan.filterName == 'L');
 
       expect(
-        lowFullWellL
-            .recommendation!.allCeilings[ExposureLimitingFactor.saturation],
+        lowFullWellL.recommendation!.allCeilings[ExposureLimitingFactor
+            .saturation],
         lessThan(
-          baselineL
-              .recommendation!.allCeilings[ExposureLimitingFactor.saturation]!,
+          baselineL.recommendation!.allCeilings[ExposureLimitingFactor
+              .saturation]!,
         ),
       );
     });
@@ -300,8 +293,9 @@ void main() {
         settings: const SmartNightSettings(),
       );
 
-      final smartExposure =
-          plan.sequence.nodes.values.whereType<SmartExposureNode>().single;
+      final smartExposure = plan.sequence.nodes.values
+          .whereType<SmartExposureNode>()
+          .single;
       final filterNames = smartExposure.plans.map((p) => p.filterName).toSet();
       expect(filterNames, containsAll(['Ha', 'OIII', 'SII']));
       // Does not include broadband.
@@ -325,8 +319,9 @@ void main() {
         strategy: SmartNightStrategy.oscOneShot,
         settings: const SmartNightSettings(),
       );
-      final smartExposure =
-          plan.sequence.nodes.values.whereType<SmartExposureNode>().single;
+      final smartExposure = plan.sequence.nodes.values
+          .whereType<SmartExposureNode>()
+          .single;
       expect(smartExposure.plans, hasLength(1));
       expect(smartExposure.plans.first.filterName, equals('L-eXtreme'));
     });
@@ -369,9 +364,7 @@ void main() {
           latitudeDeg: 41.0,
           longitudeDeg: -73.0,
           context: baseContext(),
-          selectedSuggestions: [
-            fakeSuggestion(id: 1, name: 'NGC 7000'),
-          ],
+          selectedSuggestions: [fakeSuggestion(id: 1, name: 'NGC 7000')],
           strategy: SmartNightStrategy.narrowbandSho,
           settings: const SmartNightSettings(),
         ),
@@ -423,9 +416,9 @@ void main() {
       );
 
       expect(
-        plan.sequence.nodes.values
-            .whereType<RecoveryNode>()
-            .any((r) => r.triggerType == TriggerType.weatherUnsafe),
+        plan.sequence.nodes.values.whereType<RecoveryNode>().any(
+          (r) => r.triggerType == TriggerType.weatherUnsafe,
+        ),
         isTrue,
       );
     });
@@ -438,9 +431,7 @@ void main() {
         context: baseContext(),
         selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
         strategy: SmartNightStrategy.autoLrgb,
-        settings: const SmartNightSettings(
-          defaultIntegrationBudgetHours: 2.0,
-        ),
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 2.0),
       );
 
       final target = plan.plannedTargets.single;
@@ -449,8 +440,7 @@ void main() {
       expect(target.integrationSecs, lessThanOrEqualTo(2.0 * 3600 * 1.10));
     });
 
-    test(
-        'appends flats group when profile has cover calibrator '
+    test('appends flats group when profile has cover calibrator '
         'and includeFlatsAtEnd=true (with ADU-calibrated flat plan)', () {
       // Flats now require ADU-calibrated exposures (no blind 3s). Supply a
       // flat plan covering the LRGB rotation so the group is emitted.
@@ -567,9 +557,7 @@ void main() {
         context: tightContext,
         selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
         strategy: SmartNightStrategy.autoLrgb,
-        settings: const SmartNightSettings(
-          defaultIntegrationBudgetHours: 2.0,
-        ),
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 2.0),
       );
 
       expect(
@@ -588,13 +576,15 @@ void main() {
         strategy: SmartNightStrategy.autoLrgb,
         settings: const SmartNightSettings(),
       );
-      final header =
-          plan.sequence.nodes.values.whereType<TargetHeaderNode>().single;
+      final header = plan.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .single;
       expect(header.integrationBudget, isNotNull);
       expect(header.integrationBudget!.isActive, isTrue);
       // SmartExposure carries its own budget too.
-      final smart =
-          plan.sequence.nodes.values.whereType<SmartExposureNode>().single;
+      final smart = plan.sequence.nodes.values
+          .whereType<SmartExposureNode>()
+          .single;
       expect(smart.integrationBudgetSecs, greaterThan(0));
     });
 
@@ -695,15 +685,15 @@ void main() {
         containsAll(['L', 'R', 'G', 'B']),
       );
 
-      final smartExposure =
-          result.sequence.nodes.values.whereType<SmartExposureNode>().single;
+      final smartExposure = result.sequence.nodes.values
+          .whereType<SmartExposureNode>()
+          .single;
       expect(smartExposure.rotateFilters, isTrue);
-      expect(smartExposure.plans.map((p) => p.filterName),
-          containsAll(['L', 'R', 'G', 'B']));
       expect(
-        result.sequence.nodes.values.whereType<SlewNode>(),
-        isNotEmpty,
+        smartExposure.plans.map((p) => p.filterName),
+        containsAll(['L', 'R', 'G', 'B']),
       );
+      expect(result.sequence.nodes.values.whereType<SlewNode>(), isNotEmpty);
       expect(
         result.sequence.nodes.values.whereType<AutofocusNode>(),
         isNotEmpty,
@@ -830,10 +820,7 @@ void main() {
         result.filterPlans.map((p) => p.filterName),
         containsAll(['L', 'R', 'G']),
       );
-      expect(
-        result.filterPlans.map((p) => p.filterName),
-        isNot(contains('B')),
-      );
+      expect(result.filterPlans.map((p) => p.filterName), isNot(contains('B')));
     });
 
     test('buildSingleTargetSequence infers HOO for emission nebula', () {
@@ -916,14 +903,18 @@ void main() {
         result.sequence.nodes.values.whereType<StartGuidingNode>(),
         isNotEmpty,
       );
-      final target =
-          result.sequence.nodes.values.whereType<TargetHeaderNode>().single;
-      final targetChildren =
-          target.childIds.map((id) => result.sequence.nodes[id]).toList();
-      final autofocusIndex =
-          targetChildren.indexWhere((node) => node is AutofocusNode);
-      final guidingIndex =
-          targetChildren.indexWhere((node) => node is StartGuidingNode);
+      final target = result.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .single;
+      final targetChildren = target.childIds
+          .map((id) => result.sequence.nodes[id])
+          .toList();
+      final autofocusIndex = targetChildren.indexWhere(
+        (node) => node is AutofocusNode,
+      );
+      final guidingIndex = targetChildren.indexWhere(
+        (node) => node is StartGuidingNode,
+      );
       expect(autofocusIndex, isNonNegative);
       expect(guidingIndex, isNonNegative);
       expect(autofocusIndex, lessThan(guidingIndex));
@@ -967,48 +958,53 @@ void main() {
       );
     }
 
-    Iterable<ExposureNode> darkExposures(SmartNightPlan plan) =>
-        plan.sequence.nodes.values
-            .whereType<ExposureNode>()
-            .where((n) => n.frameType == FrameType.dark);
-
-    test('auto-schedule darks OFF: no dark nodes appended, warning preserved',
-        () {
-      final plan = service.build(
-        profile: monoProfile,
-        latitudeDeg: 41.0,
-        longitudeDeg: -73.0,
-        context: darkGapContext(
-          notes: const ['gain=100, temp=-10C, duration=120s, binning=1x1'],
-          requirements: const [
-            DarkFrameRequirement(
-              gain: 100,
-              offset: 50,
-              durationSecs: 120,
-              binX: 1,
-              binY: 1,
-              targetTemp: -10,
-            ),
-          ],
-        ),
-        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
-        strategy: SmartNightStrategy.autoLrgb,
-        settings: const SmartNightSettings(),
-      );
-
-      expect(darkExposures(plan), isEmpty);
-      expect(
-        plan.warnings.any((w) => w.contains('does not auto-schedule')),
-        isTrue,
-      );
-      expect(
-        plan.warnings.any((w) => w.contains('Dark library refresh scheduled')),
-        isFalse,
-      );
-    });
+    Iterable<ExposureNode> darkExposures(SmartNightPlan plan) => plan
+        .sequence
+        .nodes
+        .values
+        .whereType<ExposureNode>()
+        .where((n) => n.frameType == FrameType.dark);
 
     test(
-        'auto-schedule darks ON with no gaps: no dark nodes added '
+      'auto-schedule darks OFF: no dark nodes appended, warning preserved',
+      () {
+        final plan = service.build(
+          profile: monoProfile,
+          latitudeDeg: 41.0,
+          longitudeDeg: -73.0,
+          context: darkGapContext(
+            notes: const ['gain=100, temp=-10C, duration=120s, binning=1x1'],
+            requirements: const [
+              DarkFrameRequirement(
+                gain: 100,
+                offset: 50,
+                durationSecs: 120,
+                binX: 1,
+                binY: 1,
+                targetTemp: -10,
+              ),
+            ],
+          ),
+          selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+          strategy: SmartNightStrategy.autoLrgb,
+          settings: const SmartNightSettings(),
+        );
+
+        expect(darkExposures(plan), isEmpty);
+        expect(
+          plan.warnings.any((w) => w.contains('does not auto-schedule')),
+          isTrue,
+        );
+        expect(
+          plan.warnings.any(
+            (w) => w.contains('Dark library refresh scheduled'),
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('auto-schedule darks ON with no gaps: no dark nodes added '
         'and no dark library warning emitted', () {
       final plan = service.build(
         profile: monoProfile,
@@ -1022,15 +1018,16 @@ void main() {
 
       expect(darkExposures(plan), isEmpty);
       expect(
-        plan.warnings.any((w) =>
-            w.contains('does not auto-schedule') ||
-            w.contains('Dark library refresh scheduled')),
+        plan.warnings.any(
+          (w) =>
+              w.contains('does not auto-schedule') ||
+              w.contains('Dark library refresh scheduled'),
+        ),
         isFalse,
       );
     });
 
-    test(
-        'auto-schedule darks ON with gaps: dark group is appended '
+    test('auto-schedule darks ON with gaps: dark group is appended '
         'and informational warning replaces the gap-warning', () {
       const requirements = [
         DarkFrameRequirement(
@@ -1096,16 +1093,17 @@ void main() {
         isFalse,
       );
       expect(
-        plan.warnings.any((w) =>
-            w.contains('Dark library refresh scheduled') &&
-            w.contains('30 dark frames') &&
-            w.contains('2 combinations')),
+        plan.warnings.any(
+          (w) =>
+              w.contains('Dark library refresh scheduled') &&
+              w.contains('30 dark frames') &&
+              w.contains('2 combinations'),
+        ),
         isTrue,
       );
     });
 
-    test(
-        'dark group sits AFTER the target headers and BEFORE WarmCamera '
+    test('dark group sits AFTER the target headers and BEFORE WarmCamera '
         '— preserves cooled-sensor temperature for the darks', () {
       const requirements = [
         DarkFrameRequirement(
@@ -1147,18 +1145,11 @@ void main() {
       expect(darkGroupId, isNotNull);
       expect(warmId, isNotNull);
       expect(targetHeaderId, isNotNull);
-      expect(
-        ids.indexOf(targetHeaderId!),
-        lessThan(ids.indexOf(darkGroupId!)),
-      );
-      expect(
-        ids.indexOf(darkGroupId),
-        lessThan(ids.indexOf(warmId!)),
-      );
+      expect(ids.indexOf(targetHeaderId!), lessThan(ids.indexOf(darkGroupId!)));
+      expect(ids.indexOf(darkGroupId), lessThan(ids.indexOf(warmId!)));
     });
 
-    test(
-        'auto-schedule darks emits CloseCover/OpenCover when a cover '
+    test('auto-schedule darks emits CloseCover/OpenCover when a cover '
         'calibrator is on the profile', () {
       const requirements = [
         DarkFrameRequirement(
@@ -1191,18 +1182,11 @@ void main() {
       final children = darkGroup.childIds
           .map((id) => plan.sequence.nodes[id])
           .toList(growable: false);
-      expect(
-        children.whereType<CloseCoverNode>(),
-        isNotEmpty,
-      );
-      expect(
-        children.whereType<OpenCoverNode>(),
-        isNotEmpty,
-      );
+      expect(children.whereType<CloseCoverNode>(), isNotEmpty);
+      expect(children.whereType<OpenCoverNode>(), isNotEmpty);
     });
 
-    test(
-        'auto-schedule darks emits a NotificationNode reminder '
+    test('auto-schedule darks emits a NotificationNode reminder '
         'when no cover calibrator is available', () {
       const requirements = [
         DarkFrameRequirement(
@@ -1221,9 +1205,7 @@ void main() {
         context: darkGapContext(requirements: requirements),
         selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
         strategy: SmartNightStrategy.autoLrgb,
-        settings: const SmartNightSettings(
-          autoScheduleMissingDarks: true,
-        ),
+        settings: const SmartNightSettings(autoScheduleMissingDarks: true),
       );
 
       final darkGroup = plan.sequence.nodes.values
@@ -1234,14 +1216,10 @@ void main() {
           .toList(growable: false);
       final notifications = children.whereType<NotificationNode>().toList();
       expect(notifications, isNotEmpty);
-      expect(
-        notifications.first.title,
-        contains('Cover the OTA'),
-      );
+      expect(notifications.first.title, contains('Cover the OTA'));
     });
 
-    test(
-        'JSON round-trip preserves missingDarkRequirements + '
+    test('JSON round-trip preserves missingDarkRequirements + '
         'autoScheduleMissingDarks settings', () {
       const requirements = [
         DarkFrameRequirement(
@@ -1302,8 +1280,7 @@ void main() {
       );
     }
 
-    test(
-        'build() threads guide RMS from the exposure context into the '
+    test('build() threads guide RMS from the exposure context into the '
         'mount-tracking ceiling (no "sparse" warning when RMS is known)', () {
       // A poor guide RMS with >= 3 samples must engage the mount ceiling and
       // shorten the sub-exposure. The context itself carries no guide history
@@ -1336,9 +1313,12 @@ void main() {
 
       // The "sparse history" warning must NOT appear — the RMS was threaded.
       expect(
-        tightPlan.warnings.any((w) => w.contains('guide-RMS history is sparse')),
+        tightPlan.warnings.any(
+          (w) => w.contains('guide-RMS history is sparse'),
+        ),
         isFalse,
-        reason: 'guide RMS from the exposure context should activate the '
+        reason:
+            'guide RMS from the exposure context should activate the '
             'mount ceiling, so the sparse-history warning must not fire.',
       );
 
@@ -1362,20 +1342,22 @@ void main() {
       );
 
       double haFilterSecs(SmartNightPlan plan) => plan
-          .plannedTargets.first.filterPlans
+          .plannedTargets
+          .first
+          .filterPlans
           .firstWhere((p) => p.filterName == 'Ha')
           .durationSecs;
 
       expect(
         haFilterSecs(tightPlan),
         lessThan(haFilterSecs(loosePlan)),
-        reason: 'a 3.0" RMS mount must cap the sub-exposure shorter than a '
+        reason:
+            'a 3.0" RMS mount must cap the sub-exposure shorter than a '
             '0.3" RMS mount once the guide RMS is threaded through.',
       );
     });
 
-    test(
-        'build() keeps the sparse-history warning when neither the context '
+    test('build() keeps the sparse-history warning when neither the context '
         'nor the exposure context carry guide RMS', () {
       final plan = service.build(
         profile: monoProfile,
@@ -1396,8 +1378,7 @@ void main() {
 
     // --- P1: pixel size must not silently fall back to 3.76um ------------
 
-    test(
-        'build() fails loud when pixel size is unknown (no exposure context '
+    test('build() fails loud when pixel size is unknown (no exposure context '
         'and camera not in catalog)', () {
       const unknownCameraProfile = EquipmentProfileModel(
         id: 9,
@@ -1431,8 +1412,7 @@ void main() {
       );
     });
 
-    test(
-        'build() uses the catalog pixel size for a known camera without an '
+    test('build() uses the catalog pixel size for a known camera without an '
         'exposure context (no silent 3.76um)', () {
       // monoProfile's camera ("ZWO ASI2600MM Pro") is in the bundled catalog,
       // so the build must succeed using the catalog pixel size — not throw,
@@ -1451,8 +1431,7 @@ void main() {
 
     // --- P1: auto-flats must use ADU-calibrated exposures, not blind 3s --
 
-    test(
-        'build() emits a loud reminder instead of blind flats when no flat '
+    test('build() emits a loud reminder instead of blind flats when no flat '
         'calibration is available', () {
       final plan = service.build(
         profile: monoProfile,
@@ -1473,13 +1452,17 @@ void main() {
       final flatExposures = plan.sequence.nodes.values
           .whereType<ExposureNode>()
           .where((n) => n.frameType == FrameType.flat);
-      expect(flatExposures, isEmpty,
-          reason: 'must not emit blind flats without ADU calibration');
+      expect(
+        flatExposures,
+        isEmpty,
+        reason: 'must not emit blind flats without ADU calibration',
+      );
 
       // A loud notification + a build warning must be present.
       expect(
         plan.sequence.nodes.values.whereType<NotificationNode>().any(
-            (n) => n.title.contains('Automated flats skipped')),
+          (n) => n.title.contains('Automated flats skipped'),
+        ),
         isTrue,
       );
       expect(
@@ -1488,8 +1471,7 @@ void main() {
       );
     });
 
-    test(
-        'build() emits ADU-calibrated flat exposures + calibrated panel '
+    test('build() emits ADU-calibrated flat exposures + calibrated panel '
         'brightness when a flat plan is supplied', () {
       const flatPlan = SmartNightFlatPlan(
         perFilter: {
@@ -1567,9 +1549,11 @@ void main() {
 
       // The uncalibrated filter (B) triggers a loud reminder.
       expect(
-        plan.sequence.nodes.values.whereType<NotificationNode>().any((n) =>
-            n.message.contains('B') &&
-            n.title.contains('no calibrated flat exposure')),
+        plan.sequence.nodes.values.whereType<NotificationNode>().any(
+          (n) =>
+              n.message.contains('B') &&
+              n.title.contains('no calibrated flat exposure'),
+        ),
         isTrue,
       );
     });
@@ -1640,10 +1624,10 @@ void main() {
     }
 
     List<TargetSuggestion> threeTargets() => [
-          suggestion(id: 1, name: 'M31'),
-          suggestion(id: 2, name: 'M81'),
-          suggestion(id: 3, name: 'M51'),
-        ];
+      suggestion(id: 1, name: 'M31'),
+      suggestion(id: 2, name: 'M81'),
+      suggestion(id: 3, name: 'M51'),
+    ];
 
     test('preset default ON: emitted node carries swap threshold 80', () {
       final plan = service.build(
@@ -1657,8 +1641,9 @@ void main() {
         settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
       );
 
-      final scheduler =
-          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      final scheduler = plan.sequence.nodes.values
+          .whereType<TargetSchedulerNode>()
+          .single;
       expect(
         scheduler.swapOnConditionsBelow,
         SmartNightSettings.adaptiveSwapConditionsFloor,
@@ -1682,8 +1667,9 @@ void main() {
         ),
       );
 
-      final scheduler =
-          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      final scheduler = plan.sequence.nodes.values
+          .whereType<TargetSchedulerNode>()
+          .single;
       expect(scheduler.swapOnConditionsBelow, isNull);
     });
 
@@ -1708,43 +1694,49 @@ void main() {
         settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
       );
 
-      final scheduler =
-          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      final scheduler = plan.sequence.nodes.values
+          .whereType<TargetSchedulerNode>()
+          .single;
       expect(scheduler.horizonProfile, isNotNull);
       expect(scheduler.horizonProfile!.samples, hasLength(4));
       // The mask interpolates per-azimuth exactly like the live autopilot's
       // HorizonProfile.minAltitudeAt — spot-check a sample and a midpoint.
-      expect(scheduler.horizonProfile!.minAltitudeAt(90.0), closeTo(35.0, 1e-9));
+      expect(
+        scheduler.horizonProfile!.minAltitudeAt(90.0),
+        closeTo(35.0, 1e-9),
+      );
       expect(
         scheduler.horizonProfile!.minAltitudeAt(45.0),
         closeTo(27.5, 1e-9),
       );
     });
 
-    test('no horizon in context leaves the node on a flat floor (null mask)',
-        () {
-      final plan = service.build(
-        profile: monoProfile,
-        latitudeDeg: 41.0,
-        longitudeDeg: -73.0,
-        context: contextWith(),
-        selectedSuggestions: threeTargets(),
-        strategy: SmartNightStrategy.autoLrgb,
-        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
-      );
+    test(
+      'no horizon in context leaves the node on a flat floor (null mask)',
+      () {
+        final plan = service.build(
+          profile: monoProfile,
+          latitudeDeg: 41.0,
+          longitudeDeg: -73.0,
+          context: contextWith(),
+          selectedSuggestions: threeTargets(),
+          strategy: SmartNightStrategy.autoLrgb,
+          settings: const SmartNightSettings(
+            defaultIntegrationBudgetHours: 1.5,
+          ),
+        );
 
-      final scheduler =
-          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
-      expect(scheduler.horizonProfile, isNull);
-    });
+        final scheduler = plan.sequence.nodes.values
+            .whereType<TargetSchedulerNode>()
+            .single;
+        expect(scheduler.horizonProfile, isNull);
+      },
+    );
 
     test('SmartNightPlan JSON round-trips the swap preset + horizon mask', () {
       const horizon = HorizonProfile(
         name: 'Backyard fence',
-        samples: [
-          HorizonSample(0.0, 20.0),
-          HorizonSample(180.0, 15.0),
-        ],
+        samples: [HorizonSample(0.0, 20.0), HorizonSample(180.0, 15.0)],
       );
       final plan = service.build(
         profile: monoProfile,
@@ -1757,8 +1749,9 @@ void main() {
       );
 
       final restored = SmartNightPlan.fromJson(plan.toJson());
-      final scheduler =
-          restored.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      final scheduler = restored.sequence.nodes.values
+          .whereType<TargetSchedulerNode>()
+          .single;
       expect(scheduler.swapOnConditionsBelow, 80.0);
       expect(scheduler.horizonProfile, isNotNull);
       expect(scheduler.horizonProfile!.samples, hasLength(2));
@@ -1817,11 +1810,7 @@ void main() {
     test('planetary nebula on mixed rig picks LRGB not SHO', () {
       expect(
         inferSmartNightStrategy(
-          minimalSuggestion(
-            id: 4,
-            name: 'M57',
-            objectType: 'Planetary Nebula',
-          ),
+          minimalSuggestion(id: 4, name: 'M57', objectType: 'Planetary Nebula'),
           const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
         ),
         SmartNightStrategy.autoLrgb,
@@ -1845,11 +1834,7 @@ void main() {
     test('generic nebula label without emission does not force SHO', () {
       expect(
         inferSmartNightStrategy(
-          minimalSuggestion(
-            id: 6,
-            name: 'NGC 2244',
-            objectType: 'Nebula',
-          ),
+          minimalSuggestion(id: 6, name: 'NGC 2244', objectType: 'Nebula'),
           const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
         ),
         SmartNightStrategy.autoLrgb,
@@ -1859,11 +1844,7 @@ void main() {
     test('single filter rig picks oscOneShot', () {
       expect(
         inferSmartNightStrategy(
-          minimalSuggestion(
-            id: 3,
-            name: 'M42',
-            objectType: 'Emission Nebula',
-          ),
+          minimalSuggestion(id: 3, name: 'M42', objectType: 'Emission Nebula'),
           const ['L-eXtreme'],
         ),
         SmartNightStrategy.oscOneShot,

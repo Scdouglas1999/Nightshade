@@ -15,16 +15,16 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all sessions
   Future<List<ImagingSession>> getAllSessions() {
-    return (select(imagingSessions)
-          ..orderBy([(s) => OrderingTerm.desc(s.startTime)]))
-        .get();
+    return (select(
+      imagingSessions,
+    )..orderBy([(s) => OrderingTerm.desc(s.startTime)])).get();
   }
 
   /// Watch all sessions
   Stream<List<ImagingSession>> watchAllSessions() {
-    return (select(imagingSessions)
-          ..orderBy([(s) => OrderingTerm.desc(s.startTime)]))
-        .watch();
+    return (select(
+      imagingSessions,
+    )..orderBy([(s) => OrderingTerm.desc(s.startTime)])).watch();
   }
 
   /// Get recent sessions
@@ -37,8 +37,9 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get session by ID
   Future<ImagingSession?> getSessionById(int id) {
-    return (select(imagingSessions)..where((s) => s.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      imagingSessions,
+    )..where((s) => s.id.equals(id))).getSingleOrNull();
   }
 
   /// Get sessions for a target
@@ -55,9 +56,11 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     DateTime end,
   ) {
     return (select(imagingSessions)
-          ..where((s) =>
-              s.startTime.isBiggerOrEqualValue(start) &
-              s.startTime.isSmallerOrEqualValue(end))
+          ..where(
+            (s) =>
+                s.startTime.isBiggerOrEqualValue(start) &
+                s.startTime.isSmallerOrEqualValue(end),
+          )
           ..orderBy([(s) => OrderingTerm.desc(s.startTime)]))
         .get();
   }
@@ -97,7 +100,8 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Update session statistics
-  Future<void> updateSessionStats(int id, {
+  Future<void> updateSessionStats(
+    int id, {
     int? totalExposures,
     int? successfulExposures,
     int? failedExposures,
@@ -107,16 +111,30 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     int? autofocusCount,
   }) async {
     final updates = ImagingSessionsCompanion(
-      totalExposures: totalExposures != null ? Value(totalExposures) : const Value.absent(),
-      successfulExposures: successfulExposures != null ? Value(successfulExposures) : const Value.absent(),
-      failedExposures: failedExposures != null ? Value(failedExposures) : const Value.absent(),
-      totalIntegrationSecs: totalIntegrationSecs != null ? Value(totalIntegrationSecs) : const Value.absent(),
+      totalExposures: totalExposures != null
+          ? Value(totalExposures)
+          : const Value.absent(),
+      successfulExposures: successfulExposures != null
+          ? Value(successfulExposures)
+          : const Value.absent(),
+      failedExposures: failedExposures != null
+          ? Value(failedExposures)
+          : const Value.absent(),
+      totalIntegrationSecs: totalIntegrationSecs != null
+          ? Value(totalIntegrationSecs)
+          : const Value.absent(),
       avgHfr: avgHfr != null ? Value(avgHfr) : const Value.absent(),
-      avgGuidingRms: avgGuidingRms != null ? Value(avgGuidingRms) : const Value.absent(),
-      autofocusCount: autofocusCount != null ? Value(autofocusCount) : const Value.absent(),
+      avgGuidingRms: avgGuidingRms != null
+          ? Value(avgGuidingRms)
+          : const Value.absent(),
+      autofocusCount: autofocusCount != null
+          ? Value(autofocusCount)
+          : const Value.absent(),
     );
 
-    await (update(imagingSessions)..where((s) => s.id.equals(id))).write(updates);
+    await (update(
+      imagingSessions,
+    )..where((s) => s.id.equals(id))).write(updates);
   }
 
   /// Add notes to a session
@@ -220,12 +238,18 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     double? avgSeeing,
   }) async {
     final updates = ImagingSessionsCompanion(
-      avgTemperature: avgTemperature != null ? Value(avgTemperature) : const Value.absent(),
-      avgHumidity: avgHumidity != null ? Value(avgHumidity) : const Value.absent(),
+      avgTemperature: avgTemperature != null
+          ? Value(avgTemperature)
+          : const Value.absent(),
+      avgHumidity: avgHumidity != null
+          ? Value(avgHumidity)
+          : const Value.absent(),
       avgSeeing: avgSeeing != null ? Value(avgSeeing) : const Value.absent(),
     );
 
-    await (update(imagingSessions)..where((s) => s.id.equals(id))).write(updates);
+    await (update(
+      imagingSessions,
+    )..where((s) => s.id.equals(id))).write(updates);
   }
 
   /// Check if there are any incomplete/crashed sessions
@@ -262,8 +286,3 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 }
-
-
-
-
-

@@ -163,66 +163,72 @@ class MosaicService {
   /// This implementation is driver-agnostic and works for both local and remote clients.
   List<MosaicPanel> generatePanels(MosaicConfig config) {
     final panels = <MosaicPanel>[];
-    
+
     // Calculate effective step sizes accounting for overlap
     final overlapFactor = 1.0 - (config.overlapPercent / 100.0);
     final effectiveWidthArcmin = config.panelWidthArcmin * overlapFactor;
     final effectiveHeightArcmin = config.panelHeightArcmin * overlapFactor;
-    
+
     // Convert arcmin to degrees for calculations
     final stepDecDeg = effectiveHeightArcmin / 60.0;
     final stepRaDeg = effectiveWidthArcmin / 60.0;
-    
+
     // Calculate center offsets (for centering the grid on the target)
     final halfHorizontal = (config.panelsHorizontal - 1) / 2.0;
     final halfVertical = (config.panelsVertical - 1) / 2.0;
-    
+
     // Pre-calculate rotation if needed
     final rotationRad = config.rotation * 3.141592653589793 / 180.0;
     final cosRot = rotationRad == 0 ? 1.0 : _cos(rotationRad);
     final sinRot = rotationRad == 0 ? 0.0 : _sin(rotationRad);
-    
+
     // RA compression factor at target declination (cos(dec) correction)
     final decRad = config.centerDec * 3.141592653589793 / 180.0;
     final raCompressionFactor = _cos(decRad);
-    
+
     int panelIndex = 0;
     for (int row = 0; row < config.panelsVertical; row++) {
       for (int col = 0; col < config.panelsHorizontal; col++) {
         // Calculate offset from center in grid coordinates
         final colOffset = col - halfHorizontal;
         final rowOffset = row - halfVertical;
-        
+
         // Apply rotation to get delta in degrees
         double dRaDeg, dDecDeg;
         if (config.rotation != 0) {
           // Rotate the offset
-          dRaDeg = colOffset * stepRaDeg * cosRot - rowOffset * stepDecDeg * sinRot;
-          dDecDeg = colOffset * stepRaDeg * sinRot + rowOffset * stepDecDeg * cosRot;
+          dRaDeg =
+              colOffset * stepRaDeg * cosRot - rowOffset * stepDecDeg * sinRot;
+          dDecDeg =
+              colOffset * stepRaDeg * sinRot + rowOffset * stepDecDeg * cosRot;
         } else {
           dRaDeg = colOffset * stepRaDeg;
           dDecDeg = rowOffset * stepDecDeg;
         }
-        
+
         // Apply RA compression correction (RA spans more degrees near poles)
-        final raAdjustDeg = raCompressionFactor > 0.001 
-            ? dRaDeg / raCompressionFactor 
+        final raAdjustDeg = raCompressionFactor > 0.001
+            ? dRaDeg / raCompressionFactor
             : dRaDeg;
-        
+
         // Convert RA offset from degrees to hours (15 degrees = 1 hour)
-        final raHours = _normalizeRaHours(config.centerRa + (raAdjustDeg / 15.0));
+        final raHours = _normalizeRaHours(
+          config.centerRa + (raAdjustDeg / 15.0),
+        );
         final decDegrees = config.centerDec + dDecDeg;
-        
-        panels.add(MosaicPanel(
-          raHours: raHours,
-          decDegrees: decDegrees,
-          panelIndex: panelIndex++,
-          row: row,
-          col: col,
-        ));
+
+        panels.add(
+          MosaicPanel(
+            raHours: raHours,
+            decDegrees: decDegrees,
+            panelIndex: panelIndex++,
+            row: row,
+            col: col,
+          ),
+        );
       }
     }
-    
+
     return panels;
   }
 
@@ -237,11 +243,11 @@ class MosaicService {
     // Total width and height in arcminutes
     final totalWidthArcmin = config.panelWidthArcmin * config.panelsHorizontal;
     final totalHeightArcmin = config.panelHeightArcmin * config.panelsVertical;
-    
+
     // Convert to degrees and calculate area
     final widthDeg = totalWidthArcmin / 60.0;
     final heightDeg = totalHeightArcmin / 60.0;
-    
+
     return widthDeg * heightDeg;
   }
 
@@ -259,7 +265,8 @@ class MosaicService {
     double overheadPerPanelSecs = 60.0,
   }) {
     // Total time = panels * (exposures per panel * exposure time + overhead)
-    final exposureTimePerPanel = exposure.exposuresPerPanel * exposure.exposureSeconds;
+    final exposureTimePerPanel =
+        exposure.exposuresPerPanel * exposure.exposureSeconds;
     final totalTimePerPanel = exposureTimePerPanel + overheadPerPanelSecs;
     return config.totalPanels * totalTimePerPanel;
   }
@@ -274,7 +281,8 @@ class MosaicService {
       errors.add('Panel dimensions must be positive');
     }
 
-    if (config.panelWidthArcmin > 360 * 60 || config.panelHeightArcmin > 360 * 60) {
+    if (config.panelWidthArcmin > 360 * 60 ||
+        config.panelHeightArcmin > 360 * 60) {
       errors.add('Panel dimensions exceed 360 degrees');
     }
 
@@ -284,7 +292,9 @@ class MosaicService {
     }
 
     if (config.panelsHorizontal > 20 || config.panelsVertical > 20) {
-      warnings.add('Large mosaics (>20 panels per dimension) may take very long');
+      warnings.add(
+        'Large mosaics (>20 panels per dimension) may take very long',
+      );
     }
 
     // Validate coordinates
@@ -311,12 +321,16 @@ class MosaicService {
 
     // Check total panel count
     if (config.totalPanels > 100) {
-      warnings.add('More than 100 panels will take multiple nights to complete');
+      warnings.add(
+        'More than 100 panels will take multiple nights to complete',
+      );
     }
 
     // Check if target is near celestial poles
     if (config.centerDec.abs() > 80) {
-      warnings.add('Targets near celestial poles may have distorted panel layout');
+      warnings.add(
+        'Targets near celestial poles may have distorted panel layout',
+      );
     }
 
     return MosaicValidation(
@@ -395,7 +409,8 @@ class MosaicService {
 
       // Add autofocus if enabled and at the right interval
       if (options.autofocusPerPanel &&
-          (options.autofocusInterval == 0 || i % (options.autofocusInterval + 1) == 0)) {
+          (options.autofocusInterval == 0 ||
+              i % (options.autofocusInterval + 1) == 0)) {
         final autofocusId = uuid.v4();
         childIds.add(autofocusId);
         nodes[autofocusId] = AutofocusNode(
@@ -459,7 +474,9 @@ class MosaicService {
         count: 1, // Loop handles the repetition
         frameType: FrameType.light,
         filter: exposure.filterName,
-        binning: exposure.binning != null ? _intToBinningMode(exposure.binning!) : BinningMode.one,
+        binning: exposure.binning != null
+            ? _intToBinningMode(exposure.binning!)
+            : BinningMode.one,
         gain: exposure.gain?.toInt(),
         offset: exposure.offset?.toInt(),
         parentId: loopId,
@@ -566,7 +583,10 @@ class MosaicService {
     final raDeg = raHours * 15.0;
 
     // Calculate local sidereal time at the observer's location
-    final lst = AstronomyCalculations.localSiderealTime(time, observerLongitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      time,
+      observerLongitude,
+    );
 
     // Convert equatorial coordinates (RA/Dec) to horizontal coordinates (Alt/Az)
     final (altitude, _) = AstronomyCalculations.equatorialToHorizontal(

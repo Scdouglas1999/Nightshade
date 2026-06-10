@@ -126,8 +126,7 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
       return const EmptyState(
         icon: LucideIcons.history,
         title: 'No past runs yet',
-        body:
-            'Once you finish a sequence run, it will appear here for replay.',
+        body: 'Once you finish a sequence run, it will appear here for replay.',
       );
     }
 
@@ -135,10 +134,7 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _runs.length + (showLoadMore ? 1 : 0),
-      separatorBuilder: (_, __) => Divider(
-        height: 1,
-        color: colors.border,
-      ),
+      separatorBuilder: (_, __) => Divider(height: 1, color: colors.border),
       itemBuilder: (context, index) {
         if (index >= _runs.length) {
           return _LoadMoreTile(
@@ -148,10 +144,7 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
           );
         }
         final run = _runs[index];
-        return _RunRow(
-          run: run,
-          onTap: () => _openReplay(run),
-        );
+        return _RunRow(run: run, onTap: () => _openReplay(run));
       },
     );
   }
@@ -184,9 +177,8 @@ class _RunRow extends StatelessWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final duration = run.endedAt?.difference(run.startedAt);
     final stats = _parseStats(run.statsJson);
-    final frameCount = stats['framesCaptured'] as int? ??
-        stats['frame_count'] as int? ??
-        0;
+    final frameCount =
+        stats['framesCaptured'] as int? ?? stats['frame_count'] as int? ?? 0;
     final targetBreakdown = stats['targetBreakdown'];
     String? targetName;
     if (targetBreakdown is Map && targetBreakdown.isNotEmpty) {
@@ -420,16 +412,10 @@ class _ErrorRetry extends StatelessWidget {
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
             const SizedBox(height: 16),
-            NightshadeButton(
-              label: 'Retry',
-              onPressed: onRetry,
-            ),
+            NightshadeButton(label: 'Retry', onPressed: onRetry),
           ],
         ),
       ),

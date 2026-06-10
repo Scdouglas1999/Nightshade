@@ -7,9 +7,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // is a method on this class so we can pass the bound reference even
     // though the server hasn't bound a socket yet — the event stream
     // becomes active in start().
-    _jobManager = JobManager(
-      emitEvent: broadcastEvent,
-    );
+    _jobManager = JobManager(emitEvent: broadcastEvent);
 
     // P1-5 — session ownership manager. The digest function reuses the
     // existing `computeServerFingerprint` helper so token-digest values
@@ -24,10 +22,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // solve, center-on-target, polar-alignment) receive the JobManager
     // so their handlers return `{jobId, status: queued}` immediately and
     // run the work in the background. Other handlers don't need it.
-    _deviceHandlers = DeviceHandlers(
-      container,
-      jobManager: _jobManager,
-    );
+    _deviceHandlers = DeviceHandlers(container, jobManager: _jobManager);
     _deviceDiscoveryHandlers = DeviceDiscoveryHandlers(container);
     _collaborationHandlers = CollaborationHandlers(
       manager: _collaborationManager,
@@ -90,14 +85,8 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // [Wave 6B settings sync] inject `broadcastEvent` so handleUpdateSettings
     // can fan settings.changed events out to every connected WS client.
     _profileHandlers = ProfileHandlers(container, emitEvent: broadcastEvent);
-    _imagingHandlers = ImagingHandlers(
-      container,
-      jobManager: _jobManager,
-    );
-    _sessionHandlers = SessionHandlers(
-      container,
-      jobManager: _jobManager,
-    );
+    _imagingHandlers = ImagingHandlers(container, jobManager: _jobManager);
+    _sessionHandlers = SessionHandlers(container, jobManager: _jobManager);
 
     // Initialize new feature parity handlers
     _targetHandlers = TargetHandlers(container);
@@ -110,10 +99,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _transientHandlers = TransientHandlers(container);
     _backupHandlers = BackupHandlers(container);
     _syncHandlers = SyncHandlers(container);
-    _framingHandlers = FramingHandlers(
-      container,
-      jobManager: _jobManager,
-    );
+    _framingHandlers = FramingHandlers(container, jobManager: _jobManager);
     _fileSystemHandlers = FileSystemHandlers(container);
     _scienceHandlers = ScienceHandlers(container);
 

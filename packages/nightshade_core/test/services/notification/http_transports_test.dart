@@ -27,37 +27,38 @@ void main() {
       await t.dispose();
     });
 
-    test('configured -> hits the api endpoint with token + user + message',
-        () async {
-      late http.Request capturedReq;
-      final t = PushoverTransport(
-        config: const PushoverTransportConfig(
-          apiToken: 'TOK',
-          userKey: 'USR',
-        ),
-        httpClient: MockClient((req) async {
-          capturedReq = req;
-          return http.Response('{"status":1}', 200);
-        }),
-      );
-      final res = await t.send(
-        category: NotificationCategory.targetCompleted,
-        title: 'Hello',
-        body: 'World',
-      );
-      expect(res.success, isTrue);
-      expect(capturedReq.url.host, contains('pushover'));
-      expect(capturedReq.bodyFields['token'], 'TOK');
-      expect(capturedReq.bodyFields['user'], 'USR');
-      expect(capturedReq.bodyFields['title'], 'Hello');
-      expect(capturedReq.bodyFields['message'], 'World');
-      await t.dispose();
-    });
+    test(
+      'configured -> hits the api endpoint with token + user + message',
+      () async {
+        late http.Request capturedReq;
+        final t = PushoverTransport(
+          config: const PushoverTransportConfig(
+            apiToken: 'TOK',
+            userKey: 'USR',
+          ),
+          httpClient: MockClient((req) async {
+            capturedReq = req;
+            return http.Response('{"status":1}', 200);
+          }),
+        );
+        final res = await t.send(
+          category: NotificationCategory.targetCompleted,
+          title: 'Hello',
+          body: 'World',
+        );
+        expect(res.success, isTrue);
+        expect(capturedReq.url.host, contains('pushover'));
+        expect(capturedReq.bodyFields['token'], 'TOK');
+        expect(capturedReq.bodyFields['user'], 'USR');
+        expect(capturedReq.bodyFields['title'], 'Hello');
+        expect(capturedReq.bodyFields['message'], 'World');
+        await t.dispose();
+      },
+    );
 
     test('non-200 response -> failure with status code', () async {
       final t = PushoverTransport(
-        config: const PushoverTransportConfig(
-            apiToken: 'TOK', userKey: 'USR'),
+        config: const PushoverTransportConfig(apiToken: 'TOK', userKey: 'USR'),
         httpClient: MockClient((req) async => http.Response('bad', 401)),
       );
       final res = await t.send(
@@ -87,40 +88,38 @@ void main() {
       await t.dispose();
     });
 
-    test('configured -> posts to /bot<token>/sendMessage with chat_id',
-        () async {
-      late http.Request captured;
-      final t = TelegramTransport(
-        config: const TelegramTransportConfig(
-          botToken: 'BOT',
-          chatId: '@me',
-        ),
-        httpClient: MockClient((req) async {
-          captured = req;
-          return http.Response('{"ok":true,"result":{}}', 200);
-        }),
-      );
-      final res = await t.send(
-        category: NotificationCategory.targetCompleted,
-        title: 'Hi',
-        body: 'There',
-      );
-      expect(res.success, isTrue);
-      expect(captured.url.path, '/botBOT/sendMessage');
-      expect(captured.bodyFields['chat_id'], '@me');
-      expect(captured.bodyFields['text'], contains('Hi'));
-      expect(captured.bodyFields['text'], contains('There'));
-      await t.dispose();
-    });
+    test(
+      'configured -> posts to /bot<token>/sendMessage with chat_id',
+      () async {
+        late http.Request captured;
+        final t = TelegramTransport(
+          config: const TelegramTransportConfig(botToken: 'BOT', chatId: '@me'),
+          httpClient: MockClient((req) async {
+            captured = req;
+            return http.Response('{"ok":true,"result":{}}', 200);
+          }),
+        );
+        final res = await t.send(
+          category: NotificationCategory.targetCompleted,
+          title: 'Hi',
+          body: 'There',
+        );
+        expect(res.success, isTrue);
+        expect(captured.url.path, '/botBOT/sendMessage');
+        expect(captured.bodyFields['chat_id'], '@me');
+        expect(captured.bodyFields['text'], contains('Hi'));
+        expect(captured.bodyFields['text'], contains('There'));
+        await t.dispose();
+      },
+    );
 
     test('server returns ok=false -> failure with description', () async {
       final t = TelegramTransport(
-        config:
-            const TelegramTransportConfig(botToken: 'B', chatId: '1'),
-        httpClient: MockClient((req) async => http.Response(
-              '{"ok":false,"description":"bad chat"}',
-              200,
-            )),
+        config: const TelegramTransportConfig(botToken: 'B', chatId: '1'),
+        httpClient: MockClient(
+          (req) async =>
+              http.Response('{"ok":false,"description":"bad chat"}', 200),
+        ),
       );
       final res = await t.send(
         category: NotificationCategory.custom,
@@ -179,7 +178,8 @@ void main() {
     test('non-2xx -> failure', () async {
       final t = DiscordTransport(
         config: const DiscordTransportConfig(
-            webhookUrl: 'https://discord.com/api/webhooks/x/y'),
+          webhookUrl: 'https://discord.com/api/webhooks/x/y',
+        ),
         httpClient: MockClient((req) async => http.Response('err', 500)),
       );
       final res = await t.send(
@@ -212,8 +212,7 @@ void main() {
     test('default body is JSON with category + title + body', () async {
       late http.Request captured;
       final t = WebhookTransport(
-        config:
-            const WebhookTransportConfig(url: 'https://example.com/hook'),
+        config: const WebhookTransportConfig(url: 'https://example.com/hook'),
         httpClient: MockClient((req) async {
           captured = req;
           return http.Response('ok', 200);

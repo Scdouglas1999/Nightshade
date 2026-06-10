@@ -107,13 +107,15 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                             Text(
                               l10n.text('analyticsNoSessionHistory'),
                               style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize14, color: colors.textSecondary),
+                                  fontSize: NightshadeTypography.fontSize14,
+                                  color: colors.textSecondary),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               l10n.text('analyticsNoSessionHistoryDesc'),
                               style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                                  fontSize: NightshadeTypography.fontSize12,
+                                  color: colors.textMuted),
                             ),
                           ],
                         ),
@@ -167,7 +169,9 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                           Text(
                             'Error loading sessions',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.error),
+                            style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize14,
+                                color: colors.error),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -175,8 +179,9 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                             textAlign: TextAlign.center,
                             maxLines: 4,
                             overflow: TextOverflow.ellipsis,
-                            style:
-                                TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                            style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize12,
+                                color: colors.textMuted),
                           ),
                         ],
                       ),

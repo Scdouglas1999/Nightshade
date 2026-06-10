@@ -60,7 +60,8 @@ void main() {
   });
 
   group('MosaicService.createMosaicSequence (from framing config)', () {
-    test('emits one TargetHeaderNode per panel + a single InstructionSetNode '
+    test(
+        'emits one TargetHeaderNode per panel + a single InstructionSetNode '
         'root, distinct from the single-target path', () {
       const target = FramingTarget(
         name: 'M51',
@@ -98,8 +99,9 @@ void main() {
       );
 
       // Exactly one InstructionSetNode root.
-      final roots =
-          nodes.values.whereType<InstructionSetNode>().where((n) => n.parentId == null);
+      final roots = nodes.values
+          .whereType<InstructionSetNode>()
+          .where((n) => n.parentId == null);
       expect(roots.length, 1);
       expect(roots.first.name, 'M51 Mosaic');
 
@@ -107,8 +109,7 @@ void main() {
       // distinct (raHours, decDegrees) and a `targetName` derived from the
       // mosaic name so the per-frame FITS path can identify which mosaic
       // the panel belongs to.
-      final targetHeaders =
-          nodes.values.whereType<TargetHeaderNode>().toList();
+      final targetHeaders = nodes.values.whereType<TargetHeaderNode>().toList();
       expect(targetHeaders.length, 6);
 
       // All panel target names reference the parent mosaic.

@@ -74,11 +74,7 @@ void main() {
 
     test('aspect-fit downscales a wide source into the target box', () {
       // 128x64 source (2:1) into a 64x64 box → fits to 64x32.
-      const spec = ShareCardSpec(
-        title: '',
-        targetWidth: 64,
-        targetHeight: 64,
-      );
+      const spec = ShareCardSpec(title: '', targetWidth: 64, targetHeight: 64);
       final bytes = renderer.renderJpegFromMono(
         width: 128,
         height: 64,
@@ -92,7 +88,11 @@ void main() {
     });
 
     test('honours the quality parameter (lower quality = smaller file)', () {
-      const spec = ShareCardSpec(title: '', targetWidth: 128, targetHeight: 128);
+      const spec = ShareCardSpec(
+        title: '',
+        targetWidth: 128,
+        targetHeight: 128,
+      );
       final data = _gradient(128, 128);
       final hi = renderer.renderJpegFromMono(
         width: 128,
@@ -153,8 +153,16 @@ void main() {
       );
       expect(bytes, isNotEmpty);
       // PNG 8-byte signature.
-      expect(bytes.sublist(0, 8),
-          [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+      expect(bytes.sublist(0, 8), [
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+      ]);
       final decoded = img.decodePng(bytes);
       expect(decoded, isNotNull);
       expect(decoded!.width, 96);
@@ -193,7 +201,11 @@ void main() {
     // overlay (watermark, stat panel) must perturb the bytes, proving it draws.
 
     test('watermark changes the output vs a bare spec', () {
-      const bare = ShareCardSpec(title: '', targetWidth: 128, targetHeight: 128);
+      const bare = ShareCardSpec(
+        title: '',
+        targetWidth: 128,
+        targetHeight: 128,
+      );
       const marked = ShareCardSpec(
         title: '',
         watermark: 'Nightshade',
@@ -212,12 +224,19 @@ void main() {
         rgba: _opaqueGrey(128, 128),
         spec: marked,
       );
-      expect(_pixelsDiffer(a, b), isTrue,
-          reason: 'watermark must perturb the rendered pixels');
+      expect(
+        _pixelsDiffer(a, b),
+        isTrue,
+        reason: 'watermark must perturb the rendered pixels',
+      );
     });
 
     test('stat panel (bottomBar) changes the output vs a bare spec', () {
-      const bare = ShareCardSpec(title: '', targetWidth: 160, targetHeight: 120);
+      const bare = ShareCardSpec(
+        title: '',
+        targetWidth: 160,
+        targetHeight: 120,
+      );
       const withStats = ShareCardSpec(
         title: 'M31',
         stats: [
@@ -239,12 +258,19 @@ void main() {
         rgba: _opaqueGrey(160, 120),
         spec: withStats,
       );
-      expect(_pixelsDiffer(a, b), isTrue,
-          reason: 'stat panel must perturb the rendered pixels');
+      expect(
+        _pixelsDiffer(a, b),
+        isTrue,
+        reason: 'stat panel must perturb the rendered pixels',
+      );
     });
 
     test('stat panel (cornerCard) changes the output vs a bare spec', () {
-      const bare = ShareCardSpec(title: '', targetWidth: 160, targetHeight: 120);
+      const bare = ShareCardSpec(
+        title: '',
+        targetWidth: 160,
+        targetHeight: 120,
+      );
       const corner = ShareCardSpec(
         title: 'M31',
         stats: [ShareStatLine(label: 'Frames', value: '132')],
@@ -264,8 +290,11 @@ void main() {
         rgba: _opaqueGrey(160, 120),
         spec: corner,
       );
-      expect(_pixelsDiffer(a, b), isTrue,
-          reason: 'corner card must perturb the rendered pixels');
+      expect(
+        _pixelsDiffer(a, b),
+        isTrue,
+        reason: 'corner card must perturb the rendered pixels',
+      );
     });
 
     test('bottomBar and cornerCard layouts differ from each other', () {
@@ -376,8 +405,7 @@ void main() {
       expect(renderer.fontForSpec(spec, 720), img.arial24);
     });
 
-    test(
-        'broadcast 720px frame keeps the historical arial48 watermark via the '
+    test('broadcast 720px frame keeps the historical arial48 watermark via the '
         'large fontScale (regression guard)', () {
       // The pre-extraction broadcast drew its watermark at arial48 regardless
       // of the 720px thumbnail. The height-based policy alone would pick
@@ -392,37 +420,38 @@ void main() {
       );
       expect(renderer.fontForSpec(broadcastSpec, 720), img.arial48);
       // And it does not silently match the height-based pick.
-      expect(renderer.fontForSpec(broadcastSpec, 720),
-          isNot(renderer.fontForHeight(720)));
+      expect(
+        renderer.fontForSpec(broadcastSpec, 720),
+        isNot(renderer.fontForHeight(720)),
+      );
     });
 
-    test('fixed small / medium scales pin their fonts regardless of height', () {
-      const small = ShareCardSpec(
-        title: '',
-        targetWidth: 1280,
-        targetHeight: 720,
-        fontScale: ShareCardFontScale.small,
-      );
-      const medium = ShareCardSpec(
-        title: '',
-        targetWidth: 1280,
-        targetHeight: 720,
-        fontScale: ShareCardFontScale.medium,
-      );
-      expect(renderer.fontForSpec(small, 2160), img.arial14);
-      expect(renderer.fontForSpec(medium, 256), img.arial24);
-    });
+    test(
+      'fixed small / medium scales pin their fonts regardless of height',
+      () {
+        const small = ShareCardSpec(
+          title: '',
+          targetWidth: 1280,
+          targetHeight: 720,
+          fontScale: ShareCardFontScale.small,
+        );
+        const medium = ShareCardSpec(
+          title: '',
+          targetWidth: 1280,
+          targetHeight: 720,
+          fontScale: ShareCardFontScale.medium,
+        );
+        expect(renderer.fontForSpec(small, 2160), img.arial14);
+        expect(renderer.fontForSpec(medium, 256), img.arial24);
+      },
+    );
   });
 
   group('expandWatermarkTokens', () {
     test('substitutes known tokens from the map', () {
       final out = expandWatermarkTokens(
         r'${target} — ${integration.hms} (${frames})',
-        {
-          'target': 'M42',
-          'integration.hms': '2h12m',
-          'frames': '132',
-        },
+        {'target': 'M42', 'integration.hms': '2h12m', 'frames': '132'},
       );
       expect(out, 'M42 — 2h12m (132)');
     });

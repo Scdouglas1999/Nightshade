@@ -320,7 +320,8 @@ const List<InterpolationVariable> interpolationCatalog = [
   ),
   InterpolationVariable(
     name: 'exposure.total',
-    description: 'Total burst integration time (minutes — duration_secs × count / 60)',
+    description:
+        'Total burst integration time (minutes — duration_secs × count / 60)',
     group: InterpolationVariableGroup.exposure,
     example: '30',
     supportsFormat: true,
@@ -340,9 +341,7 @@ const List<InterpolationVariable> interpolationCatalog = [
 /// sequence runs.
 String previewInterpolation(String template) {
   // Map from name → example for O(1) lookup.
-  final byName = {
-    for (final v in interpolationCatalog) v.name: v,
-  };
+  final byName = {for (final v in interpolationCatalog) v.name: v};
   final buf = StringBuffer();
   var i = 0;
   while (i < template.length) {

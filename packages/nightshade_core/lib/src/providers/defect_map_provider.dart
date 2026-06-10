@@ -36,26 +36,22 @@ class DefectMapQuery {
           sensorTemperatureCelsius == other.sensorTemperatureCelsius;
 
   @override
-  int get hashCode => Object.hash(
-        cameraId,
-        width,
-        height,
-        sensorTemperatureCelsius,
-      );
+  int get hashCode =>
+      Object.hash(cameraId, width, height, sensorTemperatureCelsius);
 }
 
 /// Status of the defect map for a given (camera, sensor, temperature)
 /// tuple. Null means no map has been built yet for that combination.
 final defectMapStatusProvider =
     FutureProvider.family<DefectMapStatus?, DefectMapQuery>((ref, query) async {
-  final service = ref.watch(defectMapServiceProvider);
-  return service.getStatus(
-    cameraId: query.cameraId,
-    width: query.width,
-    height: query.height,
-    sensorTemperatureCelsius: query.sensorTemperatureCelsius,
-  );
-});
+      final service = ref.watch(defectMapServiceProvider);
+      return service.getStatus(
+        cameraId: query.cameraId,
+        width: query.width,
+        height: query.height,
+        sensorTemperatureCelsius: query.sensorTemperatureCelsius,
+      );
+    });
 
 /// UI state for the imaging-screen calibration section.
 ///
@@ -147,10 +143,7 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
     double? sensorTemperatureCelsius,
   }) async {
     try {
-      await _service.apply(
-        cameraId: cameraId,
-        applyDuringCapture: apply,
-      );
+      await _service.apply(cameraId: cameraId, applyDuringCapture: apply);
       // Wave 7 Agent 3 — push to sequencer if the caller knew the
       // dimensions + temp. Failure here is surfaced separately from
       // the persisted-preference success so the user sees what went
@@ -206,9 +199,7 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
         kernel: settings.kernel,
         saveOriginal: settings.saveOriginal,
       );
-      state = state.copyWith(
-        errorMessage: null,
-      );
+      state = state.copyWith(errorMessage: null);
     } catch (e) {
       state = state.copyWith(
         errorMessage: 'Failed to push defect-map settings to sequencer: $e',
@@ -262,8 +253,8 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
 /// state (in-flight build/clear, status / error messages).
 final defectMapNotifierProvider =
     StateNotifierProvider<DefectMapNotifier, DefectMapUiState>((ref) {
-  return DefectMapNotifier(ref);
-});
+      return DefectMapNotifier(ref);
+    });
 
 // ===========================================================================
 // Wave 7 Agent 3 — per-camera defect-map auto-apply settings.
@@ -389,7 +380,10 @@ class DefectMapSettingsNotifier extends StateNotifier<DefectMapSettings> {
   Future<void> setKernel(DefectMapKernelSize value) async {
     state = state.copyWith(kernel: value);
     final dao = _ref.read(settingsDaoProvider);
-    await dao.setSetting(DefectMapSettingsKeys.kernel, value.diameter.toString());
+    await dao.setSetting(
+      DefectMapSettingsKeys.kernel,
+      value.diameter.toString(),
+    );
   }
 
   Future<void> setSaveOriginal(bool value) async {
@@ -402,5 +396,5 @@ class DefectMapSettingsNotifier extends StateNotifier<DefectMapSettings> {
 /// Provider for the defect-map settings notifier.
 final defectMapSettingsProvider =
     StateNotifierProvider<DefectMapSettingsNotifier, DefectMapSettings>((ref) {
-  return DefectMapSettingsNotifier(ref);
-});
+      return DefectMapSettingsNotifier(ref);
+    });

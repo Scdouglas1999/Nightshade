@@ -34,8 +34,8 @@ List<ValidationIssue> postSessionOpticalTrainDrift({
     return const [];
   }
   final dTilt = (postSession.tiltScore - preSession.tiltScore).abs();
-  final dColl =
-      (postSession.collimationScore - preSession.collimationScore).abs();
+  final dColl = (postSession.collimationScore - preSession.collimationScore)
+      .abs();
   final drift = dTilt * 0.5 + dColl * 0.5;
 
   // Below the threshold: tell the user the rig held steady. This is
@@ -60,7 +60,8 @@ List<ValidationIssue> postSessionOpticalTrainDrift({
       severity: ValidationSeverity.info,
       category: ValidationCategory.opticalTrain,
       title: 'Optical Train Drifted During Session',
-      description: 'Tilt/collimation diagnostics shifted '
+      description:
+          'Tilt/collimation diagnostics shifted '
           '${drift.toStringAsFixed(1)} units during the session '
           '(threshold ${threshold.toStringAsFixed(1)}). '
           'Tilt Δ ${dTilt.toStringAsFixed(1)}, '
@@ -85,37 +86,45 @@ List<ValidationIssue> postSessionEquipmentHealthSummary(
 ) {
   final issues = <ValidationIssue>[];
   if (summary.disconnectsDuringSession > 0) {
-    issues.add(ValidationIssue(
-      severity: ValidationSeverity.info,
-      category: ValidationCategory.equipmentHealth,
-      title: 'USB Disconnects During Session',
-      description: '${summary.disconnectsDuringSession} '
-          'reconnect${summary.disconnectsDuringSession == 1 ? "" : "s"} '
-          'occurred during the run.',
-      resolutionHint: summary.disconnectsDuringSession > 10
-          ? 'High count — investigate the USB cable / hub for the device(s) '
-              'involved before the next session.'
-          : null,
-    ));
+    issues.add(
+      ValidationIssue(
+        severity: ValidationSeverity.info,
+        category: ValidationCategory.equipmentHealth,
+        title: 'USB Disconnects During Session',
+        description:
+            '${summary.disconnectsDuringSession} '
+            'reconnect${summary.disconnectsDuringSession == 1 ? "" : "s"} '
+            'occurred during the run.',
+        resolutionHint: summary.disconnectsDuringSession > 10
+            ? 'High count — investigate the USB cable / hub for the device(s) '
+                  'involved before the next session.'
+            : null,
+      ),
+    );
   }
   if (summary.coolerOutOfBandSamples > 0) {
-    issues.add(ValidationIssue(
-      severity: ValidationSeverity.info,
-      category: ValidationCategory.equipmentHealth,
-      title: 'Cooler Out of Setpoint Band',
-      description: 'Cooler temperature drifted outside its setpoint band on '
-          '${summary.coolerOutOfBandSamples} samples.',
-    ));
+    issues.add(
+      ValidationIssue(
+        severity: ValidationSeverity.info,
+        category: ValidationCategory.equipmentHealth,
+        title: 'Cooler Out of Setpoint Band',
+        description:
+            'Cooler temperature drifted outside its setpoint band on '
+            '${summary.coolerOutOfBandSamples} samples.',
+      ),
+    );
   }
   if (summary.focuserMoves > 0) {
-    issues.add(ValidationIssue(
-      severity: ValidationSeverity.info,
-      category: ValidationCategory.equipmentHealth,
-      title: 'Focuser Activity',
-      description:
-          '${summary.focuserMoves} focuser move${summary.focuserMoves == 1 ? "" : "s"} '
-          'recorded during the run (autofocus + temperature compensation).',
-    ));
+    issues.add(
+      ValidationIssue(
+        severity: ValidationSeverity.info,
+        category: ValidationCategory.equipmentHealth,
+        title: 'Focuser Activity',
+        description:
+            '${summary.focuserMoves} focuser move${summary.focuserMoves == 1 ? "" : "s"} '
+            'recorded during the run (autofocus + temperature compensation).',
+      ),
+    );
   }
   if (summary.skyBrightnessMin != null && summary.skyBrightnessMax != null) {
     final min = summary.skyBrightnessMin!;
@@ -123,21 +132,26 @@ List<ValidationIssue> postSessionEquipmentHealthSummary(
     final medianStr = summary.skyBrightnessMedian == null
         ? ''
         : ', median ${summary.skyBrightnessMedian!.toStringAsFixed(2)}';
-    issues.add(ValidationIssue(
-      severity: ValidationSeverity.info,
-      category: ValidationCategory.equipmentHealth,
-      title: 'Sky Brightness Range',
-      description: 'Sky brightness ranged ${min.toStringAsFixed(2)} → '
-          '${max.toStringAsFixed(2)} mag/arcsec²$medianStr.',
-    ));
+    issues.add(
+      ValidationIssue(
+        severity: ValidationSeverity.info,
+        category: ValidationCategory.equipmentHealth,
+        title: 'Sky Brightness Range',
+        description:
+            'Sky brightness ranged ${min.toStringAsFixed(2)} → '
+            '${max.toStringAsFixed(2)} mag/arcsec²$medianStr.',
+      ),
+    );
   }
   for (final concern in summary.noticedConcerns) {
-    issues.add(ValidationIssue(
-      severity: ValidationSeverity.info,
-      category: ValidationCategory.equipmentHealth,
-      title: 'Noticed but Did Not Fire',
-      description: concern,
-    ));
+    issues.add(
+      ValidationIssue(
+        severity: ValidationSeverity.info,
+        category: ValidationCategory.equipmentHealth,
+        title: 'Noticed but Did Not Fire',
+        description: concern,
+      ),
+    );
   }
   return issues;
 }

@@ -12,12 +12,11 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [SessionOwnershipHandlers].
 List<HeadlessRoute> buildSessionOwnershipRoutes(
-        SessionOwnershipHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/session/owner', h.handleGetOwner),
-      HeadlessRoute(HttpMethod.get, '/api/session/status', h.handleGetStatus),
-      HeadlessRoute(HttpMethod.post, '/api/session/claim', h.handleClaim),
-      HeadlessRoute(
-          HttpMethod.post, '/api/session/take-over', h.handleTakeOver),
-      HeadlessRoute(HttpMethod.post, '/api/session/release', h.handleRelease),
-    ];
+  SessionOwnershipHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(HttpMethod.get, '/api/session/owner', h.handleGetOwner),
+  HeadlessRoute(HttpMethod.get, '/api/session/status', h.handleGetStatus),
+  HeadlessRoute(HttpMethod.post, '/api/session/claim', h.handleClaim),
+  HeadlessRoute(HttpMethod.post, '/api/session/take-over', h.handleTakeOver),
+  HeadlessRoute(HttpMethod.post, '/api/session/release', h.handleRelease),
+];

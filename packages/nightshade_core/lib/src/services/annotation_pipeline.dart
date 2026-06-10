@@ -29,8 +29,7 @@ class AnnotationCatalogQueryException implements Exception {
   const AnnotationCatalogQueryException(this.catalog, this.cause);
 
   @override
-  String toString() =>
-      'Failed to query the $catalog catalog: $cause';
+  String toString() => 'Failed to query the $catalog catalog: $cause';
 }
 
 extension AnnotationPipeline on AnnotationService {
@@ -70,8 +69,9 @@ extension AnnotationPipeline on AnnotationService {
 
       if (!_catalogManager.isInitialized) {
         _logger.warning(
-            'CatalogManager not initialized - catalogs not available',
-            source: 'Annotation');
+          'CatalogManager not initialized - catalogs not available',
+          source: 'Annotation',
+        );
         // CatalogManager should be initialized by the app on startup
         // If not initialized here, it means catalogs haven't been set up
         _ref.read(annotationStateProvider.notifier).state =
@@ -84,8 +84,8 @@ extension AnnotationPipeline on AnnotationService {
       // =====================================================================
       final dsoStatus = await _catalogManager.getDsoCatalogStatus();
       final starStatus = await _catalogManager.getStarCatalogStatus();
-      final annotationStatus =
-          await _catalogManager.getAnnotationCatalogStatus();
+      final annotationStatus = await _catalogManager
+          .getAnnotationCatalogStatus();
 
       final hasDsoCatalog = dsoStatus.isInstalled;
       final hasStarCatalog = starStatus.isInstalled;
@@ -93,24 +93,28 @@ extension AnnotationPipeline on AnnotationService {
 
       if (!hasDsoCatalog && !hasStarCatalog && !hasAnnotationCatalog) {
         _logger.warning(
-            'No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog',
-            source: 'Annotation');
+          'No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog',
+          source: 'Annotation',
+        );
         _ref.read(annotationStateProvider.notifier).state =
             const AnnotationState.catalogsNotInstalled();
         return;
       }
 
       _logger.info(
-          'Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog',
-          source: 'Annotation');
+        'Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog',
+        source: 'Annotation',
+      );
 
       // =====================================================================
       // PRE-FLIGHT CHECK 3: Verify backend is available
       // =====================================================================
       final backend = _ref.read(backendProvider);
       if (backend is DisconnectedBackend) {
-        _logger.error('Backend disconnected, cannot plate solve',
-            source: 'Annotation');
+        _logger.error(
+          'Backend disconnected, cannot plate solve',
+          source: 'Annotation',
+        );
         _ref.read(annotationStateProvider.notifier).state =
             const AnnotationState.error('Backend not connected');
         return;
@@ -121,8 +125,10 @@ extension AnnotationPipeline on AnnotationService {
       // =====================================================================
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.plateSolving();
-      _logger.info('Starting plate solve for: ${image.filePath}',
-          source: 'Annotation');
+      _logger.info(
+        'Starting plate solve for: ${image.filePath}',
+        source: 'Annotation',
+      );
 
       // Try to get mount position hints for faster solving
       double? hintRa;
@@ -133,13 +139,17 @@ extension AnnotationPipeline on AnnotationService {
           // Mount RA is typically tracked in hours; plate-solve hints expect degrees.
           hintRa = _normalizeRaHintDegrees(mountState.ra!);
           hintDec = mountState.dec;
-          _logger.debug('Using mount position hints: RA=$hintRa, Dec=$hintDec',
-              source: 'Annotation');
+          _logger.debug(
+            'Using mount position hints: RA=$hintRa, Dec=$hintDec',
+            source: 'Annotation',
+          );
         }
       } catch (e) {
         // Mount state not available, continue without hints
-        _logger.debug('Mount position hints not available',
-            source: 'Annotation');
+        _logger.debug(
+          'Mount position hints not available',
+          source: 'Annotation',
+        );
       }
 
       final result = await backend.plateSolve(
@@ -150,19 +160,22 @@ extension AnnotationPipeline on AnnotationService {
 
       if (!result.success) {
         final detailedReason = _describePlateSolveFailure(result.error);
-        _logger.warning('Plate solve failed: $detailedReason (raw: ${result.error})',
-            source: 'Annotation');
+        _logger.warning(
+          'Plate solve failed: $detailedReason (raw: ${result.error})',
+          source: 'Annotation',
+        );
         _ref.read(annotationStateProvider.notifier).state =
             AnnotationState.plateSolveFailed(detailedReason);
         return;
       }
 
       _logger.info(
-          'Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
-          'Dec=${result.dec.toStringAsFixed(4)}, '
-          'Scale=${result.pixelScale.toStringAsFixed(2)}"/px, '
-          'Rotation=${result.rotation.toStringAsFixed(1)} deg',
-          source: 'Annotation');
+        'Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
+        'Dec=${result.dec.toStringAsFixed(4)}, '
+        'Scale=${result.pixelScale.toStringAsFixed(2)}"/px, '
+        'Rotation=${result.rotation.toStringAsFixed(1)} deg',
+        source: 'Annotation',
+      );
 
       // =====================================================================
       // STEP 2: Create PlateSolveData
@@ -193,14 +206,16 @@ extension AnnotationPipeline on AnnotationService {
         _lastAnnotationSnr = currentSnr;
         _peakAnnotationSnr = currentSnr;
         _logger.debug(
-            'Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}',
-            source: 'Annotation');
+          'Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}',
+          source: 'Annotation',
+        );
       } else {
         // If no SNR available or too low, use conservative base magnitude
         initialMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
         _logger.debug(
-            'SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}',
-            source: 'Annotation');
+          'SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}',
+          source: 'Annotation',
+        );
       }
 
       _currentSnrMagnitudeLimit = initialMagnitudeLimit;
@@ -215,18 +230,21 @@ extension AnnotationPipeline on AnnotationService {
       // Get annotation settings for filtering
       final includeStars =
           settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ??
-              false;
+          false;
       final userMagnitudeCutoff = settings?.magnitudeCutoff ?? 15.0;
 
       // Use the minimum of SNR-based limit and user setting for initial search
-      final effectiveMagnitudeLimit =
-          math.min(initialMagnitudeLimit, userMagnitudeCutoff);
+      final effectiveMagnitudeLimit = math.min(
+        initialMagnitudeLimit,
+        userMagnitudeCutoff,
+      );
 
       _logger.debug(
-          'Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
-          '(SNR-based: ${initialMagnitudeLimit.toStringAsFixed(1)}, user: ${userMagnitudeCutoff.toStringAsFixed(1)}), '
-          'include stars: $includeStars',
-          source: 'Annotation');
+        'Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
+        '(SNR-based: ${initialMagnitudeLimit.toStringAsFixed(1)}, user: ${userMagnitudeCutoff.toStringAsFixed(1)}), '
+        'include stars: $includeStars',
+        source: 'Annotation',
+      );
 
       final annotation = await annotateImage(
         imagePath: image.filePath!,
@@ -249,13 +267,17 @@ extension AnnotationPipeline on AnnotationService {
           AnnotationState.complete(annotation.objects.length);
 
       _logger.info(
-          'Annotation complete: ${annotation.objects.length} objects found',
-          source: 'Annotation');
+        'Annotation complete: ${annotation.objects.length} objects found',
+        source: 'Annotation',
+      );
     } catch (e, stackTrace) {
-      _logger.error('Error processing image: $e\nStack trace: $stackTrace',
-          source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.error(e.toString());
+      _logger.error(
+        'Error processing image: $e\nStack trace: $stackTrace',
+        source: 'Annotation',
+      );
+      _ref.read(annotationStateProvider.notifier).state = AnnotationState.error(
+        e.toString(),
+      );
     }
   }
 
@@ -281,8 +303,10 @@ extension AnnotationPipeline on AnnotationService {
       snrBasedMagnitudeCutoff: snrBasedMagnitudeCutoff,
     );
 
-    _logger.info('Found ${objects.length} objects in FOV',
-        source: 'Annotation');
+    _logger.info(
+      'Found ${objects.length} objects in FOV',
+      source: 'Annotation',
+    );
 
     return ImageAnnotation(
       imagePath: imagePath,
@@ -310,14 +334,16 @@ extension AnnotationPipeline on AnnotationService {
 
     // Calculate search radius (diagonal of FOV)
     final fovDiagonal = math.sqrt(
-        plateSolve.fieldWidth * plateSolve.fieldWidth +
-            plateSolve.fieldHeight * plateSolve.fieldHeight);
+      plateSolve.fieldWidth * plateSolve.fieldWidth +
+          plateSolve.fieldHeight * plateSolve.fieldHeight,
+    );
     final searchRadius = fovDiagonal / 2 * 1.1; // Add 10% margin
 
     _logger.debug(
-        'Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
-        'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}',
-        source: 'Annotation');
+      'Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
+      'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}',
+      source: 'Annotation',
+    );
 
     // =======================================================================
     // Query BOTH annotation catalog and DSO catalog, then merge results.
@@ -341,8 +367,9 @@ extension AnnotationPipeline on AnnotationService {
         );
 
         _logger.debug(
-            'Found ${objects.length} annotation objects in search area',
-            source: 'Annotation');
+          'Found ${objects.length} annotation objects in search area',
+          source: 'Annotation',
+        );
 
         for (final obj in objects) {
           if (obj.majorAxis != null && obj.majorAxis! < minSize) {
@@ -361,8 +388,9 @@ extension AnnotationPipeline on AnnotationService {
             continue;
           }
 
-          final altName =
-              obj.alternateNames.isNotEmpty ? obj.alternateNames.first : null;
+          final altName = obj.alternateNames.isNotEmpty
+              ? obj.alternateNames.first
+              : null;
 
           final annotation = CelestialObjectAnnotation(
             id: obj.id,
@@ -373,8 +401,9 @@ extension AnnotationPipeline on AnnotationService {
             x: pixelCoords.x,
             y: pixelCoords.y,
             catalogId: altName ?? obj.primaryName,
-            commonName:
-                altName != null && altName != obj.primaryName ? altName : null,
+            commonName: altName != null && altName != obj.primaryName
+                ? altName
+                : null,
             magnitude: obj.magnitude,
             size: obj.majorAxis,
           );
@@ -388,8 +417,9 @@ extension AnnotationPipeline on AnnotationService {
         // it to processNewImage's error path. (An empty-but-successful query
         // never reaches here.)
         _logger.error(
-            'Error querying annotation catalog: $e\nStack trace: $stackTrace',
-            source: 'Annotation');
+          'Error querying annotation catalog: $e\nStack trace: $stackTrace',
+          source: 'Annotation',
+        );
         throw AnnotationCatalogQueryException('annotation', e);
       }
     }
@@ -403,8 +433,10 @@ extension AnnotationPipeline on AnnotationService {
         maxMagnitude: effectiveMagnitudeCutoff,
       );
 
-      _logger.debug('Found ${dsos.length} DSOs in search area',
-          source: 'Annotation');
+      _logger.debug(
+        'Found ${dsos.length} DSOs in search area',
+        source: 'Annotation',
+      );
 
       for (final dso in dsos) {
         if (dso.majorAxis != null && dso.majorAxis! < minSize) {
@@ -445,16 +477,20 @@ extension AnnotationPipeline on AnnotationService {
         } else {
           // Merge: keep the entry with more fields populated
           final existing = deduplicatedById[dedupeKey]!;
-          deduplicatedById[dedupeKey] =
-              _mergeAnnotationObjects(existing, annotation);
+          deduplicatedById[dedupeKey] = _mergeAnnotationObjects(
+            existing,
+            annotation,
+          );
         }
       }
     } catch (e, stackTrace) {
       // Genuine failure — surface it. A DSO catalog that simply isn't installed
       // returns an empty list (handled inside searchDsoNearby), so reaching
       // this catch means the query itself broke.
-      _logger.error('Error querying DSO catalog: $e\nStack trace: $stackTrace',
-          source: 'Annotation');
+      _logger.error(
+        'Error querying DSO catalog: $e\nStack trace: $stackTrace',
+        source: 'Annotation',
+      );
       throw AnnotationCatalogQueryException('DSO', e);
     }
 
@@ -472,8 +508,10 @@ extension AnnotationPipeline on AnnotationService {
           maxMagnitude: starMagnitudeCutoff,
         );
 
-        _logger.debug('Found ${stars.length} stars in search area',
-            source: 'Annotation');
+        _logger.debug(
+          'Found ${stars.length} stars in search area',
+          source: 'Annotation',
+        );
 
         for (final star in stars.take(100)) {
           final pixelCoords = plateSolve.skyToPixel(star.ra, star.dec);
@@ -487,28 +525,34 @@ extension AnnotationPipeline on AnnotationService {
             continue;
           }
 
-          annotations.add(CelestialObjectAnnotation(
-            id: 'star_${star.id}',
-            name: star.properName ?? star.catalogId,
-            type: ObjectType.star,
-            ra: star.ra,
-            dec: star.dec,
-            x: pixelCoords.x,
-            y: pixelCoords.y,
-            catalogId: star.catalogId,
-            magnitude: star.magnitude,
-          ));
+          annotations.add(
+            CelestialObjectAnnotation(
+              id: 'star_${star.id}',
+              name: star.properName ?? star.catalogId,
+              type: ObjectType.star,
+              ra: star.ra,
+              dec: star.dec,
+              x: pixelCoords.x,
+              y: pixelCoords.y,
+              catalogId: star.catalogId,
+              magnitude: star.magnitude,
+            ),
+          );
         }
       } catch (e, stackTrace) {
         // Genuine failure — surface it rather than dropping stars silently.
-        _logger.error('Error querying star catalog: $e\nStack trace: $stackTrace',
-            source: 'Annotation');
+        _logger.error(
+          'Error querying star catalog: $e\nStack trace: $stackTrace',
+          source: 'Annotation',
+        );
         throw AnnotationCatalogQueryException('star', e);
       }
     }
 
-    _logger.debug('Total annotations: ${annotations.length}',
-        source: 'Annotation');
+    _logger.debug(
+      'Total annotations: ${annotations.length}',
+      source: 'Annotation',
+    );
     return annotations;
   }
 }

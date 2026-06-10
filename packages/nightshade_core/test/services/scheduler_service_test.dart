@@ -37,8 +37,11 @@ void main() {
         final result = scheduler.calculateMoonPosition(newMoonDate);
 
         // Simplified ephemeris won't be exact, but should be close to 0
-        expect(result.illumination, lessThan(0.15),
-            reason: 'New moon illumination should be near 0');
+        expect(
+          result.illumination,
+          lessThan(0.15),
+          reason: 'New moon illumination should be near 0',
+        );
       });
 
       test('full moon produces illumination near 1.0', () {
@@ -47,8 +50,11 @@ void main() {
         final result = scheduler.calculateMoonPosition(fullMoonDate);
 
         // Should be close to 1.0
-        expect(result.illumination, greaterThan(0.85),
-            reason: 'Full moon illumination should be near 1.0');
+        expect(
+          result.illumination,
+          greaterThan(0.85),
+          reason: 'Full moon illumination should be near 1.0',
+        );
       });
 
       test('first quarter moon produces illumination near 0.5', () {
@@ -57,10 +63,16 @@ void main() {
         final result = scheduler.calculateMoonPosition(quarterDate);
 
         // Should be roughly 0.5 with some tolerance for the simplified model
-        expect(result.illumination, greaterThan(0.3),
-            reason: 'Quarter moon illumination should be in the 0.3-0.7 range');
-        expect(result.illumination, lessThan(0.7),
-            reason: 'Quarter moon illumination should be in the 0.3-0.7 range');
+        expect(
+          result.illumination,
+          greaterThan(0.3),
+          reason: 'Quarter moon illumination should be in the 0.3-0.7 range',
+        );
+        expect(
+          result.illumination,
+          lessThan(0.7),
+          reason: 'Quarter moon illumination should be in the 0.3-0.7 range',
+        );
       });
 
       test('known date produces consistent illumination value', () {
@@ -69,8 +81,11 @@ void main() {
         final result1 = scheduler.calculateMoonPosition(fixedDate);
         final result2 = scheduler.calculateMoonPosition(fixedDate);
 
-        expect(result1.illumination, equals(result2.illumination),
-            reason: 'Same input date must produce identical illumination');
+        expect(
+          result1.illumination,
+          equals(result2.illumination),
+          reason: 'Same input date must produce identical illumination',
+        );
         // Also verify it's in a valid range
         expect(result1.illumination, greaterThanOrEqualTo(0.0));
         expect(result1.illumination, lessThanOrEqualTo(1.0));
@@ -82,10 +97,16 @@ void main() {
           final date = DateTime.utc(2023, month, 15, 0, 0);
           final result = scheduler.calculateMoonPosition(date);
 
-          expect(result.illumination, greaterThanOrEqualTo(0.0),
-              reason: 'Illumination must be >= 0 for $date');
-          expect(result.illumination, lessThanOrEqualTo(1.0),
-              reason: 'Illumination must be <= 1 for $date');
+          expect(
+            result.illumination,
+            greaterThanOrEqualTo(0.0),
+            reason: 'Illumination must be >= 0 for $date',
+          );
+          expect(
+            result.illumination,
+            lessThanOrEqualTo(1.0),
+            reason: 'Illumination must be <= 1 for $date',
+          );
         }
       });
 
@@ -146,8 +167,11 @@ void main() {
           longitudeDegrees: 0.0,
         );
 
-        expect(alt, lessThan(0.0),
-            reason: 'Far south object should be below horizon at lat 60 N');
+        expect(
+          alt,
+          lessThan(0.0),
+          reason: 'Far south object should be below horizon at lat 60 N',
+        );
       });
 
       test('alt/az remains finite at zenith singularity', () {
@@ -179,26 +203,28 @@ void main() {
     });
 
     group('calculateTargetAltitudes', () {
-      test('polar always-visible target reports finite hours above horizon',
-          () {
-        final data = scheduler.calculateTargetAltitudes(
-          targets: [
-            TargetHeaderNode(
-              id: 'north-pole',
-              name: 'North pole',
-              targetName: 'North pole',
-              raHours: 0,
-              decDegrees: 90,
-            ),
-          ],
-          observationTime: DateTime.utc(2024, 6, 15, 0, 0),
-          latitudeDegrees: 45,
-          longitudeDegrees: 0,
-          minAltitude: 0,
-        );
+      test(
+        'polar always-visible target reports finite hours above horizon',
+        () {
+          final data = scheduler.calculateTargetAltitudes(
+            targets: [
+              TargetHeaderNode(
+                id: 'north-pole',
+                name: 'North pole',
+                targetName: 'North pole',
+                raHours: 0,
+                decDegrees: 90,
+              ),
+            ],
+            observationTime: DateTime.utc(2024, 6, 15, 0, 0),
+            latitudeDegrees: 45,
+            longitudeDegrees: 0,
+            minAltitude: 0,
+          );
 
-        expect(data.single.hoursAboveHorizon, 24.0);
-      });
+          expect(data.single.hoursAboveHorizon, 24.0);
+        },
+      );
     });
 
     group('calculateSeparation', () {

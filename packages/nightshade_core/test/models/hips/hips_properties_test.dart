@@ -42,8 +42,7 @@ hips_initial_fov  = 1.5
       expect(props.hipsOrderMin, 3);
       expect(props.tileWidth, 512);
       expect(props.tileWidthWasDefaulted, isFalse);
-      expect(props.tileFormats,
-          [HipsTileFormat.jpeg, HipsTileFormat.fits]);
+      expect(props.tileFormats, [HipsTileFormat.jpeg, HipsTileFormat.fits]);
       expect(props.preferredFormat, HipsTileFormat.jpeg);
       expect(props.hasJpeg, isTrue);
       expect(props.hasPng, isFalse);
@@ -308,58 +307,74 @@ hips_frame = equatorial
 
   group('allskyOrder (whole-sky base-layer order)', () {
     test(
-        'is the standard Allsky order (3), NOT hips_order_min, when the survey '
-        'omits/declares a lower hips_order_min', () {
-      // The real CDS DSS pyramids declare hips_order_min=0 yet 404 on
-      // Norder0/Allsky.jpg, publishing the Allsky only at the conventional
-      // Norder3. allskyOrder must therefore be 3 here, not 0 — otherwise the
-      // never-blank base layer would never load for the default DSS2 survey.
-      final omitsMin = HipsProperties.parse('''
+      'is the standard Allsky order (3), NOT hips_order_min, when the survey '
+      'omits/declares a lower hips_order_min',
+      () {
+        // The real CDS DSS pyramids declare hips_order_min=0 yet 404 on
+        // Norder0/Allsky.jpg, publishing the Allsky only at the conventional
+        // Norder3. allskyOrder must therefore be 3 here, not 0 — otherwise the
+        // never-blank base layer would never load for the default DSS2 survey.
+        final omitsMin = HipsProperties.parse('''
 hips_order        = 9
 hips_tile_width   = 512
 hips_tile_format  = jpeg
 hips_frame        = equatorial
 ''');
-      expect(omitsMin.hipsOrderMin, 0,
-          reason: 'absent hips_order_min defaults to 0 per the standard');
-      expect(omitsMin.allskyOrder, HipsProperties.standardAllskyOrder);
-      expect(omitsMin.allskyOrder, 3);
+        expect(
+          omitsMin.hipsOrderMin,
+          0,
+          reason: 'absent hips_order_min defaults to 0 per the standard',
+        );
+        expect(omitsMin.allskyOrder, HipsProperties.standardAllskyOrder);
+        expect(omitsMin.allskyOrder, 3);
 
-      final lowMin = HipsProperties.parse('''
+        final lowMin = HipsProperties.parse('''
 hips_order        = 9
 hips_order_min    = 1
 hips_tile_width   = 512
 hips_tile_format  = jpeg
 hips_frame        = equatorial
 ''');
-      expect(lowMin.allskyOrder, 3,
-          reason: 'a low hips_order_min does not pull the Allsky order down');
-    });
+        expect(
+          lowMin.allskyOrder,
+          3,
+          reason: 'a low hips_order_min does not pull the Allsky order down',
+        );
+      },
+    );
 
-    test('clamps into the survey published range for shallow/deep min surveys',
-        () {
-      // A survey whose deepest order is below the standard Allsky order cannot
-      // publish an Allsky deeper than hips_order: clamp down to hips_order.
-      final shallow = HipsProperties.parse('''
+    test(
+      'clamps into the survey published range for shallow/deep min surveys',
+      () {
+        // A survey whose deepest order is below the standard Allsky order cannot
+        // publish an Allsky deeper than hips_order: clamp down to hips_order.
+        final shallow = HipsProperties.parse('''
 hips_order        = 2
 hips_tile_format  = jpeg
 hips_frame        = equatorial
 ''');
-      expect(shallow.allskyOrder, 2,
-          reason: 'cannot exceed the deepest published order');
+        expect(
+          shallow.allskyOrder,
+          2,
+          reason: 'cannot exceed the deepest published order',
+        );
 
-      // A survey whose minimum published order exceeds 3: the Allsky cannot be
-      // coarser than the survey's own minimum, so clamp up to hips_order_min.
-      final deepMin = HipsProperties.parse('''
+        // A survey whose minimum published order exceeds 3: the Allsky cannot be
+        // coarser than the survey's own minimum, so clamp up to hips_order_min.
+        final deepMin = HipsProperties.parse('''
 hips_order        = 9
 hips_order_min    = 5
 hips_tile_width   = 512
 hips_tile_format  = jpeg
 hips_frame        = equatorial
 ''');
-      expect(deepMin.allskyOrder, 5,
-          reason: 'cannot be coarser than the survey minimum order');
-    });
+        expect(
+          deepMin.allskyOrder,
+          5,
+          reason: 'cannot be coarser than the survey minimum order',
+        );
+      },
+    );
   });
 
   group('value semantics', () {

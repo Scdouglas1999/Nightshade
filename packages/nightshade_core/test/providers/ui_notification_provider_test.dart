@@ -29,8 +29,10 @@ void main() {
       final messages = notifier.state.map((n) => n.message).toList();
       // The first 5 (message 0..4) must have been trimmed from the front.
       expect(messages.first, 'message 5');
-      expect(messages.last,
-          'message ${UiNotificationNotifier.maxRetained + 4}');
+      expect(
+        messages.last,
+        'message ${UiNotificationNotifier.maxRetained + 4}',
+      );
     });
 
     test('assigns a unique id to every notification, even within one ms', () {
@@ -44,7 +46,8 @@ void main() {
       expect(
         ids.length,
         notifier.state.length,
-        reason: 'ids must be unique so ValueKey/dismiss-by-id never conflate '
+        reason:
+            'ids must be unique so ValueKey/dismiss-by-id never conflate '
             'two burst entries',
       );
     });

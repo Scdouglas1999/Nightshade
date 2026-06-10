@@ -74,23 +74,19 @@ class WeatherLoggerPlugin extends NightshadePlugin {
     context.logger.info('Starting weather data collection');
 
     // Subscribe to weather station events
-    _weatherSubscription = context.eventBus.on('weather.updated').listen(
-      (data) {
-        _recordReading('weather_station', data);
-      },
-    );
+    _weatherSubscription = context.eventBus.on('weather.updated').listen((
+      data,
+    ) {
+      _recordReading('weather_station', data);
+    });
 
     // Also record temperature from focuser events (common temperature source)
-    _focuserSubscription = context.eventBus.on('focuser.moved').listen(
-      (data) {
-        final temperature = data['temperature'];
-        if (temperature != null) {
-          _recordReading('focuser_probe', {
-            'temperature': temperature,
-          });
-        }
-      },
-    );
+    _focuserSubscription = context.eventBus.on('focuser.moved').listen((data) {
+      final temperature = data['temperature'];
+      if (temperature != null) {
+        _recordReading('focuser_probe', {'temperature': temperature});
+      }
+    });
 
     // Flush buffered readings to storage every 5 minutes
     _flushTimer = Timer.periodic(
@@ -163,8 +159,9 @@ class WeatherLoggerPlugin extends NightshadePlugin {
     try {
       // Load existing readings from storage
       final existingJson = await context.storage.getString(storageKey);
-      final List<dynamic> existing =
-          existingJson != null ? jsonDecode(existingJson) as List : [];
+      final List<dynamic> existing = existingJson != null
+          ? jsonDecode(existingJson) as List
+          : [];
 
       // Append new readings
       existing.addAll(_readingBuffer);

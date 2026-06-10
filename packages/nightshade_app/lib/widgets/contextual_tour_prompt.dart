@@ -252,7 +252,6 @@ class _PromptCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-
             Text(
               description,
               style: NightshadeTypography.caption.copyWith(
@@ -261,7 +260,6 @@ class _PromptCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-
             Row(
               children: [
                 Expanded(
@@ -273,7 +271,6 @@ class _PromptCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-
                 NightshadeButton(
                   onPressed: onStartTour,
                   label: 'Start Tour',

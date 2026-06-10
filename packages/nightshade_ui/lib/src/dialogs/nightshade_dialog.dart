@@ -105,10 +105,7 @@ class NightshadeDialog extends StatelessWidget {
       designHeight: height,
     );
 
-    final body = Padding(
-      padding: bodyPadding,
-      child: child,
-    );
+    final body = Padding(padding: bodyPadding, child: child);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -181,14 +178,19 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, color: colors.textSecondary, size: NightshadeTokens.iconMd),
+            Icon(
+              icon,
+              color: colors.textSecondary,
+              size: NightshadeTokens.iconMd,
+            ),
             const SizedBox(width: NightshadeTokens.spaceMd),
           ],
           Expanded(
             child: Text(
               title,
-              style: NightshadeTypography.h4
-                  .copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.h4.copyWith(
+                color: colors.textPrimary,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),

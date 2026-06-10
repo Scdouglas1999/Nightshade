@@ -59,10 +59,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         code: 'device_not_found',
         message: e.message,
         statusCode: 404,
-        details: {
-          'deviceId': deviceId,
-          'deviceType': deviceType.name,
-        },
+        details: {'deviceId': deviceId, 'deviceType': deviceType.name},
       );
     } catch (e, stackTrace) {
       // The connect threw after passing discovery — most likely the
@@ -78,10 +75,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         code: 'device_connect_failed',
         message: _sanitizeConnectErrorMessage(e),
         statusCode: 502,
-        details: {
-          'deviceId': deviceId,
-          'deviceType': deviceType.name,
-        },
+        details: {'deviceId': deviceId, 'deviceType': deviceType.name},
         cause: e,
         stackTrace: stackTrace,
       );
@@ -92,10 +86,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
       entityType: HostMutationEntity.equipment,
       action: HostMutationAction.connected,
       entityId: deviceId,
-      extra: {
-        'deviceType': deviceType.name,
-        'deviceId': deviceId,
-      },
+      extra: {'deviceType': deviceType.name, 'deviceId': deviceId},
     );
 
     return jsonOk({
@@ -133,10 +124,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         code: 'device_not_connected',
         message: 'No ${deviceType.name} is currently connected',
         statusCode: 409,
-        details: {
-          'deviceId': deviceId,
-          'deviceType': deviceType.name,
-        },
+        details: {'deviceId': deviceId, 'deviceType': deviceType.name},
       );
     }
     if (connectedId != deviceId) {
@@ -165,10 +153,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         code: 'device_disconnect_failed',
         message: _sanitizeConnectErrorMessage(e),
         statusCode: 502,
-        details: {
-          'deviceId': deviceId,
-          'deviceType': deviceType.name,
-        },
+        details: {'deviceId': deviceId, 'deviceType': deviceType.name},
         cause: e,
         stackTrace: stackTrace,
       );
@@ -179,10 +164,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
       entityType: HostMutationEntity.equipment,
       action: HostMutationAction.disconnected,
       entityId: deviceId,
-      extra: {
-        'deviceType': deviceType.name,
-        'deviceId': deviceId,
-      },
+      extra: {'deviceType': deviceType.name, 'deviceId': deviceId},
     );
 
     return jsonOk({

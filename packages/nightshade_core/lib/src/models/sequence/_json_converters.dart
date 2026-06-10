@@ -97,7 +97,8 @@ class UnixSecsDateTimeConverter implements JsonConverter<DateTime, int> {
       DateTime.fromMillisecondsSinceEpoch(unixSecs * 1000, isUtc: true);
 
   @override
-  int toJson(DateTime instant) => instant.toUtc().millisecondsSinceEpoch ~/ 1000;
+  int toJson(DateTime instant) =>
+      instant.toUtc().millisecondsSinceEpoch ~/ 1000;
 }
 
 /// Nullable variant of [UnixSecsDateTimeConverter].

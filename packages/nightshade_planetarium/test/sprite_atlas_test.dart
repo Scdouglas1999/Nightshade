@@ -24,10 +24,16 @@ void main() {
       // DSO glyph cell is 96 logical px * dpr; the sheet is one row of glyphs.
       expect(atlas.dsoGlyphSize, 96 * 2.0);
       expect(atlas.dsoSheet.height, 192);
-      expect(atlas.dsoSheet.width % 192, 0,
-          reason: 'sheet width should be an integer number of glyph cells');
-      expect(atlas.dsoSheet.width ~/ 192, greaterThanOrEqualTo(6),
-          reason: 'one cell per glyph family');
+      expect(
+        atlas.dsoSheet.width % 192,
+        0,
+        reason: 'sheet width should be an integer number of glyph cells',
+      );
+      expect(
+        atlas.dsoSheet.width ~/ 192,
+        greaterThanOrEqualTo(6),
+        reason: 'one cell per glyph family',
+      );
     });
 
     test('matches() tracks the bake parameters', () {
@@ -66,10 +72,16 @@ void main() {
       for (final type in samples) {
         final r = atlas.dsoSrcRect(type);
         // Each rect must sit fully inside the sheet.
-        expect(sheetRect.contains(r.topLeft), isTrue,
-            reason: '$type rect top-left out of sheet');
-        expect(r.right, lessThanOrEqualTo(sheetRect.right),
-            reason: '$type rect overflows sheet width');
+        expect(
+          sheetRect.contains(r.topLeft),
+          isTrue,
+          reason: '$type rect top-left out of sheet',
+        );
+        expect(
+          r.right,
+          lessThanOrEqualTo(sheetRect.right),
+          reason: '$type rect overflows sheet width',
+        );
         // Cell is the glyph size square.
         expect(r.width, atlas.dsoGlyphSize);
         expect(r.height, atlas.dsoGlyphSize);
@@ -79,11 +91,15 @@ void main() {
       expect(rects.length, samples.length);
 
       // Galaxy subtypes fold onto the galaxy family (same cell).
-      expect(atlas.dsoSrcRect(DsoType.galaxyPair),
-          atlas.dsoSrcRect(DsoType.galaxy));
+      expect(
+        atlas.dsoSrcRect(DsoType.galaxyPair),
+        atlas.dsoSrcRect(DsoType.galaxy),
+      );
       // Emission nebula folds onto the nebula family.
-      expect(atlas.dsoSrcRect(DsoType.emissionNebula),
-          atlas.dsoSrcRect(DsoType.nebula));
+      expect(
+        atlas.dsoSrcRect(DsoType.emissionNebula),
+        atlas.dsoSrcRect(DsoType.nebula),
+      );
     });
 
     test('low tier without spikes still bakes a usable spiked variant', () {

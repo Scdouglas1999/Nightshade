@@ -143,8 +143,7 @@ void main() {
     verify(() => backend.rotatorMoveTo(_kDeviceId, 200)).called(1);
   });
 
-  testWidgets(
-      'caps_window_honored: 300 rejected for 0..270 caps (no dispatch)',
+  testWidgets('caps_window_honored: 300 rejected for 0..270 caps (no dispatch)',
       (tester) async {
     final handle = await _pumpCard(tester, _caps(minAngle: 0, maxAngle: 270));
     final backend = handle.backend;
@@ -182,11 +181,9 @@ void main() {
     verifyNever(() => backend.rotatorMoveTo(_kDeviceId, 361));
   });
 
-  testWidgets(
-      'inverted_caps_range_falls_back: min>=max uses 0..360 window',
+  testWidgets('inverted_caps_range_falls_back: min>=max uses 0..360 window',
       (tester) async {
-    final handle =
-        await _pumpCard(tester, _caps(minAngle: 300, maxAngle: 100));
+    final handle = await _pumpCard(tester, _caps(minAngle: 300, maxAngle: 100));
     final backend = handle.backend;
 
     await _openDialog(tester);

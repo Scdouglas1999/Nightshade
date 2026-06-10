@@ -13,10 +13,12 @@ class SessionRecoveryChecker extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SessionRecoveryChecker> createState() => _SessionRecoveryCheckerState();
+  ConsumerState<SessionRecoveryChecker> createState() =>
+      _SessionRecoveryCheckerState();
 }
 
-class _SessionRecoveryCheckerState extends ConsumerState<SessionRecoveryChecker> {
+class _SessionRecoveryCheckerState
+    extends ConsumerState<SessionRecoveryChecker> {
   bool _hasChecked = false;
 
   @override
@@ -35,7 +37,8 @@ class _SessionRecoveryCheckerState extends ConsumerState<SessionRecoveryChecker>
 
     try {
       // Wait for the provider to complete
-      final incompleteSessions = await ref.read(incompleteSessionsProvider.future);
+      final incompleteSessions =
+          await ref.read(incompleteSessionsProvider.future);
 
       if (incompleteSessions.isNotEmpty && mounted) {
         // Delay to ensure UI is ready

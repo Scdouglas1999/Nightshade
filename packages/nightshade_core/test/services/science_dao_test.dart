@@ -20,7 +20,9 @@ void main() {
   });
 
   Future<int> createSession({String? name}) {
-    return database.into(database.imagingSessions).insert(
+    return database
+        .into(database.imagingSessions)
+        .insert(
           ImagingSessionsCompanion.insert(
             name: Value(name),
             startTime: DateTime.now(),
@@ -118,17 +120,22 @@ void main() {
       ),
     ]);
 
-    final lightCurve =
-        await dao.watchLightCurve(sessionId, 'target_primary').first;
+    final lightCurve = await dao
+        .watchLightCurve(sessionId, 'target_primary')
+        .first;
     expect(lightCurve, hasLength(2));
     expect(
-        lightCurve.first.timestamp.isBefore(lightCurve.last.timestamp), isTrue);
+      lightCurve.first.timestamp.isBefore(lightCurve.last.timestamp),
+      isTrue,
+    );
     expect(lightCurve.first.flux, closeTo(1200, 1e-6));
   });
 
   test('replaces and streams frame quality metrics by image', () async {
     final sessionId = await createSession(name: 'Frame quality test');
-    final imageId = await database.into(database.capturedImages).insert(
+    final imageId = await database
+        .into(database.capturedImages)
+        .insert(
           CapturedImagesCompanion.insert(
             filePath: 'test_frame.fits',
             fileName: 'test_frame.fits',
@@ -171,7 +178,9 @@ void main() {
 
   test('replaces tile metrics by image and streams by session', () async {
     final sessionId = await createSession(name: 'Tile metrics test');
-    final imageId = await database.into(database.capturedImages).insert(
+    final imageId = await database
+        .into(database.capturedImages)
+        .insert(
           CapturedImagesCompanion.insert(
             filePath: 'test_tiles.fits',
             fileName: 'test_tiles.fits',
@@ -182,39 +191,36 @@ void main() {
           ),
         );
 
-    await dao.replaceTileMetricsForImage(
-      imageId,
-      [
-        ScienceTileMetricsCompanion.insert(
-          capturedImageId: Value(imageId),
-          sessionId: Value(sessionId),
-          timestamp: Value(DateTime.now()),
-          layerType: 'uniformity',
-          tileRow: 0,
-          tileCol: 0,
-          sampleCount: const Value(1024),
-          value: const Value(0.11),
-          p05: const Value(420),
-          p50: const Value(510),
-          p95: const Value(640),
-          auxValue: const Value(2.4),
-        ),
-        ScienceTileMetricsCompanion.insert(
-          capturedImageId: Value(imageId),
-          sessionId: Value(sessionId),
-          timestamp: Value(DateTime.now()),
-          layerType: 'clip_high',
-          tileRow: 0,
-          tileCol: 0,
-          sampleCount: const Value(1024),
-          value: const Value(0.6),
-          p05: const Value(0.6),
-          p50: const Value(0.6),
-          p95: const Value(0.6),
-          auxValue: const Value(6),
-        ),
-      ],
-    );
+    await dao.replaceTileMetricsForImage(imageId, [
+      ScienceTileMetricsCompanion.insert(
+        capturedImageId: Value(imageId),
+        sessionId: Value(sessionId),
+        timestamp: Value(DateTime.now()),
+        layerType: 'uniformity',
+        tileRow: 0,
+        tileCol: 0,
+        sampleCount: const Value(1024),
+        value: const Value(0.11),
+        p05: const Value(420),
+        p50: const Value(510),
+        p95: const Value(640),
+        auxValue: const Value(2.4),
+      ),
+      ScienceTileMetricsCompanion.insert(
+        capturedImageId: Value(imageId),
+        sessionId: Value(sessionId),
+        timestamp: Value(DateTime.now()),
+        layerType: 'clip_high',
+        tileRow: 0,
+        tileCol: 0,
+        sampleCount: const Value(1024),
+        value: const Value(0.6),
+        p05: const Value(0.6),
+        p50: const Value(0.6),
+        p95: const Value(0.6),
+        auxValue: const Value(6),
+      ),
+    ]);
 
     final rows = await dao.watchTileMetricsForSession(sessionId).first;
     expect(rows.length, 2);

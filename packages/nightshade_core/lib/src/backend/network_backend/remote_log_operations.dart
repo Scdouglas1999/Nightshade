@@ -7,9 +7,7 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
     String? severityMin,
     String? categoryFilter,
   }) async {
-    final query = <String, dynamic>{
-      'limit': limit.toString(),
-    };
+    final query = <String, dynamic>{'limit': limit.toString()};
     if (severityMin != null && severityMin.isNotEmpty) {
       query['minSeverity'] = severityMin;
     }
@@ -27,7 +25,8 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
       // make a broken server look like a quiet one.
       throw dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
-        message: 'GET /api/logs/recent: missing or non-list `entries` field in '
+        message:
+            'GET /api/logs/recent: missing or non-list `entries` field in '
             'response body',
       );
     }
@@ -35,9 +34,11 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
     for (final raw in entriesRaw) {
       if (raw is! Map) continue;
       try {
-        out.add(LogEntry.fromJson(
-          raw.map((k, v) => MapEntry(k.toString(), v as Object?)),
-        ));
+        out.add(
+          LogEntry.fromJson(
+            raw.map((k, v) => MapEntry(k.toString(), v as Object?)),
+          ),
+        );
       } on FormatException catch (e) {
         // One bad entry must not torpedo the whole list. We log and
         // skip; the UI gets the remaining entries.
@@ -120,8 +121,10 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
           RemoteApiCompatibility.apiVersionHeader,
           RemoteApiCompatibility.clientApiVersion.format(),
         );
-        req.headers
-            .set(NetworkBackend._requestIdHeader, _nextRequestId('logs/tail'));
+        req.headers.set(
+          NetworkBackend._requestIdHeader,
+          _nextRequestId('logs/tail'),
+        );
         if (authToken != null && authToken!.isNotEmpty) {
           req.headers.set('Authorization', 'Bearer $authToken');
         }
@@ -141,39 +144,39 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
             .transform(utf8.decoder)
             .transform(const LineSplitter())
             .listen(
-          (line) {
-            if (closed) return;
-            if (line.isEmpty) {
-              _processSseFrame(buffer.toString(), controller, (id) {
-                lastEventId = id;
-              });
-              buffer.clear();
-              return;
-            }
-            // Comments (`: keep-alive`) are ignored by the SSE spec.
-            if (line.startsWith(':')) return;
-            buffer.writeln(line);
-          },
-          onError: (Object e, _) {
-            if (closed) return;
-            developer.log(
-              '[NetworkBackend] /api/logs/tail stream error: $e',
-              name: 'NetworkBackend',
-              level: 900,
+              (line) {
+                if (closed) return;
+                if (line.isEmpty) {
+                  _processSseFrame(buffer.toString(), controller, (id) {
+                    lastEventId = id;
+                  });
+                  buffer.clear();
+                  return;
+                }
+                // Comments (`: keep-alive`) are ignored by the SSE spec.
+                if (line.startsWith(':')) return;
+                buffer.writeln(line);
+              },
+              onError: (Object e, _) {
+                if (closed) return;
+                developer.log(
+                  '[NetworkBackend] /api/logs/tail stream error: $e',
+                  name: 'NetworkBackend',
+                  level: 900,
+                );
+                scheduleReconnect();
+              },
+              onDone: () {
+                if (closed) return;
+                developer.log(
+                  '[NetworkBackend] /api/logs/tail stream closed by server',
+                  name: 'NetworkBackend',
+                  level: 700,
+                );
+                scheduleReconnect();
+              },
+              cancelOnError: true,
             );
-            scheduleReconnect();
-          },
-          onDone: () {
-            if (closed) return;
-            developer.log(
-              '[NetworkBackend] /api/logs/tail stream closed by server',
-              name: 'NetworkBackend',
-              level: 700,
-            );
-            scheduleReconnect();
-          },
-          cancelOnError: true,
-        );
       } catch (e) {
         if (closed) return;
         developer.log(

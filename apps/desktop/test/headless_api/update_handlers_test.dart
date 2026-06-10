@@ -28,8 +28,9 @@ class _FakeUpdateController implements UpdateController {
   final StreamController<UpdateEvent> _events =
       StreamController<UpdateEvent>.broadcast();
 
-  UpdateControllerStatus _status =
-      const UpdateControllerStatus(state: UpdateLifecycleState.idle);
+  UpdateControllerStatus _status = const UpdateControllerStatus(
+    state: UpdateLifecycleState.idle,
+  );
 
   // Recorded calls.
   final List<String?> checkChannels = [];
@@ -71,8 +72,7 @@ class _FakeUpdateController implements UpdateController {
   String? get updateServerUrl => 'https://updates.example.com';
 
   @override
-  DateTime? get lastUpdateCheck =>
-      DateTime.utc(2026, 5, 24, 12, 0);
+  DateTime? get lastUpdateCheck => DateTime.utc(2026, 5, 24, 12, 0);
 
   @override
   DateTime? get lastUpdateApplied => null;
@@ -102,7 +102,8 @@ class _FakeUpdateController implements UpdateController {
     if (_status.state != UpdateLifecycleState.checking &&
         _status.state != UpdateLifecycleState.downloading) {
       throw StateError(
-          'No update operation is currently in flight (state=${_status.state.wireName}).');
+        'No update operation is currently in flight (state=${_status.state.wireName}).',
+      );
     }
     _status = const UpdateControllerStatus(state: UpdateLifecycleState.idle);
   }
@@ -162,10 +163,7 @@ void main() {
     setUp(() {
       controller = _FakeUpdateController();
       jobManager = JobManager(emitEvent: (_) {});
-      handlers = UpdateHandlers(
-        controller: controller,
-        jobManager: jobManager,
-      );
+      handlers = UpdateHandlers(controller: controller, jobManager: jobManager);
     });
 
     tearDown(() async {
@@ -174,9 +172,11 @@ void main() {
     });
 
     test('GET /api/system/version returns current build info', () async {
-      final response = await translateHandlerErrors(handlers.handleGetVersion(
-        Request('GET', Uri.parse('http://localhost/api/system/version')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetVersion(
+          Request('GET', Uri.parse('http://localhost/api/system/version')),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['currentVersion'], '2.6.0');
@@ -196,12 +196,14 @@ void main() {
         downloadSize: 1024,
       );
 
-      final response = await translateHandlerErrors(handlers.handleCheckForUpdate(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/system/update/check'),
+      final response = await translateHandlerErrors(
+        handlers.handleCheckForUpdate(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/check'),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
@@ -223,12 +225,14 @@ void main() {
     test('POST /api/system/update/check honours ?channel= override', () async {
       controller.checkOutcome = const UpdateCheckOutcome(available: false);
 
-      final response = await translateHandlerErrors(handlers.handleCheckForUpdate(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/system/update/check?channel=beta'),
+      final response = await translateHandlerErrors(
+        handlers.handleCheckForUpdate(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/check?channel=beta'),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
@@ -240,17 +244,24 @@ void main() {
     });
 
     test('GET /api/system/update/status reflects the current phase', () async {
-      controller.setStatus(UpdateControllerStatus(
-        state: UpdateLifecycleState.downloading,
-        progressPct: 0.42,
-        message: 'Downloading 2.7.0',
-        stagedVersion: null,
-        stagedAt: DateTime.utc(2026, 5, 24, 12),
-      ));
+      controller.setStatus(
+        UpdateControllerStatus(
+          state: UpdateLifecycleState.downloading,
+          progressPct: 0.42,
+          message: 'Downloading 2.7.0',
+          stagedVersion: null,
+          stagedAt: DateTime.utc(2026, 5, 24, 12),
+        ),
+      );
 
-      final response = await translateHandlerErrors(handlers.handleGetStatus(
-        Request('GET', Uri.parse('http://localhost/api/system/update/status')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetStatus(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/system/update/status'),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['state'], 'downloading');
@@ -258,107 +269,147 @@ void main() {
       expect(body['message'], 'Downloading 2.7.0');
     });
 
-    test('GET /api/system/update/staged returns null when nothing is staged',
-        () async {
-      controller.stagedInfo = null;
-      final response = await translateHandlerErrors(handlers.handleGetStaged(
-        Request('GET', Uri.parse('http://localhost/api/system/update/staged')),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['staged'], isNull);
-    });
+    test(
+      'GET /api/system/update/staged returns null when nothing is staged',
+      () async {
+        controller.stagedInfo = null;
+        final response = await translateHandlerErrors(
+          handlers.handleGetStaged(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/system/update/staged'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['staged'], isNull);
+      },
+    );
 
-    test('GET /api/system/update/staged returns the snapshot when staged',
-        () async {
-      controller.stagedInfo = StagedUpdateInfo(
-        stagedVersion: '2.7.0',
-        stagedBuildNumber: 7,
-        stagedAt: DateTime.utc(2026, 5, 24, 12),
-        fileCount: 3,
-        totalBytes: 4096,
-        expectedHashes: const {'app.exe': 'deadbeef'},
-        manifestHash: 'cafef00d',
-      );
-      final response = await translateHandlerErrors(handlers.handleGetStaged(
-        Request('GET', Uri.parse('http://localhost/api/system/update/staged')),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      final staged = body['staged'] as Map;
-      expect(staged['stagedVersion'], '2.7.0');
-      expect(staged['fileCount'], 3);
-      expect(staged['totalBytes'], 4096);
-      expect(staged['expectedHashes'], {'app.exe': 'deadbeef'});
-      expect(staged['manifestHash'], 'cafef00d');
-    });
+    test(
+      'GET /api/system/update/staged returns the snapshot when staged',
+      () async {
+        controller.stagedInfo = StagedUpdateInfo(
+          stagedVersion: '2.7.0',
+          stagedBuildNumber: 7,
+          stagedAt: DateTime.utc(2026, 5, 24, 12),
+          fileCount: 3,
+          totalBytes: 4096,
+          expectedHashes: const {'app.exe': 'deadbeef'},
+          manifestHash: 'cafef00d',
+        );
+        final response = await translateHandlerErrors(
+          handlers.handleGetStaged(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/system/update/staged'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final staged = body['staged'] as Map;
+        expect(staged['stagedVersion'], '2.7.0');
+        expect(staged['fileCount'], 3);
+        expect(staged['totalBytes'], 4096);
+        expect(staged['expectedHashes'], {'app.exe': 'deadbeef'});
+        expect(staged['manifestHash'], 'cafef00d');
+      },
+    );
 
-    test('DELETE /api/system/update/staged removes the staged update',
-        () async {
-      controller.stagedInfo = StagedUpdateInfo(
-        stagedVersion: '2.7.0',
-        stagedBuildNumber: 7,
-        stagedAt: DateTime.utc(2026, 5, 24, 12),
-        fileCount: 1,
-        totalBytes: 1024,
-        expectedHashes: const {},
-      );
+    test(
+      'DELETE /api/system/update/staged removes the staged update',
+      () async {
+        controller.stagedInfo = StagedUpdateInfo(
+          stagedVersion: '2.7.0',
+          stagedBuildNumber: 7,
+          stagedAt: DateTime.utc(2026, 5, 24, 12),
+          fileCount: 1,
+          totalBytes: 1024,
+          expectedHashes: const {},
+        );
 
-      final response = await translateHandlerErrors(
+        final response = await translateHandlerErrors(
           handlers.handleDiscardStaged(
-        Request(
-            'DELETE', Uri.parse('http://localhost/api/system/update/staged')),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['discarded'], true);
-      expect(controller.discardCalls, 1);
-      expect(controller.stagedInfo, isNull);
-    });
+            Request(
+              'DELETE',
+              Uri.parse('http://localhost/api/system/update/staged'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['discarded'], true);
+        expect(controller.discardCalls, 1);
+        expect(controller.stagedInfo, isNull);
+      },
+    );
 
-    test('POST /api/system/update/rollback returns 501 when no restore point',
-        () async {
-      controller.rollbackSupportedReturn = false;
-      final response = await translateHandlerErrors(handlers.handleRollback(
-        Request(
-            'POST', Uri.parse('http://localhost/api/system/update/rollback')),
-      ));
-      expect(response.statusCode, HttpStatus.notImplemented);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'rollback_unavailable');
-    });
+    test(
+      'POST /api/system/update/rollback returns 501 when no restore point',
+      () async {
+        controller.rollbackSupportedReturn = false;
+        final response = await translateHandlerErrors(
+          handlers.handleRollback(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/system/update/rollback'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.notImplemented);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'rollback_unavailable');
+      },
+    );
 
-    test('POST /api/system/update/rollback dispatches a job when available',
-        () async {
-      controller.rollbackSupportedReturn = true;
-      final response = await translateHandlerErrors(handlers.handleRollback(
-        Request(
-            'POST', Uri.parse('http://localhost/api/system/update/rollback')),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      final jobId = body['jobId'] as String;
-      await _pumpUntil(
-        () => jobManager.get(jobId)?.state == JobState.succeeded,
-      );
-      expect(controller.rollbackJobIds, ['pending']);
-    });
+    test(
+      'POST /api/system/update/rollback dispatches a job when available',
+      () async {
+        controller.rollbackSupportedReturn = true;
+        final response = await translateHandlerErrors(
+          handlers.handleRollback(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/system/update/rollback'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final jobId = body['jobId'] as String;
+        await _pumpUntil(
+          () => jobManager.get(jobId)?.state == JobState.succeeded,
+        );
+        expect(controller.rollbackJobIds, ['pending']);
+      },
+    );
 
-    test('POST /api/system/update/abort returns 409 when nothing is in flight',
-        () async {
-      controller.setStatus(
-          const UpdateControllerStatus(state: UpdateLifecycleState.idle));
-      final response = await translateHandlerErrors(handlers.handleAbort(
-        Request('POST', Uri.parse('http://localhost/api/system/update/abort')),
-      ));
-      expect(response.statusCode, HttpStatus.conflict);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'no_update_in_flight');
-    });
+    test(
+      'POST /api/system/update/abort returns 409 when nothing is in flight',
+      () async {
+        controller.setStatus(
+          const UpdateControllerStatus(state: UpdateLifecycleState.idle),
+        );
+        final response = await translateHandlerErrors(
+          handlers.handleAbort(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/system/update/abort'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.conflict);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'no_update_in_flight');
+      },
+    );
 
     test('POST /api/system/update/abort cancels matching jobs', () async {
       controller.setStatus(
-          const UpdateControllerStatus(state: UpdateLifecycleState.downloading));
+        const UpdateControllerStatus(state: UpdateLifecycleState.downloading),
+      );
       // Pre-seed a download job that will hang so abort actually has
       // something to cancel.
       final waitForever = Completer<Map<String, Object?>>();
@@ -367,11 +418,17 @@ void main() {
         work: (sink, cancellation) => waitForever.future,
       );
       await _pumpUntil(
-          () => jobManager.get(hung.jobId)?.state == JobState.running);
+        () => jobManager.get(hung.jobId)?.state == JobState.running,
+      );
 
-      final response = await translateHandlerErrors(handlers.handleAbort(
-        Request('POST', Uri.parse('http://localhost/api/system/update/abort')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleAbort(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/abort'),
+          ),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
@@ -384,10 +441,14 @@ void main() {
     });
 
     test('POST /api/system/update/download dispatches a job', () async {
-      final response = await translateHandlerErrors(handlers.handleDownload(
-        Request(
-            'POST', Uri.parse('http://localhost/api/system/update/download')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDownload(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/download'),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       final jobId = body['jobId'] as String;
@@ -397,20 +458,27 @@ void main() {
       expect(controller.downloadJobIds, ['pending']);
     });
 
-    test('POST /api/system/update/apply dispatches a job and signals restart',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleApply(
-        Request('POST', Uri.parse('http://localhost/api/system/update/apply')),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['restartRequired'], true);
-      final jobId = body['jobId'] as String;
-      await _pumpUntil(
-        () => jobManager.get(jobId)?.state == JobState.succeeded,
-      );
-      expect(controller.applyJobIds, ['pending']);
-    });
+    test(
+      'POST /api/system/update/apply dispatches a job and signals restart',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleApply(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/system/update/apply'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['restartRequired'], true);
+        final jobId = body['jobId'] as String;
+        await _pumpUntil(
+          () => jobManager.get(jobId)?.state == JobState.succeeded,
+        );
+        expect(controller.applyJobIds, ['pending']);
+      },
+    );
   });
 
   group('UpdateHandlers (scope enforcement)', () {
@@ -467,42 +535,66 @@ void main() {
     }
 
     test('POST /api/system/update/download requires admin scope', () async {
-      final viewResp =
-          await send('POST', '/api/system/update/download', token: 'view-token');
+      final viewResp = await send(
+        'POST',
+        '/api/system/update/download',
+        token: 'view-token',
+      );
       expect(viewResp.statusCode, HttpStatus.forbidden);
 
-      final controlResp = await send('POST', '/api/system/update/download',
-          token: 'control-token');
+      final controlResp = await send(
+        'POST',
+        '/api/system/update/download',
+        token: 'control-token',
+      );
       expect(controlResp.statusCode, HttpStatus.forbidden);
 
-      final adminResp = await send('POST', '/api/system/update/download',
-          token: 'admin-token');
+      final adminResp = await send(
+        'POST',
+        '/api/system/update/download',
+        token: 'admin-token',
+      );
       expect(adminResp.statusCode, HttpStatus.ok);
     });
 
     test('POST /api/system/update/apply requires admin scope', () async {
-      final controlResp = await send('POST', '/api/system/update/apply',
-          token: 'control-token');
+      final controlResp = await send(
+        'POST',
+        '/api/system/update/apply',
+        token: 'control-token',
+      );
       expect(controlResp.statusCode, HttpStatus.forbidden);
 
-      final adminResp = await send('POST', '/api/system/update/apply',
-          token: 'admin-token');
+      final adminResp = await send(
+        'POST',
+        '/api/system/update/apply',
+        token: 'admin-token',
+      );
       expect(adminResp.statusCode, HttpStatus.ok);
     });
 
     test('DELETE /api/system/update/staged requires admin scope', () async {
-      final controlResp = await send('DELETE', '/api/system/update/staged',
-          token: 'control-token');
+      final controlResp = await send(
+        'DELETE',
+        '/api/system/update/staged',
+        token: 'control-token',
+      );
       expect(controlResp.statusCode, HttpStatus.forbidden);
 
-      final adminResp = await send('DELETE', '/api/system/update/staged',
-          token: 'admin-token');
+      final adminResp = await send(
+        'DELETE',
+        '/api/system/update/staged',
+        token: 'admin-token',
+      );
       expect(adminResp.statusCode, HttpStatus.ok);
     });
 
     test('GET /api/system/version is reachable with view scope', () async {
-      final viewResp =
-          await send('GET', '/api/system/version', token: 'view-token');
+      final viewResp = await send(
+        'GET',
+        '/api/system/version',
+        token: 'view-token',
+      );
       expect(viewResp.statusCode, HttpStatus.ok);
     });
 
@@ -527,11 +619,13 @@ void main() {
 
       // Wait briefly so the server processes the WS upgrade.
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      fakeController.emit(const UpdateAvailableEvent(
-        currentVersion: '2.6.0',
-        latestVersion: '2.7.0',
-        downloadUrl: 'https://example.com/update.zip',
-      ));
+      fakeController.emit(
+        const UpdateAvailableEvent(
+          currentVersion: '2.6.0',
+          latestVersion: '2.7.0',
+          downloadUrl: 'https://example.com/update.zip',
+        ),
+      );
 
       try {
         final event = await completer.future.timeout(
@@ -541,10 +635,7 @@ void main() {
         expect(event['eventType'], 'UpdateAvailable');
         expect(event['seq'], isA<int>());
         expect(event['serverInstanceId'], isA<String>());
-        expect(
-          (event['data'] as Map)['latestVersion'],
-          '2.7.0',
-        );
+        expect((event['data'] as Map)['latestVersion'], '2.7.0');
       } finally {
         await subscription.cancel();
         await socket.close();

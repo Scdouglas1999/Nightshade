@@ -9,26 +9,37 @@
 enum BackendErrorCategory {
   /// Connection/discovery errors
   connection,
+
   /// Hardware-level errors
   hardware,
+
   /// Timeout errors
   timeout,
+
   /// Input validation errors
   validation,
+
   /// Unsupported operation errors
   unsupported,
+
   /// Device busy errors
   busy,
+
   /// Imaging/camera errors
   imaging,
+
   /// File I/O errors
   io,
+
   /// Sequence execution errors
   sequence,
+
   /// Driver-specific errors (ASCOM, Alpaca, INDI, native)
   driver,
+
   /// System/internal errors
   system,
+
   /// Unknown error category
   unknown,
 }
@@ -100,12 +111,22 @@ class NightshadeError implements Exception {
   /// Create from JSON (for network transport and FRB bridge)
   factory NightshadeError.fromJson(Map<String, dynamic> json) {
     return NightshadeError(
-      category: BackendErrorCategoryParsing.fromString(json['category'] as String? ?? 'unknown'),
+      category: BackendErrorCategoryParsing.fromString(
+        json['category'] as String? ?? 'unknown',
+      ),
       message: json['message'] as String? ?? 'Unknown error',
-      userMessage: json['user_message'] as String? ?? json['userMessage'] as String?,
-      isRecoverable: json['is_recoverable'] as bool? ?? json['isRecoverable'] as bool? ?? false,
-      shouldReconnect: json['should_reconnect'] as bool? ?? json['shouldReconnect'] as bool? ?? false,
-      isTimeout: json['is_timeout'] as bool? ?? json['isTimeout'] as bool? ?? false,
+      userMessage:
+          json['user_message'] as String? ?? json['userMessage'] as String?,
+      isRecoverable:
+          json['is_recoverable'] as bool? ??
+          json['isRecoverable'] as bool? ??
+          false,
+      shouldReconnect:
+          json['should_reconnect'] as bool? ??
+          json['shouldReconnect'] as bool? ??
+          false,
+      isTimeout:
+          json['is_timeout'] as bool? ?? json['isTimeout'] as bool? ?? false,
       deviceId: json['device_id'] as String? ?? json['deviceId'] as String?,
       errorCode: json['error_code'] as int? ?? json['errorCode'] as int?,
     );
@@ -113,15 +134,15 @@ class NightshadeError implements Exception {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'category': category.name,
-        'message': message,
-        'user_message': userMessage,
-        'is_recoverable': isRecoverable,
-        'should_reconnect': shouldReconnect,
-        'is_timeout': isTimeout,
-        'device_id': deviceId,
-        'error_code': errorCode,
-      };
+    'category': category.name,
+    'message': message,
+    'user_message': userMessage,
+    'is_recoverable': isRecoverable,
+    'should_reconnect': shouldReconnect,
+    'is_timeout': isTimeout,
+    'device_id': deviceId,
+    'error_code': errorCode,
+  };
 
   /// Parse error from a string message (for backward compatibility)
   ///
@@ -138,7 +159,8 @@ class NightshadeError implements Exception {
     String? deviceId;
 
     // Detect timeout errors
-    if (lowerMessage.contains('timeout') || lowerMessage.contains('timed out')) {
+    if (lowerMessage.contains('timeout') ||
+        lowerMessage.contains('timed out')) {
       category = BackendErrorCategory.timeout;
       isTimeout = true;
       isRecoverable = true;
@@ -152,7 +174,8 @@ class NightshadeError implements Exception {
       isRecoverable = true;
     }
     // Detect hardware errors
-    else if (lowerMessage.contains('hardware') || lowerMessage.contains('communication error')) {
+    else if (lowerMessage.contains('hardware') ||
+        lowerMessage.contains('communication error')) {
       category = BackendErrorCategory.hardware;
       isRecoverable = true;
     }
@@ -162,11 +185,13 @@ class NightshadeError implements Exception {
       isRecoverable = true;
     }
     // Detect validation errors
-    else if (lowerMessage.contains('invalid') || lowerMessage.contains('out of range')) {
+    else if (lowerMessage.contains('invalid') ||
+        lowerMessage.contains('out of range')) {
       category = BackendErrorCategory.validation;
     }
     // Detect unsupported operations
-    else if (lowerMessage.contains('not supported') || lowerMessage.contains('unsupported')) {
+    else if (lowerMessage.contains('not supported') ||
+        lowerMessage.contains('unsupported')) {
       category = BackendErrorCategory.unsupported;
     }
     // Detect imaging errors
@@ -200,7 +225,10 @@ class NightshadeError implements Exception {
   }
 
   /// Create from a generic exception
-  factory NightshadeError.fromException(Object exception, [StackTrace? stackTrace]) {
+  factory NightshadeError.fromException(
+    Object exception, [
+    StackTrace? stackTrace,
+  ]) {
     if (exception is NightshadeError) {
       return exception;
     }
@@ -257,8 +285,14 @@ class NightshadeError implements Exception {
   }
 
   /// Create a timeout error
-  factory NightshadeError.timeout(String operation, {String? deviceId, double? timeoutSecs}) {
-    final timeoutMsg = timeoutSecs != null ? ' after ${timeoutSecs.toStringAsFixed(1)}s' : '';
+  factory NightshadeError.timeout(
+    String operation, {
+    String? deviceId,
+    double? timeoutSecs,
+  }) {
+    final timeoutMsg = timeoutSecs != null
+        ? ' after ${timeoutSecs.toStringAsFixed(1)}s'
+        : '';
     return NightshadeError(
       category: BackendErrorCategory.timeout,
       message: 'Operation timed out: $operation$timeoutMsg',
@@ -291,7 +325,11 @@ class NightshadeError implements Exception {
   }
 
   /// Create a hardware error
-  factory NightshadeError.hardwareError(String deviceId, String message, {int? errorCode}) {
+  factory NightshadeError.hardwareError(
+    String deviceId,
+    String message, {
+    int? errorCode,
+  }) {
     return NightshadeError(
       category: BackendErrorCategory.hardware,
       message: 'Hardware error: $deviceId - $message',
@@ -333,7 +371,9 @@ class NightshadeError implements Exception {
   bool get isValidationError => category == BackendErrorCategory.validation;
 
   /// Whether this is a cancellation (not really an error)
-  bool get isCancellation => message.toLowerCase().contains('cancelled') || message.toLowerCase().contains('canceled');
+  bool get isCancellation =>
+      message.toLowerCase().contains('cancelled') ||
+      message.toLowerCase().contains('canceled');
 
   @override
   String toString() => message;
@@ -366,10 +406,10 @@ class ServerIdentityMismatchError extends NightshadeError {
     required this.actualFingerprint,
     super.userMessage,
   }) : super(
-          category: BackendErrorCategory.connection,
-          // Identity mismatch is terminal: never auto-retry/reconnect to a host
-          // we cannot positively identify.
-          isRecoverable: false,
-          shouldReconnect: false,
-        );
+         category: BackendErrorCategory.connection,
+         // Identity mismatch is terminal: never auto-retry/reconnect to a host
+         // we cannot positively identify.
+         isRecoverable: false,
+         shouldReconnect: false,
+       );
 }

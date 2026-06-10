@@ -71,29 +71,34 @@ void main() {
       expect(child.parentId, loaded.rootNodeId);
     });
 
-    test('appending a bare target after a copy-open does not alias originals',
-        () {
-      final c = _newContainer();
-      _notifier(c).loadCopyForEditing(_sourceSequence());
+    test(
+      'appending a bare target after a copy-open does not alias originals',
+      () {
+        final c = _newContainer();
+        _notifier(c).loadCopyForEditing(_sourceSequence());
 
-      _notifier(c).addTargetHeader(
-        TargetHeaderNode(
-          name: 'NGC 891',
-          targetName: 'NGC 891',
-          raHours: 2.37,
-          decDegrees: 42.35,
-        ),
-      );
+        _notifier(c).addTargetHeader(
+          TargetHeaderNode(
+            name: 'NGC 891',
+            targetName: 'NGC 891',
+            raHours: 2.37,
+            decDegrees: 42.35,
+          ),
+        );
 
-      final loaded = c.read(currentSequenceProvider)!;
-      final targets =
-          loaded.nodes.values.whereType<TargetHeaderNode>().toList();
-      expect(targets.map((t) => t.targetName),
-          containsAll(['M31', 'NGC 891']));
-      // The new header is a child of the copied root, not orphaned.
-      final root = loaded.nodes[loaded.rootNodeId!]!;
-      expect(root.childIds, hasLength(2));
-    });
+        final loaded = c.read(currentSequenceProvider)!;
+        final targets = loaded.nodes.values
+            .whereType<TargetHeaderNode>()
+            .toList();
+        expect(
+          targets.map((t) => t.targetName),
+          containsAll(['M31', 'NGC 891']),
+        );
+        // The new header is a child of the copied root, not orphaned.
+        final root = loaded.nodes[loaded.rootNodeId!]!;
+        expect(root.childIds, hasLength(2));
+      },
+    );
 
     test('refuses to clobber unsaved edits unless discardUnsaved is true', () {
       final c = _newContainer();

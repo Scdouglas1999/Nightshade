@@ -85,34 +85,38 @@ void main() {
       );
     }
 
-    test('creates mosaic_projects + mosaic_panels tables and their indexes',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v44_v45_create_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV44Database(tempDir);
+    test(
+      'creates mosaic_projects + mosaic_panels tables and their indexes',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v44_v45_create_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV44Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final names = await tableNames(upgraded);
-        expect(names, contains('mosaic_projects'));
-        expect(names, contains('mosaic_panels'));
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final names = await tableNames(upgraded);
+          expect(names, contains('mosaic_projects'));
+          expect(names, contains('mosaic_panels'));
 
-        final indexes = await indexNames(upgraded);
-        expect(indexes, contains('idx_mosaic_projects_target'));
-        expect(indexes, contains('idx_mosaic_projects_status'));
-        expect(indexes, contains('idx_mosaic_panels_project'));
-        expect(indexes, contains('idx_mosaic_panels_master'));
-      } finally {
-        await upgraded.close();
-      }
-    });
+          final indexes = await indexNames(upgraded);
+          expect(indexes, contains('idx_mosaic_projects_target'));
+          expect(indexes, contains('idx_mosaic_projects_status'));
+          expect(indexes, contains('idx_mosaic_panels_project'));
+          expect(indexes, contains('idx_mosaic_panels_master'));
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test('a project + panels round-trip through the new DAOs', () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v44_v45_roundtrip_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v44_v45_roundtrip_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -166,8 +170,11 @@ void main() {
 
         // Credit accepted frames + attach a per-panel master.
         await panelsDao.incrementCaptured(panel0Id, delta: 3);
-        final panel0MasterId =
-            await seedMaster(upgraded, panelTargetId, 'Veil · Panel 1 · L');
+        final panel0MasterId = await seedMaster(
+          upgraded,
+          panelTargetId,
+          'Veil · Panel 1 · L',
+        );
         await panelsDao.setMaster(panel0Id, panel0MasterId);
         // A rejected/no-op frame must never advance the counter.
         expect(await panelsDao.incrementCaptured(panel1Id, delta: 0), 0);
@@ -188,9 +195,14 @@ void main() {
 
         // Drive the project lifecycle and attach the stitched output master.
         await projectsDao.updateStatus(
-            projectId, MosaicProjectStatus.stitching);
-        final stitchedMasterId =
-            await seedMaster(upgraded, regionTargetId, 'Veil 3x2 · Mosaic');
+          projectId,
+          MosaicProjectStatus.stitching,
+        );
+        final stitchedMasterId = await seedMaster(
+          upgraded,
+          regionTargetId,
+          'Veil 3x2 · Mosaic',
+        );
         await projectsDao.setOutputMaster(projectId, stitchedMasterId);
 
         final done = await projectsDao.getById(projectId);
@@ -198,18 +210,87 @@ void main() {
         expect(done.outputMasterId, stitchedMasterId);
         expect(done.isComplete, isTrue);
 
-        final completeList =
-            await projectsDao.listByStatus(MosaicProjectStatus.complete);
+        final completeList = await projectsDao.listByStatus(
+          MosaicProjectStatus.complete,
+        );
         expect(completeList.map((p) => p.id), contains(projectId));
       } finally {
         await upgraded.close();
       }
     });
 
-    test('upsert keys on (project, panel_index) and preserves capture progress',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v44_v45_upsert_');
+    test(
+      'upsert keys on (project, panel_index) and preserves capture progress',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v44_v45_upsert_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV44Database(tempDir);
+
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final projectsDao = MosaicProjectsDao(upgraded);
+          final panelsDao = MosaicPanelsDao(upgraded);
+
+          final projectId = await projectsDao.create(
+            name: 'M31 2x2',
+            rows: 2,
+            cols: 2,
+          );
+
+          final firstId = await panelsDao.upsert(
+            projectId: projectId,
+            panelIndex: 0,
+            centerRa: 0.70,
+            centerDec: 41.20,
+          );
+          // Accumulate progress and mark the panel captured.
+          await panelsDao.incrementCaptured(firstId, delta: 5);
+          await panelsDao.updateStatus(firstId, MosaicPanelStatus.captured);
+
+          // Regenerate the same panel with refined geometry — same row, no dupe,
+          // and the captured_count/status must survive.
+          final secondId = await panelsDao.upsert(
+            projectId: projectId,
+            panelIndex: 0,
+            centerRa: 0.75,
+            centerDec: 41.25,
+          );
+          expect(
+            secondId,
+            firstId,
+            reason:
+                'upsert on the same (project, panel_index) must update '
+                'the existing row, not create a duplicate.',
+          );
+
+          final panels = await panelsDao.getForProject(projectId);
+          expect(panels, hasLength(1));
+          expect(panels.single.centerRa, closeTo(0.75, 1e-9));
+          expect(panels.single.centerDec, closeTo(41.25, 1e-9));
+          expect(
+            panels.single.capturedCount,
+            5,
+            reason: 'regenerating the grid must NOT reset capture progress.',
+          );
+          expect(
+            panels.single.status,
+            MosaicPanelStatus.captured,
+            reason: 'regenerating the grid must NOT reset panel status.',
+          );
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
+
+    test('deleting a project cascades its panels', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v44_v45_cascade_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -221,71 +302,22 @@ void main() {
         final panelsDao = MosaicPanelsDao(upgraded);
 
         final projectId = await projectsDao.create(
-          name: 'M31 2x2',
-          rows: 2,
+          name: 'Throwaway',
+          rows: 1,
           cols: 2,
         );
-
-        final firstId = await panelsDao.upsert(
+        await panelsDao.upsert(
           projectId: projectId,
           panelIndex: 0,
-          centerRa: 0.70,
-          centerDec: 41.20,
+          centerRa: 1.0,
+          centerDec: 2.0,
         );
-        // Accumulate progress and mark the panel captured.
-        await panelsDao.incrementCaptured(firstId, delta: 5);
-        await panelsDao.updateStatus(firstId, MosaicPanelStatus.captured);
-
-        // Regenerate the same panel with refined geometry — same row, no dupe,
-        // and the captured_count/status must survive.
-        final secondId = await panelsDao.upsert(
+        await panelsDao.upsert(
           projectId: projectId,
-          panelIndex: 0,
-          centerRa: 0.75,
-          centerDec: 41.25,
+          panelIndex: 1,
+          centerRa: 1.1,
+          centerDec: 2.0,
         );
-        expect(secondId, firstId,
-            reason: 'upsert on the same (project, panel_index) must update '
-                'the existing row, not create a duplicate.');
-
-        final panels = await panelsDao.getForProject(projectId);
-        expect(panels, hasLength(1));
-        expect(panels.single.centerRa, closeTo(0.75, 1e-9));
-        expect(panels.single.centerDec, closeTo(41.25, 1e-9));
-        expect(panels.single.capturedCount, 5,
-            reason: 'regenerating the grid must NOT reset capture progress.');
-        expect(panels.single.status, MosaicPanelStatus.captured,
-            reason: 'regenerating the grid must NOT reset panel status.');
-      } finally {
-        await upgraded.close();
-      }
-    });
-
-    test('deleting a project cascades its panels', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v44_v45_cascade_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV44Database(tempDir);
-
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final projectsDao = MosaicProjectsDao(upgraded);
-        final panelsDao = MosaicPanelsDao(upgraded);
-
-        final projectId =
-            await projectsDao.create(name: 'Throwaway', rows: 1, cols: 2);
-        await panelsDao.upsert(
-            projectId: projectId,
-            panelIndex: 0,
-            centerRa: 1.0,
-            centerDec: 2.0);
-        await panelsDao.upsert(
-            projectId: projectId,
-            panelIndex: 1,
-            centerRa: 1.1,
-            centerDec: 2.0);
         expect(await panelsDao.getForProject(projectId), hasLength(2));
 
         await projectsDao.deleteProject(projectId);
@@ -297,16 +329,20 @@ void main() {
               variables: [Variable<int>(projectId)],
             )
             .getSingle();
-        expect(orphanCount.read<int>('c'), 0,
-            reason: 'ON DELETE CASCADE must tear down the project\'s panels.');
+        expect(
+          orphanCount.read<int>('c'),
+          0,
+          reason: 'ON DELETE CASCADE must tear down the project\'s panels.',
+        );
       } finally {
         await upgraded.close();
       }
     });
 
     test('re-running the v45 migration block is idempotent (no-op)', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v44_v45_idem_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v44_v45_idem_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -315,8 +351,9 @@ void main() {
       // First open performs the v45 upgrade and seeds a project so we can prove
       // the second migration pass does not recreate / clobber the table.
       final first = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      final projectId =
-          await MosaicProjectsDao(first).create(name: 'Keep me', rows: 2, cols: 2);
+      final projectId = await MosaicProjectsDao(
+        first,
+      ).create(name: 'Keep me', rows: 2, cols: 2);
       await MosaicPanelsDao(first).upsert(
         projectId: projectId,
         panelIndex: 0,
@@ -341,9 +378,13 @@ void main() {
         final projectCount = await second
             .customSelect('SELECT COUNT(*) AS c FROM mosaic_projects')
             .getSingle();
-        expect(projectCount.read<int>('c'), 1,
-            reason: 'The idempotent helper must NOT recreate / clobber the '
-                'pre-existing project row.');
+        expect(
+          projectCount.read<int>('c'),
+          1,
+          reason:
+              'The idempotent helper must NOT recreate / clobber the '
+              'pre-existing project row.',
+        );
         final panelCount = await second
             .customSelect('SELECT COUNT(*) AS c FROM mosaic_panels')
             .getSingle();

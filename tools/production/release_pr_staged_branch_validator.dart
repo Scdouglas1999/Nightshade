@@ -64,8 +64,9 @@ Future<void> main(List<String> args) async {
     'observedPaths': observedPaths.toList()..sort(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(_markdownOutputPath).writeAsString(_renderMarkdown(report));
 
   stdout.writeln('Release PR staged branch validation complete.');
@@ -112,7 +113,8 @@ _MatrixIntegrity _checkMatrixIntegrity({
     sourceSplitPlanExists = sourceFile.existsSync();
     if (!sourceSplitPlanExists) {
       issues.add(
-          'Decision matrix source split plan is missing: $sourceSplitPlan');
+        'Decision matrix source split plan is missing: $sourceSplitPlan',
+      );
     } else {
       final splitPlan =
           jsonDecode(sourceFile.readAsStringSync()) as Map<String, dynamic>;
@@ -121,9 +123,9 @@ _MatrixIntegrity _checkMatrixIntegrity({
         final bucket = rawBucket.cast<String, dynamic>();
         final bucketId = bucket['id']?.toString() ?? 'unknown';
         final pathspec = bucket['pathspecFile']?.toString().replaceAll(
-              '\\',
-              '/',
-            );
+          '\\',
+          '/',
+        );
         final rawPaths = bucket['paths'] as List? ?? const [];
         final bucketEntries = [
           for (final rawPath in rawPaths)
@@ -161,14 +163,15 @@ _MatrixIntegrity _checkMatrixIntegrity({
       final splitGeneratedAt = splitPlan['generatedAt']?.toString();
       final matrixSourceGeneratedAt = matrix['sourceGeneratedAt']?.toString();
       final splitSourceGeneratedAt = splitPlan['sourceGeneratedAt']?.toString();
-      final matrixSourceStagingGeneratedAt =
-          matrix['sourceStagingGeneratedAt']?.toString();
+      final matrixSourceStagingGeneratedAt = matrix['sourceStagingGeneratedAt']
+          ?.toString();
       final splitEntryCount = (splitPlan['entryCount'] as num?)?.toInt();
       final matrixEntryCount = (matrix['entryCount'] as num?)?.toInt();
       final splitBucketCount = (splitPlan['bucketCount'] as num?)?.toInt();
       final matrixBucketCount = (matrix['bucketCount'] as num?)?.toInt();
 
-      sourceSplitPlanMatches = splitGeneratedAt == matrixSourceGeneratedAt &&
+      sourceSplitPlanMatches =
+          splitGeneratedAt == matrixSourceGeneratedAt &&
           splitSourceGeneratedAt == matrixSourceStagingGeneratedAt &&
           splitEntryCount == matrixEntryCount &&
           splitBucketCount == matrixBucketCount;
@@ -259,8 +262,9 @@ _MatrixIntegrity _checkMatrixIntegrity({
       final body = draft['body']?.toString() ?? '';
       final pathspecFile = draft['pathspecFile']?.toString() ?? '';
       if (!title.startsWith('Release staging: ')) {
-        issues
-            .add('Draft PR for $bucketId is missing a release staging title.');
+        issues.add(
+          'Draft PR for $bucketId is missing a release staging title.',
+        );
       }
       for (final marker in [
         '## Scope',
@@ -269,8 +273,9 @@ _MatrixIntegrity _checkMatrixIntegrity({
         pathspecFile,
       ]) {
         if (marker.isNotEmpty && !body.contains(marker)) {
-          issues
-              .add('Draft PR for $bucketId is missing required text: $marker');
+          issues.add(
+            'Draft PR for $bucketId is missing required text: $marker',
+          );
         }
       }
     }
@@ -289,17 +294,9 @@ _MatrixIntegrity _checkMatrixIntegrity({
 Future<Set<String>> _readObservedPaths(_Options options) async {
   final args = switch (options.mode) {
     _ValidationMode.stagedIndex => ['diff', '--cached', '--name-only'],
-    _ValidationMode.branch => [
-        'diff',
-        '--name-only',
-        '${options.base}...HEAD',
-      ],
+    _ValidationMode.branch => ['diff', '--name-only', '${options.base}...HEAD'],
   };
-  final result = await Process.run(
-    'git',
-    args,
-    runInShell: Platform.isWindows,
-  );
+  final result = await Process.run('git', args, runInShell: Platform.isWindows);
   if (result.exitCode != 0) {
     stderr.writeln(result.stderr);
     exit(result.exitCode);
@@ -328,8 +325,9 @@ _ValidationResult _validate({
   for (final group in sortedGroups) {
     final observed = group.paths.intersection(observedPaths);
     final missing = group.paths.difference(observedPaths);
-    final forbidden =
-        group.validationRule == 'forbidden' ? observed : const <String>{};
+    final forbidden = group.validationRule == 'forbidden'
+        ? observed
+        : const <String>{};
     groupCoverage.add(
       _DecisionGroupCoverage(
         id: group.id,
@@ -355,9 +353,7 @@ _ValidationResult _validate({
   } else {
     final missing = mustShip.paths.difference(observedPaths);
     if (missing.isNotEmpty) {
-      issues.add(
-        'Missing must_ship paths: ${_formatPaths(missing)}',
-      );
+      issues.add('Missing must_ship paths: ${_formatPaths(missing)}');
     }
   }
 
@@ -446,8 +442,9 @@ int _compareDecisionGroups(_DecisionGroup a, _DecisionGroup b) {
   final aIndex = _decisionGroupOrder.indexOf(a.id);
   final bIndex = _decisionGroupOrder.indexOf(b.id);
   if (aIndex != -1 || bIndex != -1) {
-    return (aIndex == -1 ? _decisionGroupOrder.length : aIndex)
-        .compareTo(bIndex == -1 ? _decisionGroupOrder.length : bIndex);
+    return (aIndex == -1 ? _decisionGroupOrder.length : aIndex).compareTo(
+      bIndex == -1 ? _decisionGroupOrder.length : bIndex,
+    );
   }
   return a.id.compareTo(b.id);
 }
@@ -482,11 +479,12 @@ String _coverageStatus({
 }) {
   return switch (validationRule) {
     'required_all' => missingPathCount == 0 ? 'complete' : 'incomplete',
-    'optional_all_or_none' => observedPathCount == 0
-        ? 'not_included'
-        : missingPathCount == 0
-            ? 'complete'
-            : 'partial',
+    'optional_all_or_none' =>
+      observedPathCount == 0
+          ? 'not_included'
+          : missingPathCount == 0
+          ? 'complete'
+          : 'partial',
     'forbidden' => forbiddenPathCount == 0 ? 'clean' : 'forbidden_present',
     _ => missingPathCount == 0 ? 'complete' : 'unknown',
   };
@@ -541,7 +539,8 @@ String _renderMarkdown(Map<String, dynamic> report) {
     )
     ..writeln()
     ..writeln(
-        '| Pathspec | Group | Exists | Lines | Matrix paths | Missing | Unexpected | Duplicates |')
+      '| Pathspec | Group | Exists | Lines | Matrix paths | Missing | Unexpected | Duplicates |',
+    )
     ..writeln('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (final rawPathspec in pathspecs) {
     final pathspec = rawPathspec as Map<String, dynamic>;
@@ -636,9 +635,9 @@ enum _ValidationMode { stagedIndex, branch }
 
 extension _ValidationModeReportName on _ValidationMode {
   String get reportName => switch (this) {
-        _ValidationMode.stagedIndex => 'index',
-        _ValidationMode.branch => 'branch',
-      };
+    _ValidationMode.stagedIndex => 'index',
+    _ValidationMode.branch => 'branch',
+  };
 }
 
 class _Options {
@@ -757,16 +756,14 @@ class _MatrixIntegrity {
   });
 
   Map<String, Object?> toJson() => {
-        'sourceSplitPlan': sourceSplitPlan,
-        'sourceSplitPlanExists': sourceSplitPlanExists,
-        'sourceSplitPlanMatches': sourceSplitPlanMatches,
-        'pathspecCount': pathspecs.length,
-        'pathspecs': [
-          for (final pathspec in pathspecs) pathspec.toJson(),
-        ],
-        'issueCount': issues.length,
-        'warningCount': warnings.length,
-      };
+    'sourceSplitPlan': sourceSplitPlan,
+    'sourceSplitPlanExists': sourceSplitPlanExists,
+    'sourceSplitPlanMatches': sourceSplitPlanMatches,
+    'pathspecCount': pathspecs.length,
+    'pathspecs': [for (final pathspec in pathspecs) pathspec.toJson()],
+    'issueCount': issues.length,
+    'warningCount': warnings.length,
+  };
 }
 
 class _PathspecIntegrity {
@@ -791,15 +788,15 @@ class _PathspecIntegrity {
   });
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'groupId': groupId,
-        'exists': exists,
-        'lineCount': lineCount,
-        'matrixPathCount': matrixPathCount,
-        'missingCount': missingCount,
-        'unexpectedCount': unexpectedCount,
-        'duplicateCount': duplicateCount,
-      };
+    'path': path,
+    'groupId': groupId,
+    'exists': exists,
+    'lineCount': lineCount,
+    'matrixPathCount': matrixPathCount,
+    'missingCount': missingCount,
+    'unexpectedCount': unexpectedCount,
+    'duplicateCount': duplicateCount,
+  };
 }
 
 class _DecisionGroupCoverage {
@@ -824,15 +821,15 @@ class _DecisionGroupCoverage {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'title': title,
-        'validationRule': validationRule,
-        'pathCount': pathCount,
-        'observedPathCount': observedPathCount,
-        'missingPathCount': missingPathCount,
-        'forbiddenPathCount': forbiddenPathCount,
-        'status': status,
-      };
+    'id': id,
+    'title': title,
+    'validationRule': validationRule,
+    'pathCount': pathCount,
+    'observedPathCount': observedPathCount,
+    'missingPathCount': missingPathCount,
+    'forbiddenPathCount': forbiddenPathCount,
+    'status': status,
+  };
 }
 
 class _NextStageCommandGroup {
@@ -853,11 +850,11 @@ class _NextStageCommandGroup {
   });
 
   Map<String, Object?> toJson() => {
-        'groupId': groupId,
-        'title': title,
-        'validationRule': validationRule,
-        'status': status,
-        'purpose': purpose,
-        'commands': commands,
-      };
+    'groupId': groupId,
+    'title': title,
+    'validationRule': validationRule,
+    'status': status,
+    'purpose': purpose,
+    'commands': commands,
+  };
 }

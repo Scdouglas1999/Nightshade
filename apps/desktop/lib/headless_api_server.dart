@@ -422,9 +422,11 @@ class HeadlessApiServer {
       // the structured log.
       print('[AUTH] Generated authentication token: $_effectiveAuthToken');
       print(
-          '[AUTH] Use this token in the Authorization header: Bearer $_effectiveAuthToken');
+        '[AUTH] Use this token in the Authorization header: Bearer $_effectiveAuthToken',
+      );
       _logWarning(
-          '[AUTH] Auto-generated token (first run): ${_redactBearer(_effectiveAuthToken!)}');
+        '[AUTH] Auto-generated token (first run): ${_redactBearer(_effectiveAuthToken)}',
+      );
     } else {
       _effectiveAuthToken = null;
     }
@@ -588,8 +590,10 @@ class HeadlessApiServer {
     const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random.secure();
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
-        .join();
+    return List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 
   /// P1-1: inline UUID v4 generator used for the server-instance id. We
@@ -623,8 +627,7 @@ class HeadlessApiServer {
 
   void setPushNotificationStream(
     Stream<Map<String, dynamic>> notificationStream,
-  ) =>
-      _setPushNotificationStream(notificationStream);
+  ) => _setPushNotificationStream(notificationStream);
 
   void setLanPushBroadcaster(LanPushBroadcaster? broadcaster) =>
       _setLanPushBroadcaster(broadcaster);
@@ -687,7 +690,8 @@ class HeadlessApiServer {
     // channel is configured, the mock when `config.mock` is set, else null.
     // With no cloud channel and no explicit `mock:false` opt-out we still want
     // the mock as the Phase-D default, so fall back to it here.
-    final delivery = buildRemotePushDelivery(config, store) ??
+    final delivery =
+        buildRemotePushDelivery(config, store) ??
         (config.hasCloudChannel
             ? null
             : MockRemotePushDelivery(store: store, log: log));
@@ -768,10 +772,7 @@ class _RequestBodyLimitResult {
     required this.receivedBytes,
   });
 
-  factory _RequestBodyLimitResult.accepted(
-    Uint8List bytes,
-    int receivedBytes,
-  ) {
+  factory _RequestBodyLimitResult.accepted(Uint8List bytes, int receivedBytes) {
     return _RequestBodyLimitResult._(
       accepted: true,
       bytes: bytes,

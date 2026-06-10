@@ -48,7 +48,8 @@ class PageTransitions {
       curve: curve,
     );
 
-    final offset = slideFromRight ? const Offset(1.0, 0.0) : const Offset(-1.0, 0.0);
+    final offset =
+        slideFromRight ? const Offset(1.0, 0.0) : const Offset(-1.0, 0.0);
 
     return SlideTransition(
       position: Tween<Offset>(
@@ -108,7 +109,8 @@ class PageTransitions {
       curve: curve,
     );
 
-    final offset = slideFromBottom ? const Offset(0.0, 0.03) : const Offset(0.0, -0.03);
+    final offset =
+        slideFromBottom ? const Offset(0.0, 0.03) : const Offset(0.0, -0.03);
 
     return SlideTransition(
       position: Tween<Offset>(
@@ -135,6 +137,3 @@ class PageTransitions {
     return child;
   }
 }
-
-
-

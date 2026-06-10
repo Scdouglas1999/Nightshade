@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Fake disk service: returns canned [DiskSpaceInfo] (or throws). Test-only —
@@ -56,10 +56,7 @@ void main() {
   group('DiskSpaceGuardService.projectFrameBytes', () {
     test('returns null when capabilities are null', () {
       final exposure = ExposureNode(id: 'e', count: 1);
-      expect(
-        DiskSpaceGuardService.projectFrameBytes(exposure, null),
-        isNull,
-      );
+      expect(DiskSpaceGuardService.projectFrameBytes(exposure, null), isNull);
     });
 
     test('computes mono 16-bit frame size at bin 1x1', () {
@@ -73,8 +70,11 @@ void main() {
     });
 
     test('halves dimensions per axis under 2x2 binning', () {
-      final exposure =
-          ExposureNode(id: 'e', count: 1, binning: BinningMode.two);
+      final exposure = ExposureNode(
+        id: 'e',
+        count: 1,
+        binning: BinningMode.two,
+      );
       final bytes = DiskSpaceGuardService.projectFrameBytes(
         exposure,
         _cap6kMono16,
@@ -96,12 +96,14 @@ void main() {
     tearDown(() => guard.dispose());
 
     test('info severity when projected < 60% of free space', () async {
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(100),
-        sampledAt: DateTime.now(),
-      ));
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(100),
+          sampledAt: DateTime.now(),
+        ),
+      );
       // 100 frames * ~50 MB ≈ 5 GB << 60% of 100 GB free
       final projection = await guard.projectSequence(
         capturePath: 'C:/data',
@@ -116,12 +118,14 @@ void main() {
     test('warning severity when projected > 60% of free space', () async {
       // Make the disk small enough that the run consumes >60% of free.
       // 1500 frames * ~50 MB ≈ 75 GB out of 100 GB free => 75% > 60%.
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(100),
-        sampledAt: DateTime.now(),
-      ));
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(100),
+          sampledAt: DateTime.now(),
+        ),
+      );
       final projection = await guard.projectSequence(
         capturePath: 'C:/data',
         sequence: _seqWithExposures(1500),
@@ -132,12 +136,14 @@ void main() {
 
     test('blocking severity when run would breach 2 GB safety margin', () async {
       // 2500 frames * ~50 MB = 125 GB, but only 100 GB free => after-run goes negative.
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(100),
-        sampledAt: DateTime.now(),
-      ));
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(100),
+          sampledAt: DateTime.now(),
+        ),
+      );
       final projection = await guard.projectSequence(
         capturePath: 'C:/data',
         sequence: _seqWithExposures(2500),
@@ -146,35 +152,38 @@ void main() {
       expect(projection.severity, DiskSpaceSeverity.blocking);
     });
 
-    test('info severity (size unknown) when camera capabilities missing',
-        () async {
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(100),
-        sampledAt: DateTime.now(),
-      ));
-      final projection = await guard.projectSequence(
-        capturePath: 'C:/data',
-        sequence: _seqWithExposures(100),
-        capabilities: null,
-      );
-      expect(projection.severity, DiskSpaceSeverity.info);
-      expect(projection.projectedBytes, 0);
-      expect(projection.headline, contains('projected size unknown'));
-    });
+    test(
+      'info severity (size unknown) when camera capabilities missing',
+      () async {
+        fake.set(
+          DiskSpaceInfo(
+            path: 'C:/',
+            totalBytes: _gb(500),
+            freeBytes: _gb(100),
+            sampledAt: DateTime.now(),
+          ),
+        );
+        final projection = await guard.projectSequence(
+          capturePath: 'C:/data',
+          sequence: _seqWithExposures(100),
+          capabilities: null,
+        );
+        expect(projection.severity, DiskSpaceSeverity.info);
+        expect(projection.projectedBytes, 0);
+        expect(projection.headline, contains('projected size unknown'));
+      },
+    );
 
     test('disabled exposure nodes are excluded from projection', () async {
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(100),
-        sampledAt: DateTime.now(),
-      ));
-      final exposureEnabled = ExposureNode(
-        id: 'e1',
-        count: 50,
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(100),
+          sampledAt: DateTime.now(),
+        ),
       );
+      final exposureEnabled = ExposureNode(id: 'e1', count: 50);
       final exposureDisabled = ExposureNode(
         id: 'e2',
         count: 9999,
@@ -212,18 +221,19 @@ void main() {
   });
 
   group('DiskSpaceGuardService watchdog', () {
-    test('emits warning event when free space drops below threshold',
-        () async {
+    test('emits warning event when free space drops below threshold', () async {
       final fake = _FakeDiskSpaceService();
       final guard = DiskSpaceGuardService(diskService: fake);
       addTearDown(guard.dispose);
 
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(5), // below 10 GB warning, above 2 GB abort
-        sampledAt: DateTime.now(),
-      ));
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(5), // below 10 GB warning, above 2 GB abort
+          sampledAt: DateTime.now(),
+        ),
+      );
 
       final events = <DiskSpaceWatchdogEvent>[];
       final sub = guard.events.listen(events.add);
@@ -241,47 +251,55 @@ void main() {
       expect(events.first.severity, DiskSpaceSeverity.warning);
     });
 
-    test('emits blocking event when free space drops below abort threshold',
-        () async {
-      final fake = _FakeDiskSpaceService();
-      final guard = DiskSpaceGuardService(diskService: fake);
-      addTearDown(guard.dispose);
+    test(
+      'emits blocking event when free space drops below abort threshold',
+      () async {
+        final fake = _FakeDiskSpaceService();
+        final guard = DiskSpaceGuardService(diskService: fake);
+        addTearDown(guard.dispose);
 
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(1), // below both thresholds
-        sampledAt: DateTime.now(),
-      ));
+        fake.set(
+          DiskSpaceInfo(
+            path: 'C:/',
+            totalBytes: _gb(500),
+            freeBytes: _gb(1), // below both thresholds
+            sampledAt: DateTime.now(),
+          ),
+        );
 
-      final events = <DiskSpaceWatchdogEvent>[];
-      final sub = guard.events.listen(events.add);
-      addTearDown(sub.cancel);
+        final events = <DiskSpaceWatchdogEvent>[];
+        final sub = guard.events.listen(events.add);
+        addTearDown(sub.cancel);
 
-      guard.start(
-        capturePath: 'C:/data',
-        interval: const Duration(milliseconds: 50),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      guard.stop();
+        guard.start(
+          capturePath: 'C:/data',
+          interval: const Duration(milliseconds: 50),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        guard.stop();
 
-      // First emitted event should be the higher severity (blocking) — the
-      // abort branch is checked before warning.
-      expect(events.any((e) => e.severity == DiskSpaceSeverity.blocking),
-          isTrue);
-    });
+        // First emitted event should be the higher severity (blocking) — the
+        // abort branch is checked before warning.
+        expect(
+          events.any((e) => e.severity == DiskSpaceSeverity.blocking),
+          isTrue,
+        );
+      },
+    );
 
     test('does not emit when free space is above both thresholds', () async {
       final fake = _FakeDiskSpaceService();
       final guard = DiskSpaceGuardService(diskService: fake);
       addTearDown(guard.dispose);
 
-      fake.set(DiskSpaceInfo(
-        path: 'C:/',
-        totalBytes: _gb(500),
-        freeBytes: _gb(50),
-        sampledAt: DateTime.now(),
-      ));
+      fake.set(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(50),
+          sampledAt: DateTime.now(),
+        ),
+      );
 
       final events = <DiskSpaceWatchdogEvent>[];
       final sub = guard.events.listen(events.add);

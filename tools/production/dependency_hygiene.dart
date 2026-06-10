@@ -22,8 +22,9 @@ void main(List<String> args) {
   final packageReports = <_PackageReport>[];
 
   for (final packageDir in packageDirs) {
-    final pubspec =
-        File('${packageDir.path}${Platform.pathSeparator}pubspec.yaml');
+    final pubspec = File(
+      '${packageDir.path}${Platform.pathSeparator}pubspec.yaml',
+    );
     if (!pubspec.existsSync()) {
       continue;
     }
@@ -31,24 +32,28 @@ void main(List<String> args) {
     final parsed = _parsePubspec(pubspec.readAsLinesSync());
     final packageName = parsed.name;
     if (packageName == null || packageName.isEmpty) {
-      violations.add(_DependencyViolation(
-        pubspecPath: _normalize(pubspec.path),
-        packageName: 'unknown',
-        dependencyName: 'name',
-        reason: 'missing package name',
-      ));
+      violations.add(
+        _DependencyViolation(
+          pubspecPath: _normalize(pubspec.path),
+          packageName: 'unknown',
+          dependencyName: 'name',
+          reason: 'missing package name',
+        ),
+      );
       continue;
     }
 
     final libDir = Directory('${packageDir.path}${Platform.pathSeparator}lib');
     if (!libDir.existsSync()) {
-      packageReports.add(_PackageReport(
-        packageName: packageName,
-        path: _normalize(packageDir.path),
-        importedPackageCount: 0,
-        declaredDependencyCount: parsed.declaredDependencies.length,
-        missingDirectDependencies: const [],
-      ));
+      packageReports.add(
+        _PackageReport(
+          packageName: packageName,
+          path: _normalize(packageDir.path),
+          importedPackageCount: 0,
+          declaredDependencyCount: parsed.declaredDependencies.length,
+          missingDirectDependencies: const [],
+        ),
+      );
       continue;
     }
 
@@ -66,31 +71,38 @@ void main(List<String> args) {
       }
     }
 
-    final missing = importedPackages
-        .where((pkg) =>
-            pkg != packageName &&
-            pkg != 'flutter' &&
-            pkg != 'flutter_test' &&
-            !parsed.declaredDependencies.contains(pkg))
-        .toList()
-      ..sort();
+    final missing =
+        importedPackages
+            .where(
+              (pkg) =>
+                  pkg != packageName &&
+                  pkg != 'flutter' &&
+                  pkg != 'flutter_test' &&
+                  !parsed.declaredDependencies.contains(pkg),
+            )
+            .toList()
+          ..sort();
 
     for (final dep in missing) {
-      violations.add(_DependencyViolation(
-        pubspecPath: _normalize(pubspec.path),
-        packageName: packageName,
-        dependencyName: dep,
-        reason: 'missing direct dependency imported from lib/',
-      ));
+      violations.add(
+        _DependencyViolation(
+          pubspecPath: _normalize(pubspec.path),
+          packageName: packageName,
+          dependencyName: dep,
+          reason: 'missing direct dependency imported from lib/',
+        ),
+      );
     }
 
-    packageReports.add(_PackageReport(
-      packageName: packageName,
-      path: _normalize(packageDir.path),
-      importedPackageCount: importedPackages.length,
-      declaredDependencyCount: parsed.declaredDependencies.length,
-      missingDirectDependencies: missing,
-    ));
+    packageReports.add(
+      _PackageReport(
+        packageName: packageName,
+        path: _normalize(packageDir.path),
+        importedPackageCount: importedPackages.length,
+        declaredDependencyCount: parsed.declaredDependencies.length,
+        missingDirectDependencies: missing,
+      ),
+    );
   }
 
   packageReports.sort((a, b) => a.path.compareTo(b.path));
@@ -106,13 +118,13 @@ void main(List<String> args) {
     'packages': packageReports.map((report) => report.toJson()).toList(),
   };
   File(_jsonOutputPath).parent.createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
   File(_markdownOutputPath).parent.createSync(recursive: true);
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    packageReports: packageReports,
-    violations: violations,
-  ));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(packageReports: packageReports, violations: violations),
+  );
 
   stdout.writeln('Dependency hygiene check complete.');
   stdout.writeln('Packages scanned: ${packageReports.length}');
@@ -145,8 +157,9 @@ List<Directory> _findPackageDirs() {
       if (entity is! Directory) {
         continue;
       }
-      final pubspec =
-          File('${entity.path}${Platform.pathSeparator}pubspec.yaml');
+      final pubspec = File(
+        '${entity.path}${Platform.pathSeparator}pubspec.yaml',
+      );
       if (pubspec.existsSync()) {
         dirs.add(entity);
       }
@@ -274,11 +287,11 @@ class _DependencyViolation {
       '$pubspecPath: $reason "$dependencyName" for package "$packageName"';
 
   Map<String, Object?> toJson() => {
-        'pubspecPath': pubspecPath,
-        'packageName': packageName,
-        'dependencyName': dependencyName,
-        'reason': reason,
-      };
+    'pubspecPath': pubspecPath,
+    'packageName': packageName,
+    'dependencyName': dependencyName,
+    'reason': reason,
+  };
 }
 
 class _PackageReport {
@@ -297,10 +310,10 @@ class _PackageReport {
   });
 
   Map<String, Object?> toJson() => {
-        'packageName': packageName,
-        'path': path,
-        'importedPackageCount': importedPackageCount,
-        'declaredDependencyCount': declaredDependencyCount,
-        'missingDirectDependencies': missingDirectDependencies,
-      };
+    'packageName': packageName,
+    'path': path,
+    'importedPackageCount': importedPackageCount,
+    'declaredDependencyCount': declaredDependencyCount,
+    'missingDirectDependencies': missingDirectDependencies,
+  };
 }

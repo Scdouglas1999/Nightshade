@@ -79,165 +79,171 @@ class _FakeStackAndShareService implements StackAndShareService {
 }
 
 StackAndShareResult _result({int id = 42}) => StackAndShareResult(
-      id: id,
-      sessionId: 7,
-      targetName: 'M51',
-      width: 4,
-      height: 2,
-      framesStacked: 3,
-      framesAttempted: 4,
-      integrationSecs: 180,
-      avgAlignmentResidual: 0.42,
-      filter: 'L',
-      createdAt: DateTime.utc(2026, 5, 28, 3),
-    );
+  id: id,
+  sessionId: 7,
+  targetName: 'M51',
+  width: 4,
+  height: 2,
+  framesStacked: 3,
+  framesAttempted: 4,
+  integrationSecs: 180,
+  avgAlignmentResidual: 0.42,
+  filter: 'L',
+  createdAt: DateTime.utc(2026, 5, 28, 3),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('StackAndShareNotifier.runForSession', () {
-    test('streams idle -> selecting -> stacking -> complete and captures result',
-        () async {
-      final raw = StackedRawResult(
-        width: 4,
-        height: 2,
-        data: Uint16List.fromList(List<int>.generate(8, (i) => i * 100)),
-      );
-      final rgba = StackedRgbaResult(
-        width: 4,
-        height: 2,
-        rgba: Uint8List.fromList(List<int>.generate(32, (i) => i)),
-      );
-      final fake = _FakeStackAndShareService(
-        progressScript: const [
-          StackAndShareProgress(
-            phase: StackAndSharePhase.selectingLights,
-            framesTotal: 4,
+    test(
+      'streams idle -> selecting -> stacking -> complete and captures result',
+      () async {
+        final raw = StackedRawResult(
+          width: 4,
+          height: 2,
+          data: Uint16List.fromList(List<int>.generate(8, (i) => i * 100)),
+        );
+        final rgba = StackedRgbaResult(
+          width: 4,
+          height: 2,
+          rgba: Uint8List.fromList(List<int>.generate(32, (i) => i)),
+        );
+        final fake = _FakeStackAndShareService(
+          progressScript: const [
+            StackAndShareProgress(
+              phase: StackAndSharePhase.selectingLights,
+              framesTotal: 4,
+            ),
+            StackAndShareProgress(
+              phase: StackAndSharePhase.stacking,
+              framesTotal: 4,
+              framesProcessed: 2,
+            ),
+          ],
+          result: _result(),
+          raw: raw,
+          rgba: rgba,
+        );
+
+        final container = ProviderContainer(
+          overrides: [stackAndShareServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+
+        // Keep the autoDispose notifier alive for the duration of the test.
+        final sub = container.listen(stackAndShareProvider, (_, __) {});
+        addTearDown(sub.close);
+
+        final phases = <StackAndSharePhase>[];
+        final phaseSub = container.listen<StackAndShareState>(
+          stackAndShareProvider,
+          (_, next) {
+            phases.add(next.progress.phase);
+          },
+        );
+        addTearDown(phaseSub.close);
+
+        // Initial state is idle.
+        expect(
+          container.read(stackAndShareProvider).progress.phase,
+          StackAndSharePhase.idle,
+        );
+
+        await container
+            .read(stackAndShareProvider.notifier)
+            .runForSession(7, config: StackAndShareConfig.defaults);
+
+        final state = container.read(stackAndShareProvider);
+        expect(state.progress.phase, StackAndSharePhase.complete);
+        expect(state.isComplete, isTrue);
+        expect(state.errorMessage, isNull);
+        expect(state.result, equals(_result()));
+        expect(state.resultWidth, 4);
+        expect(state.resultHeight, 2);
+        expect(state.resultMono, equals(raw.data));
+        expect(state.resultRgba, equals(rgba.rgba));
+        // A mono integration (StackedRawResult default channels == 1) must leave
+        // the state's channel layout at mono.
+        expect(state.resultChannels, 1);
+        expect(state.isColorResult, isFalse);
+
+        // The observed transitions go through selecting and stacking before
+        // completing (the leading idle is the pre-run baseline).
+        expect(phases, contains(StackAndSharePhase.selectingLights));
+        expect(phases, contains(StackAndSharePhase.stacking));
+        expect(phases.last, StackAndSharePhase.complete);
+        // selecting must precede stacking which must precede complete.
+        expect(
+          phases.indexOf(StackAndSharePhase.selectingLights) <
+              phases.indexOf(StackAndSharePhase.stacking),
+          isTrue,
+        );
+        expect(
+          phases.indexOf(StackAndSharePhase.stacking) <
+              phases.lastIndexOf(StackAndSharePhase.complete),
+          isTrue,
+        );
+      },
+    );
+
+    test(
+      'color run carries channels==3 (interleaved RGB16) into state',
+      () async {
+        // A 2x2 OSC integration: interleaved RGB16 has width*height*3 samples.
+        const width = 2;
+        const height = 2;
+        final raw = StackedRawResult(
+          width: width,
+          height: height,
+          channels: 3,
+          data: Uint16List.fromList(
+            List<int>.generate(width * height * 3, (i) => i * 1000),
           ),
-          StackAndShareProgress(
-            phase: StackAndSharePhase.stacking,
-            framesTotal: 4,
-            framesProcessed: 2,
+        );
+        final rgba = StackedRgbaResult(
+          width: width,
+          height: height,
+          rgba: Uint8List.fromList(
+            List<int>.generate(width * height * 4, (i) => i),
           ),
-        ],
-        result: _result(),
-        raw: raw,
-        rgba: rgba,
-      );
+        );
+        final fake = _FakeStackAndShareService(
+          progressScript: const [
+            StackAndShareProgress(phase: StackAndSharePhase.stacking),
+          ],
+          result: _result(),
+          raw: raw,
+          rgba: rgba,
+        );
 
-      final container = ProviderContainer(overrides: [
-        stackAndShareServiceProvider.overrideWithValue(fake),
-      ]);
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [stackAndShareServiceProvider.overrideWithValue(fake)],
+        );
+        addTearDown(container.dispose);
+        final sub = container.listen(stackAndShareProvider, (_, __) {});
+        addTearDown(sub.close);
 
-      // Keep the autoDispose notifier alive for the duration of the test.
-      final sub = container.listen(stackAndShareProvider, (_, __) {});
-      addTearDown(sub.close);
+        await container.read(stackAndShareProvider.notifier).runForSession(7);
 
-      final phases = <StackAndSharePhase>[];
-      final phaseSub =
-          container.listen<StackAndShareState>(stackAndShareProvider, (_, next) {
-        phases.add(next.progress.phase);
-      });
-      addTearDown(phaseSub.close);
+        final state = container.read(stackAndShareProvider);
+        expect(state.isComplete, isTrue);
+        expect(state.resultChannels, 3);
+        expect(state.isColorResult, isTrue);
+        expect(state.resultWidth, width);
+        expect(state.resultHeight, height);
+        // The interleaved RGB16 buffer is carried through verbatim (no flatten to
+        // a mono plane), so its length is width*height*3.
+        expect(state.resultMono, equals(raw.data));
+        expect(state.resultMono, hasLength(width * height * 3));
 
-      // Initial state is idle.
-      expect(
-        container.read(stackAndShareProvider).progress.phase,
-        StackAndSharePhase.idle,
-      );
-
-      await container
-          .read(stackAndShareProvider.notifier)
-          .runForSession(7, config: StackAndShareConfig.defaults);
-
-      final state = container.read(stackAndShareProvider);
-      expect(state.progress.phase, StackAndSharePhase.complete);
-      expect(state.isComplete, isTrue);
-      expect(state.errorMessage, isNull);
-      expect(state.result, equals(_result()));
-      expect(state.resultWidth, 4);
-      expect(state.resultHeight, 2);
-      expect(state.resultMono, equals(raw.data));
-      expect(state.resultRgba, equals(rgba.rgba));
-      // A mono integration (StackedRawResult default channels == 1) must leave
-      // the state's channel layout at mono.
-      expect(state.resultChannels, 1);
-      expect(state.isColorResult, isFalse);
-
-      // The observed transitions go through selecting and stacking before
-      // completing (the leading idle is the pre-run baseline).
-      expect(phases, contains(StackAndSharePhase.selectingLights));
-      expect(phases, contains(StackAndSharePhase.stacking));
-      expect(phases.last, StackAndSharePhase.complete);
-      // selecting must precede stacking which must precede complete.
-      expect(
-        phases.indexOf(StackAndSharePhase.selectingLights) <
-            phases.indexOf(StackAndSharePhase.stacking),
-        isTrue,
-      );
-      expect(
-        phases.indexOf(StackAndSharePhase.stacking) <
-            phases.lastIndexOf(StackAndSharePhase.complete),
-        isTrue,
-      );
-    });
-
-    test('color run carries channels==3 (interleaved RGB16) into state',
-        () async {
-      // A 2x2 OSC integration: interleaved RGB16 has width*height*3 samples.
-      const width = 2;
-      const height = 2;
-      final raw = StackedRawResult(
-        width: width,
-        height: height,
-        channels: 3,
-        data: Uint16List.fromList(
-          List<int>.generate(width * height * 3, (i) => i * 1000),
-        ),
-      );
-      final rgba = StackedRgbaResult(
-        width: width,
-        height: height,
-        rgba: Uint8List.fromList(
-          List<int>.generate(width * height * 4, (i) => i),
-        ),
-      );
-      final fake = _FakeStackAndShareService(
-        progressScript: const [
-          StackAndShareProgress(phase: StackAndSharePhase.stacking),
-        ],
-        result: _result(),
-        raw: raw,
-        rgba: rgba,
-      );
-
-      final container = ProviderContainer(overrides: [
-        stackAndShareServiceProvider.overrideWithValue(fake),
-      ]);
-      addTearDown(container.dispose);
-      final sub = container.listen(stackAndShareProvider, (_, __) {});
-      addTearDown(sub.close);
-
-      await container.read(stackAndShareProvider.notifier).runForSession(7);
-
-      final state = container.read(stackAndShareProvider);
-      expect(state.isComplete, isTrue);
-      expect(state.resultChannels, 3);
-      expect(state.isColorResult, isTrue);
-      expect(state.resultWidth, width);
-      expect(state.resultHeight, height);
-      // The interleaved RGB16 buffer is carried through verbatim (no flatten to
-      // a mono plane), so its length is width*height*3.
-      expect(state.resultMono, equals(raw.data));
-      expect(state.resultMono, hasLength(width * height * 3));
-
-      // reset() must drop the colour layout back to the mono default.
-      container.read(stackAndShareProvider.notifier).reset();
-      final afterReset = container.read(stackAndShareProvider);
-      expect(afterReset.resultChannels, 1);
-      expect(afterReset.isColorResult, isFalse);
-    });
+        // reset() must drop the colour layout back to the mono default.
+        container.read(stackAndShareProvider.notifier).reset();
+        final afterReset = container.read(stackAndShareProvider);
+        expect(afterReset.resultChannels, 1);
+        expect(afterReset.isColorResult, isFalse);
+      },
+    );
 
     test('error path sets errorMessage and terminal error phase', () async {
       final fake = _FakeStackAndShareService(
@@ -249,9 +255,9 @@ void main() {
         ),
       );
 
-      final container = ProviderContainer(overrides: [
-        stackAndShareServiceProvider.overrideWithValue(fake),
-      ]);
+      final container = ProviderContainer(
+        overrides: [stackAndShareServiceProvider.overrideWithValue(fake)],
+      );
       addTearDown(container.dispose);
       final sub = container.listen(stackAndShareProvider, (_, __) {});
       addTearDown(sub.close);
@@ -264,55 +270,46 @@ void main() {
       expect(state.result, isNull);
       expect(state.resultMono, isNull);
       expect(state.resultRgba, isNull);
-      expect(
-        state.errorMessage,
-        contains('Stop live stacking'),
-      );
+      expect(state.errorMessage, contains('Stop live stacking'));
     });
 
-    test('mounted guard: disposing mid-run leaves no late state mutation',
-        () async {
-      // A service that completes only after we have torn the container down.
-      final fake = _FakeStackAndShareService(
-        progressScript: const [
-          StackAndShareProgress(phase: StackAndSharePhase.selectingLights),
-          StackAndShareProgress(phase: StackAndSharePhase.stacking),
-        ],
-        result: _result(),
-        raw: StackedRawResult(
-          width: 4,
-          height: 2,
-          data: Uint16List(8),
-        ),
-      );
+    test(
+      'mounted guard: disposing mid-run leaves no late state mutation',
+      () async {
+        // A service that completes only after we have torn the container down.
+        final fake = _FakeStackAndShareService(
+          progressScript: const [
+            StackAndShareProgress(phase: StackAndSharePhase.selectingLights),
+            StackAndShareProgress(phase: StackAndSharePhase.stacking),
+          ],
+          result: _result(),
+          raw: StackedRawResult(width: 4, height: 2, data: Uint16List(8)),
+        );
 
-      final container = ProviderContainer(overrides: [
-        stackAndShareServiceProvider.overrideWithValue(fake),
-      ]);
-      final notifier = container.read(stackAndShareProvider.notifier);
+        final container = ProviderContainer(
+          overrides: [stackAndShareServiceProvider.overrideWithValue(fake)],
+        );
+        final notifier = container.read(stackAndShareProvider.notifier);
 
-      // Start the run but do NOT await it; dispose the notifier immediately so
-      // its `mounted` becomes false while the fake's awaits are still pending.
-      final future = notifier.runForSession(7);
-      container.dispose();
+        // Start the run but do NOT await it; dispose the notifier immediately so
+        // its `mounted` becomes false while the fake's awaits are still pending.
+        final future = notifier.runForSession(7);
+        container.dispose();
 
-      // The run must complete without throwing a "used after dispose" error;
-      // the mounted guards swallow the late `state =` writes.
-      await expectLater(future, completes);
-    });
+        // The run must complete without throwing a "used after dispose" error;
+        // the mounted guards swallow the late `state =` writes.
+        await expectLater(future, completes);
+      },
+    );
 
     test('reset returns to idle and clears result + buffers', () async {
       final fake = _FakeStackAndShareService(
         result: _result(),
-        raw: StackedRawResult(
-          width: 4,
-          height: 2,
-          data: Uint16List(8),
-        ),
+        raw: StackedRawResult(width: 4, height: 2, data: Uint16List(8)),
       );
-      final container = ProviderContainer(overrides: [
-        stackAndShareServiceProvider.overrideWithValue(fake),
-      ]);
+      final container = ProviderContainer(
+        overrides: [stackAndShareServiceProvider.overrideWithValue(fake)],
+      );
       addTearDown(container.dispose);
       final sub = container.listen(stackAndShareProvider, (_, __) {});
       addTearDown(sub.close);
@@ -348,62 +345,68 @@ void main() {
 
     test('stackResultViewerProvider loads a persisted result by id', () async {
       final dao = container.read(stackedResultsDaoProvider);
-      final id = await dao.insertResult(StackAndShareResult(
-        sessionId: 7,
-        targetName: 'M81',
-        width: 100,
-        height: 80,
-        framesStacked: 5,
-        framesAttempted: 6,
-        integrationSecs: 300,
-        avgAlignmentResidual: 0.3,
-        filter: 'Ha',
-        createdAt: DateTime.utc(2026, 5, 27, 22),
-      ));
+      final id = await dao.insertResult(
+        StackAndShareResult(
+          sessionId: 7,
+          targetName: 'M81',
+          width: 100,
+          height: 80,
+          framesStacked: 5,
+          framesAttempted: 6,
+          integrationSecs: 300,
+          avgAlignmentResidual: 0.3,
+          filter: 'Ha',
+          createdAt: DateTime.utc(2026, 5, 27, 22),
+        ),
+      );
 
-      final loaded =
-          await container.read(stackResultViewerProvider(id).future);
+      final loaded = await container.read(stackResultViewerProvider(id).future);
       expect(loaded.id, id);
       expect(loaded.targetName, 'M81');
       expect(loaded.filter, 'Ha');
       expect(loaded.width, 100);
     });
 
-    test('stackResultViewerProvider throws StateError for an unknown id',
-        () async {
-      await expectLater(
-        container.read(stackResultViewerProvider(999999).future),
-        throwsStateError,
-      );
-    });
+    test(
+      'stackResultViewerProvider throws StateError for an unknown id',
+      () async {
+        await expectLater(
+          container.read(stackResultViewerProvider(999999).future),
+          throwsStateError,
+        );
+      },
+    );
 
     test('recentStackedResultsProvider returns rows newest first', () async {
       final dao = container.read(stackedResultsDaoProvider);
-      await dao.insertResult(StackAndShareResult(
-        targetName: 'Older',
-        width: 10,
-        height: 10,
-        framesStacked: 1,
-        framesAttempted: 1,
-        integrationSecs: 60,
-        avgAlignmentResidual: 0,
-        createdAt: DateTime.utc(2026, 5, 1),
-        stats: const LiveStackingStats(),
-      ));
-      await dao.insertResult(StackAndShareResult(
-        targetName: 'Newer',
-        width: 10,
-        height: 10,
-        framesStacked: 1,
-        framesAttempted: 1,
-        integrationSecs: 60,
-        avgAlignmentResidual: 0,
-        createdAt: DateTime.utc(2026, 5, 20),
-        stats: const LiveStackingStats(),
-      ));
+      await dao.insertResult(
+        StackAndShareResult(
+          targetName: 'Older',
+          width: 10,
+          height: 10,
+          framesStacked: 1,
+          framesAttempted: 1,
+          integrationSecs: 60,
+          avgAlignmentResidual: 0,
+          createdAt: DateTime.utc(2026, 5, 1),
+          stats: const LiveStackingStats(),
+        ),
+      );
+      await dao.insertResult(
+        StackAndShareResult(
+          targetName: 'Newer',
+          width: 10,
+          height: 10,
+          framesStacked: 1,
+          framesAttempted: 1,
+          integrationSecs: 60,
+          avgAlignmentResidual: 0,
+          createdAt: DateTime.utc(2026, 5, 20),
+          stats: const LiveStackingStats(),
+        ),
+      );
 
-      final recent =
-          await container.read(recentStackedResultsProvider.future);
+      final recent = await container.read(recentStackedResultsProvider.future);
       expect(recent, hasLength(2));
       expect(recent.first.targetName, 'Newer');
       expect(recent.last.targetName, 'Older');

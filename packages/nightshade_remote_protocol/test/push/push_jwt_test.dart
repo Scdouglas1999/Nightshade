@@ -56,8 +56,9 @@ void main() {
         claims: const <String, Object?>{'iss': 'a', 'iat': 1},
       );
       final parts = jwt.split('.');
-      final signingInput =
-          Uint8List.fromList(utf8.encode('${parts[0]}.${parts[1]}'));
+      final signingInput = Uint8List.fromList(
+        utf8.encode('${parts[0]}.${parts[1]}'),
+      );
       final sigBytes = base64Url.decode(
         parts[2].padRight((parts[2].length + 3) & ~3, '='),
       );
@@ -127,8 +128,9 @@ void main() {
         claims: const <String, Object?>{'iss': 'TEAM000001', 'iat': 42},
       );
       final parts = jwt.split('.');
-      final signingInput =
-          Uint8List.fromList(utf8.encode('${parts[0]}.${parts[1]}'));
+      final signingInput = Uint8List.fromList(
+        utf8.encode('${parts[0]}.${parts[1]}'),
+      );
       final sig = base64Url.decode(
         parts[2].padRight((parts[2].length + 3) & ~3, '='),
       );

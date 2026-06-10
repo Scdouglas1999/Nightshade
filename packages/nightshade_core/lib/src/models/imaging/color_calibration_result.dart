@@ -32,8 +32,9 @@ class ColorCalibrationResult {
 
   factory ColorCalibrationResult.fromJson(Map<String, dynamic> json) {
     return ColorCalibrationResult(
-      outputPath:
-          json['outputPath'] is String ? json['outputPath'] as String : '',
+      outputPath: json['outputPath'] is String
+          ? json['outputPath'] as String
+          : '',
       channelScale: _asDoubleList(json['channelScale']),
       matched: _asInt(json['matched']),
       residual: _asDouble(json['residual']),
@@ -41,11 +42,11 @@ class ColorCalibrationResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'outputPath': outputPath,
-        'channelScale': channelScale,
-        'matched': matched,
-        'residual': residual,
-      };
+    'outputPath': outputPath,
+    'channelScale': channelScale,
+    'matched': matched,
+    'residual': residual,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -57,12 +58,8 @@ class ColorCalibrationResult {
           other.residual == residual;
 
   @override
-  int get hashCode => Object.hash(
-        outputPath,
-        Object.hashAll(channelScale),
-        matched,
-        residual,
-      );
+  int get hashCode =>
+      Object.hash(outputPath, Object.hashAll(channelScale), matched, residual);
 }
 
 double _asDouble(Object? v) => v is num ? v.toDouble() : 0.0;

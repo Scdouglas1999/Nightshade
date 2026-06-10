@@ -143,8 +143,9 @@ class _StackedPreviewState extends State<_StackedPreview> {
               ),
               const SizedBox(height: 8),
               Text('Rendering preview...',
-                  style:
-                      TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: widget.colors.textMuted)),
             ],
           ),
         ),

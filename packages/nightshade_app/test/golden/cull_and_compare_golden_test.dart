@@ -29,8 +29,8 @@ class _FakeSeam implements PostSessionSeam {
       const Stream.empty();
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('${invocation.memberName} not stubbed in golden');
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+      '${invocation.memberName} not stubbed in golden');
 }
 
 void main() {
@@ -110,8 +110,8 @@ void main() {
             child: Consumer(
               builder: (context, ref, _) {
                 final state = ref.watch(sessionReviewControllerProvider(scope));
-                final controller = ref
-                    .read(sessionReviewControllerProvider(scope).notifier);
+                final controller =
+                    ref.read(sessionReviewControllerProvider(scope).notifier);
                 return SubCullRail(
                   subs: state.lights,
                   controller: controller,
@@ -153,8 +153,8 @@ void main() {
             width: 900,
             child: Consumer(
               builder: (context, ref, _) {
-                final controller = ref
-                    .watch(sessionReviewControllerProvider(scope).notifier);
+                final controller =
+                    ref.watch(sessionReviewControllerProvider(scope).notifier);
                 return AbComparePanel(controller: controller);
               },
             ),
@@ -179,8 +179,8 @@ void main() {
 /// `pumpAndSettle` (thumbnails/spinners can animate indefinitely).
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump(const Duration(milliseconds: 20));
   }
 }

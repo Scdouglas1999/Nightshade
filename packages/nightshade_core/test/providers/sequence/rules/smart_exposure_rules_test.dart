@@ -1,4 +1,4 @@
-﻿// Audit C6 — SmartExposure per-row filter-name validation tests.
+// Audit C6 — SmartExposure per-row filter-name validation tests.
 //
 // Covers SmartExposureFilterUnknownRule: each enabled SmartExposure row
 // whose `filterName` is non-empty must reference a filter present in the
@@ -25,10 +25,7 @@ Sequence _sequenceWith(SmartExposureNode node) {
 
 /// Compose a SmartExposureNode from a list of (filterName, count) pairs so
 /// individual tests stay readable.
-SmartExposureNode _smartNode(
-  List<FilterPlan> plans, {
-  bool isEnabled = true,
-}) {
+SmartExposureNode _smartNode(List<FilterPlan> plans, {bool isEnabled = true}) {
   return SmartExposureNode(
     id: 'smart-1',
     name: 'Smart Exposure',
@@ -66,10 +63,7 @@ T _withRef<T>(ProviderContainer container, T Function(Ref ref) body) {
   return container.read(probe);
 }
 
-List<ValidationIssue> _runRule(
-  ProviderContainer container,
-  Sequence sequence,
-) {
+List<ValidationIssue> _runRule(ProviderContainer container, Sequence sequence) {
   final rule = SmartExposureFilterUnknownRule();
   return _withRef(
     container,
@@ -151,10 +145,9 @@ void main() {
 
     test('disabled SmartExposure node is ignored', () {
       final container = _container(profileFilters: ['L', 'R']);
-      final node = _smartNode(
-        [const FilterPlan(filterName: 'OIII', count: 5, durationSecs: 300)],
-        isEnabled: false,
-      );
+      final node = _smartNode([
+        const FilterPlan(filterName: 'OIII', count: 5, durationSecs: 300),
+      ], isEnabled: false);
       expect(_runRule(container, _sequenceWith(node)), isEmpty);
     });
 
@@ -170,18 +163,20 @@ void main() {
       expect(_runRule(container, _sequenceWith(node)), isEmpty);
     });
 
-    test('profile with empty filter list = silent (missing-wheel rule fires)',
-        () {
-      // Empty filter list means "no wheel configured" — the existing
-      // SmartExposureFilterWheelMissingRule covers that. This rule should
-      // not pile on with N redundant per-row errors.
-      final container = _container(profileFilters: const []);
-      final node = _smartNode([
-        const FilterPlan(filterName: 'L', count: 5, durationSecs: 60),
-        const FilterPlan(filterName: 'R', count: 5, durationSecs: 60),
-      ]);
-      expect(_runRule(container, _sequenceWith(node)), isEmpty);
-    });
+    test(
+      'profile with empty filter list = silent (missing-wheel rule fires)',
+      () {
+        // Empty filter list means "no wheel configured" — the existing
+        // SmartExposureFilterWheelMissingRule covers that. This rule should
+        // not pile on with N redundant per-row errors.
+        final container = _container(profileFilters: const []);
+        final node = _smartNode([
+          const FilterPlan(filterName: 'L', count: 5, durationSecs: 60),
+          const FilterPlan(filterName: 'R', count: 5, durationSecs: 60),
+        ]);
+        expect(_runRule(container, _sequenceWith(node)), isEmpty);
+      },
+    );
 
     test('rule is wired into defaultRefAwareSequenceValidators', () {
       // Audit guard: a sibling rule existed but wasn't registered for an
@@ -211,8 +206,9 @@ void main() {
 
     test('loop mode with no budget and no target window = error', () {
       final node = loopNode(budgetSecs: 0);
-      final issues =
-          SmartExposureUnboundedLoopRule().validate(_sequenceWith(node));
+      final issues = SmartExposureUnboundedLoopRule().validate(
+        _sequenceWith(node),
+      );
       expect(issues, hasLength(1));
       expect(issues.single.severity, ValidationSeverity.error);
       expect(issues.single.title, 'SmartExposure loop is unbounded');
@@ -242,10 +238,7 @@ void main() {
         nodes: {target.id: target, node.id: node},
         rootNodeId: target.id,
       );
-      expect(
-        SmartExposureUnboundedLoopRule().validate(sequence),
-        isEmpty,
-      );
+      expect(SmartExposureUnboundedLoopRule().validate(sequence), isEmpty);
     });
 
     test('loop mode under a target with endBefore = no issue', () {
@@ -264,10 +257,7 @@ void main() {
         nodes: {target.id: target, node.id: node},
         rootNodeId: target.id,
       );
-      expect(
-        SmartExposureUnboundedLoopRule().validate(sequence),
-        isEmpty,
-      );
+      expect(SmartExposureUnboundedLoopRule().validate(sequence), isEmpty);
     });
 
     test('non-loop SmartExposure is never flagged by this rule', () {

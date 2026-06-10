@@ -155,10 +155,10 @@ class _HardwarePresetEditorDialogState
     _offset = TextEditingController(
       text: cam == null ? '' : '${cam.recommendedOffset}',
     );
-    _binX =
-        TextEditingController(text: cam == null ? '1' : '${cam.recommendedBinX}');
-    _binY =
-        TextEditingController(text: cam == null ? '1' : '${cam.recommendedBinY}');
+    _binX = TextEditingController(
+        text: cam == null ? '1' : '${cam.recommendedBinX}');
+    _binY = TextEditingController(
+        text: cam == null ? '1' : '${cam.recommendedBinY}');
     _coolingEnabled = cam?.recommendedCoolingTempC != null;
     _coolingTemp = TextEditingController(
       text: cam?.recommendedCoolingTempC == null
@@ -540,9 +540,7 @@ class _HardwarePresetEditorDialogState
           ),
           inputFormatters: [
             FilteringTextInputFormatter.allow(
-              integer
-                  ? RegExp(r'[0-9-]')
-                  : RegExp(r'[0-9.\-]'),
+              integer ? RegExp(r'[0-9-]') : RegExp(r'[0-9.\-]'),
             ),
           ],
           onChanged: (_) => _clearError(fieldKey),
@@ -630,8 +628,7 @@ class _HardwarePresetEditorDialogState
     if (_isTelescope) {
       final focalLength =
           requirePositiveDouble(_focalLength, 'focalLength', 'Focal length');
-      final aperture =
-          requirePositiveDouble(_aperture, 'aperture', 'Aperture');
+      final aperture = requirePositiveDouble(_aperture, 'aperture', 'Aperture');
 
       if (errors.isNotEmpty) {
         setState(() => _errors

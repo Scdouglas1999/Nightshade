@@ -82,14 +82,14 @@ class LoopNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        conditionType,
-        repeatCount,
-        repeatUntil,
-        repeatUntilAltitude,
-        integrationTimeTarget,
-        maxSafetyIterations,
-      ];
+    ...super.props,
+    conditionType,
+    repeatCount,
+    repeatUntil,
+    repeatUntilAltitude,
+    integrationTimeTarget,
+    maxSafetyIterations,
+  ];
 }
 
 /// Parallel node - executes children in parallel
@@ -216,10 +216,10 @@ class ConditionalNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        conditionType,
-        thresholdValue,
-        thresholdTime,
-        safetyMonitorId,
-      ];
+    ...super.props,
+    conditionType,
+    thresholdValue,
+    thresholdTime,
+    safetyMonitorId,
+  ];
 }

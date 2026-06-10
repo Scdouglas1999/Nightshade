@@ -95,7 +95,9 @@ class _AdaptiveExposureSectionState
               const SizedBox(width: 8),
               Text(
                 _hasOverride ? 'Per-node' : 'Inherit',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
               const SizedBox(width: 6),
               NightshadeSwitch(
@@ -116,7 +118,9 @@ class _AdaptiveExposureSectionState
               padding: const EdgeInsets.only(top: 6, left: 22),
               child: Text(
                 'Inheriting global default from Settings → Adaptive Exposure.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ),
           if (_hasOverride) ...[
@@ -218,7 +222,9 @@ class _AdaptiveExposureSectionState
         child: Text(
           'No filter wheel on active profile — adaptive applies to every '
           'capture (mono camera assumption).',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted),
         ),
       );
     }
@@ -227,7 +233,8 @@ class _AdaptiveExposureSectionState
       children: [
         Text(
           'Per-filter overrides',
-          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         for (final filter in filterNames)
@@ -301,8 +308,10 @@ class _AdaptiveExposureSectionState
               Icon(LucideIcons.lineChart, size: 12, color: color),
               const SizedBox(width: 6),
               Expanded(
-                child:
-                    Text(preview, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: color)),
+                child: Text(preview,
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: color)),
               ),
             ],
           ),
@@ -318,7 +327,9 @@ class _AdaptiveExposureSectionState
                     'Nominal duration (${widget.node.durationSecs.toStringAsFixed(0)}s) '
                     'is outside the adaptive [${min.toStringAsFixed(0)}, ${max.toStringAsFixed(0)}]s '
                     'bounds — every frame will be clamped.',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.warning),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.warning),
                   ),
                 ),
               ],

@@ -9,8 +9,8 @@ import 'profiles_provider.dart';
 /// Provider for flat wizard state
 final flatWizardProvider =
     StateNotifierProvider<FlatWizardNotifier, FlatWizardState>((ref) {
-  return FlatWizardNotifier(ref);
-});
+      return FlatWizardNotifier(ref);
+    });
 
 /// Provider for sky brightness tracker (sky flats mode)
 final skyBrightnessTrackerProvider = Provider<SkyBrightnessTracker>((ref) {
@@ -89,11 +89,13 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         equipmentProfileId: profileId,
       );
 
-      filterSettings.add(FlatFilterSettings(
-        filterName: filterName,
-        filterPosition: i,
-        suggestedExposure: suggested,
-      ));
+      filterSettings.add(
+        FlatFilterSettings(
+          filterName: filterName,
+          filterPosition: i,
+          suggestedExposure: suggested,
+        ),
+      );
     }
 
     state = state.copyWith(filterSettings: filterSettings);
@@ -131,14 +133,27 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
 
     // Define filter restrictiveness (higher = more restrictive = less light)
     const restrictiveness = {
-      'Ha': 100, 'H-alpha': 100, 'Halpha': 100,
-      'SII': 95, 'S-II': 95, 'S2': 95,
-      'OIII': 90, 'O-III': 90, 'O3': 90,
-      'NII': 85, 'N-II': 85,
-      'R': 50, 'Red': 50,
-      'G': 45, 'Green': 45,
-      'B': 40, 'Blue': 40,
-      'L': 10, 'Lum': 10, 'Luminance': 10, 'Clear': 10,
+      'Ha': 100,
+      'H-alpha': 100,
+      'Halpha': 100,
+      'SII': 95,
+      'S-II': 95,
+      'S2': 95,
+      'OIII': 90,
+      'O-III': 90,
+      'O3': 90,
+      'NII': 85,
+      'N-II': 85,
+      'R': 50,
+      'Red': 50,
+      'G': 45,
+      'Green': 45,
+      'B': 40,
+      'Blue': 40,
+      'L': 10,
+      'Lum': 10,
+      'Luminance': 10,
+      'Clear': 10,
     };
 
     int getRestrictiveness(String filter) {
@@ -242,9 +257,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
       adu: adu,
       timestamp: DateTime.now(),
     );
-    state = state.copyWith(
-      aduHistory: [...state.aduHistory, measurement],
-    );
+    state = state.copyWith(aduHistory: [...state.aduHistory, measurement]);
   }
 
   void clearAduHistory() {
@@ -254,10 +267,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
   // --- Image Preview ---
 
   void setLastImage(String? path, dynamic imageData) {
-    state = state.copyWith(
-      lastImagePath: path,
-      lastImageData: imageData,
-    );
+    state = state.copyWith(lastImagePath: path, lastImageData: imageData);
   }
 
   // --- Filter Progress ---

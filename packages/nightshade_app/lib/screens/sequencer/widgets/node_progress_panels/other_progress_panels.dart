@@ -36,7 +36,8 @@ class _SlewProgressPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   isCentering ? 'Centering Target' : 'Slewing to Target',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
               if (separation != null && isCentering)
@@ -88,7 +89,8 @@ class _FilterProgressPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   detail.isNotEmpty ? detail : 'Changing Filter',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],

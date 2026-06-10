@@ -46,9 +46,7 @@ Future<void> main(List<String> args) async {
     oversized,
     structuredLogging,
   ];
-  final issues = [
-    for (final check in checks) ...check.issues,
-  ];
+  final issues = [for (final check in checks) ...check.issues];
   final passed = issues.isEmpty;
 
   final report = {
@@ -62,15 +60,13 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    checks: checks,
-    issues: issues,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(passed: passed, checks: checks, issues: issues),
+  );
 
   stdout.writeln('Developer quality audit complete.');
   stdout.writeln('Passed: $passed');
@@ -108,8 +104,9 @@ _QualityCheck _uiQuality(Directory root) {
       (rawColorClassifications['semantic_theme_color'] as num?)?.toInt() ?? 0;
   final intentionalOverlayColors =
       (rawColorClassifications['intentional_image_overlay'] as num?)?.toInt() ??
-          0;
-  final rawColorCount = (countsByRule['raw_material_color'] as num?)?.toInt() ??
+      0;
+  final rawColorCount =
+      (countsByRule['raw_material_color'] as num?)?.toInt() ??
       semanticRawColors + intentionalOverlayColors;
 
   final issues = <String>[];
@@ -186,7 +183,7 @@ _QualityCheck _apiContractQuality(Directory root) {
       data['webSocketContractCoverage'] as Map<String, dynamic>? ?? const {};
   final networkBackendContract =
       data['networkBackendContractCoverage'] as Map<String, dynamic>? ??
-          const {};
+      const {};
   final versionNegotiation =
       data['versionNegotiationCoverage'] as Map<String, dynamic>? ?? const {};
 
@@ -262,8 +259,8 @@ _QualityCheck _routeQuality(Directory root) {
   final bodyLimits = data['bodyLimits'] as Map<String, dynamic>? ?? const {};
   final bodyLimitedApiWriteRouteCount =
       (data['bodyLimitedApiWriteRouteCount'] as num?)?.toInt() ?? 0;
-  final serverMiddlewareTestCount = (data['serverMiddlewareTestCount'] as num?)
-          ?.toInt() ??
+  final serverMiddlewareTestCount =
+      (data['serverMiddlewareTestCount'] as num?)?.toInt() ??
       serverMiddlewareTests.values.where((present) => present == true).length;
   final issues = <String>[];
   if (data['passed'] != true || issueCount != 0) {
@@ -420,10 +417,16 @@ _QualityCheck _structuredLoggingQuality(Directory root) {
       continue;
     }
     final text = switch (entry.key) {
-      _headlessServerPath =>
-        _readSourceTree(root, file, _headlessServerPartsDirectory),
-      _networkBackendPath =>
-        _readSourceTree(root, file, _networkBackendPartsDirectory),
+      _headlessServerPath => _readSourceTree(
+        root,
+        file,
+        _headlessServerPartsDirectory,
+      ),
+      _networkBackendPath => _readSourceTree(
+        root,
+        file,
+        _networkBackendPartsDirectory,
+      ),
       _ => file.readAsStringSync(),
     };
     for (final requiredText in entry.value) {
@@ -459,12 +462,13 @@ String _readSourceTree(Directory root, File source, String partsPath) {
   if (!partsDirectory.existsSync()) {
     return sources.single;
   }
-  final partFiles = partsDirectory
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((file) => file.path.endsWith('.dart'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final partFiles =
+      partsDirectory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   for (final file in partFiles) {
     sources.add(file.readAsStringSync());
   }
@@ -556,11 +560,11 @@ class _QualityCheck {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'label': label,
-        'evidence': evidence,
-        'passed': passed,
-        'metrics': metrics,
-        'issues': issues,
-      };
+    'id': id,
+    'label': label,
+    'evidence': evidence,
+    'passed': passed,
+    'metrics': metrics,
+    'issues': issues,
+  };
 }

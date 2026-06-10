@@ -105,57 +105,53 @@ void main() {
       expect(response.body['error'], 'Authentication required');
     });
 
-    test('rejects explicit incompatible client API versions before auth',
-        () async {
-      final tooOld = await _request(
-        client,
-        baseUri,
-        '/api/status',
-        apiVersion: '1.9.9',
-      );
-      final tooNew = await _request(
-        client,
-        baseUri,
-        '/api/status',
-        apiVersion: '3.0.0',
-      );
+    test(
+      'rejects explicit incompatible client API versions before auth',
+      () async {
+        final tooOld = await _request(
+          client,
+          baseUri,
+          '/api/status',
+          apiVersion: '1.9.9',
+        );
+        final tooNew = await _request(
+          client,
+          baseUri,
+          '/api/status',
+          apiVersion: '3.0.0',
+        );
 
-      expect(tooOld.statusCode, HttpStatus.upgradeRequired);
-      expect(tooOld.body['error'], 'client_too_old');
-      expect(
-        tooOld.body['serverApiVersion'],
-        RemoteApiCompatibility.serverApiVersion.format(),
-      );
-      expect(tooOld.body['minimumSupportedApiVersion'], '2.4.0');
+        expect(tooOld.statusCode, HttpStatus.upgradeRequired);
+        expect(tooOld.body['error'], 'client_too_old');
+        expect(
+          tooOld.body['serverApiVersion'],
+          RemoteApiCompatibility.serverApiVersion.format(),
+        );
+        expect(tooOld.body['minimumSupportedApiVersion'], '2.4.0');
 
-      expect(tooNew.statusCode, HttpStatus.upgradeRequired);
-      expect(tooNew.body['error'], 'server_too_old');
-      expect(tooNew.body['clientApiVersion'], '3.0.0');
-    });
+        expect(tooNew.statusCode, HttpStatus.upgradeRequired);
+        expect(tooNew.body['error'], 'server_too_old');
+        expect(tooNew.body['clientApiVersion'], '3.0.0');
+      },
+    );
 
     test('rejects incompatible WebSocket API versions before auth', () async {
-      final tooOld = await _rawSocketRequest(
-        baseUri,
-        [
-          'GET /events?apiVersion=1.9.9 HTTP/1.1',
-          'Host: 127.0.0.1:${server.actualPort}',
-          'Connection: Upgrade',
-          'Upgrade: websocket',
-          'Sec-WebSocket-Version: 13',
-          'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-        ],
-      );
-      final tooNew = await _rawSocketRequest(
-        baseUri,
-        [
-          'GET /events?apiVersion=3.0.0 HTTP/1.1',
-          'Host: 127.0.0.1:${server.actualPort}',
-          'Connection: Upgrade',
-          'Upgrade: websocket',
-          'Sec-WebSocket-Version: 13',
-          'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-        ],
-      );
+      final tooOld = await _rawSocketRequest(baseUri, [
+        'GET /events?apiVersion=1.9.9 HTTP/1.1',
+        'Host: 127.0.0.1:${server.actualPort}',
+        'Connection: Upgrade',
+        'Upgrade: websocket',
+        'Sec-WebSocket-Version: 13',
+        'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+      ]);
+      final tooNew = await _rawSocketRequest(baseUri, [
+        'GET /events?apiVersion=3.0.0 HTTP/1.1',
+        'Host: 127.0.0.1:${server.actualPort}',
+        'Connection: Upgrade',
+        'Upgrade: websocket',
+        'Sec-WebSocket-Version: 13',
+        'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+      ]);
 
       expect(tooOld.statusCode, HttpStatus.upgradeRequired);
       expect(tooOld.body['error'], 'client_too_old');
@@ -167,17 +163,13 @@ void main() {
     });
 
     test('rejects oversized control requests before auth', () async {
-      final response = await _rawSocketRequest(
-        baseUri,
-        [
-          'POST /api/mount/slew HTTP/1.1',
-          'Host: 127.0.0.1:${server.actualPort}',
-          'Content-Type: application/json',
-          'Content-Length: ${1024 * 1024 + 1}',
-          'Connection: close',
-        ],
-        body: 'x' * (1024 * 1024 + 1),
-      );
+      final response = await _rawSocketRequest(baseUri, [
+        'POST /api/mount/slew HTTP/1.1',
+        'Host: 127.0.0.1:${server.actualPort}',
+        'Content-Type: application/json',
+        'Content-Length: ${1024 * 1024 + 1}',
+        'Connection: close',
+      ], body: 'x' * (1024 * 1024 + 1));
 
       expect(response.statusCode, HttpStatus.requestEntityTooLarge);
       expect(response.body['error'], 'Request body too large');
@@ -186,18 +178,14 @@ void main() {
 
     test('rejects chunked oversized control requests before auth', () async {
       final body = 'x' * (1024 * 1024 + 1);
-      final response = await _rawSocketRequest(
-        baseUri,
-        [
-          'POST /api/mount/slew HTTP/1.1',
-          'Host: 127.0.0.1:${server.actualPort}',
-          'Content-Type: application/json',
-          'Transfer-Encoding: chunked',
-          'x-request-id: test-chunked-too-large-1',
-          'Connection: close',
-        ],
-        body: '${body.length.toRadixString(16)}\r\n$body\r\n0\r\n\r\n',
-      );
+      final response = await _rawSocketRequest(baseUri, [
+        'POST /api/mount/slew HTTP/1.1',
+        'Host: 127.0.0.1:${server.actualPort}',
+        'Content-Type: application/json',
+        'Transfer-Encoding: chunked',
+        'x-request-id: test-chunked-too-large-1',
+        'Connection: close',
+      ], body: '${body.length.toRadixString(16)}\r\n$body\r\n0\r\n\r\n');
 
       expect(response.statusCode, HttpStatus.requestEntityTooLarge);
       expect(response.body['error'], 'Request body too large');
@@ -351,35 +339,39 @@ void main() {
       expect(api['endpointCount'], (info.body['endpoints'] as List).length);
     });
 
-    test('WebSocket heartbeat pings clients and accepts pong replies',
-        () async {
-      final socket = await WebSocket.connect(
-        'ws://127.0.0.1:${server.actualPort}/events'
-        '?token=admin-token&apiVersion=2.5.0',
-      );
-      final receivedServerPing = Completer<void>();
+    test(
+      'WebSocket heartbeat pings clients and accepts pong replies',
+      () async {
+        final socket = await WebSocket.connect(
+          'ws://127.0.0.1:${server.actualPort}/events'
+          '?token=admin-token&apiVersion=2.5.0',
+        );
+        final receivedServerPing = Completer<void>();
 
-      final subscription = socket.listen((message) {
-        final data = jsonDecode(message as String) as Map<String, dynamic>;
-        if (data['type'] == 'ping') {
-          socket.add(jsonEncode({
-            'type': 'pong',
-            'timestamp': DateTime.now().toUtc().toIso8601String(),
-          }));
-          if (!receivedServerPing.isCompleted) {
-            receivedServerPing.complete();
+        final subscription = socket.listen((message) {
+          final data = jsonDecode(message as String) as Map<String, dynamic>;
+          if (data['type'] == 'ping') {
+            socket.add(
+              jsonEncode({
+                'type': 'pong',
+                'timestamp': DateTime.now().toUtc().toIso8601String(),
+              }),
+            );
+            if (!receivedServerPing.isCompleted) {
+              receivedServerPing.complete();
+            }
           }
-        }
-      });
+        });
 
-      try {
-        await receivedServerPing.future.timeout(const Duration(seconds: 2));
-        expect(socket.readyState, WebSocket.open);
-      } finally {
-        await subscription.cancel();
-        await socket.close();
-      }
-    });
+        try {
+          await receivedServerPing.future.timeout(const Duration(seconds: 2));
+          expect(socket.readyState, WebSocket.open);
+        } finally {
+          await subscription.cancel();
+          await socket.close();
+        }
+      },
+    );
 
     test('WebSocket heartbeat closes stale clients that do not pong', () async {
       final socket = await WebSocket.connect(
@@ -388,12 +380,9 @@ void main() {
       );
       final disconnected = Completer<void>();
 
-      final subscription = socket.listen(
-        (_) {
-          // Deliberately ignore server pings so the server timeout path runs.
-        },
-        onDone: disconnected.complete,
-      );
+      final subscription = socket.listen((_) {
+        // Deliberately ignore server pings so the server timeout path runs.
+      }, onDone: disconnected.complete);
 
       try {
         await disconnected.future.timeout(const Duration(seconds: 3));
@@ -403,87 +392,88 @@ void main() {
       }
     });
 
-    test(
-      'P2-15: collaboration.join uses authenticated identity, ignoring '
-      'a spoofed viewerId from the client payload',
-      () async {
-        final socket = await WebSocket.connect(
-          'ws://127.0.0.1:${server.actualPort}/events'
-          '?token=admin-token&apiVersion=2.5.0',
-        );
+    test('P2-15: collaboration.join uses authenticated identity, ignoring '
+        'a spoofed viewerId from the client payload', () async {
+      final socket = await WebSocket.connect(
+        'ws://127.0.0.1:${server.actualPort}/events'
+        '?token=admin-token&apiVersion=2.5.0',
+      );
 
-        // Send a join with an obviously-spoofed viewerId. The server must
-        // override it with the authenticated principal's digest (the
-        // server's `computeServerFingerprint(admin-token)`).
-        try {
-          socket.add(jsonEncode({
+      // Send a join with an obviously-spoofed viewerId. The server must
+      // override it with the authenticated principal's digest (the
+      // server's `computeServerFingerprint(admin-token)`).
+      try {
+        socket.add(
+          jsonEncode({
             'type': 'collaboration.join',
             'viewerId': 'pretend-to-be-someone-else',
             'name': 'Spoofy McSpoof',
-          }));
+          }),
+        );
 
-          // Wait long enough for the upsertViewer call to propagate; the
-          // server broadcasts a `collaboration_state` frame every time
-          // viewers mutate, so we wait for that as a signal the upsert
-          // completed.
-          final stateFrameReceived = Completer<Map<String, dynamic>>();
-          final subscription = socket.listen((message) {
-            final data = jsonDecode(message as String) as Map<String, dynamic>;
-            if (data['type'] == 'collaboration_state') {
-              final state = data['state'];
-              if (state is Map<String, dynamic>) {
-                final viewers = (state['viewers'] as List?) ?? const [];
-                if (viewers
-                    .whereType<Map<String, dynamic>>()
-                    .any((v) => v['name'] == 'Spoofy McSpoof')) {
-                  if (!stateFrameReceived.isCompleted) {
-                    stateFrameReceived.complete(state);
-                  }
+        // Wait long enough for the upsertViewer call to propagate; the
+        // server broadcasts a `collaboration_state` frame every time
+        // viewers mutate, so we wait for that as a signal the upsert
+        // completed.
+        final stateFrameReceived = Completer<Map<String, dynamic>>();
+        final subscription = socket.listen((message) {
+          final data = jsonDecode(message as String) as Map<String, dynamic>;
+          if (data['type'] == 'collaboration_state') {
+            final state = data['state'];
+            if (state is Map<String, dynamic>) {
+              final viewers = (state['viewers'] as List?) ?? const [];
+              if (viewers.whereType<Map<String, dynamic>>().any(
+                (v) => v['name'] == 'Spoofy McSpoof',
+              )) {
+                if (!stateFrameReceived.isCompleted) {
+                  stateFrameReceived.complete(state);
                 }
               }
             }
-          });
-
-          try {
-            await stateFrameReceived.future
-                .timeout(const Duration(seconds: 5));
-          } finally {
-            await subscription.cancel();
           }
+        });
 
-          // Pull the post-join state off the collaboration manager and
-          // verify the slot id is NOT the spoofed value.
-          final viewers = server.collaborationManager.state.viewers;
-          final spoofy = viewers
-              .where((v) => v.name == 'Spoofy McSpoof')
-              .toList(growable: false);
-          expect(spoofy, hasLength(1),
-              reason:
-                  'collaboration.join must always upsert a slot, even when '
-                  'the payload includes a spoofed viewerId');
-          expect(
-            spoofy.single.viewerId,
-            isNot('pretend-to-be-someone-else'),
-            reason:
-                'P2-15: server MUST ignore client-supplied viewerId and use '
-                'the authenticated principal\'s digest',
-          );
-          expect(
-            spoofy.single.viewerId,
-            isNotEmpty,
-            reason: 'authenticated digest must not be empty',
-          );
+        try {
+          await stateFrameReceived.future.timeout(const Duration(seconds: 5));
         } finally {
-          await socket.close();
+          await subscription.cancel();
         }
-      },
-    );
+
+        // Pull the post-join state off the collaboration manager and
+        // verify the slot id is NOT the spoofed value.
+        final viewers = server.collaborationManager.state.viewers;
+        final spoofy = viewers
+            .where((v) => v.name == 'Spoofy McSpoof')
+            .toList(growable: false);
+        expect(
+          spoofy,
+          hasLength(1),
+          reason:
+              'collaboration.join must always upsert a slot, even when '
+              'the payload includes a spoofed viewerId',
+        );
+        expect(
+          spoofy.single.viewerId,
+          isNot('pretend-to-be-someone-else'),
+          reason:
+              'P2-15: server MUST ignore client-supplied viewerId and use '
+              'the authenticated principal\'s digest',
+        );
+        expect(
+          spoofy.single.viewerId,
+          isNotEmpty,
+          reason: 'authenticated digest must not be empty',
+        );
+      } finally {
+        await socket.close();
+      }
+    });
   });
 }
 
 void _expectReleaseScopedDriverMatrix(Map<String, dynamic> report) {
-  final drivers =
-      (report['drivers'] as List<dynamic>).cast<Map<String, dynamic>>();
+  final drivers = (report['drivers'] as List<dynamic>)
+      .cast<Map<String, dynamic>>();
   final byBackend = {
     for (final driver in drivers) driver['backend'] as String: driver,
   };
@@ -499,10 +489,7 @@ void _expectReleaseScopedDriverMatrix(Map<String, dynamic> report) {
     ascom['supportedPlatforms'],
     equals([PlatformCapabilityMatrix.windows]),
   );
-  expect(
-    ascom['notes'],
-    contains('Windows-only ASCOM driver installations'),
-  );
+  expect(ascom['notes'], contains('Windows-only ASCOM driver installations'));
   if (report['platform'] == PlatformCapabilityMatrix.windows) {
     expect(ascom['status'], 'available');
     expect(ascom['unsupportedReason'], isNull);
@@ -591,10 +578,12 @@ Future<_TestResponse> _rawSocketRequest(
   await socket.close();
 
   final separator = responseText.indexOf('\r\n\r\n');
-  final head =
-      separator == -1 ? responseText : responseText.substring(0, separator);
-  final responseBody =
-      separator == -1 ? '' : responseText.substring(separator + 4);
+  final head = separator == -1
+      ? responseText
+      : responseText.substring(0, separator);
+  final responseBody = separator == -1
+      ? ''
+      : responseText.substring(separator + 4);
   final statusLine = head.split('\r\n').first;
   final statusCode = int.parse(statusLine.split(' ')[1]);
   final responseHeaders = <String, String>{};
@@ -603,8 +592,9 @@ Future<_TestResponse> _rawSocketRequest(
     if (nameSeparator <= 0) {
       continue;
     }
-    responseHeaders[line.substring(0, nameSeparator).toLowerCase()] =
-        line.substring(nameSeparator + 1).trim();
+    responseHeaders[line.substring(0, nameSeparator).toLowerCase()] = line
+        .substring(nameSeparator + 1)
+        .trim();
   }
   final parsedBody = responseBody.trim().isEmpty
       ? const <String, dynamic>{}

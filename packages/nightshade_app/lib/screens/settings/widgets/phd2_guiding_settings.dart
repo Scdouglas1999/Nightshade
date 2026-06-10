@@ -13,8 +13,7 @@ import 'settings_widgets.dart';
 class Phd2GuidingSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const Phd2GuidingSettings(
-      {super.key, this.isMobile = false});
+  const Phd2GuidingSettings({super.key, this.isMobile = false});
 
   @override
   ConsumerState<Phd2GuidingSettings> createState() =>

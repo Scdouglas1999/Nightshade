@@ -49,67 +49,70 @@ void main() {
     }
   }
 
-  test('loaded resolves and yields the built-ins-only base on fresh install',
-      () async {
-    final notifier = container.read(hardwarePresetsServiceProvider.notifier);
-    expect(notifier.isLoaded, isFalse);
-    await notifier.loaded;
-    expect(notifier.isLoaded, isTrue);
+  test(
+    'loaded resolves and yields the built-ins-only base on fresh install',
+    () async {
+      final notifier = container.read(hardwarePresetsServiceProvider.notifier);
+      expect(notifier.isLoaded, isFalse);
+      await notifier.loaded;
+      expect(notifier.isLoaded, isTrue);
 
-    final service = container.read(hardwarePresetsServiceProvider);
-    expect(service.allTelescopes(), builtInTelescopePresets);
-    expect(service.allCameras(), builtInCameraDefaultsPresets);
-    expect(
-      service.allTelescopes().every((preset) => preset.isBuiltIn),
-      isTrue,
-    );
-  });
+      final service = container.read(hardwarePresetsServiceProvider);
+      expect(service.allTelescopes(), builtInTelescopePresets);
+      expect(service.allCameras(), builtInCameraDefaultsPresets);
+      expect(
+        service.allTelescopes().every((preset) => preset.isBuiltIn),
+        isTrue,
+      );
+    },
+  );
 
-  test('saving a custom telescope persists JSON and survives a fresh load',
-      () async {
-    final notifier = container.read(hardwarePresetsServiceProvider.notifier);
-    await notifier.loaded;
+  test(
+    'saving a custom telescope persists JSON and survives a fresh load',
+    () async {
+      final notifier = container.read(hardwarePresetsServiceProvider.notifier);
+      await notifier.loaded;
 
-    final custom = TelescopePreset(
-      id: newHardwarePresetId(),
-      brand: 'Custom Optics',
-      model: 'Astrograph 130',
-      focalLengthMm: 910,
-      apertureMm: 130,
-      design: OpticalDesign.refractor,
-      nativeFocalRatio: 7.0,
-      isBuiltIn: false,
-    );
-    await notifier.saveTelescopePreset(custom);
+      final custom = TelescopePreset(
+        id: newHardwarePresetId(),
+        brand: 'Custom Optics',
+        model: 'Astrograph 130',
+        focalLengthMm: 910,
+        apertureMm: 130,
+        design: OpticalDesign.refractor,
+        nativeFocalRatio: 7.0,
+        isBuiltIn: false,
+      );
+      await notifier.saveTelescopePreset(custom);
 
-    // In-memory state reflects the new preset, overrides-first.
-    final live = container.read(hardwarePresetsServiceProvider);
-    expect(live.allTelescopes().first, custom);
-    expect(
-      live.allTelescopes().length,
-      builtInTelescopePresets.length + 1,
-    );
+      // In-memory state reflects the new preset, overrides-first.
+      final live = container.read(hardwarePresetsServiceProvider);
+      expect(live.allTelescopes().first, custom);
+      expect(live.allTelescopes().length, builtInTelescopePresets.length + 1);
 
-    // The convenience read provider sees it too.
-    expect(container.read(telescopePresetsProvider).first, custom);
+      // The convenience read provider sees it too.
+      expect(container.read(telescopePresetsProvider).first, custom);
 
-    // The JSON blob was actually written under the versioned key.
-    final settingsDao = container.read(settingsDaoProvider);
-    final raw = await settingsDao
-        .getSetting(HardwarePresetsService.telescopeOverridesSettingKey);
-    expect(raw, isNotNull);
-    final decoded =
-        HardwarePresetsService.telescopeOverridesFromJson(jsonDecode(raw!));
-    expect(decoded, [custom]);
+      // The JSON blob was actually written under the versioned key.
+      final settingsDao = container.read(settingsDaoProvider);
+      final raw = await settingsDao.getSetting(
+        HardwarePresetsService.telescopeOverridesSettingKey,
+      );
+      expect(raw, isNotNull);
+      final decoded = HardwarePresetsService.telescopeOverridesFromJson(
+        jsonDecode(raw!),
+      );
+      expect(decoded, [custom]);
 
-    // A fresh notifier backed by the same DB hydrates the override.
-    final reloaded = await readFromFreshContainer((_) async {});
-    expect(reloaded.allTelescopes().first, custom);
-    expect(
-      reloaded.allTelescopes().length,
-      builtInTelescopePresets.length + 1,
-    );
-  });
+      // A fresh notifier backed by the same DB hydrates the override.
+      final reloaded = await readFromFreshContainer((_) async {});
+      expect(reloaded.allTelescopes().first, custom);
+      expect(
+        reloaded.allTelescopes().length,
+        builtInTelescopePresets.length + 1,
+      );
+    },
+  );
 
   test('saving a custom camera persists and survives a fresh load', () async {
     final notifier = container.read(hardwarePresetsServiceProvider.notifier);
@@ -138,14 +141,14 @@ void main() {
     expect(reloaded.matchCameraByName('CoolCam 9000'), custom);
   });
 
-  test('editing a built-in telescope stores an override copy that wins',
-      () async {
+  test('editing a built-in telescope stores an override copy that wins', () async {
     final notifier = container.read(hardwarePresetsServiceProvider.notifier);
     await notifier.loaded;
 
     const builtInId = 'tel.skywatcher.esprit100ed';
-    final original = builtInTelescopePresets
-        .firstWhere((preset) => preset.id == builtInId);
+    final original = builtInTelescopePresets.firstWhere(
+      (preset) => preset.id == builtInId,
+    );
 
     // Save an edited copy that (deliberately) still claims isBuiltIn: true — the
     // notifier must coerce it to a user-owned override so it can be persisted.
@@ -171,9 +174,9 @@ void main() {
 
     // It survives a reload (built-in still cannot win back).
     final reloaded = await readFromFreshContainer((_) async {});
-    final reloadedMatch = reloaded
-        .allTelescopes()
-        .firstWhere((preset) => preset.id == builtInId);
+    final reloadedMatch = reloaded.allTelescopes().firstWhere(
+      (preset) => preset.id == builtInId,
+    );
     expect(reloadedMatch.focalLengthMm, 385);
     expect(reloadedMatch.isBuiltIn, isFalse);
   });
@@ -183,8 +186,9 @@ void main() {
     await notifier.loaded;
 
     const builtInId = 'cam.zwo.asi2600mm';
-    final original = builtInCameraDefaultsPresets
-        .firstWhere((preset) => preset.id == builtInId);
+    final original = builtInCameraDefaultsPresets.firstWhere(
+      (preset) => preset.id == builtInId,
+    );
     final edited = original.copyWith(
       sensorName: 'Tuned IMX571',
       recommendedGain: 120,
@@ -193,8 +197,9 @@ void main() {
     await notifier.saveCameraPreset(edited);
 
     final service = container.read(hardwarePresetsServiceProvider);
-    final match =
-        service.allCameras().firstWhere((preset) => preset.id == builtInId);
+    final match = service.allCameras().firstWhere(
+      (preset) => preset.id == builtInId,
+    );
     expect(match.sensorName, 'Tuned IMX571');
     expect(match.recommendedGain, 120);
     expect(match.isBuiltIn, isFalse);
@@ -219,35 +224,37 @@ void main() {
     );
   });
 
-  test('deleting a custom telescope removes it and persists the removal',
-      () async {
-    final notifier = container.read(hardwarePresetsServiceProvider.notifier);
-    await notifier.loaded;
+  test(
+    'deleting a custom telescope removes it and persists the removal',
+    () async {
+      final notifier = container.read(hardwarePresetsServiceProvider.notifier);
+      await notifier.loaded;
 
-    final custom = TelescopePreset(
-      id: newHardwarePresetId(),
-      brand: 'Custom Optics',
-      model: 'Astrograph 130',
-      focalLengthMm: 910,
-      apertureMm: 130,
-      design: OpticalDesign.refractor,
-      isBuiltIn: false,
-    );
-    await notifier.saveTelescopePreset(custom);
-    expect(
-      container.read(hardwarePresetsServiceProvider).allTelescopes(),
-      contains(custom),
-    );
+      final custom = TelescopePreset(
+        id: newHardwarePresetId(),
+        brand: 'Custom Optics',
+        model: 'Astrograph 130',
+        focalLengthMm: 910,
+        apertureMm: 130,
+        design: OpticalDesign.refractor,
+        isBuiltIn: false,
+      );
+      await notifier.saveTelescopePreset(custom);
+      expect(
+        container.read(hardwarePresetsServiceProvider).allTelescopes(),
+        contains(custom),
+      );
 
-    await notifier.deleteTelescopePreset(custom.id);
-    final after = container.read(hardwarePresetsServiceProvider);
-    expect(after.allTelescopes(), isNot(contains(custom)));
-    expect(after.allTelescopes(), builtInTelescopePresets);
+      await notifier.deleteTelescopePreset(custom.id);
+      final after = container.read(hardwarePresetsServiceProvider);
+      expect(after.allTelescopes(), isNot(contains(custom)));
+      expect(after.allTelescopes(), builtInTelescopePresets);
 
-    // The removal was persisted: a fresh load has no overrides.
-    final reloaded = await readFromFreshContainer((_) async {});
-    expect(reloaded.allTelescopes(), builtInTelescopePresets);
-  });
+      // The removal was persisted: a fresh load has no overrides.
+      final reloaded = await readFromFreshContainer((_) async {});
+      expect(reloaded.allTelescopes(), builtInTelescopePresets);
+    },
+  );
 
   test('deleting a custom camera removes it', () async {
     final notifier = container.read(hardwarePresetsServiceProvider.notifier);
@@ -298,32 +305,33 @@ void main() {
     await notifier.saveTelescopePreset(second);
 
     final service = container.read(hardwarePresetsServiceProvider);
-    final matches =
-        service.allTelescopes().where((preset) => preset.id == id).toList();
+    final matches = service
+        .allTelescopes()
+        .where((preset) => preset.id == id)
+        .toList();
     expect(matches, hasLength(1));
     expect(matches.single.model, 'V2');
     expect(matches.single.focalLengthMm, 600);
-    expect(
-      service.allTelescopes().length,
-      builtInTelescopePresets.length + 1,
-    );
+    expect(service.allTelescopes().length, builtInTelescopePresets.length + 1);
   });
 
-  test('a malformed persisted blob surfaces as a FormatException on load',
-      () async {
-    // Seed a non-list JSON payload directly, then build a fresh notifier and
-    // confirm the load future rejects rather than silently falling back.
-    final settingsDao = container.read(settingsDaoProvider);
-    await settingsDao.setSetting(
-      HardwarePresetsService.telescopeOverridesSettingKey,
-      jsonEncode({'not': 'a list'}),
-    );
+  test(
+    'a malformed persisted blob surfaces as a FormatException on load',
+    () async {
+      // Seed a non-list JSON payload directly, then build a fresh notifier and
+      // confirm the load future rejects rather than silently falling back.
+      final settingsDao = container.read(settingsDaoProvider);
+      await settingsDao.setSetting(
+        HardwarePresetsService.telescopeOverridesSettingKey,
+        jsonEncode({'not': 'a list'}),
+      );
 
-    final fresh = ProviderContainer(
-      overrides: [databaseProvider.overrideWithValue(db)],
-    );
-    addTearDown(fresh.dispose);
-    final notifier = fresh.read(hardwarePresetsServiceProvider.notifier);
-    await expectLater(notifier.loaded, throwsFormatException);
-  });
+      final fresh = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(fresh.dispose);
+      final notifier = fresh.read(hardwarePresetsServiceProvider.notifier);
+      await expectLater(notifier.loaded, throwsFormatException);
+    },
+  );
 }

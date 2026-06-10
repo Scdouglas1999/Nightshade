@@ -184,14 +184,14 @@ class HipsTileLoader extends ChangeNotifier {
     int subdivisions = HipsTileSelection.defaultSubdivisions,
     int maxPrimaryFetchesPerGeneration = defaultMaxPrimaryFetchesPerGeneration,
     bool ownsFetcher = true,
-  })  : _cache = cache,
-        _fetcher = fetcher,
-        _ownsFetcher = ownsFetcher,
-        _clock = clock,
-        _errorSink = errorSink,
-        _debounce = debounce,
-        _subdivisions = subdivisions,
-        _maxPrimaryFetches = maxPrimaryFetchesPerGeneration {
+  }) : _cache = cache,
+       _fetcher = fetcher,
+       _ownsFetcher = ownsFetcher,
+       _clock = clock,
+       _errorSink = errorSink,
+       _debounce = debounce,
+       _subdivisions = subdivisions,
+       _maxPrimaryFetches = maxPrimaryFetchesPerGeneration {
     if (debounce < Duration.zero) {
       throw ArgumentError.value(
         debounce,
@@ -200,11 +200,7 @@ class HipsTileLoader extends ChangeNotifier {
       );
     }
     if (subdivisions < 1) {
-      throw ArgumentError.value(
-        subdivisions,
-        'subdivisions',
-        'must be >= 1',
-      );
+      throw ArgumentError.value(subdivisions, 'subdivisions', 'must be >= 1');
     }
     if (maxPrimaryFetchesPerGeneration < 1) {
       throw ArgumentError.value(
@@ -390,8 +386,11 @@ class HipsTileLoader extends ChangeNotifier {
         // ancestor (parent, grandparent, ...), sampled at the sub-cell the sharp
         // tile occupies within it, drawn on the sharp tile's mesh so the region
         // is covered (with correctly-registered coarse imagery), not blank.
-        final HipsFallbackTile? coarse =
-            _coarsestResidentAncestor(tile, viewport, cacheSnap);
+        final HipsFallbackTile? coarse = _coarsestResidentAncestor(
+          tile,
+          viewport,
+          cacheSnap,
+        );
         if (coarse != null) {
           fallback.add(coarse);
         }
@@ -511,11 +510,7 @@ class HipsTileLoader extends ChangeNotifier {
         // Expected on supersession; drop quietly.
       } on HipsFetchException catch (e) {
         _recordFailure(
-          HipsTileId(
-            survey: viewport.surveyId,
-            norder: allskyOrder,
-            npix: 0,
-          ),
+          HipsTileId(survey: viewport.surveyId, norder: allskyOrder, npix: 0),
           e,
           gen,
         );
@@ -725,8 +720,9 @@ class HipsTileLoader extends ChangeNotifier {
       primaryTiles: List<HipsVisibleTile>.unmodifiable(primaryTiles),
       fallbackTiles: List<HipsFallbackTile>.unmodifiable(fallbackTiles),
       allsky: allsky,
-      cacheSnapshot:
-          _cache.isDisposed ? HipsTileCacheSnapshot.empty : _cache.snapshot(),
+      cacheSnapshot: _cache.isDisposed
+          ? HipsTileCacheSnapshot.empty
+          : _cache.snapshot(),
       visibleSet: visibleSet,
       failures: List<HipsTileFailure>.unmodifiable(_failures),
     );

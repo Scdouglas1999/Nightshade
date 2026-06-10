@@ -12,8 +12,7 @@ import 'settings_widgets.dart';
 class FilePathSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const FilePathSettings(
-      {super.key, this.isMobile = false});
+  const FilePathSettings({super.key, this.isMobile = false});
 
   Future<void> _selectPath(
     BuildContext context,
@@ -91,72 +90,72 @@ class FilePathSettings extends ConsumerWidget {
         final isRemoteMode = ref.watch(isRemoteModeProvider);
         final hostHint = isRemoteMode ? ' (on imaging host)' : '';
         return SettingsPage(
-        key: SettingsTutorialKeys.filePaths,
-        title: 'File Paths',
-        description: isRemoteMode
-            ? 'Storage locations on the connected imaging host'
-            : 'Configure storage locations',
-        children: [
-          SettingsSection(
-            title: 'Storage',
-            children: [
-              SettingRow(
-                icon: LucideIcons.image,
-                title: 'Image output$hostHint',
-                subtitle: settings.imageOutputPath.isEmpty
-                    ? 'Not configured'
-                    : settings.imageOutputPath,
-                trailing: SettingsPathInput(
-                  path: settings.imageOutputPath,
-                  onBrowse: () =>
-                      _selectPath(context, ref, 'image', settings.imageOutputPath),
-                ),
-              ),
-              SettingRow(
-                icon: LucideIcons.listOrdered,
-                title: 'Sequences$hostHint',
-                subtitle: settings.sequencesPath.isEmpty
-                    ? 'Not configured'
-                    : settings.sequencesPath,
-                trailing: SettingsPathInput(
-                  path: settings.sequencesPath,
-                  onBrowse: () => _selectPath(
-                    context,
-                    ref,
-                    'sequences',
-                    settings.sequencesPath,
+          key: SettingsTutorialKeys.filePaths,
+          title: 'File Paths',
+          description: isRemoteMode
+              ? 'Storage locations on the connected imaging host'
+              : 'Configure storage locations',
+          children: [
+            SettingsSection(
+              title: 'Storage',
+              children: [
+                SettingRow(
+                  icon: LucideIcons.image,
+                  title: 'Image output$hostHint',
+                  subtitle: settings.imageOutputPath.isEmpty
+                      ? 'Not configured'
+                      : settings.imageOutputPath,
+                  trailing: SettingsPathInput(
+                    path: settings.imageOutputPath,
+                    onBrowse: () => _selectPath(
+                        context, ref, 'image', settings.imageOutputPath),
                   ),
                 ),
-              ),
-              SettingRow(
-                icon: LucideIcons.database,
-                title: 'Database$hostHint',
-                subtitle: settings.databasePath.isEmpty
-                    ? 'Default location'
-                    : settings.databasePath,
-                trailing: SettingsPathInput(
-                  path: settings.databasePath,
-                  onBrowse: () =>
-                      _selectPath(context, ref, 'database', settings.databasePath),
+                SettingRow(
+                  icon: LucideIcons.listOrdered,
+                  title: 'Sequences$hostHint',
+                  subtitle: settings.sequencesPath.isEmpty
+                      ? 'Not configured'
+                      : settings.sequencesPath,
+                  trailing: SettingsPathInput(
+                    path: settings.sequencesPath,
+                    onBrowse: () => _selectPath(
+                      context,
+                      ref,
+                      'sequences',
+                      settings.sequencesPath,
+                    ),
+                  ),
                 ),
-              ),
-              SettingRow(
-                icon: LucideIcons.fileText,
-                title: 'Logs$hostHint',
-                subtitle: settings.logsPath.isEmpty
-                    ? 'Default location'
-                    : settings.logsPath,
-                trailing: SettingsPathInput(
-                  path: settings.logsPath,
-                  onBrowse: () =>
-                      _selectPath(context, ref, 'logs', settings.logsPath),
+                SettingRow(
+                  icon: LucideIcons.database,
+                  title: 'Database$hostHint',
+                  subtitle: settings.databasePath.isEmpty
+                      ? 'Default location'
+                      : settings.databasePath,
+                  trailing: SettingsPathInput(
+                    path: settings.databasePath,
+                    onBrowse: () => _selectPath(
+                        context, ref, 'database', settings.databasePath),
+                  ),
                 ),
-                isLast: true,
-              ),
-            ],
-          ),
-        ],
-      );
+                SettingRow(
+                  icon: LucideIcons.fileText,
+                  title: 'Logs$hostHint',
+                  subtitle: settings.logsPath.isEmpty
+                      ? 'Default location'
+                      : settings.logsPath,
+                  trailing: SettingsPathInput(
+                    path: settings.logsPath,
+                    onBrowse: () =>
+                        _selectPath(context, ref, 'logs', settings.logsPath),
+                  ),
+                  isLast: true,
+                ),
+              ],
+            ),
+          ],
+        );
       },
     );
   }

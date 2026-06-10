@@ -26,16 +26,18 @@ void main() {
         // depending on representation, while the coverage UI used ±1.0s
         // and said "all darks present". The unified ±0.5s default MUST
         // accept the exact-match case the UI promised was covered.
-        await dao.addEntry(DarkLibraryCompanion.insert(
-          filePath: '/tmp/dark_60s.fits',
-          exposureTime: 60.0,
-          frameType: const Value('dark'),
-          gain: const Value(100),
-          offset: const Value(10),
-          binX: const Value(1),
-          binY: const Value(1),
-          temperature: const Value(-10),
-        ));
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_60s.fits',
+            exposureTime: 60.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            offset: const Value(10),
+            binX: const Value(1),
+            binY: const Value(1),
+            temperature: const Value(-10),
+          ),
+        );
 
         final match = await dao.findBestMatch(
           exposureTime: 60.0,
@@ -46,25 +48,31 @@ void main() {
           temperature: -10,
         );
 
-        expect(match, isNotNull,
-            reason: 'the 60.0s dark MUST be returned for a 60.0s request — '
-                'this is the failure mode the audit identified');
+        expect(
+          match,
+          isNotNull,
+          reason:
+              'the 60.0s dark MUST be returned for a 60.0s request — '
+              'this is the failure mode the audit identified',
+        );
         expect(match!.filePath, '/tmp/dark_60s.fits');
       },
     );
 
     test('matches darks within the default ±0.5s exposure tolerance', () async {
       // 60.0s requested, 60.4s on disk → within ±0.5s.
-      await dao.addEntry(DarkLibraryCompanion.insert(
-        filePath: '/tmp/dark_604.fits',
-        exposureTime: 60.4,
-        frameType: const Value('dark'),
-        gain: const Value(100),
-        offset: const Value(10),
-        binX: const Value(1),
-        binY: const Value(1),
-        temperature: const Value(-10),
-      ));
+      await dao.addEntry(
+        DarkLibraryCompanion.insert(
+          filePath: '/tmp/dark_604.fits',
+          exposureTime: 60.4,
+          frameType: const Value('dark'),
+          gain: const Value(100),
+          offset: const Value(10),
+          binX: const Value(1),
+          binY: const Value(1),
+          temperature: const Value(-10),
+        ),
+      );
 
       final match = await dao.findBestMatch(
         exposureTime: 60.0,
@@ -82,16 +90,18 @@ void main() {
       'rejects darks outside the default ±0.5s exposure tolerance',
       () async {
         // 60.0s requested, 61.0s on disk → outside ±0.5s.
-        await dao.addEntry(DarkLibraryCompanion.insert(
-          filePath: '/tmp/dark_61s.fits',
-          exposureTime: 61.0,
-          frameType: const Value('dark'),
-          gain: const Value(100),
-          offset: const Value(10),
-          binX: const Value(1),
-          binY: const Value(1),
-          temperature: const Value(-10),
-        ));
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_61s.fits',
+            exposureTime: 61.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            offset: const Value(10),
+            binX: const Value(1),
+            binY: const Value(1),
+            temperature: const Value(-10),
+          ),
+        );
 
         final match = await dao.findBestMatch(
           exposureTime: 60.0,
@@ -109,16 +119,18 @@ void main() {
     test(
       'caller-supplied wider tolerances let an otherwise-rejected dark match',
       () async {
-        await dao.addEntry(DarkLibraryCompanion.insert(
-          filePath: '/tmp/dark_61s.fits',
-          exposureTime: 61.0,
-          frameType: const Value('dark'),
-          gain: const Value(100),
-          offset: const Value(10),
-          binX: const Value(1),
-          binY: const Value(1),
-          temperature: const Value(-10),
-        ));
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_61s.fits',
+            exposureTime: 61.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            offset: const Value(10),
+            binX: const Value(1),
+            binY: const Value(1),
+            temperature: const Value(-10),
+          ),
+        );
 
         final match = await dao.findBestMatch(
           exposureTime: 60.0,
@@ -140,17 +152,19 @@ void main() {
     test(
       'temperature outside default ±1.0°C tolerance disqualifies the match',
       () async {
-        await dao.addEntry(DarkLibraryCompanion.insert(
-          filePath: '/tmp/dark_warm.fits',
-          exposureTime: 60.0,
-          frameType: const Value('dark'),
-          gain: const Value(100),
-          offset: const Value(10),
-          binX: const Value(1),
-          binY: const Value(1),
-          // 1.5°C warmer than the request → outside ±1.0°C
-          temperature: const Value(-8.5),
-        ));
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_warm.fits',
+            exposureTime: 60.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            offset: const Value(10),
+            binX: const Value(1),
+            binY: const Value(1),
+            // 1.5°C warmer than the request → outside ±1.0°C
+            temperature: const Value(-8.5),
+          ),
+        );
 
         final match = await dao.findBestMatch(
           exposureTime: 60.0,
@@ -167,33 +181,39 @@ void main() {
 
     test('getMatchingFrames uses the same exposure tolerance', () async {
       // Two raw darks: one within ±0.5s, one outside.
-      await dao.addEntry(DarkLibraryCompanion.insert(
-        filePath: '/tmp/dark_60.fits',
-        exposureTime: 60.0,
-        frameType: const Value('dark'),
-        gain: const Value(100),
-        offset: const Value(10),
-        binX: const Value(1),
-        binY: const Value(1),
-      ));
-      await dao.addEntry(DarkLibraryCompanion.insert(
-        filePath: '/tmp/dark_604.fits',
-        exposureTime: 60.4,
-        frameType: const Value('dark'),
-        gain: const Value(100),
-        offset: const Value(10),
-        binX: const Value(1),
-        binY: const Value(1),
-      ));
-      await dao.addEntry(DarkLibraryCompanion.insert(
-        filePath: '/tmp/dark_61.fits',
-        exposureTime: 61.0,
-        frameType: const Value('dark'),
-        gain: const Value(100),
-        offset: const Value(10),
-        binX: const Value(1),
-        binY: const Value(1),
-      ));
+      await dao.addEntry(
+        DarkLibraryCompanion.insert(
+          filePath: '/tmp/dark_60.fits',
+          exposureTime: 60.0,
+          frameType: const Value('dark'),
+          gain: const Value(100),
+          offset: const Value(10),
+          binX: const Value(1),
+          binY: const Value(1),
+        ),
+      );
+      await dao.addEntry(
+        DarkLibraryCompanion.insert(
+          filePath: '/tmp/dark_604.fits',
+          exposureTime: 60.4,
+          frameType: const Value('dark'),
+          gain: const Value(100),
+          offset: const Value(10),
+          binX: const Value(1),
+          binY: const Value(1),
+        ),
+      );
+      await dao.addEntry(
+        DarkLibraryCompanion.insert(
+          filePath: '/tmp/dark_61.fits',
+          exposureTime: 61.0,
+          frameType: const Value('dark'),
+          gain: const Value(100),
+          offset: const Value(10),
+          binX: const Value(1),
+          binY: const Value(1),
+        ),
+      );
 
       final frames = await dao.getMatchingFrames(
         exposureTime: 60.0,

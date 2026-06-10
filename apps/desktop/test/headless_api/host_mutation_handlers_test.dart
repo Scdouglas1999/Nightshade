@@ -18,46 +18,47 @@ void main() {
       container.dispose();
     });
 
-    test('publishHostMutationFromContainer emits standardized HostStateChanged',
-        () {
-      publishHostMutationFromContainer(
-        container,
-        entityType: HostMutationEntity.equipment,
-        action: HostMutationAction.connected,
-        entityId: 'camera-1',
-        extra: const {
-          'deviceType': 'camera',
-          'deviceId': 'camera-1',
-        },
-      );
+    test(
+      'publishHostMutationFromContainer emits standardized HostStateChanged',
+      () {
+        publishHostMutationFromContainer(
+          container,
+          entityType: HostMutationEntity.equipment,
+          action: HostMutationAction.connected,
+          entityId: 'camera-1',
+          extra: const {'deviceType': 'camera', 'deviceId': 'camera-1'},
+        );
 
-      expect(published, hasLength(1));
-      final event = published.single;
-      expect(event.eventType, hostStateChangedEventType);
-      expect(event.category, EventCategory.system);
-      expect(event.data['entityType'], HostMutationEntity.equipment);
-      expect(event.data['action'], HostMutationAction.connected);
-      expect(event.data['entityId'], 'camera-1');
-      expect(event.data['deviceType'], 'camera');
-    });
+        expect(published, hasLength(1));
+        final event = published.single;
+        expect(event.eventType, hostStateChangedEventType);
+        expect(event.category, EventCategory.system);
+        expect(event.data['entityType'], HostMutationEntity.equipment);
+        expect(event.data['action'], HostMutationAction.connected);
+        expect(event.data['entityId'], 'camera-1');
+        expect(event.data['deviceType'], 'camera');
+      },
+    );
 
-    test('notifySequenceCatalogChangedFromContainer publishes sequence mutation',
-        () {
-      notifySequenceCatalogChangedFromContainer(
-        container,
-        sequenceId: 7,
-        action: 'saved',
-        name: 'LRGB',
-      );
+    test(
+      'notifySequenceCatalogChangedFromContainer publishes sequence mutation',
+      () {
+        notifySequenceCatalogChangedFromContainer(
+          container,
+          sequenceId: 7,
+          action: 'saved',
+          name: 'LRGB',
+        );
 
-      expect(published, hasLength(1));
-      final event = published.single;
-      expect(event.eventType, hostStateChangedEventType);
-      expect(event.data['entityType'], HostMutationEntity.sequence);
-      expect(event.data['action'], HostMutationAction.updated);
-      expect(event.data['entityId'], '7');
-      expect(event.data['name'], 'LRGB');
-    });
+        expect(published, hasLength(1));
+        final event = published.single;
+        expect(event.eventType, hostStateChangedEventType);
+        expect(event.data['entityType'], HostMutationEntity.sequence);
+        expect(event.data['action'], HostMutationAction.updated);
+        expect(event.data['entityId'], '7');
+        expect(event.data['name'], 'LRGB');
+      },
+    );
 
     test('sequence catalog bus still notifies local listeners', () async {
       final seen = <SequenceCatalogUpdate>[];

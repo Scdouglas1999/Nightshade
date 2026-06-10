@@ -22,8 +22,9 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     final referencedBySession = existsQuery(
       selectOnly(sessions)
         ..addColumns([sessions.id])
-        ..where(sessions.targetId.equalsExp(t.id) &
-            sessions.targetId.isNotNull()),
+        ..where(
+          sessions.targetId.equalsExp(t.id) & sessions.targetId.isNotNull(),
+        ),
     );
     return t.goalIntegrationSecs.isSmallerOrEqualValue(0.0) &
         t.isFavorite.equals(false) &
@@ -74,22 +75,24 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get target by catalog ID (e.g., M42, NGC7000)
   Future<Target?> getTargetByCatalogId(String catalogId) {
-    return (select(targets)..where((t) => t.catalogId.equals(catalogId)))
-        .getSingleOrNull();
+    return (select(
+      targets,
+    )..where((t) => t.catalogId.equals(catalogId))).getSingleOrNull();
   }
 
   /// Search targets by name
   Future<List<Target>> searchTargets(String query) {
-    return (select(targets)
-          ..where(
-              (t) => t.name.like('%$query%') | t.catalogId.like('%$query%')))
+    return (select(
+          targets,
+        )..where((t) => t.name.like('%$query%') | t.catalogId.like('%$query%')))
         .get();
   }
 
   /// Get targets by object type
   Future<List<Target>> getTargetsByType(String objectType) {
-    return (select(targets)..where((t) => t.objectType.equals(objectType)))
-        .get();
+    return (select(
+      targets,
+    )..where((t) => t.objectType.equals(objectType))).get();
   }
 
   /// Create a new target
@@ -130,16 +133,18 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     String? filterProgress,
   }) async {
     final updates = TargetsCompanion(
-      capturedSubs:
-          capturedSubs != null ? Value(capturedSubs) : const Value.absent(),
+      capturedSubs: capturedSubs != null
+          ? Value(capturedSubs)
+          : const Value.absent(),
       totalIntegrationSecs: totalIntegrationSecs != null
           ? Value(totalIntegrationSecs)
           : const Value.absent(),
       goalIntegrationSecs: goalIntegrationSecs != null
           ? Value(goalIntegrationSecs)
           : const Value.absent(),
-      filterProgress:
-          filterProgress != null ? Value(filterProgress) : const Value.absent(),
+      filterProgress: filterProgress != null
+          ? Value(filterProgress)
+          : const Value.absent(),
       updatedAt: Value(DateTime.now()),
     );
 
@@ -148,7 +153,9 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Set the target's multi-night integration goal in seconds.
   Future<void> setGoalIntegrationSecs(
-      int id, double goalIntegrationSecs) async {
+    int id,
+    double goalIntegrationSecs,
+  ) async {
     await (update(targets)..where((t) => t.id.equals(id))).write(
       TargetsCompanion(
         goalIntegrationSecs: Value(goalIntegrationSecs),
@@ -159,13 +166,16 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get targets ordered by priority
   Future<List<Target>> getTargetsByPriority() {
-    return (select(targets)..orderBy([(t) => OrderingTerm.desc(t.priority)]))
-        .get();
+    return (select(
+      targets,
+    )..orderBy([(t) => OrderingTerm.desc(t.priority)])).get();
   }
 
   /// Get targets that are observable tonight
   Future<List<Target>> getObservableTargets(
-      double latitude, double longitude) async {
+    double latitude,
+    double longitude,
+  ) async {
     final allTargets = await getAllTargets();
     final nowUtc = DateTime.now().toUtc();
 
@@ -191,8 +201,10 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     required double decDeg,
     required DateTime atUtc,
   }) {
-    final lstDeg =
-        _localSiderealTimeDegrees(atUtc: atUtc, longitudeDeg: longitudeDeg);
+    final lstDeg = _localSiderealTimeDegrees(
+      atUtc: atUtc,
+      longitudeDeg: longitudeDeg,
+    );
     final raDeg = raHours * 15.0;
     final hourAngleDeg = _normalizeHa(lstDeg - raDeg);
 
@@ -200,7 +212,8 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     final decRad = decDeg * math.pi / 180.0;
     final haRad = hourAngleDeg * math.pi / 180.0;
 
-    final sinAlt = math.sin(decRad) * math.sin(latRad) +
+    final sinAlt =
+        math.sin(decRad) * math.sin(latRad) +
         math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
     final clamped = sinAlt.clamp(-1.0, 1.0);
     return math.asin(clamped) * 180.0 / math.pi;
@@ -217,7 +230,8 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
   double _greenwichMeanSiderealTimeDegrees(DateTime atUtc) {
     final jd = _julianDate(atUtc);
     final t = (jd - 2451545.0) / 36525.0;
-    final gmst = 280.46061837 +
+    final gmst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         (t * t * t) / 38710000.0;
@@ -228,7 +242,8 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     final utc = atUtc.toUtc();
     var year = utc.year;
     var month = utc.month;
-    final dayFraction = utc.day +
+    final dayFraction =
+        utc.day +
         (utc.hour / 24.0) +
         (utc.minute / 1440.0) +
         (utc.second / 86400.0) +

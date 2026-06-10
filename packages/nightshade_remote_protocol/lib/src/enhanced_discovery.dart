@@ -170,22 +170,22 @@ class QrConnectionData {
       fingerprint.length <= 16 ? fingerprint : fingerprint.substring(0, 16);
 
   Map<String, dynamic> toJson() => {
-        'service': service,
-        'host': host,
-        'port': webPort,
-        'signalingPort': signalingPort,
-        'version': version,
-        'fingerprint': fingerprint,
-        'scheme': scheme,
-        if (serverName != null) 'name': serverName,
-        'mode': mode,
-        'authRequired': authRequired,
-        'authenticationMode': authenticationMode,
-        'pairingSupported': pairingSupported,
-        if (authToken != null && authToken!.isNotEmpty) 'authToken': authToken,
-        if (pairingCode != null && pairingCode!.isNotEmpty)
-          'pairingCode': pairingCode,
-      };
+    'service': service,
+    'host': host,
+    'port': webPort,
+    'signalingPort': signalingPort,
+    'version': version,
+    'fingerprint': fingerprint,
+    'scheme': scheme,
+    if (serverName != null) 'name': serverName,
+    'mode': mode,
+    'authRequired': authRequired,
+    'authenticationMode': authenticationMode,
+    'pairingSupported': pairingSupported,
+    if (authToken != null && authToken!.isNotEmpty) 'authToken': authToken,
+    if (pairingCode != null && pairingCode!.isNotEmpty)
+      'pairingCode': pairingCode,
+  };
 
   String toQrString() => jsonEncode(toJson());
 
@@ -348,19 +348,19 @@ class QrConnectionData {
   }
 
   DiscoveredServer toDiscoveredServer() => DiscoveredServer(
-        host: host,
-        webPort: webPort,
-        signalingPort: signalingPort,
-        name: serverName ?? 'Nightshade',
-        version: version,
-        mode: mode,
-        authRequired: authRequired,
-        authenticationMode: authenticationMode,
-        pairingSupported: pairingSupported,
-        authToken: authToken,
-        fingerprint: fingerprint,
-        scheme: scheme,
-      );
+    host: host,
+    webPort: webPort,
+    signalingPort: signalingPort,
+    name: serverName ?? 'Nightshade',
+    version: version,
+    mode: mode,
+    authRequired: authRequired,
+    authenticationMode: authenticationMode,
+    pairingSupported: pairingSupported,
+    authToken: authToken,
+    fingerprint: fingerprint,
+    scheme: scheme,
+  );
 }
 
 /// Returns `true` iff [host] is in an RFC1918 / RFC6598 CGNAT / link-local /
@@ -418,7 +418,9 @@ class EnhancedNightshadeDiscovery {
     await prefs.setString(_DiscoveryPrefs.lastServerHost, server.host);
     await prefs.setInt(_DiscoveryPrefs.lastServerPort, server.webPort);
     await prefs.setInt(
-        _DiscoveryPrefs.lastServerSignalingPort, server.signalingPort);
+      _DiscoveryPrefs.lastServerSignalingPort,
+      server.signalingPort,
+    );
     await prefs.setString(_DiscoveryPrefs.lastServerName, server.name);
     await prefs.setString(_DiscoveryPrefs.lastServerVersion, server.version);
     final apiVersion = server.apiVersion;
@@ -429,11 +431,17 @@ class EnhancedNightshadeDiscovery {
     }
     await prefs.setString(_DiscoveryPrefs.lastServerMode, server.mode);
     await prefs.setBool(
-        _DiscoveryPrefs.lastServerAuthRequired, server.authRequired);
+      _DiscoveryPrefs.lastServerAuthRequired,
+      server.authRequired,
+    );
     await prefs.setString(
-        _DiscoveryPrefs.lastServerAuthMode, server.authenticationMode);
+      _DiscoveryPrefs.lastServerAuthMode,
+      server.authenticationMode,
+    );
     await prefs.setBool(
-        _DiscoveryPrefs.lastServerPairingSupported, server.pairingSupported);
+      _DiscoveryPrefs.lastServerPairingSupported,
+      server.pairingSupported,
+    );
     final fp = server.fingerprint;
     if (fp != null && fp.isNotEmpty) {
       await prefs.setString(_DiscoveryPrefs.lastServerFingerprint, fp);
@@ -442,12 +450,16 @@ class EnhancedNightshadeDiscovery {
     }
     if (server.authToken != null && server.authToken!.isNotEmpty) {
       await _secureStorage.write(
-          key: _secureAuthTokenKey, value: server.authToken);
+        key: _secureAuthTokenKey,
+        value: server.authToken,
+      );
     } else {
       await _secureStorage.delete(key: _secureAuthTokenKey);
     }
-    developer.log('Saved server: ${server.name} at ${server.host}',
-        name: 'EnhancedDiscovery');
+    developer.log(
+      'Saved server: ${server.name} at ${server.host}',
+      name: 'EnhancedDiscovery',
+    );
   }
 
   /// Load last server from preferences. Migrates the auth token out of
@@ -513,10 +525,7 @@ class EnhancedNightshadeDiscovery {
     if (authToken == null || authToken.isEmpty) {
       return headers;
     }
-    return {
-      ...headers,
-      'Authorization': 'Bearer $authToken',
-    };
+    return {...headers, 'Authorization': 'Bearer $authToken'};
   }
 
   static DiscoveredServer _mergeServerInfo(
@@ -526,7 +535,8 @@ class EnhancedNightshadeDiscovery {
     return seed.copyWith(
       name: info['name'] as String? ?? seed.name,
       version: info['version'] as String? ?? seed.version,
-      apiVersion: info['apiVersion'] as String? ??
+      apiVersion:
+          info['apiVersion'] as String? ??
           info['version'] as String? ??
           seed.apiVersion,
       mode: info['mode'] as String? ?? seed.mode,
@@ -553,7 +563,8 @@ class EnhancedNightshadeDiscovery {
       final response = await http
           .get(
             Uri.parse(
-                '${server.scheme}://${server.host}:${server.webPort}/api/info'),
+              '${server.scheme}://${server.host}:${server.webPort}/api/info',
+            ),
             headers: _authHeaders(server.authToken),
           )
           .timeout(timeout);
@@ -598,11 +609,7 @@ class EnhancedNightshadeDiscovery {
   }) async {
     final lowered = scheme.toLowerCase();
     if (lowered != 'http' && lowered != 'https') {
-      throw ArgumentError.value(
-        scheme,
-        'scheme',
-        'must be "http" or "https"',
-      );
+      throw ArgumentError.value(scheme, 'scheme', 'must be "http" or "https"');
     }
     try {
       final infoResponse = await http
@@ -664,7 +671,8 @@ class EnhancedNightshadeDiscovery {
 
   static bool _isCompatibleServer(DiscoveredServer server) {
     final compatibility = NightshadeServerCompatibility.check(
-        server.apiVersion ?? server.version);
+      server.apiVersion ?? server.version,
+    );
     if (!compatibility.isCompatible) {
       developer.log(
         'Skipping incompatible Nightshade server ${server.host}:${server.webPort}: ${compatibility.message}',
@@ -700,8 +708,10 @@ class EnhancedNightshadeDiscovery {
       return null;
     }
 
-    developer.log('Testing saved server: ${server.host}:${server.webPort}',
-        name: 'EnhancedDiscovery');
+    developer.log(
+      'Testing saved server: ${server.host}:${server.webPort}',
+      name: 'EnhancedDiscovery',
+    );
     final isReachable = await testServerConnection(
       server.host,
       server.webPort,
@@ -814,8 +824,9 @@ class EnhancedNightshadeDiscovery {
               );
 
               // Avoid duplicates
-              if (!servers.any((s) =>
-                  s.host == server.host && s.webPort == server.webPort)) {
+              if (!servers.any(
+                (s) => s.host == server.host && s.webPort == server.webPort,
+              )) {
                 final enriched = await fetchServerInfo(server) ?? server;
                 servers.add(enriched);
               }
@@ -921,14 +932,19 @@ class EnhancedNightshadeDiscovery {
       onStatus: onStatus,
     );
     if (udpServers.isNotEmpty) {
-      developer.log('Found server via UDP broadcast',
-          name: 'EnhancedDiscovery');
+      developer.log(
+        'Found server via UDP broadcast',
+        name: 'EnhancedDiscovery',
+      );
       return _firstCompatibleServer(udpServers);
     }
 
     // 4. No server found
-    developer.log('No server found via any method',
-        name: 'EnhancedDiscovery', level: 900);
+    developer.log(
+      'No server found via any method',
+      name: 'EnhancedDiscovery',
+      level: 900,
+    );
     onStatus?.call('No server found');
     return null;
   }
@@ -954,11 +970,7 @@ class EnhancedNightshadeDiscovery {
   }) {
     final lowered = scheme.toLowerCase();
     if (lowered != 'http' && lowered != 'https') {
-      throw ArgumentError.value(
-        scheme,
-        'scheme',
-        'must be "http" or "https"',
-      );
+      throw ArgumentError.value(scheme, 'scheme', 'must be "http" or "https"');
     }
     final data = QrConnectionData(
       host: host,

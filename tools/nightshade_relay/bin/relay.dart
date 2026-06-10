@@ -56,13 +56,21 @@ void main(List<String> args) async {
   final config = RelayServerConfig(
     port: intOpt('port', 'NIGHTSHADE_RELAY_PORT', 9777),
     bindAddress: bind == null ? null : InternetAddress(bind),
-    stateFilePath: stringOpt('state-file', 'NIGHTSHADE_RELAY_STATE_FILE') ??
+    stateFilePath:
+        stringOpt('state-file', 'NIGHTSHADE_RELAY_STATE_FILE') ??
         'relay_state.json',
     tlsCertificatePath: tlsCert,
     tlsPrivateKeyPath: tlsKey,
-    maxAppliances: intOpt('max-appliances', 'NIGHTSHADE_RELAY_MAX_APPLIANCES', 50),
-    maxClientsPerAppliance:
-        intOpt('max-clients', 'NIGHTSHADE_RELAY_MAX_CLIENTS', 8),
+    maxAppliances: intOpt(
+      'max-appliances',
+      'NIGHTSHADE_RELAY_MAX_APPLIANCES',
+      50,
+    ),
+    maxClientsPerAppliance: intOpt(
+      'max-clients',
+      'NIGHTSHADE_RELAY_MAX_CLIENTS',
+      8,
+    ),
   );
 
   final server = RelayServer(
@@ -79,9 +87,15 @@ void main(List<String> args) async {
 
   final scheme = tlsCert != null ? 'wss' : 'ws';
   stdout.writeln('Nightshade relay running.');
-  stdout.writeln('  Appliance uplink : $scheme://<this-host>:${server.port}/uplink');
-  stdout.writeln('  Phone connect    : $scheme://<this-host>:${server.port}/connect/<appliance-id>');
-  stdout.writeln('  Health check     : http${tlsCert != null ? 's' : ''}://<this-host>:${server.port}/healthz');
+  stdout.writeln(
+    '  Appliance uplink : $scheme://<this-host>:${server.port}/uplink',
+  );
+  stdout.writeln(
+    '  Phone connect    : $scheme://<this-host>:${server.port}/connect/<appliance-id>',
+  );
+  stdout.writeln(
+    '  Health check     : http${tlsCert != null ? 's' : ''}://<this-host>:${server.port}/healthz',
+  );
   stdout.writeln('  State file       : ${config.stateFilePath}');
 
   Future<void> shutdown(String reason) async {

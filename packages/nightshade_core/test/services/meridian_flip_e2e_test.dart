@@ -83,8 +83,9 @@ void main() {
       backend = _MeridianFlipTestBackend();
       container = ProviderContainer(
         overrides: [
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
         ],
       );
 
@@ -99,108 +100,127 @@ void main() {
       backend.closeStreams();
     });
 
-    test('disconnect during executing flip aborts and clears flip state',
-        () async {
-      // Bring the mount up — without a deviceId the notifier stays in its
-      // default state, so we drive it directly via the public notifier API.
-      // `setConnecting`/`setConnected` is what `MountStateNotifier.connect()`
-      // calls internally when a real device service connects.
-      final mountNotifier = container.read(mountStateProvider.notifier);
-      mountNotifier.setConnecting('mount-test');
-      mountNotifier.setConnected();
-      expect(container.read(mountStateProvider).connectionState,
-          equals(DeviceConnectionState.connected));
+    test(
+      'disconnect during executing flip aborts and clears flip state',
+      () async {
+        // Bring the mount up — without a deviceId the notifier stays in its
+        // default state, so we drive it directly via the public notifier API.
+        // `setConnecting`/`setConnected` is what `MountStateNotifier.connect()`
+        // calls internally when a real device service connects.
+        final mountNotifier = container.read(mountStateProvider.notifier);
+        mountNotifier.setConnecting('mount-test');
+        mountNotifier.setConnected();
+        expect(
+          container.read(mountStateProvider).connectionState,
+          equals(DeviceConnectionState.connected),
+        );
 
-      // Pretend the sequencer has just scheduled a flip and the trigger
-      // framework moved into the executing phase.
-      container.read(flipExecutionStateProvider.notifier).state =
-          FlipExecutionState.executing;
-      container.read(flipCurrentStepProvider.notifier).state =
-          FlipStep.slewingToTarget;
-      container.read(flipProgressProvider.notifier).state = 35;
-      container.read(flipCurrentAttemptProvider.notifier).state = 1;
+        // Pretend the sequencer has just scheduled a flip and the trigger
+        // framework moved into the executing phase.
+        container.read(flipExecutionStateProvider.notifier).state =
+            FlipExecutionState.executing;
+        container.read(flipCurrentStepProvider.notifier).state =
+            FlipStep.slewingToTarget;
+        container.read(flipProgressProvider.notifier).state = 35;
+        container.read(flipCurrentAttemptProvider.notifier).state = 1;
 
-      expect(container.read(flipExecutionStateProvider),
-          equals(FlipExecutionState.executing));
+        expect(
+          container.read(flipExecutionStateProvider),
+          equals(FlipExecutionState.executing),
+        );
 
-      // The mount drops mid-flip. In production this comes from a heartbeat
-      // failure or transport disconnect — we drive it directly.
-      mountNotifier.setDisconnected();
+        // The mount drops mid-flip. In production this comes from a heartbeat
+        // failure or transport disconnect — we drive it directly.
+        mountNotifier.setDisconnected();
 
-      // The guard reacts inside `ref.listen`, which schedules its callback
-      // on the next microtask. Let one drain cycle complete before asserting.
-      await Future<void>.value();
-      await Future<void>.value();
+        // The guard reacts inside `ref.listen`, which schedules its callback
+        // on the next microtask. Let one drain cycle complete before asserting.
+        await Future<void>.value();
+        await Future<void>.value();
 
-      // ----- Assertions: every output of the guard must have fired -------
-      expect(container.read(flipExecutionStateProvider),
+        // ----- Assertions: every output of the guard must have fired -------
+        expect(
+          container.read(flipExecutionStateProvider),
           equals(FlipExecutionState.aborted),
           reason:
               'flipExecutionStateProvider must transition executing→aborted '
-              'when the mount disconnects mid-flip');
-      expect(container.read(flipCurrentStepProvider), isNull);
-      expect(container.read(flipProgressProvider), equals(0));
-      expect(container.read(flipCurrentAttemptProvider), equals(0));
-      final errorMessage = container.read(flipLastErrorProvider);
-      expect(errorMessage, isNotNull);
-      expect(errorMessage!.toLowerCase(),
-          contains('mount disconnected'));
+              'when the mount disconnects mid-flip',
+        );
+        expect(container.read(flipCurrentStepProvider), isNull);
+        expect(container.read(flipProgressProvider), equals(0));
+        expect(container.read(flipCurrentAttemptProvider), equals(0));
+        final errorMessage = container.read(flipLastErrorProvider);
+        expect(errorMessage, isNotNull);
+        expect(errorMessage!.toLowerCase(), contains('mount disconnected'));
 
-      // The post-flip exposure must NOT proceed: the sequencer would observe
-      // `flipExecutionStateProvider == aborted` (or check
-      // `isFlipInProgressProvider == false` and the error) and refuse to
-      // schedule the next imaging instruction. Both invariants verified:
-      expect(container.read(isFlipInProgressProvider), isFalse);
-      expect(container.read(flipExecutionStateProvider),
-          isNot(equals(FlipExecutionState.executing)));
-      expect(container.read(flipExecutionStateProvider),
-          isNot(equals(FlipExecutionState.retrying)));
-    });
-
-    test('disconnect during retrying flip aborts and clears flip state',
-        () async {
-      final mountNotifier = container.read(mountStateProvider.notifier);
-      mountNotifier.setConnecting('mount-test');
-      mountNotifier.setConnected();
-
-      container.read(flipExecutionStateProvider.notifier).state =
-          FlipExecutionState.retrying;
-      container.read(flipCurrentStepProvider.notifier).state =
-          FlipStep.slewingToTarget;
-      container.read(flipCurrentAttemptProvider.notifier).state = 2;
-
-      mountNotifier.setDisconnected();
-      await Future<void>.value();
-      await Future<void>.value();
-
-      expect(container.read(flipExecutionStateProvider),
-          equals(FlipExecutionState.aborted),
-          reason:
-              'retrying state must also trigger the disconnect-guard reset');
-      expect(container.read(flipCurrentStepProvider), isNull);
-      expect(container.read(flipCurrentAttemptProvider), equals(0));
-    });
+        // The post-flip exposure must NOT proceed: the sequencer would observe
+        // `flipExecutionStateProvider == aborted` (or check
+        // `isFlipInProgressProvider == false` and the error) and refuse to
+        // schedule the next imaging instruction. Both invariants verified:
+        expect(container.read(isFlipInProgressProvider), isFalse);
+        expect(
+          container.read(flipExecutionStateProvider),
+          isNot(equals(FlipExecutionState.executing)),
+        );
+        expect(
+          container.read(flipExecutionStateProvider),
+          isNot(equals(FlipExecutionState.retrying)),
+        );
+      },
+    );
 
     test(
-        'disconnect while idle does NOT abort (no false positive on cold mount)',
-        () async {
-      final mountNotifier = container.read(mountStateProvider.notifier);
-      mountNotifier.setConnecting('mount-test');
-      mountNotifier.setConnected();
+      'disconnect during retrying flip aborts and clears flip state',
+      () async {
+        final mountNotifier = container.read(mountStateProvider.notifier);
+        mountNotifier.setConnecting('mount-test');
+        mountNotifier.setConnected();
 
-      // Flip state is the default `idle` — no flip is in progress.
-      expect(container.read(flipExecutionStateProvider),
-          equals(FlipExecutionState.idle));
+        container.read(flipExecutionStateProvider.notifier).state =
+            FlipExecutionState.retrying;
+        container.read(flipCurrentStepProvider.notifier).state =
+            FlipStep.slewingToTarget;
+        container.read(flipCurrentAttemptProvider.notifier).state = 2;
 
-      mountNotifier.setDisconnected();
-      await Future<void>.value();
-      await Future<void>.value();
+        mountNotifier.setDisconnected();
+        await Future<void>.value();
+        await Future<void>.value();
 
-      // The guard must leave state untouched: a mount disconnect when no
-      // flip is in progress is not an abort condition.
-      expect(container.read(flipExecutionStateProvider),
-          equals(FlipExecutionState.idle));
-      expect(container.read(flipLastErrorProvider), isNull);
-    });
+        expect(
+          container.read(flipExecutionStateProvider),
+          equals(FlipExecutionState.aborted),
+          reason: 'retrying state must also trigger the disconnect-guard reset',
+        );
+        expect(container.read(flipCurrentStepProvider), isNull);
+        expect(container.read(flipCurrentAttemptProvider), equals(0));
+      },
+    );
+
+    test(
+      'disconnect while idle does NOT abort (no false positive on cold mount)',
+      () async {
+        final mountNotifier = container.read(mountStateProvider.notifier);
+        mountNotifier.setConnecting('mount-test');
+        mountNotifier.setConnected();
+
+        // Flip state is the default `idle` — no flip is in progress.
+        expect(
+          container.read(flipExecutionStateProvider),
+          equals(FlipExecutionState.idle),
+        );
+
+        mountNotifier.setDisconnected();
+        await Future<void>.value();
+        await Future<void>.value();
+
+        // The guard must leave state untouched: a mount disconnect when no
+        // flip is in progress is not an abort condition.
+        expect(
+          container.read(flipExecutionStateProvider),
+          equals(FlipExecutionState.idle),
+        );
+        expect(container.read(flipLastErrorProvider), isNull);
+      },
+    );
   });
 }

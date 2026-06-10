@@ -84,8 +84,7 @@ class AnalyticsHandlers {
     final limit = int.tryParse(limitStr) ?? 10;
     _logInfo('[API] GET /api/sessions/recent?limit=$limit');
     final database = container.read(databaseProvider);
-    final sessions =
-        await database.sessionsDao.getRecentSessions(limit: limit);
+    final sessions = await database.sessionsDao.getRecentSessions(limit: limit);
 
     return jsonOk({
       "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
@@ -157,8 +156,10 @@ class AnalyticsHandlers {
 
     // Update status if provided
     if (payload.containsKey('status')) {
-      await database.sessionsDao
-          .updateSessionStatus(sessionId, requireString(payload, 'status'));
+      await database.sessionsDao.updateSessionStatus(
+        sessionId,
+        requireString(payload, 'status'),
+      );
     }
 
     publishHostMutationFromContainer(
@@ -299,24 +300,20 @@ class AnalyticsHandlers {
     _logInfo('[API] GET /api/sessions/$id/psf-tiles');
     final sessionId = _parsePathId(id, 'id');
     final database = container.read(databaseProvider);
-    final psfTiles =
-        await database.scienceDao.getPsfTilesForSession(sessionId);
+    final psfTiles = await database.scienceDao.getPsfTilesForSession(sessionId);
 
-    return jsonOk({
-      'psfTiles': psfTiles.map(_psfTileToJson).toList(),
-    });
+    return jsonOk({'psfTiles': psfTiles.map(_psfTileToJson).toList()});
   }
 
   Future<Response> handleGetSessionResiduals(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/residuals');
     final sessionId = _parsePathId(id, 'id');
     final database = container.read(databaseProvider);
-    final residuals =
-        await database.scienceDao.getResidualsForSession(sessionId);
+    final residuals = await database.scienceDao.getResidualsForSession(
+      sessionId,
+    );
 
-    return jsonOk({
-      'residuals': residuals.map(_residualVectorToJson).toList(),
-    });
+    return jsonOk({'residuals': residuals.map(_residualVectorToJson).toList()});
   }
 
   // ===========================================================================
@@ -347,8 +344,10 @@ class AnalyticsHandlers {
           message: e.message,
         );
       }
-      sessions =
-          await database.sessionsDao.getSessionsInRange(startDate, endDate);
+      sessions = await database.sessionsDao.getSessionsInRange(
+        startDate,
+        endDate,
+      );
     } else {
       sessions = await database.sessionsDao.getAllSessions();
     }
@@ -386,7 +385,9 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetTargetStatistics(
-      Request request, String targetId) async {
+    Request request,
+    String targetId,
+  ) async {
     _logInfo('[API] GET /api/analytics/target/$targetId');
     final tid = _parsePathId(targetId, 'targetId');
     final database = container.read(databaseProvider);
@@ -400,7 +401,9 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSessionsForTarget(
-      Request request, String targetId) async {
+    Request request,
+    String targetId,
+  ) async {
     _logInfo('[API] GET /api/analytics/target/$targetId/sessions');
     final tid = _parsePathId(targetId, 'targetId');
     final database = container.read(databaseProvider);

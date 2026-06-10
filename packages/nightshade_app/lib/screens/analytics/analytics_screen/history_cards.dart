@@ -22,7 +22,8 @@ class _ProjectsTab extends StatelessWidget {
             child: TextButton.icon(
               key: const ValueKey('mosaic_projects_entry'),
               onPressed: () => context.push('/mosaic'),
-              icon: Icon(LucideIcons.layoutGrid, size: 14, color: colors.accent),
+              icon:
+                  Icon(LucideIcons.layoutGrid, size: 14, color: colors.accent),
               label: Text(
                 'Mosaic projects',
                 style: TextStyle(
@@ -87,7 +88,9 @@ class _SessionHistoryCard extends ConsumerWidget {
 
     final dateText = Text(
       DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
-      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+      style: TextStyle(
+          fontSize: NightshadeTypography.fontSize12,
+          color: colors.textSecondary),
     );
 
     // Stats reflow as a Wrap so a narrow phone column never overflows; on wide

@@ -21,8 +21,8 @@ import 'equipment_retry_defaults.dart';
 /// Switch device state provider.
 final switchStateProvider =
     StateNotifierProvider<SwitchStateNotifier, SwitchState>((ref) {
-  return SwitchStateNotifier(ref);
-});
+      return SwitchStateNotifier(ref);
+    });
 
 class SwitchStateNotifier extends StateNotifier<SwitchState> {
   final Ref _ref;
@@ -30,8 +30,10 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
 
   SwitchStateNotifier(this._ref) : super(const SwitchState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

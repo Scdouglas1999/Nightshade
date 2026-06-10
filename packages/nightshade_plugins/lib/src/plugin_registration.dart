@@ -80,27 +80,27 @@ class ExamplePluginDescriptor {
 ///       count, so [firedEvent] is `null`.
 final List<ExamplePluginDescriptor> kUserFacingExamplePlugins =
     List<ExamplePluginDescriptor>.unmodifiable([
-  const ExamplePluginDescriptor(
-    id: 'com.nightshade.examples.discord_webhook',
-    create: DiscordWebhookPlugin.new,
-    firedEvent: 'plugin.discord.sent',
-  ),
-  const ExamplePluginDescriptor(
-    id: 'com.nightshade.examples.pushover',
-    create: PushoverNotificationPlugin.new,
-    firedEvent: 'plugin.pushover.sent',
-  ),
-  const ExamplePluginDescriptor(
-    id: 'com.nightshade.examples.home_assistant',
-    create: HomeAssistantPlugin.new,
-    firedEvent: 'plugin.home_assistant.service_called',
-  ),
-  const ExamplePluginDescriptor(
-    id: 'com.nightshade.weatherlogger',
-    create: WeatherLoggerPlugin.new,
-    firedEvent: null,
-  ),
-]);
+      const ExamplePluginDescriptor(
+        id: 'com.nightshade.examples.discord_webhook',
+        create: DiscordWebhookPlugin.new,
+        firedEvent: 'plugin.discord.sent',
+      ),
+      const ExamplePluginDescriptor(
+        id: 'com.nightshade.examples.pushover',
+        create: PushoverNotificationPlugin.new,
+        firedEvent: 'plugin.pushover.sent',
+      ),
+      const ExamplePluginDescriptor(
+        id: 'com.nightshade.examples.home_assistant',
+        create: HomeAssistantPlugin.new,
+        firedEvent: 'plugin.home_assistant.service_called',
+      ),
+      const ExamplePluginDescriptor(
+        id: 'com.nightshade.weatherlogger',
+        create: WeatherLoggerPlugin.new,
+        firedEvent: null,
+      ),
+    ]);
 
 /// Resolves which plugins should start enabled.
 ///
@@ -183,9 +183,9 @@ class PluginActivityTracker {
     required PluginHost host,
     List<ExamplePluginDescriptor>? descriptors,
     DateTime Function()? now,
-  })  : _host = host,
-        _descriptors = descriptors ?? kUserFacingExamplePlugins,
-        _now = now ?? DateTime.now {
+  }) : _host = host,
+       _descriptors = descriptors ?? kUserFacingExamplePlugins,
+       _now = now ?? DateTime.now {
     _subscribe();
   }
 
@@ -292,8 +292,7 @@ class PluginLastFiredNotifier extends StateNotifier<PluginLastFired> {
 /// before the tracker tries to subscribe to their events. Reading this before
 /// registration finishes is a programming error and surfaces as a thrown
 /// [PluginException] (see [PluginActivityTracker]).
-final pluginActivityTrackerProvider =
-    Provider<PluginActivityTracker>((ref) {
+final pluginActivityTrackerProvider = Provider<PluginActivityTracker>((ref) {
   // Ensure registration has run. We require() the value so a not-yet-resolved
   // or errored registration surfaces immediately instead of producing a
   // tracker with no plugins to watch.
@@ -312,6 +311,6 @@ final pluginActivityTrackerProvider =
 /// event) are simply absent from the map.
 final pluginLastFiredProvider =
     StateNotifierProvider<PluginLastFiredNotifier, PluginLastFired>((ref) {
-  final tracker = ref.watch(pluginActivityTrackerProvider);
-  return PluginLastFiredNotifier(tracker);
-});
+      final tracker = ref.watch(pluginActivityTrackerProvider);
+      return PluginLastFiredNotifier(tracker);
+    });

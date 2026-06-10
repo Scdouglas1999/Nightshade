@@ -62,13 +62,13 @@ class SchedulerWeights extends Equatable {
 
   @override
   List<Object?> get props => [
-        altitude,
-        meridian,
-        moon,
-        timeRemaining,
-        filterCoverage,
-        userPriority,
-      ];
+    altitude,
+    meridian,
+    moon,
+    timeRemaining,
+    filterCoverage,
+    userPriority,
+  ];
 }
 
 /// Runtime configuration controlling the engine's tick behavior.
@@ -135,13 +135,13 @@ class SchedulerConfig extends Equatable {
 
   @override
   List<Object?> get props => [
-        tickInterval,
-        hysteresisRatio,
-        minAltitudeDegrees,
-        moonAvoidanceRadiusDegrees,
-        maxSunAltitudeDegrees,
-        weights,
-      ];
+    tickInterval,
+    hysteresisRatio,
+    minAltitudeDegrees,
+    moonAvoidanceRadiusDegrees,
+    maxSunAltitudeDegrees,
+    weights,
+  ];
 }
 
 /// External event that should trigger an out-of-band re-evaluation.
@@ -216,10 +216,10 @@ class SchedulerStatus extends Equatable {
 
   @override
   List<Object?> get props => [
-        state,
-        currentTargetId,
-        currentTargetName,
-        nextEvaluationAt,
-        lastError,
-      ];
+    state,
+    currentTargetId,
+    currentTargetName,
+    nextEvaluationAt,
+    lastError,
+  ];
 }

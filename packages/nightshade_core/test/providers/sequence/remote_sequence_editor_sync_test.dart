@@ -15,21 +15,16 @@ class _FixedBackendNotifier extends BackendNotifier {
 void main() {
   setUpAll(() {
     registerFallbackValue(const Stream<NightshadeEvent>.empty());
-    registerFallbackValue(
-      Sequence.create(
-        name: 'fallback',
-        nodes: const {},
-      ),
-    );
+    registerFallbackValue(Sequence.create(name: 'fallback', nodes: const {}));
   });
 
   group('remoteSequenceEditorSyncProvider', () {
     test('debounces saveFullSequence until edits settle', () {
       fakeAsync((async) {
         final backend = _MockNetworkBackend();
-        when(() => backend.eventStream).thenAnswer(
-          (_) => const Stream<NightshadeEvent>.empty(),
-        );
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
         when(
           () => backend.saveFullSequence(
             any(),
@@ -53,9 +48,7 @@ void main() {
         editor.loadSequence(
           Sequence.create(
             name: 'Draft',
-            nodes: {
-              rootId: InstructionSetNode(id: rootId, name: 'Sequence'),
-            },
+            nodes: {rootId: InstructionSetNode(id: rootId, name: 'Sequence')},
             rootNodeId: rootId,
           ),
         );
@@ -95,9 +88,9 @@ void main() {
     test('does not save when sequence is clean after load', () {
       fakeAsync((async) {
         final backend = _MockNetworkBackend();
-        when(() => backend.eventStream).thenAnswer(
-          (_) => const Stream<NightshadeEvent>.empty(),
-        );
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
 
         final container = ProviderContainer(
           overrides: [
@@ -115,9 +108,7 @@ void main() {
           Sequence.create(
             name: 'Loaded',
             databaseId: 5,
-            nodes: {
-              rootId: InstructionSetNode(id: rootId, name: 'Sequence'),
-            },
+            nodes: {rootId: InstructionSetNode(id: rootId, name: 'Sequence')},
             rootNodeId: rootId,
           ),
         );
@@ -140,9 +131,9 @@ void main() {
     test('saves after createSequence when user adds a node', () {
       fakeAsync((async) {
         final backend = _MockNetworkBackend();
-        when(() => backend.eventStream).thenAnswer(
-          (_) => const Stream<NightshadeEvent>.empty(),
-        );
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
         when(
           () => backend.saveFullSequence(
             any(),

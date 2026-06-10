@@ -32,16 +32,18 @@ final replayDebugServiceProvider = Provider<ReplayDebugService>((ref) {
 /// internal change bus).
 final decisionsForRunProvider =
     StreamProvider.family<List<ReplayDecision>, int>((ref, runId) {
-  final service = ref.watch(replayDebugServiceProvider);
-  return service.watchByRun(runId);
-});
+      final service = ref.watch(replayDebugServiceProvider);
+      return service.watchByRun(runId);
+    });
 
 /// Count of decisions for a run. Async because counts come from the
 /// service's persistence layer; the consumer (history row badge)
 /// invalidates this on every navigation back to history so a fresh
 /// count appears after a run completes.
-final decisionCountForRunProvider =
-    FutureProvider.family<int, int>((ref, runId) async {
+final decisionCountForRunProvider = FutureProvider.family<int, int>((
+  ref,
+  runId,
+) async {
   final service = ref.watch(replayDebugServiceProvider);
   return service.countByRun(runId);
 });
@@ -62,9 +64,9 @@ const int replayDebugDefaultRetentionDays = 90;
 /// returns the cached value so the UI doesn't await a Rust round-trip.
 final replayDebugEnabledProvider = FutureProvider<bool>((ref) async {
   final db = ref.watch(databaseProvider);
-  final row = await (db.select(db.appSettings)
-        ..where((t) => t.key.equals(replayDebugEnabledKey)))
-      .getSingleOrNull();
+  final row = await (db.select(
+    db.appSettings,
+  )..where((t) => t.key.equals(replayDebugEnabledKey))).getSingleOrNull();
   if (row == null) return true;
   return row.value.toLowerCase() != 'false';
 });
@@ -74,9 +76,9 @@ final replayDebugEnabledProvider = FutureProvider<bool>((ref) async {
 /// 90 days.
 final replayDebugRetentionDaysProvider = FutureProvider<int>((ref) async {
   final db = ref.watch(databaseProvider);
-  final row = await (db.select(db.appSettings)
-        ..where((t) => t.key.equals(replayDebugRetentionDaysKey)))
-      .getSingleOrNull();
+  final row = await (db.select(
+    db.appSettings,
+  )..where((t) => t.key.equals(replayDebugRetentionDaysKey))).getSingleOrNull();
   if (row == null) return replayDebugDefaultRetentionDays;
   return int.tryParse(row.value) ?? replayDebugDefaultRetentionDays;
 });
@@ -131,5 +133,5 @@ class ReplayDebugSettingsController {
 
 final replayDebugSettingsControllerProvider =
     Provider<ReplayDebugSettingsController>((ref) {
-  return ReplayDebugSettingsController(ref);
-});
+      return ReplayDebugSettingsController(ref);
+    });

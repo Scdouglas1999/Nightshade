@@ -15,8 +15,12 @@ class ObservationLogsDaoManager {
   ObservationLogsDaoManager(this._db);
   $$EquipmentProfilesTableTableManager get equipmentProfiles =>
       $$EquipmentProfilesTableTableManager(
-          _db.attachedDatabase, _db.equipmentProfiles);
+        _db.attachedDatabase,
+        _db.equipmentProfiles,
+      );
   $$ObservationLogsTableTableManager get observationLogs =>
       $$ObservationLogsTableTableManager(
-          _db.attachedDatabase, _db.observationLogs);
+        _db.attachedDatabase,
+        _db.observationLogs,
+      );
 }

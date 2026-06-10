@@ -147,7 +147,13 @@ class ForecastPlanningService {
         12,
       ).add(Duration(days: i));
 
-      builtNights.add(_buildNight(nightDateLocal: nightDateLocal, frames: frames, targets: targets));
+      builtNights.add(
+        _buildNight(
+          nightDateLocal: nightDateLocal,
+          frames: frames,
+          targets: targets,
+        ),
+      );
     }
 
     // Chronological order (UI ranks by score; the list itself stays by date).
@@ -258,8 +264,10 @@ class ForecastPlanningService {
     // clearDarkHours is a count of clear whole-hour samples, clamped into the
     // true window length so it can never exceed darkHours (the model also
     // enforces score's [0,1] clamp, but we keep the field honest here too).
-    final clearDarkHours =
-        clearHours.toDouble().clamp(0.0, totalDarkHours).toDouble();
+    final clearDarkHours = clearHours
+        .toDouble()
+        .clamp(0.0, totalDarkHours)
+        .toDouble();
 
     final bestTargets = _rankTargets(upHours, maxAlt, nameById);
 
@@ -330,15 +338,18 @@ class ForecastPlanningService {
     for (final entry in upHours.entries) {
       if (entry.value <= 0) continue;
       final peak = maxAlt[entry.key];
-      entries.add(ForecastTargetUp(
-        targetId: entry.key,
-        targetName: nameById[entry.key] ?? '',
-        upDarkHours: entry.value.toDouble(),
-        // A target with up-hours > 0 always reached its min altitude, so peak
-        // is a real finite value; guard the impossible -inf for safety.
-        maxAltitudeDeg:
-            (peak == null || peak == double.negativeInfinity) ? 0.0 : peak,
-      ));
+      entries.add(
+        ForecastTargetUp(
+          targetId: entry.key,
+          targetName: nameById[entry.key] ?? '',
+          upDarkHours: entry.value.toDouble(),
+          // A target with up-hours > 0 always reached its min altitude, so peak
+          // is a real finite value; guard the impossible -inf for safety.
+          maxAltitudeDeg: (peak == null || peak == double.negativeInfinity)
+              ? 0.0
+              : peak,
+        ),
+      );
     }
     entries.sort((a, b) {
       final byHours = b.upDarkHours.compareTo(a.upDarkHours);
@@ -373,7 +384,8 @@ class ForecastPlanningService {
     final decRad = decDegrees * math.pi / 180.0;
     final latRad = latitudeDegrees * math.pi / 180.0;
 
-    final sinAlt = math.sin(decRad) * math.sin(latRad) +
+    final sinAlt =
+        math.sin(decRad) * math.sin(latRad) +
         math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
     final altRad = math.asin(sinAlt.clamp(-1.0, 1.0));
     return altRad * 180.0 / math.pi;
@@ -385,7 +397,8 @@ class ForecastPlanningService {
   double _localSiderealTimeHours(DateTime timeUtc) {
     final jd = SkyCalculations.julianDate(timeUtc);
     final t = (jd - 2451545.0) / 36525.0;
-    var gmstDeg = 280.46061837 +
+    var gmstDeg =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000.0;

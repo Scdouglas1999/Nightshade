@@ -20,8 +20,9 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.target.name);
-    _catalogIdController =
-        TextEditingController(text: widget.target.catalogId ?? '');
+    _catalogIdController = TextEditingController(
+      text: widget.target.catalogId ?? '',
+    );
     _raController = TextEditingController(text: widget.target.ra.toString());
     _decController = TextEditingController(text: widget.target.dec.toString());
     _objectType = widget.target.objectType ?? 'Nebula';
@@ -60,7 +61,9 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
             final dec = double.tryParse(_decController.text);
 
             if (_nameController.text.isNotEmpty && ra != null && dec != null) {
-              ref.read(targetsDaoProvider).updateTarget(
+              ref
+                  .read(targetsDaoProvider)
+                  .updateTarget(
                     widget.target.copyWith(
                       name: _nameController.text,
                       catalogId: _catalogIdController.text.isEmpty
@@ -81,8 +84,12 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildField(colors, 'Name', _nameController, 'e.g., Orion Nebula'),
-          _buildField(colors, 'Catalog ID', _catalogIdController,
-              'e.g., M42, NGC 7000'),
+          _buildField(
+            colors,
+            'Catalog ID',
+            _catalogIdController,
+            'e.g., M42, NGC 7000',
+          ),
           _buildField(colors, 'RA (hours)', _raController, 'e.g., 5.588'),
           _buildField(colors, 'Dec (degrees)', _decController, 'e.g., -5.391'),
           Text(
@@ -108,17 +115,13 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
                 isExpanded: true,
                 dropdownColor: colors.surface,
                 style: TextStyle(fontSize: 13, color: colors.textPrimary),
-                items: [
-                  'Galaxy',
-                  'Nebula',
-                  'Cluster',
-                  'Star',
-                  'Planet',
-                  'Other'
-                ]
-                    .map((type) =>
-                        DropdownMenuItem(value: type, child: Text(type)))
-                    .toList(),
+                items:
+                    ['Galaxy', 'Nebula', 'Cluster', 'Star', 'Planet', 'Other']
+                        .map(
+                          (type) =>
+                              DropdownMenuItem(value: type, child: Text(type)),
+                        )
+                        .toList(),
                 onChanged: (value) {
                   if (value != null) setState(() => _objectType = value);
                 },
@@ -130,8 +133,12 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
     );
   }
 
-  Widget _buildField(NightshadeColors colors, String label,
-      TextEditingController controller, String hint) {
+  Widget _buildField(
+    NightshadeColors colors,
+    String label,
+    TextEditingController controller,
+    String hint,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(

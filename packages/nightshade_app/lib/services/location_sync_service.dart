@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -17,10 +17,10 @@ final locationSyncProvider = Provider<void>((ref) {
         // Update planetarium provider with settings location
         // This is a temporary update (doesn't persist) - only settings persists
         ref.read(observerLocationProvider.notifier).setLocation(
-          latitude: settings.latitude,
-          longitude: settings.longitude,
-          elevation: settings.elevation,
-        );
+              latitude: settings.latitude,
+              longitude: settings.longitude,
+              elevation: settings.elevation,
+            );
 
         // Wave 1.5 Pack D: bridge effectiveHorizonDeg into the planetarium
         // package. We can't make planetarium depend on nightshade_core
@@ -33,7 +33,8 @@ final locationSyncProvider = Provider<void>((ref) {
             settings.effectiveHorizonDeg;
 
         // Also sync to Rust backend for astronomical calculations
-        await _syncLocationToBackend(ref, settings.latitude, settings.longitude, settings.elevation);
+        await _syncLocationToBackend(
+            ref, settings.latitude, settings.longitude, settings.elevation);
       });
     });
   });
@@ -45,13 +46,14 @@ final locationSyncProvider = Provider<void>((ref) {
     if (settings.latitude != 0.0 || settings.longitude != 0.0) {
       Future.microtask(() async {
         ref.read(observerLocationProvider.notifier).setLocation(
-          latitude: settings.latitude,
-          longitude: settings.longitude,
-          elevation: settings.elevation,
-        );
+              latitude: settings.latitude,
+              longitude: settings.longitude,
+              elevation: settings.elevation,
+            );
 
         // Also sync to Rust backend
-        await _syncLocationToBackend(ref, settings.latitude, settings.longitude, settings.elevation);
+        await _syncLocationToBackend(
+            ref, settings.latitude, settings.longitude, settings.elevation);
       });
     }
     // Effective horizon must sync even when location is 0/0 (e.g. user
@@ -64,17 +66,20 @@ final locationSyncProvider = Provider<void>((ref) {
 });
 
 /// Sync location to the Rust backend (for Provider ref)
-Future<void> _syncLocationToBackend(Ref ref, double latitude, double longitude, double elevation) async {
+Future<void> _syncLocationToBackend(
+    Ref ref, double latitude, double longitude, double elevation) async {
   try {
     final backend = ref.read(profileSettingsBackendProvider);
-    developer.log('Syncing observer location to Rust backend: lat=$latitude, lon=$longitude, elev=$elevation',
+    developer.log(
+        'Syncing observer location to Rust backend: lat=$latitude, lon=$longitude, elev=$elevation',
         name: 'LocationSync');
     await backend.setLocation(ObserverLocation(
       latitude: latitude,
       longitude: longitude,
       elevation: elevation,
     ));
-    developer.log('Observer location synced successfully to Rust backend', name: 'LocationSync');
+    developer.log('Observer location synced successfully to Rust backend',
+        name: 'LocationSync');
   } catch (e, stackTrace) {
     developer.log('Failed to sync observer location to Rust backend: $e',
         name: 'LocationSync', error: e, stackTrace: stackTrace);
@@ -82,20 +87,27 @@ Future<void> _syncLocationToBackend(Ref ref, double latitude, double longitude, 
 }
 
 /// Sync location to the Rust backend (for WidgetRef)
-Future<void> _syncLocationToBackendWidget(WidgetRef ref, double latitude, double longitude, double elevation) async {
+Future<void> _syncLocationToBackendWidget(
+    WidgetRef ref, double latitude, double longitude, double elevation) async {
   try {
     final backend = ref.read(profileSettingsBackendProvider);
-    developer.log('Syncing observer location to Rust backend (widget): lat=$latitude, lon=$longitude, elev=$elevation',
+    developer.log(
+        'Syncing observer location to Rust backend (widget): lat=$latitude, lon=$longitude, elev=$elevation',
         name: 'LocationSync');
     await backend.setLocation(ObserverLocation(
       latitude: latitude,
       longitude: longitude,
       elevation: elevation,
     ));
-    developer.log('Observer location synced successfully to Rust backend (widget)', name: 'LocationSync');
+    developer.log(
+        'Observer location synced successfully to Rust backend (widget)',
+        name: 'LocationSync');
   } catch (e, stackTrace) {
-    developer.log('Failed to sync observer location to Rust backend (widget): $e',
-        name: 'LocationSync', error: e, stackTrace: stackTrace);
+    developer.log(
+        'Failed to sync observer location to Rust backend (widget): $e',
+        name: 'LocationSync',
+        error: e,
+        stackTrace: stackTrace);
   }
 }
 
@@ -109,31 +121,32 @@ class LocationSyncService {
     try {
       // Wait a bit for providers to initialize
       await Future.delayed(const Duration(milliseconds: 100));
-      
+
       // Get settings
       final settingsAsync = ref.read(appSettingsProvider);
       await settingsAsync.when(
         data: (settings) async {
           // Check if we have a valid location in settings
-          final hasLocation = settings.latitude != 0.0 || settings.longitude != 0.0;
-          
+          final hasLocation =
+              settings.latitude != 0.0 || settings.longitude != 0.0;
+
           if (!hasLocation) {
             // Fetch location from IP and save to settings
             final location = await GeolocationService.fetchLocation();
             if (location != null) {
               final (lat, lon, locationName) = location;
-              
+
               // Save to settings - locationSyncProvider will automatically sync to planetarium
               final notifier = ref.read(appSettingsProvider.notifier);
               await notifier.setLatitude(lat);
               await notifier.setLongitude(lon);
-              
+
               // Also directly sync to planetarium provider immediately
               ref.read(observerLocationProvider.notifier).setLocation(
-                latitude: lat,
-                longitude: lon,
-                locationName: locationName,
-              );
+                    latitude: lat,
+                    longitude: lon,
+                    locationName: locationName,
+                  );
 
               // Sync to Rust backend
               await _syncLocationToBackendWidget(ref, lat, lon, 0.0);
@@ -141,13 +154,14 @@ class LocationSyncService {
           } else {
             // If location exists, sync it to planetarium provider immediately
             ref.read(observerLocationProvider.notifier).setLocation(
-              latitude: settings.latitude,
-              longitude: settings.longitude,
-              elevation: settings.elevation,
-            );
+                  latitude: settings.latitude,
+                  longitude: settings.longitude,
+                  elevation: settings.elevation,
+                );
 
             // Sync to Rust backend
-            await _syncLocationToBackendWidget(ref, settings.latitude, settings.longitude, settings.elevation);
+            await _syncLocationToBackendWidget(
+                ref, settings.latitude, settings.longitude, settings.elevation);
           }
         },
         loading: () async {
@@ -157,7 +171,8 @@ class LocationSyncService {
           final settingsAsync2 = ref.read(appSettingsProvider);
           await settingsAsync2.when(
             data: (settings) async {
-              final hasLocation = settings.latitude != 0.0 || settings.longitude != 0.0;
+              final hasLocation =
+                  settings.latitude != 0.0 || settings.longitude != 0.0;
               if (!hasLocation) {
                 final location = await GeolocationService.fetchLocation();
                 if (location != null) {
@@ -166,21 +181,22 @@ class LocationSyncService {
                   await notifier.setLatitude(lat);
                   await notifier.setLongitude(lon);
                   ref.read(observerLocationProvider.notifier).setLocation(
-                    latitude: lat,
-                    longitude: lon,
-                    locationName: locationName,
-                  );
+                        latitude: lat,
+                        longitude: lon,
+                        locationName: locationName,
+                      );
                   // Sync to Rust backend
                   await _syncLocationToBackendWidget(ref, lat, lon, 0.0);
                 }
               } else {
                 ref.read(observerLocationProvider.notifier).setLocation(
-                  latitude: settings.latitude,
-                  longitude: settings.longitude,
-                  elevation: settings.elevation,
-                );
+                      latitude: settings.latitude,
+                      longitude: settings.longitude,
+                      elevation: settings.elevation,
+                    );
                 // Sync to Rust backend
-                await _syncLocationToBackendWidget(ref, settings.latitude, settings.longitude, settings.elevation);
+                await _syncLocationToBackendWidget(ref, settings.latitude,
+                    settings.longitude, settings.elevation);
               }
             },
             loading: () {},
@@ -195,4 +211,3 @@ class LocationSyncService {
     }
   }
 }
-

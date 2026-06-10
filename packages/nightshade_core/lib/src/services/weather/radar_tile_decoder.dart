@@ -192,16 +192,12 @@ class RadarTileDecoder {
   /// Converts a (lat, lon) point to fractional slippy-map tile coordinates at
   /// [z]. The integer parts are the tile x/y; the fractional parts are the
   /// pixel offset within that tile.
-  static ({double x, double y}) latLonToTileXY(
-    double lat,
-    double lon,
-    int z,
-  ) {
+  static ({double x, double y}) latLonToTileXY(double lat, double lon, int z) {
     final n = math.pow(2, z).toDouble();
     final x = (lon + 180.0) / 360.0 * n;
     final latRad = lat * math.pi / 180.0;
-    final y = (1.0 -
-            math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.pi) /
+    final y =
+        (1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.pi) /
         2.0 *
         n;
     return (x: x, y: y);
@@ -266,12 +262,14 @@ class RadarTileDecoder {
         }
 
         final image = tile.image;
-        final px = ((tileXY.x - tileX) * image.width)
-            .floor()
-            .clamp(0, image.width - 1);
-        final py = ((tileXY.y - tileY) * image.height)
-            .floor()
-            .clamp(0, image.height - 1);
+        final px = ((tileXY.x - tileX) * image.width).floor().clamp(
+          0,
+          image.width - 1,
+        );
+        final py = ((tileXY.y - tileY) * image.height).floor().clamp(
+          0,
+          image.height - 1,
+        );
 
         final pixel = image.getPixel(px, py);
         grid[row][col] = colormap.intensityForPixel(
@@ -304,7 +302,10 @@ class RadarTileDecoder {
     required int gridRows,
     required int gridCols,
   }) {
-    if (image.width <= 0 || image.height <= 0 || gridRows <= 0 || gridCols <= 0) {
+    if (image.width <= 0 ||
+        image.height <= 0 ||
+        gridRows <= 0 ||
+        gridCols <= 0) {
       return null;
     }
 

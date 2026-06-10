@@ -23,13 +23,16 @@ void main() {
       expect(jd, closeTo(2446822.5, 1e-6));
     });
 
-    test('matches Meeus example: 1957-10-04 19:26:24 UTC (Sputnik) -> 2436116.31', () {
-      final jd = SkyCalculations.julianDate(
-        DateTime.utc(1957, 10, 4, 19, 26, 24),
-      );
-      // Meeus value 2436116.31 (approx).
-      expect(jd, closeTo(2436116.31, 0.01));
-    });
+    test(
+      'matches Meeus example: 1957-10-04 19:26:24 UTC (Sputnik) -> 2436116.31',
+      () {
+        final jd = SkyCalculations.julianDate(
+          DateTime.utc(1957, 10, 4, 19, 26, 24),
+        );
+        // Meeus value 2436116.31 (approx).
+        expect(jd, closeTo(2436116.31, 0.01));
+      },
+    );
   });
 
   group('SkyCalculations.sunAltAz', () {
@@ -73,8 +76,11 @@ void main() {
         latitudeDegrees: 40.7128,
         longitudeDegrees: -74.0060,
       );
-      expect(alt, lessThan(-10.0),
-          reason: 'midnight in NYC, sun must be well below horizon');
+      expect(
+        alt,
+        lessThan(-10.0),
+        reason: 'midnight in NYC, sun must be well below horizon',
+      );
     });
   });
 
@@ -84,39 +90,43 @@ void main() {
     //   Astronomical dawn ~ 03:09 MDT (09:09 UTC)
     //   Civil dusk       ~ 21:00 MDT (03:00 UTC next day)
     //   Astronomical dusk ~ 22:52 MDT (04:52 UTC next day)
-    test('astronomical twilight at Boulder summer solstice has both events',
-        () {
-      // Search starts at local noon == 18:00 UTC.
-      final noonLocal = DateTime.utc(2020, 6, 21, 18, 0);
-      final t = SkyCalculations.computeTwilight(
-        noonLocal: noonLocal,
-        latitudeDegrees: 40.0150,
-        longitudeDegrees: -105.2705,
-        kind: TwilightKind.astronomical,
-      );
-      // At lat 40 in late June, astronomical dusk and dawn both occur.
-      expect(t.eveningEnd, isNotNull);
-      expect(t.morningStart, isNotNull);
-    });
+    test(
+      'astronomical twilight at Boulder summer solstice has both events',
+      () {
+        // Search starts at local noon == 18:00 UTC.
+        final noonLocal = DateTime.utc(2020, 6, 21, 18, 0);
+        final t = SkyCalculations.computeTwilight(
+          noonLocal: noonLocal,
+          latitudeDegrees: 40.0150,
+          longitudeDegrees: -105.2705,
+          kind: TwilightKind.astronomical,
+        );
+        // At lat 40 in late June, astronomical dusk and dawn both occur.
+        expect(t.eveningEnd, isNotNull);
+        expect(t.morningStart, isNotNull);
+      },
+    );
 
-    test('civil twilight at Boulder summer solstice produces a finite night',
-        () {
-      final noonLocal = DateTime.utc(2020, 6, 21, 18, 0);
-      final t = SkyCalculations.computeTwilight(
-        noonLocal: noonLocal,
-        latitudeDegrees: 40.0150,
-        longitudeDegrees: -105.2705,
-        kind: TwilightKind.civil,
-      );
-      expect(t.eveningEnd, isNotNull);
-      expect(t.morningStart, isNotNull);
-      // Reasonable sanity check: dusk before dawn (next day).
-      expect(t.morningStart!.isAfter(t.eveningEnd!), isTrue);
-      // Civil twilight night length at lat 40 in late June is ~7h.
-      final duration = t.morningStart!.difference(t.eveningEnd!);
-      expect(duration.inHours, greaterThanOrEqualTo(6));
-      expect(duration.inHours, lessThanOrEqualTo(9));
-    });
+    test(
+      'civil twilight at Boulder summer solstice produces a finite night',
+      () {
+        final noonLocal = DateTime.utc(2020, 6, 21, 18, 0);
+        final t = SkyCalculations.computeTwilight(
+          noonLocal: noonLocal,
+          latitudeDegrees: 40.0150,
+          longitudeDegrees: -105.2705,
+          kind: TwilightKind.civil,
+        );
+        expect(t.eveningEnd, isNotNull);
+        expect(t.morningStart, isNotNull);
+        // Reasonable sanity check: dusk before dawn (next day).
+        expect(t.morningStart!.isAfter(t.eveningEnd!), isTrue);
+        // Civil twilight night length at lat 40 in late June is ~7h.
+        final duration = t.morningStart!.difference(t.eveningEnd!);
+        expect(duration.inHours, greaterThanOrEqualTo(6));
+        expect(duration.inHours, lessThanOrEqualTo(9));
+      },
+    );
 
     test('polar circle in summer has no astronomical twilight', () {
       // Tromsø, Norway (lat 69.65) on 2020-06-21 — sun never sets below -18°.
@@ -130,9 +140,13 @@ void main() {
       // Either both nulls (sun stays above -18° all day) or no astronomical
       // night reachable. Allow either eveningEnd or morningStart to be
       // null; both should be null at peak midnight sun.
-      expect(t.eveningEnd == null || t.morningStart == null, isTrue,
-          reason: 'no astronomical night should be possible above the arctic '
-              'circle on the summer solstice');
+      expect(
+        t.eveningEnd == null || t.morningStart == null,
+        isTrue,
+        reason:
+            'no astronomical night should be possible above the arctic '
+            'circle on the summer solstice',
+      );
     });
   });
 
@@ -151,8 +165,7 @@ void main() {
       expect(delta, isNotNull);
     });
 
-    test('produces a positive duration during deep night at mid-latitudes',
-        () {
+    test('produces a positive duration during deep night at mid-latitudes', () {
       // 2020-12-21 08:00 UTC == 03:00 EST in NYC — deep winter night.
       final now = DateTime.utc(2020, 12, 21, 8, 0);
       final delta = SkyCalculations.darknessRemaining(

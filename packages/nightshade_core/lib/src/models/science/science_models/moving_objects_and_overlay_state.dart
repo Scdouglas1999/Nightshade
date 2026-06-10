@@ -60,10 +60,7 @@ class LineRatioMetric {
   final String label;
   final double value;
 
-  const LineRatioMetric({
-    required this.label,
-    required this.value,
-  });
+  const LineRatioMetric({required this.label, required this.value});
 }
 
 class LineRatioProduct {

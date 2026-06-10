@@ -18,23 +18,23 @@ class SequenceCheckpointsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get the latest checkpoint for a sequence
   Future<SequenceCheckpoint?> getCheckpoint(int sequenceId) {
-    return (select(sequenceCheckpoints)
-          ..where((c) => c.sequenceId.equals(sequenceId)))
-        .getSingleOrNull();
+    return (select(
+      sequenceCheckpoints,
+    )..where((c) => c.sequenceId.equals(sequenceId))).getSingleOrNull();
   }
 
   /// Watch checkpoint for a sequence
   Stream<SequenceCheckpoint?> watchCheckpoint(int sequenceId) {
-    return (select(sequenceCheckpoints)
-          ..where((c) => c.sequenceId.equals(sequenceId)))
-        .watchSingleOrNull();
+    return (select(
+      sequenceCheckpoints,
+    )..where((c) => c.sequenceId.equals(sequenceId))).watchSingleOrNull();
   }
 
   /// Delete checkpoint for a sequence (after successful completion)
   Future<int> deleteCheckpoint(int sequenceId) {
-    return (delete(sequenceCheckpoints)
-          ..where((c) => c.sequenceId.equals(sequenceId)))
-        .go();
+    return (delete(
+      sequenceCheckpoints,
+    )..where((c) => c.sequenceId.equals(sequenceId))).go();
   }
 
   /// Update checkpoint progress
@@ -44,9 +44,9 @@ class SequenceCheckpointsDao extends DatabaseAccessor<NightshadeDatabase>
     required int totalFrames,
     required int currentTargetIndex,
   }) {
-    return (update(sequenceCheckpoints)
-          ..where((c) => c.sequenceId.equals(sequenceId)))
-        .write(
+    return (update(
+      sequenceCheckpoints,
+    )..where((c) => c.sequenceId.equals(sequenceId))).write(
       SequenceCheckpointsCompanion(
         completedFrames: Value(completedFrames),
         totalFrames: Value(totalFrames),
@@ -62,9 +62,9 @@ class SequenceCheckpointsDao extends DatabaseAccessor<NightshadeDatabase>
     required String currentNodeId,
     String? stateJson,
   }) {
-    return (update(sequenceCheckpoints)
-          ..where((c) => c.sequenceId.equals(sequenceId)))
-        .write(
+    return (update(
+      sequenceCheckpoints,
+    )..where((c) => c.sequenceId.equals(sequenceId))).write(
       SequenceCheckpointsCompanion(
         currentNodeId: Value(currentNodeId),
         stateJson: Value(stateJson ?? '{}'),
@@ -75,9 +75,9 @@ class SequenceCheckpointsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all checkpoints (for debugging/admin purposes)
   Future<List<SequenceCheckpoint>> getAllCheckpoints() {
-    return (select(sequenceCheckpoints)
-          ..orderBy([(c) => OrderingTerm.desc(c.checkpointedAt)]))
-        .get();
+    return (select(
+      sequenceCheckpoints,
+    )..orderBy([(c) => OrderingTerm.desc(c.checkpointedAt)])).get();
   }
 
   /// Delete all checkpoints (cleanup/reset operation)

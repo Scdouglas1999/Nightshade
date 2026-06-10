@@ -57,7 +57,9 @@ class DisconnectedBackend
 
   @override
   Future<List<DeviceInfo>> discoverAlpacaAtAddress(
-      String host, int port) async {
+    String host,
+    int port,
+  ) async {
     _throwNotConnected();
   }
 
@@ -139,13 +141,17 @@ class DisconnectedBackend
 
   @override
   Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     _throwNotConnected();
   }
 
   @override
   Future<void> mountSlewToCoordinates(
-      String deviceId, double ra, double dec) async {
+    String deviceId,
+    double ra,
+    double dec,
+  ) async {
     _throwNotConnected();
   }
 
@@ -200,7 +206,10 @@ class DisconnectedBackend
 
   @override
   Future<void> mountSlewAltAz(
-      String deviceId, double altitude, double azimuth) async {
+    String deviceId,
+    double altitude,
+    double azimuth,
+  ) async {
     _throwNotConnected();
   }
 
@@ -429,8 +438,9 @@ class DisconnectedBackend
   }
 
   @override
-  Future<(double, double)> guiderGetLockPosition(
-      {required String deviceId}) async {
+  Future<(double, double)> guiderGetLockPosition({
+    required String deviceId,
+  }) async {
     _throwNotConnected();
   }
 
@@ -825,7 +835,8 @@ class DisconnectedBackend
 
   @override
   Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     _throwNotConnected();
   }
 

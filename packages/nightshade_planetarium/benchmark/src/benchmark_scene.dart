@@ -97,8 +97,9 @@ SkyCanvasPainter buildSkyPainter({
   required CameraFrame frame,
   SkyRenderScope scope = SkyRenderScope.full,
 }) {
-  final observationTime = fixture.baseTimeUtc
-      .add(Duration(seconds: frame.timeOffsetSeconds));
+  final observationTime = fixture.baseTimeUtc.add(
+    Duration(seconds: frame.timeOffsetSeconds),
+  );
   return SkyCanvasPainter(
     viewState: frame.toViewState(),
     config: kStressRenderConfig,
@@ -119,8 +120,8 @@ SkyCanvasPainter buildSkyPainter({
 
 /// Build the FOV overlay painter for [frame] (camera rectangle + Telrad).
 FOVOverlayPainter buildFovPainter(CameraFrame frame) => FOVOverlayPainter(
-      centerRA: frame.centerRaHours,
-      centerDec: frame.centerDecDeg,
-      viewFOV: frame.fieldOfViewDeg,
-      indicators: kBenchmarkFovIndicators,
-    );
+  centerRA: frame.centerRaHours,
+  centerDec: frame.centerDecDeg,
+  viewFOV: frame.fieldOfViewDeg,
+  indicators: kBenchmarkFovIndicators,
+);

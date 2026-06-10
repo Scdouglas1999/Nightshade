@@ -24,8 +24,10 @@ class IcsCalendarImporter {
   static bool sniff(String content) {
     final trimmed = content.trimLeft();
     if (trimmed.length < 16) return false;
-    return RegExp(r'^BEGIN:VCALENDAR', caseSensitive: false)
-        .hasMatch(trimmed.substring(0, 16));
+    return RegExp(
+      r'^BEGIN:VCALENDAR',
+      caseSensitive: false,
+    ).hasMatch(trimmed.substring(0, 16));
   }
 
   IcsImportResult parse(String content, {String? sequenceName}) {
@@ -77,8 +79,7 @@ class IcsCalendarImporter {
     }
 
     if (events.isEmpty) {
-      throw MalformedSourceError(
-          'iCalendar file has no VEVENT entries');
+      throw MalformedSourceError('iCalendar file has no VEVENT entries');
     }
 
     final children = <CanonicalSequenceNode>[];
@@ -89,21 +90,25 @@ class IcsCalendarImporter {
       final e = events[i];
       final summary = e.summary?.trim();
       if (summary == null || summary.isEmpty) {
-        unresolved.add(UnresolvedIcsEvent(
-          index: i,
-          summary: '<no summary>',
-          reason: 'VEVENT has no SUMMARY',
-        ));
+        unresolved.add(
+          UnresolvedIcsEvent(
+            index: i,
+            summary: '<no summary>',
+            reason: 'VEVENT has no SUMMARY',
+          ),
+        );
         continue;
       }
-      final coords = _extractCoords(e.description ?? '') ??
-          _extractCoords(summary);
+      final coords =
+          _extractCoords(e.description ?? '') ?? _extractCoords(summary);
       if (coords == null) {
-        unresolved.add(UnresolvedIcsEvent(
-          index: i,
-          summary: summary,
-          reason: 'No RA/Dec found in SUMMARY or DESCRIPTION',
-        ));
+        unresolved.add(
+          UnresolvedIcsEvent(
+            index: i,
+            summary: summary,
+            reason: 'No RA/Dec found in SUMMARY or DESCRIPTION',
+          ),
+        );
         continue;
       }
       resolvedCount++;
@@ -116,12 +121,14 @@ class IcsCalendarImporter {
         if (e.dtStart != null) 'startAfter': e.dtStart!.toIso8601String(),
         if (e.dtEnd != null) 'endBefore': e.dtEnd!.toIso8601String(),
       };
-      children.add(CanonicalSequenceNode(
-        kind: CanonicalKind.targetHeader,
-        name: summary,
-        sourceType: 'IcsVEvent',
-        attributes: attrs,
-      ));
+      children.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.targetHeader,
+          name: summary,
+          sourceType: 'IcsVEvent',
+          attributes: attrs,
+        ),
+      );
     }
 
     final root = CanonicalSequenceNode(
@@ -173,13 +180,13 @@ class IcsCalendarImporter {
   /// `R.A.` and `Dec` / `Declination` are accepted as labels.
   _Coord? _extractCoords(String text) {
     final raMatch = RegExp(
-            r'(?:R\.?A\.?|RIGHT\s+ASCENSION)\s*[:=]\s*([^\n,;]+)',
-            caseSensitive: false)
-        .firstMatch(text);
+      r'(?:R\.?A\.?|RIGHT\s+ASCENSION)\s*[:=]\s*([^\n,;]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
     final decMatch = RegExp(
-            r'(?:DEC(?:LINATION)?)\s*[:=]\s*([^\n,;]+)',
-            caseSensitive: false)
-        .firstMatch(text);
+      r'(?:DEC(?:LINATION)?)\s*[:=]\s*([^\n,;]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
     if (raMatch == null || decMatch == null) return null;
     final ra = TelescopiusCsvImporter.parseRaToHours(raMatch.group(1)!);
     final dec = TelescopiusCsvImporter.parseDecToDegrees(decMatch.group(1)!);

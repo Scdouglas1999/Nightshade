@@ -110,24 +110,24 @@ class RemoteDarkLibraryEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'filePath': filePath,
-        'fileName': fileName,
-        'exposureDuration': exposureDuration,
-        'sensorTempC': sensorTempC,
-        'gain': gain,
-        'offset': offset,
-        'binX': binX,
-        'binY': binY,
-        'frameType': frameType,
-        'width': width,
-        'height': height,
-        'masterPath': masterPath,
-        'frameCount': frameCount,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'fileSize': fileSize,
-        'fileExists': fileExists,
-      };
+    'id': id,
+    'filePath': filePath,
+    'fileName': fileName,
+    'exposureDuration': exposureDuration,
+    'sensorTempC': sensorTempC,
+    'gain': gain,
+    'offset': offset,
+    'binX': binX,
+    'binY': binY,
+    'frameType': frameType,
+    'width': width,
+    'height': height,
+    'masterPath': masterPath,
+    'frameCount': frameCount,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'fileSize': fileSize,
+    'fileExists': fileExists,
+  };
 }
 
 /// Wire form of a row in the `flat_history` Drift table.
@@ -178,19 +178,19 @@ class RemoteFlatHistoryEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'filter': filter,
-        'exposureDuration': exposureDuration,
-        'histogramTarget': histogramTarget,
-        'adu': adu,
-        'gain': gain,
-        'binning': binning,
-        'panelBrightness': panelBrightness,
-        'skyAduRate': skyAduRate,
-        'twilightPhase': twilightPhase,
-        'equipmentProfileId': equipmentProfileId,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'filter': filter,
+    'exposureDuration': exposureDuration,
+    'histogramTarget': histogramTarget,
+    'adu': adu,
+    'gain': gain,
+    'binning': binning,
+    'panelBrightness': panelBrightness,
+    'skyAduRate': skyAduRate,
+    'twilightPhase': twilightPhase,
+    'equipmentProfileId': equipmentProfileId,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
 }
 
 /// Wire form of a flat-history-derived exposure recommendation.
@@ -227,13 +227,13 @@ class RemoteFlatRecommendation {
   }
 
   Map<String, dynamic> toJson() => {
-        'exposureDuration': exposureDuration,
-        'basedOn': {
-          'flatId': basedOnFlatId,
-          'ageDays': ageDays,
-          'confidence': confidence,
-        },
-      };
+    'exposureDuration': exposureDuration,
+    'basedOn': {
+      'flatId': basedOnFlatId,
+      'ageDays': ageDays,
+      'confidence': confidence,
+    },
+  };
 }
 
 /// Wire form of a row in the `defect_maps` Drift table — metadata only;
@@ -280,17 +280,17 @@ class RemoteDefectMap {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'cameraId': cameraId,
-        'width': width,
-        'height': height,
-        'temperatureBucketDecicelsius': temperatureBucketDecicelsius,
-        'defectivePixelCount': defectivePixelCount,
-        'lastRebuiltAt': lastRebuiltAt.toUtc().toIso8601String(),
-        'sourceFilePath': sourceFilePath,
-        'fileSize': fileSize,
-        'fileExists': fileExists,
-      };
+    'id': id,
+    'cameraId': cameraId,
+    'width': width,
+    'height': height,
+    'temperatureBucketDecicelsius': temperatureBucketDecicelsius,
+    'defectivePixelCount': defectivePixelCount,
+    'lastRebuiltAt': lastRebuiltAt.toUtc().toIso8601String(),
+    'sourceFilePath': sourceFilePath,
+    'fileSize': fileSize,
+    'fileExists': fileExists,
+  };
 }
 
 /// Metadata payload that accompanies a multipart dark-frame upload.
@@ -326,18 +326,18 @@ class DarkUploadMetadata {
   });
 
   Map<String, dynamic> toJson() => {
-        'exposureDuration': exposureDuration,
-        if (sensorTempC != null) 'sensorTempC': sensorTempC,
-        'gain': gain,
-        'offset': offset,
-        'binX': binX,
-        'binY': binY,
-        'frameType': frameType,
-        if (width != null) 'width': width,
-        if (height != null) 'height': height,
-        if (frameCount != null) 'frameCount': frameCount,
-        if (masterPath != null) 'masterPath': masterPath,
-      };
+    'exposureDuration': exposureDuration,
+    if (sensorTempC != null) 'sensorTempC': sensorTempC,
+    'gain': gain,
+    'offset': offset,
+    'binX': binX,
+    'binY': binY,
+    'frameType': frameType,
+    if (width != null) 'width': width,
+    if (height != null) 'height': height,
+    if (frameCount != null) 'frameCount': frameCount,
+    if (masterPath != null) 'masterPath': masterPath,
+  };
 }
 
 DateTime? _parseDate(Object? raw) {

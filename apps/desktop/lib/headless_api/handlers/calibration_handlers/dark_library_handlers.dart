@@ -132,7 +132,8 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
       throw BadRequestError(
         field: 'meta',
         expected: 'url-encoded JSON object',
-        message: 'POST /api/calibration/darks/upload requires a `meta` query '
+        message:
+            'POST /api/calibration/darks/upload requires a `meta` query '
             'parameter containing the JSON dark metadata',
       );
     }
@@ -176,7 +177,8 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
     if (sanitized == null) {
       return jsonBadRequest({
         'error': 'invalid_filename',
-        'message': 'Filename must end in .fits, .fit, or .xisf and contain no '
+        'message':
+            'Filename must end in .fits, .fit, or .xisf and contain no '
             'path separators',
       });
     }
@@ -225,7 +227,7 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
         if (await destination.exists()) {
           await destination.delete();
         }
-      } catch (_, __) {
+      } catch (_) {
         // Why: best-effort cleanup of a partially-written destination; the
         // BadRequestError thrown immediately below is the surfaced outcome.
       }
@@ -326,10 +328,7 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
         fileName: fileName,
         contentType: contentType,
         contentLength: fileLength,
-        headers: {
-          'accept-ranges': 'bytes',
-          'etag': etag,
-        },
+        headers: {'accept-ranges': 'bytes', 'etag': etag},
       );
     }
 
@@ -399,10 +398,7 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
     }
 
     final rowsAffected = await _database.darkLibraryDao.deleteEntry(iid);
-    return jsonOk({
-      'deleted': rowsAffected > 0,
-      'fileDeleted': fileDeleted,
-    });
+    return jsonOk({'deleted': rowsAffected > 0, 'fileDeleted': fileDeleted});
   }
 
   /// POST /api/calibration/darks/find-match

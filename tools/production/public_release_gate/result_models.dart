@@ -7,20 +7,14 @@ class _ExternalEvidenceResult {
   final bool passed;
   final String detail;
 
-  const _ExternalEvidenceResult({
-    required this.passed,
-    required this.detail,
-  });
+  const _ExternalEvidenceResult({required this.passed, required this.detail});
 }
 
 class _SplitPlanCoverage {
   final bool valid;
   final String detail;
 
-  const _SplitPlanCoverage({
-    required this.valid,
-    required this.detail,
-  });
+  const _SplitPlanCoverage({required this.valid, required this.detail});
 }
 
 class _GateCheck {
@@ -39,10 +33,10 @@ class _GateCheck {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'label': label,
-        'passed': passed,
-        'evidence': evidence,
-        'detail': detail,
-      };
+    'id': id,
+    'label': label,
+    'passed': passed,
+    'evidence': evidence,
+    'detail': detail,
+  };
 }

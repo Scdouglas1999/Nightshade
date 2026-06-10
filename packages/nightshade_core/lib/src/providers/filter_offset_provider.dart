@@ -59,7 +59,7 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
   int _loadGeneration = 0;
 
   FilterOffsetNotifier(this._ref)
-      : super(const FilterOffsetState(isLoading: true)) {
+    : super(const FilterOffsetState(isLoading: true)) {
     unawaited(_init());
     // Reload offsets whenever the active equipment profile changes
     _ref.listen(activeEquipmentProfileProvider, (_, __) {
@@ -138,7 +138,8 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
         final settings = settingsAsync.valueOrNull;
         if (settings != null) {
           final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
-              settings.afFilterSettingsJson);
+            settings.afFilterSettingsJson,
+          );
           for (final entry in afFilterSettings.entries) {
             if (entry.value.focusOffset != 0) {
               offsetMap[entry.key] = entry.value.focusOffset;
@@ -268,12 +269,14 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
 /// Provider for filter offsets
 final filterOffsetProvider =
     StateNotifierProvider<FilterOffsetNotifier, FilterOffsetState>((ref) {
-  return FilterOffsetNotifier(ref);
-});
+      return FilterOffsetNotifier(ref);
+    });
 
 /// Helper provider to get offset for a specific filter
-final filterOffsetForFilterProvider =
-    Provider.family<int, String>((ref, filterName) {
+final filterOffsetForFilterProvider = Provider.family<int, String>((
+  ref,
+  filterName,
+) {
   final state = ref.watch(filterOffsetProvider);
   return state.offsets[filterName] ?? 0;
 });

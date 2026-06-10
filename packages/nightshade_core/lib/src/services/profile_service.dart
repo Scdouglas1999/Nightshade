@@ -41,11 +41,10 @@ class ProfileValidationResult {
   });
 
   /// Create a result indicating all devices are valid
-  const ProfileValidationResult.valid({
-    required this.availableDevices,
-  })  : isValid = true,
-        missingDevices = const [],
-        missingDeviceIds = const {};
+  const ProfileValidationResult.valid({required this.availableDevices})
+    : isValid = true,
+      missingDevices = const [],
+      missingDeviceIds = const {};
 }
 
 /// Service for managing equipment profiles with auto-connect and import/export
@@ -290,11 +289,15 @@ class ProfileService {
   }
 
   /// Set or clear the default startup profile.
-  Future<void> setDefaultProfile(int? profileId,
-      {bool makeActive = true}) async {
+  Future<void> setDefaultProfile(
+    int? profileId, {
+    bool makeActive = true,
+  }) async {
     if (_remoteBackend != null) {
-      await _profilesNotifier.setDefaultProfile(profileId,
-          makeActive: makeActive);
+      await _profilesNotifier.setDefaultProfile(
+        profileId,
+        makeActive: makeActive,
+      );
       return;
     }
 
@@ -395,8 +398,9 @@ class ProfileService {
     } else {
       final dao = _ref.read(equipmentProfilesDaoProvider);
       final profiles = await dao.getAllProfiles();
-      exportData =
-          profiles.map((p) => ProfileExportData.fromDatabase(p)).toList();
+      exportData = profiles
+          .map((p) => ProfileExportData.fromDatabase(p))
+          .toList();
     }
 
     final exportJson = exportData.map((p) => p.toJson()).toList();
@@ -514,7 +518,8 @@ class ProfileService {
         }
       }
       throw StateError(
-          'Host saved imported profile "$name" but id was not resolved');
+        'Host saved imported profile "$name" but id was not resolved',
+      );
     }
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
@@ -552,10 +557,13 @@ class ProfileService {
         defaultBinY: Value(data.defaultBinY),
         defaultCoolingTemp: Value(data.defaultCoolingTemp),
         filterNames: Value(
-            data.filterNames != null ? jsonEncode(data.filterNames) : null),
-        filterFocusOffsets: Value(data.filterFocusOffsets != null
-            ? jsonEncode(data.filterFocusOffsets)
-            : null),
+          data.filterNames != null ? jsonEncode(data.filterNames) : null,
+        ),
+        filterFocusOffsets: Value(
+          data.filterFocusOffsets != null
+              ? jsonEncode(data.filterFocusOffsets)
+              : null,
+        ),
       ),
     );
   }
@@ -626,8 +634,9 @@ class ProfileService {
         cameraId: deviceTypes.contains('Camera') ? null : profile.cameraId,
         mountId: deviceTypes.contains('Mount') ? null : profile.mountId,
         focuserId: deviceTypes.contains('Focuser') ? null : profile.focuserId,
-        filterWheelId:
-            deviceTypes.contains('Filter Wheel') ? null : profile.filterWheelId,
+        filterWheelId: deviceTypes.contains('Filter Wheel')
+            ? null
+            : profile.filterWheelId,
         guiderId: deviceTypes.contains('Guider') ? null : profile.guiderId,
         rotatorId: deviceTypes.contains('Rotator') ? null : profile.rotatorId,
         domeId: deviceTypes.contains('Dome') ? null : profile.domeId,
@@ -734,8 +743,11 @@ class ProfileService {
     final activeModel = await _getActiveProfileModel();
 
     if (activeModel == null) {
-      developer.log('ProfileService: No active profile to save devices to',
-          name: 'ProfileService', level: 900);
+      developer.log(
+        'ProfileService: No active profile to save devices to',
+        name: 'ProfileService',
+        level: 900,
+      );
       return false;
     }
 
@@ -801,7 +813,8 @@ class ProfileService {
     }
 
     // Check if any devices are connected
-    final hasConnectedDevices = cameraId != null ||
+    final hasConnectedDevices =
+        cameraId != null ||
         mountId != null ||
         focuserId != null ||
         filterWheelId != null ||
@@ -814,8 +827,11 @@ class ProfileService {
         coverCalibratorId != null;
 
     if (!hasConnectedDevices) {
-      developer.log('ProfileService: No connected devices to save',
-          name: 'ProfileService', level: 800);
+      developer.log(
+        'ProfileService: No connected devices to save',
+        name: 'ProfileService',
+        level: 800,
+      );
       return false;
     }
 
@@ -836,9 +852,10 @@ class ProfileService {
     );
 
     developer.log(
-        'ProfileService: Saved connected devices to profile "${activeModel.name}"',
-        name: 'ProfileService',
-        level: 800);
+      'ProfileService: Saved connected devices to profile "${activeModel.name}"',
+      name: 'ProfileService',
+      level: 800,
+    );
     return true;
   }
 
@@ -867,8 +884,11 @@ class ProfileService {
     final activeProfile = await _getActiveProfileModel();
 
     if (activeProfile == null) {
-      developer.log('ProfileService: No active profile to sync filters to',
-          name: 'ProfileService', level: 900);
+      developer.log(
+        'ProfileService: No active profile to sync filters to',
+        name: 'ProfileService',
+        level: 900,
+      );
       return false;
     }
 
@@ -876,20 +896,27 @@ class ProfileService {
     final filterWheelState = _ref.read(filterWheelStateProvider);
 
     if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-      developer.log('ProfileService: Filter wheel not connected',
-          name: 'ProfileService', level: 900);
+      developer.log(
+        'ProfileService: Filter wheel not connected',
+        name: 'ProfileService',
+        level: 900,
+      );
       return false;
     }
 
     final hwFilterNames = filterWheelState.filterNames;
     if (hwFilterNames.isEmpty) {
-      developer.log('ProfileService: No filter names from hardware',
-          name: 'ProfileService', level: 900);
+      developer.log(
+        'ProfileService: No filter names from hardware',
+        name: 'ProfileService',
+        level: 900,
+      );
       return false;
     }
 
-    final existingOffsets =
-        Map<String, int>.from(activeProfile.filterFocusOffsets);
+    final existingOffsets = Map<String, int>.from(
+      activeProfile.filterFocusOffsets,
+    );
 
     // Build new offsets map, preserving existing offsets for matching filter names
     final newOffsets = <String, int>{};
@@ -905,9 +932,10 @@ class ProfileService {
     );
 
     developer.log(
-        'ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"',
-        name: 'ProfileService',
-        level: 800);
+      'ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"',
+      name: 'ProfileService',
+      level: 800,
+    );
     return true;
   }
 

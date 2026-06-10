@@ -5,74 +5,186 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
     // Version 2: Add indexes for better query performance
     if (from < 2) {
       // Create indexes for targets
-      await m.createIndex(Index('idx_targets_name',
-          'CREATE INDEX idx_targets_name ON targets (name)'));
-      await m.createIndex(Index('idx_targets_catalog',
-          'CREATE INDEX idx_targets_catalog ON targets (catalog_id)'));
-      await m.createIndex(Index('idx_targets_priority',
-          'CREATE INDEX idx_targets_priority ON targets (priority)'));
-      await m.createIndex(Index('idx_targets_favorite',
-          'CREATE INDEX idx_targets_favorite ON targets (is_favorite)'));
-      await m.createIndex(Index('idx_targets_object_type',
-          'CREATE INDEX idx_targets_object_type ON targets (object_type)'));
+      await m.createIndex(
+        Index(
+          'idx_targets_name',
+          'CREATE INDEX idx_targets_name ON targets (name)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_targets_catalog',
+          'CREATE INDEX idx_targets_catalog ON targets (catalog_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_targets_priority',
+          'CREATE INDEX idx_targets_priority ON targets (priority)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_targets_favorite',
+          'CREATE INDEX idx_targets_favorite ON targets (is_favorite)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_targets_object_type',
+          'CREATE INDEX idx_targets_object_type ON targets (object_type)',
+        ),
+      );
 
       // Create indexes for captured_images
-      await m.createIndex(Index('idx_images_session',
-          'CREATE INDEX idx_images_session ON captured_images (session_id)'));
-      await m.createIndex(Index('idx_images_target',
-          'CREATE INDEX idx_images_target ON captured_images (target_id)'));
-      await m.createIndex(Index('idx_images_frame_type',
-          'CREATE INDEX idx_images_frame_type ON captured_images (frame_type)'));
-      await m.createIndex(Index('idx_images_captured_at',
-          'CREATE INDEX idx_images_captured_at ON captured_images (captured_at)'));
-      await m.createIndex(Index('idx_images_filter',
-          'CREATE INDEX idx_images_filter ON captured_images (filter)'));
-      await m.createIndex(Index('idx_images_accepted',
-          'CREATE INDEX idx_images_accepted ON captured_images (is_accepted)'));
-      await m.createIndex(Index('idx_images_session_frame',
-          'CREATE INDEX idx_images_session_frame ON captured_images (session_id, frame_type)'));
+      await m.createIndex(
+        Index(
+          'idx_images_session',
+          'CREATE INDEX idx_images_session ON captured_images (session_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_target',
+          'CREATE INDEX idx_images_target ON captured_images (target_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_frame_type',
+          'CREATE INDEX idx_images_frame_type ON captured_images (frame_type)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_captured_at',
+          'CREATE INDEX idx_images_captured_at ON captured_images (captured_at)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_filter',
+          'CREATE INDEX idx_images_filter ON captured_images (filter)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_accepted',
+          'CREATE INDEX idx_images_accepted ON captured_images (is_accepted)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_images_session_frame',
+          'CREATE INDEX idx_images_session_frame ON captured_images (session_id, frame_type)',
+        ),
+      );
 
       // Create indexes for imaging_sessions
-      await m.createIndex(Index('idx_sessions_target',
-          'CREATE INDEX idx_sessions_target ON imaging_sessions (target_id)'));
-      await m.createIndex(Index('idx_sessions_profile',
-          'CREATE INDEX idx_sessions_profile ON imaging_sessions (profile_id)'));
-      await m.createIndex(Index('idx_sessions_start',
-          'CREATE INDEX idx_sessions_start ON imaging_sessions (start_time)'));
-      await m.createIndex(Index('idx_sessions_status',
-          'CREATE INDEX idx_sessions_status ON imaging_sessions (status)'));
+      await m.createIndex(
+        Index(
+          'idx_sessions_target',
+          'CREATE INDEX idx_sessions_target ON imaging_sessions (target_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_sessions_profile',
+          'CREATE INDEX idx_sessions_profile ON imaging_sessions (profile_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_sessions_start',
+          'CREATE INDEX idx_sessions_start ON imaging_sessions (start_time)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_sessions_status',
+          'CREATE INDEX idx_sessions_status ON imaging_sessions (status)',
+        ),
+      );
 
       // Create indexes for sequences
-      await m.createIndex(Index('idx_sequences_name',
-          'CREATE INDEX idx_sequences_name ON sequences (name)'));
-      await m.createIndex(Index('idx_sequences_template',
-          'CREATE INDEX idx_sequences_template ON sequences (is_template)'));
-      await m.createIndex(Index('idx_sequences_updated',
-          'CREATE INDEX idx_sequences_updated ON sequences (updated_at)'));
+      await m.createIndex(
+        Index(
+          'idx_sequences_name',
+          'CREATE INDEX idx_sequences_name ON sequences (name)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_sequences_template',
+          'CREATE INDEX idx_sequences_template ON sequences (is_template)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_sequences_updated',
+          'CREATE INDEX idx_sequences_updated ON sequences (updated_at)',
+        ),
+      );
 
       // Create indexes for sequence_nodes
-      await m.createIndex(Index('idx_nodes_sequence',
-          'CREATE INDEX idx_nodes_sequence ON sequence_nodes (sequence_id)'));
-      await m.createIndex(Index('idx_nodes_parent',
-          'CREATE INDEX idx_nodes_parent ON sequence_nodes (parent_node_id)'));
-      await m.createIndex(Index('idx_nodes_target',
-          'CREATE INDEX idx_nodes_target ON sequence_nodes (target_id)'));
-      await m.createIndex(Index('idx_nodes_type',
-          'CREATE INDEX idx_nodes_type ON sequence_nodes (node_type)'));
-      await m.createIndex(Index('idx_nodes_node_id',
-          'CREATE INDEX idx_nodes_node_id ON sequence_nodes (node_id)'));
+      await m.createIndex(
+        Index(
+          'idx_nodes_sequence',
+          'CREATE INDEX idx_nodes_sequence ON sequence_nodes (sequence_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_nodes_parent',
+          'CREATE INDEX idx_nodes_parent ON sequence_nodes (parent_node_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_nodes_target',
+          'CREATE INDEX idx_nodes_target ON sequence_nodes (target_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_nodes_type',
+          'CREATE INDEX idx_nodes_type ON sequence_nodes (node_type)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_nodes_node_id',
+          'CREATE INDEX idx_nodes_node_id ON sequence_nodes (node_id)',
+        ),
+      );
 
       // Create indexes for image_metadata
-      await m.createIndex(Index('idx_metadata_image',
-          'CREATE INDEX idx_metadata_image ON image_metadata (image_id)'));
-      await m.createIndex(Index('idx_metadata_key',
-          'CREATE INDEX idx_metadata_key ON image_metadata (key)'));
+      await m.createIndex(
+        Index(
+          'idx_metadata_image',
+          'CREATE INDEX idx_metadata_image ON image_metadata (image_id)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_metadata_key',
+          'CREATE INDEX idx_metadata_key ON image_metadata (key)',
+        ),
+      );
 
       // Create indexes for equipment_profiles
-      await m.createIndex(Index('idx_profiles_name',
-          'CREATE INDEX idx_profiles_name ON equipment_profiles (name)'));
-      await m.createIndex(Index('idx_profiles_active',
-          'CREATE INDEX idx_profiles_active ON equipment_profiles (is_active)'));
+      await m.createIndex(
+        Index(
+          'idx_profiles_name',
+          'CREATE INDEX idx_profiles_name ON equipment_profiles (name)',
+        ),
+      );
+      await m.createIndex(
+        Index(
+          'idx_profiles_active',
+          'CREATE INDEX idx_profiles_active ON equipment_profiles (is_active)',
+        ),
+      );
     }
 
     // Version 3: Add sequence checkpointing table.
@@ -175,8 +287,10 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
         'CREATE INDEX IF NOT EXISTS idx_polar_history_completed ON polar_alignment_history (completed_at)',
       );
 
-      final hasQualityScore =
-          await _columnExists('captured_images', 'quality_score');
+      final hasQualityScore = await _columnExists(
+        'captured_images',
+        'quality_score',
+      );
       if (!hasQualityScore) {
         await customStatement(
           'ALTER TABLE captured_images ADD COLUMN quality_score REAL',
@@ -187,43 +301,55 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
     // Version 11: Add user-friendly device names, telescope info, and profile customization to equipment_profiles
     if (from < 11) {
       // User-friendly device names
-      final hasCameraName =
-          await _columnExists('equipment_profiles', 'camera_name');
+      final hasCameraName = await _columnExists(
+        'equipment_profiles',
+        'camera_name',
+      );
       if (!hasCameraName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN camera_name TEXT',
         );
       }
-      final hasMountName =
-          await _columnExists('equipment_profiles', 'mount_name');
+      final hasMountName = await _columnExists(
+        'equipment_profiles',
+        'mount_name',
+      );
       if (!hasMountName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN mount_name TEXT',
         );
       }
-      final hasFocuserName =
-          await _columnExists('equipment_profiles', 'focuser_name');
+      final hasFocuserName = await _columnExists(
+        'equipment_profiles',
+        'focuser_name',
+      );
       if (!hasFocuserName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN focuser_name TEXT',
         );
       }
-      final hasFilterWheelName =
-          await _columnExists('equipment_profiles', 'filter_wheel_name');
+      final hasFilterWheelName = await _columnExists(
+        'equipment_profiles',
+        'filter_wheel_name',
+      );
       if (!hasFilterWheelName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN filter_wheel_name TEXT',
         );
       }
-      final hasGuiderName =
-          await _columnExists('equipment_profiles', 'guider_name');
+      final hasGuiderName = await _columnExists(
+        'equipment_profiles',
+        'guider_name',
+      );
       if (!hasGuiderName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN guider_name TEXT',
         );
       }
-      final hasRotatorName =
-          await _columnExists('equipment_profiles', 'rotator_name');
+      final hasRotatorName = await _columnExists(
+        'equipment_profiles',
+        'rotator_name',
+      );
       if (!hasRotatorName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN rotator_name TEXT',
@@ -231,22 +357,28 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       }
 
       // Telescope/OTA information
-      final hasTelescopeName =
-          await _columnExists('equipment_profiles', 'telescope_name');
+      final hasTelescopeName = await _columnExists(
+        'equipment_profiles',
+        'telescope_name',
+      );
       if (!hasTelescopeName) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN telescope_name TEXT',
         );
       }
-      final hasTelescopeFocalLength =
-          await _columnExists('equipment_profiles', 'telescope_focal_length');
+      final hasTelescopeFocalLength = await _columnExists(
+        'equipment_profiles',
+        'telescope_focal_length',
+      );
       if (!hasTelescopeFocalLength) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN telescope_focal_length REAL',
         );
       }
-      final hasTelescopeAperture =
-          await _columnExists('equipment_profiles', 'telescope_aperture');
+      final hasTelescopeAperture = await _columnExists(
+        'equipment_profiles',
+        'telescope_aperture',
+      );
       if (!hasTelescopeAperture) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN telescope_aperture REAL',
@@ -254,29 +386,37 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       }
 
       // Profile customization
-      final hasProfileIcon =
-          await _columnExists('equipment_profiles', 'profile_icon');
+      final hasProfileIcon = await _columnExists(
+        'equipment_profiles',
+        'profile_icon',
+      );
       if (!hasProfileIcon) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN profile_icon TEXT',
         );
       }
-      final hasProfileColor =
-          await _columnExists('equipment_profiles', 'profile_color');
+      final hasProfileColor = await _columnExists(
+        'equipment_profiles',
+        'profile_color',
+      );
       if (!hasProfileColor) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN profile_color INTEGER',
         );
       }
-      final hasSortOrder =
-          await _columnExists('equipment_profiles', 'sort_order');
+      final hasSortOrder = await _columnExists(
+        'equipment_profiles',
+        'sort_order',
+      );
       if (!hasSortOrder) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN sort_order INTEGER DEFAULT 0',
         );
       }
-      final hasIsDefault =
-          await _columnExists('equipment_profiles', 'is_default');
+      final hasIsDefault = await _columnExists(
+        'equipment_profiles',
+        'is_default',
+      );
       if (!hasIsDefault) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN is_default INTEGER DEFAULT 0',
@@ -286,8 +426,10 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
 
     // Version 12: Add cool_on_connect to equipment_profiles
     if (from < 12) {
-      final hasCoolOnConnect =
-          await _columnExists('equipment_profiles', 'cool_on_connect');
+      final hasCoolOnConnect = await _columnExists(
+        'equipment_profiles',
+        'cool_on_connect',
+      );
       if (!hasCoolOnConnect) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN cool_on_connect INTEGER NOT NULL DEFAULT 0',
@@ -461,7 +603,9 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
     // Version 15: Add default_centering_exposure to equipment_profiles
     if (from < 15) {
       final hasCenteringExposure = await _columnExists(
-          'equipment_profiles', 'default_centering_exposure');
+        'equipment_profiles',
+        'default_centering_exposure',
+      );
       if (!hasCenteringExposure) {
         await customStatement(
           'ALTER TABLE equipment_profiles ADD COLUMN default_centering_exposure REAL',
@@ -505,7 +649,8 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       ''');
       await customStatement('DROP TABLE imaging_sessions');
       await customStatement(
-          'ALTER TABLE imaging_sessions_new RENAME TO imaging_sessions');
+        'ALTER TABLE imaging_sessions_new RENAME TO imaging_sessions',
+      );
       // Recreate indexes
       await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_sessions_target ON imaging_sessions (target_id)',
@@ -543,7 +688,8 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       ''');
       await customStatement('DROP TABLE flat_history');
       await customStatement(
-          'ALTER TABLE flat_history_new RENAME TO flat_history');
+        'ALTER TABLE flat_history_new RENAME TO flat_history',
+      );
       // Recreate indexes
       await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_flat_history_profile ON flat_history (equipment_profile_id)',
@@ -596,7 +742,8 @@ extension _NightshadeDatabaseMigrationV2ToV17 on NightshadeDatabase {
       ''');
       await customStatement('DROP TABLE polar_alignment_history');
       await customStatement(
-          'ALTER TABLE polar_alignment_history_new RENAME TO polar_alignment_history');
+        'ALTER TABLE polar_alignment_history_new RENAME TO polar_alignment_history',
+      );
       // Recreate indexes
       await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_polar_history_profile ON polar_alignment_history (equipment_profile_id)',

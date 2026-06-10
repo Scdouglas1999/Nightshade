@@ -2,8 +2,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/placeholder_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/placeholder_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Placeholder audit not found: ${script.path}');
   }
@@ -23,8 +24,9 @@ Future<void> main() async {
     final passingHighRisk = _readLines(temp, 'reports/audit_highrisk.txt');
     _expect(
       passingHits.length == 1 &&
-          passingHits.single
-              .contains('packages/release_fixture/lib/src/info.dart'),
+          passingHits.single.contains(
+            'packages/release_fixture/lib/src/info.dart',
+          ),
       'passing fixture should report the non-high-risk runtime marker',
     );
     _expect(
@@ -63,16 +65,12 @@ Future<void> main() async {
     );
     _expect(baselinePass.exitCode == 0, 'matching baseline should pass');
 
-    await _writeFile(
-      temp,
-      'apps/desktop/lib/bad.dart',
-      '''
+    await _writeFile(temp, 'apps/desktop/lib/bad.dart', '''
 
 void unsafeRuntimeStub() {
   throw UnimplementedError('release blocker');
 }
-''',
-    );
+''');
     final shiftedBaselinePass = await _runAudit(
       script,
       temp,
@@ -130,24 +128,16 @@ void unsafeRuntimeStub() {
 
 Future<void> _writePassingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'packages/release_fixture/lib/src/info.dart',
-    '''
+  await _writeFile(root, 'packages/release_fixture/lib/src/info.dart', '''
 void infoOnly() {
   // TODO: improve this label later.
 }
-''',
-  );
-  await _writeFile(
-    root,
-    'packages/release_fixture/lib/src/allowed.dart',
-    '''
+''');
+  await _writeFile(root, 'packages/release_fixture/lib/src/allowed.dart', '''
 void allowed() {
   throw UnimplementedError('allowlisted release fixture');
 }
-''',
-  );
+''');
   // §7B.5: path-only allowlist entries are rejected; require path:line or
   // path:line:exact_text granularity.
   await _writeFile(
@@ -155,28 +145,20 @@ void allowed() {
     'docs/production-readiness/placeholder-allowlist.txt',
     'packages/release_fixture/lib/src/allowed.dart:2\n',
   );
-  await _writeFile(
-    root,
-    'packages/release_fixture/test/bad_test.dart',
-    '''
+  await _writeFile(root, 'packages/release_fixture/test/bad_test.dart', '''
 void ignoredTestPath() {
   throw UnimplementedError('tests are not runtime paths');
 }
-''',
-  );
+''');
 }
 
 Future<void> _writeFailingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'apps/desktop/lib/bad.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/bad.dart', '''
 void unsafeRuntimeStub() {
   throw UnimplementedError('release blocker');
 }
-''',
-  );
+''');
 }
 
 Future<void> _writeBaselineFixture(Directory root) async {
@@ -190,15 +172,11 @@ Future<void> _writeBaselineFixture(Directory root) async {
 
 Future<void> _writePathOnlyAllowlistFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'apps/desktop/lib/bad.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/bad.dart', '''
 void unsafeRuntimeStub() {
   throw UnimplementedError('release blocker');
 }
-''',
-  );
+''');
   await _writeFile(
     root,
     'docs/production-readiness/placeholder-allowlist.txt',

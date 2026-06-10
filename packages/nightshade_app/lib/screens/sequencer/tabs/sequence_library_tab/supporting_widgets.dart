@@ -71,10 +71,12 @@ class _IconButtonState extends State<_IconButton> {
               color: _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ).color
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               widget.icon,

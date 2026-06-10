@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,8 +29,9 @@ typedef UpdateApplySafetyCheck = Future<void> Function();
 /// breaks update polling (the server uses this string to decide whether
 /// to advertise a newer build), so per CLAUDE.md "errors are a feature"
 /// we refuse to start rather than ship a 2.0.0 fallback (Â§7A.10).
-final updateProvider =
-    StateNotifierProvider<UpdateNotifier, UpdateState>((ref) {
+final updateProvider = StateNotifierProvider<UpdateNotifier, UpdateState>((
+  ref,
+) {
   final versionInfo = ref.watch(appVersionProvider);
   return UpdateNotifier(
     currentVersion: versionInfo.version,
@@ -127,21 +128,25 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
     UpdateService? updateService,
     LanPushReceiver? lanPushReceiver,
     UpdateApplySafetyCheck? applySafetyCheck,
-  })  : _updateService = updateService ??
-            UpdateService(
-              currentVersion: currentVersion,
-              currentBuildNumber: currentBuildNumber,
-            ),
-        _lanPushReceiver = lanPushReceiver ??
-            LanPushReceiver(
-              currentVersion: currentVersion,
-              currentBuildNumber: currentBuildNumber,
-            ),
-        _applySafetyCheck = applySafetyCheck ?? (() async {}),
-        super(UpdateState(
-          currentVersion: currentVersion,
-          currentBuildNumber: currentBuildNumber,
-        )) {
+  }) : _updateService =
+           updateService ??
+           UpdateService(
+             currentVersion: currentVersion,
+             currentBuildNumber: currentBuildNumber,
+           ),
+       _lanPushReceiver =
+           lanPushReceiver ??
+           LanPushReceiver(
+             currentVersion: currentVersion,
+             currentBuildNumber: currentBuildNumber,
+           ),
+       _applySafetyCheck = applySafetyCheck ?? (() async {}),
+       super(
+         UpdateState(
+           currentVersion: currentVersion,
+           currentBuildNumber: currentBuildNumber,
+         ),
+       ) {
     // Set up LAN push callbacks
     _lanPushReceiver.onUpdateReceived = _onLanPushReceived;
     _lanPushReceiver.onProgress = _onLanPushProgress;
@@ -184,15 +189,9 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   }
 
   /// Configure the update server
-  void configure({
-    required String serverUrl,
-    String channel = 'stable',
-  }) {
+  void configure({required String serverUrl, String channel = 'stable'}) {
     _updateService.configure(serverUrl: serverUrl, channel: channel);
-    state = state.copyWith(
-      updateServerUrl: serverUrl,
-      channel: channel,
-    );
+    state = state.copyWith(updateServerUrl: serverUrl, channel: channel);
   }
 
   /// Start listening for LAN push updates
@@ -209,8 +208,10 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   Future<void> checkForUpdates() async {
     if (state.isBusy) return;
     if (state.updateServerUrl == null || state.updateServerUrl!.isEmpty) {
-      developer.log('Update server URL not configured, skipping update check',
-          name: 'UpdateNotifier');
+      developer.log(
+        'Update server URL not configured, skipping update check',
+        name: 'UpdateNotifier',
+      );
       state = state.copyWith(
         status: UpdateStatus.upToDate,
         lastCheckTime: DateTime.now(),
@@ -219,10 +220,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
       return;
     }
 
-    state = state.copyWith(
-      status: UpdateStatus.checking,
-      errorMessage: null,
-    );
+    state = state.copyWith(status: UpdateStatus.checking, errorMessage: null);
 
     try {
       final result = await _updateService.checkForUpdates();
@@ -313,37 +311,49 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Apply the staged update (will restart the app)
   Future<void> applyUpdate() async {
     developer.log(
-        'applyUpdate() called, status: ${state.status}, staged: ${state.stagingPath}, version: ${state.availableUpdate?.version}',
-        name: 'UpdateNotifier',
-        level: 800);
+      'applyUpdate() called, status: ${state.status}, staged: ${state.stagingPath}, version: ${state.availableUpdate?.version}',
+      name: 'UpdateNotifier',
+      level: 800,
+    );
 
     if (state.status != UpdateStatus.staged) {
-      developer.log('Status is not staged, returning early',
-          name: 'UpdateNotifier', level: 900);
+      developer.log(
+        'Status is not staged, returning early',
+        name: 'UpdateNotifier',
+        level: 900,
+      );
       return;
     }
 
     state = state.copyWith(status: UpdateStatus.applying);
-    developer.log('Status set to applying, calling service...',
-        name: 'UpdateNotifier', level: 800);
+    developer.log(
+      'Status set to applying, calling service...',
+      name: 'UpdateNotifier',
+      level: 800,
+    );
 
     try {
       await _applySafetyCheck();
       await _updateService.applyUpdate();
       // If we get here, something went wrong (we should have exited)
-      developer.log('applyUpdate returned without exiting!',
-          name: 'UpdateNotifier', level: 1000);
+      developer.log(
+        'applyUpdate returned without exiting!',
+        name: 'UpdateNotifier',
+        level: 1000,
+      );
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage:
             'Update process did not launch correctly. The app should have restarted.',
       );
     } catch (e, stackTrace) {
-      developer.log('Error applying update: $e',
-          name: 'UpdateNotifier',
-          level: 1000,
-          error: e,
-          stackTrace: stackTrace);
+      developer.log(
+        'Error applying update: $e',
+        name: 'UpdateNotifier',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: e.toString(),
@@ -365,10 +375,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Clear any staged update
   Future<void> clearStagedUpdate() async {
     await _updateService.clearStagedUpdate();
-    state = state.copyWith(
-      status: UpdateStatus.upToDate,
-      stagingPath: null,
-    );
+    state = state.copyWith(status: UpdateStatus.upToDate, stagingPath: null);
   }
 
   /// Pop the most recent one-shot UI banner queued by the underlying
@@ -408,8 +415,11 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Set the state to staged from an external LAN push notification
   /// Called when the LanPushNotifier stream receives an update
   void setStagedFromLanPush(UpdateManifest manifest, String stagingPath) {
-    developer.log('setStagedFromLanPush: ${manifest.version} at $stagingPath',
-        name: 'UpdateNotifier', level: 800);
+    developer.log(
+      'setStagedFromLanPush: ${manifest.version} at $stagingPath',
+      name: 'UpdateNotifier',
+      level: 800,
+    );
     state = state.copyWith(
       status: UpdateStatus.staged,
       availableUpdate: manifest,
@@ -434,10 +444,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   }
 
   void _onLanPushError(String error) {
-    state = state.copyWith(
-      status: UpdateStatus.error,
-      errorMessage: error,
-    );
+    state = state.copyWith(status: UpdateStatus.error, errorMessage: error);
   }
 
   /// Get version info for discovery response

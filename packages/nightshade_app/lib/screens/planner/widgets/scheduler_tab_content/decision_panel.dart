@@ -135,7 +135,9 @@ class _CurrentTargetSummary extends StatelessWidget {
             ? 'No eligible target right now.'
             : 'Scheduler is stopped. Press Start to begin evaluating '
                 'targets every 60s.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            color: colors.textSecondary),
       );
     }
     return Column(
@@ -186,7 +188,8 @@ class _Countdown extends StatelessWidget {
     if (next == null) {
       return Text(
         'No tick scheduled.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     final delta = next.difference(DateTime.now());
@@ -200,7 +203,9 @@ class _Countdown extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary),
         ),
       ],
     );
@@ -292,7 +297,8 @@ class _ReasoningList extends StatelessWidget {
       return Text(
         'Scheduler is stopped. Press Start to begin evaluating targets '
         'every 60s.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     return Column(
@@ -546,8 +552,32 @@ class _RejectedDetails extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (rejection.hardConstraintFailures.isNotEmpty) ...[
+              Text(
+                'Failed hard constraints',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 4),
+              for (final r in rejection.hardConstraintFailures)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    '• $r',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.error,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+            ],
             Text(
-              'Failed hard constraints',
+              'Score breakdown',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
@@ -556,46 +586,22 @@ class _RejectedDetails extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            for (final r in rejection.hardConstraintFailures)
+            for (final f in rejection.factors)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
-                  '• $r',
+                  '  ${f.name}: value=${f.value.toStringAsFixed(3)} '
+                  'weight=${f.weight.toStringAsFixed(2)} '
+                  '-> ${f.weighted.toStringAsFixed(3)}'
+                  '${f.detail != null ? "  ${f.detail}" : ""}',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
-                    color: colors.error,
+                    color: colors.textSecondary,
                     height: 1.4,
+                    fontFamily: 'monospace',
                   ),
                 ),
               ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-          ],
-          Text(
-            'Score breakdown',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(height: 4),
-          for (final f in rejection.factors)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                '  ${f.name}: value=${f.value.toStringAsFixed(3)} '
-                'weight=${f.weight.toStringAsFixed(2)} '
-                '-> ${f.weighted.toStringAsFixed(3)}'
-                '${f.detail != null ? "  ${f.detail}" : ""}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textSecondary,
-                  height: 1.4,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
           ],
         ),
       ),

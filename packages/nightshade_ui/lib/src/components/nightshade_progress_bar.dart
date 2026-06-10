@@ -210,16 +210,16 @@ class _StandardProgressBarState extends State<_StandardProgressBar> {
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final isComplete = widget.value >= 1.0;
-    final effectiveFgColor = isComplete ? colors.success : widget.foregroundColor;
+    final effectiveFgColor = isComplete
+        ? colors.success
+        : widget.foregroundColor;
 
     return Container(
       height: widget.height,
       decoration: BoxDecoration(
         color: widget.backgroundColor,
         borderRadius: BorderRadius.circular(widget.height / 2),
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.45),
-        ),
+        border: Border.all(color: colors.border.withValues(alpha: 0.45)),
       ),
       clipBehavior: Clip.hardEdge,
       child: LayoutBuilder(
@@ -268,9 +268,7 @@ class _SegmentedProgressBar extends StatelessWidget {
         return Expanded(
           child: Container(
             height: height,
-            margin: EdgeInsets.only(
-              right: index < segments - 1 ? 2 : 0,
-            ),
+            margin: EdgeInsets.only(right: index < segments - 1 ? 2 : 0),
             decoration: BoxDecoration(
               color: backgroundColor,
               borderRadius: BorderRadius.circular(height / 2),
@@ -324,9 +322,10 @@ class _IndeterminateProgressBarState extends State<_IndeterminateProgressBar>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    _animation = Tween<double>(begin: -0.5, end: 1.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: -0.5,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     _controller.repeat();
   }
 
@@ -452,7 +451,8 @@ class NightshadeCircularProgress extends StatelessWidget {
           // Center content
           if (child != null || showPercentage)
             Center(
-              child: child ??
+              child:
+                  child ??
                   Text(
                     '${(value * 100).round()}%',
                     style: NightshadeTypography.monoSm.copyWith(

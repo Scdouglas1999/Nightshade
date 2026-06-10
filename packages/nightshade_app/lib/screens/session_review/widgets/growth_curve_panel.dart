@@ -164,7 +164,8 @@ class GrowthCurvePanel extends StatelessWidget {
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
                       getTooltipColor: (_) => colors.surface,
-                      getTooltipItems: (touchedSpots) => touchedSpots.map((spot) {
+                      getTooltipItems: (touchedSpots) =>
+                          touchedSpots.map((spot) {
                         final i = spot.x.round();
                         final date = (i >= 0 && i < sorted.length)
                             ? _shortDate(sorted[i].date)
@@ -247,7 +248,8 @@ class GrowthCurvePanel extends StatelessWidget {
           child: EmptyState.compact(
             icon: NightshadeIcons.activity,
             title: 'No multi-night history yet',
-            body: 'Fold tonight\'s data into a master to start the growth curve.',
+            body:
+                'Fold tonight\'s data into a master to start the growth curve.',
           ),
         ),
       ),
@@ -259,8 +261,18 @@ class GrowthCurvePanel extends StatelessWidget {
 
   static String _shortDate(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final m = months[(d.month - 1).clamp(0, 11)];
     return '$m ${d.day}';

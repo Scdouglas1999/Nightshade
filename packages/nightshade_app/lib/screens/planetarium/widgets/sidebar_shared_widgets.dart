@@ -48,7 +48,9 @@ class InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
           Text(
             value,
@@ -94,14 +96,16 @@ class InfoCard extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Icon(icon, size: 14, color: color),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -186,9 +190,11 @@ class DarknessCard extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
-                child: Icon(NightshadeIcons.moon, size: 16, color: colors.primary),
+                child:
+                    Icon(NightshadeIcons.moon, size: 16, color: colors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -222,7 +228,8 @@ class DarknessCard extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
             child: Row(
               children: [
@@ -231,7 +238,8 @@ class DarknessCard extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: colors.primary,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),
@@ -249,11 +257,15 @@ class DarknessCard extends StatelessWidget {
             children: [
               Text(
                 'Astro Dusk: ${DateFormat('HH:mm').format(twilight.astronomicalDusk!.toLocal())}',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
               Text(
                 'Astro Dawn: ${DateFormat('HH:mm').format(twilight.astronomicalDawn!.toLocal())}',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -329,7 +341,8 @@ class _TargetCardState extends State<TargetCard> {
                             widget.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                            style: NightshadeTypography.labelStrong
+                                .copyWith(color: widget.colors.textPrimary),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -341,7 +354,8 @@ class _TargetCardState extends State<TargetCard> {
                             decoration: BoxDecoration(
                               color:
                                   widget.colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             constraints: const BoxConstraints(maxWidth: 72),
                             child: Text(
@@ -414,7 +428,8 @@ class _TargetCardState extends State<TargetCard> {
                 children: [
                   Text(
                     widget.altitude,
-                    style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.success),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: widget.colors.success),
                   ),
                   Text(
                     widget.transit,

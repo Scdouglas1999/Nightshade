@@ -19,29 +19,37 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
         _cacheTimestamp != null &&
         DateTime.now().difference(_cacheTimestamp!) < _cacheDuration) {
       developer.log(
-          '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)',
-          name: 'NetworkBackend',
-          level: 800);
+        '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)',
+        name: 'NetworkBackend',
+        level: 800,
+      );
       _cachedDevicesByType ??= _indexCachedDevicesByType(_cachedDevices!);
     } else if (_ongoingDiscovery != null) {
       // Another discovery is in progress, wait for it
-      developer.log('[NetworkBackend] Waiting for ongoing discovery...',
-          name: 'NetworkBackend', level: 800);
+      developer.log(
+        '[NetworkBackend] Waiting for ongoing discovery...',
+        name: 'NetworkBackend',
+        level: 800,
+      );
       _cachedDevices = await _ongoingDiscovery!;
       _cachedDevicesByType = _indexCachedDevicesByType(_cachedDevices!);
     } else {
       // Start new discovery
-      developer.log('[NetworkBackend] Starting new device discovery...',
-          name: 'NetworkBackend', level: 800);
+      developer.log(
+        '[NetworkBackend] Starting new device discovery...',
+        name: 'NetworkBackend',
+        level: 800,
+      );
       _ongoingDiscovery = _fetchDevicesFromServer();
       try {
         _cachedDevices = await _ongoingDiscovery!;
         _cachedDevicesByType = _indexCachedDevicesByType(_cachedDevices!);
         _cacheTimestamp = DateTime.now();
         developer.log(
-            '[NetworkBackend] Cached ${_cachedDevices!.length} devices',
-            name: 'NetworkBackend',
-            level: 800);
+          '[NetworkBackend] Cached ${_cachedDevices!.length} devices',
+          name: 'NetworkBackend',
+          level: 800,
+        );
       } finally {
         _ongoingDiscovery = null;
       }
@@ -52,9 +60,10 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     );
 
     developer.log(
-        '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices',
-        name: 'NetworkBackend',
-        level: 800);
+      '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices',
+      name: 'NetworkBackend',
+      level: 800,
+    );
     return filtered;
   }
 
@@ -74,14 +83,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       if (deviceType == null) {
         continue;
       }
-      byType[deviceType]!.add(DeviceInfo(
-        id: device['id'] as String,
-        name: device['name'] as String,
-        deviceType: deviceType,
-        driverType: _parseDriverType(device['driverType'] as String),
-        description: device['description'] as String? ?? '',
-        driverVersion: device['driverVersion'] as String? ?? '',
-      ));
+      byType[deviceType]!.add(
+        DeviceInfo(
+          id: device['id'] as String,
+          name: device['name'] as String,
+          deviceType: deviceType,
+          driverType: _parseDriverType(device['driverType'] as String),
+          description: device['description'] as String? ?? '',
+          driverVersion: device['driverVersion'] as String? ?? '',
+        ),
+      );
     }
 
     return byType;
@@ -112,8 +123,11 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   /// Invalidate device cache (called when "Scan Network" is clicked)
   @override
   void invalidateDeviceCache() {
-    developer.log('[NetworkBackend] Cache invalidated',
-        name: 'NetworkBackend', level: 800);
+    developer.log(
+      '[NetworkBackend] Cache invalidated',
+      name: 'NetworkBackend',
+      level: 800,
+    );
     _cachedDevices = null;
     _cachedDevicesByType = null;
     _cacheTimestamp = null;
@@ -163,8 +177,9 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       // unknown device class into a Camera. Skip and log loudly per
       // CLAUDE.md "errors are a feature" — a wrong default here means
       // the equipment screen claims a focuser is a camera.
-      final deviceType =
-          DeviceType.values.where((t) => t.name == deviceTypeName).firstOrNull;
+      final deviceType = DeviceType.values
+          .where((t) => t.name == deviceTypeName)
+          .firstOrNull;
       if (deviceType == null) {
         developer.log(
           'discoverAtAddress: dropping device id="$id" name="$name" '
@@ -179,7 +194,8 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       // remote server is a newer version; fall back to the caller's
       // hint (`fallbackDriverType`) which encodes whether this came
       // from the INDI or Alpaca discovery endpoint.
-      final driverType = DriverType.values
+      final driverType =
+          DriverType.values
               .where((t) => t.name == driverTypeName)
               .firstOrNull ??
           fallbackDriverType;
@@ -191,14 +207,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
           level: 900,
         );
       }
-      results.add(DeviceInfo(
-        id: id,
-        name: name,
-        deviceType: deviceType,
-        driverType: driverType,
-        description: d['description'] as String? ?? '',
-        driverVersion: d['driverVersion'] as String? ?? '',
-      ));
+      results.add(
+        DeviceInfo(
+          id: id,
+          name: name,
+          deviceType: deviceType,
+          driverType: driverType,
+          description: d['description'] as String? ?? '',
+          driverVersion: d['driverVersion'] as String? ?? '',
+        ),
+      );
     }
     return results;
   }
@@ -283,10 +301,9 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   @override
   Future<Uint8List> cameraLiveViewFrame(String deviceId) async {
     try {
-      return await _downloadBytes(
-        'camera/live-view/frame',
-        {'deviceId': deviceId},
-      );
+      return await _downloadBytes('camera/live-view/frame', {
+        'deviceId': deviceId,
+      });
     } on ServerError catch (e) {
       // [Wave 6D error parsing] — prefer the machine-readable `code` over
       // the substring-match on `message`. The server emits
@@ -384,23 +401,18 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> cameraSetGain(String deviceId, int gain) async {
-    await _post('camera/gain', {
-      'deviceId': deviceId,
-      'gain': gain,
-    });
+    await _post('camera/gain', {'deviceId': deviceId, 'gain': gain});
   }
 
   @override
   Future<void> cameraSetOffset(String deviceId, int offset) async {
-    await _post('camera/offset', {
-      'deviceId': deviceId,
-      'offset': offset,
-    });
+    await _post('camera/offset', {'deviceId': deviceId, 'offset': offset});
   }
 
   @override
   Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     // Network backend: the remote host owns the SDK. Query it via the
     // headless API, parsing the same struct shape Rust returns.
     //
@@ -457,21 +469,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> mountSlewToCoordinates(
-      String deviceId, double ra, double dec) async {
-    await _post('mount/slew', {
-      'deviceId': deviceId,
-      'ra': ra,
-      'dec': dec,
-    });
+    String deviceId,
+    double ra,
+    double dec,
+  ) async {
+    await _post('mount/slew', {'deviceId': deviceId, 'ra': ra, 'dec': dec});
   }
 
   @override
   Future<void> mountSync(String deviceId, double ra, double dec) async {
-    await _post('mount/sync', {
-      'deviceId': deviceId,
-      'ra': ra,
-      'dec': dec,
-    });
+    await _post('mount/sync', {'deviceId': deviceId, 'ra': ra, 'dec': dec});
   }
 
   @override
@@ -486,10 +493,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> mountSetTracking(String deviceId, bool enabled) async {
-    await _post('mount/tracking', {
-      'deviceId': deviceId,
-      'enabled': enabled,
-    });
+    await _post('mount/tracking', {'deviceId': deviceId, 'enabled': enabled});
   }
 
   @override
@@ -534,7 +538,10 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> mountSlewAltAz(
-      String deviceId, double altitude, double azimuth) async {
+    String deviceId,
+    double altitude,
+    double azimuth,
+  ) async {
     await _post('mount/slew-alt-az', {
       'deviceId': deviceId,
       'altitude': altitude,
@@ -643,10 +650,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
-    await _post('filter-wheel/names', {
-      'deviceId': deviceId,
-      'names': names,
-    });
+    await _post('filter-wheel/names', {'deviceId': deviceId, 'names': names});
   }
 
   @override
@@ -673,10 +677,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> rotatorMoveTo(String deviceId, double angle) async {
-    await _post('rotator/move-to', {
-      'deviceId': deviceId,
-      'angle': angle,
-    });
+    await _post('rotator/move-to', {'deviceId': deviceId, 'angle': angle});
   }
 
   @override
@@ -695,16 +696,11 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> rotatorHalt(String deviceId) async {
-    await _post('rotator/halt', {
-      'deviceId': deviceId,
-    });
+    await _post('rotator/halt', {'deviceId': deviceId});
   }
 
   @override
   Future<void> rotatorSyncToPa(String deviceId, double pa) async {
-    await _post('rotator/sync', {
-      'deviceId': deviceId,
-      'positionAngle': pa,
-    });
+    await _post('rotator/sync', {'deviceId': deviceId, 'positionAngle': pa});
   }
 }

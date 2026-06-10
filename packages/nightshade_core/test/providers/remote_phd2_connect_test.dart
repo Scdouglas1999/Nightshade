@@ -67,159 +67,172 @@ void main() {
   });
 
   group('Phd2Controller remote connect', () {
-    test('calls host PHD2 API even when settings include a desktop path',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
-      when(
-        () => backend.phd2Connect(
-            host: any(named: 'host'), port: any(named: 'port')),
-      ).thenAnswer((_) async {});
-      when(() => backend.phd2GetStatus()).thenAnswer(
-        (_) async => const Phd2Status(
-          state: 'Stopped',
-          connected: true,
-          rmsRa: 0,
-          rmsDec: 0,
-          rmsTotal: 0,
-          snr: 0,
-          starMass: 0,
-          avgDistance: 0,
-        ),
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
+    test(
+      'calls host PHD2 API even when settings include a desktop path',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(
+          () => backend.phd2Connect(
+            host: any(named: 'host'),
+            port: any(named: 'port'),
           ),
-          appSettingsProvider.overrideWith(_Phd2PathSettingsNotifier.new),
-          loggingServiceProvider.overrideWithValue(LoggingService()),
-        ],
-      );
-      addTearDown(container.dispose);
+        ).thenAnswer((_) async {});
+        when(() => backend.phd2GetStatus()).thenAnswer(
+          (_) async => const Phd2Status(
+            state: 'Stopped',
+            connected: true,
+            rmsRa: 0,
+            rmsDec: 0,
+            rmsTotal: 0,
+            snr: 0,
+            starMass: 0,
+            avgDistance: 0,
+          ),
+        );
 
-      await container.read(phd2ControllerProvider).connect('localhost', 4400);
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            appSettingsProvider.overrideWith(_Phd2PathSettingsNotifier.new),
+            loggingServiceProvider.overrideWithValue(LoggingService()),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      verify(
-        () => backend.phd2Connect(host: 'localhost', port: 4400),
-      ).called(1);
-      verify(() => backend.phd2GetStatus()).called(1);
-      expect(
-        container.read(guiderStateProvider).connectionState,
-        DeviceConnectionState.connected,
-      );
-    });
+        await container.read(phd2ControllerProvider).connect('localhost', 4400);
 
-    test('pollPhd2Connected throws when host never reports connected',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.phd2GetStatus()).thenAnswer(
-        (_) async => kPhd2DisconnectedStatus,
-      );
+        verify(
+          () => backend.phd2Connect(host: 'localhost', port: 4400),
+        ).called(1);
+        verify(() => backend.phd2GetStatus()).called(1);
+        expect(
+          container.read(guiderStateProvider).connectionState,
+          DeviceConnectionState.connected,
+        );
+      },
+    );
 
-      await expectLater(
-        pollPhd2Connected(
-          backend,
-          timeout: const Duration(milliseconds: 200),
-          interval: const Duration(milliseconds: 50),
-        ),
-        throwsA(isA<StateError>()),
-      );
-    });
+    test(
+      'pollPhd2Connected throws when host never reports connected',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.phd2GetStatus(),
+        ).thenAnswer((_) async => kPhd2DisconnectedStatus);
+
+        await expectLater(
+          pollPhd2Connected(
+            backend,
+            timeout: const Duration(milliseconds: 200),
+            interval: const Duration(milliseconds: 50),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
   });
 
   group('DeviceService PHD2 connect', () {
-    test('connectGuider waits for host PHD2 status on NetworkBackend',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
-      when(
-        () => backend.phd2Connect(
-            host: any(named: 'host'), port: any(named: 'port')),
-      ).thenAnswer((_) async {});
-      when(() => backend.phd2GetStatus()).thenAnswer(
-        (_) async => const Phd2Status(
-          state: 'Stopped',
-          connected: true,
-          rmsRa: 0,
-          rmsDec: 0,
-          rmsTotal: 0,
-          snr: 0,
-          starMass: 0,
-          avgDistance: 0,
-        ),
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
+    test(
+      'connectGuider waits for host PHD2 status on NetworkBackend',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(
+          () => backend.phd2Connect(
+            host: any(named: 'host'),
+            port: any(named: 'port'),
           ),
-          appSettingsProvider.overrideWith(_Phd2PathSettingsNotifier.new),
-          loggingServiceProvider.overrideWithValue(LoggingService()),
-        ],
-      );
-      addTearDown(container.dispose);
+        ).thenAnswer((_) async {});
+        when(() => backend.phd2GetStatus()).thenAnswer(
+          (_) async => const Phd2Status(
+            state: 'Stopped',
+            connected: true,
+            rmsRa: 0,
+            rmsDec: 0,
+            rmsTotal: 0,
+            snr: 0,
+            starMass: 0,
+            avgDistance: 0,
+          ),
+        );
 
-      await container.read(deviceServiceProvider).connectGuider('phd2_guider');
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            appSettingsProvider.overrideWith(_Phd2PathSettingsNotifier.new),
+            loggingServiceProvider.overrideWithValue(LoggingService()),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      verify(
-        () => backend.phd2Connect(host: '127.0.0.1', port: 4400),
-      ).called(1);
-      verify(() => backend.phd2GetStatus()).called(1);
-      expect(
-        container.read(guiderStateProvider).connectionState,
-        DeviceConnectionState.connected,
-      );
-    });
+        await container
+            .read(deviceServiceProvider)
+            .connectGuider('phd2_guider');
+
+        verify(
+          () => backend.phd2Connect(host: '127.0.0.1', port: 4400),
+        ).called(1);
+        verify(() => backend.phd2GetStatus()).called(1);
+        expect(
+          container.read(guiderStateProvider).connectionState,
+          DeviceConnectionState.connected,
+        );
+      },
+    );
   });
 
   group('remote session PHD2 hydration', () {
     test(
-        'does not clear guider when status poll fails after device list hydrate',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.sequencerGetStatus()).thenAnswer(
-        (_) async => const SequencerStatus(state: 'Idle', progress: 0),
-      );
-      when(() => backend.getConnectedDevices()).thenAnswer(
-        (_) async => const [
-          DeviceInfo(
-            id: 'phd2_guider',
-            name: 'PHD2',
-            deviceType: DeviceType.guider,
-            driverType: DriverType.native,
-            description: '',
-            driverVersion: '1.0',
-          ),
-        ],
-      );
-      when(() => backend.phd2GetStatus()).thenThrow(
-        StateError('PHD2 not connected'),
-      );
+      'does not clear guider when status poll fails after device list hydrate',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(() => backend.sequencerGetStatus()).thenAnswer(
+          (_) async => const SequencerStatus(state: 'Idle', progress: 0),
+        );
+        when(() => backend.getConnectedDevices()).thenAnswer(
+          (_) async => const [
+            DeviceInfo(
+              id: 'phd2_guider',
+              name: 'PHD2',
+              deviceType: DeviceType.guider,
+              driverType: DriverType.native,
+              description: '',
+              driverVersion: '1.0',
+            ),
+          ],
+        );
+        when(
+          () => backend.phd2GetStatus(),
+        ).thenThrow(StateError('PHD2 not connected'));
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
-          ),
-          loggingServiceProvider.overrideWithValue(LoggingService()),
-        ],
-      );
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            loggingServiceProvider.overrideWithValue(LoggingService()),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await hydrateRemoteSessionState(container, backend);
+        await hydrateRemoteSessionState(container, backend);
 
-      expect(
-        container.read(guiderStateProvider).connectionState,
-        DeviceConnectionState.connected,
-      );
-      expect(container.read(guiderStateProvider).deviceId, 'phd2_guider');
-    });
+        expect(
+          container.read(guiderStateProvider).connectionState,
+          DeviceConnectionState.connected,
+        );
+        expect(container.read(guiderStateProvider).deviceId, 'phd2_guider');
+      },
+    );
   });
 }

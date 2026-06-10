@@ -35,8 +35,12 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
   final ValueChanged<CelestialCoordinate>? onCoordinateTapped;
 
   /// Callback when an object is tapped with position info for popup display
-  final void Function(CelestialObject? object, CelestialCoordinate coordinates,
-      Offset screenPosition)? onObjectTapped;
+  final void Function(
+    CelestialObject? object,
+    CelestialCoordinate coordinates,
+    Offset screenPosition,
+  )?
+  onObjectTapped;
 
   /// Whether to show the FOV indicator
   final bool showFOV;
@@ -252,8 +256,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       final buildMs = timing.buildDuration.inMicroseconds / 1000;
       final rasterMs = timing.rasterDuration.inMicroseconds / 1000;
       final vsyncStart = timing.timestampInMicroseconds(FramePhase.vsyncStart);
-      final rasterFinish =
-          timing.timestampInMicroseconds(FramePhase.rasterFinish);
+      final rasterFinish = timing.timestampInMicroseconds(
+        FramePhase.rasterFinish,
+      );
       final totalMs = rasterFinish > vsyncStart
           ? (rasterFinish - vsyncStart) / 1000
           : buildMs + rasterMs;
@@ -322,10 +327,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
     // Pixel translation this frame from the current velocity (px/s).
     final pixelDelta = _panVelocity * dt;
-    ref.read(skyViewStateProvider.notifier).pan(
-          -pixelDelta.dx * panScale / 15,
-          pixelDelta.dy * panScale,
-        );
+    ref
+        .read(skyViewStateProvider.notifier)
+        .pan(-pixelDelta.dx * panScale / 15, pixelDelta.dy * panScale);
 
     // Exponential decay: v *= e^(-decay * dt).
     final decay = math.exp(-_momentumDecayPerSecond * dt);
@@ -359,8 +363,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // Calculate average velocity from recent samples
     var totalVelocity = Offset.zero;
     for (var i = 1; i < recent.length; i++) {
-      final dt = recent[i]
-          .time
+      final dt = recent[i].time
           .difference(recent[i - 1].time)
           .inMilliseconds
           .toDouble();
@@ -379,13 +382,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     _startFOV = currentFOV;
     _targetFOV = newFOV.clamp(1.0, 180.0);
 
-    _zoomAnimation = Tween<double>(
-      begin: _startFOV,
-      end: _targetFOV,
-    ).animate(CurvedAnimation(
-      parent: _zoomController,
-      curve: Curves.easeOutCubic,
-    ));
+    _zoomAnimation = Tween<double>(begin: _startFOV, end: _targetFOV).animate(
+      CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic),
+    );
 
     _zoomController.forward(from: 0.0);
   }
@@ -415,8 +414,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     if (viewState.viewMode == SkyViewMode.horizontal) {
       final location = ref.read(observerLocationProvider);
       final time = ref.read(observationTimeProvider).time;
-      final lst =
-          AstronomyCalculations.localSiderealTime(time, location.longitude);
+      final lst = AstronomyCalculations.localSiderealTime(
+        time,
+        location.longitude,
+      );
       final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
         raDeg: target.ra * 15,
         decDeg: target.dec,
@@ -436,11 +437,18 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     if (deltaRa < -12) deltaRa += 24;
     final endRa = startRa + deltaRa;
 
-    final curve =
-        CurvedAnimation(parent: _flyToController, curve: Curves.easeInOutCubic);
-    _flyToRaAnimation = Tween<double>(begin: startRa, end: endRa).animate(curve);
-    _flyToDecAnimation =
-        Tween<double>(begin: startDec, end: target.dec).animate(curve);
+    final curve = CurvedAnimation(
+      parent: _flyToController,
+      curve: Curves.easeInOutCubic,
+    );
+    _flyToRaAnimation = Tween<double>(
+      begin: startRa,
+      end: endRa,
+    ).animate(curve);
+    _flyToDecAnimation = Tween<double>(
+      begin: startDec,
+      end: target.dec,
+    ).animate(curve);
 
     _flyToController.forward(from: 0.0);
   }
@@ -589,7 +597,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               // departing from 1.0 (covers touchpads that report pointerCount
               // == 1 for a two-finger pinch).
               const double pinchScaleEpsilon = 0.01;
-              final isPinch = details.pointerCount >= 2 ||
+              final isPinch =
+                  details.pointerCount >= 2 ||
                   (details.scale - 1.0).abs() > pinchScaleEpsilon;
 
               // Pan — single-finger drag only.
@@ -630,8 +639,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               // translating the sky.
               if (_lastScale != null && details.scale != 1.0) {
                 final scaleDelta = _lastScale! / details.scale;
-                final newFOV =
-                    (viewState.fieldOfView * scaleDelta).clamp(1.0, 180.0);
+                final newFOV = (viewState.fieldOfView * scaleDelta).clamp(
+                  1.0,
+                  180.0,
+                );
                 viewNotifier.setFieldOfView(newFOV);
                 _lastScale = details.scale;
               }
@@ -668,8 +679,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
             onDoubleTapDown: (details) {
               // Zoom in 2x centered on the double-tap position
               _stopMomentum();
-              _handleDoubleTapZoom(details.localPosition,
-                  Size(constraints.maxWidth, constraints.maxHeight));
+              _handleDoubleTapZoom(
+                details.localPosition,
+                Size(constraints.maxWidth, constraints.maxHeight),
+              );
             },
             onTapUp: (details) {
               // In measurement mode a single tap clears the current ruler so
@@ -684,8 +697,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                 }
                 return;
               }
-              _handleTap(details.localPosition,
-                  Size(constraints.maxWidth, constraints.maxHeight));
+              _handleTap(
+                details.localPosition,
+                Size(constraints.maxWidth, constraints.maxHeight),
+              );
             },
             // Two RepaintBoundary-isolated layers in a Stack:
             //
@@ -747,9 +762,11 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                           foregroundPainter: widget.showFOV
                               ? _FOVOverlayPainter(
                                   viewState: viewState,
-                                  fovWidth: widget.customFOV?.$1 ??
+                                  fovWidth:
+                                      widget.customFOV?.$1 ??
                                       equipmentFOV.fov?.$1,
-                                  fovHeight: widget.customFOV?.$2 ??
+                                  fovHeight:
+                                      widget.customFOV?.$2 ??
                                       equipmentFOV.fov?.$2,
                                   fovCenter: widget.fovCenter,
                                   rotation: equipmentFOV.rotation,
@@ -794,21 +811,21 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                           // repaints the static base.
                           foregroundPainter:
                               (_measureStart != null && _measureEnd != null)
-                                  ? _MeasurementOverlayPainter(
-                                      viewState: viewState,
-                                      start: _measureStart!,
-                                      end: _measureEnd!,
-                                      latitude: location.latitude,
-                                      lstHours: viewState.viewMode ==
-                                              SkyViewMode.horizontal
-                                          ? AstronomyCalculations
-                                              .localSiderealTime(
-                                              observationMinute,
-                                              location.longitude,
-                                            )
-                                          : null,
-                                    )
-                                  : null,
+                              ? _MeasurementOverlayPainter(
+                                  viewState: viewState,
+                                  start: _measureStart!,
+                                  end: _measureEnd!,
+                                  latitude: location.latitude,
+                                  lstHours:
+                                      viewState.viewMode ==
+                                          SkyViewMode.horizontal
+                                      ? AstronomyCalculations.localSiderealTime(
+                                          observationMinute,
+                                          location.longitude,
+                                        )
+                                      : null,
+                                )
+                              : null,
                           size: Size.infinite,
                         ),
                       );
@@ -870,11 +887,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       mountPosition: mountPosition.coordinates,
       mountStatus: _mapMountStatus(mountPosition.status),
       sunPosition: sunPos,
-      moonPosition: (
-        moonPos.$1,
-        moonPos.$2,
-        moonIllumination.illumination,
-      ),
+      moonPosition: (moonPos.$1, moonPos.$2, moonIllumination.illumination),
       planets: planets,
       satellites: satellites,
       variableStars: variableStars,
@@ -886,8 +899,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           : null,
       selectionAnimationPhase:
           (isOverlay && qualityConfig.enableSelectionAnimation)
-              ? _selectionController.value
-              : null,
+          ? _selectionController.value
+          : null,
       // DSO pop-in + parallax drive the base only.
       popinAnimationPhase: (isBase && qualityConfig.enableStarPopin)
           ? _popinController.value
@@ -895,8 +908,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       dsoPopinAnimationPhase: (isBase && qualityConfig.enableDsoPopin)
           ? _dsoPopinController.value
           : null,
-      parallaxPanDelta:
-          (isBase && qualityConfig.enableParallax) ? _currentPanDelta : null,
+      parallaxPanDelta: (isBase && qualityConfig.enableParallax)
+          ? _currentPanDelta
+          : null,
       densityHotspots: densityHotspots,
       observedObjectIds: widget.observedObjectIds,
       listedObjectIds: widget.listedObjectIds,
@@ -956,7 +970,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       // Base radius scales with brightness: mag -1 = 3x, mag 0 = 2.5x, mag 2 = 2x, mag 6 = 1x
       final brightnessMultiplier = math.max(1.0, 2.5 - (starMag / 4.0));
       final hitRadiusDegrees = math.max(
-          minHitRadiusDegrees, minHitRadiusDegrees * brightnessMultiplier);
+        minHitRadiusDegrees,
+        minHitRadiusDegrees * brightnessMultiplier,
+      );
 
       if (distance < hitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
@@ -1044,7 +1060,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   }
 
   CelestialCoordinate? _screenToCelestial(
-      Offset position, Size size, SkyViewState viewState) {
+    Offset position,
+    Size size,
+    SkyViewState viewState,
+  ) {
     final center = Offset(size.width / 2, size.height / 2);
     final scale =
         math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
@@ -1064,8 +1083,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       // (alt, az) then convert back to equatorial RA/Dec for the caller.
       final location = ref.read(observerLocationProvider);
       final time = ref.read(observationTimeProvider).time;
-      final lst =
-          AstronomyCalculations.localSiderealTime(time, location.longitude);
+      final lst = AstronomyCalculations.localSiderealTime(
+        time,
+        location.longitude,
+      );
       final (lon, lat) = _inverseStereographic(
         x: x,
         y: y,
@@ -1127,9 +1148,12 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final sinc = math.sin(c);
     final cosc = math.cos(c);
 
-    final lat = math.asin(cosc * math.sin(centerLatRad) +
-        yRad * sinc * math.cos(centerLatRad) / rho);
-    final lon = centerLonRad +
+    final lat = math.asin(
+      cosc * math.sin(centerLatRad) +
+          yRad * sinc * math.cos(centerLatRad) / rho,
+    );
+    final lon =
+        centerLonRad +
         math.atan2(
           xRad * sinc,
           rho * math.cos(centerLatRad) * cosc -
@@ -1145,7 +1169,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final ra2 = b.ra * 15 * math.pi / 180;
     final dec2 = b.dec * math.pi / 180;
 
-    final cosSep = math.sin(dec1) * math.sin(dec2) +
+    final cosSep =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;

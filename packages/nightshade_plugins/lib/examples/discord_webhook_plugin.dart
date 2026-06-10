@@ -75,38 +75,38 @@ class DiscordWebhookPlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'discord.webhook',
-          name: 'Discord Webhook',
-          category: 'Notifications',
-          description:
-              'Send a Discord message via a configured webhook URL. '
-              'Supports plain content and / or rich embeds.',
-          createNode: (params) {
-            final url = (params['webhookUrl'] as String? ?? '').trim();
-            final username = (params['username'] as String?)?.trim();
-            final content = (params['content'] as String?)?.trim();
-            final embedTitle = (params['embedTitle'] as String?)?.trim();
-            final embedDescription =
-                (params['embedDescription'] as String?)?.trim();
-            final embedColor =
-                (params['embedColor'] as num?)?.toInt() ?? 0x3498db;
-            return _DiscordWebhookNode(
-              webhookUrl: url,
-              username: (username == null || username.isEmpty) ? null : username,
-              content: (content == null || content.isEmpty) ? null : content,
-              embedTitle:
-                  (embedTitle == null || embedTitle.isEmpty) ? null : embedTitle,
-              embedDescription:
-                  (embedDescription == null || embedDescription.isEmpty)
-                      ? null
-                      : embedDescription,
-              embedColor: embedColor,
-              clientBuilder: clientBuilder ?? http.Client.new,
-            );
-          },
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'discord.webhook',
+      name: 'Discord Webhook',
+      category: 'Notifications',
+      description:
+          'Send a Discord message via a configured webhook URL. '
+          'Supports plain content and / or rich embeds.',
+      createNode: (params) {
+        final url = (params['webhookUrl'] as String? ?? '').trim();
+        final username = (params['username'] as String?)?.trim();
+        final content = (params['content'] as String?)?.trim();
+        final embedTitle = (params['embedTitle'] as String?)?.trim();
+        final embedDescription = (params['embedDescription'] as String?)
+            ?.trim();
+        final embedColor = (params['embedColor'] as num?)?.toInt() ?? 0x3498db;
+        return _DiscordWebhookNode(
+          webhookUrl: url,
+          username: (username == null || username.isEmpty) ? null : username,
+          content: (content == null || content.isEmpty) ? null : content,
+          embedTitle: (embedTitle == null || embedTitle.isEmpty)
+              ? null
+              : embedTitle,
+          embedDescription:
+              (embedDescription == null || embedDescription.isEmpty)
+              ? null
+              : embedDescription,
+          embedColor: embedColor,
+          clientBuilder: clientBuilder ?? http.Client.new,
+        );
+      },
+    ),
+  ];
 }
 
 class _DiscordWebhookNode implements PluginSequenceNode {
@@ -141,7 +141,8 @@ class _DiscordWebhookNode implements PluginSequenceNode {
           '(got ${parsed.host})';
     }
     final hasContent = content != null && content!.isNotEmpty;
-    final hasEmbed = (embedTitle != null && embedTitle!.isNotEmpty) ||
+    final hasEmbed =
+        (embedTitle != null && embedTitle!.isNotEmpty) ||
         (embedDescription != null && embedDescription!.isNotEmpty);
     if (!hasContent && !hasEmbed) {
       return 'Provide at least one of: content, embedTitle, embedDescription';
@@ -157,7 +158,8 @@ class _DiscordWebhookNode implements PluginSequenceNode {
     final payload = <String, dynamic>{};
     if (username != null) payload['username'] = username;
     if (content != null) payload['content'] = content;
-    final hasEmbed = (embedTitle != null && embedTitle!.isNotEmpty) ||
+    final hasEmbed =
+        (embedTitle != null && embedTitle!.isNotEmpty) ||
         (embedDescription != null && embedDescription!.isNotEmpty);
     if (hasEmbed) {
       final embed = <String, dynamic>{

@@ -12,11 +12,7 @@ import 'package:nightshade_core/src/services/smart_night/exposure_calculator.dar
 /// floor (30 s) dominates, so [SmartNightExposureContext.recommendForFilter]
 /// returns 30 s for the default (null) filter.
 const _seedContext = SmartNightExposureContext(
-  camera: CameraExposureSpec(
-    readNoiseE: 1.4,
-    fullWellE: 50000,
-    qePeak: 0.85,
-  ),
+  camera: CameraExposureSpec(readNoiseE: 1.4, fullWellE: 50000, qePeak: 0.85),
   bortleClass: 8,
   focalLengthMm: 384,
   apertureMm: 80,
@@ -58,8 +54,7 @@ ProviderContainer _buildContainer({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test(
-      'seeds gain/offset and Smart Night exposure when the user has not '
+  test('seeds gain/offset and Smart Night exposure when the user has not '
       'edited anything', () async {
     final container = _buildContainer(
       profileId: 11,
@@ -68,8 +63,11 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    expect(container.read(exposureSettingsUserDirtyProvider), isFalse,
-        reason: 'dirty flag must default to false');
+    expect(
+      container.read(exposureSettingsUserDirtyProvider),
+      isFalse,
+      reason: 'dirty flag must default to false',
+    );
 
     await container.read(smartNightExposureContextProvider.future);
     container.read(syncExposureFromProfileProvider);
@@ -79,57 +77,71 @@ void main() {
     expect(settings.gain, 200, reason: 'profile defaultGain should seed');
     expect(settings.offset, 30, reason: 'profile defaultOffset should seed');
     expect(settings.frameType, FrameType.light);
-    expect(settings.exposureTime, 30,
-        reason: 'Smart Night recommendation should seed the light exposure');
-  });
-
-  test('skips all seeding and preserves user values when dirty flag is set',
-      () async {
-    final container = _buildContainer(
-      profileId: 12,
-      defaultGain: 200,
-      defaultOffset: 30,
+    expect(
+      settings.exposureTime,
+      30,
+      reason: 'Smart Night recommendation should seed the light exposure',
     );
-    addTearDown(container.dispose);
-
-    // Simulate a manual edit: user picked their own values and the UI flipped
-    // the dirty flag (the flip itself lives in camera_panel / camera_presets).
-    container.read(exposureSettingsProvider.notifier).state =
-        container.read(exposureSettingsProvider).copyWith(
-              exposureTime: 45,
-              gain: 77,
-              offset: 11,
-            );
-    container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
-
-    await container.read(smartNightExposureContextProvider.future);
-    container.read(syncExposureFromProfileProvider);
-    await Future<void>.delayed(Duration.zero);
-
-    final settings = container.read(exposureSettingsProvider);
-    expect(settings.exposureTime, 45, reason: 'manual exposure preserved');
-    expect(settings.gain, 77, reason: 'manual gain preserved (no profile seed)');
-    expect(settings.offset, 11,
-        reason: 'manual offset preserved (no profile seed)');
   });
 
   test(
-      'exposureTime == 120 no longer governs: a dirty 120 s light frame is not '
+    'skips all seeding and preserves user values when dirty flag is set',
+    () async {
+      final container = _buildContainer(
+        profileId: 12,
+        defaultGain: 200,
+        defaultOffset: 30,
+      );
+      addTearDown(container.dispose);
+
+      // Simulate a manual edit: user picked their own values and the UI flipped
+      // the dirty flag (the flip itself lives in camera_panel / camera_presets).
+      container.read(exposureSettingsProvider.notifier).state = container
+          .read(exposureSettingsProvider)
+          .copyWith(exposureTime: 45, gain: 77, offset: 11);
+      container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+
+      await container.read(smartNightExposureContextProvider.future);
+      container.read(syncExposureFromProfileProvider);
+      await Future<void>.delayed(Duration.zero);
+
+      final settings = container.read(exposureSettingsProvider);
+      expect(settings.exposureTime, 45, reason: 'manual exposure preserved');
+      expect(
+        settings.gain,
+        77,
+        reason: 'manual gain preserved (no profile seed)',
+      );
+      expect(
+        settings.offset,
+        11,
+        reason: 'manual offset preserved (no profile seed)',
+      );
+    },
+  );
+
+  test('exposureTime == 120 no longer governs: a dirty 120 s light frame is not '
       're-seeded by Smart Night', () async {
     final container = _buildContainer(profileId: 13);
     addTearDown(container.dispose);
 
     // The old heuristic re-seeded any 120 s light frame. With the dirty flag
     // set, the literal 120 s default the user deliberately chose must survive.
-    expect(container.read(exposureSettingsProvider).exposureTime, 120,
-        reason: 'sanity: the no-recommendation fallback default is still 120');
+    expect(
+      container.read(exposureSettingsProvider).exposureTime,
+      120,
+      reason: 'sanity: the no-recommendation fallback default is still 120',
+    );
     container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
 
     await container.read(smartNightExposureContextProvider.future);
     container.read(syncExposureFromProfileProvider);
     await Future<void>.delayed(Duration.zero);
 
-    expect(container.read(exposureSettingsProvider).exposureTime, 120,
-        reason: 'dirty 120 s light frame must not be re-seeded to 30 s');
+    expect(
+      container.read(exposureSettingsProvider).exposureTime,
+      120,
+      reason: 'dirty 120 s light frame must not be re-seeded to 30 s',
+    );
   });
 }

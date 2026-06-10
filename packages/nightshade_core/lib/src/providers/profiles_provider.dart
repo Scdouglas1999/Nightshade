@@ -165,16 +165,18 @@ class EquipmentProfileModel {
     final rawTelescopeAperture = db.telescopeAperture;
     final telescopeFocalLength =
         rawTelescopeFocalLength != null && rawTelescopeFocalLength > 0
-            ? rawTelescopeFocalLength
-            : null;
+        ? rawTelescopeFocalLength
+        : null;
     final telescopeAperture =
         rawTelescopeAperture != null && rawTelescopeAperture > 0
-            ? rawTelescopeAperture
-            : null;
-    final effectiveFocalLength =
-        db.focalLength > 0 ? db.focalLength : (telescopeFocalLength ?? 0.0);
-    final effectiveAperture =
-        db.aperture > 0 ? db.aperture : (telescopeAperture ?? 0.0);
+        ? rawTelescopeAperture
+        : null;
+    final effectiveFocalLength = db.focalLength > 0
+        ? db.focalLength
+        : (telescopeFocalLength ?? 0.0);
+    final effectiveAperture = db.aperture > 0
+        ? db.aperture
+        : (telescopeAperture ?? 0.0);
 
     if (db.filterNames != null) {
       try {
@@ -184,7 +186,8 @@ class EquipmentProfileModel {
         );
       } catch (e) {
         _log.warning(
-            'Failed to parse filterNames JSON for profile "${db.name}": $e');
+          'Failed to parse filterNames JSON for profile "${db.name}": $e',
+        );
       }
     }
 
@@ -196,7 +199,8 @@ class EquipmentProfileModel {
         );
       } catch (e) {
         _log.warning(
-            'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e');
+          'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e',
+        );
       }
     }
 
@@ -262,7 +266,8 @@ class EquipmentProfileModel {
         );
       } catch (e) {
         _log.warning(
-            'Failed to parse remote filterNames for "${profile.name}": $e');
+          'Failed to parse remote filterNames for "${profile.name}": $e',
+        );
       }
     }
 
@@ -275,7 +280,8 @@ class EquipmentProfileModel {
         );
       } catch (e) {
         _log.warning(
-            'Failed to parse remote filterFocusOffsets for "${profile.name}": $e');
+          'Failed to parse remote filterFocusOffsets for "${profile.name}": $e',
+        );
       }
     }
 
@@ -307,8 +313,9 @@ class EquipmentProfileModel {
       telescopeFocalLength: profile.telescopeFocalLength > 0
           ? profile.telescopeFocalLength
           : null,
-      telescopeAperture:
-          profile.telescopeAperture > 0 ? profile.telescopeAperture : null,
+      telescopeAperture: profile.telescopeAperture > 0
+          ? profile.telescopeAperture
+          : null,
       focalLength: profile.focalLength,
       aperture: profile.aperture,
       focalRatio: profile.focalRatio,
@@ -367,11 +374,12 @@ class EquipmentProfileModel {
       defaultCoolingTemp: Value(defaultCoolingTemp),
       coolOnConnect: Value(coolOnConnect),
       defaultCenteringExposure: Value(defaultCenteringExposure),
-      filterNames:
-          Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
-      filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty
-          ? jsonEncode(filterFocusOffsets)
-          : null),
+      filterNames: Value(
+        filterNames.isNotEmpty ? jsonEncode(filterNames) : null,
+      ),
+      filterFocusOffsets: Value(
+        filterFocusOffsets.isNotEmpty ? jsonEncode(filterFocusOffsets) : null,
+      ),
       profileIcon: Value(profileIcon),
       profileColor: Value(profileColor),
       sortOrder: Value(sortOrder),
@@ -522,8 +530,7 @@ class EquipmentProfileModel {
       defaultCoolingTemp: defaultCoolingTemp,
       coolOnConnect: coolOnConnect,
       defaultCenteringExposure: defaultCenteringExposure,
-      filterNames:
-          filterNames.isNotEmpty ? jsonEncode(filterNames) : null,
+      filterNames: filterNames.isNotEmpty ? jsonEncode(filterNames) : null,
       filterFocusOffsets: filterFocusOffsets.isNotEmpty
           ? jsonEncode(filterFocusOffsets)
           : null,
@@ -608,10 +615,9 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       try {
         final remoteProfiles = await backend.getProfiles();
         final activeRemote = await backend.getActiveProfile();
-        final profiles = remoteProfiles
-            .map(EquipmentProfileModel.fromRemoteProfile)
-            .toList()
-          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final profiles =
+            remoteProfiles.map(EquipmentProfileModel.fromRemoteProfile).toList()
+              ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
         EquipmentProfileModel? active;
         if (activeRemote != null) {
@@ -630,9 +636,7 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
           activeProfile: active,
         );
       } catch (e, stackTrace) {
-        _log.warning(
-          'Remote equipment profile fetch failed: $e\n$stackTrace',
-        );
+        _log.warning('Remote equipment profile fetch failed: $e\n$stackTrace');
         return EquipmentProfilesState(
           error: 'Could not load equipment profiles from host: $e',
         );
@@ -656,17 +660,11 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       active = EquipmentProfileModel.fromDatabase(activeStream.value!);
     }
 
-    return EquipmentProfilesState(
-      profiles: profiles,
-      activeProfile: active,
-    );
+    return EquipmentProfilesState(profiles: profiles, activeProfile: active);
   }
 
   /// Create a new profile
-  Future<int> createProfile({
-    required String name,
-    String? description,
-  }) async {
+  Future<int> createProfile({required String name, String? description}) async {
     final remote = _remoteBackend;
     if (remote != null) {
       await remote.saveProfile(
@@ -745,12 +743,14 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       defaultCoolingTemp: Value(profile.defaultCoolingTemp),
       coolOnConnect: profile.coolOnConnect,
       defaultCenteringExposure: Value(profile.defaultCenteringExposure),
-      filterNames: Value(profile.filterNames.isNotEmpty
-          ? jsonEncode(profile.filterNames)
-          : null),
-      filterFocusOffsets: Value(profile.filterFocusOffsets.isNotEmpty
-          ? jsonEncode(profile.filterFocusOffsets)
-          : null),
+      filterNames: Value(
+        profile.filterNames.isNotEmpty ? jsonEncode(profile.filterNames) : null,
+      ),
+      filterFocusOffsets: Value(
+        profile.filterFocusOffsets.isNotEmpty
+            ? jsonEncode(profile.filterFocusOffsets)
+            : null,
+      ),
       updatedAt: DateTime.now(),
     );
 
@@ -787,8 +787,10 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   }
 
   /// Set or clear the default startup profile.
-  Future<void> setDefaultProfile(int? profileId,
-      {bool makeActive = true}) async {
+  Future<void> setDefaultProfile(
+    int? profileId, {
+    bool makeActive = true,
+  }) async {
     final remote = _remoteBackend;
     if (remote != null) {
       final remoteProfiles = await remote.getProfiles();
@@ -798,9 +800,7 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
         if (existing.isDefault == shouldBeDefault) {
           continue;
         }
-        await remote.saveProfile(
-          existing.copyWith(isDefault: shouldBeDefault),
-        );
+        await remote.saveProfile(existing.copyWith(isDefault: shouldBeDefault));
       }
       if (profileId != null && makeActive) {
         await remote.loadProfile(profileId.toString());
@@ -834,7 +834,9 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
         throw StateError('Profile $sourceId not found on host');
       }
       await remote.saveProfile(
-        source.copyWith(id: null, name: newName, isActive: false).toRemoteProfile(),
+        source
+            .copyWith(id: null, name: newName, isActive: false)
+            .toRemoteProfile(),
       );
       final id = await _resolveRemoteProfileIdByName(newName);
       if (id == null) {
@@ -876,9 +878,10 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 /// Main provider for equipment profiles
 final equipmentProfilesProvider =
     AsyncNotifierProvider<EquipmentProfilesNotifier, EquipmentProfilesState>(
-        () {
-  return EquipmentProfilesNotifier();
-});
+      () {
+        return EquipmentProfilesNotifier();
+      },
+    );
 
 /// Provider for watching just the active profile (convenience)
 final activeEquipmentProfileProvider = Provider<EquipmentProfileModel?>((ref) {
@@ -887,8 +890,9 @@ final activeEquipmentProfileProvider = Provider<EquipmentProfileModel?>((ref) {
 });
 
 /// Provider for watching just the profile list (convenience)
-final equipmentProfileListProvider =
-    Provider<List<EquipmentProfileModel>>((ref) {
+final equipmentProfileListProvider = Provider<List<EquipmentProfileModel>>((
+  ref,
+) {
   final state = ref.watch(equipmentProfilesProvider);
   return state.valueOrNull?.profiles ?? [];
 });
@@ -926,8 +930,9 @@ final opticalConfigProvider = Provider<OpticalConfig?>((ref) {
   if (cameraState.deviceId != null &&
       cameraState.connectionState == DeviceConnectionState.connected) {
     // Watch camera capabilities for the connected camera
-    final capabilitiesAsync =
-        ref.watch(cameraCapabilitiesProvider(cameraState.deviceId!));
+    final capabilitiesAsync = ref.watch(
+      cameraCapabilitiesProvider(cameraState.deviceId!),
+    );
     final CameraCapabilities? capabilities = capabilitiesAsync.valueOrNull;
 
     if (capabilities != null) {

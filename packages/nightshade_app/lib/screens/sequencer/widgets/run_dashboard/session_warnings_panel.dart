@@ -85,9 +85,7 @@ class _RunDashboardSessionWarningsPanelState
                   ),
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   Icon(
-                    _expanded
-                        ? LucideIcons.chevronUp
-                        : LucideIcons.chevronDown,
+                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                     size: 14,
                     color: colors.textMuted,
                   ),

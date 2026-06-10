@@ -18,7 +18,8 @@ SessionReport _fakeReport({
   double? guideRmsTotal,
   List<SessionTargetReport>? targets,
 }) {
-  final targetsToUse = targets ??
+  final targetsToUse =
+      targets ??
       const [
         SessionTargetReport(
           targetId: 1,
@@ -44,26 +45,30 @@ SessionReport _fakeReport({
   // Override per-target frame counts so the test's framesAttempted /
   // framesAccepted arguments propagate consistently to the report.
   final effective = targetsToUse
-      .map((t) => SessionTargetReport(
-            targetId: t.targetId,
-            targetName: t.targetName,
-            filters: t.filters
-                .map((f) => SessionFilterReport(
-                      filter: f.filter,
-                      framesAttempted: framesAttempted,
-                      framesAccepted: framesAccepted,
-                      framesRejected: framesAttempted - framesAccepted,
-                      totalIntegrationSecs: f.totalIntegrationSecs,
-                      meanHfr: f.meanHfr,
-                      meanFwhm: f.meanFwhm,
-                      meanStarCount: f.meanStarCount,
-                      meanSnr: f.meanSnr,
-                      meanGuidingRmsTotal: f.meanGuidingRmsTotal,
-                      meanSensorTemp: f.meanSensorTemp,
-                      rejectionReasons: f.rejectionReasons,
-                    ))
-                .toList(),
-          ))
+      .map(
+        (t) => SessionTargetReport(
+          targetId: t.targetId,
+          targetName: t.targetName,
+          filters: t.filters
+              .map(
+                (f) => SessionFilterReport(
+                  filter: f.filter,
+                  framesAttempted: framesAttempted,
+                  framesAccepted: framesAccepted,
+                  framesRejected: framesAttempted - framesAccepted,
+                  totalIntegrationSecs: f.totalIntegrationSecs,
+                  meanHfr: f.meanHfr,
+                  meanFwhm: f.meanFwhm,
+                  meanStarCount: f.meanStarCount,
+                  meanSnr: f.meanSnr,
+                  meanGuidingRmsTotal: f.meanGuidingRmsTotal,
+                  meanSensorTemp: f.meanSensorTemp,
+                  rejectionReasons: f.rejectionReasons,
+                ),
+              )
+              .toList(),
+        ),
+      )
       .toList();
   return SessionReport(
     sessionId: 1,
@@ -73,8 +78,9 @@ SessionReport _fakeReport({
     endTime: DateTime(2026, 1, 1, 22).add(wallClock),
     wallClockDuration: wallClock,
     totalIntegration: integration,
-    effectiveImagingFraction:
-        wallClock.inSeconds > 0 ? integration.inSeconds / wallClock.inSeconds : 0,
+    effectiveImagingFraction: wallClock.inSeconds > 0
+        ? integration.inSeconds / wallClock.inSeconds
+        : 0,
     downtime: wallClock - integration,
     targets: effective,
     guideStats: SessionGuideStats(
@@ -163,21 +169,19 @@ void main() {
 
     test('produces a primary recommendation and alternates', () async {
       final plan = await service.optimizeTonight(
-        config: const TargetSuggestionConfig(
-          minAltitude: 0,
-          minScore: 0,
-        ),
+        config: const TargetSuggestionConfig(minAltitude: 0, minScore: 0),
         latitude: 40,
         longitude: -75,
         targets: [
           target(id: 1, name: 'Vega', ra: 18.6, dec: 38.8, objectType: 'Star'),
           target(id: 2, name: 'Deneb', ra: 20.7, dec: 45.3, objectType: 'Star'),
           target(
-              id: 3,
-              name: 'Andromeda',
-              ra: 0.7,
-              dec: 41.3,
-              objectType: 'Galaxy'),
+            id: 3,
+            name: 'Andromeda',
+            ra: 0.7,
+            dec: 41.3,
+            objectType: 'Galaxy',
+          ),
         ],
         sessions: const [],
         observationTime: DateTime(2026, 8, 1, 22),
@@ -195,9 +199,7 @@ void main() {
         config: const TargetSuggestionConfig(minAltitude: 80, minScore: 95),
         latitude: 40,
         longitude: -75,
-        targets: [
-          target(id: 1, name: 'Low South', ra: 12, dec: -70),
-        ],
+        targets: [target(id: 1, name: 'Low South', ra: 12, dec: -70)],
         sessions: const [],
         observationTime: DateTime(2026, 3, 1, 22),
       );
@@ -221,9 +223,7 @@ void main() {
             totalPlannedSubs: 100,
           ),
         ],
-        sessions: [
-          session(id: 1, targetId: 1, totalIntegrationSecs: 27000),
-        ],
+        sessions: [session(id: 1, targetId: 1, totalIntegrationSecs: 27000)],
         observationTime: DateTime(2026, 8, 1, 22),
       );
 
@@ -233,58 +233,56 @@ void main() {
       );
     });
 
-    test('uses Smart Night exposure math when exposure context is available',
-        () {
-      final plan = service.buildPlanFromSuggestions(
-        [
-          const TargetSuggestion(
-            targetId: 42,
-            targetName: 'North America Nebula',
-            raHours: 20.98,
-            decDegrees: 44.33,
-            totalScore: 91,
-            visibility: TargetVisibilityInfo(
-              currentAltitude: 62,
-              currentAzimuth: 120,
-              airmass: 1.1,
-              moonDistance: 110,
-              peakAltitude: 75,
-              hoursAboveMinAlt: 5.5,
+    test(
+      'uses Smart Night exposure math when exposure context is available',
+      () {
+        final plan = service.buildPlanFromSuggestions(
+          [
+            const TargetSuggestion(
+              targetId: 42,
+              targetName: 'North America Nebula',
+              raHours: 20.98,
+              decDegrees: 44.33,
+              totalScore: 91,
+              visibility: TargetVisibilityInfo(
+                currentAltitude: 62,
+                currentAzimuth: 120,
+                airmass: 1.1,
+                moonDistance: 110,
+                peakAltitude: 75,
+                hoursAboveMinAlt: 5.5,
+              ),
+              objectType: 'Emission Nebula',
+              magnitude: 4.0,
             ),
-            objectType: 'Emission Nebula',
-            magnitude: 4.0,
+          ],
+          generatedAt: DateTime(2026, 8, 1, 22),
+          exposureContext: const SmartNightExposureContext(
+            camera: CameraExposureSpec(
+              readNoiseE: 1.5,
+              fullWellE: 18000,
+              qePeak: 0.8,
+            ),
+            bortleClass: 5,
+            focalLengthMm: 480,
+            apertureMm: 80,
+            pixelSizeMicrons: 3.76,
+            availableFilterNames: ['Ha'],
           ),
-        ],
-        generatedAt: DateTime(2026, 8, 1, 22),
-        exposureContext: const SmartNightExposureContext(
-          camera: CameraExposureSpec(
-            readNoiseE: 1.5,
-            fullWellE: 18000,
-            qePeak: 0.8,
-          ),
-          bortleClass: 5,
-          focalLengthMm: 480,
-          apertureMm: 80,
-          pixelSizeMicrons: 3.76,
-          availableFilterNames: ['Ha'],
-        ),
-      );
+        );
 
-      expect(plan.recommendedExposureSeconds, equals(300));
-      expect(plan.recommendedFilterName, equals('Ha'));
-      expect(plan.recommendedFilterNames, equals(['Ha']));
-      expect(
-        plan.rationale.any((line) => line.contains('Glover')),
-        isTrue,
-      );
-      expect(
-        plan.riskFactors.any((line) => line.contains('lookup table')),
-        isFalse,
-      );
-    });
+        expect(plan.recommendedExposureSeconds, equals(300));
+        expect(plan.recommendedFilterName, equals('Ha'));
+        expect(plan.recommendedFilterNames, equals(['Ha']));
+        expect(plan.rationale.any((line) => line.contains('Glover')), isTrue);
+        expect(
+          plan.riskFactors.any((line) => line.contains('lookup table')),
+          isFalse,
+        );
+      },
+    );
 
-    test('planetary nebula prefers luminance over narrowband for exposure',
-        () {
+    test('planetary nebula prefers luminance over narrowband for exposure', () {
       const context = SmartNightExposureContext(
         camera: CameraExposureSpec(
           readNoiseE: 1.5,
@@ -324,68 +322,72 @@ void main() {
       expect(plan.recommendedFilterName, equals('L'));
       expect(plan.recommendedFilterNames, equals(['L', 'R', 'G', 'B']));
       expect(
-        context.selectFilterForTarget(
-          const TargetSuggestion(
-            targetId: 57,
-            targetName: 'M57',
-            raHours: 18.89,
-            decDegrees: 33.03,
-            totalScore: 88,
-            visibility: TargetVisibilityInfo(
-              currentAltitude: 62,
-              currentAzimuth: 120,
-              airmass: 1.1,
-              moonDistance: 110,
-              peakAltitude: 75,
-              hoursAboveMinAlt: 5.5,
-            ),
-            objectType: 'Planetary Nebula',
-          ),
-        ).name,
+        context
+            .selectFilterForTarget(
+              const TargetSuggestion(
+                targetId: 57,
+                targetName: 'M57',
+                raHours: 18.89,
+                decDegrees: 33.03,
+                totalScore: 88,
+                visibility: TargetVisibilityInfo(
+                  currentAltitude: 62,
+                  currentAzimuth: 120,
+                  airmass: 1.1,
+                  moonDistance: 110,
+                  peakAltitude: 75,
+                  hoursAboveMinAlt: 5.5,
+                ),
+                objectType: 'Planetary Nebula',
+              ),
+            )
+            .name,
         equals('L'),
       );
     });
 
-    test('generic nebula label prefers luminance over narrowband for exposure',
-        () {
-      const context = SmartNightExposureContext(
-        camera: CameraExposureSpec(
-          readNoiseE: 1.5,
-          fullWellE: 18000,
-          qePeak: 0.8,
-        ),
-        bortleClass: 5,
-        focalLengthMm: 480,
-        apertureMm: 80,
-        pixelSizeMicrons: 3.76,
-        availableFilterNames: ['L', 'Ha', 'OIII'],
-      );
-      final filter = context.selectFilterForTarget(
-        const TargetSuggestion(
-          targetId: 2244,
-          targetName: 'NGC 2244',
-          raHours: 6.32,
-          decDegrees: 4.9,
-          totalScore: 80,
-          visibility: TargetVisibilityInfo(
-            currentAltitude: 55,
-            currentAzimuth: 180,
-            airmass: 1.2,
-            moonDistance: 90,
-            peakAltitude: 70,
-            hoursAboveMinAlt: 4.0,
+    test(
+      'generic nebula label prefers luminance over narrowband for exposure',
+      () {
+        const context = SmartNightExposureContext(
+          camera: CameraExposureSpec(
+            readNoiseE: 1.5,
+            fullWellE: 18000,
+            qePeak: 0.8,
           ),
-          objectType: 'Nebula',
-        ),
-      );
+          bortleClass: 5,
+          focalLengthMm: 480,
+          apertureMm: 80,
+          pixelSizeMicrons: 3.76,
+          availableFilterNames: ['L', 'Ha', 'OIII'],
+        );
+        final filter = context.selectFilterForTarget(
+          const TargetSuggestion(
+            targetId: 2244,
+            targetName: 'NGC 2244',
+            raHours: 6.32,
+            decDegrees: 4.9,
+            totalScore: 80,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 55,
+              currentAzimuth: 180,
+              airmass: 1.2,
+              moonDistance: 90,
+              peakAltitude: 70,
+              hoursAboveMinAlt: 4.0,
+            ),
+            objectType: 'Nebula',
+          ),
+        );
 
-      expect(filter.name, equals('L'));
-    });
+        expect(filter.name, equals('L'));
+      },
+    );
 
-    test('falls back to Smart Night exposure math when context is unavailable',
-        () {
-      final plan = service.buildPlanFromSuggestions(
-        [
+    test(
+      'falls back to Smart Night exposure math when context is unavailable',
+      () {
+        final plan = service.buildPlanFromSuggestions([
           const TargetSuggestion(
             targetId: 43,
             targetName: 'Fallback Nebula',
@@ -403,46 +405,44 @@ void main() {
             objectType: 'Emission Nebula',
             magnitude: 4.0,
           ),
-        ],
-        generatedAt: DateTime(2026, 8, 1, 22),
-      );
+        ], generatedAt: DateTime(2026, 8, 1, 22));
 
-      expect(plan.recommendedExposureSeconds, greaterThan(0));
-      expect(plan.recommendedFilterName, equals('L'));
-      expect(
-        plan.rationale.any((line) => line.contains('Glover')),
-        isTrue,
-      );
-      expect(
-        plan.riskFactors.any((line) => line.contains('planning estimate')),
-        isTrue,
-      );
-    });
+        expect(plan.recommendedExposureSeconds, greaterThan(0));
+        expect(plan.recommendedFilterName, equals('L'));
+        expect(plan.rationale.any((line) => line.contains('Glover')), isTrue);
+        expect(
+          plan.riskFactors.any((line) => line.contains('planning estimate')),
+          isTrue,
+        );
+      },
+    );
 
-    test('builds mosaic exposure defaults from the shared Smart Night context',
-        () {
-      const context = SmartNightExposureContext(
-        camera: CameraExposureSpec(
-          readNoiseE: 1.5,
-          fullWellE: 18000,
-          qePeak: 0.8,
-        ),
-        bortleClass: 5,
-        focalLengthMm: 480,
-        apertureMm: 80,
-        pixelSizeMicrons: 3.76,
-        availableFilterNames: ['R', 'L', 'Ha'],
-      );
-      final exposure = smartNightMosaicExposureSettings(context);
+    test(
+      'builds mosaic exposure defaults from the shared Smart Night context',
+      () {
+        const context = SmartNightExposureContext(
+          camera: CameraExposureSpec(
+            readNoiseE: 1.5,
+            fullWellE: 18000,
+            qePeak: 0.8,
+          ),
+          bortleClass: 5,
+          focalLengthMm: 480,
+          apertureMm: 80,
+          pixelSizeMicrons: 3.76,
+          availableFilterNames: ['R', 'L', 'Ha'],
+        );
+        final exposure = smartNightMosaicExposureSettings(context);
 
-      expect(exposure.filterName, equals('L'));
-      expect(
-        exposure.exposureSeconds,
-        equals(context.recommendForFilter('L').seconds),
-      );
-      expect(exposure.exposuresPerPanel, equals(10));
-      expect(exposure.binning, equals(1));
-    });
+        expect(exposure.filterName, equals('L'));
+        expect(
+          exposure.exposureSeconds,
+          equals(context.recommendForFilter('L').seconds),
+        );
+        expect(exposure.exposuresPerPanel, equals(10));
+        expect(exposure.binning, equals(1));
+      },
+    );
 
     // ---------------------------------------------------------------
     // Wave 7 — post-session analyze() insights
@@ -466,7 +466,8 @@ void main() {
         ],
       );
       final altitudeInsight = insights.where(
-          (i) => i.kind == SessionInsightKind.altitudeWindow);
+        (i) => i.kind == SessionInsightKind.altitudeWindow,
+      );
       expect(altitudeInsight, isNotEmpty);
       final i = altitudeInsight.first;
       expect(i.applyHint, isNotNull);
@@ -477,19 +478,21 @@ void main() {
       expect(i.title, contains('40°'));
     });
 
-    test('analyze surfaces autofocusFrequency when AF runs are excessive',
-        () {
+    test('analyze surfaces autofocusFrequency when AF runs are excessive', () {
       final report = _fakeReport(
         wallClock: const Duration(hours: 4),
         autofocusRuns: 25, // 6.25/hour, above 4/hour threshold
       );
       final insights = service.analyze(report: report);
       final afInsight = insights.where(
-          (i) => i.kind == SessionInsightKind.autofocusFrequency);
+        (i) => i.kind == SessionInsightKind.autofocusFrequency,
+      );
       expect(afInsight, isNotEmpty);
       expect(afInsight.first.applyHint, isNotNull);
-      expect(afInsight.first.applyHint!.containsKey('autofocusInterval'),
-          isTrue);
+      expect(
+        afInsight.first.applyHint!.containsKey('autofocusInterval'),
+        isTrue,
+      );
     });
 
     test('analyze surfaces rejectionRate when reject fraction is high', () {
@@ -508,8 +511,7 @@ void main() {
       final report = _fakeReport(guideRmsTotal: 2.5);
       final insights = service.analyze(report: report);
       expect(
-        insights
-            .where((i) => i.kind == SessionInsightKind.guidingDegraded),
+        insights.where((i) => i.kind == SessionInsightKind.guidingDegraded),
         isNotEmpty,
       );
     });
@@ -523,8 +525,7 @@ void main() {
         ),
       );
       expect(
-        insights
-            .where((i) => i.kind == SessionInsightKind.guidingDegraded),
+        insights.where((i) => i.kind == SessionInsightKind.guidingDegraded),
         isEmpty,
       );
     });

@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/oversized_file_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/oversized_file_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Oversized file audit script not found: ${script.path}');
   }
@@ -42,7 +43,9 @@ Future<void> main() async {
     final report =
         jsonDecode(File(jsonPath).readAsStringSync()) as Map<String, dynamic>;
     _expect(
-        report['scannedFileCount'] == 5, 'should scan 5 hand-authored files');
+      report['scannedFileCount'] == 5,
+      'should scan 5 hand-authored files',
+    );
     _expect(report['warningFileCount'] == 3, 'should report 3 warning files');
     _expect(report['criticalFileCount'] == 1, 'should report 1 critical file');
     _expect(
@@ -54,21 +57,23 @@ Future<void> main() async {
       'should report 1 modularized source family',
     );
 
-    final criticalFiles =
-        (report['criticalFiles'] as List).cast<Map<String, dynamic>>();
+    final criticalFiles = (report['criticalFiles'] as List)
+        .cast<Map<String, dynamic>>();
     _expect(
       criticalFiles.single['path'] ==
           'packages/example/lib/src/critical_file.dart',
       'critical file path should be normalized relative path',
     );
 
-    final largestFiles =
-        (report['largestFiles'] as List).cast<Map<String, dynamic>>();
+    final largestFiles = (report['largestFiles'] as List)
+        .cast<Map<String, dynamic>>();
     _expect(
-      largestFiles.every((entry) =>
-          !entry['path'].toString().contains('.g.dart') &&
-          !entry['path'].toString().contains('vendor') &&
-          !entry['path'].toString().contains('generated_bridge_api')),
+      largestFiles.every(
+        (entry) =>
+            !entry['path'].toString().contains('.g.dart') &&
+            !entry['path'].toString().contains('vendor') &&
+            !entry['path'].toString().contains('generated_bridge_api'),
+      ),
       'generated-header, generated-name, and vendor files should be excluded',
     );
     final priorityCandidates = (report['prioritySplitCandidates'] as List)
@@ -76,9 +81,7 @@ Future<void> main() async {
     _expect(
       priorityCandidates.single['path'] ==
               'packages/nightshade_remote_protocol/lib/src/web_server.dart' &&
-          priorityCandidates.single['reason'].toString().contains(
-                'WebRTC',
-              ),
+          priorityCandidates.single['reason'].toString().contains('WebRTC'),
       'priority split candidates should preserve backend split rationale',
     );
     final modularizedFamilies = (report['modularizedSourceFamilies'] as List)
@@ -86,9 +89,7 @@ Future<void> main() async {
     _expect(
       modularizedFamilies.single['path'] ==
               'packages/nightshade_core/lib/src/backend/network_backend.dart' &&
-          modularizedFamilies.single['reason'].toString().contains(
-                'transport',
-              ),
+          modularizedFamilies.single['reason'].toString().contains('transport'),
       'modularized source families should preserve facade rationale',
     );
 
@@ -123,21 +124,9 @@ Future<void> main() async {
 }
 
 Future<void> _writeFixture(Directory root) async {
-  await _writeLines(
-    root,
-    'packages/example/lib/src/small.dart',
-    3,
-  );
-  await _writeLines(
-    root,
-    'packages/example/lib/src/warning_file.dart',
-    5,
-  );
-  await _writeLines(
-    root,
-    'packages/example/lib/src/critical_file.dart',
-    8,
-  );
+  await _writeLines(root, 'packages/example/lib/src/small.dart', 3);
+  await _writeLines(root, 'packages/example/lib/src/warning_file.dart', 5);
+  await _writeLines(root, 'packages/example/lib/src/critical_file.dart', 8);
   await _writeLines(
     root,
     'packages/nightshade_core/lib/src/backend/network_backend.dart',
@@ -148,11 +137,7 @@ Future<void> _writeFixture(Directory root) async {
     'packages/nightshade_remote_protocol/lib/src/web_server.dart',
     6,
   );
-  await _writeLines(
-    root,
-    'packages/example/lib/src/critical_file.g.dart',
-    20,
-  );
+  await _writeLines(root, 'packages/example/lib/src/critical_file.g.dart', 20);
   await _writeLines(
     root,
     'packages/example/lib/vendor/critical_vendor.dart',

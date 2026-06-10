@@ -10,15 +10,9 @@ class MosaicOverlap {
   /// Vertical overlap percentage (0-1)
   final double vertical;
 
-  const MosaicOverlap({
-    this.horizontal = 0.15,
-    this.vertical = 0.15,
-  });
+  const MosaicOverlap({this.horizontal = 0.15, this.vertical = 0.15});
 
-  MosaicOverlap copyWith({
-    double? horizontal,
-    double? vertical,
-  }) {
+  MosaicOverlap copyWith({double? horizontal, double? vertical}) {
     return MosaicOverlap(
       horizontal: horizontal ?? this.horizontal,
       vertical: vertical ?? this.vertical,
@@ -297,7 +291,9 @@ class MosaicPlanner {
   }
 
   static double _raOffsetHoursFromDegrees(
-      double eastOffsetDegrees, double decDegrees) {
+    double eastOffsetDegrees,
+    double decDegrees,
+  ) {
     final cosDec = math.cos(decDegrees * math.pi / 180.0);
     if (cosDec.abs() < 1e-6) {
       return 0.0;
@@ -374,16 +370,18 @@ class MosaicPlanner {
 
         final panelDec = (config.center.dec + dDec).clamp(-90.0, 90.0);
 
-        panels.add(PlanetariumMosaicPanel(
-          index: index,
-          row: row,
-          column: col,
-          center: CelestialCoordinate(ra: panelRa, dec: panelDec),
-          rotation: config.rotation,
-          fovWidth: config.panelFovWidth,
-          fovHeight: config.panelFovHeight,
-          priority: row * cols + col,
-        ));
+        panels.add(
+          PlanetariumMosaicPanel(
+            index: index,
+            row: row,
+            column: col,
+            center: CelestialCoordinate(ra: panelRa, dec: panelDec),
+            rotation: config.rotation,
+            fovWidth: config.panelFovWidth,
+            fovHeight: config.panelFovHeight,
+            priority: row * cols + col,
+          ),
+        );
 
         index++;
       }
@@ -422,21 +420,26 @@ class MosaicPlanner {
     final totalWidth = panelFovWidth + (columns - 1) * stepWidth;
     final totalHeight = panelFovHeight + (rows - 1) * stepHeight;
 
-    return generateMosaic(PlanetariumMosaicConfig(
-      center: center,
-      totalWidth: totalWidth,
-      totalHeight: totalHeight,
-      panelFovWidth: panelFovWidth,
-      panelFovHeight: panelFovHeight,
-      overlap: overlap,
-      rotation: rotation,
-      rows: rows,
-      columns: columns,
-    ));
+    return generateMosaic(
+      PlanetariumMosaicConfig(
+        center: center,
+        totalWidth: totalWidth,
+        totalHeight: totalHeight,
+        panelFovWidth: panelFovWidth,
+        panelFovHeight: panelFovHeight,
+        overlap: overlap,
+        rotation: rotation,
+        rows: rows,
+        columns: columns,
+      ),
+    );
   }
 
   /// Calculate slew distance between two panels
-  static double slewDistance(PlanetariumMosaicPanel from, PlanetariumMosaicPanel to) {
+  static double slewDistance(
+    PlanetariumMosaicPanel from,
+    PlanetariumMosaicPanel to,
+  ) {
     return AstronomyCalculations.angularSeparation(
       ra1Deg: from.center.ra * 15,
       dec1Deg: from.center.dec,
@@ -458,7 +461,10 @@ class MosaicPlanner {
   }
 
   /// Check if two panels overlap
-  static bool panelsOverlap(PlanetariumMosaicPanel a, PlanetariumMosaicPanel b) {
+  static bool panelsOverlap(
+    PlanetariumMosaicPanel a,
+    PlanetariumMosaicPanel b,
+  ) {
     // Simple AABB check (doesn't account for rotation properly)
     final aCorners = a.corners;
     final bCorners = b.corners;
@@ -496,9 +502,11 @@ class MosaicPlanner {
     for (var angle = 0.0; angle <= 90; angle += 5) {
       // Rotate the target dimensions
       final rad = angle * math.pi / 180;
-      final rotWidth = targetWidth * math.cos(rad).abs() +
+      final rotWidth =
+          targetWidth * math.cos(rad).abs() +
           targetHeight * math.sin(rad).abs();
-      final rotHeight = targetWidth * math.sin(rad).abs() +
+      final rotHeight =
+          targetWidth * math.sin(rad).abs() +
           targetHeight * math.cos(rad).abs();
 
       final (rows, cols) = calculatePanelCount(
@@ -521,30 +529,27 @@ class MosaicPlanner {
 }
 
 /// Export format for mosaic plans
-enum MosaicExportFormat {
-  json,
-  csv,
-  ninaSequence,
-  voyagerDragScript,
-}
+enum MosaicExportFormat { json, csv, ninaSequence, voyagerDragScript }
 
 /// Mosaic export utilities
 class MosaicExporter {
   /// Export mosaic plan to JSON
   static String toJson(MosaicPlan plan) {
     final panels = plan.panelsInCaptureOrder
-        .map((p) => {
-              'index': p.index,
-              'name': p.name,
-              'row': p.row,
-              'column': p.column,
-              'ra_hours': p.center.ra,
-              'ra_deg': p.center.ra * 15,
-              'dec_deg': p.center.dec,
-              'rotation_deg': p.rotation,
-              'fov_width_deg': p.fovWidth,
-              'fov_height_deg': p.fovHeight,
-            })
+        .map(
+          (p) => {
+            'index': p.index,
+            'name': p.name,
+            'row': p.row,
+            'column': p.column,
+            'ra_hours': p.center.ra,
+            'ra_deg': p.center.ra * 15,
+            'dec_deg': p.center.dec,
+            'rotation_deg': p.rotation,
+            'fov_width_deg': p.fovWidth,
+            'fov_height_deg': p.fovHeight,
+          },
+        )
         .toList();
 
     final data = {
@@ -571,11 +576,13 @@ class MosaicExporter {
     buffer.writeln('Panel,Row,Column,RA_Hours,RA_Degrees,Dec_Degrees,Rotation');
 
     for (final panel in plan.panelsInCaptureOrder) {
-      buffer.writeln('${panel.name},${panel.row},${panel.column},'
-          '${panel.center.ra.toStringAsFixed(6)},'
-          '${(panel.center.ra * 15).toStringAsFixed(6)},'
-          '${panel.center.dec.toStringAsFixed(6)},'
-          '${panel.rotation.toStringAsFixed(1)}');
+      buffer.writeln(
+        '${panel.name},${panel.row},${panel.column},'
+        '${panel.center.ra.toStringAsFixed(6)},'
+        '${(panel.center.ra * 15).toStringAsFixed(6)},'
+        '${panel.center.dec.toStringAsFixed(6)},'
+        '${panel.rotation.toStringAsFixed(1)}',
+      );
     }
 
     return buffer.toString();
@@ -592,15 +599,17 @@ class MosaicExporter {
 
     if (value is List) {
       if (value.isEmpty) return '[]';
-      final items =
-          value.map((e) => '$childPrefix${_encodeJson(e, indent + 1)}');
+      final items = value.map(
+        (e) => '$childPrefix${_encodeJson(e, indent + 1)}',
+      );
       return '[\n${items.join(',\n')}\n$prefix]';
     }
 
     if (value is Map) {
       if (value.isEmpty) return '{}';
       final items = value.entries.map(
-          (e) => '$childPrefix"${e.key}": ${_encodeJson(e.value, indent + 1)}');
+        (e) => '$childPrefix"${e.key}": ${_encodeJson(e.value, indent + 1)}',
+      );
       return '{\n${items.join(',\n')}\n$prefix}';
     }
 

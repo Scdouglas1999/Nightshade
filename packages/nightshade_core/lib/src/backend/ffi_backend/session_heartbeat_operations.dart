@@ -1,9 +1,9 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
-// =========================================================================
-// Image Download (for Mobile - local FFI)
-// =========================================================================
+  // =========================================================================
+  // Image Download (for Mobile - local FFI)
+  // =========================================================================
 
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
@@ -15,7 +15,7 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
     }
 
     try {
-      final imagesDao = ImagesDao(_database!);
+      final imagesDao = ImagesDao(_database);
       final dbImages = await imagesDao.getImagesForSession(sessionId);
 
       return dbImages.map((dbImg) {
@@ -60,7 +60,7 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
 
     try {
       // Get image metadata from database
-      final imagesDao = ImagesDao(_database!);
+      final imagesDao = ImagesDao(_database);
       final dbImage = await imagesDao.getImageById(imageId);
 
       if (dbImage == null) {
@@ -93,8 +93,11 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
   }
 
   @override
-  Future<void> downloadImage(int imageId, String localPath,
-      {void Function(double)? onProgress}) async {
+  Future<void> downloadImage(
+    int imageId,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) async {
     if (_database == null) {
       throw const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
@@ -104,7 +107,7 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
 
     try {
       // Get image metadata from database
-      final imagesDao = ImagesDao(_database!);
+      final imagesDao = ImagesDao(_database);
       final dbImage = await imagesDao.getImageById(imageId);
 
       if (dbImage == null) {
@@ -192,9 +195,9 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
     }
   }
 
-// =========================================================================
-// Device Health Monitoring
-// =========================================================================
+  // =========================================================================
+  // Device Health Monitoring
+  // =========================================================================
 
   @override
   Future<void> startDeviceHeartbeat({

@@ -1,4 +1,4 @@
-﻿import 'dart:io' show Platform;
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -204,8 +204,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             title: Row(
               children: [
-                Icon(NightshadeIcons.warning,
-                    size: 22, color: colors.warning),
+                Icon(NightshadeIcons.warning, size: 22, color: colors.warning),
                 const SizedBox(width: 12),
                 Text(
                   'Recover Sequence?',
@@ -287,7 +286,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           width: 80,
           child: Text(
             label,
-            style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
+            style:
+                NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
           ),
         ),
         Expanded(
@@ -417,177 +417,179 @@ class _AppShellState extends ConsumerState<AppShell> {
         // "Ready to image" panel).
         final Widget shell = OnboardingTourReplayLauncher(
           child: TutorialOverlay(
-          child: Scaffold(
-            backgroundColor: colors.background,
-            body: Column(
-              children: [
-                // Desktop title bar (window drag + global actions). Hidden on
-                // mobile — bottom nav covers primary routes; saves vertical space.
-                if (!useBottomNav) const TitleBar(),
+            child: Scaffold(
+              backgroundColor: colors.background,
+              body: Column(
+                children: [
+                  // Desktop title bar (window drag + global actions). Hidden on
+                  // mobile — bottom nav covers primary routes; saves vertical space.
+                  if (!useBottomNav) const TitleBar(),
 
-                // Disconnected banner — DESKTOP ONLY. On phone the dedicated
-                // connection strip is gone (it wasted the cover screen's scarce
-                // height); remote-connection state lives as a small ambient dot
-                // in the status bar (tap → connection sheet). On desktop the
-                // indicator stays in the TitleBar and this full-width banner
-                // still flags a dropped server connection.
-                if (!useBottomNav &&
-                    ref.watch(sequencerBackendProvider) is DisconnectedBackend)
-                  Container(
-                    width: double.infinity,
-                    color: colors.error,
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      l10n.text('disconnectedBanner'),
-                      textAlign: TextAlign.center,
-                      style: NightshadeTypography.labelQuiet.copyWith(color: Theme.of(context).colorScheme.onError),
+                  // Disconnected banner — DESKTOP ONLY. On phone the dedicated
+                  // connection strip is gone (it wasted the cover screen's scarce
+                  // height); remote-connection state lives as a small ambient dot
+                  // in the status bar (tap → connection sheet). On desktop the
+                  // indicator stays in the TitleBar and this full-width banner
+                  // still flags a dropped server connection.
+                  if (!useBottomNav &&
+                      ref.watch(sequencerBackendProvider)
+                          is DisconnectedBackend)
+                    Container(
+                      width: double.infinity,
+                      color: colors.error,
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        l10n.text('disconnectedBanner'),
+                        textAlign: TextAlign.center,
+                        style: NightshadeTypography.labelQuiet.copyWith(
+                            color: Theme.of(context).colorScheme.onError),
+                      ),
                     ),
-                  ),
 
-                // iOS background-monitoring advisory (audit §3.2). Renders
-                // above the weather banner so it's the first thing the
-                // operator sees while a sequence is running on iOS.
-                const IosBackgroundBanner(),
+                  // iOS background-monitoring advisory (audit §3.2). Renders
+                  // above the weather banner so it's the first thing the
+                  // operator sees while a sequence is running on iOS.
+                  const IosBackgroundBanner(),
 
-                // Android POST_NOTIFICATIONS advisory (P1-16a). Visible
-                // whenever the runtime permission is denied on Android 13+
-                // so the operator knows sequence/safety alerts will not
-                // wake them and points to System Settings.
-                const AndroidNotificationsBanner(),
+                  // Android POST_NOTIFICATIONS advisory (P1-16a). Visible
+                  // whenever the runtime permission is denied on Android 13+
+                  // so the operator knows sequence/safety alerts will not
+                  // wake them and points to System Settings.
+                  const AndroidNotificationsBanner(),
 
-                // Stale-connection advisory (audit §3.6). Visible during
-                // the WS reconnect grace window so the operator knows
-                // controls may be momentarily out of date.
-                const ConnectionStaleBanner(),
+                  // Stale-connection advisory (audit §3.6). Visible during
+                  // the WS reconnect grace window so the operator knows
+                  // controls may be momentarily out of date.
+                  const ConnectionStaleBanner(),
 
-                // Weather Alert Banner
-                const WeatherAlertBanner(),
+                  // Weather Alert Banner
+                  const WeatherAlertBanner(),
 
-                // Main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Side navigation (Desktop only)
-                      if (!useBottomNav)
-                        SideNavigation(
-                          key: TutorialKeys.sideNavigation,
-                          tutorialKeys: [
-                            TutorialKeys.navDashboard,
-                            TutorialKeys.navEquipment,
-                            TutorialKeys.navImaging,
-                            TutorialKeys.navGuiding,
-                            TutorialKeys.navSequencer,
-                            TutorialKeys.navPlanetarium,
-                            TutorialKeys.navFraming,
-                            TutorialKeys.navAnalytics,
-                            TutorialKeys.navFlatWizard,
-                            TutorialKeys.navWeather,
-                            TutorialKeys.navPlanner,
-                            // Scheduler merged into Plan Tonight as a tab
-                            // (§UX consolidation, W8-SCHED-MERGE), so its
-                            // top-level nav slot is gone. TutorialKeys.
-                            // navScheduler still exists for one release so a
-                            // stale deep-link from the previous onboarding
-                            // tour does not crash; the onboarding step now
-                            // targets TutorialKeys.navPlanner instead.
-                            // Diagnostics moved into Analytics as a tab
-                            // (§UX consolidation), so its top-level nav slot
-                            // (and tutorial key) are no longer wired here.
-                          ],
-                          currentIndex: currentIndex,
-                          onTabSelected: (index) =>
-                              _onTabSelected(index, context),
-                          isExpanded: isSideNavExpanded,
-                          onToggleExpanded: () {
-                            final currentSettings =
-                                ref.read(appSettingsProvider).valueOrNull;
-                            if (currentSettings != null) {
-                              ref
-                                  .read(appSettingsProvider.notifier)
-                                  .setSidebarCollapsed(
-                                      !currentSettings.sidebarCollapsed);
-                            } else {
-                              setState(() {
-                                _fallbackSideNavExpanded =
-                                    !_fallbackSideNavExpanded;
-                              });
-                            }
-                          },
-                        ),
+                  // Main content
+                  Expanded(
+                    child: Row(
+                      children: [
+                        // Side navigation (Desktop only)
+                        if (!useBottomNav)
+                          SideNavigation(
+                            key: TutorialKeys.sideNavigation,
+                            tutorialKeys: [
+                              TutorialKeys.navDashboard,
+                              TutorialKeys.navEquipment,
+                              TutorialKeys.navImaging,
+                              TutorialKeys.navGuiding,
+                              TutorialKeys.navSequencer,
+                              TutorialKeys.navPlanetarium,
+                              TutorialKeys.navFraming,
+                              TutorialKeys.navAnalytics,
+                              TutorialKeys.navFlatWizard,
+                              TutorialKeys.navWeather,
+                              TutorialKeys.navPlanner,
+                              // Scheduler merged into Plan Tonight as a tab
+                              // (§UX consolidation, W8-SCHED-MERGE), so its
+                              // top-level nav slot is gone. TutorialKeys.
+                              // navScheduler still exists for one release so a
+                              // stale deep-link from the previous onboarding
+                              // tour does not crash; the onboarding step now
+                              // targets TutorialKeys.navPlanner instead.
+                              // Diagnostics moved into Analytics as a tab
+                              // (§UX consolidation), so its top-level nav slot
+                              // (and tutorial key) are no longer wired here.
+                            ],
+                            currentIndex: currentIndex,
+                            onTabSelected: (index) =>
+                                _onTabSelected(index, context),
+                            isExpanded: isSideNavExpanded,
+                            onToggleExpanded: () {
+                              final currentSettings =
+                                  ref.read(appSettingsProvider).valueOrNull;
+                              if (currentSettings != null) {
+                                ref
+                                    .read(appSettingsProvider.notifier)
+                                    .setSidebarCollapsed(
+                                        !currentSettings.sidebarCollapsed);
+                              } else {
+                                setState(() {
+                                  _fallbackSideNavExpanded =
+                                      !_fallbackSideNavExpanded;
+                                });
+                              }
+                            },
+                          ),
 
-                      // Main content area
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: colors.background,
-                            border: Border(
-                              left: useBottomNav
-                                  ? BorderSide.none
-                                  : BorderSide(
-                                      color: colors.border,
-                                      width: 1,
-                                    ),
+                        // Main content area
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: colors.background,
+                              border: Border(
+                                left: useBottomNav
+                                    ? BorderSide.none
+                                    : BorderSide(
+                                        color: colors.border,
+                                        width: 1,
+                                      ),
+                              ),
+                            ),
+                            child: Stack(
+                              children: [
+                                // On phone there is no desktop TitleBar above the
+                                // content, so inset the top edge clear of the
+                                // status bar / notch. Desktop keeps zero inset
+                                // (the TitleBar already owns that space).
+                                SafeArea(
+                                  top: useBottomNav,
+                                  bottom: false,
+                                  child: widget.child,
+                                ),
+                                // Mobile sequence overlay (only on mobile and sequencer screen)
+                                if (useBottomNav &&
+                                    currentLocation.split('?').first ==
+                                        '/sequencer')
+                                  const MobileSequenceOverlay(),
+                                // Autofocus progress overlay
+                                const AutofocusProgressOverlay(),
+                                // Toast notifications - always on top
+                                const NotificationToastOverlay(),
+                              ],
                             ),
                           ),
-                          child: Stack(
-                            children: [
-                              // On phone there is no desktop TitleBar above the
-                              // content, so inset the top edge clear of the
-                              // status bar / notch. Desktop keeps zero inset
-                              // (the TitleBar already owns that space).
-                              SafeArea(
-                                top: useBottomNav,
-                                bottom: false,
-                                child: widget.child,
-                              ),
-                              // Mobile sequence overlay (only on mobile and sequencer screen)
-                              if (useBottomNav &&
-                                  currentLocation.split('?').first ==
-                                      '/sequencer')
-                                const MobileSequenceOverlay(),
-                              // Autofocus progress overlay
-                              const AutofocusProgressOverlay(),
-                              // Toast notifications - always on top
-                              const NotificationToastOverlay(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bottom chrome. On phone the status bar + bottom nav live in
-                // one auto-hiding block (immersive) so they reclaim the short
-                // cover-screen height when idle; on desktop the status bar is
-                // pinned and navigation is the side rail (no bottom nav).
-                if (useBottomNav)
-                  ImmersiveBottomChrome(
-                    visible: chromeVisible,
-                    onToggle: immersive.toggle,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const StatusBar(compact: true),
-                        NightshadeBottomNavigation(
-                          currentRoute: currentLocation,
-                          onRouteSelected: (route) {
-                            try {
-                              context.go(route);
-                            } catch (_) {
-                              // Router might not be available yet, ignore.
-                            }
-                          },
                         ),
                       ],
                     ),
-                  )
-                else
-                  const StatusBar(compact: false),
-              ],
+                  ),
+
+                  // Bottom chrome. On phone the status bar + bottom nav live in
+                  // one auto-hiding block (immersive) so they reclaim the short
+                  // cover-screen height when idle; on desktop the status bar is
+                  // pinned and navigation is the side rail (no bottom nav).
+                  if (useBottomNav)
+                    ImmersiveBottomChrome(
+                      visible: chromeVisible,
+                      onToggle: immersive.toggle,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const StatusBar(compact: true),
+                          NightshadeBottomNavigation(
+                            currentRoute: currentLocation,
+                            onRouteSelected: (route) {
+                              try {
+                                context.go(route);
+                              } catch (_) {
+                                // Router might not be available yet, ignore.
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const StatusBar(compact: false),
+                ],
+              ),
+              bottomNavigationBar: null,
             ),
-            bottomNavigationBar: null,
-          ),
           ),
         );
 
@@ -601,8 +603,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         final uiScale = (mq.size.shortestSide / 440.0).clamp(0.82, 1.0);
         return MediaQuery(
           data: mq.copyWith(
-            textScaler:
-                TextScaler.linear(mq.textScaler.scale(1.0) * uiScale),
+            textScaler: TextScaler.linear(mq.textScaler.scale(1.0) * uiScale),
           ),
           child: shell,
         );

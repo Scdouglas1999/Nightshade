@@ -60,7 +60,11 @@ class NightshadeSwitchRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           labelWidget,
-          SizedBox(width: compact ? NightshadeTokens.spaceXs : NightshadeTokens.spaceSm),
+          SizedBox(
+            width: compact
+                ? NightshadeTokens.spaceXs
+                : NightshadeTokens.spaceSm,
+          ),
           switchWidget,
         ],
       );
@@ -77,20 +81,20 @@ class NightshadeSwitchRow extends StatelessWidget {
   }
 
   Widget _buildLabel(NightshadeColors colors) {
-    final effectiveLabelStyle = labelStyle ??
+    final effectiveLabelStyle =
+        labelStyle ??
         NightshadeTypography.bodySm.copyWith(
           color: colors.textSecondary,
           fontSize: compact ? 12 : null,
         );
-    final effectiveSubtitleStyle = subtitleStyle ??
+    final effectiveSubtitleStyle =
+        subtitleStyle ??
         NightshadeTypography.caption.copyWith(color: colors.textMuted);
 
     final titleRow = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: Text(label, style: effectiveLabelStyle),
-        ),
+        Flexible(child: Text(label, style: effectiveLabelStyle)),
         if (tooltip != null) ...[
           const SizedBox(width: NightshadeTokens.spaceXs),
           NightshadeTooltip(

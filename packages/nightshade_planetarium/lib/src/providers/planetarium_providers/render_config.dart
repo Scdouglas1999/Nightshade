@@ -45,18 +45,21 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   }
 
   void toggleConstellationLines() {
-    state =
-        state.copyWith(showConstellationLines: !state.showConstellationLines);
+    state = state.copyWith(
+      showConstellationLines: !state.showConstellationLines,
+    );
   }
 
   void toggleConstellationLabels() {
-    state =
-        state.copyWith(showConstellationLabels: !state.showConstellationLabels);
+    state = state.copyWith(
+      showConstellationLabels: !state.showConstellationLabels,
+    );
   }
 
   void toggleConstellationBoundaries() {
     state = state.copyWith(
-        showConstellationBoundaries: !state.showConstellationBoundaries);
+      showConstellationBoundaries: !state.showConstellationBoundaries,
+    );
   }
 
   void toggleDSOs() {
@@ -144,8 +147,9 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   }
 
   void toggleCardinalDirections() {
-    state =
-        state.copyWith(showCardinalDirections: !state.showCardinalDirections);
+    state = state.copyWith(
+      showCardinalDirections: !state.showCardinalDirections,
+    );
   }
 
   void toggleMeridian() {
@@ -155,8 +159,8 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
 
 final skyRenderConfigProvider =
     StateNotifierProvider<SkyRenderConfigNotifier, SkyRenderConfig>((ref) {
-  return SkyRenderConfigNotifier();
-});
+      return SkyRenderConfigNotifier();
+    });
 
 /// Computed render config that combines the base config with the ground plane toggle
 /// This is the provider that should be used for actual rendering to ensure
@@ -218,17 +222,20 @@ class RenderQualityNotifier extends StateNotifier<RenderQualityConfig> {
 /// Provider for render quality configuration (user's manual selection)
 final renderQualityProvider =
     StateNotifierProvider<RenderQualityNotifier, RenderQualityConfig>((ref) {
-  return RenderQualityNotifier();
-});
+      return RenderQualityNotifier();
+    });
 
 /// LOD quality tier based on current field of view
 enum LodTier {
   /// Wide FOV (>60 degrees): reduce quality for performance
   wide,
+
   /// Medium-wide FOV (30-60 degrees): moderate quality
   mediumWide,
+
   /// Medium FOV (10-30 degrees): balanced rendering
   medium,
+
   /// Narrow FOV (<10 degrees): full quality, show maximum detail
   narrow,
 }
@@ -262,7 +269,8 @@ final fovAdaptiveQualityProvider = Provider<RenderQualityConfig>((ref) {
       // DSOs are passed based on FOV, so this cap is just a safeguard.
       return userQuality.copyWith(
         useBlurEffects: false,
-        useGlowEffects: userQuality.quality != RenderQuality.performance &&
+        useGlowEffects:
+            userQuality.quality != RenderQuality.performance &&
             userQuality.quality != RenderQuality.minimal,
         enableEnhancedDsoSymbols: false,
         enablePlanetDetails: false,
@@ -329,7 +337,9 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final fov = viewState.fieldOfView;
   // When stars are hidden the sky has no star clutter to declutter against, so
   // DSOs should be visible at any zoom rather than fading in as you zoom.
-  final showStars = ref.watch(skyRenderConfigProvider.select((c) => c.showStars));
+  final showStars = ref.watch(
+    skyRenderConfigProvider.select((c) => c.showStars),
+  );
 
   // Base limits from quality tier
   final baseStarLimit = quality.starMagnitudeLimit;
@@ -346,7 +356,10 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   // Formula: fovFactor = 2.0 * log2(120 / clampedFov) - capped so we don't exceed catalog depth.
   // Using log2 gives a smooth ramp that increases ~2 magnitudes per halving of FOV.
   final clampedFov = fov.clamp(1.0, 120.0);
-  final fovFactor = (2.0 * math.log(120.0 / clampedFov) / math.ln2).clamp(0.0, 7.0);
+  final fovFactor = (2.0 * math.log(120.0 / clampedFov) / math.ln2).clamp(
+    0.0,
+    7.0,
+  );
 
   // Sky brightness penalty: reduce limiting magnitude when the sky is bright.
   // Penalties are intentionally modest because the planetarium is a planning

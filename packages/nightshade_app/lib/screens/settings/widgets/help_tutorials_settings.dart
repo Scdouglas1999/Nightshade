@@ -12,8 +12,7 @@ import 'settings_widgets.dart';
 class HelpTutorialsSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const HelpTutorialsSettings(
-      {super.key, this.isMobile = false});
+  const HelpTutorialsSettings({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -296,54 +295,56 @@ class HelpTutorialsSettings extends ConsumerWidget {
       builder: (ctx) {
         final colors = NightshadeColors.of(ctx);
         return AlertDialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          side: BorderSide(color: colors.border),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.error,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            side: BorderSide(color: colors.border),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.error,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                ),
+                child: Icon(LucideIcons.alertTriangle,
+                    color: colors.error, size: 20),
               ),
-              child: Icon(LucideIcons.alertTriangle,
-                  color: colors.error, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                'Reset Tutorial Progress?',
+                style:
+                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              ),
+            ],
+          ),
+          content: Text(
+            'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize13,
             ),
-            const SizedBox(width: 12),
-            Text(
-              'Reset Tutorial Progress?',
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            NightshadeButton(
+              label: 'Reset',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () {
+                Navigator.pop(ctx);
+                ref.read(tutorialProvider.notifier).resetProgress();
+              },
             ),
           ],
-        ),
-        content: Text(
-          'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-        ),
-        actions: [
-          NightshadeButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.pop(ctx),
-          ),
-          NightshadeButton(
-            label: 'Reset',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(tutorialProvider.notifier).resetProgress();
-            },
-          ),
-        ],
-      );
+        );
       },
     );
   }
@@ -374,7 +375,7 @@ class _TutorialRow extends StatelessWidget {
     required this.onResume,
     required this.onRestart,
     this.isLast = false,
-    });
+  });
 
   String get _statusText {
     if (isCompleted) {
@@ -431,11 +432,13 @@ class _TutorialRow extends StatelessWidget {
               decoration: isCompleted
                   ? NightshadeDecorations.tintedBadge(
                       colors.success,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                     )
                   : BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
               child: Icon(
                 icon,
@@ -452,7 +455,8 @@ class _TutorialRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.label
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Row(

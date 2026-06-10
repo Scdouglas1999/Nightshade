@@ -25,8 +25,7 @@ class DiskSpaceInfo {
 
   int get usedBytes => totalBytes - freeBytes;
 
-  double get freeFraction =>
-      totalBytes > 0 ? freeBytes / totalBytes : 0.0;
+  double get freeFraction => totalBytes > 0 ? freeBytes / totalBytes : 0.0;
 
   @override
   String toString() =>
@@ -118,18 +117,14 @@ class DiskSpaceService {
     // Get-PSDrive returns Used + Free in bytes. We script it explicitly to a
     // simple `Free<TAB>Used` line so parsing is robust against locale-dependent
     // table formatting (German Windows etc.).
-    final result = await Process.run(
-      'powershell',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        // Trailing newline avoided; use Out-String -NoNewline isn't 5.1-safe.
-        '\$d = Get-PSDrive -Name $driveLetter -ErrorAction Stop; '
-            'Write-Output ("\$(\$d.Free)`t\$(\$d.Used)")',
-      ],
-      runInShell: false,
-    );
+    final result = await Process.run('powershell', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      // Trailing newline avoided; use Out-String -NoNewline isn't 5.1-safe.
+      '\$d = Get-PSDrive -Name $driveLetter -ErrorAction Stop; '
+          'Write-Output ("\$(\$d.Free)`t\$(\$d.Used)")',
+    ], runInShell: false);
 
     if (result.exitCode != 0) {
       throw DiskSpaceException(
@@ -141,10 +136,7 @@ class DiskSpaceService {
     final line = (result.stdout as String).trim();
     final parts = line.split('\t');
     if (parts.length != 2) {
-      throw DiskSpaceException(
-        path,
-        'Unexpected Get-PSDrive output: "$line"',
-      );
+      throw DiskSpaceException(path, 'Unexpected Get-PSDrive output: "$line"');
     }
     final free = int.tryParse(parts[0].trim());
     final used = int.tryParse(parts[1].trim());
@@ -167,11 +159,7 @@ class DiskSpaceService {
   ///   /dev/disk1s1 488245288 123456 365432 26% /
   /// We parse line 2.
   Future<DiskSpaceInfo> _queryPosix(String path) async {
-    final result = await Process.run(
-      'df',
-      ['-Pk', path],
-      runInShell: false,
-    );
+    final result = await Process.run('df', ['-Pk', path], runInShell: false);
 
     if (result.exitCode != 0) {
       throw DiskSpaceException(

@@ -31,25 +31,29 @@ class _FakePairingServer {
       switch (request.uri.path) {
         case '/api/info':
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'name': 'Fake',
-            'version': '2.6.0',
-            'apiVersion': '2.6.0',
-            'authRequired': true,
-            'pairingSupported': true,
-            if (fingerprint != null) 'fingerprint': fingerprint,
-          }));
+          request.response.write(
+            jsonEncode({
+              'name': 'Fake',
+              'version': '2.6.0',
+              'apiVersion': '2.6.0',
+              'authRequired': true,
+              'pairingSupported': true,
+              if (fingerprint != null) 'fingerprint': fingerprint,
+            }),
+          );
           break;
         case '/api/pairing/verify':
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'token': 'scoped-token-abc',
-            'tokenScope': 'control',
-            'expiresAt': DateTime.now()
-                .toUtc()
-                .add(const Duration(hours: 12))
-                .toIso8601String(),
-          }));
+          request.response.write(
+            jsonEncode({
+              'token': 'scoped-token-abc',
+              'tokenScope': 'control',
+              'expiresAt': DateTime.now()
+                  .toUtc()
+                  .add(const Duration(hours: 12))
+                  .toIso8601String(),
+            }),
+          );
           break;
         default:
           request.response.statusCode = HttpStatus.notFound;
@@ -71,10 +75,7 @@ void main() {
     });
 
     test('rejects empty secret', () {
-      expect(
-        () => computeServerFingerprint(''),
-        throwsArgumentError,
-      );
+      expect(() => computeServerFingerprint(''), throwsArgumentError);
     });
   });
 
@@ -127,61 +128,65 @@ void main() {
       expect(server.servedPaths, contains('/api/pairing/verify'));
     });
 
-    test('verify throws and never sends the code when fingerprint differs',
-        () async {
-      server = _FakePairingServer(fingerprint: 'SERVER-FP-REAL');
-      await server.start();
-      final client = RemotePairingClient(
-        host: '127.0.0.1',
-        port: server.port,
-        pinnedFingerprint: 'EXPECTED-FP-DIFFERENT',
-      );
+    test(
+      'verify throws and never sends the code when fingerprint differs',
+      () async {
+        server = _FakePairingServer(fingerprint: 'SERVER-FP-REAL');
+        await server.start();
+        final client = RemotePairingClient(
+          host: '127.0.0.1',
+          port: server.port,
+          pinnedFingerprint: 'EXPECTED-FP-DIFFERENT',
+        );
 
-      await expectLater(
-        client.verify(
-          code: 'STAR-LYRA-1234',
-          deviceId: 'device-1',
-          deviceName: 'Test Phone',
-        ),
-        throwsA(isA<RemotePairingFingerprintMismatch>()),
-      );
+        await expectLater(
+          client.verify(
+            code: 'STAR-LYRA-1234',
+            deviceId: 'device-1',
+            deviceName: 'Test Phone',
+          ),
+          throwsA(isA<RemotePairingFingerprintMismatch>()),
+        );
 
-      // The whole point of pinning: the code must NOT have been transmitted.
-      expect(server.servedPaths, contains('/api/info'));
-      expect(server.servedPaths, isNot(contains('/api/pairing/verify')));
-    });
+        // The whole point of pinning: the code must NOT have been transmitted.
+        expect(server.servedPaths, contains('/api/info'));
+        expect(server.servedPaths, isNot(contains('/api/pairing/verify')));
+      },
+    );
 
-    test('verify fails closed when the server reports no fingerprint',
-        () async {
-      server = _FakePairingServer(fingerprint: null);
-      await server.start();
-      final client = RemotePairingClient(
-        host: '127.0.0.1',
-        port: server.port,
-        pinnedFingerprint: 'EXPECTED-FP',
-      );
+    test(
+      'verify fails closed when the server reports no fingerprint',
+      () async {
+        server = _FakePairingServer(fingerprint: null);
+        await server.start();
+        final client = RemotePairingClient(
+          host: '127.0.0.1',
+          port: server.port,
+          pinnedFingerprint: 'EXPECTED-FP',
+        );
 
-      await expectLater(
-        client.verify(
-          code: 'STAR-LYRA-1234',
-          deviceId: 'device-1',
-          deviceName: 'Test Phone',
-        ),
-        throwsA(
-          isA<RemotePairingFingerprintMismatch>()
-              .having((e) => e.actual, 'actual', isNull),
-        ),
-      );
-      expect(server.servedPaths, isNot(contains('/api/pairing/verify')));
-    });
+        await expectLater(
+          client.verify(
+            code: 'STAR-LYRA-1234',
+            deviceId: 'device-1',
+            deviceName: 'Test Phone',
+          ),
+          throwsA(
+            isA<RemotePairingFingerprintMismatch>().having(
+              (e) => e.actual,
+              'actual',
+              isNull,
+            ),
+          ),
+        );
+        expect(server.servedPaths, isNot(contains('/api/pairing/verify')));
+      },
+    );
 
     test('verify skips the pre-flight entirely when no pin is set', () async {
       server = _FakePairingServer(fingerprint: 'IRRELEVANT');
       await server.start();
-      final client = RemotePairingClient(
-        host: '127.0.0.1',
-        port: server.port,
-      );
+      final client = RemotePairingClient(host: '127.0.0.1', port: server.port);
 
       final result = await client.verify(
         code: 'STAR-LYRA-1234',
@@ -198,8 +203,7 @@ void main() {
     test('fetchFingerprint returns the advertised value', () async {
       server = _FakePairingServer(fingerprint: 'FETCHED-FP');
       await server.start();
-      final client =
-          RemotePairingClient(host: '127.0.0.1', port: server.port);
+      final client = RemotePairingClient(host: '127.0.0.1', port: server.port);
       expect(await client.fetchFingerprint(), 'FETCHED-FP');
     });
   });

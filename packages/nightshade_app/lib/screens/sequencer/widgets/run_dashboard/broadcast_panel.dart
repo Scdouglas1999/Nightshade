@@ -48,8 +48,7 @@ class _InactiveCard extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
-            Icon(LucideIcons.cast,
-                color: theme.colorScheme.onSurfaceVariant),
+            Icon(LucideIcons.cast, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -185,7 +184,8 @@ class _ActiveCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFFFF),
                     border: Border.all(color: cs.outlineVariant),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: _BroadcastQr(url: url),
                 ),

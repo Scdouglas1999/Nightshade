@@ -11,8 +11,7 @@ import 'equipment/rotator_state_provider.dart';
 import 'usb_disconnect_log_provider.dart';
 
 /// Service provider for EquipmentHealthService.
-final equipmentHealthServiceProvider =
-    Provider<EquipmentHealthService>((ref) {
+final equipmentHealthServiceProvider = Provider<EquipmentHealthService>((ref) {
   return const EquipmentHealthService();
 });
 
@@ -24,8 +23,9 @@ final equipmentHealthServiceProvider =
 ///
 /// Tests can override this provider with a static list if they want to
 /// bypass the live wiring (e.g. preflight_rules_test does exactly that).
-final deviceHealthSnapshotsProvider =
-    Provider<List<DeviceHealthSnapshot>>((ref) {
+final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
+  ref,
+) {
   final service = ref.watch(equipmentHealthServiceProvider);
   final disconnectLog = ref.watch(usbDisconnectLogProvider);
 
@@ -41,38 +41,62 @@ final deviceHealthSnapshotsProvider =
   // insight.
   final camera = ref.watch(cameraStateProvider);
   if (camera.deviceId != null && camera.deviceId!.isNotEmpty) {
-    descriptors.add(DeviceConnectionDescriptor(
-      deviceId: camera.deviceId!,
-      deviceLabel: camera.deviceName,
-      isHealthy: camera.isHealthy,
-      lastSuccessfulCommunication: camera.lastSuccessfulCommunication,
-    ));
+    descriptors.add(
+      DeviceConnectionDescriptor(
+        deviceId: camera.deviceId!,
+        deviceLabel: camera.deviceName,
+        isHealthy: camera.isHealthy,
+        lastSuccessfulCommunication: camera.lastSuccessfulCommunication,
+      ),
+    );
   }
 
-  void addBasic(String? deviceId, String? deviceLabel,
-      DeviceConnectionState connectionState, bool hasError) {
+  void addBasic(
+    String? deviceId,
+    String? deviceLabel,
+    DeviceConnectionState connectionState,
+    bool hasError,
+  ) {
     if (deviceId == null || deviceId.isEmpty) return;
     final isHealthy =
         connectionState == DeviceConnectionState.connected && !hasError;
-    descriptors.add(DeviceConnectionDescriptor(
-      deviceId: deviceId,
-      deviceLabel: deviceLabel,
-      isHealthy: isHealthy,
-    ));
+    descriptors.add(
+      DeviceConnectionDescriptor(
+        deviceId: deviceId,
+        deviceLabel: deviceLabel,
+        isHealthy: isHealthy,
+      ),
+    );
   }
 
   final mount = ref.watch(mountStateProvider);
-  addBasic(mount.deviceId, mount.deviceName, mount.connectionState,
-      mount.hasError);
+  addBasic(
+    mount.deviceId,
+    mount.deviceName,
+    mount.connectionState,
+    mount.hasError,
+  );
   final focuser = ref.watch(focuserStateProvider);
-  addBasic(focuser.deviceId, focuser.deviceName, focuser.connectionState,
-      focuser.hasError);
+  addBasic(
+    focuser.deviceId,
+    focuser.deviceName,
+    focuser.connectionState,
+    focuser.hasError,
+  );
   final filterWheel = ref.watch(filterWheelStateProvider);
-  addBasic(filterWheel.deviceId, filterWheel.deviceName,
-      filterWheel.connectionState, filterWheel.hasError);
+  addBasic(
+    filterWheel.deviceId,
+    filterWheel.deviceName,
+    filterWheel.connectionState,
+    filterWheel.hasError,
+  );
   final rotator = ref.watch(rotatorStateProvider);
-  addBasic(rotator.deviceId, rotator.deviceName, rotator.connectionState,
-      rotator.hasError);
+  addBasic(
+    rotator.deviceId,
+    rotator.deviceName,
+    rotator.connectionState,
+    rotator.hasError,
+  );
 
   return service.buildSnapshots(
     connected: descriptors,
@@ -86,19 +110,19 @@ final deviceHealthSnapshotsProvider =
 /// Re-evaluates whenever the sessions stream or device-health state changes.
 final equipmentHealthReportProvider =
     Provider<AsyncValue<EquipmentHealthReport>>((ref) {
-  final sessionsAsync = ref.watch(allSessionsProvider);
-  final deviceHealth = ref.watch(deviceHealthSnapshotsProvider);
-  final service = ref.watch(equipmentHealthServiceProvider);
+      final sessionsAsync = ref.watch(allSessionsProvider);
+      final deviceHealth = ref.watch(deviceHealthSnapshotsProvider);
+      final service = ref.watch(equipmentHealthServiceProvider);
 
-  return sessionsAsync.when(
-    data: (sessions) {
-      final report = service.analyze(
-        sessions: sessions,
-        deviceHealth: deviceHealth,
+      return sessionsAsync.when(
+        data: (sessions) {
+          final report = service.analyze(
+            sessions: sessions,
+            deviceHealth: deviceHealth,
+          );
+          return AsyncValue.data(report);
+        },
+        loading: () => const AsyncValue.loading(),
+        error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
       );
-      return AsyncValue.data(report);
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
-  );
-});
+    });

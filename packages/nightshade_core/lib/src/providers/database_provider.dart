@@ -100,8 +100,9 @@ final allDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
 final favoriteDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return _pollRemoteTargets(backend).map(
-        (targets) => targets.where((target) => target.isFavorite).toList());
+    return _pollRemoteTargets(
+      backend,
+    ).map((targets) => targets.where((target) => target.isFavorite).toList());
   }
   return ref.watch(targetsDaoProvider).watchFavoriteTargets();
 });
@@ -143,14 +144,15 @@ final allDbImagesProvider = StreamProvider<List<db.CapturedImage>>((ref) {
 });
 
 /// Load a captured image row by id.
-final capturedImageByIdProvider =
-    FutureProvider.family<db.CapturedImage?, int>((ref, imageId) {
-  final backend = ref.watch(backendProvider);
-  if (backend is NetworkBackend) {
-    return ref.watch(imagingRecordsRepositoryProvider).getImageById(imageId);
-  }
-  return ref.watch(imagesDaoProvider).getImageById(imageId);
-});
+final capturedImageByIdProvider = FutureProvider.family<db.CapturedImage?, int>(
+  (ref, imageId) {
+    final backend = ref.watch(backendProvider);
+    if (backend is NetworkBackend) {
+      return ref.watch(imagingRecordsRepositoryProvider).getImageById(imageId);
+    }
+    return ref.watch(imagesDaoProvider).getImageById(imageId);
+  },
+);
 
 class CapturedImageWcsData {
   final int id;
@@ -172,25 +174,25 @@ class CapturedImageWcsData {
 
 final capturedImageWcsProvider =
     FutureProvider.family<CapturedImageWcsData?, int>((ref, imageId) async {
-  final backend = ref.watch(backendProvider);
-  db.CapturedImage? row;
-  if (backend is NetworkBackend) {
-    row = await ref.watch(capturedImageByIdProvider(imageId).future);
-  } else {
-    row = await ref.watch(imagesDaoProvider).getImageById(imageId);
-  }
-  if (row == null) {
-    return null;
-  }
-  return CapturedImageWcsData(
-    id: row.id,
-    isPlateSolved: row.isPlateSolved,
-    solvedRaHours: row.solvedRa,
-    solvedDecDegrees: row.solvedDec,
-    solvedRotationDegrees: row.solvedRotation,
-    solvedPixelScaleArcsecPerPixel: row.solvedPixelScale,
-  );
-});
+      final backend = ref.watch(backendProvider);
+      db.CapturedImage? row;
+      if (backend is NetworkBackend) {
+        row = await ref.watch(capturedImageByIdProvider(imageId).future);
+      } else {
+        row = await ref.watch(imagesDaoProvider).getImageById(imageId);
+      }
+      if (row == null) {
+        return null;
+      }
+      return CapturedImageWcsData(
+        id: row.id,
+        isPlateSolved: row.isPlateSolved,
+        solvedRaHours: row.solvedRa,
+        solvedDecDegrees: row.solvedDec,
+        solvedRotationDegrees: row.solvedRotation,
+        solvedPixelScaleArcsecPerPixel: row.solvedPixelScale,
+      );
+    });
 
 /// Watch all settings as a map
 final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
@@ -312,7 +314,8 @@ Stream<List<db.ImagingSession>> _pollRemoteSessions(
 }
 
 Stream<List<db.CapturedImage>> _pollRemoteImages(
-    NetworkBackend backend) async* {
+  NetworkBackend backend,
+) async* {
   yield await _fetchRemoteImages(backend);
   while (true) {
     await Future.delayed(const Duration(seconds: 10));
@@ -361,7 +364,8 @@ Future<List<db.ImagingSession>> _fetchRemoteSessions(
 }
 
 Future<List<db.CapturedImage>> _fetchRemoteImages(
-    NetworkBackend backend) async {
+  NetworkBackend backend,
+) async {
   final images = await backend.getAllImageRows();
   final mapped = images.map(_imageFromJson).toList();
   mapped.sort((a, b) => a.capturedAt.compareTo(b.capturedAt));

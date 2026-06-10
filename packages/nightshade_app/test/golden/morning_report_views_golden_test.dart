@@ -184,8 +184,8 @@ void main() {
 /// image decode settle, without `pumpAndSettle` (charts + futures never idle).
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump(const Duration(milliseconds: 20));
   }
 }

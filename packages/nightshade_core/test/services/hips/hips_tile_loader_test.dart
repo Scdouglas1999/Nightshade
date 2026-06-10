@@ -171,36 +171,41 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('HipsTileLoader debounce', () {
-    test('coalesces a burst of viewports into a single recompute generation',
-        () async {
-      final clock = _FakeClock();
-      final server = _MockHipsServer();
-      final fetcher = HipsTileFetcher(httpClient: server.build());
-      final cache = HipsTileCache(maxEntries: 256, maxBytes: 64 * 1024 * 1024);
-      final loader = HipsTileLoader(
-        cache: cache,
-        fetcher: fetcher,
-        clock: clock,
-        debounce: const Duration(milliseconds: 90),
-      );
-      addTearDown(loader.dispose);
+    test(
+      'coalesces a burst of viewports into a single recompute generation',
+      () async {
+        final clock = _FakeClock();
+        final server = _MockHipsServer();
+        final fetcher = HipsTileFetcher(httpClient: server.build());
+        final cache = HipsTileCache(
+          maxEntries: 256,
+          maxBytes: 64 * 1024 * 1024,
+        );
+        final loader = HipsTileLoader(
+          cache: cache,
+          fetcher: fetcher,
+          clock: clock,
+          debounce: const Duration(milliseconds: 90),
+        );
+        addTearDown(loader.dispose);
 
-      // Emit a burst of distinct viewports (a pan gesture).
-      loader.requestTiles(_viewport(pan: const ui.Offset(0, 0)));
-      loader.requestTiles(_viewport(pan: const ui.Offset(5, 0)));
-      loader.requestTiles(_viewport(pan: const ui.Offset(10, 0)));
+        // Emit a burst of distinct viewports (a pan gesture).
+        loader.requestTiles(_viewport(pan: const ui.Offset(0, 0)));
+        loader.requestTiles(_viewport(pan: const ui.Offset(5, 0)));
+        loader.requestTiles(_viewport(pan: const ui.Offset(10, 0)));
 
-      // Only one timer should be active (the trailing one); earlier ones were
-      // cancelled and replaced.
-      expect(clock.activeCount, 1);
-      expect(loader.generation, 0); // not yet computed
+        // Only one timer should be active (the trailing one); earlier ones were
+        // cancelled and replaced.
+        expect(clock.activeCount, 1);
+        expect(loader.generation, 0); // not yet computed
 
-      clock.fireAll();
-      await _drainMicrotasks();
+        clock.fireAll();
+        await _drainMicrotasks();
 
-      // Exactly one recompute generation ran for the burst.
-      expect(loader.generation, 1);
-    });
+        // Exactly one recompute generation ran for the burst.
+        expect(loader.generation, 1);
+      },
+    );
 
     test('identical stationary viewport is a no-op (no reschedule)', () async {
       final clock = _FakeClock();
@@ -226,115 +231,130 @@ void main() {
   });
 
   group('HipsTileLoader fetch + cache + snapshot', () {
-    test('fetches selected-order tiles and Allsky, populates snapshot',
-        () async {
-      final clock = _FakeClock();
-      final server = _MockHipsServer();
-      final cache = HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024);
-      final loader = HipsTileLoader(
-        cache: cache,
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'fetches selected-order tiles and Allsky, populates snapshot',
+      () async {
+        final clock = _FakeClock();
+        final server = _MockHipsServer();
+        final cache = HipsTileCache(
+          maxEntries: 512,
+          maxBytes: 64 * 1024 * 1024,
+        );
+        final loader = HipsTileLoader(
+          cache: cache,
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      var notifications = 0;
-      loader.addListener(() => notifications++);
+        var notifications = 0;
+        loader.addListener(() => notifications++);
 
-      loader.requestTiles(_viewport(zoom: 1.0));
-      clock.fireAll();
-      await _drainMicrotasks();
-      await _drainMicrotasks();
+        loader.requestTiles(_viewport(zoom: 1.0));
+        clock.fireAll();
+        await _drainMicrotasks();
+        await _drainMicrotasks();
 
-      // The snapshot advanced past empty.
-      expect(loader.snapshot.version, greaterThan(0));
-      expect(notifications, greaterThan(0));
-      // Primary tiles became resident.
-      expect(loader.snapshot.primaryTiles, isNotEmpty);
-      expect(loader.snapshot.selectedNorder, greaterThanOrEqualTo(3));
-      // An Allsky request was issued at the min order (3).
-      expect(
-        server.requestedUrls.any((u) => u.contains('Norder3/Allsky.png')),
-        isTrue,
-      );
-      // The Allsky base layer is resident in the snapshot.
-      expect(loader.snapshot.allsky, isNotNull);
-      // Every resident primary tile's image is borrowable from the snapshot.
-      for (final tile in loader.snapshot.primaryTiles) {
-        expect(loader.snapshot.cacheSnapshot.contains(tile.id), isTrue);
-      }
-    });
+        // The snapshot advanced past empty.
+        expect(loader.snapshot.version, greaterThan(0));
+        expect(notifications, greaterThan(0));
+        // Primary tiles became resident.
+        expect(loader.snapshot.primaryTiles, isNotEmpty);
+        expect(loader.snapshot.selectedNorder, greaterThanOrEqualTo(3));
+        // An Allsky request was issued at the min order (3).
+        expect(
+          server.requestedUrls.any((u) => u.contains('Norder3/Allsky.png')),
+          isTrue,
+        );
+        // The Allsky base layer is resident in the snapshot.
+        expect(loader.snapshot.allsky, isNotNull);
+        // Every resident primary tile's image is borrowable from the snapshot.
+        for (final tile in loader.snapshot.primaryTiles) {
+          expect(loader.snapshot.cacheSnapshot.contains(tile.id), isTrue);
+        }
+      },
+    );
 
     test(
-        'fetches the Allsky at the standard order (3), NOT hips_order_min, for a '
-        'survey that omits hips_order_min (real DSS 404s Norder0/1/2 Allsky)',
-        () async {
-      final clock = _FakeClock();
-      final server = _MockHipsServer();
-      // Mirror real CDS DSS: the Allsky exists ONLY at the standard order 3.
-      // Requesting it at the survey min order (0) would 404, so if the loader
-      // (wrongly) fetched at hips_order_min the base layer would never load.
-      for (final order in const [0, 1, 2]) {
-        server.notFound
-            .add(HipsTileId.allskyUrl(_baseUrl, order, HipsTileFormat.png));
-      }
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+      'fetches the Allsky at the standard order (3), NOT hips_order_min, for a '
+      'survey that omits hips_order_min (real DSS 404s Norder0/1/2 Allsky)',
+      () async {
+        final clock = _FakeClock();
+        final server = _MockHipsServer();
+        // Mirror real CDS DSS: the Allsky exists ONLY at the standard order 3.
+        // Requesting it at the survey min order (0) would 404, so if the loader
+        // (wrongly) fetched at hips_order_min the base layer would never load.
+        for (final order in const [0, 1, 2]) {
+          server.notFound.add(
+            HipsTileId.allskyUrl(_baseUrl, order, HipsTileFormat.png),
+          );
+        }
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      // A survey that OMITS hips_order_min -> defaults to 0, but allskyOrder = 3.
-      final props = HipsProperties.parse('''
+        // A survey that OMITS hips_order_min -> defaults to 0, but allskyOrder = 3.
+        final props = HipsProperties.parse('''
 hips_order        = 9
 hips_tile_width   = 512
 hips_tile_format  = png
 hips_frame        = equatorial
 ''');
-      expect(props.hipsOrderMin, 0);
-      expect(props.allskyOrder, 3);
+        expect(props.hipsOrderMin, 0);
+        expect(props.allskyOrder, 3);
 
-      final viewport = HipsViewport(
-        plateScale: const FramingPlateScale(
-          surveyFovWidthDeg: 1.5,
-          surveyFovHeightDeg: 1.5,
-          imagePixelWidth: 1200,
-          imagePixelHeight: 1200,
-        ),
-        target: const FramingTarget(name: 'M42', raHours: 5.5, decDegrees: -5.4),
-        canvasSize: const ui.Size(1200, 900),
-        zoom: 1.0,
-        pan: ui.Offset.zero,
-        rotationDegrees: 0.0,
-        baseUrl: _baseUrl,
-        surveyId: _surveyId,
-        format: HipsTileFormat.png,
-        props: props,
-      );
+        final viewport = HipsViewport(
+          plateScale: const FramingPlateScale(
+            surveyFovWidthDeg: 1.5,
+            surveyFovHeightDeg: 1.5,
+            imagePixelWidth: 1200,
+            imagePixelHeight: 1200,
+          ),
+          target: const FramingTarget(
+            name: 'M42',
+            raHours: 5.5,
+            decDegrees: -5.4,
+          ),
+          canvasSize: const ui.Size(1200, 900),
+          zoom: 1.0,
+          pan: ui.Offset.zero,
+          rotationDegrees: 0.0,
+          baseUrl: _baseUrl,
+          surveyId: _surveyId,
+          format: HipsTileFormat.png,
+          props: props,
+        );
 
-      loader.requestTiles(viewport);
-      clock.fireAll();
-      await _drainMicrotasks();
-      await _drainMicrotasks();
+        loader.requestTiles(viewport);
+        clock.fireAll();
+        await _drainMicrotasks();
+        await _drainMicrotasks();
 
-      // The Allsky was requested at the STANDARD order 3, never at order 0.
-      expect(
-        server.requestedUrls.any((u) => u.contains('Norder3/Allsky.png')),
-        isTrue,
-        reason: 'the Allsky must be fetched at the standard order 3',
-      );
-      expect(
-        server.requestedUrls
-            .any((u) => u.contains('Norder0/Allsky.png')),
-        isFalse,
-        reason: 'the loader must NOT request the Allsky at hips_order_min (0)',
-      );
-      // The never-blank base layer actually loaded.
-      expect(loader.snapshot.allsky, isNotNull,
-          reason: 'the Allsky base layer must be resident for the never-blank '
-              'guarantee to hold for a real DSS-style survey');
-    });
+        // The Allsky was requested at the STANDARD order 3, never at order 0.
+        expect(
+          server.requestedUrls.any((u) => u.contains('Norder3/Allsky.png')),
+          isTrue,
+          reason: 'the Allsky must be fetched at the standard order 3',
+        );
+        expect(
+          server.requestedUrls.any((u) => u.contains('Norder0/Allsky.png')),
+          isFalse,
+          reason:
+              'the loader must NOT request the Allsky at hips_order_min (0)',
+        );
+        // The never-blank base layer actually loaded.
+        expect(
+          loader.snapshot.allsky,
+          isNotNull,
+          reason:
+              'the Allsky base layer must be resident for the never-blank '
+              'guarantee to hold for a real DSS-style survey',
+        );
+      },
+    );
 
     test('dedups concurrent in-flight requests for the same tile', () async {
       final clock = _FakeClock();
@@ -414,69 +434,75 @@ hips_frame        = equatorial
       expect(loader.snapshot.failures, isEmpty);
     });
 
-    test('parent (ipix>>2) fallback prefetch is issued one order coarser',
-        () async {
-      final clock = _FakeClock();
-      final server = _MockHipsServer();
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'parent (ipix>>2) fallback prefetch is issued one order coarser',
+      () async {
+        final clock = _FakeClock();
+        final server = _MockHipsServer();
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      loader.requestTiles(_viewport(zoom: 1.0));
-      clock.fireAll();
-      await _drainMicrotasks();
-      await _drainMicrotasks();
+        loader.requestTiles(_viewport(zoom: 1.0));
+        clock.fireAll();
+        await _drainMicrotasks();
+        await _drainMicrotasks();
 
-      final selected = loader.snapshot.selectedNorder;
-      expect(selected, greaterThan(3));
-      final parentOrder = selected - 1;
-      // At least one parent-order tile was requested as a prefetch.
-      expect(
-        server.requestedUrls
-            .any((u) => u.contains('Norder$parentOrder/')),
-        isTrue,
-        reason: 'expected a parent-order (Norder$parentOrder) prefetch',
-      );
-    });
+        final selected = loader.snapshot.selectedNorder;
+        expect(selected, greaterThan(3));
+        final parentOrder = selected - 1;
+        // At least one parent-order tile was requested as a prefetch.
+        expect(
+          server.requestedUrls.any((u) => u.contains('Norder$parentOrder/')),
+          isTrue,
+          reason: 'expected a parent-order (Norder$parentOrder) prefetch',
+        );
+      },
+    );
 
-    test('lower-order tile shows as fallback under a not-yet-loaded sharp tile',
-        () async {
-      final clock = _FakeClock();
-      final server = _MockHipsServer();
-      final cache = HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024);
-      final loader = HipsTileLoader(
-        cache: cache,
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'lower-order tile shows as fallback under a not-yet-loaded sharp tile',
+      () async {
+        final clock = _FakeClock();
+        final server = _MockHipsServer();
+        final cache = HipsTileCache(
+          maxEntries: 512,
+          maxBytes: 64 * 1024 * 1024,
+        );
+        final loader = HipsTileLoader(
+          cache: cache,
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      // First settle a coarse view so parent-order tiles are resident.
-      loader.requestTiles(_viewport(zoom: 0.5));
-      clock.fireAll();
-      await _drainMicrotasks();
-      await _drainMicrotasks();
-      final coarseNorder = loader.snapshot.selectedNorder;
+        // First settle a coarse view so parent-order tiles are resident.
+        loader.requestTiles(_viewport(zoom: 0.5));
+        clock.fireAll();
+        await _drainMicrotasks();
+        await _drainMicrotasks();
+        final coarseNorder = loader.snapshot.selectedNorder;
 
-      // Now zoom in so the selected order increases; the sharp tiles are not
-      // resident yet at the instant of the recompute, so the coarser resident
-      // tiles must appear as fallbacks (never blank).
-      server.gate = Completer<void>(); // hold the new sharp tiles in flight
-      loader.requestTiles(_viewport(zoom: 2.0));
-      clock.fireAll();
-      await _drainMicrotasks();
+        // Now zoom in so the selected order increases; the sharp tiles are not
+        // resident yet at the instant of the recompute, so the coarser resident
+        // tiles must appear as fallbacks (never blank).
+        server.gate = Completer<void>(); // hold the new sharp tiles in flight
+        loader.requestTiles(_viewport(zoom: 2.0));
+        clock.fireAll();
+        await _drainMicrotasks();
 
-      final sharpNorder = loader.snapshot.selectedNorder;
-      expect(sharpNorder, greaterThan(coarseNorder));
-      // The view is not blank: either fallbacks or the Allsky base cover it.
-      expect(loader.snapshot.hasAnyImagery, isTrue);
+        final sharpNorder = loader.snapshot.selectedNorder;
+        expect(sharpNorder, greaterThan(coarseNorder));
+        // The view is not blank: either fallbacks or the Allsky base cover it.
+        expect(loader.snapshot.hasAnyImagery, isTrue);
 
-      server.gate!.complete();
-      await _drainMicrotasks();
-    });
+        server.gate!.complete();
+        await _drainMicrotasks();
+      },
+    );
   });
 
   group('HipsTileLoader error handling', () {
@@ -495,17 +521,15 @@ hips_frame        = equatorial
       // Make the Allsky 404 so we get a deterministic surfaced failure.
       loader.requestTiles(_viewport());
       // Mark the allsky url as 404 before firing.
-      server.notFound
-          .add(HipsTileId.allskyUrl(_baseUrl, 3, HipsTileFormat.png));
+      server.notFound.add(
+        HipsTileId.allskyUrl(_baseUrl, 3, HipsTileFormat.png),
+      );
       clock.fireAll();
       await _drainMicrotasks();
       await _drainMicrotasks();
 
       expect(sink.failures, isNotEmpty);
-      expect(
-        sink.failures.first.error,
-        isA<HipsFetchHttpException>(),
-      );
+      expect(sink.failures.first.error, isA<HipsFetchHttpException>());
     });
   });
 

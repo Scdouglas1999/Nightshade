@@ -130,7 +130,9 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           Text(
             'Computed from your location\'s astronomical twilight. '
             'You can narrow it if you don\'t want to image the full night.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
           if (start == null || end == null)
@@ -140,7 +142,8 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -259,7 +262,8 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -619,7 +623,9 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               child: Text(
                 _previewError!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
             ),
             const SizedBox(height: 12),
@@ -652,7 +658,8 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             const SizedBox(height: 12),
             Text(
               'Warnings',
-              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 6),
             for (final w in plan.warnings)
@@ -705,7 +712,8 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -718,7 +726,8 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                     const SizedBox(width: 10),
                     Text(
                       'Plan ready',
-                      style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h4
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),

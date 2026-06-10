@@ -48,8 +48,7 @@ class ScienceHandlers {
     final calibrations = await scienceDao.getCalibrationsForSession(sid);
     final transparency = await scienceDao.getTransparencyForSession(sid);
     final psfTiles = await scienceDao.getPsfTilesForSession(sid);
-    final frameQuality =
-        await scienceDao.getFrameQualityMetricsForSession(sid);
+    final frameQuality = await scienceDao.getFrameQualityMetricsForSession(sid);
     final tileMetrics = await scienceDao.getTileMetricsForSession(sid);
     final residuals = await scienceDao.getResidualsForSession(sid);
     final movingObjects = await scienceDao.getMovingObjectsForSession(sid);
@@ -70,14 +69,13 @@ class ScienceHandlers {
 
   Future<Response> handleGetScienceSettings(Request request) async {
     _logInfo('[API] GET /api/science/settings');
-    final settings =
-        await container.read(settingsDaoProvider).getAllSettings();
+    final settings = await container.read(settingsDaoProvider).getAllSettings();
     final filtered = settings.entries
         .where((entry) => entry.key.startsWith('science.'))
         .fold<Map<String, String>>({}, (map, entry) {
-      map[entry.key] = entry.value;
-      return map;
-    });
+          map[entry.key] = entry.value;
+          return map;
+        });
     return jsonOk({'settings': filtered});
   }
 
@@ -127,8 +125,9 @@ class ScienceHandlers {
     final sid = _parsePathId(sessionId, 'sessionId');
     final payload = await readJsonObject(request);
     final configJson = optionalObject(payload, 'config') ?? const {};
-    final config =
-        ScienceSessionConfig.fromJson(configJson).copyWith(sessionId: sid);
+    final config = ScienceSessionConfig.fromJson(
+      configJson,
+    ).copyWith(sessionId: sid);
     await container
         .read(databaseProvider)
         .scienceDao
@@ -141,23 +140,29 @@ class ScienceHandlers {
     final database = container.read(databaseProvider);
     final scienceDao = database.scienceDao;
 
-    final photometry =
-        await scienceDao.watchSessionlessPhotometryRecent().first;
-    final calibrations =
-        await scienceDao.watchSessionlessCalibrationsRecent().first;
-    final transparency =
-        await scienceDao.watchSessionlessTransparencyRecent().first;
+    final photometry = await scienceDao
+        .watchSessionlessPhotometryRecent()
+        .first;
+    final calibrations = await scienceDao
+        .watchSessionlessCalibrationsRecent()
+        .first;
+    final transparency = await scienceDao
+        .watchSessionlessTransparencyRecent()
+        .first;
     final psfTiles = await scienceDao.watchSessionlessPsfTilesRecent().first;
-    final frameQuality =
-        await scienceDao.watchSessionlessFrameQualityMetricsRecent().first;
-    final tileMetrics =
-        await scienceDao.watchSessionlessTileMetricsRecent().first;
-    final residuals =
-        await scienceDao.watchSessionlessResidualsRecent().first;
-    final movingObjects =
-        await scienceDao.watchSessionlessMovingObjectsRecent().first;
-    final lineRatios =
-        await scienceDao.watchSessionlessLineRatiosRecent().first;
+    final frameQuality = await scienceDao
+        .watchSessionlessFrameQualityMetricsRecent()
+        .first;
+    final tileMetrics = await scienceDao
+        .watchSessionlessTileMetricsRecent()
+        .first;
+    final residuals = await scienceDao.watchSessionlessResidualsRecent().first;
+    final movingObjects = await scienceDao
+        .watchSessionlessMovingObjectsRecent()
+        .first;
+    final lineRatios = await scienceDao
+        .watchSessionlessLineRatiosRecent()
+        .first;
 
     return jsonOk({
       'photometry': photometry.map((row) => row.toJson()).toList(),
@@ -176,8 +181,9 @@ class ScienceHandlers {
     _logInfo('[API] GET /api/science/transforms');
     final database = container.read(databaseProvider);
     final scienceDao = database.scienceDao;
-    final profileId =
-        int.tryParse(request.url.queryParameters['profileId'] ?? '');
+    final profileId = int.tryParse(
+      request.url.queryParameters['profileId'] ?? '',
+    );
 
     final transforms = profileId == null
         ? await scienceDao.getAllTransforms()
@@ -197,8 +203,12 @@ class ScienceHandlers {
     final database = container.read(databaseProvider);
     final images = await database.imagesDao.getImagesForSession(sid);
 
-    final ha =
-        _findLatestByFilter(images, {'ha', 'halpha', 'h-alpha', 'h alpha'});
+    final ha = _findLatestByFilter(images, {
+      'ha',
+      'halpha',
+      'h-alpha',
+      'h alpha',
+    });
     final oiii = _findLatestByFilter(images, {'oiii', 'o3'});
     final sii = _findLatestByFilter(images, {'sii', 's2'});
 
@@ -208,7 +218,9 @@ class ScienceHandlers {
       });
     }
 
-    await container.read(scienceProcessingServiceProvider).generateLineRatios(
+    await container
+        .read(scienceProcessingServiceProvider)
+        .generateLineRatios(
           sessionId: sid,
           set: NarrowbandSet(
             hAlphaPath: ha.filePath,
@@ -226,10 +238,7 @@ class ScienceHandlers {
     });
   }
 
-  Future<Response> handleExportAavso(
-    Request request,
-    String sessionId,
-  ) async {
+  Future<Response> handleExportAavso(Request request, String sessionId) async {
     _logInfo('[API] POST /api/science/session/$sessionId/export/aavso');
     final sid = _parsePathId(sessionId, 'sessionId');
     final payload = await readJsonObject(request);
@@ -341,7 +350,8 @@ class ScienceHandlers {
     double airmass = 1.0;
     if (image.mountAltitude != null && image.mountAltitude! > 0) {
       final altitudeRadians = image.mountAltitude! * math.pi / 180.0;
-      airmass = 1.0 /
+      airmass =
+          1.0 /
           (math.sin(altitudeRadians) +
               0.50572 * math.pow(image.mountAltitude! + 6.07995, -1.6364));
       airmass = airmass.clamp(1.0, 8.0);
@@ -374,7 +384,8 @@ class ScienceHandlers {
     final catalogManager = CatalogManager.instance;
     List<HygStarData> catalogStars = const [];
     if (catalogManager.isInitialized) {
-      final searchRadiusDeg = math.sqrt(
+      final searchRadiusDeg =
+          math.sqrt(
                 wcs.fieldWidthDegrees * wcs.fieldWidthDegrees +
                     wcs.fieldHeightDegrees * wcs.fieldHeightDegrees,
               ) *
@@ -402,9 +413,11 @@ class ScienceHandlers {
         height: fits.height.toDouble(),
       );
       if (projected != null) {
-        projectedCatalog.add(
-          (x: projected.x, y: projected.y, star: catalogStar),
-        );
+        projectedCatalog.add((
+          x: projected.x,
+          y: projected.y,
+          star: catalogStar,
+        ));
       }
     }
 
@@ -416,9 +429,8 @@ class ScienceHandlers {
         continue;
       }
 
-      final instrumentalMagnitude = -2.5 *
-          math.log(star.flux.clamp(1e-30, double.infinity)) /
-          math.ln10;
+      final instrumentalMagnitude =
+          -2.5 * math.log(star.flux.clamp(1e-30, double.infinity)) / math.ln10;
       final catalogV = instrumentalMagnitude + zeroPoint;
       if (!catalogV.isFinite || catalogV < 4 || catalogV > 20) {
         continue;
@@ -463,10 +475,12 @@ class ScienceHandlers {
         CatalogStarMatch(
           x: star.x,
           y: star.y,
-          raDegrees:
-              bestIndex != null ? projectedCatalog[bestIndex].star.ra : 0.0,
-          decDegrees:
-              bestIndex != null ? projectedCatalog[bestIndex].star.dec : 0.0,
+          raDegrees: bestIndex != null
+              ? projectedCatalog[bestIndex].star.ra
+              : 0.0,
+          decDegrees: bestIndex != null
+              ? projectedCatalog[bestIndex].star.dec
+              : 0.0,
           catalogMagV: catalogV,
           catalogMagB: catalogB,
           instrumentalFlux: star.flux,
@@ -477,8 +491,7 @@ class ScienceHandlers {
     }
 
     matches.sort((a, b) => b.snr.compareTo(a.snr));
-    final topMatches =
-        matches.length > 200 ? matches.sublist(0, 200) : matches;
+    final topMatches = matches.length > 200 ? matches.sublist(0, 200) : matches;
 
     return jsonOk({
       'starMatches': topMatches.map((match) => match.toJson()).toList(),
@@ -494,9 +507,9 @@ class ScienceHandlers {
     }
     final starMatches = (rawStarMatches as List? ?? const [])
         .whereType<Map>()
-        .map((entry) => CatalogStarMatch.fromJson(
-              entry.cast<String, dynamic>(),
-            ))
+        .map(
+          (entry) => CatalogStarMatch.fromJson(entry.cast<String, dynamic>()),
+        )
         .toList(growable: false);
     final filterName = requireString(payload, 'filterName').trim();
     final equipmentProfileId = optionalInt(payload, 'equipmentProfileId');
@@ -522,13 +535,10 @@ class ScienceHandlers {
       // transform fit could not converge with these matched stars. Distinct
       // from 400 (bad request shape) so clients can retry with more stars
       // rather than reformatting the payload. Non-2xx per §2.23.
-      return jsonResponse(
-        {
-          'error':
-              'Nightshade could not compute a stable transform from these matched stars.',
-        },
-        statusCode: 422,
-      );
+      return jsonResponse({
+        'error':
+            'Nightshade could not compute a stable transform from these matched stars.',
+      }, statusCode: 422);
     }
 
     return jsonOk({'coefficients': coefficients.toJson()});
@@ -538,8 +548,9 @@ class ScienceHandlers {
     _logInfo('[API] POST /api/science/calibration/save-transform');
     final payload = await readJsonObject(request);
     final coefficientsJson = requireObject(payload, 'coefficients');
-    final coefficients =
-        PhotometricTransformCoefficients.fromJson(coefficientsJson);
+    final coefficients = PhotometricTransformCoefficients.fromJson(
+      coefficientsJson,
+    );
 
     final id = await container
         .read(photometricTransformServiceProvider)
@@ -555,13 +566,13 @@ class ScienceHandlers {
       final filter = (image.filter ?? '').toLowerCase().trim();
       for (final name in names) {
         if (filter == name) return true;
-        final pattern =
-            RegExp('(?:^|[\\s_-])${RegExp.escape(name)}(?:[\\s_-]|\$)');
+        final pattern = RegExp(
+          '(?:^|[\\s_-])${RegExp.escape(name)}(?:[\\s_-]|\$)',
+        );
         if (pattern.hasMatch(filter)) return true;
       }
       return false;
-    }).toList()
-      ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+    }).toList()..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
 
     return filtered.isEmpty ? null : filtered.first;
   }
@@ -644,7 +655,7 @@ class ScienceHandlers {
     final xi = cosDec * math.sin(deltaRa) / denominator;
     final eta =
         (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(deltaRa)) /
-            denominator;
+        denominator;
     final xiDeg = xi * 180.0 / math.pi;
     final etaDeg = eta * 180.0 / math.pi;
     final rotation = wcs.rotationDegrees * math.pi / 180.0;

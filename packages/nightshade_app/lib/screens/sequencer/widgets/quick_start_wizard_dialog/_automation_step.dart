@@ -14,7 +14,9 @@ extension _AutomationStep on _QuickStartWizardDialogState {
       children: [
         Text(
           'Configure automation features for your imaging session.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize13),
         ),
         if (_populatedFromSavedDefaults) ...[
           const SizedBox(height: 8),
@@ -36,8 +38,9 @@ extension _AutomationStep on _QuickStartWizardDialogState {
             child: Row(
               children: [
                 Text('Refocus trigger:',
-                    style:
-                        TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12)),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 80,
@@ -45,16 +48,20 @@ extension _AutomationStep on _QuickStartWizardDialogState {
                   child: TextField(
                     controller: TextEditingController(
                         text: _autofocusEveryFrames.toString()),
-                    style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                    style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: NightshadeTypography.fontSize12),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       filled: true,
@@ -72,8 +79,9 @@ extension _AutomationStep on _QuickStartWizardDialogState {
                 ),
                 const SizedBox(width: 8),
                 Text('frames (HFR-based)',
-                    style:
-                        TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12)),
               ],
             ),
           ),
@@ -94,8 +102,9 @@ extension _AutomationStep on _QuickStartWizardDialogState {
             child: Row(
               children: [
                 Text('Dither amount:',
-                    style:
-                        TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12)),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 80,
@@ -103,18 +112,23 @@ extension _AutomationStep on _QuickStartWizardDialogState {
                   child: TextField(
                     controller: TextEditingController(
                         text: _ditherPixels.round().toString()),
-                    style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                    style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: NightshadeTypography.fontSize12),
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       suffixText: 'px',
-                      suffixStyle:
-                          TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                      suffixStyle: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize11),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       filled: true,
@@ -177,7 +191,9 @@ extension _AutomationStep on _QuickStartWizardDialogState {
             child: Text(
               'Using your saved defaults from Settings and the active '
               'equipment profile. Adjust below to override for this sequence.',
-              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+              style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize11),
             ),
           ),
         ],
@@ -205,9 +221,12 @@ extension _AutomationStep on _QuickStartWizardDialogState {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary)),
+                    style: NightshadeTypography.label
+                        .copyWith(color: colors.textPrimary)),
                 Text(subtitle,
-                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
+                    style: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize11)),
               ],
             ),
           ),

@@ -1,4 +1,4 @@
-﻿// P2-10 — Push-based live-view streaming over WebSocket.
+// P2-10 — Push-based live-view streaming over WebSocket.
 //
 // The legacy `GET /api/camera/live-view/frame` endpoint forces the phone
 // to poll at ~2 Hz, which (a) burns LTE bandwidth even when the camera
@@ -88,10 +88,7 @@ class LiveViewStreamHandlers {
   final ProviderContainer container;
   final LiveViewStreamHub hub;
 
-  LiveViewStreamHandlers({
-    required this.container,
-    required this.hub,
-  });
+  LiveViewStreamHandlers({required this.container, required this.hub});
 
   /// WebSocket upgrade callback wired by the server router. Each accepted
   /// socket is registered with the hub; the hub owns the rest of the
@@ -194,13 +191,12 @@ class LiveViewStreamHub {
   Future<Uint8List> Function(String deviceId)? testFrameProducer;
 
   LiveViewStreamHub({required this.container})
-      : _logger = container.read(loggingServiceProvider);
+    : _logger = container.read(loggingServiceProvider);
 
   /// Number of currently-subscribed sockets that have an active
   /// subscription (i.e. have sent at least one `subscribe` message and
   /// not subsequently unsubscribed). Exposed for tests + diagnostics.
-  int get activeSubscriberCount =>
-      _subs.values.where((s) => s != null).length;
+  int get activeSubscriberCount => _subs.values.where((s) => s != null).length;
 
   /// Number of attached sockets (subscribed or not).
   int get attachedSocketCount => _subs.length;
@@ -271,11 +267,8 @@ class LiveViewStreamHub {
     _inboundSubs.clear();
     for (final socket in List.of(_subs.keys)) {
       try {
-        _writeJson(socket, {
-          'type': 'stopped',
-          'reason': 'server_shutdown',
-        });
-      } catch (_, __) {
+        _writeJson(socket, {'type': 'stopped', 'reason': 'server_shutdown'});
+      } catch (_) {
         // Why: socket may already be dead; we're tearing down the stream, so
         // a failed final write has nothing left to surface.
       }
@@ -436,14 +429,13 @@ class LiveViewStreamHub {
     _producerTimer = Timer.periodic(_producerMinTick, (_) {
       if (_producerRunning) return; // re-entrancy guard
       _producerRunning = true;
-      unawaited(_producerTick().whenComplete(() {
-        _producerRunning = false;
-      }));
+      unawaited(
+        _producerTick().whenComplete(() {
+          _producerRunning = false;
+        }),
+      );
     });
-    _logger.info(
-      '/ws/live-view producer started',
-      source: 'LiveViewStreamHub',
-    );
+    _logger.info('/ws/live-view producer started', source: 'LiveViewStreamHub');
   }
 
   void _maybeStopProducer() {
@@ -471,7 +463,9 @@ class LiveViewStreamHub {
       final sub = entry.value;
       if (sub == null) continue;
       if (!sub.dueNow(now)) continue;
-      byDevice.putIfAbsent(sub.deviceId, () => []).add(MapEntry(entry.key, sub));
+      byDevice
+          .putIfAbsent(sub.deviceId, () => [])
+          .add(MapEntry(entry.key, sub));
     }
     if (byDevice.isEmpty) return;
 
@@ -593,7 +587,9 @@ class LiveViewStreamHub {
       bitmap = img.copyCrop(master, x: x, y: y, width: w, height: h);
     }
 
-    final longEdge = bitmap.width >= bitmap.height ? bitmap.width : bitmap.height;
+    final longEdge = bitmap.width >= bitmap.height
+        ? bitmap.width
+        : bitmap.height;
     if (sub.maxDim > 0 && longEdge > sub.maxDim) {
       final scale = sub.maxDim / longEdge;
       final newW = (bitmap.width * scale).round().clamp(1, sub.maxDim).toInt();

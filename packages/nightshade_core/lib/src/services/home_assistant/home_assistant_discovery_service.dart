@@ -67,9 +67,9 @@ class HomeAssistantDiscoveryService {
     HomeAssistantDiscoveryConfig config = const HomeAssistantDiscoveryConfig(),
     MqttTransportConfig broker = const MqttTransportConfig(),
     MqttSocketOpener? opener,
-  })  : _config = config,
-        _broker = broker,
-        _opener = opener;
+  }) : _config = config,
+       _broker = broker,
+       _opener = opener;
 
   bool get isRunning => _client?.isConnected ?? false;
 
@@ -119,7 +119,8 @@ class HomeAssistantDiscoveryService {
       final payloads = _buildPayloadBuilder();
       final client = HaMqttSessionClient(
         broker: _broker,
-        clientId: '${_broker.clientId.isEmpty ? 'nightshade' : _broker.clientId}_ha',
+        clientId:
+            '${_broker.clientId.isEmpty ? 'nightshade' : _broker.clientId}_ha',
         willTopic: payloads.availabilityTopic,
         onMessage: _handleCommand,
         onDisconnected: _scheduleReconnect,
@@ -148,15 +149,19 @@ class HomeAssistantDiscoveryService {
         client.subscribe(payloads.commandTopic(HaEntityKeys.abortSequence));
       }
       _publishStates();
-      _stateTimer =
-          Timer.periodic(haStatePublishInterval, (_) => _tick());
+      _stateTimer = Timer.periodic(haStatePublishInterval, (_) => _tick());
       developer.log(
-          '[HomeAssistant] Discovery active on ${_broker.host}:${_broker.port} '
-          'as device "${payloads.deviceName}"',
-          name: _logName);
+        '[HomeAssistant] Discovery active on ${_broker.host}:${_broker.port} '
+        'as device "${payloads.deviceName}"',
+        name: _logName,
+      );
     } catch (e) {
-      developer.log('[HomeAssistant] Failed to start discovery session: $e',
-          name: _logName, level: 900, error: e);
+      developer.log(
+        '[HomeAssistant] Failed to start discovery session: $e',
+        name: _logName,
+        level: 900,
+        error: e,
+      );
       _client = null;
       _scheduleReconnect();
     } finally {
@@ -182,7 +187,9 @@ class HomeAssistantDiscoveryService {
           // Graceful goodbye — the LWT only covers ungraceful drops.
           client.publish(payloads.availabilityTopic, 'offline', retain: true);
         }
-      } catch (_) {/* socket already gone */}
+      } catch (_) {
+        /* socket already gone */
+      }
       await client.disconnect();
     }
   }
@@ -208,11 +215,12 @@ class HomeAssistantDiscoveryService {
     final deviceName = _config.deviceName.trim().isNotEmpty
         ? _config.deviceName.trim()
         : 'Nightshade Observatory'
-            '${profileName == null ? '' : ' $profileName'}';
+              '${profileName == null ? '' : ' $profileName'}';
     // Node id: the distinctive part of the device name ("Nightshade
     // Observatory Backyard" -> "backyard"), so topics stay short.
-    final distinct =
-        deviceName.replaceFirst('Nightshade Observatory', '').trim();
+    final distinct = deviceName
+        .replaceFirst('Nightshade Observatory', '')
+        .trim();
     return HaDiscoveryPayloadBuilder(
       nodeId: distinct.isEmpty ? 'observatory' : distinct,
       deviceName: deviceName,
@@ -269,8 +277,11 @@ class HomeAssistantDiscoveryService {
         client.publish(topic, entry.value, retain: true);
         _published[topic] = entry.value;
       } catch (e) {
-        developer.log('[HomeAssistant] State publish failed: $e',
-            name: _logName, level: 900);
+        developer.log(
+          '[HomeAssistant] State publish failed: $e',
+          name: _logName,
+          level: 900,
+        );
         return;
       }
     }
@@ -287,21 +298,25 @@ class HomeAssistantDiscoveryService {
     // Sequencer.
     final execState = _ref.read(sequenceExecutionStateProvider);
     final progress = _ref.read(sequenceProgressProvider);
-    final sequenceActive = execState == SequenceExecutionState.running ||
+    final sequenceActive =
+        execState == SequenceExecutionState.running ||
         execState == SequenceExecutionState.paused;
     states[HaEntityKeys.sequenceRunning] = onOff(sequenceActive);
-    states[HaEntityKeys.sequencePaused] =
-        onOff(execState == SequenceExecutionState.paused);
-    states[HaEntityKeys.currentTarget] = (progress.currentTarget == null ||
+    states[HaEntityKeys.sequencePaused] = onOff(
+      execState == SequenceExecutionState.paused,
+    );
+    states[HaEntityKeys.currentTarget] =
+        (progress.currentTarget == null ||
             progress.currentTarget!.trim().isEmpty)
         ? 'None'
         : progress.currentTarget!.trim();
-    states[HaEntityKeys.sequenceProgress] =
-        (progress.progressPercent * 100).clamp(0, 100).toStringAsFixed(1);
+    states[HaEntityKeys.sequenceProgress] = (progress.progressPercent * 100)
+        .clamp(0, 100)
+        .toStringAsFixed(1);
 
     final liveStats = _ref.read(liveSequenceStatsProvider);
-    states[HaEntityKeys.framesTonight] =
-        (liveStats?.framesCaptured ?? 0).toString();
+    states[HaEntityKeys.framesTonight] = (liveStats?.framesCaptured ?? 0)
+        .toString();
 
     // Last HFR from the most recent session frame that has stats.
     final images = _ref.read(sessionImagesProvider);
@@ -320,7 +335,8 @@ class HomeAssistantDiscoveryService {
     // Guiding.
     final phd2State = _ref.read(phd2StateProvider);
     states[HaEntityKeys.guiding] = onOff(
-        phd2State == Phd2State.guiding || phd2State == Phd2State.settling);
+      phd2State == Phd2State.guiding || phd2State == Phd2State.settling,
+    );
     final guideStats = _ref.read(guideStatsProvider);
     states[HaEntityKeys.guideRms] = guideStats.rmsTotal.toStringAsFixed(2);
 
@@ -328,8 +344,8 @@ class HomeAssistantDiscoveryService {
     final camera = _ref.read(cameraStateProvider);
     states[HaEntityKeys.cameraCooling] = onOff(camera.isCooling);
     if (camera.temperature != null) {
-      states[HaEntityKeys.cameraTemperature] =
-          camera.temperature!.toStringAsFixed(1);
+      states[HaEntityKeys.cameraTemperature] = camera.temperature!
+          .toStringAsFixed(1);
     }
 
     // Roof/dome — only meaningful when a dome is connected (the
@@ -337,8 +353,9 @@ class HomeAssistantDiscoveryService {
     final dome = _ref.read(domeStateProvider);
     if (dome.connectionState == DeviceConnectionState.connected) {
       states[HaEntityKeys.roofOpen] = onOff(
-          dome.shutterStatus == ShutterStatus.open ||
-              dome.shutterStatus == ShutterStatus.opening);
+        dome.shutterStatus == ShutterStatus.open ||
+            dome.shutterStatus == ShutterStatus.opening,
+      );
     }
 
     // Weather device values (publish only what the device reports).
@@ -383,23 +400,29 @@ class HomeAssistantDiscoveryService {
     }
     if (topic == payloads.commandTopic(HaEntityKeys.sequencePaused)) {
       final wantPause = payload.trim().toUpperCase() == 'ON';
-      unawaited(_runSequencerCommand(wantPause ? 'pause' : 'resume', () {
-        final executor = _ref.read(sequenceExecutorProvider);
-        return wantPause ? executor.pause() : executor.resume();
-      }));
+      unawaited(
+        _runSequencerCommand(wantPause ? 'pause' : 'resume', () {
+          final executor = _ref.read(sequenceExecutorProvider);
+          return wantPause ? executor.pause() : executor.resume();
+        }),
+      );
     } else if (topic == payloads.commandTopic(HaEntityKeys.abortSequence)) {
-      unawaited(_runSequencerCommand('abort', () {
-        // Mirror the UI Stop button: keep the checkpoint so the operator
-        // can resume later (see SequenceExecutor.stop docs).
-        return _ref
-            .read(sequenceExecutorProvider)
-            .stop(preserveCheckpoint: true);
-      }));
+      unawaited(
+        _runSequencerCommand('abort', () {
+          // Mirror the UI Stop button: keep the checkpoint so the operator
+          // can resume later (see SequenceExecutor.stop docs).
+          return _ref
+              .read(sequenceExecutorProvider)
+              .stop(preserveCheckpoint: true);
+        }),
+      );
     }
   }
 
   Future<void> _runSequencerCommand(
-      String label, Future<void> Function() action) async {
+    String label,
+    Future<void> Function() action,
+  ) async {
     developer.log('[HomeAssistant] Command from HA: $label', name: _logName);
     try {
       await action();
@@ -407,8 +430,11 @@ class HomeAssistantDiscoveryService {
       // Executor throws on invalid transitions (e.g. pause while idle);
       // log it and let the next state tick republish the truth so the
       // HA switch snaps back.
-      developer.log('[HomeAssistant] Command "$label" rejected: $e',
-          name: _logName, level: 900);
+      developer.log(
+        '[HomeAssistant] Command "$label" rejected: $e',
+        name: _logName,
+        level: 900,
+      );
     } finally {
       _publishStates();
     }

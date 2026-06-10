@@ -202,12 +202,11 @@ class LogHandlers {
   /// the *request* is forbidden regardless of whether the path exists.
   /// Once the filename passes validation we use 404 for the legitimate
   /// "we have no file by that name" case.
-  Future<Response> handleDownloadFile(
-    Request request,
-    String filename,
-  ) async {
-    _logger.info('[API] GET /api/logs/files/$filename/download',
-        source: 'LogHandlers');
+  Future<Response> handleDownloadFile(Request request, String filename) async {
+    _logger.info(
+      '[API] GET /api/logs/files/$filename/download',
+      source: 'LogHandlers',
+    );
 
     // Defence in depth: reject anything that looks remotely path-like
     // BEFORE running the LoggingService regex. The regex itself is
@@ -303,8 +302,10 @@ class LogHandlers {
         '[API] /api/logs/files: permission denied for $filename: $e',
         source: 'LogHandlers',
       );
-      return jsonForbidden(
-          {'error': 'permission_denied', 'message': 'Cannot read log file'});
+      return jsonForbidden({
+        'error': 'permission_denied',
+        'message': 'Cannot read log file',
+      });
     } on FileSystemException catch (e) {
       _logger.error(
         '[API] /api/logs/files: failed to stat $filename: $e',
@@ -358,10 +359,7 @@ class LogHandlers {
       totalLength: fileLength,
       contentType: 'text/plain; charset=utf-8',
       fileName: filename,
-      headers: {
-        'etag': etag,
-        'last-modified': HttpDate.format(mtime),
-      },
+      headers: {'etag': etag, 'last-modified': HttpDate.format(mtime)},
     );
   }
 
@@ -419,8 +417,8 @@ class LogHandlers {
     final sourceFilterRaw = params['source']?.trim();
     final String? sourceFilter =
         (sourceFilterRaw == null || sourceFilterRaw.isEmpty)
-            ? null
-            : sourceFilterRaw.toLowerCase();
+        ? null
+        : sourceFilterRaw.toLowerCase();
 
     // Resume token resolution.
     //
@@ -490,8 +488,10 @@ class LogHandlers {
     Timer? keepAlive;
 
     controller.onListen = () {
-      logger.info('[API] /api/logs/tail: client subscribed',
-          source: 'LogHandlers');
+      logger.info(
+        '[API] /api/logs/tail: client subscribed',
+        source: 'LogHandlers',
+      );
       // Conservative retry hint: 5 s on disconnect. Mirrors the
       // run-watch SSE handler so client behaviour is uniform.
       write('retry: 5000\n\n');
@@ -505,8 +505,9 @@ class LogHandlers {
         }
         return matches(entry);
       }).toList();
-      final start =
-          filtered.length > replayLimit ? filtered.length - replayLimit : 0;
+      final start = filtered.length > replayLimit
+          ? filtered.length - replayLimit
+          : 0;
       for (var i = start; i < filtered.length; i++) {
         writeEntry(filtered[i]);
       }
@@ -572,8 +573,10 @@ class LogHandlers {
       keepAlive = null;
       await sub?.cancel();
       sub = null;
-      logger.info('[API] /api/logs/tail: client disconnected',
-          source: 'LogHandlers');
+      logger.info(
+        '[API] /api/logs/tail: client disconnected',
+        source: 'LogHandlers',
+      );
     }
 
     controller.onCancel = cleanup;
@@ -600,10 +603,7 @@ class LogHandlers {
     _logger.warning('[API] POST /api/logs/clear', source: 'LogHandlers');
     final result = await _logger.clearLogs();
     final status = result.errors.isEmpty ? 200 : 207; // 207 = partial success
-    return jsonResponse(
-      result.toJson(),
-      statusCode: status,
-    );
+    return jsonResponse(result.toJson(), statusCode: status);
   }
 
   // ===========================================================================
@@ -669,9 +669,6 @@ class LogHandlers {
       );
     }
     final entry = logs.last;
-    return jsonOk({
-      'status': 'recorded',
-      'entry': entry.toJson(),
-    });
+    return jsonOk({'status': 'recorded', 'entry': entry.toJson()});
   }
 }

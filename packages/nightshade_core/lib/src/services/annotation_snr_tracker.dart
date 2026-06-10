@@ -60,10 +60,11 @@ extension AnnotationSnrTracker on AnnotationService {
         // SNR dropped more than 30% from peak — reduce magnitude limit
         if (newMagnitudeLimit < _currentSnrMagnitudeLimit - 0.5) {
           _logger.info(
-              'SNR regressed from peak ${_peakAnnotationSnr!.toStringAsFixed(1)} to ${currentSnr.toStringAsFixed(1)} '
-              '(${((1.0 - dropRatio) * 100).toStringAsFixed(0)}% drop), '
-              'reducing magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}',
-              source: 'Annotation');
+            'SNR regressed from peak ${_peakAnnotationSnr!.toStringAsFixed(1)} to ${currentSnr.toStringAsFixed(1)} '
+            '(${((1.0 - dropRatio) * 100).toStringAsFixed(0)}% drop), '
+            'reducing magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}',
+            source: 'Annotation',
+          );
 
           progressiveReAnnotateWithReducedLimit(currentSnr, newMagnitudeLimit);
           return;
@@ -81,14 +82,16 @@ extension AnnotationSnrTracker on AnnotationService {
     }
 
     // Calculate improvement percentage for the suggestion banner
-    final improvementPercent = _lastAnnotationSnr != null && _lastAnnotationSnr! > 0
+    final improvementPercent =
+        _lastAnnotationSnr != null && _lastAnnotationSnr! > 0
         ? ((currentSnr - _lastAnnotationSnr!) / _lastAnnotationSnr!) * 100.0
         : 0.0;
 
     // If SNR improved >=40%, surface a prominent re-annotate suggestion
     if (improvementPercent >= 40.0) {
-      _ref.read(reAnnotateSuggestionProvider.notifier).state =
-          ReAnnotateSuggestion(
+      _ref
+          .read(reAnnotateSuggestionProvider.notifier)
+          .state = ReAnnotateSuggestion(
         shouldShow: true,
         improvementPercent: improvementPercent,
       );
@@ -96,16 +99,19 @@ extension AnnotationSnrTracker on AnnotationService {
 
     // Trigger progressive re-annotation (increasing)
     _logger.info(
-        'SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
-        'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}',
-        source: 'Annotation');
+      'SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
+      'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}',
+      source: 'Annotation',
+    );
 
     progressiveReAnnotate(currentSnr, newMagnitudeLimit);
   }
 
   /// Re-annotate with a higher magnitude limit, keeping existing objects
   Future<void> progressiveReAnnotate(
-      double currentSnr, double newMagnitudeLimit) async {
+    double currentSnr,
+    double newMagnitudeLimit,
+  ) async {
     final currentAnnotation = _ref.read(currentAnnotationProvider);
     if (currentAnnotation == null || _lastPlateSolve == null) return;
 
@@ -116,7 +122,7 @@ extension AnnotationSnrTracker on AnnotationService {
       final settings = _ref.read(annotationSettingsProvider).valueOrNull;
       final includeStars =
           settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ??
-              false;
+          false;
 
       // Search for additional objects with the new, higher magnitude limit
       final additionalObjects = await findObjectsInFov(
@@ -133,8 +139,9 @@ extension AnnotationSnrTracker on AnnotationService {
 
       if (newObjects.isEmpty) {
         _logger.debug(
-            'No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}',
-            source: 'Annotation');
+          'No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}',
+          source: 'Annotation',
+        );
         _ref.read(annotationStateProvider.notifier).state =
             AnnotationState.complete(currentAnnotation.objects.length);
         return;
@@ -146,8 +153,9 @@ extension AnnotationSnrTracker on AnnotationService {
       }
 
       _logger.info(
-          'Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})',
-          source: 'Annotation');
+        'Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})',
+        source: 'Annotation',
+      );
 
       // Merge new objects with existing annotation
       final mergedObjects = [...currentAnnotation.objects, ...newObjects];
@@ -166,10 +174,13 @@ extension AnnotationSnrTracker on AnnotationService {
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.complete(updatedAnnotation.objects.length);
     } catch (e) {
-      _logger.error('Error during progressive re-annotation: $e',
-          source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.error(e.toString());
+      _logger.error(
+        'Error during progressive re-annotation: $e',
+        source: 'Annotation',
+      );
+      _ref.read(annotationStateProvider.notifier).state = AnnotationState.error(
+        e.toString(),
+      );
     }
   }
 
@@ -179,7 +190,9 @@ extension AnnotationSnrTracker on AnnotationService {
   /// existing objects down to those within the new, lower magnitude limit,
   /// then re-queries catalogs at the reduced limit.
   Future<void> progressiveReAnnotateWithReducedLimit(
-      double currentSnr, double newMagnitudeLimit) async {
+    double currentSnr,
+    double newMagnitudeLimit,
+  ) async {
     final currentAnnotation = _ref.read(currentAnnotationProvider);
     if (currentAnnotation == null || _lastPlateSolve == null) return;
 
@@ -200,9 +213,10 @@ extension AnnotationSnrTracker on AnnotationService {
       }
 
       _logger.info(
-          'SNR regression: reduced from ${currentAnnotation.objects.length} to '
-          '${filteredObjects.length} objects at magnitude limit ${newMagnitudeLimit.toStringAsFixed(1)}',
-          source: 'Annotation');
+        'SNR regression: reduced from ${currentAnnotation.objects.length} to '
+        '${filteredObjects.length} objects at magnitude limit ${newMagnitudeLimit.toStringAsFixed(1)}',
+        source: 'Annotation',
+      );
 
       final updatedAnnotation = currentAnnotation.copyWith(
         objects: filteredObjects,
@@ -219,10 +233,12 @@ extension AnnotationSnrTracker on AnnotationService {
           AnnotationState.complete(updatedAnnotation.objects.length);
     } catch (e) {
       _logger.error(
-          'Error during reduced-limit re-annotation: $e',
-          source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.error(e.toString());
+        'Error during reduced-limit re-annotation: $e',
+        source: 'Annotation',
+      );
+      _ref.read(annotationStateProvider.notifier).state = AnnotationState.error(
+        e.toString(),
+      );
     }
   }
 }

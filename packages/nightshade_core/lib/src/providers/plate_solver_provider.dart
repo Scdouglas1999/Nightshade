@@ -8,17 +8,17 @@ import '../services/plate_solve_service.dart';
 /// whenever invalidated (after the user picks a new path or hits "Re-scan").
 final plateSolverDetectionProvider =
     FutureProvider.autoDispose<PlateSolverDetection>((ref) async {
-  final service = ref.watch(plateSolveServiceProvider);
-  return service.detect();
-});
+      final service = ref.watch(plateSolveServiceProvider);
+      return service.detect();
+    });
 
 /// Persisted plate-solver UX configuration. Backed by Rust storage
 /// (`platesolver.json`), exposed through `apiPlatesolveGetConfig`.
 final plateSolverPreferenceProvider =
     FutureProvider.autoDispose<PlateSolverPreference>((ref) async {
-  final service = ref.watch(plateSolveServiceProvider);
-  return service.getConfig();
-});
+      final service = ref.watch(plateSolveServiceProvider);
+      return service.getConfig();
+    });
 
 /// State + controller for the Plate Solving settings page.
 ///
@@ -69,10 +69,12 @@ class PlateSolverSettingsState {
     bool clearAstrometryVerify = false,
   }) {
     return PlateSolverSettingsState(
-      astapVerifyInfo:
-          clearAstapVerify ? null : (astapVerifyInfo ?? this.astapVerifyInfo),
-      astapVerifyError:
-          clearAstapVerify ? null : (astapVerifyError ?? this.astapVerifyError),
+      astapVerifyInfo: clearAstapVerify
+          ? null
+          : (astapVerifyInfo ?? this.astapVerifyInfo),
+      astapVerifyError: clearAstapVerify
+          ? null
+          : (astapVerifyError ?? this.astapVerifyError),
       astrometryVerifyInfo: clearAstrometryVerify
           ? null
           : (astrometryVerifyInfo ?? this.astrometryVerifyInfo),
@@ -90,7 +92,7 @@ class PlateSolverSettingsNotifier
   final Ref ref;
 
   PlateSolverSettingsNotifier(this.ref)
-      : super(const PlateSolverSettingsState());
+    : super(const PlateSolverSettingsState());
 
   PlateSolveService get _service => ref.read(plateSolveServiceProvider);
 
@@ -135,15 +137,9 @@ class PlateSolverSettingsNotifier
     state = state.copyWith(verifying: true, clearAstapVerify: true);
     try {
       final info = await _service.verify(executablePath);
-      state = state.copyWith(
-        verifying: false,
-        astapVerifyInfo: info,
-      );
+      state = state.copyWith(verifying: false, astapVerifyInfo: info);
     } catch (e) {
-      state = state.copyWith(
-        verifying: false,
-        astapVerifyError: e.toString(),
-      );
+      state = state.copyWith(verifying: false, astapVerifyError: e.toString());
     }
   }
 
@@ -153,10 +149,7 @@ class PlateSolverSettingsNotifier
     state = state.copyWith(verifying: true, clearAstrometryVerify: true);
     try {
       final info = await _service.verify(executablePath);
-      state = state.copyWith(
-        verifying: false,
-        astrometryVerifyInfo: info,
-      );
+      state = state.copyWith(verifying: false, astrometryVerifyInfo: info);
     } catch (e) {
       state = state.copyWith(
         verifying: false,
@@ -166,7 +159,10 @@ class PlateSolverSettingsNotifier
   }
 }
 
-final plateSolverSettingsNotifierProvider = StateNotifierProvider.autoDispose<
-    PlateSolverSettingsNotifier, PlateSolverSettingsState>((ref) {
-  return PlateSolverSettingsNotifier(ref);
-});
+final plateSolverSettingsNotifierProvider =
+    StateNotifierProvider.autoDispose<
+      PlateSolverSettingsNotifier,
+      PlateSolverSettingsState
+    >((ref) {
+      return PlateSolverSettingsNotifier(ref);
+    });

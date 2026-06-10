@@ -1,4 +1,4 @@
-﻿// Phase 1 freezed-migration safety net for the non-SequenceNode
+// Phase 1 freezed-migration safety net for the non-SequenceNode
 // data classes declared in `lib/src/models/sequence/sequence_models.dart`.
 //
 // Covers: MosaicPanelInfo, SequenceOverheadConfig, SequenceEstimate,
@@ -52,9 +52,9 @@ void main() {
     });
 
     test('json_round_trip_preserves_all_fields', () {
-      final back =
-          MosaicPanelInfo.fromJson(jsonDecode(jsonEncode(sample.toJson()))
-              as Map<String, dynamic>);
+      final back = MosaicPanelInfo.fromJson(
+        jsonDecode(jsonEncode(sample.toJson())) as Map<String, dynamic>,
+      );
       expect(back, equals(sample));
     });
 
@@ -288,7 +288,10 @@ void main() {
             .referenceSkyBrightnessMag,
         equals(22.0),
       );
-      expect(sample.copyWith(minExposureSecs: 1.0).minExposureSecs, equals(1.0));
+      expect(
+        sample.copyWith(minExposureSecs: 1.0).minExposureSecs,
+        equals(1.0),
+      );
       expect(
         sample.copyWith(maxExposureSecs: 9999.0).maxExposureSecs,
         equals(9999.0),
@@ -341,9 +344,12 @@ void main() {
       );
       expect(cfg.isEnabledForFilter('L'), isTrue);
       expect(cfg.isEnabledForFilter('Ha'), isFalse);
-      expect(cfg.isEnabledForFilter('R'), isFalse,
-          reason:
-              'unlisted filter when map non-empty falls back to "not enabled"');
+      expect(
+        cfg.isEnabledForFilter('R'),
+        isFalse,
+        reason:
+            'unlisted filter when map non-empty falls back to "not enabled"',
+      );
     });
 
     test('min_for_filter_returns_per_filter_value_when_present', () {
@@ -426,7 +432,9 @@ void main() {
     });
 
     test('from_json_defaults', () {
-      final back = BrightnessTierPreferences.fromJson(const <String, dynamic>{});
+      final back = BrightnessTierPreferences.fromJson(
+        const <String, dynamic>{},
+      );
       expect(back.faintMinScore, equals(70.0));
       expect(back.mediumMinScore, equals(50.0));
       expect(back.brightMinScore, equals(30.0));
@@ -446,9 +454,13 @@ void main() {
     test('copyWith_each_field', () {
       expect(sample.copyWith(faintMinScore: 90.0).faintMinScore, equals(90.0));
       expect(
-          sample.copyWith(mediumMinScore: 40.0).mediumMinScore, equals(40.0));
+        sample.copyWith(mediumMinScore: 40.0).mediumMinScore,
+        equals(40.0),
+      );
       expect(
-          sample.copyWith(brightMinScore: 20.0).brightMinScore, equals(20.0));
+        sample.copyWith(brightMinScore: 20.0).brightMinScore,
+        equals(20.0),
+      );
       expect(sample.copyWith(), equals(sample));
     });
   });
@@ -496,15 +508,18 @@ void main() {
       expect(sample.isNormalised, isTrue);
       expect(
         const ConditionsScoreWeights(
-                transparencyWeight: 0.5, seeingWeight: 0.5)
-            .isNormalised,
+          transparencyWeight: 0.5,
+          seeingWeight: 0.5,
+        ).isNormalised,
         isFalse,
       );
     });
 
     test('copyWith', () {
-      expect(sample.copyWith(transparencyWeight: 0.1).transparencyWeight,
-          equals(0.1));
+      expect(
+        sample.copyWith(transparencyWeight: 0.1).transparencyWeight,
+        equals(0.1),
+      );
       expect(sample.copyWith(seeingWeight: 0.1).seeingWeight, equals(0.1));
       expect(sample.copyWith(cloudWeight: 0.1).cloudWeight, equals(0.1));
       expect(sample.copyWith(windWeight: 0.0).windWeight, equals(0.0));
@@ -577,8 +592,9 @@ void main() {
       });
       expect(
         back.generatedAt,
-        equals(DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000,
-            isUtc: true)),
+        equals(
+          DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000, isUtc: true),
+        ),
       );
       expect(back.generatedAt.isUtc, isTrue);
     });
@@ -737,8 +753,9 @@ void main() {
     });
 
     test('from_json_treats_missing_score_as_null', () {
-      final back =
-          AdaptiveSwapSnapshot.fromJson(const <String, dynamic>{'state': <String, dynamic>{}});
+      final back = AdaptiveSwapSnapshot.fromJson(const <String, dynamic>{
+        'state': <String, dynamic>{},
+      });
       expect(back.score, isNull);
     });
 
@@ -794,9 +811,9 @@ void main() {
     });
 
     test('json_round_trip_preserves_all_fields', () {
-      final back =
-          FilterPlan.fromJson(jsonDecode(jsonEncode(sample.toJson()))
-              as Map<String, dynamic>);
+      final back = FilterPlan.fromJson(
+        jsonDecode(jsonEncode(sample.toJson())) as Map<String, dynamic>,
+      );
       expect(back, equals(sample));
     });
 
@@ -826,8 +843,11 @@ void main() {
       // survives the migration naturally.
       final cleared = sample.copyWith(filterIndex: null);
       expect(cleared.filterIndex, isNull);
-      expect(cleared.gain, equals(sample.gain),
-          reason: 'unrelated field preserved');
+      expect(
+        cleared.gain,
+        equals(sample.gain),
+        reason: 'unrelated field preserved',
+      );
     });
 
     test('copyWith_no_args_preserves_filterIndex', () {
@@ -842,8 +862,10 @@ void main() {
       expect(sample.copyWith(filterName: 'R').filterName, equals('R'));
       expect(sample.copyWith(count: 1).count, equals(1));
       expect(sample.copyWith(durationSecs: 1.0).durationSecs, equals(1.0));
-      expect(sample.copyWith(binning: BinningMode.four).binning,
-          equals(BinningMode.four));
+      expect(
+        sample.copyWith(binning: BinningMode.four).binning,
+        equals(BinningMode.four),
+      );
       expect(sample.copyWith(gain: null).gain, isNull);
       expect(sample.copyWith(offset: null).offset, isNull);
       expect(sample.copyWith(ditherEvery: null).ditherEvery, isNull);
@@ -902,8 +924,7 @@ void main() {
 
     test('copyWith_each_field', () {
       expect(sample.copyWith(minSnr: 200).minSnr, equals(200));
-      expect(
-          sample.copyWith(maxFwhmArcsec: 4.0).maxFwhmArcsec, equals(4.0));
+      expect(sample.copyWith(maxFwhmArcsec: 4.0).maxFwhmArcsec, equals(4.0));
       expect(
         sample.copyWith(requireAllRefsVisible: true).requireAllRefsVisible,
         isTrue,
@@ -951,8 +972,10 @@ void main() {
     test('is_empty_when_both_targets_and_filter_are_null', () {
       expect(const TransparencyBackupPlan().isEmpty, isTrue);
       expect(const TransparencyBackupPlan(backupFilter: 'L').isEmpty, isFalse);
-      expect(const TransparencyBackupPlan(backupTargetId: 'x').isEmpty,
-          isFalse);
+      expect(
+        const TransparencyBackupPlan(backupTargetId: 'x').isEmpty,
+        isFalse,
+      );
     });
 
     test('copyWith_sentinel_allows_explicit_null_for_each_nullable_field', () {
@@ -986,11 +1009,7 @@ void main() {
         raHours: 0.712,
         decDegrees: 41.269,
       );
-      final exposure = ExposureNode(
-        id: 'e1',
-        durationSecs: 60.0,
-        count: 10,
-      );
+      final exposure = ExposureNode(id: 'e1', durationSecs: 60.0, count: 10);
       // Fixed timestamps so two makeSequence() instances compare equal.
       // Sequence.create defaults createdAt/modifiedAt to DateTime.now(); on a
       // fine-resolution (microsecond) clock two calls produce different
@@ -1072,8 +1091,10 @@ void main() {
       expect(seq.copyWith(name: 'new').name, equals('new'));
       expect(seq.copyWith(description: 'd').description, equals('d'));
       expect(seq.copyWith(isTemplate: true).isTemplate, isTrue);
-      expect(seq.copyWith(estimatedDurationMins: 60).estimatedDurationMins,
-          equals(60));
+      expect(
+        seq.copyWith(estimatedDurationMins: 60).estimatedDurationMins,
+        equals(60),
+      );
       expect(seq.copyWith(databaseId: 99).databaseId, equals(99));
     });
 
@@ -1090,8 +1111,7 @@ void main() {
       expect(seq.copyWith(), equals(seq));
     });
 
-    test(
-        'equality_via_props_uses_nodes_map_and_excludes_derived_indexes', () {
+    test('equality_via_props_uses_nodes_map_and_excludes_derived_indexes', () {
       // PHASE-2-NOTE: `_childrenByParent` and `_parentById` are
       // `late final` lazy indexes — NOT in Equatable's props. Two
       // sequences with identical `nodes` maps but freshly-built indexes
@@ -1139,23 +1159,34 @@ void main() {
 
     test('copyWith_each_field_independently_mutable', () {
       const p = SequenceProgress();
-      expect(p.copyWith(state: SequenceExecutionState.running).state,
-          equals(SequenceExecutionState.running));
+      expect(
+        p.copyWith(state: SequenceExecutionState.running).state,
+        equals(SequenceExecutionState.running),
+      );
       expect(p.copyWith(currentNodeId: 'x').currentNodeId, equals('x'));
-      expect(p.copyWith(currentNodeName: 'name').currentNodeName, equals('name'));
-      expect(p.copyWith(currentNodeStatus: NodeStatus.running).currentNodeStatus,
-          equals(NodeStatus.running));
+      expect(
+        p.copyWith(currentNodeName: 'name').currentNodeName,
+        equals('name'),
+      );
+      expect(
+        p.copyWith(currentNodeStatus: NodeStatus.running).currentNodeStatus,
+        equals(NodeStatus.running),
+      );
       expect(p.copyWith(totalExposures: 10).totalExposures, equals(10));
       expect(p.copyWith(completedExposures: 5).completedExposures, equals(5));
-      expect(p.copyWith(totalIntegrationSecs: 600).totalIntegrationSecs,
-          equals(600));
+      expect(
+        p.copyWith(totalIntegrationSecs: 600).totalIntegrationSecs,
+        equals(600),
+      );
       expect(
         p.copyWith(completedIntegrationSecs: 60).completedIntegrationSecs,
         equals(60),
       );
       expect(p.copyWith(elapsedSecs: 100).elapsedSecs, equals(100));
-      expect(p.copyWith(estimatedRemainingSecs: 30).estimatedRemainingSecs,
-          equals(30));
+      expect(
+        p.copyWith(estimatedRemainingSecs: 30).estimatedRemainingSecs,
+        equals(30),
+      );
       expect(p.copyWith(currentTarget: 'M31').currentTarget, equals('M31'));
       expect(p.copyWith(currentFilter: 'L').currentFilter, equals('L'));
       expect(p.copyWith(message: 'msg').message, equals('msg'));
@@ -1178,10 +1209,7 @@ void main() {
       // explicit-null cannot clear them via copyWith. Phase 2's freezed
       // upgrade will introduce that ability, which is strictly more
       // capable.
-      const p = SequenceProgress(
-        currentNodeId: 'x',
-        totalExposures: 5,
-      );
+      const p = SequenceProgress(currentNodeId: 'x', totalExposures: 5);
       expect(p.copyWith(), equals(p));
     });
 

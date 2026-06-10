@@ -15,7 +15,9 @@ class PerformanceMonitor extends ChangeNotifier {
   bool _dirty = false;
   Timer? _notifyTimer;
 
-  PerformanceMonitor({Duration notifyInterval = const Duration(milliseconds: 250)}) {
+  PerformanceMonitor({
+    Duration notifyInterval = const Duration(milliseconds: 250),
+  }) {
     _notifyTimer = Timer.periodic(notifyInterval, (_) {
       if (!_dirty) return;
       _dirty = false;
@@ -111,7 +113,9 @@ class PerformanceMonitor extends ChangeNotifier {
 }
 
 /// Provider for the performance monitor singleton.
-final performanceMonitorProvider = ChangeNotifierProvider<PerformanceMonitor>((ref) {
+final performanceMonitorProvider = ChangeNotifierProvider<PerformanceMonitor>((
+  ref,
+) {
   return PerformanceMonitor();
 });
 

@@ -18,9 +18,7 @@ class FrameAutoGrader {
 
   /// Returns `true` when the frame was rejected, `false` when accepted or
   /// skipped, `null` when grading did not run (disabled / not a light).
-  Future<bool?> gradeCapturedFrame({
-    required db.CapturedImage image,
-  }) async {
+  Future<bool?> gradeCapturedFrame({required db.CapturedImage image}) async {
     if (image.frameType.toLowerCase() != 'light') return null;
     if (!image.isAccepted) return false;
 
@@ -33,8 +31,12 @@ class FrameAutoGrader {
     final reason = rules.gradeFrame(image);
     if (reason == null) return false;
 
-    await _ref.read(imagingRecordsRepositoryProvider).rejectImage(image.id, reason);
-    _ref.read(loggingServiceProvider).info(
+    await _ref
+        .read(imagingRecordsRepositoryProvider)
+        .rejectImage(image.id, reason);
+    _ref
+        .read(loggingServiceProvider)
+        .info(
           'Auto-rejected frame ${image.id} (${image.fileName}): $reason',
           source: 'FrameAutoGrader',
         );

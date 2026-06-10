@@ -54,12 +54,17 @@ void main() {
 
       for (final wcs in cases) {
         final proj = GnomonicProjection(wcs);
-        for (var px = 16; px <= wcs.imageWidth - 16; px += wcs.imageWidth ~/ 4) {
-          for (var py = 16;
-              py <= wcs.imageHeight - 16;
-              py += wcs.imageHeight ~/ 4) {
-            final world =
-                proj.pixelToWorld(x: px.toDouble(), y: py.toDouble());
+        for (
+          var px = 16;
+          px <= wcs.imageWidth - 16;
+          px += wcs.imageWidth ~/ 4
+        ) {
+          for (
+            var py = 16;
+            py <= wcs.imageHeight - 16;
+            py += wcs.imageHeight ~/ 4
+          ) {
+            final world = proj.pixelToWorld(x: px.toDouble(), y: py.toDouble());
             final back = proj.worldToPixel(
               raDegrees: world.raDegrees,
               decDegrees: world.decDegrees,
@@ -227,37 +232,38 @@ void main() {
     });
 
     test(
-        'rotated FOV keeps the bounding box large enough to enclose corners',
-        () {
-      const wcs = SolvedWcs(
-        raHours: 18.0,
-        decDegrees: 22.0,
-        rotationDeg: 45.0,
-        pixelScaleArcsec: 2.0,
-        imageWidth: 2048,
-        imageHeight: 2048,
-      );
-      final proj = GnomonicProjection(wcs);
-      final box = proj.computeBoundingBox();
-
-      // Each corner re-projected forward must land back inside the image.
-      final corners = <(double, double)>[
-        (0, 0),
-        (wcs.imageWidth.toDouble(), 0),
-        (0, wcs.imageHeight.toDouble()),
-        (wcs.imageWidth.toDouble(), wcs.imageHeight.toDouble()),
-      ];
-      for (final (px, py) in corners) {
-        final world = proj.pixelToWorld(x: px, y: py);
-        expect(
-          box.contains(raDeg: world.raDegrees, decDeg: world.decDegrees),
-          isTrue,
-          reason:
-              'Corner ($px,$py) -> (${world.raDegrees}, ${world.decDegrees}) '
-              'must fall within the bounding box',
+      'rotated FOV keeps the bounding box large enough to enclose corners',
+      () {
+        const wcs = SolvedWcs(
+          raHours: 18.0,
+          decDegrees: 22.0,
+          rotationDeg: 45.0,
+          pixelScaleArcsec: 2.0,
+          imageWidth: 2048,
+          imageHeight: 2048,
         );
-      }
-    });
+        final proj = GnomonicProjection(wcs);
+        final box = proj.computeBoundingBox();
+
+        // Each corner re-projected forward must land back inside the image.
+        final corners = <(double, double)>[
+          (0, 0),
+          (wcs.imageWidth.toDouble(), 0),
+          (0, wcs.imageHeight.toDouble()),
+          (wcs.imageWidth.toDouble(), wcs.imageHeight.toDouble()),
+        ];
+        for (final (px, py) in corners) {
+          final world = proj.pixelToWorld(x: px, y: py);
+          expect(
+            box.contains(raDeg: world.raDegrees, decDeg: world.decDegrees),
+            isTrue,
+            reason:
+                'Corner ($px,$py) -> (${world.raDegrees}, ${world.decDegrees}) '
+                'must fall within the bounding box',
+          );
+        }
+      },
+    );
   });
 
   group('SolvedWcs.isValid', () {

@@ -113,14 +113,15 @@ class DefectMapService {
   static const int minRequiredDarkFrames = 5;
 
   DefectMapStatus _fromBridge(bridge.ApiDefectMapStatus s) => DefectMapStatus(
-        cameraId: s.cameraId,
-        width: s.width,
-        height: s.height,
-        temperatureBucket:
-            DefectMapTemperatureBucket(s.temperatureBucketDecicelsius),
-        defectivePixelCount: s.defectivePixelCount,
-        lastRebuiltUnixSeconds: s.lastRebuiltUnixSeconds,
-        applyDuringCapture: s.applyDuringCapture,
-        storedOnDisk: s.storedOnDisk,
-      );
+    cameraId: s.cameraId,
+    width: s.width,
+    height: s.height,
+    temperatureBucket: DefectMapTemperatureBucket(
+      s.temperatureBucketDecicelsius,
+    ),
+    defectivePixelCount: s.defectivePixelCount,
+    lastRebuiltUnixSeconds: s.lastRebuiltUnixSeconds,
+    applyDuringCapture: s.applyDuringCapture,
+    storedOnDisk: s.storedOnDisk,
+  );
 }

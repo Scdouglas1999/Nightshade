@@ -41,7 +41,7 @@ abstract class ScienceBackend {
   );
 
   Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
-      computeLastCaptureQualityMaps({
+  computeLastCaptureQualityMaps({
     required String deviceId,
     required int gridRows,
     required int gridCols,
@@ -53,7 +53,7 @@ abstract class ScienceBackend {
   });
 
   Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
-      computeFitsQualityMaps({
+  computeFitsQualityMaps({
     required String filePath,
     required int gridRows,
     required int gridCols,

@@ -4,12 +4,7 @@
 /// and Dart frontend, as well as across network boundaries for remote operation.
 
 /// Event severity levels
-enum EventSeverity {
-  info,
-  warning,
-  error,
-  critical,
-}
+enum EventSeverity { info, warning, error, critical }
 
 // [Wave 6B settings sync] Canonical event-type string broadcast over the WS
 // `/events` channel when a single setting changes on the headless host. The
@@ -109,16 +104,16 @@ class NightshadeEvent {
 
   /// Convert to JSON for wire protocol (WebSocket/HTTP)
   Map<String, dynamic> toJson() => {
-        'timestamp': timestamp,
-        'severity': severity.name,
-        'category': category.name,
-        'eventType': eventType,
-        'data': data,
-        if (seq != null) 'seq': seq,
-        if (serverInstanceId != null) 'serverInstanceId': serverInstanceId,
-        if (correlatingCommandId != null)
-          'correlatingCommandId': correlatingCommandId,
-      };
+    'timestamp': timestamp,
+    'severity': severity.name,
+    'category': category.name,
+    'eventType': eventType,
+    'data': data,
+    if (seq != null) 'seq': seq,
+    if (serverInstanceId != null) 'serverInstanceId': serverInstanceId,
+    if (correlatingCommandId != null)
+      'correlatingCommandId': correlatingCommandId,
+  };
 
   /// Return a copy of this event with [seq], [serverInstanceId], and/or
   /// [correlatingCommandId] overridden. Used by the headless server to
@@ -160,22 +155,25 @@ class NightshadeEvent {
     };
 
     final rawSeverity = payload['severity'];
-    final severityName =
-        rawSeverity is String ? rawSeverity : rawSeverity?.toString() ?? 'info';
+    final severityName = rawSeverity is String
+        ? rawSeverity
+        : rawSeverity?.toString() ?? 'info';
     final severity = EventSeverity.values.firstWhere(
       (e) => e.name.toLowerCase() == severityName.toLowerCase(),
       orElse: () => EventSeverity.info,
     );
 
     final rawCategory = payload['category'];
-    final categoryName =
-        rawCategory is String ? rawCategory : rawCategory?.toString() ?? 'system';
+    final categoryName = rawCategory is String
+        ? rawCategory
+        : rawCategory?.toString() ?? 'system';
     final category = EventCategory.values.firstWhere(
       (e) => e.name.toLowerCase() == categoryName.toLowerCase(),
       orElse: () => EventCategory.system,
     );
 
-    final eventType = (payload['eventType'] ?? payload['event_type']) as String?;
+    final eventType =
+        (payload['eventType'] ?? payload['event_type']) as String?;
     if (eventType == null || eventType.isEmpty) {
       throw FormatException('NightshadeEvent missing eventType: $payload');
     }

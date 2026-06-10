@@ -44,15 +44,15 @@ class ImageStatsResult {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'min': min,
-        'max': max,
-        'mean': mean,
-        'median': median,
-        'stdDev': stdDev,
-        'hfr': hfr,
-        'eccentricity': eccentricity,
-        'starCount': starCount,
-      };
+    'min': min,
+    'max': max,
+    'mean': mean,
+    'median': median,
+    'stdDev': stdDev,
+    'hfr': hfr,
+    'eccentricity': eccentricity,
+    'starCount': starCount,
+  };
 }
 
 /// Captured image result from camera exposure
@@ -109,13 +109,13 @@ class CapturedImageResult {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'displayData': displayData,
-        'histogram': histogram,
-        'stats': stats.toJson(),
-        'exposureTime': exposureTime,
-        'timestamp': timestamp,
-        'isColor': isColor,
-      };
+    'width': width,
+    'height': height,
+    'displayData': displayData,
+    'histogram': histogram,
+    'stats': stats.toJson(),
+    'exposureTime': exposureTime,
+    'timestamp': timestamp,
+    'isColor': isColor,
+  };
 }

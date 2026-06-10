@@ -4,7 +4,8 @@ import 'dart:io';
 Future<void> main() async {
   final repoRoot = Directory.current;
   final script = File(
-      '${repoRoot.path}/tools/production/headless_route_policy_audit.dart');
+    '${repoRoot.path}/tools/production/headless_route_policy_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Headless route policy audit not found: ${script.path}');
   }
@@ -21,7 +22,9 @@ Future<void> main() async {
     );
     _expect(passing['passed'] == true, 'passing fixture should pass');
     _expect(
-        passing['issueCount'] == 0, 'passing fixture should have no issues');
+      passing['issueCount'] == 0,
+      'passing fixture should have no issues',
+    );
     final bodyLimits = passing['bodyLimits'] as Map<String, dynamic>;
     _expect(
       bodyLimits.length == 6 &&
@@ -130,17 +133,13 @@ void main() {
 }
 
 Future<void> _writeServerFixture(Directory root) async {
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', '''
 void start() {
   router.post('/api/mount/slew', handleSlew);
   router.post('/api/imaging/stretch', handleStretch);
   router.patch('/api/settings/location', handleLocation);
 }
-''',
-  );
+''');
 }
 
 Future<ProcessResult> _runAudit(

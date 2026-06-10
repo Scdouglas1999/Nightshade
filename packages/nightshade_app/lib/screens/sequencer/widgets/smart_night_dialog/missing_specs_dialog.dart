@@ -73,7 +73,9 @@ class _SmartNightMissingSpecsDialogState
             children: [
               Text(
                 'Smart Night can make better exposure recommendations with the camera values below.',
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize13),
               ),
               const SizedBox(height: 16),
               _specField(
@@ -120,7 +122,9 @@ class _SmartNightMissingSpecsDialogState
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+                  style: TextStyle(
+                      color: colors.error,
+                      fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
             ],

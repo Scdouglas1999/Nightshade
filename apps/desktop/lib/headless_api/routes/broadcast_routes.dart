@@ -11,11 +11,11 @@ import '../handlers/broadcast_handlers.dart';
 import 'headless_route.dart';
 
 /// Build the declarative route table for [BroadcastHandlers].
-List<HeadlessRoute> buildBroadcastRoutes(BroadcastHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/broadcast/info', h.handleInfo),
-      HeadlessRoute(
-          HttpMethod.get, '/api/broadcast/live-stack', h.handleLiveStack),
-      HeadlessRoute(HttpMethod.get, '/api/broadcast/sse', h.handleSse),
-      HeadlessRoute(HttpMethod.get, '/broadcast', h.handleBroadcastPage),
-    ];
+List<HeadlessRoute> buildBroadcastRoutes(
+  BroadcastHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(HttpMethod.get, '/api/broadcast/info', h.handleInfo),
+  HeadlessRoute(HttpMethod.get, '/api/broadcast/live-stack', h.handleLiveStack),
+  HeadlessRoute(HttpMethod.get, '/api/broadcast/sse', h.handleSse),
+  HeadlessRoute(HttpMethod.get, '/broadcast', h.handleBroadcastPage),
+];

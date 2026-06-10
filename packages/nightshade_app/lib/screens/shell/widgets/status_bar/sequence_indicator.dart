@@ -87,7 +87,8 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
             const SizedBox(width: 8),
             Text(
               displayText,
-              style: NightshadeTypography.labelQuiet.copyWith(color: widget.colors.textSecondary),
+              style: NightshadeTypography.labelQuiet
+                  .copyWith(color: widget.colors.textSecondary),
             ),
           ],
         ),

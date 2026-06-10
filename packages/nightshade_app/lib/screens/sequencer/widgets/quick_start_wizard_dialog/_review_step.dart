@@ -17,7 +17,9 @@ extension _ReviewStep on _QuickStartWizardDialogState {
       children: [
         Text(
           'Review your sequence before creating it.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize13),
         ),
         const SizedBox(height: 16),
 
@@ -127,7 +129,8 @@ extension _ReviewStep on _QuickStartWizardDialogState {
                 children: [
                   Text(
                     'Estimated Duration',
-                    style: NightshadeTypography.h6.copyWith(color: colors.primary),
+                    style:
+                        NightshadeTypography.h6.copyWith(color: colors.primary),
                   ),
                   Text(
                     _formatDuration(totalSecs),
@@ -173,7 +176,8 @@ extension _ReviewStep on _QuickStartWizardDialogState {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -192,11 +196,15 @@ extension _ReviewStep on _QuickStartWizardDialogState {
           SizedBox(
             width: 120,
             child: Text(label,
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12)),
           ),
           Expanded(
             child: Text(value,
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12)),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize12)),
           ),
         ],
       ),
@@ -279,7 +287,8 @@ extension _ReviewStep on _QuickStartWizardDialogState {
         children: [
           Text(
             'Sequence Tree Preview',
-            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.labelStrongSm
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           ...treeLines.map((line) {

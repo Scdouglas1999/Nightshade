@@ -7,7 +7,8 @@ import 'package:nightshade_core/src/services/import/generic_csv_importer.dart';
 void main() {
   group('GenericCsvImporter preview', () {
     test('extracts headers + sample rows from CSV with header', () {
-      const csv = 'name,ra,dec,filter\n'
+      const csv =
+          'name,ra,dec,filter\n'
           'M42,5.5881,-5.391,L\n'
           'M31,0.7122,41.269,L\n'
           'M51,13.498,47.195,L\n';
@@ -38,7 +39,8 @@ void main() {
 
   group('GenericCsvImporter parse with mapping', () {
     test('produces TargetHeaderNodes using explicit column mapping', () {
-      const csv = 'name,ra,dec,filter,exposure,count\n'
+      const csv =
+          'name,ra,dec,filter,exposure,count\n'
           'M42,5.5881,-5.391,L,300,30\n'
           'M31,0.7122,41.269,Ha,600,20\n';
       const mapping = CsvColumnMapping(
@@ -55,11 +57,13 @@ void main() {
         sequenceName: 'Generic',
         forceUnsupported: false,
       );
-      final targets =
-          mapped.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = mapped.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(2));
-      final exposures =
-          mapped.sequence.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = mapped.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(2));
       final m42Exp = exposures.firstWhere((e) => e.filter == 'L');
       expect(m42Exp.durationSecs, 300);
@@ -68,8 +72,11 @@ void main() {
 
     test('throws when required cell is missing', () {
       const csv = 'name,ra,dec\nM42,,-5.391\n';
-      const mapping =
-          CsvColumnMapping(nameColumn: 0, raColumn: 1, decColumn: 2);
+      const mapping = CsvColumnMapping(
+        nameColumn: 0,
+        raColumn: 1,
+        decColumn: 2,
+      );
       expect(
         () => GenericCsvImporter().parse(csv, mapping: mapping),
         throwsA(isA<MalformedSourceError>()),
@@ -78,8 +85,11 @@ void main() {
 
     test('throws when coordinate is unparseable', () {
       const csv = 'name,ra,dec\nM42,not_a_ra,not_a_dec\n';
-      const mapping =
-          CsvColumnMapping(nameColumn: 0, raColumn: 1, decColumn: 2);
+      const mapping = CsvColumnMapping(
+        nameColumn: 0,
+        raColumn: 1,
+        decColumn: 2,
+      );
       expect(
         () => GenericCsvImporter().parse(csv, mapping: mapping),
         throwsA(isA<MalformedSourceError>()),

@@ -102,14 +102,16 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ? NightshadeDecorations.cardSelected(
                   categoryColor,
                   background: widget.colors.surface,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   borderWidth: 2,
                 )
               : BoxDecoration(
                   color: _isHovered
                       ? categoryColor.withValues(alpha: 0.06)
                       : widget.colors.surface,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: isRunning
                         ? widget.colors.info
@@ -183,7 +185,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
                 color: statusColor,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
 
@@ -216,7 +219,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               children: [
                 Text(
                   node.displayName,
-                  style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: widget.colors.textPrimary),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -370,7 +374,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 'P${node.priority}',
@@ -531,9 +536,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 children: [
                   Text(
                     statusLabel,
-                    style: NightshadeTypography.labelStrongSm.copyWith(color: widget.nodeStatus == NodeStatus.running
-                          ? widget.colors.info
-                          : widget.colors.textMuted),
+                    style: NightshadeTypography.labelStrongSm.copyWith(
+                        color: widget.nodeStatus == NodeStatus.running
+                            ? widget.colors.info
+                            : widget.colors.textMuted),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -578,20 +584,26 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               const SizedBox(width: 8),
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} done',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textSecondary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(width: 6),
-              Text('•', style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted)),
+              Text('•',
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: widget.colors.textMuted)),
               const SizedBox(width: 6),
               Text(
                 '${completedMins}m / ${totalMins}m',
-                style:
-                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: widget.colors.textMuted),
               ),
               const Spacer(),
               Text(
                 '${(stats.fraction * 100).round()}%',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textSecondary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: widget.colors.textSecondary),
               ),
             ],
           ),
@@ -707,7 +719,8 @@ class _CoordinateChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: NightshadeTypography.labelQuiet.copyWith(color: colors.textMuted),
+          style:
+              NightshadeTypography.labelQuiet.copyWith(color: colors.textMuted),
         ),
         const SizedBox(width: 4),
         Text(

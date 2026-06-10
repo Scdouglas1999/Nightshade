@@ -176,8 +176,7 @@ void main() {
   });
 
   group('OnboardingOverlay defect-map follow-up', () {
-    testWidgets(
-        '"Show me about defect maps" unlocks the optional eighth step',
+    testWidgets('"Show me about defect maps" unlocks the optional eighth step',
         (tester) async {
       final db = _newInMemoryDb();
       addTearDown(() async => db.close());
@@ -227,8 +226,8 @@ void main() {
 
       // After reset, the persisted row is gone — launcher's gate will
       // resolve to pending and re-mount the overlay on next render.
-      expect(await daoWrapper.getStatus(),
-          equals(FirstLaunchTourStatus.pending));
+      expect(
+          await daoWrapper.getStatus(), equals(FirstLaunchTourStatus.pending));
     });
   });
 }

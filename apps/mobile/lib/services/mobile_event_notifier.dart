@@ -28,9 +28,9 @@ class MobileEventNotifier {
     required Stream<NightshadeEvent> eventStream,
     required MobilePreferences preferences,
     MobileNotificationSink? notificationService,
-  })  : _eventStream = eventStream,
-        _preferences = preferences,
-        _notifications = notificationService ?? MobileNotificationService();
+  }) : _eventStream = eventStream,
+       _preferences = preferences,
+       _notifications = notificationService ?? MobileNotificationService();
 
   final Stream<NightshadeEvent> _eventStream;
   final MobilePreferences _preferences;
@@ -166,7 +166,8 @@ class MobileEventNotifier {
 
     switch (event.eventType) {
       case 'WeatherUnsafe':
-        final reason = event.data['reason'] as String? ??
+        final reason =
+            event.data['reason'] as String? ??
             'Safety monitor reports unsafe conditions';
         await _notifications.notifySafety(
           title: 'Weather Unsafe',
@@ -215,7 +216,9 @@ class MobileEventNotifier {
         _markFired(key);
         break;
       case 'Disconnected':
-        await _notifications.notifyGuidingLost('PHD2 guiding has disconnected.');
+        await _notifications.notifyGuidingLost(
+          'PHD2 guiding has disconnected.',
+        );
         _markFired(key);
         break;
     }
@@ -229,7 +232,8 @@ class MobileEventNotifier {
         if (!_preferences.notifyExposureFailed) return;
         if (_firedRecently(key, _repeatWindow)) return;
         if (_pushAlreadyCovered(event.eventType)) return;
-        final error = event.data['error'] as String? ??
+        final error =
+            event.data['error'] as String? ??
             event.data['reason'] as String? ??
             'Camera exposure failed';
         await _notifications.notifyExposureFailed(error);
@@ -246,10 +250,8 @@ class MobileEventNotifier {
 
     switch (event.eventType) {
       case 'Disconnected':
-        final deviceType =
-            event.data['device_type'] as String? ?? 'Device';
-        final deviceId =
-            event.data['device_id'] as String? ?? 'unknown';
+        final deviceType = event.data['device_type'] as String? ?? 'Device';
+        final deviceId = event.data['device_id'] as String? ?? 'unknown';
         await _notifications.notifyEquipmentDisconnected(deviceType, deviceId);
         _markFired(key);
         break;
@@ -262,8 +264,7 @@ class MobileEventNotifier {
         if (lower.contains('disconnect') ||
             lower.contains('lost') ||
             lower.contains('not responding')) {
-          final deviceType =
-              event.data['device_type'] as String? ?? 'Device';
+          final deviceType = event.data['device_type'] as String? ?? 'Device';
           await _notifications.notifyEquipmentDisconnected(
             deviceType,
             message.isEmpty ? 'error' : message,
@@ -274,12 +275,12 @@ class MobileEventNotifier {
       case 'HeartbeatStatusChanged':
         final status = event.data['status'] as String? ?? '';
         if (status == 'Disconnected') {
-          final deviceType =
-              event.data['device_type'] as String? ?? 'Device';
-          final deviceId =
-              event.data['device_id'] as String? ?? 'unknown';
+          final deviceType = event.data['device_type'] as String? ?? 'Device';
+          final deviceId = event.data['device_id'] as String? ?? 'unknown';
           await _notifications.notifyEquipmentDisconnected(
-              deviceType, deviceId);
+            deviceType,
+            deviceId,
+          );
           _markFired(key);
         }
         break;
@@ -388,8 +389,8 @@ class MobileEventNotifier {
     final errorMessage = errorObj is Map
         ? (errorObj['message'] as String? ?? 'Job failed')
         : (event.data['message'] as String? ??
-            event.data['reason'] as String? ??
-            'Job failed');
+              event.data['reason'] as String? ??
+              'Job failed');
 
     final key = 'job:$operation:JobFailed';
     if (_firedRecently(key, _repeatWindow)) return;
@@ -470,8 +471,7 @@ class MobileEventNotifier {
         _markFired(key);
         break;
       case 'OwnershipAutoReleased':
-        final reason =
-            event.data['reason'] as String? ?? 'heartbeat timeout';
+        final reason = event.data['reason'] as String? ?? 'heartbeat timeout';
         await _notifications.notifyOwnershipAutoReleased(reason);
         _markFired(key);
         break;

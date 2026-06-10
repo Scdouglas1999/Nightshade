@@ -15,6 +15,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/slew_dropdown_button.dart';
+
 class MountTab extends ConsumerStatefulWidget {
   const MountTab({super.key});
 
@@ -70,7 +71,8 @@ class _MountTabState extends ConsumerState<MountTab> {
     final ra = CoordinateParser.parseRa(_raController.text);
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
-      context.showErrorSnackBar("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
+      context.showErrorSnackBar(
+          "Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
       return;
     }
     ref.read(mountCommandServiceProvider).sync(ra, dec).then((result) {
@@ -84,7 +86,8 @@ class _MountTabState extends ConsumerState<MountTab> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final mountState = ref.watch(mountStateProvider);
-    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     final isMobile = Responsive.isMobile(context);
 
     // Watch mount capabilities to gate UI features.
@@ -94,8 +97,8 @@ class _MountTabState extends ConsumerState<MountTab> {
     // `canPark` no longer ships a button that hits a "Not implemented"
     // path. While loading we keep buttons visible (`loadingDefault: true`)
     // so the UI does not flash empty on every tab switch.
-    final mountCapsAsync = ref.watch(
-        equipmentMountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final mountCapsAsync = ref
+        .watch(equipmentMountCapabilitiesProvider(mountState.deviceId ?? ''));
     final canPark = gateCapability<MountCapabilities>(
       mountCapsAsync,
       (c) => c.canPark,
@@ -133,14 +136,21 @@ class _MountTabState extends ConsumerState<MountTab> {
                     children: [
                       Text(
                         'Mount Status',
-                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
                       ),
                       if (isConnected)
                         _StatusBadge(
-                          label: mountState.isSlewing ? 'SLEWING' : (mountState.isTracking ? 'TRACKING' : 'STOPPED'),
+                          label: mountState.isSlewing
+                              ? 'SLEWING'
+                              : (mountState.isTracking
+                                  ? 'TRACKING'
+                                  : 'STOPPED'),
                           color: mountState.isSlewing
                               ? colors.warning
-                              : (mountState.isTracking ? colors.success : colors.textSecondary),
+                              : (mountState.isTracking
+                                  ? colors.success
+                                  : colors.textSecondary),
                         ),
                       if (!isConnected)
                         _StatusBadge(
@@ -153,24 +163,37 @@ class _MountTabState extends ConsumerState<MountTab> {
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'RA', value: mountState.ra?.toStringAsFixed(4) ?? '--'),
-                      _InfoRow(label: 'Dec', value: mountState.dec?.toStringAsFixed(4) ?? '--'),
+                      _InfoRow(
+                          label: 'RA',
+                          value: mountState.ra?.toStringAsFixed(4) ?? '--'),
+                      _InfoRow(
+                          label: 'Dec',
+                          value: mountState.dec?.toStringAsFixed(4) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'Alt', value: mountState.altitude?.toStringAsFixed(2) ?? '--'),
-                      _InfoRow(label: 'Az', value: mountState.azimuth?.toStringAsFixed(2) ?? '--'),
+                      _InfoRow(
+                          label: 'Alt',
+                          value:
+                              mountState.altitude?.toStringAsFixed(2) ?? '--'),
+                      _InfoRow(
+                          label: 'Az',
+                          value:
+                              mountState.azimuth?.toStringAsFixed(2) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'Pier', value: mountState.sideOfPier ?? '--'),
-                      _InfoRow(label: 'Status', value: mountState.isParked ? 'Parked' : 'Ready'),
+                      _InfoRow(
+                          label: 'Pier', value: mountState.sideOfPier ?? '--'),
+                      _InfoRow(
+                          label: 'Status',
+                          value: mountState.isParked ? 'Parked' : 'Ready'),
                     ],
                   ),
                 ],
@@ -189,7 +212,8 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Actions',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -204,23 +228,35 @@ class _MountTabState extends ConsumerState<MountTab> {
                           // gateCapability above.
                           onPressed: isConnected &&
                                   (mountState.isParked ? canUnpark : canPark)
-                              ? () => ref.read(mountCommandServiceProvider).togglePark().then((result) {
-                                  if (mounted) context.showCommandActionResult(result);
-                                })
+                              ? () => ref
+                                      .read(mountCommandServiceProvider)
+                                      .togglePark()
+                                      .then((result) {
+                                    if (mounted)
+                                      context.showCommandActionResult(result);
+                                  })
                               : null,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: NightshadeButton(
-                          label: mountState.isTracking ? 'Stop Track' : 'Start Track',
+                          label: mountState.isTracking
+                              ? 'Stop Track'
+                              : 'Start Track',
                           icon: NightshadeIcons.activity,
-                          variant: mountState.isTracking ? ButtonVariant.outline : ButtonVariant.primary,
+                          variant: mountState.isTracking
+                              ? ButtonVariant.outline
+                              : ButtonVariant.primary,
                           // DEV-P3-1: gate on canSetTracking capability.
                           onPressed: isConnected && canSetTracking
-                              ? () => ref.read(mountCommandServiceProvider).setTracking(!mountState.isTracking).then((result) {
-                                  if (mounted) context.showCommandActionResult(result);
-                                })
+                              ? () => ref
+                                      .read(mountCommandServiceProvider)
+                                      .setTracking(!mountState.isTracking)
+                                      .then((result) {
+                                    if (mounted)
+                                      context.showCommandActionResult(result);
+                                  })
                               : null,
                         ),
                       ),
@@ -236,9 +272,15 @@ class _MountTabState extends ConsumerState<MountTab> {
                       // DEV-P3-1: gate on canAbortSlew. Drivers without
                       // abort support would otherwise stall the user when
                       // a runaway slew demands the panic button.
-                      onPressed: isConnected && canAbortSlew ? () => ref.read(mountCommandServiceProvider).abortSlew().then((result) {
-                          if (mounted) context.showCommandActionResult(result);
-                        }) : null,
+                      onPressed: isConnected && canAbortSlew
+                          ? () => ref
+                                  .read(mountCommandServiceProvider)
+                                  .abortSlew()
+                                  .then((result) {
+                                if (mounted)
+                                  context.showCommandActionResult(result);
+                              })
+                          : null,
                     ),
                   ),
                 ],
@@ -257,7 +299,8 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Alignment',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -285,7 +328,8 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'GoTo / Sync',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -297,7 +341,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                           onChanged: (value) {
                             _raController.text = value;
                             ref.read(slewCoordinatesProvider.notifier).state =
-                                ref.read(slewCoordinatesProvider).copyWith(raText: value);
+                                ref
+                                    .read(slewCoordinatesProvider)
+                                    .copyWith(raText: value);
                           },
                         ),
                       ),
@@ -309,7 +355,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                           onChanged: (value) {
                             _decController.text = value;
                             ref.read(slewCoordinatesProvider.notifier).state =
-                                ref.read(slewCoordinatesProvider).copyWith(decText: value);
+                                ref
+                                    .read(slewCoordinatesProvider)
+                                    .copyWith(decText: value);
                           },
                         ),
                       ),
@@ -322,8 +370,10 @@ class _MountTabState extends ConsumerState<MountTab> {
                         child: Builder(
                           builder: (context) {
                             // Parse coordinates for the slew dropdown
-                            final ra = CoordinateParser.parseRa(_raController.text);
-                            final dec = CoordinateParser.parseDec(_decController.text);
+                            final ra =
+                                CoordinateParser.parseRa(_raController.text);
+                            final dec =
+                                CoordinateParser.parseDec(_decController.text);
                             final hasValidCoords = ra != null && dec != null;
 
                             if (!hasValidCoords) {
@@ -374,30 +424,59 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Pulse Guide',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Center(
                     child: Column(
                       children: [
-                         _PulseButton(icon: NightshadeIcons.chevronUp, label: "N", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("north").then((result) {
-                          if (mounted) context.showCommandActionResult(result);
-                        })),
+                        _PulseButton(
+                            icon: NightshadeIcons.chevronUp,
+                            label: "N",
+                            onPressed: () => ref
+                                    .read(mountCommandServiceProvider)
+                                    .pulseGuide("north")
+                                    .then((result) {
+                                  if (mounted)
+                                    context.showCommandActionResult(result);
+                                })),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _PulseButton(icon: NightshadeIcons.chevronLeft, label: "W", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("west").then((result) {
-                              if (mounted) context.showCommandActionResult(result);
-                            })),
+                            _PulseButton(
+                                icon: NightshadeIcons.chevronLeft,
+                                label: "W",
+                                onPressed: () => ref
+                                        .read(mountCommandServiceProvider)
+                                        .pulseGuide("west")
+                                        .then((result) {
+                                      if (mounted)
+                                        context.showCommandActionResult(result);
+                                    })),
                             const SizedBox(width: 48),
-                            _PulseButton(icon: NightshadeIcons.chevronRight, label: "E", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("east").then((result) {
-                              if (mounted) context.showCommandActionResult(result);
-                            })),
+                            _PulseButton(
+                                icon: NightshadeIcons.chevronRight,
+                                label: "E",
+                                onPressed: () => ref
+                                        .read(mountCommandServiceProvider)
+                                        .pulseGuide("east")
+                                        .then((result) {
+                                      if (mounted)
+                                        context.showCommandActionResult(result);
+                                    })),
                           ],
                         ),
-                        _PulseButton(icon: NightshadeIcons.chevronDown, label: "S", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("south").then((result) {
-                          if (mounted) context.showCommandActionResult(result);
-                        })),
+                        _PulseButton(
+                            icon: NightshadeIcons.chevronDown,
+                            label: "S",
+                            onPressed: () => ref
+                                    .read(mountCommandServiceProvider)
+                                    .pulseGuide("south")
+                                    .then((result) {
+                                  if (mounted)
+                                    context.showCommandActionResult(result);
+                                })),
                       ],
                     ),
                   ),
@@ -423,7 +502,10 @@ class _InfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
+        Text(label,
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -454,7 +536,10 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: NightshadeTypography.fontSize10, fontWeight: FontWeight.w600, color: color),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize10,
+            fontWeight: FontWeight.w600,
+            color: color),
       ),
     );
   }
@@ -465,7 +550,8 @@ class _PulseButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  const _PulseButton({required this.icon, required this.label, required this.onPressed});
+  const _PulseButton(
+      {required this.icon, required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -487,7 +573,10 @@ class _PulseButton extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary)),
+        Text(label,
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textSecondary)),
       ],
     );
   }

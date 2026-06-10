@@ -154,13 +154,7 @@ class ProjectService {
     await _db.customStatement(
       'UPDATE projects SET name = ?, description = ?, color_argb = ?, updated_at = ? '
       'WHERE id = ?',
-      [
-        project.name,
-        project.description,
-        project.colorArgb,
-        _nowUnix(),
-        id,
-      ],
+      [project.name, project.description, project.colorArgb, _nowUnix(), id],
     );
     _notifyMutated();
   }
@@ -177,21 +171,25 @@ class ProjectService {
   /// All projects, most-recently-updated first.
   Future<List<Project>> listProjects() async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, name, description, color_argb, created_at, updated_at '
-      'FROM projects ORDER BY updated_at DESC, id DESC',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, name, description, color_argb, created_at, updated_at '
+          'FROM projects ORDER BY updated_at DESC, id DESC',
+        )
+        .get();
     return rows.map(_rowToProject).toList();
   }
 
   /// Look up a single project by id, or `null` if it does not exist.
   Future<Project?> getProject(int id) async {
     await _ensureSchema();
-    final row = await _db.customSelect(
-      'SELECT id, name, description, color_argb, created_at, updated_at '
-      'FROM projects WHERE id = ?',
-      variables: [Variable.withInt(id)],
-    ).getSingleOrNull();
+    final row = await _db
+        .customSelect(
+          'SELECT id, name, description, color_argb, created_at, updated_at '
+          'FROM projects WHERE id = ?',
+          variables: [Variable.withInt(id)],
+        )
+        .getSingleOrNull();
     if (row == null) return null;
     return _rowToProject(row);
   }
@@ -259,11 +257,13 @@ class ProjectService {
   /// All memberships for a project, oldest-added first (stable display order).
   Future<List<ProjectTarget>> listTargets(int projectId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, project_id, target_id, priority_override, added_at '
-      'FROM project_targets WHERE project_id = ? ORDER BY added_at ASC, id ASC',
-      variables: [Variable.withInt(projectId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, project_id, target_id, priority_override, added_at '
+          'FROM project_targets WHERE project_id = ? ORDER BY added_at ASC, id ASC',
+          variables: [Variable.withInt(projectId)],
+        )
+        .get();
     return rows.map(_rowToProjectTarget).toList();
   }
 
@@ -271,11 +271,13 @@ class ProjectService {
   /// candidate loader to filter the candidate set to the active project.
   Future<List<int>> targetIdsForProject(int projectId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT target_id FROM project_targets WHERE project_id = ? '
-      'ORDER BY added_at ASC, id ASC',
-      variables: [Variable.withInt(projectId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT target_id FROM project_targets WHERE project_id = ? '
+          'ORDER BY added_at ASC, id ASC',
+          variables: [Variable.withInt(projectId)],
+        )
+        .get();
     return rows.map((r) => r.read<int>('target_id')).toList();
   }
 
@@ -308,10 +310,12 @@ class ProjectService {
 
     for (final membership in memberships) {
       final targetId = membership.targetId;
-      final targetRow = await _db.customSelect(
-        'SELECT name, ra, dec FROM targets WHERE id = ?',
-        variables: [Variable.withInt(targetId)],
-      ).getSingleOrNull();
+      final targetRow = await _db
+          .customSelect(
+            'SELECT name, ra, dec FROM targets WHERE id = ?',
+            variables: [Variable.withInt(targetId)],
+          )
+          .getSingleOrNull();
       if (targetRow == null) {
         throw StateError(
           'Project $projectId references target $targetId, which no longer '
@@ -326,21 +330,25 @@ class ProjectService {
           targetId: targetId,
           filter: goal.filter,
         );
-        lines.add(FilterProgressLine(
-          filter: goal.filter,
-          exposureSeconds: goal.exposureSeconds,
-          goalFrames: goal.frameCount,
-          capturedFrames: captured,
-        ));
+        lines.add(
+          FilterProgressLine(
+            filter: goal.filter,
+            exposureSeconds: goal.exposureSeconds,
+            goalFrames: goal.frameCount,
+            capturedFrames: captured,
+          ),
+        );
       }
 
-      targetProgress.add(ProjectTargetProgress(
-        targetId: targetId,
-        targetName: targetRow.read<String>('name'),
-        raHours: targetRow.read<double>('ra'),
-        decDegrees: targetRow.read<double>('dec'),
-        filters: lines,
-      ));
+      targetProgress.add(
+        ProjectTargetProgress(
+          targetId: targetId,
+          targetName: targetRow.read<String>('name'),
+          raHours: targetRow.read<double>('ra'),
+          decDegrees: targetRow.read<double>('dec'),
+          filters: lines,
+        ),
+      );
     }
 
     return CampaignProgress(project: project, targets: targetProgress);

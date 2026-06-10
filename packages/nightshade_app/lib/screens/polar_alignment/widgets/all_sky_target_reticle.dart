@@ -94,9 +94,8 @@ class AllSkyTargetReticle extends StatelessWidget {
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize22,
                       fontWeight: FontWeight.w700,
-                      color: withinThreshold
-                          ? colors.success
-                          : colors.textPrimary,
+                      color:
+                          withinThreshold ? colors.success : colors.textPrimary,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                     textAlign: TextAlign.center,
@@ -241,8 +240,7 @@ class _ReticlePainter extends CustomPainter {
       clampedDy = dy;
     }
 
-    final markerCenter =
-        Offset(center.dx + clampedDx, center.dy + clampedDy);
+    final markerCenter = Offset(center.dx + clampedDx, center.dy + clampedDy);
 
     final totalError = math.sqrt(
       azimuthErrorArcsec * azimuthErrorArcsec +

@@ -16,29 +16,47 @@ enum TargetType {
 extension TargetTypeExtension on TargetType {
   String get displayName {
     switch (this) {
-      case TargetType.galaxy: return 'Galaxy';
-      case TargetType.nebula: return 'Nebula';
-      case TargetType.cluster: return 'Cluster';
-      case TargetType.star: return 'Star';
-      case TargetType.planet: return 'Planet';
-      case TargetType.moon: return 'Moon';
-      case TargetType.comet: return 'Comet';
-      case TargetType.asteroid: return 'Asteroid';
-      case TargetType.other: return 'Other';
+      case TargetType.galaxy:
+        return 'Galaxy';
+      case TargetType.nebula:
+        return 'Nebula';
+      case TargetType.cluster:
+        return 'Cluster';
+      case TargetType.star:
+        return 'Star';
+      case TargetType.planet:
+        return 'Planet';
+      case TargetType.moon:
+        return 'Moon';
+      case TargetType.comet:
+        return 'Comet';
+      case TargetType.asteroid:
+        return 'Asteroid';
+      case TargetType.other:
+        return 'Other';
     }
   }
 
   String get icon {
     switch (this) {
-      case TargetType.galaxy: return 'galaxy';
-      case TargetType.nebula: return 'cloud';
-      case TargetType.cluster: return 'stars';
-      case TargetType.star: return 'star';
-      case TargetType.planet: return 'planet';
-      case TargetType.moon: return 'moon';
-      case TargetType.comet: return 'comet';
-      case TargetType.asteroid: return 'rock';
-      case TargetType.other: return 'sparkles';
+      case TargetType.galaxy:
+        return 'galaxy';
+      case TargetType.nebula:
+        return 'cloud';
+      case TargetType.cluster:
+        return 'stars';
+      case TargetType.star:
+        return 'star';
+      case TargetType.planet:
+        return 'planet';
+      case TargetType.moon:
+        return 'moon';
+      case TargetType.comet:
+        return 'comet';
+      case TargetType.asteroid:
+        return 'rock';
+      case TargetType.other:
+        return 'sparkles';
     }
   }
 }

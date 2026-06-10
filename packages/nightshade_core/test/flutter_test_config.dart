@@ -25,16 +25,16 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   // HttpOverrides locally.
   HttpOverrides.global = null;
 
-  final tempDir =
-      await Directory.systemTemp.createTemp('nightshade-core-test-');
+  final tempDir = await Directory.systemTemp.createTemp(
+    'nightshade-core-test-',
+  );
 
-  const pathProviderChannel =
-      MethodChannel('plugins.flutter.io/path_provider');
+  const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(pathProviderChannel, (call) async {
-    // Every path_provider query resolves to the throwaway temp dir.
-    return tempDir.path;
-  });
+        // Every path_provider query resolves to the throwaway temp dir.
+        return tempDir.path;
+      });
 
   await testMain();
 }

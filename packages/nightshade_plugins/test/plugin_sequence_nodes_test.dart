@@ -23,7 +23,10 @@ void main() {
 
   group('PluginNodeRegistry', () {
     test('compose / parse keys are symmetric', () {
-      final key = PluginNodeRegistration.composeKey('com.example.foo', 'bar.qux');
+      final key = PluginNodeRegistration.composeKey(
+        'com.example.foo',
+        'bar.qux',
+      );
       expect(key, equals('com.example.foo::bar.qux'));
 
       final parsed = PluginNodeRegistration.parseKey(key);
@@ -82,29 +85,33 @@ void main() {
 
       await host.unregisterPlugin(plugin.id);
       expect(host.nodeRegistry.registrations, isEmpty);
-      expect(host.nodeRegistry.findDefinition(plugin.id, 'dummy.always_succeeds'),
-          isNull);
+      expect(
+        host.nodeRegistry.findDefinition(plugin.id, 'dummy.always_succeeds'),
+        isNull,
+      );
     });
 
-    test('changes stream emits a fresh snapshot on register / unregister',
-        () async {
-      final host = PluginHost();
-      addTearDown(host.dispose);
+    test(
+      'changes stream emits a fresh snapshot on register / unregister',
+      () async {
+        final host = PluginHost();
+        addTearDown(host.dispose);
 
-      final snapshots = <List<PluginNodeRegistration>>[];
-      final sub = host.nodeRegistry.changes.listen(snapshots.add);
-      addTearDown(sub.cancel);
+        final snapshots = <List<PluginNodeRegistration>>[];
+        final sub = host.nodeRegistry.changes.listen(snapshots.add);
+        addTearDown(sub.cancel);
 
-      final plugin = _DummySequencePlugin();
-      await host.registerPlugin(plugin);
-      await Future<void>.delayed(Duration.zero);
-      expect(snapshots, isNotEmpty);
-      expect(snapshots.last, hasLength(3));
+        final plugin = _DummySequencePlugin();
+        await host.registerPlugin(plugin);
+        await Future<void>.delayed(Duration.zero);
+        expect(snapshots, isNotEmpty);
+        expect(snapshots.last, hasLength(3));
 
-      await host.unregisterPlugin(plugin.id);
-      await Future<void>.delayed(Duration.zero);
-      expect(snapshots.last, isEmpty);
-    });
+        await host.unregisterPlugin(plugin.id);
+        await Future<void>.delayed(Duration.zero);
+        expect(snapshots.last, isEmpty);
+      },
+    );
   });
 
   group('PluginNodeExecutor', () {
@@ -159,19 +166,21 @@ void main() {
       expect(result.message, contains('required'));
     });
 
-    test('successful execute returns success with descriptive message',
-        () async {
-      final plugin = _DummySequencePlugin();
-      await host.registerPlugin(plugin);
+    test(
+      'successful execute returns success with descriptive message',
+      () async {
+        final plugin = _DummySequencePlugin();
+        await host.registerPlugin(plugin);
 
-      final result = await executor.run(
-        pluginId: plugin.id,
-        nodeTypeId: 'dummy.always_succeeds',
-        params: const {},
-      );
-      expect(result.success, isTrue);
-      expect(result.message, contains('completed'));
-    });
+        final result = await executor.run(
+          pluginId: plugin.id,
+          nodeTypeId: 'dummy.always_succeeds',
+          params: const {},
+        );
+        expect(result.success, isTrue);
+        expect(result.message, contains('completed'));
+      },
+    );
 
     test('execute() returning false is reported as failure', () async {
       final plugin = _DummySequencePlugin();
@@ -186,19 +195,21 @@ void main() {
       expect(result.message, contains('reported failure'));
     });
 
-    test('plugin exceptions surface as structured failures, not thrown',
-        () async {
-      final plugin = _ThrowingSequencePlugin();
-      await host.registerPlugin(plugin);
+    test(
+      'plugin exceptions surface as structured failures, not thrown',
+      () async {
+        final plugin = _ThrowingSequencePlugin();
+        await host.registerPlugin(plugin);
 
-      final result = await executor.run(
-        pluginId: plugin.id,
-        nodeTypeId: 'throwing.boom',
-        params: const {},
-      );
-      expect(result.success, isFalse);
-      expect(result.message, contains('threw'));
-    });
+        final result = await executor.run(
+          pluginId: plugin.id,
+          nodeTypeId: 'throwing.boom',
+          params: const {},
+        );
+        expect(result.success, isFalse);
+        expect(result.message, contains('threw'));
+      },
+    );
 
     test('plugin timeouts are enforced', () async {
       final plugin = _HangingSequencePlugin();
@@ -267,32 +278,29 @@ void main() {
       final plugin = PushoverNotificationPlugin();
       final node = plugin.nodeDefinitions
           .firstWhere((d) => d.id == 'pushover.notify')
-          .createNode({
-        'title': 'Hi',
-        'message': 'Hello',
-        'priority': 99,
-      });
+          .createNode({'title': 'Hi', 'message': 'Hello', 'priority': 99});
       expect(node!.validate(), contains('priority'));
     });
 
     test('reports failure when credentials are not configured', () async {
-      final mockClient =
-          MockClient((_) async => http.Response('should not be called', 200));
-      final plugin =
-          PushoverNotificationPlugin(clientBuilder: () => mockClient);
+      final mockClient = MockClient(
+        (_) async => http.Response('should not be called', 200),
+      );
+      final plugin = PushoverNotificationPlugin(
+        clientBuilder: () => mockClient,
+      );
       final host = PluginHost();
       addTearDown(host.dispose);
       await host.registerPlugin(plugin);
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'pushover.notify',
-        params: const {
-          'title': 'Frame captured',
-          'message': 'M31 L 60s',
-        },
+        params: const {'title': 'Frame captured', 'message': 'M31 L 60s'},
       );
       expect(result.success, isFalse);
     });
@@ -301,16 +309,19 @@ void main() {
       var posted = false;
       final mockClient = MockClient((request) async {
         posted = true;
-        expect(request.url.toString(),
-            equals('https://api.pushover.net/1/messages.json'));
+        expect(
+          request.url.toString(),
+          equals('https://api.pushover.net/1/messages.json'),
+        );
         return http.Response(
           jsonEncode({'status': 1, 'request': 'req-123'}),
           200,
           headers: {'content-type': 'application/json'},
         );
       });
-      final plugin =
-          PushoverNotificationPlugin(clientBuilder: () => mockClient);
+      final plugin = PushoverNotificationPlugin(
+        clientBuilder: () => mockClient,
+      );
       final host = PluginHost();
       addTearDown(host.dispose);
       await host.registerPlugin(plugin);
@@ -319,8 +330,10 @@ void main() {
         userKey: 'user456',
       );
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'pushover.notify',
@@ -335,19 +348,27 @@ void main() {
     });
 
     test('Pushover server error fails the node', () async {
-      final mockClient = MockClient((_) async => http.Response(
-            jsonEncode({'status': 0, 'errors': ['invalid token']}),
-            200,
-          ));
-      final plugin =
-          PushoverNotificationPlugin(clientBuilder: () => mockClient);
+      final mockClient = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'status': 0,
+            'errors': ['invalid token'],
+          }),
+          200,
+        ),
+      );
+      final plugin = PushoverNotificationPlugin(
+        clientBuilder: () => mockClient,
+      );
       final host = PluginHost();
       addTearDown(host.dispose);
       await host.registerPlugin(plugin);
       await plugin.configureCredentials(apiToken: 'bad', userKey: 'bad');
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'pushover.notify',
@@ -396,8 +417,10 @@ void main() {
       addTearDown(host.dispose);
       await host.registerPlugin(plugin);
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'discord.webhook',
@@ -420,8 +443,10 @@ void main() {
       addTearDown(host.dispose);
       await host.registerPlugin(plugin);
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'discord.webhook',
@@ -479,8 +504,10 @@ void main() {
         accessToken: 'token-abc',
       );
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'home_assistant.toggle',
@@ -493,9 +520,7 @@ void main() {
       expect(result.success, isTrue, reason: 'message=${result.message}');
       expect(
         requestUrl.toString(),
-        equals(
-          'http://homeassistant.local:8123/api/services/switch/turn_on',
-        ),
+        equals('http://homeassistant.local:8123/api/services/switch/turn_on'),
       );
       expect(requestHeaders!['authorization'], equals('Bearer token-abc'));
       expect(requestBody!['entity_id'], equals('switch.dew_heater'));
@@ -521,8 +546,10 @@ void main() {
         accessToken: 'token-abc',
       );
 
-      final executor =
-          PluginNodeExecutor(host: host, registry: host.nodeRegistry);
+      final executor = PluginNodeExecutor(
+        host: host,
+        registry: host.nodeRegistry,
+      );
       final result = await executor.run(
         pluginId: plugin.id,
         nodeTypeId: 'home_assistant.toggle',
@@ -569,29 +596,29 @@ class _DummySequencePlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'dummy.always_succeeds',
-          name: 'Dummy: Always Succeeds',
-          category: 'Test',
-          description: 'Returns success',
-          createNode: (_) => _AlwaysSucceedsNode(),
-        ),
-        SequenceNodeDefinition(
-          id: 'dummy.always_fails',
-          name: 'Dummy: Always Fails',
-          category: 'Test',
-          description: 'Returns failure',
-          createNode: (_) => _AlwaysFailsNode(),
-        ),
-        // Additional fixture: a node that rejects empty input via validate().
-        SequenceNodeDefinition(
-          id: 'dummy.requires_param',
-          name: 'Dummy: Requires Param',
-          category: 'Test',
-          description: 'Validates a required string parameter',
-          createNode: (params) => _RequiresParamNode(params['name'] as String?),
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'dummy.always_succeeds',
+      name: 'Dummy: Always Succeeds',
+      category: 'Test',
+      description: 'Returns success',
+      createNode: (_) => _AlwaysSucceedsNode(),
+    ),
+    SequenceNodeDefinition(
+      id: 'dummy.always_fails',
+      name: 'Dummy: Always Fails',
+      category: 'Test',
+      description: 'Returns failure',
+      createNode: (_) => _AlwaysFailsNode(),
+    ),
+    // Additional fixture: a node that rejects empty input via validate().
+    SequenceNodeDefinition(
+      id: 'dummy.requires_param',
+      name: 'Dummy: Requires Param',
+      category: 'Test',
+      description: 'Validates a required string parameter',
+      createNode: (params) => _RequiresParamNode(params['name'] as String?),
+    ),
+  ];
 }
 
 class _AlwaysSucceedsNode implements PluginSequenceNode {
@@ -639,14 +666,14 @@ class _ThrowingSequencePlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'throwing.boom',
-          name: 'Throwing: Boom',
-          category: 'Test',
-          description: 'Throws inside execute',
-          createNode: (_) => _ThrowingNode(),
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'throwing.boom',
+      name: 'Throwing: Boom',
+      category: 'Test',
+      description: 'Throws inside execute',
+      createNode: (_) => _ThrowingNode(),
+    ),
+  ];
 }
 
 class _ThrowingNode implements PluginSequenceNode {
@@ -678,14 +705,14 @@ class _HangingSequencePlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'hanging.forever',
-          name: 'Hanging: Forever',
-          category: 'Test',
-          description: 'Never returns',
-          createNode: (_) => _HangingNode(),
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'hanging.forever',
+      name: 'Hanging: Forever',
+      category: 'Test',
+      description: 'Never returns',
+      createNode: (_) => _HangingNode(),
+    ),
+  ];
 }
 
 class _HangingNode implements PluginSequenceNode {
@@ -721,14 +748,14 @@ class _CountingSequencePlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'counting.tick',
-          name: 'Counting: Tick',
-          category: 'Test',
-          description: 'Increments a counter each invocation',
-          createNode: (_) => _CountingNode(this),
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'counting.tick',
+      name: 'Counting: Tick',
+      category: 'Test',
+      description: 'Increments a counter each invocation',
+      createNode: (_) => _CountingNode(this),
+    ),
+  ];
 }
 
 class _CountingNode implements PluginSequenceNode {

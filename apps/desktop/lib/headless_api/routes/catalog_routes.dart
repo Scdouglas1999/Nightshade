@@ -16,14 +16,11 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [CatalogHandlers].
 List<HeadlessRoute> buildCatalogRoutes(CatalogHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/catalog/status', h.handleStatus),
-      HeadlessRoute(
-          HttpMethod.get, '/api/catalog/available', h.handleAvailable),
-      HeadlessRoute(
-          HttpMethod.post, '/api/catalog/download', h.handleDownload),
-      HeadlessRoute(HttpMethod.post, '/api/catalog/upload', h.handleUpload),
-      HeadlessRoute(HttpMethod.post, '/api/catalog/verify', h.handleVerify),
-      HeadlessRoute(HttpMethod.post, '/api/catalog/reload', h.handleReload),
-      HeadlessRoute(
-          HttpMethod.delete, '/api/catalog/<name>', h.handleDelete),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/catalog/status', h.handleStatus),
+  HeadlessRoute(HttpMethod.get, '/api/catalog/available', h.handleAvailable),
+  HeadlessRoute(HttpMethod.post, '/api/catalog/download', h.handleDownload),
+  HeadlessRoute(HttpMethod.post, '/api/catalog/upload', h.handleUpload),
+  HeadlessRoute(HttpMethod.post, '/api/catalog/verify', h.handleVerify),
+  HeadlessRoute(HttpMethod.post, '/api/catalog/reload', h.handleReload),
+  HeadlessRoute(HttpMethod.delete, '/api/catalog/<name>', h.handleDelete),
+];

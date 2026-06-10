@@ -68,8 +68,9 @@ class FirstRunSetupNeeds {
 /// the server is missing; if the user has already completed (or skipped)
 /// the wizard once, returns [FirstRunSetupNeeds.none] regardless of
 /// server state.
-final shouldRunFirstRunSetupProvider =
-    FutureProvider<FirstRunSetupNeeds>((ref) async {
+final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
+  ref,
+) async {
   // Honor the persistent latch first. If the user has completed setup on
   // this device, we never auto-route to the wizard again even if a
   // future server reset would otherwise trigger the conditions.
@@ -103,24 +104,39 @@ final shouldRunFirstRunSetupProvider =
     final settings = await backend.getSettings();
     missingPath = settings.imageOutputPath.trim().isEmpty;
   } catch (e, st) {
-    developer.log('first-run: getSettings failed: $e',
-        name: 'FirstRunSetup', level: 1000, error: e, stackTrace: st);
+    developer.log(
+      'first-run: getSettings failed: $e',
+      name: 'FirstRunSetup',
+      level: 1000,
+      error: e,
+      stackTrace: st,
+    );
   }
 
   try {
     final profiles = await backend.getProfiles();
     missingProfiles = profiles.isEmpty;
   } catch (e, st) {
-    developer.log('first-run: getProfiles failed: $e',
-        name: 'FirstRunSetup', level: 1000, error: e, stackTrace: st);
+    developer.log(
+      'first-run: getProfiles failed: $e',
+      name: 'FirstRunSetup',
+      level: 1000,
+      error: e,
+      stackTrace: st,
+    );
   }
 
   try {
     final status = await backend.getCatalogStatus();
     missingCatalogs = !status.catalogs.any((c) => c.isInstalled);
   } catch (e, st) {
-    developer.log('first-run: getCatalogStatus failed: $e',
-        name: 'FirstRunSetup', level: 1000, error: e, stackTrace: st);
+    developer.log(
+      'first-run: getCatalogStatus failed: $e',
+      name: 'FirstRunSetup',
+      level: 1000,
+      error: e,
+      stackTrace: st,
+    );
   }
 
   return FirstRunSetupNeeds(
@@ -187,8 +203,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
     if (!widget.needs.missingImageOutputPath) {
       _activeStep = 1;
     }
-    if (!widget.needs.missingImageOutputPath &&
-        !widget.needs.missingCatalogs) {
+    if (!widget.needs.missingImageOutputPath && !widget.needs.missingCatalogs) {
       _activeStep = 2;
     }
     unawaited(_loadCatalogsAndProfiles());
@@ -222,8 +237,13 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
         }
       });
     } catch (e, st) {
-      developer.log('first-run: failed to load catalogs/profiles: $e',
-          name: 'FirstRunSetup', level: 1000, error: e, stackTrace: st);
+      developer.log(
+        'first-run: failed to load catalogs/profiles: $e',
+        name: 'FirstRunSetup',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
       if (!mounted) return;
       setState(() {
         _catalogLoadError = e is ServerError ? e.message : e.toString();
@@ -268,8 +288,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
     setState(() => _busy = true);
     try {
       final current = await backend.getSettings();
-      await backend
-          .updateSettings(current.copyWith(imageOutputPath: path));
+      await backend.updateSettings(current.copyWith(imageOutputPath: path));
       if (!mounted) return;
       setState(() {
         _busy = false;
@@ -305,8 +324,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
         });
       } catch (e) {
         if (!mounted) return;
-        showApiErrorWithPrefix(
-            context, 'Catalog download failed ($name)', e);
+        showApiErrorWithPrefix(context, 'Catalog download failed ($name)', e);
         // Continue with remaining catalogs — one failure shouldn't
         // block the rest. The operator can revisit failures in the
         // Settings → Catalogs screen.
@@ -348,10 +366,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
         actions: [
           TextButton(
             onPressed: _busy ? null : _skip,
-            child: Text(
-              'Skip',
-              style: TextStyle(color: colors.textSecondary),
-            ),
+            child: Text('Skip', style: TextStyle(color: colors.textSecondary)),
           ),
         ],
       ),
@@ -518,7 +533,9 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
                 if (c.requiredForPlateSolve)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
@@ -548,8 +565,8 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
                 label: _busy
                     ? 'Starting downloads...'
                     : _catalogsToInstall.isEmpty
-                        ? 'Skip and continue'
-                        : 'Install and continue',
+                    ? 'Skip and continue'
+                    : 'Install and continue',
               ),
             ),
           ],

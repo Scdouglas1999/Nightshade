@@ -51,7 +51,8 @@ class _RemoteDirectoryPickerDialogState
     if (backend is! NetworkBackend) {
       setState(() {
         _loading = false;
-        _error = 'Remote directory browsing is only available while connected to a host.';
+        _error =
+            'Remote directory browsing is only available while connected to a host.';
       });
       return;
     }
@@ -201,8 +202,9 @@ class _RemoteDirectoryPickerDialogState
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed:
-              _loading || _selectedPath == null ? null : _selectCurrentDirectory,
+          onPressed: _loading || _selectedPath == null
+              ? null
+              : _selectCurrentDirectory,
           child: const Text('Use this folder'),
         ),
       ],

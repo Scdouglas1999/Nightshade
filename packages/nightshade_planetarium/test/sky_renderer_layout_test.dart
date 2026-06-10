@@ -33,14 +33,20 @@ void main() {
     const canvasSize = Size(200, 120);
     const labelSize = Size(64, 20);
 
-    final first =
-        manager.findPlacement(const Offset(20, 20), labelSize, canvasSize);
+    final first = manager.findPlacement(
+      const Offset(20, 20),
+      labelSize,
+      canvasSize,
+    );
     expect(first, isNotNull);
 
     manager.clear();
 
-    final second =
-        manager.findPlacement(const Offset(20, 20), labelSize, canvasSize);
+    final second = manager.findPlacement(
+      const Offset(20, 20),
+      labelSize,
+      canvasSize,
+    );
     expect(second, equals(const Offset(20, 20)));
   });
 }

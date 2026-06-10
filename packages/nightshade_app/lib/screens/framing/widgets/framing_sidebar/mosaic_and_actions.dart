@@ -32,7 +32,8 @@ class FramingMosaicSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Mosaic',
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -57,7 +58,9 @@ class FramingMosaicSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to enable mosaic planning',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                   ),
                 ),
               ],
@@ -136,7 +139,9 @@ class FramingMosaicSection extends ConsumerWidget {
           // Start corner dropdown
           Text(
             'Start Corner',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           FramingStartCornerSelector(
@@ -161,7 +166,8 @@ class FramingMosaicSection extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       '${config.totalPanels} Panels',
-                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h6
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -188,7 +194,8 @@ class FramingMosaicSection extends ConsumerWidget {
                               color: isSelected
                                   ? colors.primary.withValues(alpha: 0.2)
                                   : Colors.transparent,
-                              borderRadius: NightshadeTokens.borderRadiusInline4,
+                              borderRadius:
+                                  NightshadeTokens.borderRadiusInline4,
                             ),
                             child: Row(
                               children: [
@@ -200,7 +207,8 @@ class FramingMosaicSection extends ConsumerWidget {
                                     color: isSelected
                                         ? colors.primary
                                         : colors.surface,
-                                    borderRadius: NightshadeTokens.borderRadiusInline4,
+                                    borderRadius:
+                                        NightshadeTokens.borderRadiusInline4,
                                     border: Border.all(
                                       color: isSelected
                                           ? colors.primary

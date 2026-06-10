@@ -28,13 +28,17 @@ void main() {
     });
 
     test('throws on unbalanced braces', () {
-      expect(() => extractJsonObject('{"a": 1'),
-          throwsA(isA<FormatException>()));
+      expect(
+        () => extractJsonObject('{"a": 1'),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('throws when no object is present', () {
       expect(
-          () => extractJsonObject('no json here'), throwsA(isA<FormatException>()));
+        () => extractJsonObject('no json here'),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 
@@ -56,9 +60,7 @@ void main() {
     });
 
     test('happy path — valid sequence on round 1', () async {
-      final provider = _FakeLlmProvider(replies: [
-        _stockValidSequence,
-      ]);
+      final provider = _FakeLlmProvider(replies: [_stockValidSequence]);
       final service = ConversationalBuilderService(
         provider: provider,
         fileService: SequenceFileService(),
@@ -75,53 +77,59 @@ void main() {
       expect(result.sequence!.name, 'Heart 2h');
     });
 
-    test('self-correction — invalid JSON on round 1, valid on round 2',
-        () async {
-      final provider = _FakeLlmProvider(replies: [
-        'Sorry, no JSON for you.',
-        _stockValidSequence,
-      ]);
-      final service = ConversationalBuilderService(
-        provider: provider,
-        fileService: SequenceFileService(),
-        maxSelfCorrection: 3,
-      );
-      final result = await service.buildSequenceFromPrompt(
-        userPrompt: 'Image the Heart Nebula for 2 hours',
-        context: ConversationalBuilderContext(profile: profile),
-      );
-      expect(result.isValid, isTrue);
-      expect(result.rounds, 2);
-      expect(result.rawReplies.length, 2);
-      // Correction prompt should reference the round-1 reply.
-      expect(provider.userPromptsSeen.length, 2);
-      expect(provider.userPromptsSeen[1],
-          contains('Your previous reply'));
-    });
+    test(
+      'self-correction — invalid JSON on round 1, valid on round 2',
+      () async {
+        final provider = _FakeLlmProvider(
+          replies: ['Sorry, no JSON for you.', _stockValidSequence],
+        );
+        final service = ConversationalBuilderService(
+          provider: provider,
+          fileService: SequenceFileService(),
+          maxSelfCorrection: 3,
+        );
+        final result = await service.buildSequenceFromPrompt(
+          userPrompt: 'Image the Heart Nebula for 2 hours',
+          context: ConversationalBuilderContext(profile: profile),
+        );
+        expect(result.isValid, isTrue);
+        expect(result.rounds, 2);
+        expect(result.rawReplies.length, 2);
+        // Correction prompt should reference the round-1 reply.
+        expect(provider.userPromptsSeen.length, 2);
+        expect(provider.userPromptsSeen[1], contains('Your previous reply'));
+      },
+    );
 
-    test('gives up after maxSelfCorrection rounds and surfaces issues',
-        () async {
-      final provider = _FakeLlmProvider(replies: [
-        'no json',
-        'still no json',
-        'still no json',
-        'still no json',
-      ]);
-      final service = ConversationalBuilderService(
-        provider: provider,
-        fileService: SequenceFileService(),
-        maxSelfCorrection: 3,
-      );
-      final result = await service.buildSequenceFromPrompt(
-        userPrompt: 'plan something',
-        context: ConversationalBuilderContext(profile: profile),
-      );
-      expect(result.isValid, isFalse);
-      expect(result.sequence, isNull);
-      expect(result.rounds, 4); // initial + 3 corrections
-      expect(result.validationIssues.first.severity,
-          ValidationSeverity.error);
-    });
+    test(
+      'gives up after maxSelfCorrection rounds and surfaces issues',
+      () async {
+        final provider = _FakeLlmProvider(
+          replies: [
+            'no json',
+            'still no json',
+            'still no json',
+            'still no json',
+          ],
+        );
+        final service = ConversationalBuilderService(
+          provider: provider,
+          fileService: SequenceFileService(),
+          maxSelfCorrection: 3,
+        );
+        final result = await service.buildSequenceFromPrompt(
+          userPrompt: 'plan something',
+          context: ConversationalBuilderContext(profile: profile),
+        );
+        expect(result.isValid, isFalse);
+        expect(result.sequence, isNull);
+        expect(result.rounds, 4); // initial + 3 corrections
+        expect(
+          result.validationIssues.first.severity,
+          ValidationSeverity.error,
+        );
+      },
+    );
 
     test('throws when prompt is empty', () async {
       final service = ConversationalBuilderService(
@@ -152,8 +160,7 @@ void main() {
       );
     });
 
-    test('refine preserves prior context and amends the user prompt',
-        () async {
+    test('refine preserves prior context and amends the user prompt', () async {
       final firstProvider = _FakeLlmProvider(replies: [_stockValidSequence]);
       final firstService = ConversationalBuilderService(
         provider: firstProvider,
@@ -179,31 +186,36 @@ void main() {
       );
       expect(refined.isValid, isTrue);
       final firstUserPrompt = refineProvider.userPromptsSeen.single;
-      expect(firstUserPrompt, contains('You previously produced this sequence'));
+      expect(
+        firstUserPrompt,
+        contains('You previously produced this sequence'),
+      );
       expect(firstUserPrompt, contains('use 300s subs instead'));
     });
 
-    test('wire-level provider error surfaces as ConversationalBuilderException',
-        () async {
-      final provider = _FakeLlmProvider.throwing(
-        const LlmProviderException(
-          providerName: 'test',
-          statusCode: 401,
-          message: 'unauthorized',
-        ),
-      );
-      final service = ConversationalBuilderService(
-        provider: provider,
-        fileService: SequenceFileService(),
-      );
-      expect(
-        () => service.buildSequenceFromPrompt(
-          userPrompt: 'plan',
-          context: ConversationalBuilderContext(profile: profile),
-        ),
-        throwsA(isA<ConversationalBuilderException>()),
-      );
-    });
+    test(
+      'wire-level provider error surfaces as ConversationalBuilderException',
+      () async {
+        final provider = _FakeLlmProvider.throwing(
+          const LlmProviderException(
+            providerName: 'test',
+            statusCode: 401,
+            message: 'unauthorized',
+          ),
+        );
+        final service = ConversationalBuilderService(
+          provider: provider,
+          fileService: SequenceFileService(),
+        );
+        expect(
+          () => service.buildSequenceFromPrompt(
+            userPrompt: 'plan',
+            context: ConversationalBuilderContext(profile: profile),
+          ),
+          throwsA(isA<ConversationalBuilderException>()),
+        );
+      },
+    );
   });
 
   group('SystemPromptBuilder', () {
@@ -275,16 +287,14 @@ class _FakeLlmProvider implements LlmProvider {
   final bool _configured;
   int _next = 0;
 
-  _FakeLlmProvider({
-    required this.replies,
-    bool isConfigured = true,
-  })  : throwError = null,
-        _configured = isConfigured;
+  _FakeLlmProvider({required this.replies, bool isConfigured = true})
+    : throwError = null,
+      _configured = isConfigured;
 
   _FakeLlmProvider.throwing(LlmProviderException error)
-      : replies = const [],
-        throwError = error,
-        _configured = true;
+    : replies = const [],
+      throwError = error,
+      _configured = true;
 
   @override
   String get name => 'Fake';

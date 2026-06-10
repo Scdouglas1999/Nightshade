@@ -32,11 +32,13 @@ void startBackgroundServices(
   required String appVersion,
   required int appBuildNumber,
 }) {
-  Future.microtask(() => _runBackgroundServices(
-        container,
-        appVersion: appVersion,
-        appBuildNumber: appBuildNumber,
-      ));
+  Future.microtask(
+    () => _runBackgroundServices(
+      container,
+      appVersion: appVersion,
+      appBuildNumber: appBuildNumber,
+    ),
+  );
 }
 
 Future<void> _runBackgroundServices(
@@ -57,28 +59,27 @@ Future<void> _runBackgroundServices(
 
   try {
     AppSettingsState? lastAppliedSettings;
-    container.listen<AsyncValue<AppSettingsState>>(
-      appSettingsProvider,
-      (_, next) {
-        final settings = next.valueOrNull;
-        if (settings == null) {
-          return;
-        }
+    container.listen<AsyncValue<AppSettingsState>>(appSettingsProvider, (
+      _,
+      next,
+    ) {
+      final settings = next.valueOrNull;
+      if (settings == null) {
+        return;
+      }
 
-        final shouldRestart = lastAppliedSettings == null ||
-            lastAppliedSettings!.webServerEnabled !=
-                settings.webServerEnabled ||
-            lastAppliedSettings!.webServerPort != settings.webServerPort;
+      final shouldRestart =
+          lastAppliedSettings == null ||
+          lastAppliedSettings!.webServerEnabled != settings.webServerEnabled ||
+          lastAppliedSettings!.webServerPort != settings.webServerPort;
 
-        if (!shouldRestart) {
-          return;
-        }
+      if (!shouldRestart) {
+        return;
+      }
 
-        lastAppliedSettings = settings;
-        unawaited(apiLifecycle.scheduleUpdate(settings));
-      },
-      fireImmediately: true,
-    );
+      lastAppliedSettings = settings;
+      unawaited(apiLifecycle.scheduleUpdate(settings));
+    }, fireImmediately: true);
 
     await _startLanPushReceiver(
       logger: logger,
@@ -218,7 +219,9 @@ class _ApiServerLifecycle {
       await updateController.dispose();
     }
 
-    container.read(webServerStateProvider.notifier).setStopped(
+    container
+        .read(webServerStateProvider.notifier)
+        .setStopped(
           configuredPort: settings.webServerPort,
           actualPort: settings.webServerPort,
           bindLocalOnly: false,
@@ -247,8 +250,10 @@ class _ApiServerLifecycle {
     );
 
     try {
-      logger.info('Starting authenticated desktop remote access server',
-          source: _logSource);
+      logger.info(
+        'Starting authenticated desktop remote access server',
+        source: _logSource,
+      );
       await nextServer.start();
       _apiServer = nextServer;
       logger.info(
@@ -257,7 +262,9 @@ class _ApiServerLifecycle {
         fields: {'port': nextServer.actualPort},
       );
 
-      container.read(webServerStateProvider.notifier).setRunning(
+      container
+          .read(webServerStateProvider.notifier)
+          .setRunning(
             isRunning: true,
             actualPort: nextServer.actualPort,
             configuredPort: settings.webServerPort,
@@ -305,10 +312,7 @@ class _ApiServerLifecycle {
           name: 'Nightshade',
           port: nextServer.actualPort,
           txt: txt,
-          onWarning: (msg) => logger.warning(
-            msg,
-            source: _logSource,
-          ),
+          onWarning: (msg) => logger.warning(msg, source: _logSource),
         );
         await registration.start();
         _mdnsRegistration = registration;
@@ -332,21 +336,24 @@ class _ApiServerLifecycle {
         );
       }
 
-      _collaborationSubscription =
-          nextServer.collaborationManager.stream.listen((collabState) {
-        container
-            .read(webServerStateProvider.notifier)
-            .setActiveViewers(collabState.viewers.length);
-      });
+      _collaborationSubscription = nextServer.collaborationManager.stream
+          .listen((collabState) {
+            container
+                .read(webServerStateProvider.notifier)
+                .setActiveViewers(collabState.viewers.length);
+          });
 
       try {
         final pushService = container.read(pushNotificationServiceProvider);
         nextServer.setPushNotificationStream(
-          pushService.notifications
-              .map((notification) => notification.toJson()),
+          pushService.notifications.map(
+            (notification) => notification.toJson(),
+          ),
         );
-        logger.info('Push notifications wired to web server',
-            source: _logSource);
+        logger.info(
+          'Push notifications wired to web server',
+          source: _logSource,
+        );
       } catch (e) {
         logger.warning(
           'Push notification setup failed',
@@ -403,12 +410,10 @@ class _ApiServerLifecycle {
                 logger.info(message, source: _logSource, fields: fields);
                 break;
               case LanPushLogLevel.warning:
-                logger.warning(message,
-                    source: _logSource, fields: fields);
+                logger.warning(message, source: _logSource, fields: fields);
                 break;
               case LanPushLogLevel.error:
-                logger.error(message,
-                    source: _logSource, fields: fields);
+                logger.error(message, source: _logSource, fields: fields);
                 break;
             }
           },
@@ -449,8 +454,8 @@ class _ApiServerLifecycle {
           delivery is MockRemotePushDelivery
               ? 'Cellular push delivery wired (mock — no cloud credentials)'
               : delivery == null
-                  ? 'Cellular push delivery not wired (no channel configured)'
-                  : 'Cellular push delivery wired (cloud channel configured)',
+              ? 'Cellular push delivery not wired (no channel configured)'
+              : 'Cellular push delivery wired (cloud channel configured)',
           source: _logSource,
         );
       } catch (e) {
@@ -596,8 +601,7 @@ Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
   // HeadlessApiServer.requireAuth uses internally when no token is supplied.
   final rng = Random.secure();
   final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
-  final token =
-      bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  final token = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   await tokenFile.parent.create(recursive: true);
   await tokenFile.writeAsString(token);
   logger.info(

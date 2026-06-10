@@ -17,18 +17,18 @@ enum ElementRefreshSchedule {
   monthly;
 
   Duration? get interval => switch (this) {
-        ElementRefreshSchedule.manual => null,
-        ElementRefreshSchedule.daily => const Duration(days: 1),
-        ElementRefreshSchedule.weekly => const Duration(days: 7),
-        ElementRefreshSchedule.monthly => const Duration(days: 30),
-      };
+    ElementRefreshSchedule.manual => null,
+    ElementRefreshSchedule.daily => const Duration(days: 1),
+    ElementRefreshSchedule.weekly => const Duration(days: 7),
+    ElementRefreshSchedule.monthly => const Duration(days: 30),
+  };
 
   String get displayName => switch (this) {
-        ElementRefreshSchedule.manual => 'Manual only',
-        ElementRefreshSchedule.daily => 'Daily',
-        ElementRefreshSchedule.weekly => 'Weekly',
-        ElementRefreshSchedule.monthly => 'Monthly',
-      };
+    ElementRefreshSchedule.manual => 'Manual only',
+    ElementRefreshSchedule.daily => 'Daily',
+    ElementRefreshSchedule.weekly => 'Weekly',
+    ElementRefreshSchedule.monthly => 'Monthly',
+  };
 }
 
 /// Persisted configuration for the element refresh service.
@@ -66,26 +66,24 @@ class ElementRefreshConfig {
     String? cometUrl,
     ElementRefreshSchedule? schedule,
     double? maxAsteroidAbsoluteMag,
-  }) =>
-      ElementRefreshConfig(
-        asteroidUrl: asteroidUrl ?? this.asteroidUrl,
-        cometUrl: cometUrl ?? this.cometUrl,
-        schedule: schedule ?? this.schedule,
-        maxAsteroidAbsoluteMag:
-            maxAsteroidAbsoluteMag ?? this.maxAsteroidAbsoluteMag,
-      );
+  }) => ElementRefreshConfig(
+    asteroidUrl: asteroidUrl ?? this.asteroidUrl,
+    cometUrl: cometUrl ?? this.cometUrl,
+    schedule: schedule ?? this.schedule,
+    maxAsteroidAbsoluteMag:
+        maxAsteroidAbsoluteMag ?? this.maxAsteroidAbsoluteMag,
+  );
 
   Map<String, Object?> toJson() => {
-        'asteroidUrl': asteroidUrl,
-        'cometUrl': cometUrl,
-        'schedule': schedule.name,
-        'maxAsteroidAbsoluteMag': maxAsteroidAbsoluteMag,
-      };
+    'asteroidUrl': asteroidUrl,
+    'cometUrl': cometUrl,
+    'schedule': schedule.name,
+    'maxAsteroidAbsoluteMag': maxAsteroidAbsoluteMag,
+  };
 
   factory ElementRefreshConfig.fromJson(Map<String, Object?> json) =>
       ElementRefreshConfig(
-        asteroidUrl:
-            json['asteroidUrl'] as String? ?? defaultAsteroidUrl,
+        asteroidUrl: json['asteroidUrl'] as String? ?? defaultAsteroidUrl,
         cometUrl: json['cometUrl'] as String? ?? defaultCometUrl,
         schedule: ElementRefreshSchedule.values.firstWhere(
           (s) => s.name == json['schedule'],
@@ -146,10 +144,9 @@ class ElementRefreshService {
     String? cacheDirectory,
     http.Client Function()? clientFactory,
     DateTime Function()? now,
-  })  : _directory =
-            cacheDirectory ?? CatalogManager.instance.catalogDirectory,
-        _clientFactory = clientFactory ?? http.Client.new,
-        _now = now ?? DateTime.now;
+  }) : _directory = cacheDirectory ?? CatalogManager.instance.catalogDirectory,
+       _clientFactory = clientFactory ?? http.Client.new,
+       _now = now ?? DateTime.now;
 
   String get _asteroidCachePath => path.join(_directory, 'mpc_asteroids.txt');
   String get _cometCachePath => path.join(_directory, 'mpc_comets.txt');
@@ -167,12 +164,16 @@ class ElementRefreshService {
       final file = File(_configPath);
       if (await file.exists()) {
         return ElementRefreshConfig.fromJson(
-            (jsonDecode(await file.readAsString()) as Map)
-                .cast<String, Object?>());
+          (jsonDecode(await file.readAsString()) as Map)
+              .cast<String, Object?>(),
+        );
       }
     } catch (e) {
-      developer.log('[ElementRefresh] config read error: $e',
-          name: 'ElementRefreshService', level: 900);
+      developer.log(
+        '[ElementRefresh] config read error: $e',
+        name: 'ElementRefreshService',
+        level: 900,
+      );
     }
     return const ElementRefreshConfig();
   }
@@ -226,11 +227,15 @@ class ElementRefreshService {
         final parsed = parse(await file.readAsString());
         final fetched =
             DateTime.tryParse(meta[metaKey] as String? ?? '') ??
-                (await file.stat()).modified;
+            (await file.stat()).modified;
         return (parsed, fetched);
       } catch (e) {
-        developer.log('[ElementRefresh] cache read error ($filePath): $e',
-            name: 'ElementRefreshService', level: 900, error: e);
+        developer.log(
+          '[ElementRefresh] cache read error ($filePath): $e',
+          name: 'ElementRefreshService',
+          level: 900,
+          error: e,
+        );
         return (const <MinorBodyElements>[], null);
       }
     }
@@ -238,11 +243,16 @@ class ElementRefreshService {
     final (asteroids, asteroidsAt) = await read(
       _asteroidCachePath,
       'asteroidsFetchedAt',
-      (text) => MpcOrbParser.parseAsteroids(text,
-          maxAbsoluteMag: config.maxAsteroidAbsoluteMag),
+      (text) => MpcOrbParser.parseAsteroids(
+        text,
+        maxAbsoluteMag: config.maxAsteroidAbsoluteMag,
+      ),
     );
-    final (comets, cometsAt) =
-        await read(_cometCachePath, 'cometsFetchedAt', MpcOrbParser.parseComets);
+    final (comets, cometsAt) = await read(
+      _cometCachePath,
+      'cometsFetchedAt',
+      MpcOrbParser.parseComets,
+    );
 
     return RefreshedElements(
       asteroids: asteroids,
@@ -282,11 +292,15 @@ class ElementRefreshService {
     try {
       // Asteroids (MPCORB 1-line format).
       try {
-        final url = cfg.asteroidUrl
-            .replaceAll('{year}', _now().toUtc().year.toString());
+        final url = cfg.asteroidUrl.replaceAll(
+          '{year}',
+          _now().toUtc().year.toString(),
+        );
         final text = await _fetchText(client, url);
-        final parsed = MpcOrbParser.parseAsteroids(text,
-            maxAbsoluteMag: cfg.maxAsteroidAbsoluteMag);
+        final parsed = MpcOrbParser.parseAsteroids(
+          text,
+          maxAbsoluteMag: cfg.maxAsteroidAbsoluteMag,
+        );
         if (parsed.isEmpty) {
           throw FormatException('No parsable MPCORB records from $url');
         }
@@ -298,8 +312,12 @@ class ElementRefreshService {
         meta['asteroidsCount'] = parsed.length;
       } catch (e) {
         firstError = e;
-        developer.log('[ElementRefresh] asteroid refresh failed: $e',
-            name: 'ElementRefreshService', level: 900, error: e);
+        developer.log(
+          '[ElementRefresh] asteroid refresh failed: $e',
+          name: 'ElementRefreshService',
+          level: 900,
+          error: e,
+        );
       }
 
       // Comets (CometEls.txt format).
@@ -308,7 +326,8 @@ class ElementRefreshService {
         final parsed = MpcOrbParser.parseComets(text);
         if (parsed.isEmpty) {
           throw FormatException(
-              'No parsable comet records from ${cfg.cometUrl}');
+            'No parsable comet records from ${cfg.cometUrl}',
+          );
         }
         await File(_cometCachePath).writeAsString(text);
         comets = parsed;
@@ -318,8 +337,12 @@ class ElementRefreshService {
         meta['cometsCount'] = parsed.length;
       } catch (e) {
         firstError ??= e;
-        developer.log('[ElementRefresh] comet refresh failed: $e',
-            name: 'ElementRefreshService', level: 900, error: e);
+        developer.log(
+          '[ElementRefresh] comet refresh failed: $e',
+          name: 'ElementRefreshService',
+          level: 900,
+          error: e,
+        );
       }
     } finally {
       client.close();

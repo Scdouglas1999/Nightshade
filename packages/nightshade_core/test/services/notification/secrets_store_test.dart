@@ -32,8 +32,11 @@ void main() {
         await store.write(entry.key, entry.value);
       }
       for (final entry in fields.entries) {
-        expect(await store.read(entry.key), entry.value,
-            reason: 'round-trip ${entry.key}');
+        expect(
+          await store.read(entry.key),
+          entry.value,
+          reason: 'round-trip ${entry.key}',
+        );
         expect(await store.has(entry.key), isTrue);
       }
     });
@@ -53,109 +56,128 @@ void main() {
   });
 
   group('SecretsStore.migrateFromPlaintext', () {
-    test('moves plaintext secrets from app_settings into the keyring',
-        () async {
-      final db = createTestDatabase();
-      addTearDown(db.close);
-      final dao = SettingsDao(db);
-      final secure = InMemorySecureKeyValueStore();
-      final store = SecretsStore(secure);
+    test(
+      'moves plaintext secrets from app_settings into the keyring',
+      () async {
+        final db = createTestDatabase();
+        addTearDown(db.close);
+        final dao = SettingsDao(db);
+        final secure = InMemorySecureKeyValueStore();
+        final store = SecretsStore(secure);
 
-      // Seed the legacy plaintext blobs.
-      await dao.setSetting(
-        'notification_transport_email',
-        jsonEncode({
-          'smtpHost': 'smtp.example.com',
-          'smtpPort': 587,
-          'username': 'alice',
-          'password': 'plain-smtp-pw',
-          'useTls': true,
-          'fromAddress': 'alice@example.com',
-          'toAddress': 'alice@example.com',
-        }),
-      );
-      await dao.setSetting(
-        'notification_transport_pushover',
-        jsonEncode({
-          'apiToken': 'plain-pushover-token',
-          'userKey': 'plain-pushover-user',
-          'device': null,
-          'priority': 0,
-        }),
-      );
-      await dao.setSetting(
-        'notification_transport_telegram',
-        jsonEncode({
-          'botToken': 'plain-bot-token',
-          'chatId': '@channel',
-          'disableNotification': false,
-        }),
-      );
-      await dao.setSetting(
-        'notification_transport_discord',
-        jsonEncode({
-          'webhookUrl': 'https://discord.example/abc',
-          'username': null,
-          'avatarUrl': null,
-        }),
-      );
-      await dao.setSetting(
-        'notification_transport_mqtt',
-        jsonEncode({
-          'host': 'mqtt.example.com',
-          'port': 1883,
-          'username': 'bob',
-          'password': 'plain-mqtt-pw',
-          'topic': 'nightshade/notifications',
-          'qos': 0,
-          'retain': false,
-          'useTls': false,
-          'clientId': 'nightshade',
-        }),
-      );
+        // Seed the legacy plaintext blobs.
+        await dao.setSetting(
+          'notification_transport_email',
+          jsonEncode({
+            'smtpHost': 'smtp.example.com',
+            'smtpPort': 587,
+            'username': 'alice',
+            'password': 'plain-smtp-pw',
+            'useTls': true,
+            'fromAddress': 'alice@example.com',
+            'toAddress': 'alice@example.com',
+          }),
+        );
+        await dao.setSetting(
+          'notification_transport_pushover',
+          jsonEncode({
+            'apiToken': 'plain-pushover-token',
+            'userKey': 'plain-pushover-user',
+            'device': null,
+            'priority': 0,
+          }),
+        );
+        await dao.setSetting(
+          'notification_transport_telegram',
+          jsonEncode({
+            'botToken': 'plain-bot-token',
+            'chatId': '@channel',
+            'disableNotification': false,
+          }),
+        );
+        await dao.setSetting(
+          'notification_transport_discord',
+          jsonEncode({
+            'webhookUrl': 'https://discord.example/abc',
+            'username': null,
+            'avatarUrl': null,
+          }),
+        );
+        await dao.setSetting(
+          'notification_transport_mqtt',
+          jsonEncode({
+            'host': 'mqtt.example.com',
+            'port': 1883,
+            'username': 'bob',
+            'password': 'plain-mqtt-pw',
+            'topic': 'nightshade/notifications',
+            'qos': 0,
+            'retain': false,
+            'useTls': false,
+            'clientId': 'nightshade',
+          }),
+        );
 
-      final migrated = await store.migrateFromPlaintext(dao);
-      expect(migrated, isTrue);
+        final migrated = await store.migrateFromPlaintext(dao);
+        expect(migrated, isTrue);
 
-      // Secrets are now in the keyring.
-      expect(await store.read(SecretField.emailPassword), 'plain-smtp-pw');
-      expect(await store.read(SecretField.pushoverApiToken),
-          'plain-pushover-token');
-      expect(await store.read(SecretField.pushoverUserKey),
-          'plain-pushover-user');
-      expect(await store.read(SecretField.telegramBotToken), 'plain-bot-token');
-      expect(await store.read(SecretField.discordWebhookUrl),
-          'https://discord.example/abc');
-      expect(await store.read(SecretField.mqttPassword), 'plain-mqtt-pw');
+        // Secrets are now in the keyring.
+        expect(await store.read(SecretField.emailPassword), 'plain-smtp-pw');
+        expect(
+          await store.read(SecretField.pushoverApiToken),
+          'plain-pushover-token',
+        );
+        expect(
+          await store.read(SecretField.pushoverUserKey),
+          'plain-pushover-user',
+        );
+        expect(
+          await store.read(SecretField.telegramBotToken),
+          'plain-bot-token',
+        );
+        expect(
+          await store.read(SecretField.discordWebhookUrl),
+          'https://discord.example/abc',
+        );
+        expect(await store.read(SecretField.mqttPassword), 'plain-mqtt-pw');
 
-      // The blobs no longer contain the plaintext secrets.
-      final emailBlob = jsonDecode(
-          await dao.getSetting('notification_transport_email') as String);
-      expect(emailBlob['password'], '');
-      expect(emailBlob['smtpHost'], 'smtp.example.com'); // non-secret kept
+        // The blobs no longer contain the plaintext secrets.
+        final emailBlob = jsonDecode(
+          await dao.getSetting('notification_transport_email') as String,
+        );
+        expect(emailBlob['password'], '');
+        expect(emailBlob['smtpHost'], 'smtp.example.com'); // non-secret kept
 
-      final pushoverBlob = jsonDecode(
-          await dao.getSetting('notification_transport_pushover') as String);
-      expect(pushoverBlob['apiToken'], '');
-      expect(pushoverBlob['userKey'], '');
+        final pushoverBlob = jsonDecode(
+          await dao.getSetting('notification_transport_pushover') as String,
+        );
+        expect(pushoverBlob['apiToken'], '');
+        expect(pushoverBlob['userKey'], '');
 
-      final telegramBlob = jsonDecode(
-          await dao.getSetting('notification_transport_telegram') as String);
-      expect(telegramBlob['botToken'], '');
-      expect(telegramBlob['chatId'], '@channel');
+        final telegramBlob = jsonDecode(
+          await dao.getSetting('notification_transport_telegram') as String,
+        );
+        expect(telegramBlob['botToken'], '');
+        expect(telegramBlob['chatId'], '@channel');
 
-      final discordBlob = jsonDecode(
-          await dao.getSetting('notification_transport_discord') as String);
-      expect(discordBlob['webhookUrl'], '');
+        final discordBlob = jsonDecode(
+          await dao.getSetting('notification_transport_discord') as String,
+        );
+        expect(discordBlob['webhookUrl'], '');
 
-      final mqttBlob = jsonDecode(
-          await dao.getSetting('notification_transport_mqtt') as String);
-      expect(mqttBlob['password'], '');
-      expect(mqttBlob['username'], 'bob'); // non-secret kept
+        final mqttBlob = jsonDecode(
+          await dao.getSetting('notification_transport_mqtt') as String,
+        );
+        expect(mqttBlob['password'], '');
+        expect(mqttBlob['username'], 'bob'); // non-secret kept
 
-      // Flag is set.
-      expect(await dao.getSetting('notification_secrets_migrated_v1'), 'true');
-    });
+        // Flag is set.
+        expect(
+          await dao.getSetting('notification_secrets_migrated_v1'),
+          'true',
+        );
+      },
+    );
 
     test('re-running migration is a no-op', () async {
       final db = createTestDatabase();
@@ -185,7 +207,8 @@ void main() {
       expect(await store.read(SecretField.emailPassword), '');
       // Blob still has plaintext (because we didn't migrate).
       final blob = jsonDecode(
-          await dao.getSetting('notification_transport_email') as String);
+        await dao.getSetting('notification_transport_email') as String,
+      );
       expect(blob['password'], 'should-not-be-migrated');
     });
 

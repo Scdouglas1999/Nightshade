@@ -28,9 +28,7 @@ class MosaicHandlers {
     const service = MosaicService();
     final panels = service.generatePanels(config);
 
-    return jsonOk({
-      'panels': panels.map((p) => _panelToJson(p)).toList(),
-    });
+    return jsonOk({'panels': panels.map((p) => _panelToJson(p)).toList()});
   }
 
   // ===========================================================================
@@ -146,8 +144,9 @@ class MosaicHandlers {
 
   Future<Response> handleRecommendExposure(Request request) async {
     _logInfo('[API] GET /api/mosaic/recommended-exposure');
-    final context =
-        await container.read(smartNightExposureContextProvider.future);
+    final context = await container.read(
+      smartNightExposureContextProvider.future,
+    );
     final exposure = smartNightMosaicExposureSettings(context);
     final recommendation = context?.recommendForFilter(exposure.filterName);
 

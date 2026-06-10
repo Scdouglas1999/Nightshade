@@ -335,8 +335,9 @@ class _TrendCardShell extends StatelessWidget {
           leftTitles: AxisTitles(
             axisNameWidget: Text(
               yLabel,
-              style:
-                  TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize10),
             ),
             sideTitles: SideTitles(
               showTitles: true,

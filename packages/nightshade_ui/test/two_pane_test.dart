@@ -42,8 +42,9 @@ void main() {
     expect(startBox.center.dy, lessThan(endBox.center.dy));
   });
 
-  testWidgets('splits (Row) in landscape when wide enough (844x390)',
-      (tester) async {
+  testWidgets('splits (Row) in landscape when wide enough (844x390)', (
+    tester,
+  ) async {
     await _pumpAt(tester, const Size(844, 390), _host());
     expect(tester.takeException(), isNull);
 
@@ -53,8 +54,9 @@ void main() {
     expect(startBox.center.dx, lessThan(endBox.center.dx));
   });
 
-  testWidgets('stays stacked in narrow landscape below minSplitWidth',
-      (tester) async {
+  testWidgets('stays stacked in narrow landscape below minSplitWidth', (
+    tester,
+  ) async {
     // 500 wide landscape < default minSplitWidth (560) -> stacked.
     await _pumpAt(tester, const Size(500, 360), _host());
     expect(tester.takeException(), isNull);
@@ -64,8 +66,9 @@ void main() {
     expect(startBox.center.dy, lessThan(endBox.center.dy));
   });
 
-  testWidgets('portrait start-fraction gives START a fixed height',
-      (tester) async {
+  testWidgets('portrait start-fraction gives START a fixed height', (
+    tester,
+  ) async {
     await _pumpAt(
       tester,
       const Size(390, 844),

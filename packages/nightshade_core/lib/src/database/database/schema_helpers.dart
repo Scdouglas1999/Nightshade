@@ -494,7 +494,10 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
 
     // Finishing-artifact output paths (previously written then discarded).
-    if (!await _columnExists('integrated_masters', 'background_extracted_path')) {
+    if (!await _columnExists(
+      'integrated_masters',
+      'background_extracted_path',
+    )) {
       await customStatement(
         'ALTER TABLE integrated_masters '
         'ADD COLUMN background_extracted_path TEXT',
@@ -959,9 +962,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
   }
 
   Future<bool> _columnExists(String table, String column) async {
-    final result = await customSelect(
-      "PRAGMA table_info('$table')",
-    ).get();
+    final result = await customSelect("PRAGMA table_info('$table')").get();
     return result.any((row) => row.data['name'] == column);
   }
 

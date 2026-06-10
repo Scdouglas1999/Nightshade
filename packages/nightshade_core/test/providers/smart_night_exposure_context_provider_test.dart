@@ -23,176 +23,182 @@ class _FakeAppSettingsNotifier extends AppSettingsNotifier {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Smart Night exposure context uses dedicated Smart Night settings',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    await db.settingsDao.setSettings({
-      'smart_night.sub_ceiling_seconds': '111',
-      'smart_night.sub_floor_seconds': '22',
-      'smart_night.camera.full_well_e': '50000',
-      'smart_night.camera.qe_peak': '0.85',
-      'science.camera.read_noise_e': '1.4',
-    });
+  test(
+    'Smart Night exposure context uses dedicated Smart Night settings',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      await db.settingsDao.setSettings({
+        'smart_night.sub_ceiling_seconds': '111',
+        'smart_night.sub_floor_seconds': '22',
+        'smart_night.camera.full_well_e': '50000',
+        'smart_night.camera.qe_peak': '0.85',
+        'science.camera.read_noise_e': '1.4',
+      });
 
-    final container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
-        _initialSettingsProvider.overrideWithValue(
-          const AppSettingsState(
-            bortleClass: 8,
-            adaptiveExposureTargetSnr: 7,
-            smartNightSubExposureFloorSecs: 45,
-            smartNightSubExposureCeilingSecs: 420,
-            smartNightTargetSnr: 42,
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(
+            const AppSettingsState(
+              bortleClass: 8,
+              adaptiveExposureTargetSnr: 7,
+              smartNightSubExposureFloorSecs: 45,
+              smartNightSubExposureCeilingSecs: 420,
+              smartNightTargetSnr: 42,
+            ),
           ),
-        ),
-        activeEquipmentProfileProvider.overrideWithValue(
-          const EquipmentProfileModel(
-            name: 'Shared exposure rig',
-            focalLength: 384,
-            aperture: 80,
-            filterNames: ['L', 'Ha'],
+          activeEquipmentProfileProvider.overrideWithValue(
+            const EquipmentProfileModel(
+              name: 'Shared exposure rig',
+              focalLength: 384,
+              aperture: 80,
+              filterNames: ['L', 'Ha'],
+            ),
           ),
+        ],
+      );
+
+      addTearDown(() async {
+        container.dispose();
+        await db.close();
+      });
+
+      final context = await container.read(
+        smartNightExposureContextProvider.future,
+      );
+
+      expect(context, isNotNull);
+      expect(context!.floorSeconds, 45);
+      expect(context.userCapSeconds, 420);
+      expect(context.targetSnr, 42);
+    },
+  );
+
+  test(
+    'Smart Night exposure context includes weighted recent guide RMS',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      await db.settingsDao.setSettings({
+        'smart_night.camera.full_well_e': '50000',
+        'smart_night.camera.qe_peak': '0.85',
+        'science.camera.read_noise_e': '1.4',
+      });
+      final now = DateTime.now();
+      await db.guideRmsHistoryDao.insertSample(
+        GuideRmsHistoryCompanion.insert(
+          sessionId: 'recent-1',
+          mountId: 'mount-a',
+          totalRmsArcsec: 1.0,
+          sampleCount: 100,
+          exposureSeconds: const Value(2.0),
+          recordedAt: now.subtract(const Duration(days: 2)),
         ),
-      ],
-    );
-
-    addTearDown(() async {
-      container.dispose();
-      await db.close();
-    });
-
-    final context =
-        await container.read(smartNightExposureContextProvider.future);
-
-    expect(context, isNotNull);
-    expect(context!.floorSeconds, 45);
-    expect(context.userCapSeconds, 420);
-    expect(context.targetSnr, 42);
-  });
-
-  test('Smart Night exposure context includes weighted recent guide RMS',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    await db.settingsDao.setSettings({
-      'smart_night.camera.full_well_e': '50000',
-      'smart_night.camera.qe_peak': '0.85',
-      'science.camera.read_noise_e': '1.4',
-    });
-    final now = DateTime.now();
-    await db.guideRmsHistoryDao.insertSample(
-      GuideRmsHistoryCompanion.insert(
-        sessionId: 'recent-1',
-        mountId: 'mount-a',
-        totalRmsArcsec: 1.0,
-        sampleCount: 100,
-        exposureSeconds: const Value(2.0),
-        recordedAt: now.subtract(const Duration(days: 2)),
-      ),
-    );
-    await db.guideRmsHistoryDao.insertSample(
-      GuideRmsHistoryCompanion.insert(
-        sessionId: 'recent-2',
-        mountId: 'mount-a',
-        totalRmsArcsec: 1.0,
-        sampleCount: 120,
-        exposureSeconds: const Value(2.0),
-        recordedAt: now.subtract(const Duration(days: 10)),
-      ),
-    );
-    await db.guideRmsHistoryDao.insertSample(
-      GuideRmsHistoryCompanion.insert(
-        sessionId: 'older',
-        mountId: 'mount-a',
-        totalRmsArcsec: 3.0,
-        sampleCount: 80,
-        exposureSeconds: const Value(2.0),
-        recordedAt: now.subtract(const Duration(days: 45)),
-      ),
-    );
-
-    final container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
-        _initialSettingsProvider.overrideWithValue(
-          const AppSettingsState(),
+      );
+      await db.guideRmsHistoryDao.insertSample(
+        GuideRmsHistoryCompanion.insert(
+          sessionId: 'recent-2',
+          mountId: 'mount-a',
+          totalRmsArcsec: 1.0,
+          sampleCount: 120,
+          exposureSeconds: const Value(2.0),
+          recordedAt: now.subtract(const Duration(days: 10)),
         ),
-        activeEquipmentProfileProvider.overrideWithValue(
-          const EquipmentProfileModel(
-            name: 'Guided rig',
-            mountId: 'mount-a',
-            focalLength: 600,
-            aperture: 80,
-            filterNames: ['L'],
+      );
+      await db.guideRmsHistoryDao.insertSample(
+        GuideRmsHistoryCompanion.insert(
+          sessionId: 'older',
+          mountId: 'mount-a',
+          totalRmsArcsec: 3.0,
+          sampleCount: 80,
+          exposureSeconds: const Value(2.0),
+          recordedAt: now.subtract(const Duration(days: 45)),
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+          activeEquipmentProfileProvider.overrideWithValue(
+            const EquipmentProfileModel(
+              name: 'Guided rig',
+              mountId: 'mount-a',
+              focalLength: 600,
+              aperture: 80,
+              filterNames: ['L'],
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    addTearDown(() async {
-      container.dispose();
-      await db.close();
-    });
+      addTearDown(() async {
+        container.dispose();
+        await db.close();
+      });
 
-    final context =
-        await container.read(smartNightExposureContextProvider.future);
+      final context = await container.read(
+        smartNightExposureContextProvider.future,
+      );
 
-    expect(context, isNotNull);
-    expect(context!.guideSampleCount, 3);
-    expect(context.guideRmsArcsec, closeTo(1.4, 0.0001));
-  });
+      expect(context, isNotNull);
+      expect(context!.guideSampleCount, 3);
+      expect(context.guideRmsArcsec, closeTo(1.4, 0.0001));
+    },
+  );
 
-  test('Smart Night exposure context uses camera hardware specs by profile',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+  test(
+    'Smart Night exposure context uses camera hardware specs by profile',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
 
-    final container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
-        _initialSettingsProvider.overrideWithValue(
-          const AppSettingsState(),
-        ),
-        activeEquipmentProfileProvider.overrideWithValue(
-          const EquipmentProfileModel(
-            name: 'Known camera rig',
-            cameraName: 'ASI2600MM',
-            focalLength: 530,
-            aperture: 106,
-            defaultGain: 100,
-            filterNames: ['L'],
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+          activeEquipmentProfileProvider.overrideWithValue(
+            const EquipmentProfileModel(
+              name: 'Known camera rig',
+              cameraName: 'ASI2600MM',
+              focalLength: 530,
+              aperture: 106,
+              defaultGain: 100,
+              filterNames: ['L'],
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    addTearDown(() async {
-      container.dispose();
-      await db.close();
-    });
+      addTearDown(() async {
+        container.dispose();
+        await db.close();
+      });
 
-    final context =
-        await container.read(smartNightExposureContextProvider.future);
+      final context = await container.read(
+        smartNightExposureContextProvider.future,
+      );
 
-    expect(context, isNotNull);
-    expect(context!.camera.readNoiseE, closeTo(1.5, 0.001));
-    expect(context.camera.fullWellE, closeTo(18700, 0.001));
-    expect(context.camera.qePeak, closeTo(0.91, 0.001));
-    expect(context.pixelSizeMicrons, closeTo(3.76, 0.001));
-    expect(
-      context.caveats,
-      isNot(contains(contains('Camera read noise is not configured'))),
-    );
-  });
+      expect(context, isNotNull);
+      expect(context!.camera.readNoiseE, closeTo(1.5, 0.001));
+      expect(context.camera.fullWellE, closeTo(18700, 0.001));
+      expect(context.camera.qePeak, closeTo(0.91, 0.001));
+      expect(context.pixelSizeMicrons, closeTo(3.76, 0.001));
+      expect(
+        context.caveats,
+        isNot(contains(contains('Camera read noise is not configured'))),
+      );
+    },
+  );
 
-  test('Smart Night exposure context uses user camera hardware overrides',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    await db.settingsDao.setSetting(
-      HardwareSpecsService.cameraOverridesSettingKey,
-      '''
+  test(
+    'Smart Night exposure context uses user camera hardware overrides',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      await db.settingsDao.setSetting(
+        HardwareSpecsService.cameraOverridesSettingKey,
+        '''
 [
   {
     "model": "Mystery Camera 42",
@@ -206,40 +212,40 @@ void main() {
   }
 ]
 ''',
-    );
+      );
 
-    final container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
-        _initialSettingsProvider.overrideWithValue(
-          const AppSettingsState(),
-        ),
-        activeEquipmentProfileProvider.overrideWithValue(
-          const EquipmentProfileModel(
-            name: 'Override camera rig',
-            cameraName: 'MysteryCam',
-            focalLength: 500,
-            aperture: 90,
-            defaultGain: 10,
-            filterNames: ['L'],
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(const AppSettingsState()),
+          activeEquipmentProfileProvider.overrideWithValue(
+            const EquipmentProfileModel(
+              name: 'Override camera rig',
+              cameraName: 'MysteryCam',
+              focalLength: 500,
+              aperture: 90,
+              defaultGain: 10,
+              filterNames: ['L'],
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    addTearDown(() async {
-      container.dispose();
-      await db.close();
-    });
+      addTearDown(() async {
+        container.dispose();
+        await db.close();
+      });
 
-    final context =
-        await container.read(smartNightExposureContextProvider.future);
+      final context = await container.read(
+        smartNightExposureContextProvider.future,
+      );
 
-    expect(context, isNotNull);
-    expect(context!.camera.readNoiseE, closeTo(2.1, 0.001));
-    expect(context.camera.fullWellE, closeTo(42000, 0.001));
-    expect(context.camera.qePeak, closeTo(0.72, 0.001));
-    expect(context.pixelSizeMicrons, closeTo(4.63, 0.001));
-  });
+      expect(context, isNotNull);
+      expect(context!.camera.readNoiseE, closeTo(2.1, 0.001));
+      expect(context.camera.fullWellE, closeTo(42000, 0.001));
+      expect(context.camera.qePeak, closeTo(0.72, 0.001));
+      expect(context.pixelSizeMicrons, closeTo(4.63, 0.001));
+    },
+  );
 }

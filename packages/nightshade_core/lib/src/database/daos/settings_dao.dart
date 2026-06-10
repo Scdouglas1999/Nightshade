@@ -12,8 +12,9 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get a setting by key
   Future<String?> getSetting(String key) async {
-    final result = await (select(appSettings)..where((s) => s.key.equals(key)))
-        .getSingleOrNull();
+    final result = await (select(
+      appSettings,
+    )..where((s) => s.key.equals(key))).getSingleOrNull();
     return result?.value;
   }
 
@@ -40,10 +41,7 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Set a setting
   Future<void> setSetting(String key, String value) async {
     await into(appSettings).insert(
-      AppSettingsCompanion.insert(
-        key: key,
-        value: value,
-      ),
+      AppSettingsCompanion.insert(key: key, value: value),
       onConflict: DoUpdate(
         (old) => AppSettingsCompanion(
           value: Value(value),
@@ -142,5 +140,3 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> setAutoStretchSettings(String jsonSettings) =>
       setSetting(_autoStretchKey, jsonSettings);
 }
-
-

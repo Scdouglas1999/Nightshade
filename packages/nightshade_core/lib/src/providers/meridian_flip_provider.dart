@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,35 +27,45 @@ const _kMeridianFlipSettingsKey = 'meridian_flip_settings';
 
 /// Provider for global meridian flip settings
 final globalMeridianFlipSettingsProvider =
-    StateNotifierProvider<GlobalMeridianFlipSettingsNotifier, MeridianFlipSettings>((ref) {
-  final db = ref.watch(databaseProvider);
-  return GlobalMeridianFlipSettingsNotifier(db);
-});
+    StateNotifierProvider<
+      GlobalMeridianFlipSettingsNotifier,
+      MeridianFlipSettings
+    >((ref) {
+      final db = ref.watch(databaseProvider);
+      return GlobalMeridianFlipSettingsNotifier(db);
+    });
 
 /// Notifier for managing global meridian flip settings
 ///
 /// Handles loading and saving meridian flip settings to the app_settings table.
 /// These serve as the default settings when no profile-specific overrides exist.
-class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSettings> {
+class GlobalMeridianFlipSettingsNotifier
+    extends StateNotifier<MeridianFlipSettings> {
   final NightshadeDatabase _db;
 
-  GlobalMeridianFlipSettingsNotifier(this._db) : super(const MeridianFlipSettings()) {
+  GlobalMeridianFlipSettingsNotifier(this._db)
+    : super(const MeridianFlipSettings()) {
     _loadSettings();
   }
 
   /// Load settings from the database
   Future<void> _loadSettings() async {
     try {
-      final setting = await (_db.select(_db.appSettings)
-            ..where((t) => t.key.equals(_kMeridianFlipSettingsKey)))
-          .getSingleOrNull();
+      final setting =
+          await (_db.select(_db.appSettings)
+                ..where((t) => t.key.equals(_kMeridianFlipSettingsKey)))
+              .getSingleOrNull();
 
       if (setting != null && setting.value.isNotEmpty) {
         final json = jsonDecode(setting.value) as Map<String, dynamic>;
         state = MeridianFlipSettings.fromJson(json);
       }
     } catch (e) {
-      developer.log('Failed to load settings: $e', name: 'MeridianFlip', level: 1000);
+      developer.log(
+        'Failed to load settings: $e',
+        name: 'MeridianFlip',
+        level: 1000,
+      );
     }
   }
 
@@ -69,14 +79,20 @@ class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSetti
   Future<void> _saveSettings() async {
     try {
       final json = jsonEncode(state.toJson());
-      await _db.into(_db.appSettings).insertOnConflictUpdate(
+      await _db
+          .into(_db.appSettings)
+          .insertOnConflictUpdate(
             AppSettingsCompanion.insert(
               key: _kMeridianFlipSettingsKey,
               value: json,
             ),
           );
     } catch (e) {
-      developer.log('Failed to save settings: $e', name: 'MeridianFlip', level: 1000);
+      developer.log(
+        'Failed to save settings: $e',
+        name: 'MeridianFlip',
+        level: 1000,
+      );
     }
   }
 
@@ -175,7 +191,9 @@ class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSetti
 /// This provider watches both the global settings and the active equipment profile.
 /// If the active profile has meridian flip overrides, they are merged with the
 /// global defaults, with profile values taking precedence.
-final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((ref) {
+final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((
+  ref,
+) {
   final global = ref.watch(globalMeridianFlipSettingsProvider);
   final activeProfile = ref.watch(activeProfileProvider).valueOrNull;
 
@@ -196,7 +214,11 @@ final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((re
     final merged = {...globalJson, ...overrides};
     return MeridianFlipSettings.fromJson(merged);
   } catch (e) {
-    developer.log('Failed to parse profile overrides: $e', name: 'MeridianFlip', level: 1000);
+    developer.log(
+      'Failed to parse profile overrides: $e',
+      name: 'MeridianFlip',
+      level: 1000,
+    );
     return global;
   }
 });
@@ -205,21 +227,25 @@ final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((re
 ///
 /// Listens to the backend event stream for equipment events with
 /// meridian-flip-related event types and maps them to [MeridianFlipEvent].
-final meridianFlipEventStreamProvider = StreamProvider<MeridianFlipEvent?>((ref) {
+final meridianFlipEventStreamProvider = StreamProvider<MeridianFlipEvent?>((
+  ref,
+) {
   final backend = ref.watch(diagnosticsBackendProvider);
 
   return backend.eventStream
-      .where((event) =>
-          event.category == EventCategory.equipment &&
-          event.eventType.startsWith('MeridianFlip'))
+      .where(
+        (event) =>
+            event.category == EventCategory.equipment &&
+            event.eventType.startsWith('MeridianFlip'),
+      )
       .map((event) {
-    try {
-      return MeridianFlipEvent.fromJson(event.data);
-    } catch (e) {
-      // If parsing fails, emit null rather than crashing the stream
-      return null;
-    }
-  });
+        try {
+          return MeridianFlipEvent.fromJson(event.data);
+        } catch (e) {
+          // If parsing fails, emit null rather than crashing the stream
+          return null;
+        }
+      });
 });
 
 /// Current flip state for UI
@@ -274,7 +300,8 @@ final flipLastErrorProvider = StateProvider<String?>((ref) => null);
 /// Provider indicating if a flip is currently in progress
 final isFlipInProgressProvider = Provider<bool>((ref) {
   final state = ref.watch(flipExecutionStateProvider);
-  return state == FlipExecutionState.executing || state == FlipExecutionState.retrying;
+  return state == FlipExecutionState.executing ||
+      state == FlipExecutionState.retrying;
 });
 
 /// StateNotifier that resets flip execution state when the mount disconnects.
@@ -318,8 +345,8 @@ class MeridianFlipDisconnectGuard extends StateNotifier<void> {
 /// This provider must be watched (e.g., by the app shell) so it stays alive.
 final meridianFlipDisconnectGuardProvider =
     StateNotifierProvider<MeridianFlipDisconnectGuard, void>((ref) {
-  return MeridianFlipDisconnectGuard(ref);
-});
+      return MeridianFlipDisconnectGuard(ref);
+    });
 
 /// Provider for checking if settings indicate flip should be enabled
 ///
@@ -354,7 +381,8 @@ double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) {
   final t = utc.toUtc();
   int y = t.year;
   int m = t.month;
-  final d = t.day +
+  final d =
+      t.day +
       t.hour / 24.0 +
       t.minute / 1440.0 +
       t.second / 86400.0 +
@@ -365,13 +393,15 @@ double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) {
   }
   final a = (y / 100).floor();
   final b = 2 - a + (a / 4).floor();
-  final jd = (365.25 * (y + 4716)).floor() +
+  final jd =
+      (365.25 * (y + 4716)).floor() +
       (30.6001 * (m + 1)).floor() +
       d +
       b -
       1524.5;
   final tt = (jd - 2451545.0) / 36525.0;
-  var gmst = 280.46061837 +
+  var gmst =
+      280.46061837 +
       360.98564736629 * (jd - 2451545.0) +
       0.000387933 * tt * tt -
       tt * tt * tt / 38710000.0;
@@ -469,9 +499,12 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
   MeridianFlipStandaloneMonitor(this._ref) : super(null) {
     // Why: react to settings changes (toggle on/off) immediately rather than
     // waiting for the next poll. ref.listen survives across rebuilds.
-    _ref.listen<MeridianFlipSettings>(globalMeridianFlipSettingsProvider,
-        (prev, next) {
-      if (prev?.standaloneMonitoringEnabled != next.standaloneMonitoringEnabled) {
+    _ref.listen<MeridianFlipSettings>(globalMeridianFlipSettingsProvider, (
+      prev,
+      next,
+    ) {
+      if (prev?.standaloneMonitoringEnabled !=
+          next.standaloneMonitoringEnabled) {
         _reconcileTimer(next.standaloneMonitoringEnabled);
       }
     });
@@ -578,23 +611,25 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     final coverState = _ref.read(coverCalibratorStateProvider);
     final cameraId =
         cameraState.connectionState == DeviceConnectionState.connected
-            ? cameraState.deviceId
-            : null;
+        ? cameraState.deviceId
+        : null;
     // Re-center needs a camera for the plate-solve frame; honor the user's
     // setting only when one is connected.
     final autoCenter = settings.recenterAfterFlip && cameraId != null;
 
     _flipInFlight = true;
     try {
-      await _ref.read(backendProvider).performMeridianFlip(
+      await _ref
+          .read(backendProvider)
+          .performMeridianFlip(
             mountId: mountId,
             cameraId: cameraId,
             focuserId:
                 focuserState.connectionState == DeviceConnectionState.connected
-                    ? focuserState.deviceId
-                    : null,
-            coverCalibratorId: coverState.connectionState ==
-                    DeviceConnectionState.connected
+                ? focuserState.deviceId
+                : null,
+            coverCalibratorId:
+                coverState.connectionState == DeviceConnectionState.connected
                 ? coverState.deviceId
                 : null,
             targetName: 'Standalone flip',
@@ -614,10 +649,12 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
         source: 'MeridianFlipStandaloneMonitor',
       );
       if (settings.pushNotificationOnFlip) {
-        unawaited(_ref
-            .read(notificationServiceProvider)
-            .notifyMeridianFlip(isStarting: false)
-            .catchError((Object e, StackTrace s) => false));
+        unawaited(
+          _ref
+              .read(notificationServiceProvider)
+              .notifyMeridianFlip(isStarting: false)
+              .catchError((Object e, StackTrace s) => false),
+        );
       }
     } catch (e) {
       _ref.read(flipExecutionStateProvider.notifier).state =
@@ -680,16 +717,18 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
       // Route through NotificationService so Discord / Pushover / system push
       // all honor the toggle. Errors here are reported but never propagate —
       // a missed notification must not stall the monitor.
-      unawaited(_ref
-          .read(notificationServiceProvider)
-          .notifyMeridianFlip(isStarting: true)
-          .catchError((Object e, StackTrace s) {
-        logger.error(
-          'Failed to dispatch meridian flip notification: $e',
-          source: 'MeridianFlipStandaloneMonitor',
-        );
-        return false;
-      }));
+      unawaited(
+        _ref
+            .read(notificationServiceProvider)
+            .notifyMeridianFlip(isStarting: true)
+            .catchError((Object e, StackTrace s) {
+              logger.error(
+                'Failed to dispatch meridian flip notification: $e',
+                source: 'MeridianFlipStandaloneMonitor',
+              );
+              return false;
+            }),
+      );
     }
   }
 
@@ -708,5 +747,5 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
 /// `globalMeridianFlipSettings.standaloneMonitoringEnabled` is true.
 final meridianFlipStandaloneMonitorProvider =
     StateNotifierProvider<MeridianFlipStandaloneMonitor, void>((ref) {
-  return MeridianFlipStandaloneMonitor(ref);
-});
+      return MeridianFlipStandaloneMonitor(ref);
+    });

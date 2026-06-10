@@ -16,12 +16,16 @@ class ImagingSessions extends Table {
   TextColumn get name => text().nullable()();
 
   // Foreign keys
-  IntColumn get profileId => integer()
-      .nullable()
-      .references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
-  IntColumn get targetId => integer()
-      .nullable()
-      .references(Targets, #id, onDelete: KeyAction.setNull)();
+  IntColumn get profileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get targetId => integer().nullable().references(
+    Targets,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   // Session timing
   DateTimeColumn get startTime => dateTime()();
@@ -53,9 +57,11 @@ class ImagingSessions extends Table {
   // completed, aborted, error
 
   // Quick Start support: track which sequence was used
-  IntColumn get sequenceId => integer()
-      .nullable()
-      .references(Sequences, #id, onDelete: KeyAction.setNull)();
+  IntColumn get sequenceId => integer().nullable().references(
+    Sequences,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   // Quick Start support: JSON blob storing equipment state at session start
   TextColumn get equipmentSnapshot => text().nullable()();

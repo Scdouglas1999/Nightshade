@@ -12,16 +12,24 @@ import 'headless_route.dart';
 /// Build the declarative route table for [AuxiliaryHandlers].
 List<HeadlessRoute> buildAuxiliaryRoutes(AuxiliaryHandlers h) =>
     <HeadlessRoute>[
-      HeadlessRoute(
-          HttpMethod.get, '/api/switch/status', h.handleSwitchStatus),
+      HeadlessRoute(HttpMethod.get, '/api/switch/status', h.handleSwitchStatus),
       HeadlessRoute(HttpMethod.post, '/api/switch/set', h.handleSwitchSet),
       HeadlessRoute(HttpMethod.get, '/api/cover/status', h.handleCoverStatus),
       HeadlessRoute(HttpMethod.post, '/api/cover/open', h.handleCoverOpen),
       HeadlessRoute(HttpMethod.post, '/api/cover/close', h.handleCoverClose),
       HeadlessRoute(
-          HttpMethod.post, '/api/cover/brightness', h.handleCoverBrightness),
-      HeadlessRoute(HttpMethod.post, '/api/cover/calibrator-on',
-          h.handleCalibratorOn),
-      HeadlessRoute(HttpMethod.post, '/api/cover/calibrator-off',
-          h.handleCalibratorOff),
+        HttpMethod.post,
+        '/api/cover/brightness',
+        h.handleCoverBrightness,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/cover/calibrator-on',
+        h.handleCalibratorOn,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/cover/calibrator-off',
+        h.handleCalibratorOff,
+      ),
     ];

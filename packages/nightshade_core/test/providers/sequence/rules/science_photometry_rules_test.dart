@@ -1,4 +1,4 @@
-﻿// Wave 7 Science — SciencePhotometry validation + serialization tests.
+// Wave 7 Science — SciencePhotometry validation + serialization tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -55,12 +55,9 @@ void main() {
       // (gap = next_start - prev_start - exposure). Any non-negative
       // value is structurally valid; a negative value is the only
       // impossible case.
-      expect(_node(cadence: -1.0, exposure: 60.0).hasImpossibleCadence,
-          isTrue);
-      expect(_node(cadence: 2.0, exposure: 60.0).hasImpossibleCadence,
-          isFalse);
-      expect(_node(cadence: 0.0, exposure: 60.0).hasImpossibleCadence,
-          isFalse);
+      expect(_node(cadence: -1.0, exposure: 60.0).hasImpossibleCadence, isTrue);
+      expect(_node(cadence: 2.0, exposure: 60.0).hasImpossibleCadence, isFalse);
+      expect(_node(cadence: 0.0, exposure: 60.0).hasImpossibleCadence, isFalse);
     });
 
     test('toRustConfigJson round-trips through fromRustConfigJson', () {
@@ -111,10 +108,10 @@ void main() {
     });
 
     test('binning > 1 fires warning', () {
-      final issues =
-          rule.validate(_sequenceWith(_node(binning: BinningMode.two)));
-      expect(
-          issues.where((i) => i.title.contains('binning')), hasLength(1));
+      final issues = rule.validate(
+        _sequenceWith(_node(binning: BinningMode.two)),
+      );
+      expect(issues.where((i) => i.title.contains('binning')), hasLength(1));
     });
   });
 
@@ -123,20 +120,22 @@ void main() {
 
     test('differential with refs = clean', () {
       expect(
-          rule.validate(_sequenceWith(_node(applyDifferential: true))),
-          isEmpty);
+        rule.validate(_sequenceWith(_node(applyDifferential: true))),
+        isEmpty,
+      );
     });
 
     test('differential without refs fires error', () {
       final node = _node(applyDifferential: true, refs: const []);
       final issues = rule.validate(_sequenceWith(node));
-      expect(issues.where((i) => i.title.contains('reference stars')),
-          hasLength(1));
       expect(
-          issues
-              .firstWhere((i) => i.title.contains('reference stars'))
-              .severity,
-          ValidationSeverity.error);
+        issues.where((i) => i.title.contains('reference stars')),
+        hasLength(1),
+      );
+      expect(
+        issues.firstWhere((i) => i.title.contains('reference stars')).severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('apply_differential off with no refs = clean', () {
@@ -150,8 +149,9 @@ void main() {
       final node = _node(target: '');
       final issues = rule.validate(_sequenceWith(node));
       expect(
-          issues.where((i) => i.title.contains('target designation')),
-          hasLength(1));
+        issues.where((i) => i.title.contains('target designation')),
+        hasLength(1),
+      );
     });
   });
 
@@ -160,25 +160,28 @@ void main() {
 
     test('typical cadence = clean', () {
       expect(
-          rule.validate(_sequenceWith(_node(cadence: 2.0, exposure: 60.0))),
-          isEmpty);
+        rule.validate(_sequenceWith(_node(cadence: 2.0, exposure: 60.0))),
+        isEmpty,
+      );
     });
 
     test('negative cadence fires error', () {
-      final issues = rule
-          .validate(_sequenceWith(_node(cadence: -5.0, exposure: 60.0)));
-      expect(issues.where((i) => i.title.contains('cadence')),
-          hasLength(1));
+      final issues = rule.validate(
+        _sequenceWith(_node(cadence: -5.0, exposure: 60.0)),
+      );
+      expect(issues.where((i) => i.title.contains('cadence')), hasLength(1));
       expect(
-          issues.firstWhere((i) => i.title.contains('cadence')).severity,
-          ValidationSeverity.error);
+        issues.firstWhere((i) => i.title.contains('cadence')).severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('zero exposure fires error', () {
-      final issues =
-          rule.validate(_sequenceWith(_node(exposure: 0.0)));
-      expect(issues.where((i) => i.title.contains('exposure duration')),
-          hasLength(1));
+      final issues = rule.validate(_sequenceWith(_node(exposure: 0.0)));
+      expect(
+        issues.where((i) => i.title.contains('exposure duration')),
+        hasLength(1),
+      );
     });
   });
 

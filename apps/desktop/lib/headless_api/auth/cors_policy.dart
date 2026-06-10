@@ -55,7 +55,8 @@ class CorsAllowList {
     }
 
     final canonical = _canonicalOrigin(originUri);
-    final isSameOrigin = originUri.scheme == requestUri.scheme &&
+    final isSameOrigin =
+        originUri.scheme == requestUri.scheme &&
         originUri.host.toLowerCase() == requestUri.host.toLowerCase() &&
         originUri.port == requestUri.port;
 

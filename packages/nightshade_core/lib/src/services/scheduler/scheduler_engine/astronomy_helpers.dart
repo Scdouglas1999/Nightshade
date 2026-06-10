@@ -10,11 +10,13 @@ extension on SchedulerEngine {
     final lat = _site.latitudeDegrees * math.pi / 180.0;
     final lst = _localSiderealTime(time);
     final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-    final sinAlt = math.sin(dec) * math.sin(lat) +
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
         math.cos(dec) * math.cos(lat) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
     final y = -math.sin(ha) * math.cos(dec);
-    final x = math.sin(dec) * math.cos(lat) -
+    final x =
+        math.sin(dec) * math.cos(lat) -
         math.cos(dec) * math.sin(lat) * math.cos(ha);
     var az = math.atan2(y, x);
     if (az < 0) az += 2 * math.pi;
@@ -36,7 +38,8 @@ extension on SchedulerEngine {
     }
     final a = (y / 100).floor();
     final b = 2 - a + (a / 4).floor();
-    final jd = (365.25 * (y + 4716)).floor() +
+    final jd =
+        (365.25 * (y + 4716)).floor() +
         (30.6001 * (m + 1)).floor() +
         d +
         b -
@@ -58,8 +61,10 @@ extension on SchedulerEngine {
           math.tan(betaRad) * math.sin(epsRad),
       math.cos(lambdaRad),
     );
-    final dec = math.asin(math.sin(betaRad) * math.cos(epsRad) +
-        math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad));
+    final dec = math.asin(
+      math.sin(betaRad) * math.cos(epsRad) +
+          math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad),
+    );
     var raHours = (ra * 180.0 / math.pi) / 15.0;
     if (raHours < 0) raHours += 24.0;
     final illumination = (1.0 - math.cos(dRad)) / 2.0;
@@ -80,7 +85,8 @@ extension on SchedulerEngine {
     final ra2 = ra2Hours * 15.0 * math.pi / 180.0;
     final dec1 = dec1Degrees * math.pi / 180.0;
     final dec2 = dec2Degrees * math.pi / 180.0;
-    final cosSep = math.sin(dec1) * math.sin(dec2) +
+    final cosSep =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180.0 / math.pi;
   }

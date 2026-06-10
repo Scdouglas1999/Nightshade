@@ -186,7 +186,8 @@ void main() {
     for (final zoom in const [0.5, 1.0, 2.0, 4.0]) {
       final clipped = await bleedPixels(zoom: zoom, clip: true);
       expect(clipped, 0,
-          reason: 'At zoom $zoom the clipped survey background bled $clipped px '
+          reason:
+              'At zoom $zoom the clipped survey background bled $clipped px '
               'past the ${canvasW}x$canvasH canvas — the ClipRect must contain '
               'it so it never paints behind the sidebar.');
 
@@ -195,7 +196,8 @@ void main() {
         // zoom > 1, so the test is exercising a real containment (not a no-op).
         final unclipped = await bleedPixels(zoom: zoom, clip: false);
         expect(unclipped, greaterThan(0),
-            reason: 'At zoom $zoom the UNCLIPPED survey background must overrun '
+            reason:
+                'At zoom $zoom the UNCLIPPED survey background must overrun '
                 'the canvas (the bug the ClipRect fixes); got $unclipped.');
       }
     }

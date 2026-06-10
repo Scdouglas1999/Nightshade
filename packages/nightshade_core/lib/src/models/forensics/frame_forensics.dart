@@ -126,17 +126,15 @@ class ForensicEnvironment {
       sensorTempC == null;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        if (skyBrightnessMag != null) 'sky_brightness_mag': skyBrightnessMag,
-        if (cloudCoverPercent != null)
-          'cloud_cover_percent': cloudCoverPercent,
-        if (windKph != null) 'wind_kph': windKph,
-        if (guideRmsArcsec != null) 'guide_rms_arcsec': guideRmsArcsec,
-        if (sensorTempC != null) 'sensor_temp_c': sensorTempC,
-      };
+    if (skyBrightnessMag != null) 'sky_brightness_mag': skyBrightnessMag,
+    if (cloudCoverPercent != null) 'cloud_cover_percent': cloudCoverPercent,
+    if (windKph != null) 'wind_kph': windKph,
+    if (guideRmsArcsec != null) 'guide_rms_arcsec': guideRmsArcsec,
+    if (sensorTempC != null) 'sensor_temp_c': sensorTempC,
+  };
 
   factory ForensicEnvironment.fromJson(Map<String, dynamic> json) {
-    double? asDouble(Object? v) =>
-        v == null ? null : (v as num).toDouble();
+    double? asDouble(Object? v) => v == null ? null : (v as num).toDouble();
     return ForensicEnvironment(
       skyBrightnessMag: asDouble(json['sky_brightness_mag']),
       cloudCoverPercent: asDouble(json['cloud_cover_percent']),
@@ -234,12 +232,13 @@ class FrameForensicsRecord {
       reason: (row['reason'] as String?) ?? '',
       likelyCause:
           LikelyCauseExt.fromLabel(row['likely_cause'] as String?) ??
-              LikelyCause.unknown,
+          LikelyCause.unknown,
       evidence: List<String>.from(
         (jsonDecode(evidenceRaw) as List<dynamic>).map((e) => e as String),
       ),
-      environment:
-          ForensicEnvironment.fromJson(jsonDecode(envRaw) as Map<String, dynamic>),
+      environment: ForensicEnvironment.fromJson(
+        jsonDecode(envRaw) as Map<String, dynamic>,
+      ),
       hfr: (row['hfr'] as num?)?.toDouble(),
       eccentricity: (row['eccentricity'] as num?)?.toDouble(),
       starCount: row['star_count'] as int?,
@@ -275,9 +274,7 @@ class ForensicSummary {
 
   /// Causes ordered by descending count — the "most common cause" first.
   List<MapEntry<LikelyCause, int>> get rankedCauses {
-    final entries = countsByCause.entries
-        .where((e) => e.value > 0)
-        .toList()
+    final entries = countsByCause.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return entries;
   }

@@ -94,8 +94,7 @@ class _PredictiveAfSettingsPageState
             _settingRow(
               icon: LucideIcons.brainCircuit,
               title: 'Auto-learn focus models',
-              subtitle:
-                  'When enabled, each successful AF run appends a sample '
+              subtitle: 'When enabled, each successful AF run appends a sample '
                   'to the matching (camera, filter) model and re-fits the '
                   'regression on every insert.',
               trailing: SettingsSwitch(
@@ -108,8 +107,7 @@ class _PredictiveAfSettingsPageState
             _settingRow(
               icon: LucideIcons.barChart3,
               title: 'Minimum samples for trust',
-              subtitle:
-                  'Below this count, even a high-R² model still forces a '
+              subtitle: 'Below this count, even a high-R² model still forces a '
                   'real AF sweep so the predictor cannot lock onto a tiny '
                   'sample window by coincidence.',
               trailing: _NumberField(
@@ -159,8 +157,7 @@ class _PredictiveAfSettingsPageState
             _settingRow(
               icon: LucideIcons.activity,
               title: 'Drift threshold (steps)',
-              subtitle:
-                  'How many focuser steps a prediction can be off before '
+              subtitle: 'How many focuser steps a prediction can be off before '
                   'counting as a "bad" run for drift tracking.',
               trailing: _NumberField(
                 initialValue: config.driftThresholdSteps.toDouble(),
@@ -177,8 +174,7 @@ class _PredictiveAfSettingsPageState
             _settingRow(
               icon: LucideIcons.alertTriangle,
               title: 'Bad runs before warning',
-              subtitle:
-                  'Consecutive bad predictions required before the app '
+              subtitle: 'Consecutive bad predictions required before the app '
                   'surfaces a re-train notification.',
               trailing: _NumberField(
                 initialValue: config.driftRunsBeforeWarn.toDouble(),
@@ -340,7 +336,8 @@ class _ModelViewerState extends State<_ModelViewer> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                Icon(LucideIcons.info, color: NightshadeColors.of(context).textMuted, size: 14),
+                Icon(LucideIcons.info,
+                    color: NightshadeColors.of(context).textMuted, size: 14),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -439,10 +436,12 @@ class _ModelRowState extends State<_ModelRow> {
               const SizedBox(width: 8),
               Text(
                 m.filterName,
-                style: NightshadeTypography.labelStrong.copyWith(color: c.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: c.textPrimary),
               ),
               const SizedBox(width: 12),
-              _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C', c),
+              _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C',
+                  c),
               const SizedBox(width: 12),
               _stat('Samples', '${m.samples.length}', c),
               const SizedBox(width: 12),
@@ -493,7 +492,9 @@ class _ModelRowState extends State<_ModelRow> {
                 icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
                 label: Text(
                   'Re-train',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.warning),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.warning),
                 ),
               ),
             ],
@@ -502,13 +503,14 @@ class _ModelRowState extends State<_ModelRow> {
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(LucideIcons.alertTriangle,
-                    size: 12, color: c.warning),
+                Icon(LucideIcons.alertTriangle, size: 12, color: c.warning),
                 const SizedBox(width: 6),
                 Text(
                   'Drift: ${m.consecutiveBadPredictions} consecutive bad '
                   'predictions; ${m.accumulatedDriftSteps} accumulated steps',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.warning),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.warning),
                 ),
               ],
             ),
@@ -518,7 +520,9 @@ class _ModelRowState extends State<_ModelRow> {
             Text(
               'Last used: ${_formatTimeAgo(m.lastUsedAt!)} · '
               'Last trained: ${_formatTimeAgo(m.lastTrainedAt)}',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: c.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: c.textMuted),
             ),
           ],
           if (_expanded) ...[
@@ -535,7 +539,9 @@ class _ModelRowState extends State<_ModelRow> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: c.textMuted)),
+        Text(label,
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9, color: c.textMuted)),
         Text(
           value,
           style: TextStyle(
@@ -583,7 +589,7 @@ class _SampleScatter extends StatelessWidget {
   const _SampleScatter({
     required this.samples,
     required this.model,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -598,7 +604,9 @@ class _SampleScatter extends StatelessWidget {
             ? Center(
                 child: Text(
                   'No samples',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
               )
             : CustomPaint(
@@ -656,8 +664,7 @@ class _ScatterPainter extends CustomPainter {
       maxPos += 50;
     }
 
-    double mapX(double t) =>
-        (t - minTemp) / (maxTemp - minTemp) * size.width;
+    double mapX(double t) => (t - minTemp) / (maxTemp - minTemp) * size.width;
     double mapY(double p) =>
         size.height - (p - minPos) / (maxPos - minPos) * size.height;
 
@@ -714,7 +721,7 @@ class _NumberField extends StatefulWidget {
     required this.max,
     required this.decimals,
     required this.onChanged,
-    });
+  });
 
   @override
   State<_NumberField> createState() => _NumberFieldState();

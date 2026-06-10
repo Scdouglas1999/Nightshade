@@ -33,14 +33,17 @@ void main() {
 
     setUp(() {
       backend = MockBackend();
-      when(() => backend.eventStream)
-          .thenAnswer((_) => const Stream<NightshadeEvent>.empty());
-      when(() => backend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(
+        () => backend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
       container = ProviderContainer(
         overrides: [
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
         ],
       );
     });
@@ -48,8 +51,9 @@ void main() {
     tearDown(() => container.dispose());
 
     test('returns null when deviceId is empty', () async {
-      final caps = await container
-          .read(equipmentCameraCapabilitiesProvider('').future);
+      final caps = await container.read(
+        equipmentCameraCapabilitiesProvider('').future,
+      );
       expect(caps, isNull);
       // Important: an empty deviceId must NOT call the backend at all.
       verifyNever(() => backend.getCameraCapabilities(any()));
@@ -70,11 +74,13 @@ void main() {
         maxBinX: 2,
         maxBinY: 2,
       );
-      when(() => backend.getCameraCapabilities(deviceId))
-          .thenAnswer((_) async => expected);
+      when(
+        () => backend.getCameraCapabilities(deviceId),
+      ).thenAnswer((_) async => expected);
 
-      final caps = await container
-          .read(equipmentCameraCapabilitiesProvider(deviceId).future);
+      final caps = await container.read(
+        equipmentCameraCapabilitiesProvider(deviceId).future,
+      );
 
       expect(caps, isNotNull);
       expect(caps!.canSetCcdTemperature, isTrue);
@@ -84,8 +90,9 @@ void main() {
 
     test('propagates backend exceptions so gate can fail closed', () async {
       const deviceId = 'simulator:broken-cam';
-      when(() => backend.getCameraCapabilities(deviceId))
-          .thenThrow(Exception('driver crashed'));
+      when(
+        () => backend.getCameraCapabilities(deviceId),
+      ).thenThrow(Exception('driver crashed'));
 
       expect(
         container.read(equipmentCameraCapabilitiesProvider(deviceId).future),
@@ -93,8 +100,7 @@ void main() {
       );
     });
 
-    test(
-        'family key change (e.g. reconnect to a different driver) triggers '
+    test('family key change (e.g. reconnect to a different driver) triggers '
         'a fresh capability read with the new flags', () async {
       const oldDeviceId = 'simulator:cam-old';
       const newDeviceId = 'simulator:cam-new';
@@ -120,18 +126,26 @@ void main() {
         ),
       );
 
-      final oldCaps = await container
-          .read(equipmentCameraCapabilitiesProvider(oldDeviceId).future);
-      expect(oldCaps!.canSetCcdTemperature, isFalse,
-          reason: 'Old driver explicitly does not support cooling');
+      final oldCaps = await container.read(
+        equipmentCameraCapabilitiesProvider(oldDeviceId).future,
+      );
+      expect(
+        oldCaps!.canSetCcdTemperature,
+        isFalse,
+        reason: 'Old driver explicitly does not support cooling',
+      );
       expect(oldCaps.canSetGain, isFalse);
 
       // Now ask about the new device. FutureProvider.family uses deviceId as
       // the cache key, so a fresh query is issued.
-      final newCaps = await container
-          .read(equipmentCameraCapabilitiesProvider(newDeviceId).future);
-      expect(newCaps!.canSetCcdTemperature, isTrue,
-          reason: 'New driver upgraded to a cooled camera');
+      final newCaps = await container.read(
+        equipmentCameraCapabilitiesProvider(newDeviceId).future,
+      );
+      expect(
+        newCaps!.canSetCcdTemperature,
+        isTrue,
+        reason: 'New driver upgraded to a cooled camera',
+      );
       expect(newCaps.canSetGain, isTrue);
       expect(newCaps.gainMax, 360);
 
@@ -160,20 +174,30 @@ void main() {
         const AsyncValue<CameraCapabilities?>.data(null),
         (c) => c.canSetCcdTemperature,
       );
-      expect(value, isFalse,
-          reason: 'A driver that does not report capabilities '
-              'must fail closed.');
+      expect(
+        value,
+        isFalse,
+        reason:
+            'A driver that does not report capabilities '
+            'must fail closed.',
+      );
     });
 
     test('returns false on error (driver crash) — fail closed', () {
       final value = gateCapability<CameraCapabilities>(
         AsyncValue<CameraCapabilities?>.error(
-            Exception('bridge crashed'), StackTrace.current),
+          Exception('bridge crashed'),
+          StackTrace.current,
+        ),
         (c) => c.canSetCcdTemperature,
       );
-      expect(value, isFalse,
-          reason: 'Errors are a feature: a thrown query is the strongest '
-              'possible signal to hide the control.');
+      expect(
+        value,
+        isFalse,
+        reason:
+            'Errors are a feature: a thrown query is the strongest '
+            'possible signal to hide the control.',
+      );
     });
 
     test('respects loadingDefault while the future is pending', () {
@@ -186,10 +210,16 @@ void main() {
         const AsyncValue<CameraCapabilities?>.loading(),
         (c) => c.canSetCcdTemperature,
       );
-      expect(pendingTrue, isTrue,
-          reason: 'UI requested optimistic visibility while loading.');
-      expect(pendingFalse, isFalse,
-          reason: 'Default loading behaviour is fail closed.');
+      expect(
+        pendingTrue,
+        isTrue,
+        reason: 'UI requested optimistic visibility while loading.',
+      );
+      expect(
+        pendingFalse,
+        isFalse,
+        reason: 'Default loading behaviour is fail closed.',
+      );
     });
   });
 
@@ -204,61 +234,66 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          domeCapabilityFetcherProvider.overrideWithValue(
-            (id) async {
-              expect(id, deviceId);
-              return expected;
-            },
-          ),
+          domeCapabilityFetcherProvider.overrideWithValue((id) async {
+            expect(id, deviceId);
+            return expected;
+          }),
         ],
       );
       addTearDown(container.dispose);
 
-      final caps = await container
-          .read(equipmentDomeCapabilitiesProvider(deviceId).future);
+      final caps = await container.read(
+        equipmentDomeCapabilitiesProvider(deviceId).future,
+      );
       expect(caps, isNotNull);
       expect(caps!.canSetShutter, isTrue);
       expect(caps.canPark, isTrue);
       expect(caps.canSetAzimuth, isFalse);
     });
 
-    test('returns null when deviceId is empty without calling the fetcher',
-        () async {
-      var fetcherCalls = 0;
-      final container = ProviderContainer(
-        overrides: [
-          domeCapabilityFetcherProvider.overrideWithValue(
-            (id) async {
+    test(
+      'returns null when deviceId is empty without calling the fetcher',
+      () async {
+        var fetcherCalls = 0;
+        final container = ProviderContainer(
+          overrides: [
+            domeCapabilityFetcherProvider.overrideWithValue((id) async {
               fetcherCalls++;
               return const DomeCapabilities(canSetShutter: true);
-            },
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      final caps =
-          await container.read(equipmentDomeCapabilitiesProvider('').future);
-      expect(caps, isNull);
-      expect(fetcherCalls, 0,
-          reason: 'Empty deviceId must short-circuit before the fetcher.');
-    });
+        final caps = await container.read(
+          equipmentDomeCapabilitiesProvider('').future,
+        );
+        expect(caps, isNull);
+        expect(
+          fetcherCalls,
+          0,
+          reason: 'Empty deviceId must short-circuit before the fetcher.',
+        );
+      },
+    );
 
-    test('thrown fetcher errors propagate so the gate can fail closed',
-        () async {
-      final container = ProviderContainer(
-        overrides: [
-          domeCapabilityFetcherProvider.overrideWithValue(
-            (id) async => throw StateError('dome bridge crashed'),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+    test(
+      'thrown fetcher errors propagate so the gate can fail closed',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            domeCapabilityFetcherProvider.overrideWithValue(
+              (id) async => throw StateError('dome bridge crashed'),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      expect(
-        container.read(equipmentDomeCapabilitiesProvider('dome-x').future),
-        throwsA(isA<StateError>()),
-      );
-    });
+        expect(
+          container.read(equipmentDomeCapabilitiesProvider('dome-x').future),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
   });
 }

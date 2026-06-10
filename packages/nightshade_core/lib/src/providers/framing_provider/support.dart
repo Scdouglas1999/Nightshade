@@ -77,13 +77,14 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
 
   // Use friendly name from profile first, then connected camera's device name,
   // then fall back to device ID extraction
-  final cameraName = profile.cameraName ??
+  final cameraName =
+      profile.cameraName ??
       (cameraState.connectionState == DeviceConnectionState.connected &&
               cameraState.deviceName != null
           ? cameraState.deviceName!
           : (profile.cameraId != null
-              ? _extractDeviceName(profile.cameraId!)
-              : 'Unknown Camera'));
+                ? _extractDeviceName(profile.cameraId!)
+                : 'Unknown Camera'));
 
   final telescopeName = profile.telescopeName ?? profile.name;
 
@@ -135,7 +136,8 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
     return FramingEquipmentResult(
       status: EquipmentStatus.noCameraSpecs,
       profileName: profile.name,
-      message: cameraMessage ??
+      message:
+          cameraMessage ??
           'Camera sensor dimensions are unavailable. Connect camera hardware to compute FOV.',
     );
   }
@@ -152,8 +154,9 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
       pixelsY: pixelsY,
       telescopeName: telescopeName,
       focalLengthMm: profile.focalLength,
-      apertureMm:
-          profile.aperture > 0 ? profile.aperture : profile.focalLength / 8,
+      apertureMm: profile.aperture > 0
+          ? profile.aperture
+          : profile.focalLength / 8,
     ),
     message: cameraMessage,
   );
@@ -215,7 +218,8 @@ class SimbadResolver {
   /// Resolve an object name to coordinates
   static Future<SimbadResult?> resolve(String name) async {
     try {
-      final url = '$_baseUrl?Ident=${Uri.encodeComponent(name)}'
+      final url =
+          '$_baseUrl?Ident=${Uri.encodeComponent(name)}'
           '&output.format=votable'
           '&output.params=main_id,ra,dec,otype,flux(V)';
 
@@ -267,14 +271,16 @@ class SimbadResolver {
   /// Alternative TAP query resolution
   static Future<SimbadResult?> _resolveTAP(String name) async {
     try {
-      final query = '''
+      final query =
+          '''
         SELECT TOP 1 main_id, ra, dec, otype_txt, flux
         FROM basic JOIN flux ON oid = oidref
         WHERE main_id = '\${name.toUpperCase()}'
         OR main_id LIKE '%${name.toUpperCase()}%'
       ''';
 
-      final url = 'https://simbad.cds.unistra.fr/simbad/sim-tap/sync'
+      final url =
+          'https://simbad.cds.unistra.fr/simbad/sim-tap/sync'
           '?request=doQuery'
           '&lang=adql'
           '&format=json'
@@ -320,7 +326,8 @@ class SimbadResolver {
     if (query.isEmpty || query.length < 2) return [];
 
     try {
-      final tapQuery = '''
+      final tapQuery =
+          '''
         SELECT TOP 20 main_id, ra, dec, otype_txt
         FROM basic
         WHERE main_id LIKE '${query.toUpperCase()}%'
@@ -328,7 +335,8 @@ class SimbadResolver {
         ORDER BY CASE WHEN main_id = '${query.toUpperCase()}' THEN 0 ELSE 1 END, main_id
       ''';
 
-      final url = 'https://simbad.cds.unistra.fr/simbad/sim-tap/sync'
+      final url =
+          'https://simbad.cds.unistra.fr/simbad/sim-tap/sync'
           '?request=doQuery'
           '&lang=adql'
           '&format=json'

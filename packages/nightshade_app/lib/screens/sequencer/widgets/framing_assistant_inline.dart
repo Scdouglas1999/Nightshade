@@ -271,7 +271,9 @@ class _ContextCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   fovLabel,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary),
                 ),
               ),
             ],
@@ -312,7 +314,8 @@ class _RotationControls extends StatelessWidget {
               Icon(LucideIcons.rotateCw, size: 13, color: colors.textMuted),
               const SizedBox(width: 6),
               Text('Rotation',
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary)),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary)),
               const Spacer(),
               Text(
                 '${rotation.toStringAsFixed(0)}°',
@@ -345,7 +348,9 @@ class _RotationControls extends StatelessWidget {
           Text(
             'Drag the FOV outline on the sky view to adjust rotation '
             'visually. Drag inside the box to nudge the target centre.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
         ],
       ),

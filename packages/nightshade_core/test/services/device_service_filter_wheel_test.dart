@@ -30,12 +30,18 @@ void main() {
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-    when(() => mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
     when(() => mockBackend.getConnectedDevices()).thenAnswer((_) async => []);
     container = ProviderContainer(
       overrides: [
-        backendProvider.overrideWith((ref) => TestBackendNotifier(ref, mockBackend)),
+        backendProvider.overrideWith(
+          (ref) => TestBackendNotifier(ref, mockBackend),
+        ),
       ],
     );
   });
@@ -56,23 +62,27 @@ void main() {
       filterNames: filterNames,
     );
 
-    when(() => mockBackend.discoverDevices(DeviceType.filterWheel))
-        .thenAnswer((_) async => const [
-              DeviceInfo(
-                id: deviceId,
-                name: 'Test Filter Wheel',
-                deviceType: DeviceType.filterWheel,
-                driverType: DriverType.ascom,
-                description: 'Test filter wheel',
-                driverVersion: '1.0',
-              ),
-            ]);
-    when(() => mockBackend.connectDevice(DeviceType.filterWheel, deviceId))
-        .thenAnswer((_) async {});
-    when(() => mockBackend.filterWheelGetNames(deviceId))
-        .thenAnswer((_) async => filterNames);
-    when(() => mockBackend.getFilterWheelStatus(deviceId))
-        .thenAnswer((_) async => status);
+    when(() => mockBackend.discoverDevices(DeviceType.filterWheel)).thenAnswer(
+      (_) async => const [
+        DeviceInfo(
+          id: deviceId,
+          name: 'Test Filter Wheel',
+          deviceType: DeviceType.filterWheel,
+          driverType: DriverType.ascom,
+          description: 'Test filter wheel',
+          driverVersion: '1.0',
+        ),
+      ],
+    );
+    when(
+      () => mockBackend.connectDevice(DeviceType.filterWheel, deviceId),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockBackend.filterWheelGetNames(deviceId),
+    ).thenAnswer((_) async => filterNames);
+    when(
+      () => mockBackend.getFilterWheelStatus(deviceId),
+    ).thenAnswer((_) async => status);
 
     final service = container.read(deviceServiceProvider);
     await service.connectFilterWheel(deviceId);
@@ -84,76 +94,90 @@ void main() {
     expect(state.isMoving, status.moving);
   });
 
-  test('setFilterWheelPosition throws when device reports different position', () async {
-    const deviceId = TestFixtures.filterWheelId;
-    final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
+  test(
+    'setFilterWheelPosition throws when device reports different position',
+    () async {
+      const deviceId = TestFixtures.filterWheelId;
+      final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
 
-    // Seed connected filter wheel state
-    final filterWheelNotifier = container.read(filterWheelStateProvider.notifier);
-    filterWheelNotifier.setConnecting(deviceId, 'Test Filter Wheel');
-    filterWheelNotifier.setConnected(filterNames: filterNames);
-    filterWheelNotifier.updatePosition(0);
+      // Seed connected filter wheel state
+      final filterWheelNotifier = container.read(
+        filterWheelStateProvider.notifier,
+      );
+      filterWheelNotifier.setConnecting(deviceId, 'Test Filter Wheel');
+      filterWheelNotifier.setConnected(filterNames: filterNames);
+      filterWheelNotifier.updatePosition(0);
 
-    when(() => mockBackend.filterWheelSetPosition(deviceId, 1))
-        .thenAnswer((_) async {});
-    when(() => mockBackend.getFilterWheelStatus(deviceId))
-        .thenAnswer((_) async => FilterWheelStatus(
-              connected: true,
-              position: 2, // Mismatch
-              moving: false,
-              filterCount: filterNames.length,
-              filterNames: filterNames,
-            ));
-
-    final service = container.read(deviceServiceProvider);
-    await expectLater(
-      service.setFilterWheelPosition(1),
-      throwsA(isA<Exception>()),
-    );
-  });
-
-  test('setFilterWheelPosition verify failure keeps moving when hardware still moving (DV-P0-6)',
-      () async {
-    const deviceId = TestFixtures.filterWheelId;
-    final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
-
-    final filterWheelNotifier = container.read(filterWheelStateProvider.notifier);
-    filterWheelNotifier.setConnecting(deviceId, 'Test Filter Wheel');
-    filterWheelNotifier.setConnected(filterNames: filterNames);
-    filterWheelNotifier.updatePosition(0);
-
-    when(() => mockBackend.filterWheelSetPosition(deviceId, 1))
-        .thenAnswer((_) async {});
-
-    var pollCount = 0;
-    when(() => mockBackend.getFilterWheelStatus(deviceId)).thenAnswer((_) async {
-      pollCount++;
-      if (pollCount == 1) {
-        // Verify loop: stopped but wrong slot → immediate failure.
-        return FilterWheelStatus(
+      when(
+        () => mockBackend.filterWheelSetPosition(deviceId, 1),
+      ).thenAnswer((_) async {});
+      when(() => mockBackend.getFilterWheelStatus(deviceId)).thenAnswer(
+        (_) async => FilterWheelStatus(
           connected: true,
-          position: 2,
+          position: 2, // Mismatch
           moving: false,
           filterCount: filterNames.length,
           filterNames: filterNames,
-        );
-      }
-      // Recovery poll: wheel is still physically moving.
-      return FilterWheelStatus(
-        connected: true,
-        position: -1,
-        moving: true,
-        filterCount: filterNames.length,
-        filterNames: filterNames,
+        ),
       );
-    });
 
-    final service = container.read(deviceServiceProvider);
-    await expectLater(
-      service.setFilterWheelPosition(1),
-      throwsA(isA<Exception>()),
-    );
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.setFilterWheelPosition(1),
+        throwsA(isA<Exception>()),
+      );
+    },
+  );
 
-    expect(container.read(filterWheelStateProvider).isMoving, isTrue);
-  });
+  test(
+    'setFilterWheelPosition verify failure keeps moving when hardware still moving (DV-P0-6)',
+    () async {
+      const deviceId = TestFixtures.filterWheelId;
+      final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
+
+      final filterWheelNotifier = container.read(
+        filterWheelStateProvider.notifier,
+      );
+      filterWheelNotifier.setConnecting(deviceId, 'Test Filter Wheel');
+      filterWheelNotifier.setConnected(filterNames: filterNames);
+      filterWheelNotifier.updatePosition(0);
+
+      when(
+        () => mockBackend.filterWheelSetPosition(deviceId, 1),
+      ).thenAnswer((_) async {});
+
+      var pollCount = 0;
+      when(() => mockBackend.getFilterWheelStatus(deviceId)).thenAnswer((
+        _,
+      ) async {
+        pollCount++;
+        if (pollCount == 1) {
+          // Verify loop: stopped but wrong slot → immediate failure.
+          return FilterWheelStatus(
+            connected: true,
+            position: 2,
+            moving: false,
+            filterCount: filterNames.length,
+            filterNames: filterNames,
+          );
+        }
+        // Recovery poll: wheel is still physically moving.
+        return FilterWheelStatus(
+          connected: true,
+          position: -1,
+          moving: true,
+          filterCount: filterNames.length,
+          filterNames: filterNames,
+        );
+      });
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.setFilterWheelPosition(1),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(container.read(filterWheelStateProvider).isMoving, isTrue);
+    },
+  );
 }

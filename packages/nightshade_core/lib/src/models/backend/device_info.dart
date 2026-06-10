@@ -49,13 +49,13 @@ class DeviceInfo {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'deviceType': deviceType.name,
-        'driverType': driverType.name,
-        'description': description,
-        'driverVersion': driverVersion,
-      };
+    'id': id,
+    'name': name,
+    'deviceType': deviceType.name,
+    'driverType': driverType.name,
+    'description': description,
+    'driverVersion': driverVersion,
+  };
 
   @override
   String toString() => 'DeviceInfo($name, $deviceType, $driverType)';

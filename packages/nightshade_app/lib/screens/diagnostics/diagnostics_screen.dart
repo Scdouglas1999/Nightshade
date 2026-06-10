@@ -72,7 +72,9 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize18
+                  : NightshadeTypography.fontSize22,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -95,7 +97,8 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
       ),
       error: (e, _) => Text(
         l10n.text('diagnosticsLoadSessionsFailed'),
-        style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+        style: TextStyle(
+            color: colors.error, fontSize: NightshadeTypography.fontSize12),
       ),
     );
 

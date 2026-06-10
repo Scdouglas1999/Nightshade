@@ -106,9 +106,7 @@ class FOVIndicator {
   }
 
   /// Create standard Telrad circles
-  factory FOVIndicator.telrad({
-    Color color = const Color(0xFFFF0000),
-  }) {
+  factory FOVIndicator.telrad({Color color = const Color(0xFFFF0000)}) {
     return FOVIndicator(
       type: FOVType.telradCircles,
       widthDegrees: 4.0, // Outer circle
@@ -212,7 +210,13 @@ class FOVOverlayPainter extends CustomPainter {
       switch (indicator.type) {
         case FOVType.sensorRectangle:
         case FOVType.customRectangle:
-          _drawRectangleFOV(canvas, size, indicatorCenterOffset, scale, indicator);
+          _drawRectangleFOV(
+            canvas,
+            size,
+            indicatorCenterOffset,
+            scale,
+            indicator,
+          );
           break;
         case FOVType.eyepieceCircle:
         case FOVType.finderScope:
@@ -268,13 +272,23 @@ class FOVOverlayPainter extends CustomPainter {
 
     // Draw label
     if (indicator.label.isNotEmpty) {
-      _drawLabel(canvas, Offset(0, height / 2 + 15), indicator.label, indicator.color);
+      _drawLabel(
+        canvas,
+        Offset(0, height / 2 + 15),
+        indicator.label,
+        indicator.color,
+      );
     }
 
     // Draw dimensions
     final dimText =
         '${indicator.widthDegrees.toStringAsFixed(1)}° × ${indicator.heightDegrees.toStringAsFixed(1)}°';
-    _drawLabel(canvas, Offset(0, -height / 2 - 15), dimText, indicator.color.withValues(alpha: 0.7));
+    _drawLabel(
+      canvas,
+      Offset(0, -height / 2 - 15),
+      dimText,
+      indicator.color.withValues(alpha: 0.7),
+    );
 
     canvas.restore();
   }
@@ -301,7 +315,12 @@ class FOVOverlayPainter extends CustomPainter {
 
     // Draw label
     if (indicator.label.isNotEmpty) {
-      _drawLabel(canvas, center + Offset(0, radius + 15), indicator.label, indicator.color);
+      _drawLabel(
+        canvas,
+        center + Offset(0, radius + 15),
+        indicator.label,
+        indicator.color,
+      );
     }
 
     // Draw diameter
@@ -351,7 +370,12 @@ class FOVOverlayPainter extends CustomPainter {
     }
   }
 
-  void _drawCornerBrackets(Canvas canvas, Rect rect, double length, Paint paint) {
+  void _drawCornerBrackets(
+    Canvas canvas,
+    Rect rect,
+    double length,
+    Paint paint,
+  ) {
     final corners = [
       rect.topLeft,
       rect.topRight,

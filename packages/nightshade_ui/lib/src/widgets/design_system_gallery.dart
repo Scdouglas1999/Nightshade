@@ -321,7 +321,9 @@ class _NightshadeDesignSystemGalleryState
                           runSpacing: NightshadeTokens.spaceSm,
                           children: [
                             NightshadeButton(
-                              label: _navExpanded ? 'Collapse nav' : 'Expand nav',
+                              label: _navExpanded
+                                  ? 'Collapse nav'
+                                  : 'Expand nav',
                               icon: LucideIcons.panelLeftClose,
                               variant: ButtonVariant.outline,
                               onPressed: () {
@@ -341,30 +343,21 @@ class _NightshadeDesignSystemGalleryState
                           child: Column(
                             children: [
                               for (final entry in const [
-                                MapEntry(
-                                  0,
-                                  (
-                                    LucideIcons.layoutDashboard,
-                                    'Dashboard',
-                                    'Overview and status',
-                                  ),
-                                ),
-                                MapEntry(
-                                  1,
-                                  (
-                                    LucideIcons.camera,
-                                    'Imaging',
-                                    'Capture and review',
-                                  ),
-                                ),
-                                MapEntry(
-                                  2,
-                                  (
-                                    LucideIcons.listOrdered,
-                                    'Sequencer',
-                                    'Run automation',
-                                  ),
-                                ),
+                                MapEntry(0, (
+                                  LucideIcons.layoutDashboard,
+                                  'Dashboard',
+                                  'Overview and status',
+                                )),
+                                MapEntry(1, (
+                                  LucideIcons.camera,
+                                  'Imaging',
+                                  'Capture and review',
+                                )),
+                                MapEntry(2, (
+                                  LucideIcons.listOrdered,
+                                  'Sequencer',
+                                  'Run automation',
+                                )),
                               ])
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
@@ -384,7 +377,9 @@ class _NightshadeDesignSystemGalleryState
                                     isSelected: _selectedNavItem == entry.key,
                                     isExpanded: _navExpanded,
                                     onTap: () {
-                                      setState(() => _selectedNavItem = entry.key);
+                                      setState(
+                                        () => _selectedNavItem = entry.key,
+                                      );
                                     },
                                   ),
                                 ),
@@ -424,7 +419,9 @@ class _NightshadeDesignSystemGalleryState
                         ),
                         _DecorationSpecimen(
                           label: 'Drag Feedback',
-                          decoration: NightshadeDecorations.dragFeedback(colors),
+                          decoration: NightshadeDecorations.dragFeedback(
+                            colors,
+                          ),
                           width: 140,
                           height: 72,
                         ),
@@ -445,18 +442,9 @@ class _NightshadeDesignSystemGalleryState
                       spacing: NightshadeTokens.spaceMd,
                       runSpacing: NightshadeTokens.spaceMd,
                       children: [
-                        _GalleryChip(
-                          label: 'Luminance',
-                          color: colors.primary,
-                        ),
-                        _GalleryChip(
-                          label: 'Ha',
-                          color: colors.error,
-                        ),
-                        _GalleryChip(
-                          label: 'OIII',
-                          color: colors.info,
-                        ),
+                        _GalleryChip(label: 'Luminance', color: colors.primary),
+                        _GalleryChip(label: 'Ha', color: colors.error),
+                        _GalleryChip(label: 'OIII', color: colors.info),
                         StatusPill(
                           key: const ValueKey('gallery-status-active'),
                           icon: LucideIcons.radio,
@@ -595,10 +583,7 @@ class _GallerySection extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const _GallerySection({
-    required this.title,
-    required this.child,
-  });
+  const _GallerySection({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -611,9 +596,7 @@ class _GallerySection extends StatelessWidget {
         children: [
           Text(
             title,
-            style: NightshadeTypography.h4.copyWith(
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           child,
@@ -657,9 +640,7 @@ class _GalleryCardSpecimen extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             value,
-            style: NightshadeTypography.h4.copyWith(
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
         ],
       ),
@@ -671,10 +652,7 @@ class _GalleryChip extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _GalleryChip({
-    required this.label,
-    required this.color,
-  });
+  const _GalleryChip({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -691,9 +669,7 @@ class _GalleryChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: NightshadeTypography.caption.copyWith(
-          color: colors.textPrimary,
-        ),
+        style: NightshadeTypography.caption.copyWith(color: colors.textPrimary),
       ),
     );
   }
@@ -703,10 +679,7 @@ class _ControlRow extends StatelessWidget {
   final String label;
   final Widget child;
 
-  const _ControlRow({
-    required this.label,
-    required this.child,
-  });
+  const _ControlRow({required this.label, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -748,11 +721,7 @@ class _DecorationSpecimen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: width,
-          height: height,
-          decoration: decoration,
-        ),
+        Container(width: width, height: height, decoration: decoration),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(
           label,
@@ -769,10 +738,7 @@ class _PaletteSwatch extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _PaletteSwatch({
-    required this.label,
-    required this.color,
-  });
+  const _PaletteSwatch({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -808,10 +774,7 @@ class _StatusDotSample extends StatelessWidget {
   final String label;
   final Widget dot;
 
-  const _StatusDotSample({
-    required this.label,
-    required this.dot,
-  });
+  const _StatusDotSample({required this.label, required this.dot});
 
   @override
   Widget build(BuildContext context) {

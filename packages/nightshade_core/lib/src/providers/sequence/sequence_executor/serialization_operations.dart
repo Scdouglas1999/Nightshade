@@ -1,4 +1,4 @@
-﻿part of '../sequence_executor.dart';
+part of '../sequence_executor.dart';
 
 extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   String _sequenceToJson(Sequence sequence) {
@@ -26,10 +26,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         if (child is FilterChangeNode && autoFocusOnFilterChange) {
           // Look at the next sibling (if any) — if it's an AutofocusNode the
           // user already arranged for focus to follow the filter change.
-          final nextChildId =
-              i + 1 < node.childIds.length ? node.childIds[i + 1] : null;
-          final nextSibling =
-              nextChildId == null ? null : sequence.nodes[nextChildId];
+          final nextChildId = i + 1 < node.childIds.length
+              ? node.childIds[i + 1]
+              : null;
+          final nextSibling = nextChildId == null
+              ? null
+              : sequence.nodes[nextChildId];
           final alreadyFollowedByAf = nextSibling is AutofocusNode;
           if (!alreadyFollowedByAf) {
             autoFocusInjectionParents.add(node.id);
@@ -64,10 +66,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           effectiveChildIds.add(childId);
           final child = sequence.nodes[childId];
           if (child is! FilterChangeNode) continue;
-          final nextSiblingId =
-              i + 1 < originalChildIds.length ? originalChildIds[i + 1] : null;
-          final nextSibling =
-              nextSiblingId == null ? null : sequence.nodes[nextSiblingId];
+          final nextSiblingId = i + 1 < originalChildIds.length
+              ? originalChildIds[i + 1]
+              : null;
+          final nextSibling = nextSiblingId == null
+              ? null
+              : sequence.nodes[nextSiblingId];
           if (nextSibling is AutofocusNode) continue;
           final syntheticId = 'af-auto-${child.id}';
           effectiveChildIds.add(syntheticId);
@@ -276,7 +280,8 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       case ExposureNode n:
         final defaults = _ref.read(sequencerDefaultsProvider);
         final appSettings = _ref.read(appSettingsProvider).valueOrNull;
-        final ditherEvery = n.ditherEvery ??
+        final ditherEvery =
+            n.ditherEvery ??
             ((appSettings?.ditherEnabled ?? true)
                 ? appSettings?.ditherEveryFrames
                 : null);
@@ -398,10 +403,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
               : null,
         };
       case DelayNode n:
-        return {
-          'type': 'Delay',
-          'seconds': n.seconds,
-        };
+        return {'type': 'Delay', 'seconds': n.seconds};
       case NotificationNode n:
         return {
           'type': 'Notification',
@@ -412,8 +414,9 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           // to the Rust executor as a Custom-event `data` field so the
           // Dart-side notification router can honour it.
           if (n.explicitTransports != null)
-            'explicit_transports':
-                n.explicitTransports!.map((t) => t.storageKey).toList(),
+            'explicit_transports': n.explicitTransports!
+                .map((t) => t.storageKey)
+                .toList(),
         };
       case ScriptNode n:
         return {
@@ -481,10 +484,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'condition_value': conditionValue,
         };
       case ParallelNode n:
-        return {
-          'type': 'Parallel',
-          'required_successes': n.requiredSuccesses,
-        };
+        return {'type': 'Parallel', 'required_successes': n.requiredSuccesses};
       case ConditionalNode n:
         dynamic conditionValue;
         switch (n.conditionType) {
@@ -536,20 +536,11 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       case MeridianFlipNode n:
         return _buildMeridianFlipConfig(n);
       case OpenDomeNode n:
-        return {
-          'type': 'OpenDome',
-          'shutter_only': n.shutterOnly,
-        };
+        return {'type': 'OpenDome', 'shutter_only': n.shutterOnly};
       case CloseDomeNode n:
-        return {
-          'type': 'CloseDome',
-          'shutter_only': n.shutterOnly,
-        };
+        return {'type': 'CloseDome', 'shutter_only': n.shutterOnly};
       case ParkDomeNode n:
-        return {
-          'type': 'ParkDome',
-          'shutter_only': n.shutterOnly,
-        };
+        return {'type': 'ParkDome', 'shutter_only': n.shutterOnly};
       case PolarAlignmentNode n:
         return {
           'type': 'PolarAlignment',
@@ -563,15 +554,9 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'binning': n.binning,
         };
       case OpenCoverNode n:
-        return {
-          'type': 'OpenCover',
-          'timeout_secs': n.timeoutSecs,
-        };
+        return {'type': 'OpenCover', 'timeout_secs': n.timeoutSecs};
       case CloseCoverNode n:
-        return {
-          'type': 'CloseCover',
-          'timeout_secs': n.timeoutSecs,
-        };
+        return {'type': 'CloseCover', 'timeout_secs': n.timeoutSecs};
       case CalibratorOnNode n:
         return {
           'type': 'CalibratorOn',
@@ -579,10 +564,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'timeout_secs': n.timeoutSecs,
         };
       case CalibratorOffNode n:
-        return {
-          'type': 'CalibratorOff',
-          'timeout_secs': n.timeoutSecs,
-        };
+        return {'type': 'CalibratorOff', 'timeout_secs': n.timeoutSecs};
       // Wave 3 Agent 1: TargetScheduler dynamic target picker.
       case TargetSchedulerNode n:
         return {
@@ -615,10 +597,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         };
       // Wave 7 Science: SciencePhotometry — cadence-enforced photometric capture.
       case SciencePhotometryNode n:
-        return {
-          'type': 'SciencePhotometry',
-          ...n.toRustConfigJson(),
-        };
+        return {'type': 'SciencePhotometry', ...n.toRustConfigJson()};
       // Wave 3 Agent 2: SmartExposure multi-filter container instruction.
       case SmartExposureNode n:
         // Auto-resolve the filter index from the active equipment profile
@@ -711,20 +690,26 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     final useGlobal = node.useGlobalDefaults;
 
     final triggerMethod = useGlobal ? global.triggerMethod : node.triggerMethod;
-    final minutesPastMeridian =
-        useGlobal ? global.minutesPastMeridian : node.minutesPastMeridian;
-    final minutesBeforeLimit =
-        useGlobal ? global.minutesBeforeLimit : node.minutesBeforeLimit;
-    final hourAngleThreshold =
-        useGlobal ? global.hourAngleThreshold : node.hourAngleThreshold;
-    final pauseGuiding =
-        useGlobal ? global.pauseGuidingBeforeFlip : node.pauseGuiding;
+    final minutesPastMeridian = useGlobal
+        ? global.minutesPastMeridian
+        : node.minutesPastMeridian;
+    final minutesBeforeLimit = useGlobal
+        ? global.minutesBeforeLimit
+        : node.minutesBeforeLimit;
+    final hourAngleThreshold = useGlobal
+        ? global.hourAngleThreshold
+        : node.hourAngleThreshold;
+    final pauseGuiding = useGlobal
+        ? global.pauseGuidingBeforeFlip
+        : node.pauseGuiding;
     final autoCenter = useGlobal ? global.recenterAfterFlip : node.autoCenter;
-    final refocusAfter =
-        useGlobal ? global.refocusAfterFlip : node.refocusAfter;
+    final refocusAfter = useGlobal
+        ? global.refocusAfterFlip
+        : node.refocusAfter;
     final settleTime = useGlobal ? global.settleTimeSeconds : node.settleTime;
-    final resumeGuiding =
-        useGlobal ? global.resumeGuidingAfterFlip : node.resumeGuiding;
+    final resumeGuiding = useGlobal
+        ? global.resumeGuidingAfterFlip
+        : node.resumeGuiding;
     final maxRetries = useGlobal ? global.maxRetries : node.maxRetries;
     final failureAction = useGlobal ? global.failureAction : node.failureAction;
 
@@ -822,10 +807,10 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   }
 
   String _safetyFailModeToBackendString(SafetyFailMode mode) => switch (mode) {
-        SafetyFailMode.failOpen => 'fail_open',
-        SafetyFailMode.warnOnly => 'warn_only',
-        SafetyFailMode.failClosed => 'fail_closed',
-      };
+    SafetyFailMode.failOpen => 'fail_open',
+    SafetyFailMode.warnOnly => 'warn_only',
+    SafetyFailMode.failClosed => 'fail_closed',
+  };
 
   String _loopConditionToString(LoopConditionType type) {
     switch (type) {

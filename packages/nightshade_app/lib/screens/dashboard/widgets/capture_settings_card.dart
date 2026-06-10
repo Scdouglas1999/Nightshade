@@ -172,11 +172,14 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.warning,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     'No Camera',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.warning),
                   ),
                 ),
             ],
@@ -374,7 +377,9 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
       children: [
         Text(
           '${widget.label}:',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: widget.colors.textMuted),
         ),
         const SizedBox(width: 4),
         SizedBox(
@@ -382,7 +387,9 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
           height: 28,
           child: TextField(
             controller: _controller,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: widget.colors.textPrimary),
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               isDense: true,
@@ -391,16 +398,19 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
               filled: true,
               fillColor: widget.colors.surfaceAlt,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 borderSide: BorderSide(color: widget.colors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 borderSide: BorderSide(
                     color: widget.colors.border.withValues(alpha: 0.5)),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 borderSide: BorderSide(color: widget.colors.primary),
               ),
             ),
@@ -410,7 +420,9 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
         if (widget.suffix != null) ...[
           const SizedBox(width: 2),
           Text(widget.suffix!,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted)),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: widget.colors.textMuted)),
         ],
       ],
     );
@@ -443,7 +455,9 @@ class _CompactDropdown extends StatelessWidget {
       children: [
         Text(
           '$label:',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted),
         ),
         const SizedBox(width: 4),
         Opacity(
@@ -454,11 +468,13 @@ class _CompactDropdown extends StatelessWidget {
             decoration: highlight
                 ? NightshadeDecorations.emphasisSurface(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                   )
                 : BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     border: Border.all(
                       color: colors.border.withValues(alpha: 0.5),
                     ),

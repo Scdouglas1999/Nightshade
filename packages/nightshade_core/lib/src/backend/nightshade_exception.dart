@@ -65,15 +65,15 @@ class NightshadeException implements Exception {
       'sequence' => SequenceException.fromJson(json),
       'driver' => DriverException.fromJson(json),
       _ => NightshadeException(
-          category: category,
-          message: json['message'] as String? ?? 'Unknown error',
-          userMessage: json['user_message'] as String? ?? 'An error occurred',
-          isRecoverable: json['is_recoverable'] as bool? ?? false,
-          shouldReconnect: json['should_reconnect'] as bool? ?? false,
-          isTimeout: json['is_timeout'] as bool? ?? false,
-          deviceId: json['device_id'] as String?,
-          errorCode: json['error_code'] as int?,
-        ),
+        category: category,
+        message: json['message'] as String? ?? 'Unknown error',
+        userMessage: json['user_message'] as String? ?? 'An error occurred',
+        isRecoverable: json['is_recoverable'] as bool? ?? false,
+        shouldReconnect: json['should_reconnect'] as bool? ?? false,
+        isTimeout: json['is_timeout'] as bool? ?? false,
+        deviceId: json['device_id'] as String?,
+        errorCode: json['error_code'] as int?,
+      ),
     };
   }
 
@@ -91,8 +91,10 @@ class NightshadeException implements Exception {
   ///
   /// TODO(v2.7): remove heuristic fallback once all Rust error paths emit
   /// structured JSON. Tracked under audit-observe §10 / roadmap R9.
-  factory NightshadeException.fromError(Object error,
-      [StackTrace? stackTrace]) {
+  factory NightshadeException.fromError(
+    Object error, [
+    StackTrace? stackTrace,
+  ]) {
     final message = error.toString();
 
     if (_looksLikeJson(message)) {
@@ -197,18 +199,16 @@ class NightshadeException implements Exception {
     if (lower.contains('exposure') ||
         lower.contains('image') ||
         lower.contains('camera')) {
-      return ImagingException(
-        message: message,
-        userMessage: 'Imaging error',
-      );
+      return ImagingException(message: message, userMessage: 'Imaging error');
     }
 
     // Default to generic exception
     return NightshadeException(
       category: 'system',
       message: message,
-      userMessage:
-          message.length > 100 ? '${message.substring(0, 100)}...' : message,
+      userMessage: message.length > 100
+          ? '${message.substring(0, 100)}...'
+          : message,
     );
   }
 
@@ -297,11 +297,11 @@ class TimeoutException extends NightshadeException {
     required super.userMessage,
     super.deviceId,
   }) : super(
-          category: 'timeout',
-          isRecoverable: true,
-          shouldReconnect: false,
-          isTimeout: true,
-        );
+         category: 'timeout',
+         isRecoverable: true,
+         shouldReconnect: false,
+         isTimeout: true,
+       );
 
   factory TimeoutException.fromJson(Map<String, dynamic> json) {
     return TimeoutException(
@@ -327,11 +327,11 @@ class ValidationException extends NightshadeException {
     required super.message,
     required super.userMessage,
   }) : super(
-          category: 'validation',
-          isRecoverable: false,
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+         category: 'validation',
+         isRecoverable: false,
+         shouldReconnect: false,
+         isTimeout: false,
+       );
 
   factory ValidationException.fromJson(Map<String, dynamic> json) {
     return ValidationException(
@@ -362,11 +362,11 @@ class UnsupportedOperationException extends NightshadeException {
     required super.userMessage,
     super.deviceId,
   }) : super(
-          category: 'unsupported',
-          isRecoverable: false,
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+         category: 'unsupported',
+         isRecoverable: false,
+         shouldReconnect: false,
+         isTimeout: false,
+       );
 
   factory UnsupportedOperationException.fromJson(Map<String, dynamic> json) {
     return UnsupportedOperationException(
@@ -388,11 +388,11 @@ class DeviceBusyException extends NightshadeException {
     super.deviceId,
     this.currentOperation,
   }) : super(
-          category: 'busy',
-          isRecoverable: true,
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+         category: 'busy',
+         isRecoverable: true,
+         shouldReconnect: false,
+         isTimeout: false,
+       );
 
   factory DeviceBusyException.fromJson(Map<String, dynamic> json) {
     return DeviceBusyException(
@@ -410,11 +410,7 @@ class ImagingException extends NightshadeException {
     required super.userMessage,
     super.isRecoverable = false,
     super.deviceId,
-  }) : super(
-          category: 'imaging',
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+  }) : super(category: 'imaging', shouldReconnect: false, isTimeout: false);
 
   factory ImagingException.fromJson(Map<String, dynamic> json) {
     return ImagingException(
@@ -444,15 +440,13 @@ class ImagingException extends NightshadeException {
 
 /// I/O exceptions (file operations, plate solving)
 class IoException extends NightshadeException {
-  const IoException({
-    required super.message,
-    required super.userMessage,
-  }) : super(
-          category: 'io',
-          isRecoverable: false,
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+  const IoException({required super.message, required super.userMessage})
+    : super(
+        category: 'io',
+        isRecoverable: false,
+        shouldReconnect: false,
+        isTimeout: false,
+      );
 
   factory IoException.fromJson(Map<String, dynamic> json) {
     return IoException(
@@ -464,15 +458,13 @@ class IoException extends NightshadeException {
 
 /// Sequence execution exceptions
 class SequenceException extends NightshadeException {
-  const SequenceException({
-    required super.message,
-    required super.userMessage,
-  }) : super(
-          category: 'sequence',
-          isRecoverable: false,
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+  const SequenceException({required super.message, required super.userMessage})
+    : super(
+        category: 'sequence',
+        isRecoverable: false,
+        shouldReconnect: false,
+        isTimeout: false,
+      );
 
   factory SequenceException.fromJson(Map<String, dynamic> json) {
     return SequenceException(
@@ -494,11 +486,7 @@ class DriverException extends NightshadeException {
     super.deviceId,
     super.errorCode,
     this.driverType,
-  }) : super(
-          category: 'driver',
-          shouldReconnect: false,
-          isTimeout: false,
-        );
+  }) : super(category: 'driver', shouldReconnect: false, isTimeout: false);
 
   factory DriverException.fromJson(Map<String, dynamic> json) {
     return DriverException(

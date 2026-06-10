@@ -5,8 +5,9 @@ import 'package:nightshade_core/src/services/logging_service.dart';
 
 void main() {
   test('initializes lazily once and auto-starts on log', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_logging_test_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_logging_test_',
+    );
     addTearDown(() async {
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
@@ -39,8 +40,9 @@ void main() {
   });
 
   test('records structured fields on log entries', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_logging_test_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_logging_test_',
+    );
     addTearDown(() async {
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);

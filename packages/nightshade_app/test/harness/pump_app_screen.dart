@@ -150,8 +150,8 @@ Future<HarnessHandle> pumpAppScreen(
     addTearDown(resolvedDatabase.close);
   }
 
-  final resolvedAppVersion = appVersion ??
-      const AppVersionInfo(version: '0.0.0-test', buildNumber: 0);
+  final resolvedAppVersion =
+      appVersion ?? const AppVersionInfo(version: '0.0.0-test', buildNumber: 0);
 
   // Why a separately-created ProviderContainer: handing the same container
   // to UncontrolledProviderScope lets the test reach into the graph after

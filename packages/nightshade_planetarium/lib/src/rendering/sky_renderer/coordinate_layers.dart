@@ -4,7 +4,11 @@ part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
   void _drawEquatorialGrid(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     // Use cached paint object instead of creating new one
     final paint = _PaintCache.getGridPaint(config.gridColor);
 
@@ -106,8 +110,14 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     }
   }
 
-  void _drawGridLabels(Canvas canvas, Size size, Offset center, double scale,
-      double raSpacing, double decSpacing) {
+  void _drawGridLabels(
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+    double raSpacing,
+    double decSpacing,
+  ) {
     final textStyle = TextStyle(
       color: config.gridColor.withValues(alpha: 0.7),
       fontSize: 10,
@@ -129,10 +139,7 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
 
         // Use cached TextPainter
         final textPainter = _TextCache.get(label, textStyle);
-        textPainter.paint(
-          canvas,
-          offset + Offset(-textPainter.width / 2, 4),
-        );
+        textPainter.paint(canvas, offset + Offset(-textPainter.width / 2, 4));
       }
     }
 
@@ -151,19 +158,22 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
 
         // Use cached TextPainter
         final textPainter = _TextCache.get(label, textStyle);
-        textPainter.paint(
-          canvas,
-          offset + Offset(4, -textPainter.height / 2),
-        );
+        textPainter.paint(canvas, offset + Offset(4, -textPainter.height / 2));
       }
     }
   }
 
   void _drawZenithMarker(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     // Calculate zenith position (altitude 90 degrees)
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
     final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
       altDeg: 90.0,
       azDeg: 0.0,
@@ -179,8 +189,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     if (zenithPos == null || !_isInView(zenithPos, size)) return;
 
     // Draw crosshair - use cached paint
-    final paint =
-        _PaintCache.getZenithCrossPaint(Colors.white.withValues(alpha: 0.4));
+    final paint = _PaintCache.getZenithCrossPaint(
+      Colors.white.withValues(alpha: 0.4),
+    );
 
     const length = 12.0;
     canvas.drawLine(
@@ -209,11 +220,14 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
 
   void _drawAltAzGrid(Canvas canvas, Size size, Offset center, double scale) {
     // Use cached paint instead of creating new one each frame
-    final paint =
-        _PaintCache.getAltAzPaint(config.gridColor.withValues(alpha: 0.3));
+    final paint = _PaintCache.getAltAzPaint(
+      config.gridColor.withValues(alpha: 0.3),
+    );
 
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     // Draw altitude circles
     for (var alt = 0; alt <= 90; alt += 30) {
@@ -299,7 +313,11 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
   }
 
   void _drawGalacticPlane(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     final paint = _PaintCache.getGalacticPlanePaint(config.galacticPlaneColor);
 
     final path = Path();
@@ -369,11 +387,17 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
   }
 
   void _drawMeridianLine(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     if (!config.showMeridian) return;
 
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     // Draw line from horizon to zenith along the meridian (azimuth 0/180)
     final path = Path();
@@ -388,7 +412,10 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       );
 
       final pos = _celestialToScreen(
-          CelestialCoordinate(ra: ra / 15, dec: dec), center, scale);
+        CelestialCoordinate(ra: ra / 15, dec: dec),
+        center,
+        scale,
+      );
       if (pos != null && _isInView(pos, size)) {
         if (firstPoint) {
           path.moveTo(pos.dx, pos.dy);
@@ -412,7 +439,10 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       );
 
       final pos = _celestialToScreen(
-          CelestialCoordinate(ra: ra / 15, dec: dec), center, scale);
+        CelestialCoordinate(ra: ra / 15, dec: dec),
+        center,
+        scale,
+      );
       if (pos != null && _isInView(pos, size)) {
         if (firstPoint) {
           path.moveTo(pos.dx, pos.dy);
@@ -426,8 +456,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     }
 
     // Use cached paint instead of creating new one each frame
-    final paint =
-        _PaintCache.getMeridianPaint(Colors.green.withValues(alpha: 0.4));
+    final paint = _PaintCache.getMeridianPaint(
+      Colors.green.withValues(alpha: 0.4),
+    );
     canvas.drawPath(path, paint);
   }
 }

@@ -57,41 +57,49 @@ class NightReportsDao {
 
   /// Fetch a report by id, or null when absent.
   Future<NightReport?> getById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM night_reports WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM night_reports WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapReport(rows.first);
   }
 
   /// All reports for a given session, newest first.
   Future<List<NightReport>> getForSession(int sessionId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM night_reports '
-      'WHERE session_id = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<int>(sessionId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM night_reports '
+          'WHERE session_id = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(sessionId)],
+        )
+        .get();
     return rows.map(_mapReport).toList();
   }
 
   /// All reports for a given target, newest first.
   Future<List<NightReport>> getForTarget(int targetId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM night_reports '
-      'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<int>(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM night_reports '
+          'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(targetId)],
+        )
+        .get();
     return rows.map(_mapReport).toList();
   }
 
   /// The most recent report for a session, or null when none exists.
   Future<NightReport?> latestForSession(int sessionId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM night_reports '
-      'WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-      variables: [Variable<int>(sessionId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM night_reports '
+          'WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+          variables: [Variable<int>(sessionId)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapReport(rows.first);
   }

@@ -155,14 +155,14 @@ class GnomonicProjection {
   final double _pixelScaleDegrees;
 
   GnomonicProjection(this.wcs)
-      : assert(wcs.isValid, 'GnomonicProjection requires a valid SolvedWcs'),
-        _ra0Rad = wcs.raHours * 15.0 * math.pi / 180.0,
-        _dec0Rad = wcs.decDegrees * math.pi / 180.0,
-        _sinDec0 = math.sin(wcs.decDegrees * math.pi / 180.0),
-        _cosDec0 = math.cos(wcs.decDegrees * math.pi / 180.0),
-        _sinRot = math.sin(wcs.rotationDeg * math.pi / 180.0),
-        _cosRot = math.cos(wcs.rotationDeg * math.pi / 180.0),
-        _pixelScaleDegrees = wcs.pixelScaleArcsec / 3600.0;
+    : assert(wcs.isValid, 'GnomonicProjection requires a valid SolvedWcs'),
+      _ra0Rad = wcs.raHours * 15.0 * math.pi / 180.0,
+      _dec0Rad = wcs.decDegrees * math.pi / 180.0,
+      _sinDec0 = math.sin(wcs.decDegrees * math.pi / 180.0),
+      _cosDec0 = math.cos(wcs.decDegrees * math.pi / 180.0),
+      _sinRot = math.sin(wcs.rotationDeg * math.pi / 180.0),
+      _cosRot = math.cos(wcs.rotationDeg * math.pi / 180.0),
+      _pixelScaleDegrees = wcs.pixelScaleArcsec / 3600.0;
 
   /// Project (RA, Dec) to image pixels using the TAN (gnomonic) projection.
   ///
@@ -257,12 +257,11 @@ class GnomonicProjection {
     final cosC = math.cos(c);
 
     final decRad = math.asin(
-        (cosC * _sinDec0 + eta * sinC * _cosDec0 / rho).clamp(-1.0, 1.0));
-    final raRad = _ra0Rad +
-        math.atan2(
-          xi * sinC,
-          rho * _cosDec0 * cosC - eta * _sinDec0 * sinC,
-        );
+      (cosC * _sinDec0 + eta * sinC * _cosDec0 / rho).clamp(-1.0, 1.0),
+    );
+    final raRad =
+        _ra0Rad +
+        math.atan2(xi * sinC, rho * _cosDec0 * cosC - eta * _sinDec0 * sinC);
 
     return (
       raDegrees: _normaliseRaDeg(raRad * 180.0 / math.pi),
@@ -366,9 +365,9 @@ class GnomonicProjection {
   /// Approximate field-of-view (width, height) in degrees, useful for
   /// sizing the catalog query window.
   ({double widthDeg, double heightDeg}) get fieldOfViewDeg => (
-        widthDeg: wcs.imageWidth * _pixelScaleDegrees,
-        heightDeg: wcs.imageHeight * _pixelScaleDegrees,
-      );
+    widthDeg: wcs.imageWidth * _pixelScaleDegrees,
+    heightDeg: wcs.imageHeight * _pixelScaleDegrees,
+  );
 
   static double _normaliseRaDeg(double raDeg) {
     var v = raDeg % 360.0;

@@ -41,16 +41,8 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
   // etc.). The tabs also stay subscribed to their providers so background
   // updates land without rebuilding from scratch on every switch.
   static const _tabs = <_DashboardTab>[
-    _DashboardTab(
-      icon: LucideIcons.cpu,
-      label: 'Devices',
-      child: DevicesTab(),
-    ),
-    _DashboardTab(
-      icon: LucideIcons.move,
-      label: 'Mount',
-      child: MountTab(),
-    ),
+    _DashboardTab(icon: LucideIcons.cpu, label: 'Devices', child: DevicesTab()),
+    _DashboardTab(icon: LucideIcons.move, label: 'Mount', child: MountTab()),
     _DashboardTab(
       icon: LucideIcons.camera,
       label: 'Camera',
@@ -66,11 +58,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
       label: 'Science',
       child: ScienceTab(),
     ),
-    _DashboardTab(
-      icon: LucideIcons.scrollText,
-      label: 'Log',
-      child: LogTab(),
-    ),
+    _DashboardTab(icon: LucideIcons.scrollText, label: 'Log', child: LogTab()),
     _DashboardTab(
       icon: LucideIcons.settings,
       label: 'Settings',
@@ -210,9 +198,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
-              children: [
-                for (final t in _tabs) t.child,
-              ],
+              children: [for (final t in _tabs) t.child],
             ),
           ),
         ],

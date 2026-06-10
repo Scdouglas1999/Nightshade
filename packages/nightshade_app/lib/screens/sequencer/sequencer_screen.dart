@@ -117,8 +117,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       // Treat "idle after running" as a stop/abort terminal transition so
       // the report still opens for stopped runs — the executor sets state
       // to idle on Stop/Stopped events.
-      final stoppedTerminal =
-          wasActive && next == SequenceExecutionState.idle;
+      final stoppedTerminal = wasActive && next == SequenceExecutionState.idle;
       if (!isTerminal && !stoppedTerminal) return;
       final sessionId = ref.read(sessionStateProvider).dbSessionId;
       if (sessionId == null) return;

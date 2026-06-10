@@ -15,42 +15,91 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [SequenceManagementHandlers].
 List<HeadlessRoute> buildSequenceManagementRoutes(
-        SequenceManagementHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/list',
-          h.handleGetAllSequences),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/list-full',
-          h.handleListFullSequences),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/templates-full',
-          h.handleListFullTemplates),
-      HeadlessRoute(HttpMethod.post, '/api/sequence-management/save-full',
-          h.handleSaveFullSequence),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/templates',
-          h.handleGetAllTemplates),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/<id>',
-          h.handleGetSequenceById),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/<id>/nodes',
-          h.handleGetNodesForSequence),
-      HeadlessRoute(HttpMethod.get, '/api/sequence-management/<id>/children',
-          h.handleGetChildNodes),
-      HeadlessRoute(HttpMethod.post, '/api/sequence-management',
-          h.handleCreateSequence),
-      HeadlessRoute(HttpMethod.put, '/api/sequence-management/<id>',
-          h.handleUpdateSequence),
-      HeadlessRoute(HttpMethod.delete, '/api/sequence-management/<id>',
-          h.handleDeleteSequence),
-      HeadlessRoute(HttpMethod.post, '/api/sequence-management/<id>/duplicate',
-          h.handleDuplicateSequence),
-      HeadlessRoute(HttpMethod.post, '/api/sequence-management/<id>/nodes',
-          h.handleCreateNode),
-      HeadlessRoute(HttpMethod.put,
-          '/api/sequence-management/nodes/<nodeId>', h.handleUpdateNode),
-      HeadlessRoute(HttpMethod.delete,
-          '/api/sequence-management/nodes/<nodeId>', h.handleDeleteNode),
-      HeadlessRoute(HttpMethod.post, '/api/sequence-management/<id>/reorder',
-          h.handleReorderNodes),
-      HeadlessRoute(
-          HttpMethod.post,
-          '/api/sequence-management/nodes/<nodeId>/enabled',
-          h.handleSetNodeEnabled),
-    ];
+  SequenceManagementHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/list',
+    h.handleGetAllSequences,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/list-full',
+    h.handleListFullSequences,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/templates-full',
+    h.handleListFullTemplates,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/save-full',
+    h.handleSaveFullSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/templates',
+    h.handleGetAllTemplates,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/<id>',
+    h.handleGetSequenceById,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/<id>/nodes',
+    h.handleGetNodesForSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/<id>/children',
+    h.handleGetChildNodes,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management',
+    h.handleCreateSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/sequence-management/<id>',
+    h.handleUpdateSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/sequence-management/<id>',
+    h.handleDeleteSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/<id>/duplicate',
+    h.handleDuplicateSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/<id>/nodes',
+    h.handleCreateNode,
+  ),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/sequence-management/nodes/<nodeId>',
+    h.handleUpdateNode,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/sequence-management/nodes/<nodeId>',
+    h.handleDeleteNode,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/<id>/reorder',
+    h.handleReorderNodes,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/nodes/<nodeId>/enabled',
+    h.handleSetNodeEnabled,
+  ),
+];

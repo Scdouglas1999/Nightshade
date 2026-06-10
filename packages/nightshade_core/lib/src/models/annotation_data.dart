@@ -87,7 +87,6 @@ abstract class ObjectData with _$ObjectData {
     // Basic info
     String? description,
     String? objectClass, // e.g., "Spiral Galaxy", "Open Cluster"
-    
     // Stellar data (for stars)
     SpectralClass? spectralType,
     double? temperature, // Kelvin
@@ -97,20 +96,19 @@ abstract class ObjectData with _$ObjectData {
     double? distance, // parsecs
     double? parallax, // milliarcseconds
     String? properMotion,
-    
+
     // Exoplanet data
     List<ExoplanetData>? exoplanets,
-    
+
     // DSO data (galaxies, nebulae, clusters)
     double? surfaceBrightness,
     double? redshift,
     String? morphology,
-    
+
     // External references
     String? simbadId,
     String? wikipediaUrl,
     Map<String, String>? catalogIds, // {"NGC": "224", "M": "31"}
-    
     // Cache metadata
     DateTime? lastUpdated,
     String? dataSource, // "SIMBAD", "Gaia", "Exoplanet Archive"
@@ -147,48 +145,54 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final decRad = dec * (3.141592653589793 / 180.0);
     final centerRaRad = this.ra * (3.141592653589793 / 180.0);
     final centerDecRad = this.dec * (3.141592653589793 / 180.0);
-    
+
     // Simple gnomonic projection (tangent plane)
     final cosDec = math.cos(decRad);
     final sinDec = math.sin(decRad);
     final cosCenterDec = math.cos(centerDecRad);
     final sinCenterDec = math.sin(centerDecRad);
     final dRa = raRad - centerRaRad;
-    
-    final denominator = sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
-    
+
+    final denominator =
+        sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
+
     if (denominator <= 0) {
       // Object is behind the tangent plane
       return null;
     }
-    
+
     final xi = cosDec * math.sin(dRa) / denominator;
-    final eta = (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) / denominator;
-    
+    final eta =
+        (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) /
+        denominator;
+
     // Convert to degrees
     final xiDeg = xi * (180.0 / 3.141592653589793);
     final etaDeg = eta * (180.0 / 3.141592653589793);
-    
+
     // Account for rotation and convert to pixels
     final rotRad = rotation * (3.141592653589793 / 180.0);
     final cosRot = math.cos(rotRad);
     final sinRot = math.sin(rotRad);
-    
+
     final xiRot = xiDeg * cosRot - etaDeg * sinRot;
     final etaRot = xiDeg * sinRot + etaDeg * cosRot;
-    
+
     // Convert from degrees to pixels
     final xPixels = (xiRot * 3600.0 / pixelScale) + imageWidth / 2;
     final yPixels = (imageHeight / 2) - (etaRot * 3600.0 / pixelScale);
-    
+
     // Check if within image bounds
-    if (xPixels < 0 || xPixels >= imageWidth || yPixels < 0 || yPixels >= imageHeight) {
+    if (xPixels < 0 ||
+        xPixels >= imageWidth ||
+        yPixels < 0 ||
+        yPixels >= imageHeight) {
       return null;
     }
-    
+
     return (x: xPixels, y: yPixels);
   }
-  
+
   /// Convert sky coordinates (RA/Dec) to image pixel coordinates without
   /// clamping to image bounds. Returns null only if the point is behind the
   /// tangent plane. Used for overlays like coordinate grids that need to draw
@@ -205,13 +209,16 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final sinCenterDec = math.sin(centerDecRad);
     final dRa = raRad - centerRaRad;
 
-    final denominator = sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
+    final denominator =
+        sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
     if (denominator <= 0) {
       return null;
     }
 
     final xi = cosDec * math.sin(dRa) / denominator;
-    final eta = (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) / denominator;
+    final eta =
+        (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) /
+        denominator;
 
     final xiDeg = xi * (180.0 / 3.141592653589793);
     final etaDeg = eta * (180.0 / 3.141592653589793);
@@ -234,23 +241,23 @@ extension PlateSolveDataExtensions on PlateSolveData {
     // Convert pixels to degrees from center
     final xDeg = (x - imageWidth / 2) * pixelScale / 3600.0;
     final yDeg = (imageHeight / 2 - y) * pixelScale / 3600.0;
-    
+
     // Account for rotation
     final rotRad = rotation * (3.141592653589793 / 180.0);
     final cosRot = math.cos(rotRad);
     final sinRot = math.sin(rotRad);
-    
+
     final xi = xDeg * cosRot + yDeg * sinRot;
     final eta = -xDeg * sinRot + yDeg * cosRot;
-    
+
     // Convert to radians
     final xiRad = xi * (3.141592653589793 / 180.0);
     final etaRad = eta * (3.141592653589793 / 180.0);
-    
+
     // Inverse gnomonic projection
     final centerRaRad = ra * (3.141592653589793 / 180.0);
     final centerDecRad = dec * (3.141592653589793 / 180.0);
-    
+
     final rho = math.sqrt(xiRad * xiRad + etaRad * etaRad);
     if (rho < 1e-12) {
       var raCenter = ra;
@@ -259,26 +266,29 @@ extension PlateSolveDataExtensions on PlateSolveData {
       return (ra: raCenter, dec: dec);
     }
     final c = math.atan(rho);
-    
+
     final sinC = math.sin(c);
     final cosC = math.cos(c);
     final sinCenterDec = math.sin(centerDecRad);
     final cosCenterDec = math.cos(centerDecRad);
-    
-    final decRad = math.asin(cosC * sinCenterDec + etaRad * sinC * cosCenterDec / rho);
-    final raRad = centerRaRad +
+
+    final decRad = math.asin(
+      cosC * sinCenterDec + etaRad * sinC * cosCenterDec / rho,
+    );
+    final raRad =
+        centerRaRad +
         math.atan2(
           xiRad * sinC,
           rho * cosCenterDec * cosC - etaRad * sinCenterDec * sinC,
         );
-    
+
     var raResult = raRad * (180.0 / 3.141592653589793);
     final decResult = decRad * (180.0 / 3.141592653589793);
-    
+
     // Normalize RA to 0-360
     while (raResult < 0) raResult += 360;
     while (raResult >= 360) raResult -= 360;
-    
+
     return (ra: raResult, dec: decResult);
   }
 }

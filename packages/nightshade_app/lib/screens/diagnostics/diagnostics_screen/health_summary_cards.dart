@@ -117,7 +117,9 @@ class _ScoreBar extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
           ),
         ),
         Expanded(
@@ -133,7 +135,8 @@ class _ScoreBar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: barColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
               ),
             ),
@@ -190,18 +193,21 @@ class _TiltAssessmentCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Tilt',
-                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: severityColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   severity,
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: severityColor),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: severityColor),
                 ),
               ),
             ],
@@ -229,7 +235,9 @@ class _TiltAssessmentCard extends StatelessWidget {
               direction == 'unknown'
                   ? 'Need more solved frames to determine tilt direction'
                   : 'Strongest tilt points toward $direction',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
           const SizedBox(height: 4),

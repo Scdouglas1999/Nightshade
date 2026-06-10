@@ -17,13 +17,15 @@ extension CatalogManagerSearch on CatalogManager {
 
         // Prioritize exact matches
         final exactMatches = dsos
-            .where((d) =>
-                _catalogTextEquals(d.name, q, normalizedQuery) ||
-                _catalogTextEquals(d.displayName, q, normalizedQuery) ||
-                (d.messier != null &&
-                    _catalogTextEquals(d.messier!, q, normalizedQuery)) ||
-                (d.ngcId != null &&
-                    _catalogTextEquals(d.ngcId!, q, normalizedQuery)))
+            .where(
+              (d) =>
+                  _catalogTextEquals(d.name, q, normalizedQuery) ||
+                  _catalogTextEquals(d.displayName, q, normalizedQuery) ||
+                  (d.messier != null &&
+                      _catalogTextEquals(d.messier!, q, normalizedQuery)) ||
+                  (d.ngcId != null &&
+                      _catalogTextEquals(d.ngcId!, q, normalizedQuery)),
+            )
             .toList();
 
         final partialMatches = dsos
@@ -31,7 +33,9 @@ extension CatalogManagerSearch on CatalogManager {
             .take(20)
             .toList(); // Limit partials
 
-        results.addAll(exactMatches.map((d) => CatalogSearchResult(
+        results.addAll(
+          exactMatches.map(
+            (d) => CatalogSearchResult(
               name: d.displayName,
               catalogId: d.name, // NGC/IC ID
               ra: d.ra,
@@ -40,9 +44,13 @@ extension CatalogManagerSearch on CatalogManager {
               magnitude: d.magnitude,
               constellation: d.constellation,
               size: d.sizeString,
-            )));
+            ),
+          ),
+        );
 
-        results.addAll(partialMatches.map((d) => CatalogSearchResult(
+        results.addAll(
+          partialMatches.map(
+            (d) => CatalogSearchResult(
               name: d.displayName,
               catalogId: d.name,
               ra: d.ra,
@@ -51,10 +59,15 @@ extension CatalogManagerSearch on CatalogManager {
               magnitude: d.magnitude,
               constellation: d.constellation,
               size: d.sizeString,
-            )));
+            ),
+          ),
+        );
       } catch (e) {
-        developer.log('[Catalog] DSO search error: $e',
-            name: 'CatalogManager', level: 900);
+        developer.log(
+          '[Catalog] DSO search error: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
       }
     }
 
@@ -66,21 +79,31 @@ extension CatalogManagerSearch on CatalogManager {
         final stars = await loader.search(query);
 
         final exactMatches = stars
-            .where((s) =>
-                _catalogTextEquals(s.name, q, normalizedQuery) ||
-                _catalogTextEquals(s.catalogId, q, normalizedQuery) ||
-                (s.hipId != null &&
-                    _catalogTextEquals('HIP${s.hipId}', q, normalizedQuery)) ||
-                (s.hdId != null &&
-                    _catalogTextEquals('HD${s.hdId}', q, normalizedQuery)))
+            .where(
+              (s) =>
+                  _catalogTextEquals(s.name, q, normalizedQuery) ||
+                  _catalogTextEquals(s.catalogId, q, normalizedQuery) ||
+                  (s.hipId != null &&
+                      _catalogTextEquals(
+                        'HIP${s.hipId}',
+                        q,
+                        normalizedQuery,
+                      )) ||
+                  (s.hdId != null &&
+                      _catalogTextEquals('HD${s.hdId}', q, normalizedQuery)),
+            )
             .toList();
 
-        final partialMatches =
-            stars.where((s) => !exactMatches.contains(s)).take(20).toList();
-
-        results.addAll([...exactMatches, ...partialMatches]
+        final partialMatches = stars
+            .where((s) => !exactMatches.contains(s))
             .take(20)
-            .map((s) => CatalogSearchResult(
+            .toList();
+
+        results.addAll(
+          [...exactMatches, ...partialMatches]
+              .take(20)
+              .map(
+                (s) => CatalogSearchResult(
                   name: s.name,
                   catalogId: s.catalogId,
                   ra: s.ra,
@@ -88,10 +111,15 @@ extension CatalogManagerSearch on CatalogManager {
                   type: 'Star',
                   magnitude: s.magnitude,
                   constellation: s.constellation,
-                )));
+                ),
+              ),
+        );
       } catch (e) {
-        developer.log('[Catalog] Star search error: $e',
-            name: 'CatalogManager', level: 900);
+        developer.log(
+          '[Catalog] Star search error: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
       }
     }
 
@@ -118,8 +146,11 @@ extension CatalogManagerSearch on CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      developer.log('[Catalog] DSO searchNearby error: $e',
-          name: 'CatalogManager', level: 900);
+      developer.log(
+        '[Catalog] DSO searchNearby error: $e',
+        name: 'CatalogManager',
+        level: 900,
+      );
       return [];
     }
   }
@@ -144,8 +175,11 @@ extension CatalogManagerSearch on CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      developer.log('[Catalog] Star searchNearby error: $e',
-          name: 'CatalogManager', level: 900);
+      developer.log(
+        '[Catalog] Star searchNearby error: $e',
+        name: 'CatalogManager',
+        level: 900,
+      );
       return [];
     }
   }

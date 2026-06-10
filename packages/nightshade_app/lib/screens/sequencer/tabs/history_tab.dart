@@ -102,7 +102,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           const SizedBox(height: 8),
           Text(
             'Past sequence runs with statistics and performance data.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 24),
 
@@ -220,7 +222,8 @@ class _RunCard extends ConsumerWidget {
                 height: 40,
                 decoration: NightshadeDecorations.tintedBadge(
                   statusColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(statusIcon, size: 20, color: statusColor),
               ),
@@ -233,12 +236,15 @@ class _RunCard extends ConsumerWidget {
                   children: [
                     Text(
                       run.sequenceName,
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${dateFormat.format(run.startedAt)}  |  $durationStr',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -325,7 +331,8 @@ class _RunCard extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
                               color: colors.primary,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline8),
                             ),
                             child: Text(
                               '$count',
@@ -374,7 +381,8 @@ class _RunCard extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
                               color: colors.primary,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline8),
                             ),
                             child: Text(
                               '$count',
@@ -403,11 +411,13 @@ class _RunCard extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: NightshadeDecorations.tintedBadge(
                   statusColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   status[0].toUpperCase() + status.substring(1),
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: statusColor),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: statusColor),
                 ),
               ),
             ],
@@ -570,7 +580,8 @@ class _CampaignBadge extends ConsumerWidget {
             margin: const EdgeInsets.only(right: 4),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -579,7 +590,8 @@ class _CampaignBadge extends ConsumerWidget {
                 const SizedBox(width: 4),
                 Text(
                   '$total / ${rollup.sessionCount}',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.primary),
                 ),
               ],
             ),
@@ -617,7 +629,9 @@ class _StatChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary),
           ),
         ],
       ),

@@ -70,10 +70,10 @@ class PushoverNotificationPlugin extends SequencePlugin {
     _context = context;
     final tokenPresent =
         (await context.storage.getString(_kApiTokenStorageKey))?.isNotEmpty ??
-            false;
+        false;
     final userPresent =
         (await context.storage.getString(_kUserKeyStorageKey))?.isNotEmpty ??
-            false;
+        false;
     context.logger.info(
       'Pushover plugin loaded. Credentials configured: '
       'token=$tokenPresent, userKey=$userPresent',
@@ -105,29 +105,29 @@ class PushoverNotificationPlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'pushover.notify',
-          name: 'Pushover Notification',
-          category: 'Notifications',
-          description:
-              'Send a Pushover push notification. Title and message are '
-              'configured per-node; credentials are configured once per '
-              'plugin and stored in plugin storage.',
-          createNode: (params) {
-            final title = (params['title'] as String? ?? '').trim();
-            final message = (params['message'] as String? ?? '').trim();
-            final priority = (params['priority'] as num?)?.toInt() ?? 0;
-            final device = (params['device'] as String?)?.trim();
-            return _PushoverNotificationNode(
-              title: title,
-              message: message,
-              priority: priority,
-              device: (device == null || device.isEmpty) ? null : device,
-              clientBuilder: clientBuilder ?? http.Client.new,
-            );
-          },
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'pushover.notify',
+      name: 'Pushover Notification',
+      category: 'Notifications',
+      description:
+          'Send a Pushover push notification. Title and message are '
+          'configured per-node; credentials are configured once per '
+          'plugin and stored in plugin storage.',
+      createNode: (params) {
+        final title = (params['title'] as String? ?? '').trim();
+        final message = (params['message'] as String? ?? '').trim();
+        final priority = (params['priority'] as num?)?.toInt() ?? 0;
+        final device = (params['device'] as String?)?.trim();
+        return _PushoverNotificationNode(
+          title: title,
+          message: message,
+          priority: priority,
+          device: (device == null || device.isEmpty) ? null : device,
+          clientBuilder: clientBuilder ?? http.Client.new,
+        );
+      },
+    ),
+  ];
 }
 
 class _PushoverNotificationNode implements PluginSequenceNode {

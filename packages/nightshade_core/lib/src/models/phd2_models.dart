@@ -77,13 +77,13 @@ abstract class Phd2StarImage with _$Phd2StarImage {
 
   /// Create an empty star image model
   factory Phd2StarImage.empty() => Phd2StarImage(
-        frame: 0,
-        width: 0,
-        height: 0,
-        starX: 0,
-        starY: 0,
-        pixels: Uint8List(0),
-      );
+    frame: 0,
+    width: 0,
+    height: 0,
+    starX: 0,
+    starY: 0,
+    pixels: Uint8List(0),
+  );
 }
 
 /// PHD2 Brain algorithm parameter
@@ -123,11 +123,11 @@ abstract class Phd2BrainParams with _$Phd2BrainParams {
 
   /// Create empty brain params
   factory Phd2BrainParams.empty() => const Phd2BrainParams(
-        raParamNames: [],
-        decParamNames: [],
-        raParams: {},
-        decParams: {},
-      );
+    raParamNames: [],
+    decParamNames: [],
+    raParams: {},
+    decParams: {},
+  );
 }
 
 /// Guide error point for target display history

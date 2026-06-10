@@ -41,12 +41,16 @@ void main() {
         operation: 'test.op',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
 
-      final response = await translateHandlerErrors(handlers.handleGetJob(
-        Request('GET', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
-        job.jobId,
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetJob(
+          Request('GET', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
+          job.jobId,
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['jobId'], job.jobId);
@@ -55,10 +59,12 @@ void main() {
     });
 
     test('GET /api/jobs/{jobId} 404 on unknown id', () async {
-      final response = await translateHandlerErrors(handlers.handleGetJob(
-        Request('GET', Uri.parse('http://localhost/api/jobs/unknown')),
-        'unknown',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetJob(
+          Request('GET', Uri.parse('http://localhost/api/jobs/unknown')),
+          'unknown',
+        ),
+      );
       expect(response.statusCode, HttpStatus.notFound);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'job_not_found');
@@ -74,15 +80,16 @@ void main() {
         operation: 'op.b',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.list(state: JobState.succeeded).isNotEmpty);
+      await _pumpUntil(
+        () => manager.list(state: JobState.succeeded).isNotEmpty,
+      );
       await _pumpUntil(() => manager.list(state: JobState.running).isNotEmpty);
 
-      final response = await translateHandlerErrors(handlers.handleListJobs(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/jobs?state=running'),
+      final response = await translateHandlerErrors(
+        handlers.handleListJobs(
+          Request('GET', Uri.parse('http://localhost/api/jobs?state=running')),
         ),
-      ));
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['total'], 1);
@@ -90,68 +97,97 @@ void main() {
       expect(jobs.single['jobId'], running.jobId);
 
       completer.complete({'late': true});
-      await _pumpUntil(() => manager.get(running.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(running.jobId)?.state == JobState.succeeded,
+      );
     });
 
     test('GET /api/jobs rejects invalid state with 400', () async {
-      final response = await translateHandlerErrors(handlers.handleListJobs(
-        Request('GET', Uri.parse('http://localhost/api/jobs?state=invalid')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleListJobs(
+          Request('GET', Uri.parse('http://localhost/api/jobs?state=invalid')),
+        ),
+      );
       expect(response.statusCode, HttpStatus.badRequest);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'invalid_state');
     });
 
-    test('POST /api/jobs/{id}/cancel succeeds then GET shows cancelled',
-        () async {
-      final job = manager.start(
-        operation: 'test.op',
-        work: (sink, cancellation) async {
-          await cancellation.whenCancelled;
-          throw const JobCancelledException('test');
-        },
-      );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.running);
+    test(
+      'POST /api/jobs/{id}/cancel succeeds then GET shows cancelled',
+      () async {
+        final job = manager.start(
+          operation: 'test.op',
+          work: (sink, cancellation) async {
+            await cancellation.whenCancelled;
+            throw const JobCancelledException('test');
+          },
+        );
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.running,
+        );
 
-      final cancelResp = await translateHandlerErrors(handlers.handleCancelJob(
-        Request(
-            'POST', Uri.parse('http://localhost/api/jobs/${job.jobId}/cancel')),
-        job.jobId,
-      ));
-      expect(cancelResp.statusCode, HttpStatus.ok);
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.cancelled);
+        final cancelResp = await translateHandlerErrors(
+          handlers.handleCancelJob(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/jobs/${job.jobId}/cancel'),
+            ),
+            job.jobId,
+          ),
+        );
+        expect(cancelResp.statusCode, HttpStatus.ok);
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.cancelled,
+        );
 
-      final getResp = await translateHandlerErrors(handlers.handleGetJob(
-        Request('GET', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
-        job.jobId,
-      ));
-      final body = jsonDecode(await getResp.readAsString()) as Map;
-      expect(body['state'], 'cancelled');
-    });
+        final getResp = await translateHandlerErrors(
+          handlers.handleGetJob(
+            Request('GET', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
+            job.jobId,
+          ),
+        );
+        final body = jsonDecode(await getResp.readAsString()) as Map;
+        expect(body['state'], 'cancelled');
+      },
+    );
 
-    test('POST /api/jobs/{id}/cancel returns 409 when already terminated',
-        () async {
-      final job = manager.start(
-        operation: 'test.op',
-        work: (sink, cancellation) async => {'ok': true},
-      );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+    test(
+      'POST /api/jobs/{id}/cancel returns 409 when already terminated',
+      () async {
+        final job = manager.start(
+          operation: 'test.op',
+          work: (sink, cancellation) async => {'ok': true},
+        );
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.succeeded,
+        );
 
-      final response = await translateHandlerErrors(handlers.handleCancelJob(
-        Request(
-            'POST', Uri.parse('http://localhost/api/jobs/${job.jobId}/cancel')),
-        job.jobId,
-      ));
-      expect(response.statusCode, HttpStatus.conflict);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'job_terminal');
-    });
+        final response = await translateHandlerErrors(
+          handlers.handleCancelJob(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/jobs/${job.jobId}/cancel'),
+            ),
+            job.jobId,
+          ),
+        );
+        expect(response.statusCode, HttpStatus.conflict);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'job_terminal');
+      },
+    );
 
     test('POST /api/jobs/{id}/cancel returns 404 for unknown id', () async {
-      final response = await translateHandlerErrors(handlers.handleCancelJob(
-        Request('POST', Uri.parse('http://localhost/api/jobs/missing/cancel')),
-        'missing',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleCancelJob(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/jobs/missing/cancel'),
+          ),
+          'missing',
+        ),
+      );
       expect(response.statusCode, HttpStatus.notFound);
     });
 
@@ -160,12 +196,19 @@ void main() {
         operation: 'test.op',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
 
-      final response = await translateHandlerErrors(handlers.handlePurgeJob(
-        Request('DELETE', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
-        job.jobId,
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handlePurgeJob(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/jobs/${job.jobId}'),
+          ),
+          job.jobId,
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       expect(manager.get(job.jobId), isNull);
     });
@@ -178,14 +221,21 @@ void main() {
       );
       await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.running);
 
-      final response = await translateHandlerErrors(handlers.handlePurgeJob(
-        Request('DELETE', Uri.parse('http://localhost/api/jobs/${job.jobId}')),
-        job.jobId,
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handlePurgeJob(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/jobs/${job.jobId}'),
+          ),
+          job.jobId,
+        ),
+      );
       expect(response.statusCode, HttpStatus.conflict);
 
       completer.complete({'late': true});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
     });
   });
 }

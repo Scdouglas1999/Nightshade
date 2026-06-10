@@ -122,7 +122,7 @@ double _calculateAltitude({
   final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
 
   final sinAlt = math.sin(dec) * math.sin(lat) +
-                 math.cos(dec) * math.cos(lat) * math.cos(ha);
+      math.cos(dec) * math.cos(lat) * math.cos(ha);
 
   return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
 }
@@ -141,11 +141,11 @@ double _calculateAzimuth({
   final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
 
   final sinAlt = math.sin(dec) * math.sin(lat) +
-                 math.cos(dec) * math.cos(lat) * math.cos(ha);
+      math.cos(dec) * math.cos(lat) * math.cos(ha);
   final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
   final cosAz = (math.sin(dec) - math.sin(alt) * math.sin(lat)) /
-                (math.cos(alt) * math.cos(lat));
+      (math.cos(alt) * math.cos(lat));
 
   var azimuth = math.acos(cosAz.clamp(-1.0, 1.0)) * 180.0 / math.pi;
 
@@ -162,8 +162,10 @@ double _calculateLST(DateTime utcTime, double longitudeDegrees) {
   final jd = _julianDate(utcTime);
   final t = (jd - 2451545.0) / 36525.0;
 
-  var gst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-            0.000387933 * t * t - t * t * t / 38710000.0;
+  var gst = 280.46061837 +
+      360.98564736629 * (jd - 2451545.0) +
+      0.000387933 * t * t -
+      t * t * t / 38710000.0;
 
   gst = gst % 360.0;
   if (gst < 0) gst += 360.0;
@@ -185,8 +187,13 @@ double _julianDate(DateTime dt) {
   int yAdj = y + 4800 - a;
   int mAdj = m + 12 * a - 3;
 
-  return d + ((153 * mAdj + 2) / 5).floor() + 365 * yAdj +
-         (yAdj / 4).floor() - (yAdj / 100).floor() + (yAdj / 400).floor() - 32045;
+  return d +
+      ((153 * mAdj + 2) / 5).floor() +
+      365 * yAdj +
+      (yAdj / 4).floor() -
+      (yAdj / 100).floor() +
+      (yAdj / 400).floor() -
+      32045;
 }
 
 /// Calculate transit time
@@ -216,7 +223,7 @@ double _calculateHoursAboveHorizon({
   final alt = minAltitude * math.pi / 180.0;
 
   final cosH = (math.sin(alt) - math.sin(dec) * math.sin(lat)) /
-               (math.cos(dec) * math.cos(lat));
+      (math.cos(dec) * math.cos(lat));
 
   if (cosH <= -1.0) {
     return 24.0; // Circumpolar - always above horizon
@@ -297,7 +304,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: NightshadeDecorations.statusChip(
                       colors.warning,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       bordered: false,
                     ),
                     child: Icon(
@@ -401,7 +409,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                               colors: colors,
                               icon: LucideIcons.mountainSnow,
                               label: 'Alt',
-                              value: '${data.currentAltitude.toStringAsFixed(1)}°',
+                              value:
+                                  '${data.currentAltitude.toStringAsFixed(1)}°',
                               valueColor: altColor,
                             ),
                           ),
@@ -425,9 +434,12 @@ class TargetPreviewTooltip extends ConsumerWidget {
                         children: [
                           _StatusBadge(
                             colors: colors,
-                            icon: data.isRising ? LucideIcons.trendingUp : LucideIcons.trendingDown,
+                            icon: data.isRising
+                                ? LucideIcons.trendingUp
+                                : LucideIcons.trendingDown,
                             label: data.isRising ? 'Rising' : 'Setting',
-                            color: data.isRising ? colors.success : colors.warning,
+                            color:
+                                data.isRising ? colors.success : colors.warning,
                           ),
                           if (!isAboveHorizon)
                             _StatusBadge(
@@ -446,7 +458,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline8),
                         ),
                         child: Row(
                           children: [
@@ -462,7 +475,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                 children: [
                                   Text(
                                     'Transit: ${_formatTime(data.transitTime)}',
-                                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                                    style: NightshadeTypography.labelStrongSm
+                                        .copyWith(color: colors.textPrimary),
                                   ),
                                   Text(
                                     'Max altitude: ${data.transitAltitude.toStringAsFixed(1)}°',
@@ -476,10 +490,12 @@ class TargetPreviewTooltip extends ConsumerWidget {
                             ),
                             if (data.hoursAboveHorizon > 0)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
                                 decoration: NightshadeDecorations.statusChip(
                                   colors.primary,
-                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusInline4),
                                   bordered: false,
                                 ),
                                 child: Text(
@@ -496,7 +512,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                       ),
 
                       // Constraints
-                      if (target.minAltitude != null || target.maxAltitude != null) ...[
+                      if (target.minAltitude != null ||
+                          target.maxAltitude != null) ...[
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -521,7 +538,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                   color: colors.textSecondary,
                                 ),
                               ),
-                            if (target.minAltitude != null && target.maxAltitude != null)
+                            if (target.minAltitude != null &&
+                                target.maxAltitude != null)
                               Text(
                                 ' - ',
                                 style: TextStyle(

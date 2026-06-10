@@ -43,38 +43,44 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
     try {
       final results = <FramingTarget>[];
       final qLower = query.toLowerCase().trim();
-      
+
       // Normalize query
       final normalizedQuery = qLower.replaceAll(RegExp(r'\s+'), '');
 
       // Search DSOs using the planetarium's loaded database
       try {
         final loadedDsos = await _ref.read(loadedDsosProvider.future);
-        
-        final matchingDsos = loadedDsos.where((o) {
-          final idLower = o.id.toLowerCase();
-          final nameLower = o.name.toLowerCase();
-          
-          // Direct matches
-          if (idLower.contains(qLower) || nameLower.contains(qLower)) return true;
-          if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) return true;
-          
-          // Normalized matches
-          final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
-          if (normalizedId.contains(normalizedQuery)) return true;
-          
-          final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
-          if (normalizedName.contains(normalizedQuery)) return true;
-          
-          if (o.catalogIds.any((c) {
-            final cNormalized = c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-            return cNormalized.contains(normalizedQuery);
-          })) {
-            return true;
-          }
-          
-          return false;
-        }).take(50).toList();
+
+        final matchingDsos = loadedDsos
+            .where((o) {
+              final idLower = o.id.toLowerCase();
+              final nameLower = o.name.toLowerCase();
+
+              // Direct matches
+              if (idLower.contains(qLower) || nameLower.contains(qLower))
+                return true;
+              if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower)))
+                return true;
+
+              // Normalized matches
+              final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
+              if (normalizedId.contains(normalizedQuery)) return true;
+
+              final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
+              if (normalizedName.contains(normalizedQuery)) return true;
+
+              if (o.catalogIds.any((c) {
+                final cNormalized =
+                    c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+                return cNormalized.contains(normalizedQuery);
+              })) {
+                return true;
+              }
+
+              return false;
+            })
+            .take(50)
+            .toList();
 
         // Convert to FramingTarget
         for (final dso in matchingDsos) {
@@ -122,10 +128,8 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
           ));
         }
       } catch (e) {
-        _ref.read(loggingServiceProvider).warning(
-            '[Framing] Search error: $e',
-            source: 'TargetSearchNotifier',
-            fields: {'error': e.toString()});
+        _ref.read(loggingServiceProvider).warning('[Framing] Search error: $e',
+            source: 'TargetSearchNotifier', fields: {'error': e.toString()});
       }
 
       // Sort results
@@ -135,16 +139,16 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
         final bName = b.name.toLowerCase();
         final aId = a.catalogId?.toLowerCase();
         final bId = b.catalogId?.toLowerCase();
-        
+
         // Check exact match
         bool isExact(String val) => val == qLower || val == normalizedQuery;
-        
+
         final aExact = isExact(aName) || (aId != null && isExact(aId));
         final bExact = isExact(bName) || (bId != null && isExact(bId));
-        
+
         if (aExact && !bExact) return -1;
         if (!aExact && bExact) return 1;
-        
+
         // Then by magnitude (brighter first)
         return (a.magnitude ?? 99).compareTo(b.magnitude ?? 99);
       });
@@ -170,6 +174,8 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
 
 // autoDispose: search results are page-scoped to the Framing screen. Stale
 // query/results should not survive navigation away (audit-dart §1b).
-final targetSearchProvider = StateNotifierProvider.autoDispose<TargetSearchNotifier, TargetSearchState>((ref) {
+final targetSearchProvider =
+    StateNotifierProvider.autoDispose<TargetSearchNotifier, TargetSearchState>(
+        (ref) {
   return TargetSearchNotifier(ref);
 });

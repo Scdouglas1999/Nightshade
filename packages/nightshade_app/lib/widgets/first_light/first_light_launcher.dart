@@ -74,7 +74,8 @@ class _FirstLightQueryLauncherState
     // /imaging route's page (below MaterialApp.router), unlike the top-level
     // EquipmentOnboardingLauncher which sits above it.
     final goState = GoRouterState.of(context);
-    final value = goState.uri.queryParameters[FirstLightQueryLauncher.queryName];
+    final value =
+        goState.uri.queryParameters[FirstLightQueryLauncher.queryName];
     if (value != FirstLightQueryLauncher.triggerValue) return;
 
     // Latch immediately so concurrent dependency changes don't double-fire.

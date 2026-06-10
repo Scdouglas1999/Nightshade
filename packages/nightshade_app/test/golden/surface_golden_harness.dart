@@ -22,8 +22,7 @@ abstract final class SurfaceGoldenHarness {
 
   static Future<void> ensureFonts() async {
     if (_fontsLoaded) return;
-    final fontsDir =
-        '${repoRoot().path}/packages/nightshade_ui/assets/fonts';
+    final fontsDir = '${repoRoot().path}/packages/nightshade_ui/assets/fonts';
     await _loadFont('HankenGrotesk', '$fontsDir/HankenGrotesk-VF.ttf');
     await _loadFont('SplineSansMono', '$fontsDir/SplineSansMono-VF.ttf');
     // Lucide glyph font (family "Lucide", package "lucide_icons") so icons in

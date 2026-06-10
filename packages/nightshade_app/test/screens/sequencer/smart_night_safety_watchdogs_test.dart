@@ -22,8 +22,7 @@ SmartNightPlannedTarget _plannedTarget({
   required DateTime windowEnd,
   Duration? transitOffset,
 }) {
-  final transit =
-      transitOffset == null ? null : windowStart.add(transitOffset);
+  final transit = transitOffset == null ? null : windowStart.add(transitOffset);
   final suggestion = TargetSuggestion.fromJson(<String, dynamic>{
     'targetId': 1,
     'targetName': 'NGC 7000',
@@ -57,9 +56,8 @@ SmartNightPlan _plan({
   required List<SmartNightPlannedTarget> targets,
   double? rainOrCloudProbability,
 }) {
-  final start = targets.isEmpty
-      ? DateTime(2026, 5, 29, 21)
-      : targets.first.windowStart;
+  final start =
+      targets.isEmpty ? DateTime(2026, 5, 29, 21) : targets.first.windowStart;
   final end =
       targets.isEmpty ? DateTime(2026, 5, 30, 5) : targets.last.windowEnd;
   return SmartNightPlan(
@@ -301,11 +299,11 @@ void main() {
     int emittedMeridianFlips(SmartNightPlan plan) =>
         plan.sequence.nodes.values.whereType<MeridianFlipNode>().length;
 
-    int emittedWeatherRecoveries(SmartNightPlan plan) => plan
-        .sequence.nodes.values
-        .whereType<RecoveryNode>()
-        .where((r) => r.triggerType == TriggerType.weatherUnsafe)
-        .length;
+    int emittedWeatherRecoveries(SmartNightPlan plan) =>
+        plan.sequence.nodes.values
+            .whereType<RecoveryNode>()
+            .where((r) => r.triggerType == TriggerType.weatherUnsafe)
+            .length;
 
     test('meridian-flip preview matches emitted MeridianFlipNode (transits)',
         () {
@@ -313,8 +311,8 @@ void main() {
       final plan = buildPlan(transitTime: DateTime(2026, 5, 18, 1));
       expect(emittedMeridianFlips(plan), 1,
           reason: 'sanity: builder should emit a flip for mid-window transit');
-      final hasMeridianWatchdog = smartNightWatchdogsFor(plan)
-          .any((w) => w.title == 'Meridian flip');
+      final hasMeridianWatchdog =
+          smartNightWatchdogsFor(plan).any((w) => w.title == 'Meridian flip');
       expect(hasMeridianWatchdog, emittedMeridianFlips(plan) > 0);
     });
 
@@ -325,8 +323,8 @@ void main() {
       expect(emittedMeridianFlips(plan), 0,
           reason: 'sanity: builder should not emit a flip for out-of-window '
               'transit');
-      final hasMeridianWatchdog = smartNightWatchdogsFor(plan)
-          .any((w) => w.title == 'Meridian flip');
+      final hasMeridianWatchdog =
+          smartNightWatchdogsFor(plan).any((w) => w.title == 'Meridian flip');
       expect(hasMeridianWatchdog, emittedMeridianFlips(plan) > 0);
     });
 

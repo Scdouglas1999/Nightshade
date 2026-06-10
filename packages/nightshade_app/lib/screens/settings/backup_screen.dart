@@ -275,7 +275,6 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       ),
     );
   }
-
 }
 
 class _BackupEntry {
@@ -335,7 +334,8 @@ class _AutoSaveStatusCard extends ConsumerWidget {
             children: [
               Text(
                 'Auto-Save Status',
-                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 16),
               _StatusRow(
@@ -350,13 +350,16 @@ class _AutoSaveStatusCard extends ConsumerWidget {
                 label: 'Last Full Backup',
                 value: status.lastBackup == null
                     ? 'Never'
-                    : DateFormat('MMM d, yyyy HH:mm').format(status.lastBackup!),
+                    : DateFormat('MMM d, yyyy HH:mm')
+                        .format(status.lastBackup!),
               ),
               if (status.lastError != null) ...[
                 const SizedBox(height: 12),
                 Text(
                   status.lastError!,
-                  style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+                  style: TextStyle(
+                      color: colors.error,
+                      fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
             ],
@@ -397,7 +400,8 @@ class _QuickActionsCard extends StatelessWidget {
           children: [
             Text(
               'Quick Actions',
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Row(
@@ -461,7 +465,8 @@ class _RecentBackupsCard extends StatelessWidget {
               children: [
                 Text(
                   'Recent Backups',
-                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h4
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 IconButton(
@@ -486,7 +491,8 @@ class _RecentBackupsCard extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      Icon(LucideIcons.inbox, size: 48, color: colors.textMuted),
+                      Icon(LucideIcons.inbox,
+                          size: 48, color: colors.textMuted),
                       const SizedBox(height: 12),
                       Text(
                         'No backups found',
@@ -574,8 +580,8 @@ class _BackupTile extends StatelessWidget {
           ),
           IconButton(
             onPressed: onDownload,
-            icon:
-                Icon(LucideIcons.download, size: 18, color: colors.textSecondary),
+            icon: Icon(LucideIcons.download,
+                size: 18, color: colors.textSecondary),
             tooltip: 'Download',
           ),
           IconButton(

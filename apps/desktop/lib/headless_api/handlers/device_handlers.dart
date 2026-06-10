@@ -55,11 +55,7 @@ class DeviceHandlers {
   /// blocking response shape.
   final JobManager? jobManager;
 
-  DeviceHandlers(
-    this.container, {
-    this.commandCorrelator,
-    this.jobManager,
-  });
+  DeviceHandlers(this.container, {this.commandCorrelator, this.jobManager});
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 

@@ -47,14 +47,8 @@ void main() {
     });
 
     test('accepts *.ts.net MagicDNS hostnames (case-insensitive)', () {
-      expect(
-        SavedServer.isTailscaleEndpoint('my-rig.tail1a2b.ts.net'),
-        isTrue,
-      );
-      expect(
-        SavedServer.isTailscaleEndpoint('MyRig.Tailnet.TS.NET'),
-        isTrue,
-      );
+      expect(SavedServer.isTailscaleEndpoint('my-rig.tail1a2b.ts.net'), isTrue);
+      expect(SavedServer.isTailscaleEndpoint('MyRig.Tailnet.TS.NET'), isTrue);
     });
 
     test('rejects bare ts.net and LAN / public hosts', () {
@@ -228,45 +222,49 @@ void main() {
       expect(ds.host, '100.101.102.103');
     });
 
-    test('upsert by host:port preserves an existing tailscaleHost when null',
-        () async {
-      final service = SavedServersService(random: fixedRandom());
-      final first = await service.add(
-        displayName: 'Observatory',
-        host: '192.168.1.50',
-        port: 8080,
-        tailscaleHost: '100.101.102.103',
-      );
-      // Re-upsert the same host:port without a tailscaleHost — copyWith
-      // leaves the existing value intact (null means "leave alone").
-      await service.upsert(
-        id: first.id,
-        displayName: 'Observatory (renamed)',
-        host: '192.168.1.50',
-        port: 8080,
-      );
-      final reloaded = (await service.loadAll()).single;
-      expect(reloaded.tailscaleHost, '100.101.102.103');
-      expect(reloaded.displayName, 'Observatory (renamed)');
-    });
+    test(
+      'upsert by host:port preserves an existing tailscaleHost when null',
+      () async {
+        final service = SavedServersService(random: fixedRandom());
+        final first = await service.add(
+          displayName: 'Observatory',
+          host: '192.168.1.50',
+          port: 8080,
+          tailscaleHost: '100.101.102.103',
+        );
+        // Re-upsert the same host:port without a tailscaleHost — copyWith
+        // leaves the existing value intact (null means "leave alone").
+        await service.upsert(
+          id: first.id,
+          displayName: 'Observatory (renamed)',
+          host: '192.168.1.50',
+          port: 8080,
+        );
+        final reloaded = (await service.loadAll()).single;
+        expect(reloaded.tailscaleHost, '100.101.102.103');
+        expect(reloaded.displayName, 'Observatory (renamed)');
+      },
+    );
 
-    test('a v1 (pre-2.6) blob with no scheme/tailscaleHost loads cleanly',
-        () async {
-      final legacyRow = {
-        'id': 'legacy-1',
-        'displayName': 'Legacy LAN',
-        'host': '10.0.0.4',
-        'port': 8080,
-      };
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        SavedServersStorageKeys.list: jsonEncode([legacyRow]),
-        SavedServersStorageKeys.migrated: true,
-      });
-      final service = SavedServersService(random: fixedRandom());
-      final all = await service.loadAll();
-      expect(all, hasLength(1));
-      expect(all.single.scheme, 'http');
-      expect(all.single.tailscaleHost, isNull);
-    });
+    test(
+      'a v1 (pre-2.6) blob with no scheme/tailscaleHost loads cleanly',
+      () async {
+        final legacyRow = {
+          'id': 'legacy-1',
+          'displayName': 'Legacy LAN',
+          'host': '10.0.0.4',
+          'port': 8080,
+        };
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          SavedServersStorageKeys.list: jsonEncode([legacyRow]),
+          SavedServersStorageKeys.migrated: true,
+        });
+        final service = SavedServersService(random: fixedRandom());
+        final all = await service.loadAll();
+        expect(all, hasLength(1));
+        expect(all.single.scheme, 'http');
+        expect(all.single.tailscaleHost, isNull);
+      },
+    );
   });
 }

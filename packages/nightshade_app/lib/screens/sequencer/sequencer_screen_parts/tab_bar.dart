@@ -51,7 +51,8 @@ class _SequencerTabBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: NightshadeDecorations.statusChip(
               colors.success,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -73,7 +74,8 @@ class _SequencerTabBar extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Sequence Running',
-                  style: NightshadeTypography.h6.copyWith(color: colors.success),
+                  style:
+                      NightshadeTypography.h6.copyWith(color: colors.success),
                 ),
               ],
             ),

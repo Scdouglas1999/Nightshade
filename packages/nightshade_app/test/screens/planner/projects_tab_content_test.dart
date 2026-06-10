@@ -144,7 +144,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No campaigns yet'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'New Project'), findsOneWidget);
+    expect(
+        find.widgetWithText(NightshadeButton, 'New Project'), findsOneWidget);
   });
 
   testWidgets(
@@ -235,7 +236,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // The dialog scaffold shows its title and name field.
-    expect(find.widgetWithText(NightshadeDialog, 'New Project'), findsOneWidget);
+    expect(
+        find.widgetWithText(NightshadeDialog, 'New Project'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Create'), findsOneWidget);
     expect(find.byIcon(LucideIcons.folder), findsWidgets);
   });

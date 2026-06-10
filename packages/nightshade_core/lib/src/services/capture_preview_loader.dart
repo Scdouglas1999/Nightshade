@@ -20,11 +20,7 @@ class CapturePreviewPublisher {
   /// Show [preview] immediately, then fetch raw pixels when supported.
   ///
   /// Accepts a Riverpod [Ref] or a test [ProviderContainer] (both expose `.read`).
-  void publish(
-    dynamic ref,
-    CapturedImageData preview,
-    String deviceId,
-  ) {
+  void publish(dynamic ref, CapturedImageData preview, String deviceId) {
     final generation = ++_generation;
     final backend = _read(ref, backendProvider);
     final source = backend is NetworkBackend
@@ -46,14 +42,16 @@ class CapturePreviewPublisher {
       return;
     }
 
-    unawaited(_loadRawInBackground(
-      ref: ref,
-      generation: generation,
-      deviceId: deviceId,
-      capturedAt: withSource.capturedAt,
-      expectedWidth: withSource.width,
-      expectedHeight: withSource.height,
-    ));
+    unawaited(
+      _loadRawInBackground(
+        ref: ref,
+        generation: generation,
+        deviceId: deviceId,
+        capturedAt: withSource.capturedAt,
+        expectedWidth: withSource.width,
+        expectedHeight: withSource.height,
+      ),
+    );
   }
 
   /// Cancel in-flight raw loads (e.g. new capture starting).
@@ -114,9 +112,7 @@ class CapturePreviewPublisher {
         return;
       }
 
-      final rawU16 = Uint16List.view(
-        Uint8List.fromList(rawList).buffer,
-      );
+      final rawU16 = Uint16List.view(Uint8List.fromList(rawList).buffer);
 
       _read(ref, currentImageProvider.notifier).state = current.copyWith(
         rawU16: rawU16,
@@ -148,8 +144,9 @@ class CapturePreviewPublisher {
   }
 }
 
-final capturePreviewPublisherProvider =
-    Provider<CapturePreviewPublisher>((ref) {
+final capturePreviewPublisherProvider = Provider<CapturePreviewPublisher>((
+  ref,
+) {
   return CapturePreviewPublisher();
 });
 

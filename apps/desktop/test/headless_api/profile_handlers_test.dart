@@ -23,50 +23,65 @@ void main() {
     });
 
     test('get profiles disconnected backend failure returns JSON', () async {
-      final response = await translateHandlerErrors(handlers.handleGetProfiles(
-        Request('GET', Uri.parse('http://localhost/api/profiles')),
-      ));
-
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
-
-    test('save profile malformed payload returns JSON internal error',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleSaveProfile(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/profiles'),
-          body: jsonEncode({}),
+      final response = await translateHandlerErrors(
+        handlers.handleGetProfiles(
+          Request('GET', Uri.parse('http://localhost/api/profiles')),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
     test(
-        'set location accepts null shape but disconnected backend returns JSON',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleSetLocation(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/settings/location'),
-          body: jsonEncode({'location': null}),
-        ),
-      ));
+      'save profile malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSaveProfile(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/profiles'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
+
+    test(
+      'set location accepts null shape but disconnected backend returns JSON',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSetLocation(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/settings/location'),
+              body: jsonEncode({'location': null}),
+            ),
+          ),
+        );
+
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
   });
 }

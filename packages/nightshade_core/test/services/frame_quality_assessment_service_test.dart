@@ -180,21 +180,23 @@ void main() {
       expect(score, lessThan(0.20));
     });
 
-    test('degraded frame produces high heuristic score above legacy threshold',
-        () {
-      final score = service.computeHeuristicScore(
-        _image(
-          id: 2,
-          qualityScore: 30,
-          hfr: 5.0,
-          starCount: 15,
-          guidingRmsTotal: 3.5,
-        ),
-        referenceHfr: 2.0,
-        referenceGuidingRms: 1.0,
-      );
-      expect(score, greaterThan(0.88));
-    });
+    test(
+      'degraded frame produces high heuristic score above legacy threshold',
+      () {
+        final score = service.computeHeuristicScore(
+          _image(
+            id: 2,
+            qualityScore: 30,
+            hfr: 5.0,
+            starCount: 15,
+            guidingRmsTotal: 3.5,
+          ),
+          referenceHfr: 2.0,
+          referenceGuidingRms: 1.0,
+        );
+        expect(score, greaterThan(0.88));
+      },
+    );
 
     test('matches known-input expected value within tolerance', () {
       // Direct computation: with hfr=2.6 / starCount=80 / guidingRms=1.4 /
@@ -220,8 +222,9 @@ void main() {
 
   group('FrameGradingMode', () {
     test('advisory mode never sets autoReject even with extreme score', () {
-      const service =
-          FrameQualityAssessmentService(gradingMode: FrameGradingMode.advisory);
+      const service = FrameQualityAssessmentService(
+        gradingMode: FrameGradingMode.advisory,
+      );
       final result = service.assessFrame(
         _image(
           id: 10,
@@ -238,15 +241,17 @@ void main() {
       expect(result.disposition, isNot(FrameQualityDisposition.autoReject));
       expect(result.autoRejectCandidate, isFalse);
       expect(
-        result.reasons.any((r) => r.startsWith('Quality heuristic') &&
-            r.contains('advisory')),
+        result.reasons.any(
+          (r) => r.startsWith('Quality heuristic') && r.contains('advisory'),
+        ),
         isTrue,
       );
     });
 
     test('auto mode preserves legacy auto-reject behaviour', () {
-      const service =
-          FrameQualityAssessmentService(gradingMode: FrameGradingMode.auto);
+      const service = FrameQualityAssessmentService(
+        gradingMode: FrameGradingMode.auto,
+      );
       final result = service.assessFrame(
         _image(
           id: 11,
@@ -262,45 +267,45 @@ void main() {
       expect(result.heuristicScore, greaterThan(0.88));
       expect(result.disposition, FrameQualityDisposition.autoReject);
       expect(result.autoRejectCandidate, isTrue);
-      expect(
-        result.reasons.any((r) => r.contains('auto-rejected')),
-        isTrue,
-      );
+      expect(result.reasons.any((r) => r.contains('auto-rejected')), isTrue);
     });
 
-    test('off mode keeps clean frames as keep and degraded frames as review',
-        () {
-      const service =
-          FrameQualityAssessmentService(gradingMode: FrameGradingMode.off);
+    test(
+      'off mode keeps clean frames as keep and degraded frames as review',
+      () {
+        const service = FrameQualityAssessmentService(
+          gradingMode: FrameGradingMode.off,
+        );
 
-      final clean = service.assessFrame(
-        _image(
-          id: 12,
-          qualityScore: 88,
-          hfr: 2.0,
-          starCount: 150,
-          guidingRmsTotal: 0.8,
-        ),
-      );
-      expect(clean.disposition, FrameQualityDisposition.keep);
-      // In off mode no advisory text about the heuristic is appended.
-      expect(
-        clean.reasons.any((r) => r.startsWith('Quality heuristic')),
-        isFalse,
-      );
+        final clean = service.assessFrame(
+          _image(
+            id: 12,
+            qualityScore: 88,
+            hfr: 2.0,
+            starCount: 150,
+            guidingRmsTotal: 0.8,
+          ),
+        );
+        expect(clean.disposition, FrameQualityDisposition.keep);
+        // In off mode no advisory text about the heuristic is appended.
+        expect(
+          clean.reasons.any((r) => r.startsWith('Quality heuristic')),
+          isFalse,
+        );
 
-      final bad = service.assessFrame(
-        _image(
-          id: 13,
-          qualityScore: 20,
-          hfr: 6.0,
-          starCount: 5,
-          guidingRmsTotal: 4.0,
-        ),
-      );
-      expect(bad.disposition, FrameQualityDisposition.review);
-      expect(bad.autoRejectCandidate, isFalse);
-    });
+        final bad = service.assessFrame(
+          _image(
+            id: 13,
+            qualityScore: 20,
+            hfr: 6.0,
+            starCount: 5,
+            guidingRmsTotal: 4.0,
+          ),
+        );
+        expect(bad.disposition, FrameQualityDisposition.review);
+        expect(bad.autoRejectCandidate, isFalse);
+      },
+    );
   });
 
   group('Backward compatibility', () {

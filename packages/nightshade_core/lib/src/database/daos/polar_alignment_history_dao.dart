@@ -127,10 +127,11 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> pruneHistory({int keepPerProfile = 50}) async {
     await transaction(() async {
       // Get distinct profile IDs
-      final profiles = await (selectOnly(polarAlignmentHistory, distinct: true)
-            ..addColumns([polarAlignmentHistory.equipmentProfileId]))
-          .map((row) => row.read(polarAlignmentHistory.equipmentProfileId))
-          .get();
+      final profiles =
+          await (selectOnly(polarAlignmentHistory, distinct: true)
+                ..addColumns([polarAlignmentHistory.equipmentProfileId]))
+              .map((row) => row.read(polarAlignmentHistory.equipmentProfileId))
+              .get();
 
       for (final profileId in profiles) {
         // Get IDs to keep for this profile
@@ -148,15 +149,14 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
 
         if (keepIds.isNotEmpty) {
           // Delete entries not in keep list
-          await (delete(polarAlignmentHistory)
-                ..where((t) {
-                  if (profileId != null) {
-                    return t.equipmentProfileId.equals(profileId) &
-                        t.id.isNotIn(keepIds);
-                  } else {
-                    return t.equipmentProfileId.isNull() & t.id.isNotIn(keepIds);
-                  }
-                }))
+          await (delete(polarAlignmentHistory)..where((t) {
+                if (profileId != null) {
+                  return t.equipmentProfileId.equals(profileId) &
+                      t.id.isNotIn(keepIds);
+                } else {
+                  return t.equipmentProfileId.isNull() & t.id.isNotIn(keepIds);
+                }
+              }))
               .go();
         }
       }
@@ -165,9 +165,9 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Delete all history for a specific profile
   Future<int> deleteHistoryForProfile(int profileId) {
-    return (delete(polarAlignmentHistory)
-          ..where((t) => t.equipmentProfileId.equals(profileId)))
-        .go();
+    return (delete(
+      polarAlignmentHistory,
+    )..where((t) => t.equipmentProfileId.equals(profileId))).go();
   }
 
   /// Delete a specific history entry
@@ -198,7 +198,8 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     final query = selectOnly(polarAlignmentHistory)..addColumns([countExpr]);
     if (equipmentProfileId != null) {
       query.where(
-          polarAlignmentHistory.equipmentProfileId.equals(equipmentProfileId));
+        polarAlignmentHistory.equipmentProfileId.equals(equipmentProfileId),
+      );
     }
     final row = await query.getSingle();
     return row.read(countExpr) ?? 0;

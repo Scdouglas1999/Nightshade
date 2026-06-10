@@ -13,16 +13,15 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   // ─── List CRUD ──────────────────────────────────────────────────────────────
 
   /// Create a new observing list. Returns the generated row ID.
-  Future<int> createList({
-    required String name,
-    String? description,
-  }) async {
+  Future<int> createList({required String name, String? description}) async {
     final maxOrder = await _maxListSortOrder();
-    return into(observingLists).insert(ObservingListsCompanion.insert(
-      name: name,
-      description: Value(description),
-      sortOrder: Value(maxOrder + 1),
-    ));
+    return into(observingLists).insert(
+      ObservingListsCompanion.insert(
+        name: name,
+        description: Value(description),
+        sortOrder: Value(maxOrder + 1),
+      ),
+    );
   }
 
   /// Update an existing observing list's name/description.
@@ -33,11 +32,14 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   }) async {
     final companion = ObservingListsCompanion(
       name: name != null ? Value(name) : const Value.absent(),
-      description: description != null ? Value(description) : const Value.absent(),
+      description: description != null
+          ? Value(description)
+          : const Value.absent(),
       updatedAt: Value(DateTime.now()),
     );
-    await (update(observingLists)..where((t) => t.id.equals(id)))
-        .write(companion);
+    await (update(
+      observingLists,
+    )..where((t) => t.id.equals(id))).write(companion);
   }
 
   /// Delete an observing list and all its items (cascade).
@@ -47,22 +49,23 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all observing lists ordered by sortOrder.
   Future<List<ObservingList>> getAllLists() {
-    return (select(observingLists)
-          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
-        .get();
+    return (select(
+      observingLists,
+    )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
   }
 
   /// Watch all observing lists as a reactive stream.
   Stream<List<ObservingList>> watchAllLists() {
-    return (select(observingLists)
-          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
-        .watch();
+    return (select(
+      observingLists,
+    )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
   }
 
   /// Get a single observing list by ID.
   Future<ObservingList?> getListById(int id) {
-    return (select(observingLists)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      observingLists,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
   /// Duplicate a list and all its items. Returns the new list's ID.
@@ -99,8 +102,7 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> reorderLists(List<int> orderedIds) async {
     await transaction(() async {
       for (var i = 0; i < orderedIds.length; i++) {
-        await (update(observingLists)
-              ..where((t) => t.id.equals(orderedIds[i])))
+        await (update(observingLists)..where((t) => t.id.equals(orderedIds[i])))
             .write(ObservingListsCompanion(sortOrder: Value(i)));
       }
     });
@@ -123,34 +125,38 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   }) async {
     // Check for duplicate catalog IDs within the same list
     if (catalogId != null) {
-      final existing = await (select(observingListItems)
-            ..where((t) =>
-                t.listId.equals(listId) & t.catalogId.equals(catalogId)))
-          .getSingleOrNull();
+      final existing =
+          await (select(observingListItems)..where(
+                (t) => t.listId.equals(listId) & t.catalogId.equals(catalogId),
+              ))
+              .getSingleOrNull();
       if (existing != null) {
         throw StateError(
-            '$catalogId is already in this list as "${existing.objectName}"');
+          '$catalogId is already in this list as "${existing.objectName}"',
+        );
       }
     }
 
     final maxOrder = await _maxItemSortOrder(listId);
-    final id = await into(observingListItems)
-        .insert(ObservingListItemsCompanion.insert(
-      listId: listId,
-      objectName: objectName,
-      catalogId: Value(catalogId),
-      objectType: Value(objectType),
-      ra: ra,
-      dec: dec,
-      magnitude: Value(magnitude),
-      sizeArcmin: Value(sizeArcmin),
-      notes: Value(notes),
-      sortOrder: Value(maxOrder + 1),
-    ));
+    final id = await into(observingListItems).insert(
+      ObservingListItemsCompanion.insert(
+        listId: listId,
+        objectName: objectName,
+        catalogId: Value(catalogId),
+        objectType: Value(objectType),
+        ra: ra,
+        dec: dec,
+        magnitude: Value(magnitude),
+        sizeArcmin: Value(sizeArcmin),
+        notes: Value(notes),
+        sortOrder: Value(maxOrder + 1),
+      ),
+    );
 
     // Touch the parent list's updatedAt
-    await (update(observingLists)..where((t) => t.id.equals(listId)))
-        .write(ObservingListsCompanion(updatedAt: Value(DateTime.now())));
+    await (update(observingLists)..where((t) => t.id.equals(listId))).write(
+      ObservingListsCompanion(updatedAt: Value(DateTime.now())),
+    );
 
     return id;
   }
@@ -158,12 +164,13 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Remove an item from an observing list.
   Future<int> removeItem(int itemId) async {
     // Get listId before deleting to update parent timestamp
-    final item = await (select(observingListItems)
-          ..where((t) => t.id.equals(itemId)))
-        .getSingleOrNull();
+    final item = await (select(
+      observingListItems,
+    )..where((t) => t.id.equals(itemId))).getSingleOrNull();
 
-    final result =
-        (delete(observingListItems)..where((t) => t.id.equals(itemId))).go();
+    final result = (delete(
+      observingListItems,
+    )..where((t) => t.id.equals(itemId))).go();
 
     if (item != null) {
       await (update(observingLists)..where((t) => t.id.equals(item.listId)))
@@ -175,8 +182,9 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Update notes on a list item.
   Future<void> updateItemNotes(int itemId, String? notes) async {
-    await (update(observingListItems)..where((t) => t.id.equals(itemId)))
-        .write(ObservingListItemsCompanion(notes: Value(notes)));
+    await (update(observingListItems)..where((t) => t.id.equals(itemId))).write(
+      ObservingListItemsCompanion(notes: Value(notes)),
+    );
   }
 
   /// Get all items for a given list, ordered by sortOrder.
@@ -204,8 +212,9 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
             .write(ObservingListItemsCompanion(sortOrder: Value(i)));
       }
     });
-    await (update(observingLists)..where((t) => t.id.equals(listId)))
-        .write(ObservingListsCompanion(updatedAt: Value(DateTime.now())));
+    await (update(observingLists)..where((t) => t.id.equals(listId))).write(
+      ObservingListsCompanion(updatedAt: Value(DateTime.now())),
+    );
   }
 
   /// Get the number of items in a list.
@@ -244,8 +253,10 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<Set<String>> getCatalogIdsForList(int listId) async {
     final query = selectOnly(observingListItems, distinct: true)
       ..addColumns([observingListItems.catalogId])
-      ..where(observingListItems.listId.equals(listId) &
-          observingListItems.catalogId.isNotNull());
+      ..where(
+        observingListItems.listId.equals(listId) &
+            observingListItems.catalogId.isNotNull(),
+      );
     final results = await query
         .map((row) => row.read(observingListItems.catalogId))
         .get();
@@ -256,8 +267,10 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   Stream<Set<String>> watchCatalogIdsForList(int listId) {
     final query = selectOnly(observingListItems, distinct: true)
       ..addColumns([observingListItems.catalogId])
-      ..where(observingListItems.listId.equals(listId) &
-          observingListItems.catalogId.isNotNull());
+      ..where(
+        observingListItems.listId.equals(listId) &
+            observingListItems.catalogId.isNotNull(),
+      );
     return query
         .map((row) => row.read(observingListItems.catalogId))
         .watch()

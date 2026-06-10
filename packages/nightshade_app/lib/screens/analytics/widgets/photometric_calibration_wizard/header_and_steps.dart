@@ -28,7 +28,9 @@ extension _PhotometricWizardHeaderAndSteps
               ),
               Text(
                 'Compute transformation coefficients for absolute photometry',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
             ],
           ),

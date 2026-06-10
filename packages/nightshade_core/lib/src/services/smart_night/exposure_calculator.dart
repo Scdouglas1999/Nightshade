@@ -1,13 +1,7 @@
 import 'dart:math' as math;
 
 /// Explains which exposure ceiling selected the final sub length.
-enum ExposureLimitingFactor {
-  glover,
-  saturation,
-  mount,
-  userCap,
-  floor,
-}
+enum ExposureLimitingFactor { glover, saturation, mount, userCap, floor }
 
 /// Camera values needed by the light-frame exposure calculator.
 class CameraExposureSpec {
@@ -25,13 +19,7 @@ class CameraExposureSpec {
 /// Coarse photometric class of a filter. Drives the sky-background model and
 /// keeps the per-filter exposure ordering (L < color channels < narrowband)
 /// honest even when several filters share a similar bandwidth.
-enum FilterCategory {
-  luminance,
-  red,
-  green,
-  blue,
-  narrowband,
-}
+enum FilterCategory { luminance, red, green, blue, narrowband }
 
 /// Filter values needed by the light-frame exposure calculator.
 ///
@@ -66,19 +54,19 @@ class FilterExposureSpec {
   });
 
   const FilterExposureSpec.luminance()
-      : name = 'L',
-        bandwidthNm = 100,
-        peakTransmission = 0.95,
-        category = FilterCategory.luminance,
-        relativeSkyFlux = 1.0;
+    : name = 'L',
+      bandwidthNm = 100,
+      peakTransmission = 0.95,
+      category = FilterCategory.luminance,
+      relativeSkyFlux = 1.0;
 
   const FilterExposureSpec.narrowbandHa()
-      : name = 'Ha',
-        bandwidthNm = 3,
-        peakTransmission = 0.9,
-        category = FilterCategory.narrowband,
-        // Narrowband sky = sky continuum inside the line: bandwidth / reference.
-        relativeSkyFlux = 3 / _referenceBandwidthNm;
+    : name = 'Ha',
+      bandwidthNm = 3,
+      peakTransmission = 0.9,
+      category = FilterCategory.narrowband,
+      // Narrowband sky = sky continuum inside the line: bandwidth / reference.
+      relativeSkyFlux = 3 / _referenceBandwidthNm;
 
   // Reference broadband passband (luminance) in nm. Narrowband relative-sky
   // flux is measured against this. Kept here so the const constructors above
@@ -133,8 +121,9 @@ class FilterExposureSpec {
         normalized.contains('lenhance')) {
       final bw = normalized.contains('ultimate') ? 3.0 : 7.0;
       return FilterExposureSpec(
-        name:
-            rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'Multi-band',
+        name: rawName?.trim().isNotEmpty == true
+            ? rawName!.trim()
+            : 'Multi-band',
         bandwidthNm: bw,
         peakTransmission: 0.9,
         category: FilterCategory.narrowband,
@@ -262,7 +251,8 @@ class SmartNightExposureCalculator {
     final pixelScale = 206.265 * input.pixelSizeMicrons / input.focalLengthMm;
     final skyRate = _skyElectronsPerSecondPerPixel(input, pixelScale);
     final snrScale = math.pow(input.targetSnr / 30.0, 2).toDouble();
-    final glover = input.gloverKFactor *
+    final glover =
+        input.gloverKFactor *
         snrScale *
         input.camera.readNoiseE *
         input.camera.readNoiseE /
@@ -308,12 +298,7 @@ class SmartNightExposureCalculator {
       seconds: rounded,
       limitingFactor: limitingFactor,
       allCeilings: Map.unmodifiable(ceilings),
-      rationale: _rationale(
-        limitingFactor,
-        rounded,
-        input,
-        ceilings,
-      ),
+      rationale: _rationale(limitingFactor, rounded, input, ceilings),
       caveats: List.unmodifiable(caveats),
     );
   }
@@ -370,12 +355,14 @@ class SmartNightExposureCalculator {
   }
 
   static double _saturationCeiling(ExposureCalculatorInput input) {
-    final starFlux = _zeroMagPhotonFluxPerCm2PerSec *
+    final starFlux =
+        _zeroMagPhotonFluxPerCm2PerSec *
         math.pow(10, -0.4 * _referenceSaturationStarMagnitude).toDouble();
     final apertureAreaCm2 =
         math.pi * (input.apertureMm / 20) * (input.apertureMm / 20);
     final bandpassScale = input.filter.bandwidthNm / _referenceBandwidthNm;
-    final peakPixelElectronsPerSec = starFlux *
+    final peakPixelElectronsPerSec =
+        starFlux *
         apertureAreaCm2 *
         input.camera.qePeak *
         input.filter.peakTransmission *

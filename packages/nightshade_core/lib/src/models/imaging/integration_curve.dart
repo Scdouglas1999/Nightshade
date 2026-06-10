@@ -45,11 +45,11 @@ class IntegrationCurvePoint {
   }
 
   Map<String, dynamic> toJson() => {
-        'n': n,
-        'snr': snr,
-        'fwhm': fwhm,
-        'cumulativeIntegrationS': cumulativeIntegrationS,
-      };
+    'n': n,
+    'snr': snr,
+    'fwhm': fwhm,
+    'cumulativeIntegrationS': cumulativeIntegrationS,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -96,11 +96,11 @@ class SubsetRecommendation {
   }
 
   Map<String, dynamic> toJson() => {
-        'keepN': keepN,
-        'keptIndices': keptIndices,
-        'predictedSnrGainPct': predictedSnrGainPct,
-        'reason': reason,
-      };
+    'keepN': keepN,
+    'keptIndices': keptIndices,
+    'predictedSnrGainPct': predictedSnrGainPct,
+    'reason': reason,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -113,11 +113,11 @@ class SubsetRecommendation {
 
   @override
   int get hashCode => Object.hash(
-        keepN,
-        Object.hashAll(keptIndices),
-        predictedSnrGainPct,
-        reason,
-      );
+    keepN,
+    Object.hashAll(keptIndices),
+    predictedSnrGainPct,
+    reason,
+  );
 }
 
 /// The full `api_analyze_night` result: the predicted integration [points] over
@@ -133,10 +133,7 @@ class IntegrationCurve {
   /// The keep/cull recommendation.
   final SubsetRecommendation recommendation;
 
-  const IntegrationCurve({
-    required this.points,
-    required this.recommendation,
-  });
+  const IntegrationCurve({required this.points, required this.recommendation});
 
   /// An empty curve with a no-op recommendation (keep nothing). Used as the
   /// fail-soft fallback when no analysis payload is available.
@@ -170,9 +167,9 @@ class IntegrationCurve {
   }
 
   Map<String, dynamic> toJson() => {
-        'points': points.map((p) => p.toJson()).toList(),
-        'recommendation': recommendation.toJson(),
-      };
+    'points': points.map((p) => p.toJson()).toList(),
+    'recommendation': recommendation.toJson(),
+  };
 
   @override
   bool operator ==(Object other) =>

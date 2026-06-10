@@ -11,22 +11,24 @@ import 'wcs_overlay.dart';
 ///
 /// Mirrors `CatalogManager.searchDsoNearby`. Injected as a closure so the
 /// service runs against an in-memory catalog stub in tests.
-typedef DsoConeSearch = Future<List<OpenNgcData>> Function({
-  required double ra,
-  required double dec,
-  required double radiusDegrees,
-  double? maxMagnitude,
-});
+typedef DsoConeSearch =
+    Future<List<OpenNgcData>> Function({
+      required double ra,
+      required double dec,
+      required double radiusDegrees,
+      double? maxMagnitude,
+    });
 
 /// A named-star cone search over the photometric catalog: the [Star]s within
 /// [radiusDegrees] of [center], optionally magnitude-limited.
 ///
 /// Mirrors `HygStarCatalog.getStarsNear`.
-typedef StarConeSearchForAnnotation = Future<List<Star>> Function(
-  CelestialCoordinate center,
-  double radiusDegrees, {
-  double? maxMagnitude,
-});
+typedef StarConeSearchForAnnotation =
+    Future<List<Star>> Function(
+      CelestialCoordinate center,
+      double radiusDegrees, {
+      double? maxMagnitude,
+    });
 
 /// Builds the catalog-powered [AnnotationLayer] drawn over a finished master:
 /// labelled, kinded markers at pixel positions for the deep-sky objects and
@@ -48,8 +50,8 @@ class MasterAnnotationService {
   MasterAnnotationService({
     required DsoConeSearch dsoSearch,
     required StarConeSearchForAnnotation starSearch,
-  })  : _dsoSearch = dsoSearch,
-        _starSearch = starSearch;
+  }) : _dsoSearch = dsoSearch,
+       _starSearch = starSearch;
 
   final DsoConeSearch _dsoSearch;
   final StarConeSearchForAnnotation _starSearch;
@@ -96,29 +98,36 @@ class MasterAnnotationService {
     for (final dso in dsos) {
       final (x, y) = wcs.celestialToPixel(dso.ra, dso.dec);
       if (!_inBounds(x, y, width, height)) continue;
-      items.add(Annotation(
-        label: _dsoLabel(dso),
-        x: x,
-        y: y,
-        kind: _kindForOpenNgcType(dso.type),
-        sizePx: _dsoSizePx(dso, pixelScaleArcsec),
-        paDeg: dso.positionAngle,
-      ));
+      items.add(
+        Annotation(
+          label: _dsoLabel(dso),
+          x: x,
+          y: y,
+          kind: _kindForOpenNgcType(dso.type),
+          sizePx: _dsoSizePx(dso, pixelScaleArcsec),
+          paDeg: dso.positionAngle,
+        ),
+      );
     }
 
     var namedStars = 0;
     for (final star in stars) {
       if (namedStars >= maxNamedStars) break;
       if (!_hasProperName(star)) continue;
-      final (x, y) = wcs.celestialToPixel(star.coordinates.raDegrees, star.coordinates.dec);
+      final (x, y) = wcs.celestialToPixel(
+        star.coordinates.raDegrees,
+        star.coordinates.dec,
+      );
       if (!_inBounds(x, y, width, height)) continue;
-      items.add(Annotation(
-        label: star.name,
-        x: x,
-        y: y,
-        kind: AnnotationKind.star,
-        sizePx: 0.0,
-      ));
+      items.add(
+        Annotation(
+          label: star.name,
+          x: x,
+          y: y,
+          kind: AnnotationKind.star,
+          sizePx: 0.0,
+        ),
+      );
       namedStars++;
     }
 
@@ -149,20 +158,18 @@ class MasterAnnotationService {
     double? maxMagnitude,
   }) async {
     try {
-      return await _starSearch(center, radiusDegrees,
-          maxMagnitude: maxMagnitude);
+      return await _starSearch(
+        center,
+        radiusDegrees,
+        maxMagnitude: maxMagnitude,
+      );
     } catch (_) {
       return const [];
     }
   }
 
   static bool _inBounds(double x, double y, int width, int height) =>
-      x.isFinite &&
-      y.isFinite &&
-      x >= 0 &&
-      x < width &&
-      y >= 0 &&
-      y < height;
+      x.isFinite && y.isFinite && x >= 0 && x < width && y >= 0 && y < height;
 
   static bool _hasProperName(Star star) =>
       star.name.trim().isNotEmpty && star.name.trim() != star.id.trim();
@@ -225,8 +232,9 @@ class MasterAnnotationService {
 
 /// Provider for the [MasterAnnotationService]. Binds the real on-disk catalogs;
 /// tests construct the service directly with in-memory cone-search stubs.
-final masterAnnotationServiceProvider =
-    Provider<MasterAnnotationService>((ref) {
+final masterAnnotationServiceProvider = Provider<MasterAnnotationService>((
+  ref,
+) {
   final stars = HygStarCatalog();
   return MasterAnnotationService(
     dsoSearch: CatalogManager.instance.searchDsoNearby,

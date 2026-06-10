@@ -17,8 +17,8 @@ import 'headless_route.dart';
 /// `router.<verb>(...)` block so shelf_router's first-hit matching
 /// behaviour is identical.
 List<HeadlessRoute> buildSystemRoutes(SystemHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/info', h.handleInfo),
-      HeadlessRoute(HttpMethod.get, '/api/status', h.handleStatus),
-      HeadlessRoute(HttpMethod.get, '/api/self-test', h.handleSelfTest),
-      HeadlessRoute(HttpMethod.get, '/api/openapi.json', h.handleOpenApiSpec),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/info', h.handleInfo),
+  HeadlessRoute(HttpMethod.get, '/api/status', h.handleStatus),
+  HeadlessRoute(HttpMethod.get, '/api/self-test', h.handleSelfTest),
+  HeadlessRoute(HttpMethod.get, '/api/openapi.json', h.handleOpenApiSpec),
+];

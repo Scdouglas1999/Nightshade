@@ -35,8 +35,12 @@ final satelliteTleProvider = FutureProvider<List<OrbitalElements>>((ref) async {
   try {
     return await catalog.loadBrightSatellites();
   } catch (e) {
-    developer.log('[Satellite] Failed to load TLE data: $e',
-        name: 'SatelliteProviders', level: 1000, error: e);
+    developer.log(
+      '[Satellite] Failed to load TLE data: $e',
+      name: 'SatelliteProviders',
+      level: 1000,
+      error: e,
+    );
     rethrow;
   }
 });
@@ -62,7 +66,7 @@ class SatellitePositionNotifier extends StateNotifier<SatellitePositionState> {
   Timer? _timer;
 
   SatellitePositionNotifier(this._ref)
-      : super(SatellitePositionState(lastUpdate: DateTime.now())) {
+    : super(SatellitePositionState(lastUpdate: DateTime.now())) {
     _startUpdates();
 
     // Listen for TLE data changes
@@ -76,7 +80,10 @@ class SatellitePositionNotifier extends StateNotifier<SatellitePositionState> {
         _startUpdates();
       } else {
         _stopUpdates();
-        state = SatellitePositionState(satellites: const [], lastUpdate: DateTime.now());
+        state = SatellitePositionState(
+          satellites: const [],
+          lastUpdate: DateTime.now(),
+        );
       }
     });
   }
@@ -136,9 +143,11 @@ class SatellitePositionNotifier extends StateNotifier<SatellitePositionState> {
 }
 
 final satellitePositionProvider =
-    StateNotifierProvider<SatellitePositionNotifier, SatellitePositionState>((ref) {
-  return SatellitePositionNotifier(ref);
-});
+    StateNotifierProvider<SatellitePositionNotifier, SatellitePositionState>((
+      ref,
+    ) {
+      return SatellitePositionNotifier(ref);
+    });
 
 /// Convenience provider for just the satellite list.
 final currentSatellitesProvider = Provider<List<SatelliteData>>((ref) {
@@ -176,7 +185,9 @@ class PassPredictionNotifier extends StateNotifier<PassPredictionState> {
 
   /// Compute pass predictions for all loaded satellites.
   /// This can take several seconds for many satellites, so runs in isolate.
-  Future<void> computePasses({Duration predictionWindow = const Duration(hours: 48)}) async {
+  Future<void> computePasses({
+    Duration predictionWindow = const Duration(hours: 48),
+  }) async {
     if (!mounted) return;
 
     final tleData = _ref.read(satelliteTleProvider);
@@ -251,8 +262,8 @@ List<SatellitePass> _computePassesIsolate(_ComputePassesArgs args) {
 
 final passPredictionProvider =
     StateNotifierProvider<PassPredictionNotifier, PassPredictionState>((ref) {
-  return PassPredictionNotifier(ref);
-});
+      return PassPredictionNotifier(ref);
+    });
 
 /// Provider for upcoming passes (future only).
 final upcomingPassesProvider = Provider<List<SatellitePass>>((ref) {

@@ -96,18 +96,13 @@ class TimeSyncService {
       }
 
       if (response == null) {
-        throw TimeoutException(
-          'NTP query to $host timed out',
-          timeout,
-        );
+        throw TimeoutException('NTP query to $host timed out', timeout);
       }
 
       final recvTime = DateTime.now();
       final data = response.data;
       if (data.length < 48) {
-        throw FormatException(
-          'NTP response too short (${data.length} bytes)',
-        );
+        throw FormatException('NTP response too short (${data.length} bytes)');
       }
 
       // Receive timestamp (server clock at request arrival) — bytes 32..39.
@@ -120,9 +115,7 @@ class TimeSyncService {
       // Standard NTP offset formula. Average of forward and reverse
       // half-trip skew. Positive => local clock is ahead.
       final offset = ((t2 - t1) + (t3 - t4)) / 2.0;
-      final roundTrip = Duration(
-        microseconds: ((t4 - t1) * 1000000).round(),
-      );
+      final roundTrip = Duration(microseconds: ((t4 - t1) * 1000000).round());
 
       return TimeSyncResult(
         // NTP convention: server-minus-local => positive offset means
@@ -141,11 +134,13 @@ class TimeSyncService {
   /// Parse a 64-bit NTP timestamp at [start] into seconds since the
   /// Unix epoch.
   static double _readNtpTimestamp(List<int> data, int start) {
-    final secs = (data[start] << 24) |
+    final secs =
+        (data[start] << 24) |
         (data[start + 1] << 16) |
         (data[start + 2] << 8) |
         data[start + 3];
-    final frac = (data[start + 4] << 24) |
+    final frac =
+        (data[start + 4] << 24) |
         (data[start + 5] << 16) |
         (data[start + 6] << 8) |
         data[start + 7];

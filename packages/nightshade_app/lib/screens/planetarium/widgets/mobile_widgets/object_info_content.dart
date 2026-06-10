@@ -106,7 +106,8 @@ class MobileObjectInfoContent extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   'mag ${obj.magnitude!.toStringAsFixed(1)}',
@@ -184,7 +185,8 @@ class MobileObjectInfoContent extends ConsumerWidget {
                                 ? colors.warning
                                 : colors.error)
                         .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     altAz.$1 > 30
@@ -402,7 +404,8 @@ class MobileActionButton extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: NightshadeTypography.h6.copyWith(color: isPrimary ? onPrimary : colors.textPrimary),
+                style: NightshadeTypography.h6.copyWith(
+                    color: isPrimary ? onPrimary : colors.textPrimary),
               ),
             ),
           ],

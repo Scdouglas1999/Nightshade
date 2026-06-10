@@ -34,7 +34,7 @@ class TargetSuggestionService {
   static const double _typicalExposureSecs = 300.0;
 
   TargetSuggestionService({required LoggingService loggingService})
-      : _logging = loggingService;
+    : _logging = loggingService;
 
   /// Generate target suggestions for tonight based on the full night window.
   ///
@@ -69,7 +69,10 @@ class TargetSuggestionService {
     );
 
     if (targets.isEmpty) {
-      _logging.info('No targets provided for suggestion generation', source: _source);
+      _logging.info(
+        'No targets provided for suggestion generation',
+        source: _source,
+      );
       return [];
     }
 
@@ -109,8 +112,8 @@ class TargetSuggestionService {
     // altitude that already reflects the obstruction.
     final HorizonMask? horizonMask =
         (horizonProfile != null && !horizonProfile.isFlat)
-            ? horizonProfile.altitudeAtAzimuth
-            : null;
+        ? horizonProfile.altitudeAtAzimuth
+        : null;
     final scoringService = TargetScoringService(
       latitude: latitude,
       longitude: longitude,
@@ -199,7 +202,10 @@ class TargetSuggestionService {
       final tags = <String>[];
 
       if (fovShortAxisArcmin != null && fovShortAxisArcmin > 0) {
-        framingFitScore = _scoreFramingFit(target.sizeArcmin, fovShortAxisArcmin);
+        framingFitScore = _scoreFramingFit(
+          target.sizeArcmin,
+          fovShortAxisArcmin,
+        );
         const framingWeight = 0.08;
         const scaleFactor = 1.0 / (1.0 + framingWeight);
         adjustedTotalScore =
@@ -270,10 +276,7 @@ class TargetSuggestionService {
   /// Convert a database Target to a CelestialObject for scoring.
   CelestialObject _targetToCelestialObject(Target target) {
     // Target.ra is in decimal hours, Target.dec is in decimal degrees
-    final coordinate = CelestialCoordinate(
-      ra: target.ra,
-      dec: target.dec,
-    );
+    final coordinate = CelestialCoordinate(ra: target.ra, dec: target.dec);
 
     // Determine DSO type from object type string
     final dsoType = _parseDsoType(target.objectType);
@@ -459,7 +462,8 @@ class TargetSuggestionService {
     final parts = <String>[];
 
     // Peak altitude assessment
-    final peakAlt = score.visibility.peakAltitude ?? score.visibility.currentAltitude;
+    final peakAlt =
+        score.visibility.peakAltitude ?? score.visibility.currentAltitude;
     if (peakAlt >= 60) {
       parts.add('Excellent peak altitude (${peakAlt.toStringAsFixed(0)}°)');
     } else if (peakAlt >= 45) {
@@ -502,7 +506,8 @@ class TargetSuggestionService {
     // Imaging window
     final hoursAbove = score.visibility.hoursAboveMinAlt;
     if (hoursAbove != null && hoursAbove > 0) {
-      reasoning += ' ${hoursAbove.toStringAsFixed(1)} hours above minimum altitude.';
+      reasoning +=
+          ' ${hoursAbove.toStringAsFixed(1)} hours above minimum altitude.';
     }
 
     // Data progress
@@ -516,8 +521,8 @@ class TargetSuggestionService {
     // Framing fit note
     if (framingFitScore != null && fovShortAxisArcmin != null) {
       if (targetSizeArcmin != null && targetSizeArcmin > 0) {
-        final fillPct =
-            (targetSizeArcmin / fovShortAxisArcmin * 100).toStringAsFixed(0);
+        final fillPct = (targetSizeArcmin / fovShortAxisArcmin * 100)
+            .toStringAsFixed(0);
         if (framingFitScore >= 80) {
           reasoning += ' Well-framed at $fillPct% of FOV.';
         } else if (framingFitScore >= 50) {
@@ -530,9 +535,11 @@ class TargetSuggestionService {
 
     // Add warning summary if any significant warnings
     final criticalWarnings = score.warnings
-        .where((w) =>
-            w.severity == WarningSeverity.critical ||
-            w.severity == WarningSeverity.warning)
+        .where(
+          (w) =>
+              w.severity == WarningSeverity.critical ||
+              w.severity == WarningSeverity.warning,
+        )
         .toList();
     if (criticalWarnings.isNotEmpty) {
       final warningMsg = criticalWarnings.first.message;
@@ -654,8 +661,10 @@ class TargetSuggestionService {
 
         case SuggestionSortMode.highestAltitude:
           // Use peak altitude (night-aware) if available, else current altitude
-          final aAlt = a.visibility.peakAltitude ?? a.visibility.currentAltitude;
-          final bAlt = b.visibility.peakAltitude ?? b.visibility.currentAltitude;
+          final aAlt =
+              a.visibility.peakAltitude ?? a.visibility.currentAltitude;
+          final bAlt =
+              b.visibility.peakAltitude ?? b.visibility.currentAltitude;
           return bAlt.compareTo(aAlt);
 
         case SuggestionSortMode.nearestTransit:

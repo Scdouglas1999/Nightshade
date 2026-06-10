@@ -27,16 +27,26 @@ void main() {
     });
 
     test('convenience BorderRadius objects match their double tokens', () {
-      expect(NightshadeTokens.borderRadiusInline2,
-          BorderRadius.circular(NightshadeTokens.radiusInline2));
-      expect(NightshadeTokens.borderRadiusInline4,
-          BorderRadius.circular(NightshadeTokens.radiusInline4));
-      expect(NightshadeTokens.borderRadiusInline8,
-          BorderRadius.circular(NightshadeTokens.radiusInline8));
-      expect(NightshadeTokens.borderRadiusInline9,
-          BorderRadius.circular(NightshadeTokens.radiusInline9));
-      expect(NightshadeTokens.borderRadiusInline11,
-          BorderRadius.circular(NightshadeTokens.radiusInline11));
+      expect(
+        NightshadeTokens.borderRadiusInline2,
+        BorderRadius.circular(NightshadeTokens.radiusInline2),
+      );
+      expect(
+        NightshadeTokens.borderRadiusInline4,
+        BorderRadius.circular(NightshadeTokens.radiusInline4),
+      );
+      expect(
+        NightshadeTokens.borderRadiusInline8,
+        BorderRadius.circular(NightshadeTokens.radiusInline8),
+      );
+      expect(
+        NightshadeTokens.borderRadiusInline9,
+        BorderRadius.circular(NightshadeTokens.radiusInline9),
+      );
+      expect(
+        NightshadeTokens.borderRadiusInline11,
+        BorderRadius.circular(NightshadeTokens.radiusInline11),
+      );
     });
   });
 
@@ -63,40 +73,67 @@ void main() {
       expect(NightshadeTypography.fontSize28, 28.0);
     });
 
-    test('numeric tokens agree with the named styles that share their size', () {
-      // The mapping table says these named styles ARE these sizes; keep that
-      // true so a migration can pick either form interchangeably.
-      expect(NightshadeTypography.overline.fontSize,
-          NightshadeTypography.fontSize10);
-      expect(NightshadeTypography.captionSm.fontSize,
-          NightshadeTypography.fontSize11);
-      expect(NightshadeTypography.caption.fontSize,
-          NightshadeTypography.fontSize12);
-      expect(NightshadeTypography.bodySm.fontSize,
-          NightshadeTypography.fontSize13);
-      expect(NightshadeTypography.body.fontSize,
-          NightshadeTypography.fontSize14);
-      expect(NightshadeTypography.h4.fontSize,
-          NightshadeTypography.fontSize16);
-      expect(NightshadeTypography.telemetryMd.fontSize,
-          NightshadeTypography.fontSize18);
-      expect(NightshadeTypography.h3.fontSize,
-          NightshadeTypography.fontSize20);
-      expect(NightshadeTypography.telemetryLg.fontSize,
-          NightshadeTypography.fontSize22);
-      expect(NightshadeTypography.h2.fontSize,
-          NightshadeTypography.fontSize24);
-    });
+    test(
+      'numeric tokens agree with the named styles that share their size',
+      () {
+        // The mapping table says these named styles ARE these sizes; keep that
+        // true so a migration can pick either form interchangeably.
+        expect(
+          NightshadeTypography.overline.fontSize,
+          NightshadeTypography.fontSize10,
+        );
+        expect(
+          NightshadeTypography.captionSm.fontSize,
+          NightshadeTypography.fontSize11,
+        );
+        expect(
+          NightshadeTypography.caption.fontSize,
+          NightshadeTypography.fontSize12,
+        );
+        expect(
+          NightshadeTypography.bodySm.fontSize,
+          NightshadeTypography.fontSize13,
+        );
+        expect(
+          NightshadeTypography.body.fontSize,
+          NightshadeTypography.fontSize14,
+        );
+        expect(
+          NightshadeTypography.h4.fontSize,
+          NightshadeTypography.fontSize16,
+        );
+        expect(
+          NightshadeTypography.telemetryMd.fontSize,
+          NightshadeTypography.fontSize18,
+        );
+        expect(
+          NightshadeTypography.h3.fontSize,
+          NightshadeTypography.fontSize20,
+        );
+        expect(
+          NightshadeTypography.telemetryLg.fontSize,
+          NightshadeTypography.fontSize22,
+        );
+        expect(
+          NightshadeTypography.h2.fontSize,
+          NightshadeTypography.fontSize24,
+        );
+      },
+    );
 
     test('semibold-small inline combos fold onto named roles', () {
       // The migration map folds inline TextStyle(fontSize:, fontWeight:) combos
       // onto these roles; lock the (size + weight) of the two NEW roles added
       // for the semibold-small gap so the fold target stays correct.
-      expect(NightshadeTypography.labelStrong.fontSize,
-          NightshadeTypography.fontSize13);
+      expect(
+        NightshadeTypography.labelStrong.fontSize,
+        NightshadeTypography.fontSize13,
+      );
       expect(NightshadeTypography.labelStrong.fontWeight, FontWeight.w600);
-      expect(NightshadeTypography.labelStrongSm.fontSize,
-          NightshadeTypography.fontSize11);
+      expect(
+        NightshadeTypography.labelStrongSm.fontSize,
+        NightshadeTypography.fontSize11,
+      );
       expect(NightshadeTypography.labelStrongSm.fontWeight, FontWeight.w600);
     });
   });

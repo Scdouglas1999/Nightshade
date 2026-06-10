@@ -566,7 +566,8 @@ class _CustomAnnotationDrawingLayerState
               CustomAnnotationType.arrow => 'Arrow Label',
               CustomAnnotationType.text => 'Text Note',
             },
-            style: const TextStyle(color: Colors.white, fontSize: NightshadeTypography.fontSize16),
+            style: const TextStyle(
+                color: Colors.white, fontSize: NightshadeTypography.fontSize16),
           ),
           content: TextField(
             controller: controller,
@@ -802,11 +803,13 @@ class CustomAnnotationToolbar extends ConsumerWidget {
         backgroundColor: const Color(0xFF1A1A2E),
         title: const Text(
           'Clear All Annotations?',
-          style: TextStyle(color: Colors.white, fontSize: NightshadeTypography.fontSize16),
+          style: TextStyle(
+              color: Colors.white, fontSize: NightshadeTypography.fontSize16),
         ),
         content: const Text(
           'This will remove all custom annotations you have drawn on this image.',
-          style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: Colors.white70, fontSize: NightshadeTypography.fontSize13),
         ),
         actions: [
           TextButton(

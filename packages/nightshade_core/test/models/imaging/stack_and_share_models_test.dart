@@ -85,26 +85,27 @@ void main() {
       expect(bilinear.hashCode, isNot(base.hashCode));
     });
 
-    test('resolvedStackingConfig folds the OSC knobs into the engine config',
-        () {
-      const config = StackAndShareConfig(
-        stackingConfig: LiveStackingConfig(maxMatchStars: 250),
-        sensorMode: 'osc',
-        bayerPatternOverride: 'GRBG',
-        demosaicQuality: 'superpixel',
-      );
-      final resolved = config.resolvedStackingConfig;
-
-      // OSC knobs propagate to the engine config...
-      expect(resolved.sensorMode, 'osc');
-      expect(resolved.bayerPattern, 'GRBG');
-      expect(resolved.demosaicQuality, 'superpixel');
-      // ...while the wrapped engine parameters are preserved.
-      expect(resolved.maxMatchStars, 250);
-    });
-
     test(
-        'resolvedStackingConfig overrides whatever the wrapped engine config '
+      'resolvedStackingConfig folds the OSC knobs into the engine config',
+      () {
+        const config = StackAndShareConfig(
+          stackingConfig: LiveStackingConfig(maxMatchStars: 250),
+          sensorMode: 'osc',
+          bayerPatternOverride: 'GRBG',
+          demosaicQuality: 'superpixel',
+        );
+        final resolved = config.resolvedStackingConfig;
+
+        // OSC knobs propagate to the engine config...
+        expect(resolved.sensorMode, 'osc');
+        expect(resolved.bayerPattern, 'GRBG');
+        expect(resolved.demosaicQuality, 'superpixel');
+        // ...while the wrapped engine parameters are preserved.
+        expect(resolved.maxMatchStars, 250);
+      },
+    );
+
+    test('resolvedStackingConfig overrides whatever the wrapped engine config '
         'declared, so Stack-and-Share intent always wins', () {
       // The wrapped engine config carries the historic mono/bilinear defaults;
       // the Stack-and-Share-level knobs must override them.
@@ -133,19 +134,26 @@ void main() {
     });
 
     test('is 0 when total is negative', () {
-      const progress = StackAndShareProgress(framesTotal: -5, framesProcessed: 2);
+      const progress = StackAndShareProgress(
+        framesTotal: -5,
+        framesProcessed: 2,
+      );
       expect(progress.fraction, 0.0);
     });
 
     test('computes the processed/total ratio', () {
-      const progress =
-          StackAndShareProgress(framesTotal: 8, framesProcessed: 2);
+      const progress = StackAndShareProgress(
+        framesTotal: 8,
+        framesProcessed: 2,
+      );
       expect(progress.fraction, 0.25);
     });
 
     test('clamps to 1.0 when processed exceeds total', () {
-      const progress =
-          StackAndShareProgress(framesTotal: 4, framesProcessed: 6);
+      const progress = StackAndShareProgress(
+        framesTotal: 4,
+        framesProcessed: 6,
+      );
       expect(progress.fraction, 1.0);
     });
 
@@ -236,7 +244,10 @@ void main() {
         selected: [
           ...frames,
           const StackedFrameSelection(
-              imageId: 4, filePath: 'd.fits', filter: 'Ha'),
+            imageId: 4,
+            filePath: 'd.fits',
+            filter: 'Ha',
+          ),
         ],
         perFilterCounts: {'L': 2, 'Ha': 2},
         totalIntegrationSecs: 480,
@@ -281,22 +292,22 @@ void main() {
     final createdAt = DateTime.utc(2026, 5, 28, 3, 14, 15);
 
     StackAndShareResult build() => StackAndShareResult(
-          id: 42,
-          sessionId: 5,
-          targetId: 9,
-          targetName: 'NGC 7000',
-          width: 6248,
-          height: 4176,
-          framesStacked: 58,
-          framesAttempted: 60,
-          integrationSecs: 6960,
-          avgAlignmentResidual: 0.42,
-          avgHfr: 2.1,
-          filter: 'Ha',
-          createdAt: createdAt,
-          exportedImagePath: '/exports/ngc7000.png',
-          stats: const LiveStackingStats(stackedFrameCount: 58),
-        );
+      id: 42,
+      sessionId: 5,
+      targetId: 9,
+      targetName: 'NGC 7000',
+      width: 6248,
+      height: 4176,
+      framesStacked: 58,
+      framesAttempted: 60,
+      integrationSecs: 6960,
+      avgAlignmentResidual: 0.42,
+      avgHfr: 2.1,
+      filter: 'Ha',
+      createdAt: createdAt,
+      exportedImagePath: '/exports/ngc7000.png',
+      stats: const LiveStackingStats(stackedFrameCount: 58),
+    );
 
     test('framesRejected derives from attempted minus stacked', () {
       expect(build().framesRejected, 2);
@@ -331,41 +342,44 @@ void main() {
       expect(updated, isNot(original));
     });
 
-    test('isColor round-trips through copyWith and copyWith preserves channels',
-        () {
-      // A colour result built directly.
-      final colour = StackAndShareResult(
-        width: 6248,
-        height: 4176,
-        framesStacked: 40,
-        framesAttempted: 42,
-        integrationSecs: 4800,
-        avgAlignmentResidual: 0.5,
-        isColor: true,
-        channels: 3,
-        createdAt: createdAt,
-      );
-      expect(colour.isColor, isTrue);
-      expect(colour.channels, 3);
+    test(
+      'isColor round-trips through copyWith and copyWith preserves channels',
+      () {
+        // A colour result built directly.
+        final colour = StackAndShareResult(
+          width: 6248,
+          height: 4176,
+          framesStacked: 40,
+          framesAttempted: 42,
+          integrationSecs: 4800,
+          avgAlignmentResidual: 0.5,
+          isColor: true,
+          channels: 3,
+          createdAt: createdAt,
+        );
+        expect(colour.isColor, isTrue);
+        expect(colour.channels, 3);
 
-      // A copyWith that does not touch the colour fields preserves them.
-      final reExported =
-          colour.copyWith(exportedImagePath: '/exports/colour.png');
-      expect(reExported.isColor, isTrue);
-      expect(reExported.channels, 3);
-      expect(reExported.exportedImagePath, '/exports/colour.png');
+        // A copyWith that does not touch the colour fields preserves them.
+        final reExported = colour.copyWith(
+          exportedImagePath: '/exports/colour.png',
+        );
+        expect(reExported.isColor, isTrue);
+        expect(reExported.channels, 3);
+        expect(reExported.exportedImagePath, '/exports/colour.png');
 
-      // Flipping a mono result to colour and back round-trips cleanly.
-      final mono = build();
-      expect(mono.isColor, isFalse);
-      expect(mono.channels, 1);
-      final toColour = mono.copyWith(isColor: true, channels: 3);
-      expect(toColour.isColor, isTrue);
-      expect(toColour.channels, 3);
-      final backToMono = toColour.copyWith(isColor: false, channels: 1);
-      expect(backToMono.isColor, isFalse);
-      expect(backToMono.channels, 1);
-    });
+        // Flipping a mono result to colour and back round-trips cleanly.
+        final mono = build();
+        expect(mono.isColor, isFalse);
+        expect(mono.channels, 1);
+        final toColour = mono.copyWith(isColor: true, channels: 3);
+        expect(toColour.isColor, isTrue);
+        expect(toColour.channels, 3);
+        final backToMono = toColour.copyWith(isColor: false, channels: 1);
+        expect(backToMono.isColor, isFalse);
+        expect(backToMono.channels, 1);
+      },
+    );
 
     test('value equality and hashCode', () {
       expect(build(), build());
@@ -374,10 +388,7 @@ void main() {
       // The colour fields participate in equality.
       expect(build(), isNot(build().copyWith(isColor: true)));
       expect(build(), isNot(build().copyWith(channels: 3)));
-      expect(
-        build().copyWith(isColor: true).hashCode,
-        isNot(build().hashCode),
-      );
+      expect(build().copyWith(isColor: true).hashCode, isNot(build().hashCode));
     });
   });
 
@@ -422,24 +433,21 @@ void main() {
       const line = ShareStatLine(label: 'HFR', value: '2.1');
       expect(line.copyWith(value: '2.2').value, '2.2');
       expect(line.copyWith(), line);
-      expect(
-        const ShareStatLine(label: 'HFR', value: '2.1'),
-        line,
-      );
+      expect(const ShareStatLine(label: 'HFR', value: '2.1'), line);
     });
   });
 
   group('AstroBinExportMetadata', () {
     AstroBinExportMetadata build() => const AstroBinExportMetadata(
-          title: 'NGC 7000 — North America Nebula',
-          integrationSecs: 6960, // 1h 56m 00s
-          frames: 58,
-          telescope: 'Askar FRA400',
-          camera: 'ZWO ASI2600MM Pro',
-          filter: 'Ha',
-          focalLength: 400,
-          aperture: 72,
-        );
+      title: 'NGC 7000 — North America Nebula',
+      integrationSecs: 6960, // 1h 56m 00s
+      frames: 58,
+      telescope: 'Askar FRA400',
+      camera: 'ZWO ASI2600MM Pro',
+      filter: 'Ha',
+      focalLength: 400,
+      aperture: 72,
+    );
 
     test('perFrameExposureSecs and zero-frame guard', () {
       expect(build().perFrameExposureSecs, closeTo(120, 1e-9));
@@ -455,8 +463,11 @@ void main() {
 
     test('focalRatio computes f-number, null when aperture unknown', () {
       expect(build().focalRatio, closeTo(400 / 72, 1e-9));
-      const noAperture =
-          AstroBinExportMetadata(integrationSecs: 60, frames: 1, focalLength: 400);
+      const noAperture = AstroBinExportMetadata(
+        integrationSecs: 60,
+        frames: 1,
+        focalLength: 400,
+      );
       expect(noAperture.focalRatio, isNull);
     });
 

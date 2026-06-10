@@ -153,12 +153,16 @@ class SequenceLibraryTab extends ConsumerWidget {
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load sequences',
-                      style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
+                      style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize16),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       error.toString(),
-                      style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                      style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize12),
                     ),
                     const SizedBox(height: 16),
                     NightshadeButton(

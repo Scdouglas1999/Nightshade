@@ -28,22 +28,34 @@ ReadinessReport _report({
 void main() {
   group('ReadinessLevel', () {
     test('severity orders blocked > caution > ready', () {
-      expect(ReadinessLevel.blocked.severity,
-          greaterThan(ReadinessLevel.caution.severity));
-      expect(ReadinessLevel.caution.severity,
-          greaterThan(ReadinessLevel.ready.severity));
+      expect(
+        ReadinessLevel.blocked.severity,
+        greaterThan(ReadinessLevel.caution.severity),
+      );
+      expect(
+        ReadinessLevel.caution.severity,
+        greaterThan(ReadinessLevel.ready.severity),
+      );
     });
 
     test('worstOf returns the more severe level', () {
-      expect(ReadinessLevel.ready.worstOf(ReadinessLevel.caution),
-          ReadinessLevel.caution);
-      expect(ReadinessLevel.caution.worstOf(ReadinessLevel.blocked),
-          ReadinessLevel.blocked);
-      expect(ReadinessLevel.blocked.worstOf(ReadinessLevel.ready),
-          ReadinessLevel.blocked);
+      expect(
+        ReadinessLevel.ready.worstOf(ReadinessLevel.caution),
+        ReadinessLevel.caution,
+      );
+      expect(
+        ReadinessLevel.caution.worstOf(ReadinessLevel.blocked),
+        ReadinessLevel.blocked,
+      );
+      expect(
+        ReadinessLevel.blocked.worstOf(ReadinessLevel.ready),
+        ReadinessLevel.blocked,
+      );
       // Tie returns the receiver.
-      expect(ReadinessLevel.caution.worstOf(ReadinessLevel.caution),
-          ReadinessLevel.caution);
+      expect(
+        ReadinessLevel.caution.worstOf(ReadinessLevel.caution),
+        ReadinessLevel.caution,
+      );
     });
 
     test('each level has a label', () {
@@ -68,7 +80,11 @@ void main() {
       for (final id in ReadinessItemId.values) {
         final item = report.itemFor(id);
         expect(item, isNotNull, reason: 'missing item for $id');
-        expect(item!.level, ReadinessLevel.ready, reason: '$id should be ready');
+        expect(
+          item!.level,
+          ReadinessLevel.ready,
+          reason: '$id should be ready',
+        );
         expect(item.fixRoute, isNull, reason: '$id ready -> no fix route');
         expect(item.fixLabel, isNull, reason: '$id ready -> no fix label');
         expect(item.isReady, isTrue);
@@ -77,25 +93,29 @@ void main() {
   });
 
   group('criticalDevices — fail-closed', () {
-    test('camera disconnected blocks the whole report (explicit fail-closed)',
-        () {
-      final report = _report(cameraConnected: false);
+    test(
+      'camera disconnected blocks the whole report (explicit fail-closed)',
+      () {
+        final report = _report(cameraConnected: false);
 
-      final critical = report.itemFor(ReadinessItemId.criticalDevices);
-      expect(critical, isNotNull);
-      // The one truly-critical device being down must be BLOCKED, never
-      // caution and never silently ready.
-      expect(critical!.level, ReadinessLevel.blocked);
-      expect(critical.fixRoute, '/equipment');
-      expect(critical.fixLabel, isNotNull);
+        final critical = report.itemFor(ReadinessItemId.criticalDevices);
+        expect(critical, isNotNull);
+        // The one truly-critical device being down must be BLOCKED, never
+        // caution and never silently ready.
+        expect(critical!.level, ReadinessLevel.blocked);
+        expect(critical.fixRoute, '/equipment');
+        expect(critical.fixLabel, isNotNull);
 
-      // And it must drag the overall report to blocked.
-      expect(report.overall, ReadinessLevel.blocked);
-      expect(report.summaryLabel, 'Not ready');
-      expect(report.isReadyToImage, isFalse);
-      expect(report.blockedItems.map((i) => i.id),
-          contains(ReadinessItemId.criticalDevices));
-    });
+        // And it must drag the overall report to blocked.
+        expect(report.overall, ReadinessLevel.blocked);
+        expect(report.summaryLabel, 'Not ready');
+        expect(report.isReadyToImage, isFalse);
+        expect(
+          report.blockedItems.map((i) => i.id),
+          contains(ReadinessItemId.criticalDevices),
+        );
+      },
+    );
 
     test('no profile blocks the report regardless of camera', () {
       final report = _report(hasProfile: false, cameraConnected: true);
@@ -184,17 +204,19 @@ void main() {
       expect(report.overall, ReadinessLevel.caution);
     });
 
-    test('all three soft checks failing together stays caution, not blocked',
-        () {
-      final report = _report(
-        plateSolverReady: false,
-        darkLibraryHasCoverage: false,
-        focusKnown: false,
-      );
-      expect(report.blockedItems, isEmpty);
-      expect(report.cautionItems.length, 3);
-      expect(report.overall, ReadinessLevel.caution);
-    });
+    test(
+      'all three soft checks failing together stays caution, not blocked',
+      () {
+        final report = _report(
+          plateSolverReady: false,
+          darkLibraryHasCoverage: false,
+          focusKnown: false,
+        );
+        expect(report.blockedItems, isEmpty);
+        expect(report.cautionItems.length, 3);
+        expect(report.overall, ReadinessLevel.caution);
+      },
+    );
   });
 
   group('overall reduction is fail-closed', () {
@@ -261,8 +283,11 @@ void main() {
       ];
       for (final report in reports) {
         for (final item in report.items) {
-          expect((item.fixRoute == null), (item.fixLabel == null),
-              reason: 'fixRoute/fixLabel pairing violated for ${item.id}');
+          expect(
+            (item.fixRoute == null),
+            (item.fixLabel == null),
+            reason: 'fixRoute/fixLabel pairing violated for ${item.id}',
+          );
           // Ready items never carry a fix; non-ready items always do here.
           if (item.level == ReadinessLevel.ready) {
             expect(item.hasFix, isFalse, reason: '${item.id} ready has fix');

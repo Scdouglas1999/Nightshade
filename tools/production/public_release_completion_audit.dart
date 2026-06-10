@@ -21,8 +21,9 @@ const _markdownOutputPath =
     'docs/production-readiness/public-release-completion-audit.md';
 
 void main() async {
-  final goalText =
-      File(_goalPath).existsSync() ? File(_goalPath).readAsStringSync() : '';
+  final goalText = File(_goalPath).existsSync()
+      ? File(_goalPath).readAsStringSync()
+      : '';
   final gate = _readRequiredJson(_gatePath);
   final blockerInputs = _readOptionalJson(_blockerInputsPath);
   final externalEvidence = _readOptionalJson(_externalEvidencePath);
@@ -73,12 +74,12 @@ void main() async {
         : 'One or more P0 requirements remain blocked or weakly verified.',
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    report: report,
-    checks: checks,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(
+    _markdownOutputPath,
+  ).writeAsString(_renderMarkdown(report: report, checks: checks));
 
   stdout.writeln('Public release completion audit complete.');
   stdout.writeln(
@@ -86,7 +87,8 @@ void main() async {
   );
   stdout.writeln('Complete P0 checks: ${report['completeCount']}');
   stdout.writeln(
-      'Blocked/incomplete P0 checks: ${report['blockedOrIncompleteCount']}');
+    'Blocked/incomplete P0 checks: ${report['blockedOrIncompleteCount']}',
+  );
   stdout.writeln('JSON: $_jsonOutputPath');
   stdout.writeln('Markdown: $_markdownOutputPath');
 }
@@ -100,23 +102,19 @@ List<Map<String, Object?>> _sourceArtifacts({
   required Map<String, dynamic>? ownerMatrix,
   required Map<String, dynamic>? stagedBranchValidation,
   required Map<String, dynamic>? checklistAudit,
-}) =>
-    [
-      _sourceArtifact(_goalPath, null),
-      _sourceArtifact(_gatePath, gate),
-      _sourceArtifact(_blockerInputsPath, blockerInputs),
-      _sourceArtifact(_externalEvidencePath, externalEvidence),
-      _sourceArtifact(_stagingPath, staging),
-      _sourceArtifact(_splitPlanPath, splitPlan),
-      _sourceArtifact(_ownerMatrixPath, ownerMatrix),
-      _sourceArtifact(_stagedBranchValidationPath, stagedBranchValidation),
-      _sourceArtifact(_checklistAuditPath, checklistAudit),
-    ];
+}) => [
+  _sourceArtifact(_goalPath, null),
+  _sourceArtifact(_gatePath, gate),
+  _sourceArtifact(_blockerInputsPath, blockerInputs),
+  _sourceArtifact(_externalEvidencePath, externalEvidence),
+  _sourceArtifact(_stagingPath, staging),
+  _sourceArtifact(_splitPlanPath, splitPlan),
+  _sourceArtifact(_ownerMatrixPath, ownerMatrix),
+  _sourceArtifact(_stagedBranchValidationPath, stagedBranchValidation),
+  _sourceArtifact(_checklistAuditPath, checklistAudit),
+];
 
-Map<String, Object?> _sourceArtifact(
-  String path,
-  Map<String, dynamic>? json,
-) {
+Map<String, Object?> _sourceArtifact(String path, Map<String, dynamic>? json) {
   final file = File(path);
   return {
     'path': path,
@@ -177,21 +175,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Gate check `release_staging` requires a non-main clean branch with no untracked release-critical entries.',
       requiredInput: _requiredInput(blockers, ['release_staging']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'expectedEvidence'),
       gap:
           'Current branch=${staging?['currentBranch']}; entryCount=${staging?['entryCount']}; untrackedReleaseCritical=${staging?['untrackedReleaseCriticalCount']}; stagedBranchValidationPassed=${stagedBranchValidation?['passed']}. ${_blockerInput(blockers, 'release_staging')}',
     ),
@@ -199,10 +191,7 @@ List<_CompletionCheck> _buildChecks({
       id: 'split_generated_binary_native',
       requirement:
           'Split generated/binary/native changes from Dart/UI changes where possible.',
-      status: _splitPlanStatus(
-        gateChecks['release_staging'],
-        splitPlan,
-      ),
+      status: _splitPlanStatus(gateChecks['release_staging'], splitPlan),
       evidence: [
         _pathIfExists(_splitPlanPath),
         _pathIfExists(_ownerMatrixPath),
@@ -212,21 +201,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Split plan assigns dirty entries into generated, binary/evidence, native/bridge, core, UI, and other buckets with pathspec files; owner matrix separates must_ship, generated_only, binary_evidence, and defer_exclude; validator checks the staged index or branch diff against that matrix.',
       requiredInput: _requiredInput(blockers, ['release_staging']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['release_staging'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'release_staging',
+      ], 'expectedEvidence'),
       gap:
           'Planning artifacts exist, but no final clean PR has staged or excluded those buckets yet. bucketCount=${splitPlan?['bucketCount']}; entryCount=${splitPlan?['entryCount']}; ownerMatrixPaths=${ownerMatrix?['entryCount']}; stagedBranchValidationPassed=${stagedBranchValidation?['passed']}.',
     ),
@@ -243,21 +226,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Gate requires the external evidence validator to accept Linux build/package evidence.',
       requiredInput: _requiredInput(blockers, ['linux_release_build']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['linux_release_build'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['linux_release_build'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['linux_release_build'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'linux_release_build',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'linux_release_build',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'linux_release_build',
+      ], 'expectedEvidence'),
       gap: _blockerInput(blockers, 'linux_release_build'),
     ),
     _check(
@@ -273,21 +250,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Gate requires validated external full hardware/control smoke evidence covering all required device classes.',
       requiredInput: _requiredInput(blockers, ['hardware_control_smoke']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['hardware_control_smoke'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['hardware_control_smoke'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['hardware_control_smoke'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'hardware_control_smoke',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'hardware_control_smoke',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'hardware_control_smoke',
+      ], 'expectedEvidence'),
       gap: _blockerInput(blockers, 'hardware_control_smoke'),
     ),
     _check(
@@ -304,21 +275,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Manual migration probe must run against an older real database/profile and report migrationVerified=true. Synthetic regression tests cover old-schema/profile fixtures but do not replace the real older-profile artifact.',
       requiredInput: _requiredInput(blockers, ['manual_migration']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['manual_migration'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['manual_migration'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['manual_migration'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'manual_migration',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'manual_migration',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'manual_migration',
+      ], 'expectedEvidence'),
       gap: _blockerInput(blockers, 'manual_migration'),
     ),
     _check(
@@ -335,25 +300,22 @@ List<_CompletionCheck> _buildChecks({
       ],
       verification:
           'Emulator/mobile and reconnect evidence pass, but second physical LAN/firewall and real remote-control action evidence are still required.',
-      requiredInput: _requiredInput(
-        blockers,
-        ['second_device_lan_firewall', 'real_remote_control_actions'],
-      ),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['second_device_lan_firewall', 'real_remote_control_actions'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['second_device_lan_firewall', 'real_remote_control_actions'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['second_device_lan_firewall', 'real_remote_control_actions'],
-        'expectedEvidence',
-      ),
+      requiredInput: _requiredInput(blockers, [
+        'second_device_lan_firewall',
+        'real_remote_control_actions',
+      ]),
+      rerunCommands: _blockerStringList(blockers, [
+        'second_device_lan_firewall',
+        'real_remote_control_actions',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'second_device_lan_firewall',
+        'real_remote_control_actions',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'second_device_lan_firewall',
+        'real_remote_control_actions',
+      ], 'expectedEvidence'),
       gap:
           '${_blockerInput(blockers, 'second_device_lan_firewall')} ${_blockerInput(blockers, 'real_remote_control_actions')}',
     ),
@@ -365,7 +327,8 @@ List<_CompletionCheck> _buildChecks({
       evidence: [
         _gateEvidence(gateChecks['final_checklist']),
         _pathIfExists(
-            'docs/production-readiness/public-release-master-checklist.md'),
+          'docs/production-readiness/public-release-master-checklist.md',
+        ),
         _pathIfExists(_checklistAuditPath),
         _pathIfExists('docs/known-limitations.md'),
         _pathIfExists('docs/supported-hardware-by-platform.md'),
@@ -374,21 +337,15 @@ List<_CompletionCheck> _buildChecks({
       verification:
           'Final checklist gate requires checklist audit evidence with zero unchecked items, zero checked-without-evidence items, known limitations/support docs references, and validated final sign-off evidence.',
       requiredInput: _requiredInput(blockers, ['final_checklist']),
-      rerunCommands: _blockerStringList(
-        blockers,
-        ['final_checklist'],
-        'rerunCommands',
-      ),
-      acceptanceCriteria: _blockerStringList(
-        blockers,
-        ['final_checklist'],
-        'acceptanceCriteria',
-      ),
-      expectedEvidence: _blockerStringList(
-        blockers,
-        ['final_checklist'],
-        'expectedEvidence',
-      ),
+      rerunCommands: _blockerStringList(blockers, [
+        'final_checklist',
+      ], 'rerunCommands'),
+      acceptanceCriteria: _blockerStringList(blockers, [
+        'final_checklist',
+      ], 'acceptanceCriteria'),
+      expectedEvidence: _blockerStringList(blockers, [
+        'final_checklist',
+      ], 'expectedEvidence'),
       gap:
           '${_blockerInput(blockers, 'final_checklist')} Checklist audit unchecked=${checklistAudit?['uncheckedItemCount']}; checkedWithoutEvidence=${checklistAudit?['checkedWithoutEvidenceCount']}; knownLimitationsReferenced=${checklistAudit?['knownLimitationsReferenced']}; supportedHardwareByPlatformReferenced=${checklistAudit?['supportedHardwareByPlatformReferenced']}. External evidence checks passing=$externalPassed/$externalTotal.',
     ),
@@ -467,10 +424,7 @@ String _gateEvidence(Map<String, dynamic>? gateCheck) {
   return gateCheck['evidence']?.toString() ?? '';
 }
 
-String _blockerInput(
-  Map<String, Map<String, dynamic>> blockers,
-  String id,
-) {
+String _blockerInput(Map<String, Map<String, dynamic>> blockers, String id) {
   final blocker = blockers[id];
   if (blocker == null) return 'No blocker-input record found.';
   return 'Required input: ${blocker['requiredInput']}';
@@ -532,9 +486,7 @@ String _renderMarkdown({
     ..writeln('# Public Release Completion Audit')
     ..writeln()
     ..writeln('- Objective source: `$_goalPath`')
-    ..writeln(
-      '- Objective summary: ${report['objectiveSummary']}',
-    )
+    ..writeln('- Objective summary: ${report['objectiveSummary']}')
     ..writeln('- Decision: `${report['decision']}`')
     ..writeln('- Gate decision: `${report['gateDecision']}`')
     ..writeln('- Completion detail: ${report['completionDetail']}')
@@ -555,12 +507,15 @@ String _renderMarkdown({
   for (final artifact
       in (report['sourceArtifacts'] as List? ?? const []).whereType<Map>()) {
     final path = artifact['path']?.toString() ?? 'unknown';
-    final generated = artifact['generatedAt']?.toString() ??
+    final generated =
+        artifact['generatedAt']?.toString() ??
         artifact['fileModifiedAt']?.toString() ??
         'unknown';
-    final decision = artifact['decision']?.toString() ??
+    final decision =
+        artifact['decision']?.toString() ??
         (artifact['ready'] == null ? '' : 'ready=${artifact['ready']}');
-    final count = artifact['entryCount'] ??
+    final count =
+        artifact['entryCount'] ??
         artifact['bucketCount'] ??
         artifact['passedCount'] ??
         artifact['checkCount'] ??
@@ -667,15 +622,15 @@ class _CompletionCheck {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'requirement': requirement,
-        'status': status,
-        'evidence': evidence,
-        'verification': verification,
-        'requiredInput': requiredInput.isEmpty ? null : requiredInput,
-        'rerunCommands': rerunCommands,
-        'acceptanceCriteria': acceptanceCriteria,
-        'expectedEvidence': expectedEvidence,
-        'gap': gap,
-      };
+    'id': id,
+    'requirement': requirement,
+    'status': status,
+    'evidence': evidence,
+    'verification': verification,
+    'requiredInput': requiredInput.isEmpty ? null : requiredInput,
+    'rerunCommands': rerunCommands,
+    'acceptanceCriteria': acceptanceCriteria,
+    'expectedEvidence': expectedEvidence,
+    'gap': gap,
+  };
 }

@@ -55,7 +55,8 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
   void initState() {
     super.initState();
     _focusNode = widget.focusNode ?? FocusNode();
-    _controller = widget.controller ?? TextEditingController(text: widget.initialValue);
+    _controller =
+        widget.controller ?? TextEditingController(text: widget.initialValue);
     _focusNode.addListener(_handleFocusChange);
     _controller.addListener(_handleContentChange);
     _hasContent = _controller.text.isNotEmpty;
@@ -153,10 +154,7 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
             ),
             decoration: InputDecoration(
               hintText: widget.hint,
-              hintStyle: TextStyle(
-                fontSize: 13,
-                color: colors.textMuted,
-              ),
+              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
               prefixIcon: widget.prefixIcon != null
                   ? Icon(
                       widget.prefixIcon,
@@ -166,10 +164,7 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
                   : null,
               suffix: widget.suffixWidget,
               suffixText: widget.suffix,
-              suffixStyle: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
+              suffixStyle: TextStyle(fontSize: 12, color: colors.textSecondary),
               filled: true,
               fillColor: fillColor,
               contentPadding: NightshadeTokens.inputPadding,
@@ -204,18 +199,10 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             widget.errorText!,
-            style: TextStyle(
-              fontSize: 11,
-              color: colors.error,
-            ),
+            style: TextStyle(fontSize: 11, color: colors.error),
           ),
         ],
       ],
     );
   }
 }
-
-
-
-
-

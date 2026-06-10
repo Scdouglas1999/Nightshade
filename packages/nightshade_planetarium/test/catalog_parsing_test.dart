@@ -529,10 +529,36 @@ String _buildHygLine({
   String con = '',
 }) {
   return [
-    id, hip, hd, hr, gl, bf, proper, raHours, dec, dist,
-    pmra, pmdec, rv, mag, absmag, spect, ci,
-    x, y, z, vx, vy, vz, rarad, decrad, pmrarad, pmdecrad,
-    bayer, flam, con,
+    id,
+    hip,
+    hd,
+    hr,
+    gl,
+    bf,
+    proper,
+    raHours,
+    dec,
+    dist,
+    pmra,
+    pmdec,
+    rv,
+    mag,
+    absmag,
+    spect,
+    ci,
+    x,
+    y,
+    z,
+    vx,
+    vy,
+    vz,
+    rarad,
+    decrad,
+    pmrarad,
+    pmdecrad,
+    bayer,
+    flam,
+    con,
   ].join(',');
 }
 
@@ -565,10 +591,15 @@ Star? _parseHygLinePublic(String line) {
   }
 
   String starName = properName;
-  if (starName.isEmpty && bayerDesignation != null && bayerDesignation.isNotEmpty) {
-    starName = '$bayerDesignation ${_getConstellationGenitive(constellation ?? '')}';
+  if (starName.isEmpty &&
+      bayerDesignation != null &&
+      bayerDesignation.isNotEmpty) {
+    starName =
+        '$bayerDesignation ${_getConstellationGenitive(constellation ?? '')}';
   }
-  if (starName.isEmpty && flamsteedNumber != null && flamsteedNumber.isNotEmpty) {
+  if (starName.isEmpty &&
+      flamsteedNumber != null &&
+      flamsteedNumber.isNotEmpty) {
     starName = '$flamsteedNumber ${_getConstellationName(constellation ?? '')}';
   }
   if (starName.isEmpty) {
@@ -583,10 +614,7 @@ Star? _parseHygLinePublic(String line) {
   return Star(
     id: id,
     name: starName.trim(),
-    coordinates: CelestialCoordinate(
-      ra: raHours * 15,
-      dec: dec,
-    ),
+    coordinates: CelestialCoordinate(ra: raHours * 15, dec: dec),
     magnitude: magnitude,
     spectralType: spectralType?.isNotEmpty == true ? spectralType : null,
     colorIndex: colorIndex,
@@ -710,7 +738,9 @@ DeepSkyObject? _parseOpenNgcLinePublic(String line) {
 
   final catalogIds = <String>[];
   if (parts.length > 27 && parts[27].isNotEmpty) {
-    catalogIds.addAll(parts[27].split(',').map((s) => s.trim()).where((s) => s.isNotEmpty));
+    catalogIds.addAll(
+      parts[27].split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+    );
   }
   if (messier != null) {
     catalogIds.add(messier);
@@ -743,7 +773,10 @@ DeepSkyObject? _parseOpenNgcLinePublic(String line) {
 
 /// Replicates OpenNgcDsoCatalog._normalizeCatalogName
 String _normalizeCatalogNamePublic(String name) {
-  final match = RegExp(r'^(NGC|IC)\s*(0*)(\d+)$', caseSensitive: false).firstMatch(name);
+  final match = RegExp(
+    r'^(NGC|IC)\s*(0*)(\d+)$',
+    caseSensitive: false,
+  ).firstMatch(name);
   if (match != null) {
     final prefix = match.group(1)!.toUpperCase();
     final number = match.group(3)!;
@@ -788,46 +821,89 @@ double? _parseDecPublic(String decStr) {
 /// Replicates OpenNgcDsoCatalog._parseDsoType
 DsoType _parseDsoTypePublic(String typeCode) {
   switch (typeCode) {
-    case '*': return DsoType.star;
-    case '**': return DsoType.doubleStar;
-    case '*Ass': return DsoType.association;
-    case 'OCl': return DsoType.openCluster;
-    case 'GCl': return DsoType.globularCluster;
-    case 'Cl+N': return DsoType.clusterWithNebulosity;
-    case 'G': return DsoType.galaxy;
-    case 'GPair': return DsoType.galaxyPair;
-    case 'GTrpl': return DsoType.galaxyTriplet;
-    case 'GGroup': return DsoType.galaxyGroup;
-    case 'PN': return DsoType.planetaryNebula;
-    case 'HII': return DsoType.hiiRegion;
-    case 'DrkN': return DsoType.darkNebula;
-    case 'EmN': return DsoType.emissionNebula;
-    case 'Neb': return DsoType.nebula;
-    case 'RfN': return DsoType.reflectionNebula;
-    case 'SNR': return DsoType.supernova;
-    case 'Nova': return DsoType.nova;
-    default: return DsoType.other;
+    case '*':
+      return DsoType.star;
+    case '**':
+      return DsoType.doubleStar;
+    case '*Ass':
+      return DsoType.association;
+    case 'OCl':
+      return DsoType.openCluster;
+    case 'GCl':
+      return DsoType.globularCluster;
+    case 'Cl+N':
+      return DsoType.clusterWithNebulosity;
+    case 'G':
+      return DsoType.galaxy;
+    case 'GPair':
+      return DsoType.galaxyPair;
+    case 'GTrpl':
+      return DsoType.galaxyTriplet;
+    case 'GGroup':
+      return DsoType.galaxyGroup;
+    case 'PN':
+      return DsoType.planetaryNebula;
+    case 'HII':
+      return DsoType.hiiRegion;
+    case 'DrkN':
+      return DsoType.darkNebula;
+    case 'EmN':
+      return DsoType.emissionNebula;
+    case 'Neb':
+      return DsoType.nebula;
+    case 'RfN':
+      return DsoType.reflectionNebula;
+    case 'SNR':
+      return DsoType.supernova;
+    case 'Nova':
+      return DsoType.nova;
+    default:
+      return DsoType.other;
   }
 }
 
 // Constellation lookup tables (subset for testing)
 const _constellationGenitives = {
-  'AND': 'Andromedae', 'ARI': 'Arietis', 'AUR': 'Aurigae',
-  'BOO': 'Bootis', 'CMA': 'Canis Majoris', 'CMI': 'Canis Minoris',
-  'CYG': 'Cygni', 'DRA': 'Draconis', 'GEM': 'Geminorum',
-  'HYA': 'Hydrae', 'LEO': 'Leonis', 'LYR': 'Lyrae',
-  'ORI': 'Orionis', 'PER': 'Persei', 'SCO': 'Scorpii',
-  'TAU': 'Tauri', 'UMA': 'Ursae Majoris', 'UMI': 'Ursae Minoris',
+  'AND': 'Andromedae',
+  'ARI': 'Arietis',
+  'AUR': 'Aurigae',
+  'BOO': 'Bootis',
+  'CMA': 'Canis Majoris',
+  'CMI': 'Canis Minoris',
+  'CYG': 'Cygni',
+  'DRA': 'Draconis',
+  'GEM': 'Geminorum',
+  'HYA': 'Hydrae',
+  'LEO': 'Leonis',
+  'LYR': 'Lyrae',
+  'ORI': 'Orionis',
+  'PER': 'Persei',
+  'SCO': 'Scorpii',
+  'TAU': 'Tauri',
+  'UMA': 'Ursae Majoris',
+  'UMI': 'Ursae Minoris',
   'VIR': 'Virginis',
 };
 
 const _constellationNames = {
-  'AND': 'Andromeda', 'ARI': 'Aries', 'AUR': 'Auriga',
-  'BOO': 'Boötes', 'CMA': 'Canis Major', 'CMI': 'Canis Minor',
-  'CYG': 'Cygnus', 'DRA': 'Draco', 'GEM': 'Gemini',
-  'HYA': 'Hydra', 'LEO': 'Leo', 'LYR': 'Lyra',
-  'ORI': 'Orion', 'PER': 'Perseus', 'SCO': 'Scorpius',
-  'TAU': 'Taurus', 'UMA': 'Ursa Major', 'UMI': 'Ursa Minor',
+  'AND': 'Andromeda',
+  'ARI': 'Aries',
+  'AUR': 'Auriga',
+  'BOO': 'Boötes',
+  'CMA': 'Canis Major',
+  'CMI': 'Canis Minor',
+  'CYG': 'Cygnus',
+  'DRA': 'Draco',
+  'GEM': 'Gemini',
+  'HYA': 'Hydra',
+  'LEO': 'Leo',
+  'LYR': 'Lyra',
+  'ORI': 'Orion',
+  'PER': 'Perseus',
+  'SCO': 'Scorpius',
+  'TAU': 'Taurus',
+  'UMA': 'Ursa Major',
+  'UMI': 'Ursa Minor',
   'VIR': 'Virgo',
 };
 

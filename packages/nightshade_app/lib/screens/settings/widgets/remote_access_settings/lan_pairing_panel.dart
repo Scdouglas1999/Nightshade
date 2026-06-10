@@ -51,7 +51,8 @@ class _RemotePairingQrPanel extends StatelessWidget {
         children: [
           Text(
             l10n.text('remoteAccessQrTitle'),
-            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 6),
           Text(
@@ -84,7 +85,9 @@ class _RemotePairingQrPanel extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               l10n.text('remoteAccessQrStartHint'),
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             ),
           ] else if (pairingCode != null && qrPayload != null) ...[
             Center(
@@ -99,7 +102,9 @@ class _RemotePairingQrPanel extends StatelessWidget {
           ] else if (pairingCode != null && qrPayload == null) ...[
             Text(
               l10n.text('remoteAccessQrNoLanIp'),
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.warning),
             ),
             const SizedBox(height: 8),
             Center(

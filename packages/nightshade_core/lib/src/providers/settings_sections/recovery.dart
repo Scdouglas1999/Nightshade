@@ -23,7 +23,9 @@ extension RecoverySettingsSection on AppSettingsNotifier {
   Future<void> setRecoveryDefaultRetryIntervalMins(double value) async {
     final clamped = value.clamp(1.0, 240.0);
     await _saveSetting(
-        'recovery_default_retry_interval_mins', clamped.toString());
+      'recovery_default_retry_interval_mins',
+      clamped.toString(),
+    );
     _patchState((s) => s.copyWith(recoveryDefaultRetryIntervalMins: clamped));
   }
 
@@ -32,7 +34,9 @@ extension RecoverySettingsSection on AppSettingsNotifier {
   Future<void> setRecoveryDefaultMaxDurationMins(double value) async {
     final clamped = value.clamp(1.0, 1440.0);
     await _saveSetting(
-        'recovery_default_max_duration_mins', clamped.toString());
+      'recovery_default_max_duration_mins',
+      clamped.toString(),
+    );
     _patchState((s) => s.copyWith(recoveryDefaultMaxDurationMins: clamped));
   }
 
@@ -41,7 +45,9 @@ extension RecoverySettingsSection on AppSettingsNotifier {
   /// rig (guide-star loss, dew, weather, drift).
   Future<void> setRecoveryStopTrackingDuringRecovery(bool value) async {
     await _saveSetting(
-        'recovery_stop_tracking_during_recovery', value.toString());
+      'recovery_stop_tracking_during_recovery',
+      value.toString(),
+    );
     _patchState((s) => s.copyWith(recoveryStopTrackingDuringRecovery: value));
   }
 

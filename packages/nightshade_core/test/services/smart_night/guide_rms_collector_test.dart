@@ -26,17 +26,21 @@ void main() {
     required double exposureSeconds,
     double? guideRmsTotal,
   }) {
-    return db.imagesDao.createImage(
-      CapturedImagesCompanion(
-        filePath: Value('C:/frames/${capturedAt.millisecondsSinceEpoch}.fits'),
-        fileName: Value('${capturedAt.millisecondsSinceEpoch}.fits'),
-        sessionId: Value(sessionId),
-        frameType: const Value('light'),
-        exposureDuration: Value(exposureSeconds),
-        guidingRmsTotal: Value(guideRmsTotal),
-        capturedAt: Value(capturedAt),
-      ),
-    ).then((_) {});
+    return db.imagesDao
+        .createImage(
+          CapturedImagesCompanion(
+            filePath: Value(
+              'C:/frames/${capturedAt.millisecondsSinceEpoch}.fits',
+            ),
+            fileName: Value('${capturedAt.millisecondsSinceEpoch}.fits'),
+            sessionId: Value(sessionId),
+            frameType: const Value('light'),
+            exposureDuration: Value(exposureSeconds),
+            guidingRmsTotal: Value(guideRmsTotal),
+            capturedAt: Value(capturedAt),
+          ),
+        )
+        .then((_) {});
   }
 
   test('writes one guide RMS history row from valid session frames', () async {

@@ -40,9 +40,14 @@ void main() {
       expect(props.hasJpeg, isTrue);
       expect(props.hasPng, isFalse);
       expect(props.frame, HipsFrame.equatorial);
-      expect(props.obsCopyright,
-          'Digitized Sky Survey - STScI/NASA, Healpixed by CDS');
-      expect(props.obsCopyrightUrl, 'http://archive.stsci.edu/dss/copyright.html');
+      expect(
+        props.obsCopyright,
+        'Digitized Sky Survey - STScI/NASA, Healpixed by CDS',
+      );
+      expect(
+        props.obsCopyrightUrl,
+        'http://archive.stsci.edu/dss/copyright.html',
+      );
       expect(props.creator, 'Boch T. (CDS)');
       expect(props.initialRaDeg, closeTo(83.6331, 1e-9));
       expect(props.initialDecDeg, closeTo(22.0145, 1e-9));
@@ -89,10 +94,7 @@ and part two
     test('accepts the jpg alias for jpeg', () {
       const doc =
           'hips_order = 3\nhips_frame = equatorial\nhips_tile_format = jpg\n';
-      expect(
-        HipsProperties.parse(doc).tileFormats,
-        [HipsTileFormat.jpeg],
-      );
+      expect(HipsProperties.parse(doc).tileFormats, [HipsTileFormat.jpeg]);
     });
 
     test('skips unknown formats but keeps recognised ones', () {
@@ -105,8 +107,13 @@ and part two
       const doc = 'hips_frame = equatorial\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_order')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_order',
+          ),
+        ),
       );
     });
 
@@ -114,8 +121,13 @@ and part two
       const doc = 'hips_order = 3\nhips_frame = equatorial\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_tile_format')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_tile_format',
+          ),
+        ),
       );
     });
 
@@ -123,8 +135,13 @@ and part two
       const doc = 'hips_order = 3\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_frame')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_frame',
+          ),
+        ),
       );
     });
 
@@ -133,9 +150,11 @@ and part two
           'hips_order = 3\nhips_frame = supergalactic\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_frame')
-            .having((e) => e.rawValue, 'rawValue', 'supergalactic')),
+        throwsA(
+          isA<HipsPropertiesParseException>()
+              .having((e) => e.key, 'key', 'hips_frame')
+              .having((e) => e.rawValue, 'rawValue', 'supergalactic'),
+        ),
       );
     });
 
@@ -144,8 +163,13 @@ and part two
           'hips_order = 3\nhips_frame = equatorial\nhips_tile_format = tiff bmp\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_tile_format')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_tile_format',
+          ),
+        ),
       );
     });
 
@@ -168,37 +192,56 @@ and part two
     });
 
     test('non-power-of-two tile width is a surfaced error', () {
-      const doc = 'hips_order = 3\nhips_frame = equatorial\n'
+      const doc =
+          'hips_order = 3\nhips_frame = equatorial\n'
           'hips_tile_format = jpeg\nhips_tile_width = 500\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_tile_width')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_tile_width',
+          ),
+        ),
       );
     });
 
     test('order_min greater than order is a surfaced error', () {
-      const doc = 'hips_order = 3\nhips_order_min = 5\n'
+      const doc =
+          'hips_order = 3\nhips_order_min = 5\n'
           'hips_frame = equatorial\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_order_min')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_order_min',
+          ),
+        ),
       );
     });
 
     test('duplicate key is a surfaced error (not last-write-wins)', () {
-      const doc = 'hips_order = 3\nhips_order = 4\n'
+      const doc =
+          'hips_order = 3\nhips_order = 4\n'
           'hips_frame = equatorial\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_order')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_order',
+          ),
+        ),
       );
     });
 
     test('a line without an = separator is a surfaced error', () {
-      const doc = 'hips_order = 3\nthis is not a property\n'
+      const doc =
+          'hips_order = 3\nthis is not a property\n'
           'hips_frame = equatorial\nhips_tile_format = jpeg\n';
       expect(
         () => HipsProperties.parse(doc),
@@ -207,12 +250,18 @@ and part two
     });
 
     test('out-of-range initial dec is a surfaced error', () {
-      const doc = 'hips_order = 3\nhips_frame = equatorial\n'
+      const doc =
+          'hips_order = 3\nhips_frame = equatorial\n'
           'hips_tile_format = jpeg\nhips_initial_dec = 120\n';
       expect(
         () => HipsProperties.parse(doc),
-        throwsA(isA<HipsPropertiesParseException>()
-            .having((e) => e.key, 'key', 'hips_initial_dec')),
+        throwsA(
+          isA<HipsPropertiesParseException>().having(
+            (e) => e.key,
+            'key',
+            'hips_initial_dec',
+          ),
+        ),
       );
     });
   });
@@ -236,14 +285,8 @@ and part two
     });
 
     test('directory bucket is floor(npix/10000)*10000', () {
-      expect(
-        HipsTileId(survey: 's', norder: 5, npix: 0).directoryBucket,
-        0,
-      );
-      expect(
-        HipsTileId(survey: 's', norder: 5, npix: 9999).directoryBucket,
-        0,
-      );
+      expect(HipsTileId(survey: 's', norder: 5, npix: 0).directoryBucket, 0);
+      expect(HipsTileId(survey: 's', norder: 5, npix: 9999).directoryBucket, 0);
       expect(
         HipsTileId(survey: 's', norder: 6, npix: 10000).directoryBucket,
         10000,
@@ -284,7 +327,11 @@ and part two
         'Norder3/Allsky.jpg',
       );
       expect(
-        HipsTileId.allskyUrl('https://h/DSS/DSS2Merged/', 3, HipsTileFormat.jpeg),
+        HipsTileId.allskyUrl(
+          'https://h/DSS/DSS2Merged/',
+          3,
+          HipsTileFormat.jpeg,
+        ),
         'https://h/DSS/DSS2Merged/Norder3/Allsky.jpg',
       );
     });
@@ -296,10 +343,7 @@ and part two
         throwsA(isA<ArgumentError>()),
       );
       // Boundary: npix 11 at order 0 is valid.
-      expect(
-        HipsTileId(survey: 's', norder: 0, npix: 11).npix,
-        11,
-      );
+      expect(HipsTileId(survey: 's', norder: 0, npix: 11).npix, 11);
     });
 
     test('numberOfTiles rejects an out-of-range order', () {
@@ -315,30 +359,49 @@ and part two
         SurveySource.values.length,
       );
       for (final source in SurveySource.values) {
-        expect(HipsSurveyRegistry.entries.containsKey(source), isTrue,
-            reason: 'missing entry for $source');
+        expect(
+          HipsSurveyRegistry.entries.containsKey(source),
+          isTrue,
+          reason: 'missing entry for $source',
+        );
       }
     });
 
     test('hips ids match the framing hips2fits cutout mapping exactly', () {
       // Kept byte-identical to FramingNotifier._getHipsId so the tile path and
       // the single-cutout path stream the same survey.
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.dss2Red),
-          'CDS/P/DSS2/red');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.dss2Blue),
-          'CDS/P/DSS2/blue');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.dss2IR),
-          'CDS/P/DSS2/NIR');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.sdss),
-          'CDS/P/SDSS9/color');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.twomassJ),
-          'CDS/P/2MASS/J');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.twomassH),
-          'CDS/P/2MASS/H');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.twomassK),
-          'CDS/P/2MASS/K');
-      expect(HipsSurveyRegistry.hipsIdFor(SurveySource.wise12),
-          'CDS/P/WISE/W3');
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.dss2Red),
+        'CDS/P/DSS2/red',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.dss2Blue),
+        'CDS/P/DSS2/blue',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.dss2IR),
+        'CDS/P/DSS2/NIR',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.sdss),
+        'CDS/P/SDSS9/color',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.twomassJ),
+        'CDS/P/2MASS/J',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.twomassH),
+        'CDS/P/2MASS/H',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.twomassK),
+        'CDS/P/2MASS/K',
+      );
+      expect(
+        HipsSurveyRegistry.hipsIdFor(SurveySource.wise12),
+        'CDS/P/WISE/W3',
+      );
     });
 
     test('DSS2 red and blue expose live-verified base URLs', () {
@@ -365,8 +428,11 @@ and part two
         SurveySource.twomassK,
         SurveySource.wise12,
       ]) {
-        expect(HipsSurveyRegistry.verifiedBaseUrlFor(source), isNull,
-            reason: '$source must be resolved at runtime');
+        expect(
+          HipsSurveyRegistry.verifiedBaseUrlFor(source),
+          isNull,
+          reason: '$source must be resolved at runtime',
+        );
         expect(HipsSurveyRegistry.entryFor(source).hasVerifiedBaseUrl, isFalse);
       }
     });

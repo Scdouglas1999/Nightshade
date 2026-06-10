@@ -16,6 +16,7 @@ enum DecisionCategory {
   pluginNodeInvoked('plugin_node_invoked'),
   manualIntervention('manual_intervention'),
   systemEvent('system_event'),
+
   /// Unknown wire key — only happens if Rust adds a new variant
   /// before the Dart enum updates. We deliberately surface it as
   /// distinct so the Replay UI can render an "unknown" badge instead
@@ -127,7 +128,9 @@ class ReplayDecision {
     } else {
       try {
         final decoded = jsonDecode(detailsJson);
-        parsed = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+        parsed = decoded is Map<String, dynamic>
+            ? decoded
+            : <String, dynamic>{};
       } on FormatException {
         // Loud-fail policy (CLAUDE.md): we keep the row but mark the
         // payload as malformed so the replay UI can render it instead
@@ -184,23 +187,23 @@ class ReplayDecision {
   /// Re-encode for storage. Used by the service when persisting a
   /// row received over the bridge.
   Map<String, Object?> toInsertColumns() => {
-        'sequence_run_id': sequenceRunId,
-        'timestamp_unix_ms': timestamp.toUtc().millisecondsSinceEpoch,
-        'category': category.wireKey,
-        'summary': summary,
-        'details_json': jsonEncode(details),
-        'node_id': nodeId,
-      };
+    'sequence_run_id': sequenceRunId,
+    'timestamp_unix_ms': timestamp.toUtc().millisecondsSinceEpoch,
+    'category': category.wireKey,
+    'summary': summary,
+    'details_json': jsonEncode(details),
+    'node_id': nodeId,
+  };
 
   ReplayDecision copyWith({int? id}) => ReplayDecision(
-        id: id ?? this.id,
-        sequenceRunId: sequenceRunId,
-        timestamp: timestamp,
-        category: category,
-        summary: summary,
-        details: details,
-        nodeId: nodeId,
-      );
+    id: id ?? this.id,
+    sequenceRunId: sequenceRunId,
+    timestamp: timestamp,
+    category: category,
+    summary: summary,
+    details: details,
+    nodeId: nodeId,
+  );
 
   @override
   String toString() =>

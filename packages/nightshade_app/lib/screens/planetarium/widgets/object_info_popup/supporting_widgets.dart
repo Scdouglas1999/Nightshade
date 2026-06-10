@@ -47,7 +47,8 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
             break;
         }
       },
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       color: widget.colors.surface,
       itemBuilder: (context) => [
         PopupMenuItem<SlewMode>(
@@ -166,7 +167,8 @@ class PopupInfoChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
-            style: NightshadeTypography.labelQuiet.copyWith(color: Colors.white70),
+            style:
+                NightshadeTypography.labelQuiet.copyWith(color: Colors.white70),
           ),
         ],
       ),
@@ -283,9 +285,10 @@ class _PopupActionButtonState extends State<PopupActionButton> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: NightshadeTypography.labelQuiet.copyWith(color: widget.isPrimary
-                        ? onPrimary
-                        : widget.colors.textSecondary),
+                  style: NightshadeTypography.labelQuiet.copyWith(
+                      color: widget.isPrimary
+                          ? onPrimary
+                          : widget.colors.textSecondary),
                 ),
               ),
             ],

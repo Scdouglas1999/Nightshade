@@ -43,11 +43,7 @@ void main() {
   /// Inserts a target and returns its id.
   Future<int> seedTarget({String name = 'M42'}) {
     return targetsDao.createTarget(
-      TargetsCompanion.insert(
-        name: name,
-        ra: 5.5,
-        dec: -5.4,
-      ),
+      TargetsCompanion.insert(name: name, ra: 5.5, dec: -5.4),
     );
   }
 
@@ -170,19 +166,17 @@ void main() {
 
       // Lights-only, both gates honoured: exactly the 3 qualifying lights.
       expect(summary.selectedCount, 3);
-      expect(
-        summary.selected.map((s) => s.imageId).toSet(),
-        {l1Id, bestId, haId},
-      );
+      expect(summary.selected.map((s) => s.imageId).toSet(), {
+        l1Id,
+        bestId,
+        haId,
+      });
 
       // Excluded carries the rejected + low-quality lights (not darks/flats).
       expect(summary.excludedCount, 2);
 
       // Reference is the best-quality frame (95 score, lowest hfr).
-      expect(
-        summary.selected.firstWhere((s) => s.isReference).imageId,
-        bestId,
-      );
+      expect(summary.selected.firstWhere((s) => s.isReference).imageId, bestId);
       expect(summary.referencePath, '/data/l2_best.fits');
 
       // Per-filter counts: 2 L + 1 Ha.
@@ -195,46 +189,48 @@ void main() {
       expect(summary.targetName, 'M42');
     });
 
-    test('reference tie-breaks on hfr then capturedAt when scores tie',
-        () async {
-      final sessionId = await seedSession();
+    test(
+      'reference tie-breaks on hfr then capturedAt when scores tie',
+      () async {
+        final sessionId = await seedSession();
 
-      // Three lights, all score 90. The winner should be the lowest-hfr one.
-      await seedFrame(
-        sessionId: sessionId,
-        filter: 'L',
-        qualityScore: 90,
-        hfr: 3.2,
-        capturedAt: DateTime.utc(2026, 1, 1, 22, 0),
-        fileName: 'a.fits',
-      );
-      final lowestHfrId = await seedFrame(
-        sessionId: sessionId,
-        filter: 'L',
-        qualityScore: 90,
-        hfr: 2.1,
-        capturedAt: DateTime.utc(2026, 1, 1, 22, 5),
-        fileName: 'b.fits',
-      );
-      await seedFrame(
-        sessionId: sessionId,
-        filter: 'L',
-        qualityScore: 90,
-        hfr: 2.8,
-        capturedAt: DateTime.utc(2026, 1, 1, 22, 10),
-        fileName: 'c.fits',
-      );
+        // Three lights, all score 90. The winner should be the lowest-hfr one.
+        await seedFrame(
+          sessionId: sessionId,
+          filter: 'L',
+          qualityScore: 90,
+          hfr: 3.2,
+          capturedAt: DateTime.utc(2026, 1, 1, 22, 0),
+          fileName: 'a.fits',
+        );
+        final lowestHfrId = await seedFrame(
+          sessionId: sessionId,
+          filter: 'L',
+          qualityScore: 90,
+          hfr: 2.1,
+          capturedAt: DateTime.utc(2026, 1, 1, 22, 5),
+          fileName: 'b.fits',
+        );
+        await seedFrame(
+          sessionId: sessionId,
+          filter: 'L',
+          qualityScore: 90,
+          hfr: 2.8,
+          capturedAt: DateTime.utc(2026, 1, 1, 22, 10),
+          fileName: 'c.fits',
+        );
 
-      final summary = await selector.selectForSession(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(),
-      );
+        final summary = await selector.selectForSession(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(),
+        );
 
-      expect(
-        summary.selected.firstWhere((s) => s.isReference).imageId,
-        lowestHfrId,
-      );
-    });
+        expect(
+          summary.selected.firstWhere((s) => s.isReference).imageId,
+          lowestHfrId,
+        );
+      },
+    );
 
     test('graded frame outranks ungraded frame as reference', () async {
       final sessionId = await seedSession();
@@ -359,9 +355,11 @@ void main() {
           sessionId: sessionId,
           config: const StackAndShareConfig(minQualityScore: 50),
         ),
-        throwsA(isA<NoLightsToStackException>()
-            .having((e) => e.framesExamined, 'framesExamined', 3)
-            .having((e) => e.lightsExcluded, 'lightsExcluded', 2)),
+        throwsA(
+          isA<NoLightsToStackException>()
+              .having((e) => e.framesExamined, 'framesExamined', 3)
+              .having((e) => e.lightsExcluded, 'lightsExcluded', 2),
+        ),
       );
     });
 
@@ -427,10 +425,7 @@ void main() {
       expect(summary.selectedCount, 2);
       expect(summary.totalIntegrationSecs, 240.0);
       expect(summary.targetName, 'NGC 7000');
-      expect(
-        summary.selected.firstWhere((s) => s.isReference).imageId,
-        bestId,
-      );
+      expect(summary.selected.firstWhere((s) => s.isReference).imageId, bestId);
     });
 
     test('throws StateError for a missing target', () async {
@@ -461,7 +456,8 @@ void main() {
         capturedAt: DateTime.utc(2026, 1, 1),
         createdAt: DateTime.utc(2026, 1, 1),
         isAccepted: false,
-        qualityScore: 10, // also below threshold, but rejected wins (gate order)
+        qualityScore:
+            10, // also below threshold, but rejected wins (gate order)
       );
       expect(
         StackLightSelector.exclusionReasonFor(rejected, config),
@@ -491,7 +487,10 @@ void main() {
       final kept = lowQuality.copyWith(qualityScore: const Value(80));
       expect(StackLightSelector.exclusionReasonFor(kept, config), isNull);
 
-      final dark = kept.copyWith(frameType: 'dark', qualityScore: const Value(1));
+      final dark = kept.copyWith(
+        frameType: 'dark',
+        qualityScore: const Value(1),
+      );
       expect(StackLightSelector.exclusionReasonFor(dark, config), isNull);
     });
   });

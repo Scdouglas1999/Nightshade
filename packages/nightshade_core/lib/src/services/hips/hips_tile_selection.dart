@@ -95,7 +95,8 @@ class HipsMeshVertex {
   });
 
   @override
-  String toString() => 'HipsMeshVertex(u: $u, v: $v, ra: $raHours h, '
+  String toString() =>
+      'HipsMeshVertex(u: $u, v: $v, ra: $raHours h, '
       'dec: $decDegrees deg, screen: $screen)';
 }
 
@@ -605,13 +606,15 @@ class HipsTileSelection {
         final raHours = _normalizeRaHours(ang.raDeg / 15.0);
         final decDeg = ang.decDeg;
         final screen = projection.raDecToScreen(raHours, decDeg);
-        vertices.add(HipsMeshVertex(
-          u: u,
-          v: v,
-          raHours: raHours,
-          decDegrees: decDeg,
-          screen: screen,
-        ));
+        vertices.add(
+          HipsMeshVertex(
+            u: u,
+            v: v,
+            raHours: raHours,
+            decDegrees: decDeg,
+            screen: screen,
+          ),
+        );
       }
     }
 

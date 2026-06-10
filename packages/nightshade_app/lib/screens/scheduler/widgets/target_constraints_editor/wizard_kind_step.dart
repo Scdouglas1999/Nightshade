@@ -170,7 +170,8 @@ class _KindCard extends StatelessWidget {
             padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: borderColor, width: selected ? 2 : 1),
             ),
             child: Row(
@@ -207,7 +208,8 @@ class _KindCard extends StatelessWidget {
                                   horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
                                 color: colors.surfaceHover,
-                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusLg),
                                 border: Border.all(color: colors.border),
                               ),
                               child: Text(

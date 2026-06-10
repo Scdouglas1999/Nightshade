@@ -78,12 +78,8 @@ void main() {
         requirements: const [requirement],
         entries: List.generate(
           3,
-          (index) => _dark(
-            exposureTime: 180,
-            gain: 100,
-            offset: 10,
-            temperature: -10,
-          ),
+          (index) =>
+              _dark(exposureTime: 180, gain: 100, offset: 10, temperature: -10),
         ),
         minCoverage: 10,
       );
@@ -93,44 +89,45 @@ void main() {
       expect(report.underCovered, {requirement: 3});
     });
 
-    test(
-      'IMG-P0-2 regression: exact-exposure-and-temperature match counts as '
-      'covered with the default tolerances',
-      () {
-        // Why: this is the exact scenario the audit flagged. The coverage
-        // UI used to claim "all darks present" with a ±1.0s exposure
-        // tolerance while DarkLibraryDao.findBestMatch used ±0.001s and
-        // returned null at runtime for the SAME 60.0s/60.0s pair due to
-        // floating-point representation. Now both must agree.
-        const service = DarkLibraryCoverageService();
-        const requirement = DarkFrameRequirement(
-          gain: 100,
-          offset: 10,
-          durationSecs: 60.0,
-          binX: 1,
-          binY: 1,
-          targetTemp: -10,
-        );
+    test('IMG-P0-2 regression: exact-exposure-and-temperature match counts as '
+        'covered with the default tolerances', () {
+      // Why: this is the exact scenario the audit flagged. The coverage
+      // UI used to claim "all darks present" with a ±1.0s exposure
+      // tolerance while DarkLibraryDao.findBestMatch used ±0.001s and
+      // returned null at runtime for the SAME 60.0s/60.0s pair due to
+      // floating-point representation. Now both must agree.
+      const service = DarkLibraryCoverageService();
+      const requirement = DarkFrameRequirement(
+        gain: 100,
+        offset: 10,
+        durationSecs: 60.0,
+        binX: 1,
+        binY: 1,
+        targetTemp: -10,
+      );
 
-        final report = service.evaluate(
-          requirements: const [requirement],
-          entries: [
-            _dark(
-              exposureTime: 60.0,
-              gain: 100,
-              offset: 10,
-              temperature: -10,
-              masterDarkPath: '/tmp/master_60s.fits',
-            ),
-          ],
-          minCoverage: 10,
-        );
+      final report = service.evaluate(
+        requirements: const [requirement],
+        entries: [
+          _dark(
+            exposureTime: 60.0,
+            gain: 100,
+            offset: 10,
+            temperature: -10,
+            masterDarkPath: '/tmp/master_60s.fits',
+          ),
+        ],
+        minCoverage: 10,
+      );
 
-        expect(report.isCovered, isTrue,
-            reason: 'a 60.0s dark MUST match a 60.0s request — this was the '
-                'IMG-P0-2 failure mode');
-      },
-    );
+      expect(
+        report.isCovered,
+        isTrue,
+        reason:
+            'a 60.0s dark MUST match a 60.0s request — this was the '
+            'IMG-P0-2 failure mode',
+      );
+    });
 
     test('exposure delta beyond the configured tolerance is not covered', () {
       const service = DarkLibraryCoverageService();

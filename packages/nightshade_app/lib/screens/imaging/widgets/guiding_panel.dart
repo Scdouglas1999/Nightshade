@@ -109,7 +109,8 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -119,8 +120,9 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                   Expanded(
                     child: Text(
                       'No guider connected',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -186,8 +188,9 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                             : isGuiding
                                 ? 'Guiding'
                                 : 'Start',
-                        icon:
-                            isGuiding ? NightshadeIcons.activity : NightshadeIcons.play,
+                        icon: isGuiding
+                            ? NightshadeIcons.activity
+                            : NightshadeIcons.play,
                         colors: widget.colors,
                         isEnabled:
                             isConnected && !isGuiding && !_isStartingGuiding,
@@ -327,7 +330,8 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
                 const SizedBox(width: 6),
                 Text(
                   'Guider Configuration',
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Container(
@@ -335,7 +339,8 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     'Built-in',
@@ -375,7 +380,9 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
               ),
               child: Text(
                 'Failed to load guider config: $error',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.error),
               ),
             ),
             data: (config) => _BuiltinGuiderConfigForm(
@@ -545,19 +552,19 @@ class _BuiltinGuiderConfigFormState
         mountState.connectionState == DeviceConnectionState.connected
             ? mountState.deviceId
             : null;
-    final MountCapabilities? mountCaps = (mountDeviceId != null &&
-            mountDeviceId.isNotEmpty)
-        ? ref.watch(mountCapabilitiesProvider(mountDeviceId)).valueOrNull
-        : null;
+    final MountCapabilities? mountCaps =
+        (mountDeviceId != null && mountDeviceId.isNotEmpty)
+            ? ref.watch(mountCapabilitiesProvider(mountDeviceId)).valueOrNull
+            : null;
     final pulseBounds = _pulseBounds(mountCaps);
 
     // Helper hint shown on the pulse fields only when the mount actually
     // reports a range (honest-None: don't fabricate a range from defaults).
-    final String? pulseRangeHint = mountCaps?.minPulseGuideMs != null &&
-            mountCaps?.maxPulseGuideMs != null
-        ? 'Mount supports ${pulseBounds.min.toStringAsFixed(0)}-'
-            '${pulseBounds.max.toStringAsFixed(0)} ms'
-        : null;
+    final String? pulseRangeHint =
+        mountCaps?.minPulseGuideMs != null && mountCaps?.maxPulseGuideMs != null
+            ? 'Mount supports ${pulseBounds.min.toStringAsFixed(0)}-'
+                '${pulseBounds.max.toStringAsFixed(0)} ms'
+            : null;
 
     return NightshadeCard(
       padding: const EdgeInsets.all(14),
@@ -729,7 +736,8 @@ class _ConfigInputRow extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: colors.background,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: colors.border),
                 ),
                 child: TextField(
@@ -806,7 +814,8 @@ class CompactGuidingGraph extends StatelessWidget {
           if (hasData)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline9),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline9),
                 child: CustomPaint(
                   painter: _CompactGuidingGraphPainter(
                     data: data,
@@ -822,7 +831,9 @@ class CompactGuidingGraph extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isGuiding ? NightshadeIcons.activity : NightshadeIcons.crosshair,
+                    isGuiding
+                        ? NightshadeIcons.activity
+                        : NightshadeIcons.crosshair,
                     size: 24,
                     color: isGuiding ? colors.success : colors.textMuted,
                   ),
@@ -848,16 +859,24 @@ class CompactGuidingGraph extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                    width: 12, height: 2, color: NightshadeChartColors.seriesRed),
+                    width: 12,
+                    height: 2,
+                    color: NightshadeChartColors.seriesRed),
                 const SizedBox(width: 4),
                 Text('RA',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize9,
+                        color: colors.textMuted)),
                 const SizedBox(width: 12),
                 Container(
-                    width: 12, height: 2, color: NightshadeChartColors.seriesBlue),
+                    width: 12,
+                    height: 2,
+                    color: NightshadeChartColors.seriesBlue),
                 const SizedBox(width: 4),
                 Text('Dec',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize9,
+                        color: colors.textMuted)),
               ],
             ),
           ),
@@ -963,8 +982,7 @@ class GuideStarList extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 children: [
-                  Icon(NightshadeIcons.star,
-                      size: 14, color: colors.textMuted),
+                  Icon(NightshadeIcons.star, size: 14, color: colors.textMuted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -989,8 +1007,7 @@ class GuideStarList extends ConsumerWidget {
                       const SizedBox(width: 18),
                       Expanded(
                         flex: 3,
-                        child: Text('Star',
-                            style: _headerStyle(colors)),
+                        child: Text('Star', style: _headerStyle(colors)),
                       ),
                       Expanded(
                         flex: 2,
@@ -1051,7 +1068,9 @@ class _GuideStarRow extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              star.isLock ? 'Star ${star.id + 1} (lock)' : 'Star ${star.id + 1}',
+              star.isLock
+                  ? 'Star ${star.id + 1} (lock)'
+                  : 'Star ${star.id + 1}',
               style: valueStyle.copyWith(
                 color: star.isLock ? colors.primary : colors.textPrimary,
                 fontWeight: star.isLock ? FontWeight.w600 : FontWeight.w400,

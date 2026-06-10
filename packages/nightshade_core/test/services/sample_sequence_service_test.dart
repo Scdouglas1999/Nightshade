@@ -23,20 +23,20 @@ import 'package:path/path.dart' as p;
 void _installAssetHandlerFromDisk(String corePackageRoot) {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMessageHandler('flutter/assets', (ByteData? message) async {
-    if (message == null) return null;
-    final key = utf8.decode(message.buffer.asUint8List());
+        if (message == null) return null;
+        final key = utf8.decode(message.buffer.asUint8List());
 
-    // Asset keys for package dependencies look like
-    // `packages/nightshade_core/assets/sample_sequences/<file>.json`.
-    const prefix = 'packages/nightshade_core/';
-    if (!key.startsWith(prefix)) return null;
-    final relative = key.substring(prefix.length);
-    final filePath = p.join(corePackageRoot, relative);
-    final file = File(filePath);
-    if (!await file.exists()) return null;
-    final bytes = await file.readAsBytes();
-    return ByteData.view(Uint8List.fromList(bytes).buffer);
-  });
+        // Asset keys for package dependencies look like
+        // `packages/nightshade_core/assets/sample_sequences/<file>.json`.
+        const prefix = 'packages/nightshade_core/';
+        if (!key.startsWith(prefix)) return null;
+        final relative = key.substring(prefix.length);
+        final filePath = p.join(corePackageRoot, relative);
+        final file = File(filePath);
+        if (!await file.exists()) return null;
+        final bytes = await file.readAsBytes();
+        return ByteData.view(Uint8List.fromList(bytes).buffer);
+      });
 }
 
 void main() {
@@ -78,13 +78,18 @@ void main() {
       // guidance so we keep a minimum-length guard.
       for (final sample in samples) {
         expect(sample.displayName, isNotEmpty);
-        expect(sample.description.length, greaterThan(60),
-            reason: '${sample.id} description must explain the target');
+        expect(
+          sample.description.length,
+          greaterThan(60),
+          reason: '${sample.id} description must explain the target',
+        );
         expect(sample.template.nodes, isNotEmpty);
         expect(sample.template.rootNodeId, isNotNull);
-        expect(sample.template.nodes.containsKey(sample.template.rootNodeId),
-            isTrue,
-            reason: '${sample.id} rootNodeId must reference a real node');
+        expect(
+          sample.template.nodes.containsKey(sample.template.rootNodeId),
+          isTrue,
+          reason: '${sample.id} rootNodeId must reference a real node',
+        );
       }
     });
 
@@ -94,21 +99,26 @@ void main() {
       final m31 = samples.firstWhere((s) => s.id == 'dslr_m31_lrgb');
 
       // Verify the target header coordinates are real Andromeda values.
-      final targets =
-          m31.template.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = m31.template.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(1));
       expect(targets.first.raHours, closeTo(0.71, 0.05));
       expect(targets.first.decDegrees, closeTo(41.27, 0.05));
 
       // Confirm light + flat + bias exposure groups are present.
-      final exposures =
-          m31.template.nodes.values.whereType<ExposureNode>().toList();
-      final lights =
-          exposures.where((e) => e.frameType == FrameType.light).toList();
-      final flats =
-          exposures.where((e) => e.frameType == FrameType.flat).toList();
-      final biases =
-          exposures.where((e) => e.frameType == FrameType.bias).toList();
+      final exposures = m31.template.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
+      final lights = exposures
+          .where((e) => e.frameType == FrameType.light)
+          .toList();
+      final flats = exposures
+          .where((e) => e.frameType == FrameType.flat)
+          .toList();
+      final biases = exposures
+          .where((e) => e.frameType == FrameType.bias)
+          .toList();
 
       expect(lights, hasLength(1));
       expect(lights.first.count, 30);
@@ -124,8 +134,9 @@ void main() {
       final samples = await service.load();
       final m51 = samples.firstWhere((s) => s.id == 'mono_lrgb_m51');
 
-      final exposures =
-          m51.template.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = m51.template.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       final filtersUsed = exposures
           .where((e) => e.filter != null)
           .map((e) => e.filter!)
@@ -145,8 +156,9 @@ void main() {
       }
 
       // Recovery node with HFR trigger should be wired into the lum loop.
-      final recoveries =
-          m51.template.nodes.values.whereType<RecoveryNode>().toList();
+      final recoveries = m51.template.nodes.values
+          .whereType<RecoveryNode>()
+          .toList();
       expect(recoveries, isNotEmpty);
       expect(recoveries.first.triggerType, TriggerType.hfrDegraded);
     });
@@ -154,11 +166,11 @@ void main() {
     test('parses NGC 7000 SHO narrowband with meridian flip', () async {
       final service = SampleSequenceService();
       final samples = await service.load();
-      final ngc =
-          samples.firstWhere((s) => s.id == 'narrowband_ngc7000_sho');
+      final ngc = samples.firstWhere((s) => s.id == 'narrowband_ngc7000_sho');
 
-      final exposures =
-          ngc.template.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = ngc.template.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       final filtersUsed = exposures
           .where((e) => e.filter != null)
           .map((e) => e.filter!)
@@ -172,14 +184,16 @@ void main() {
       }
 
       // Meridian flip watchdog must be present.
-      final flips =
-          ngc.template.nodes.values.whereType<MeridianFlipNode>().toList();
+      final flips = ngc.template.nodes.values
+          .whereType<MeridianFlipNode>()
+          .toList();
       expect(flips, hasLength(1));
       expect(flips.first.autoCenter, isTrue);
 
       // Each filter block should have its own autofocus (AF on filter change).
-      final focusNodes =
-          ngc.template.nodes.values.whereType<AutofocusNode>().toList();
+      final focusNodes = ngc.template.nodes.values
+          .whereType<AutofocusNode>()
+          .toList();
       expect(focusNodes.length, greaterThanOrEqualTo(3));
     });
 
@@ -188,8 +202,9 @@ void main() {
       final samples = await service.load();
       final lunar = samples.firstWhere((s) => s.id == 'lunar_terminator');
 
-      final exposures =
-          lunar.template.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = lunar.template.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(1));
       expect(exposures.first.count, 200);
       expect(exposures.first.durationSecs, 0.005);
@@ -208,17 +223,15 @@ void main() {
       final samples = await service.load();
       final jup = samples.firstWhere((s) => s.id == 'planetary_jupiter');
 
-      final exposures =
-          jup.template.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = jup.template.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(1));
       expect(exposures.first.count, 1000);
       expect(exposures.first.durationSecs, 0.005);
 
       // No calibration frame types.
-      expect(
-        exposures.where((e) => e.frameType != FrameType.light),
-        isEmpty,
-      );
+      expect(exposures.where((e) => e.frameType != FrameType.light), isEmpty);
     });
 
     test('cloneForUse regenerates ids and preserves tree structure', () async {
@@ -246,12 +259,18 @@ void main() {
       for (final entry in cloneA.nodes.entries) {
         final node = entry.value;
         if (node.parentId != null) {
-          expect(cloneA.nodes.containsKey(node.parentId), isTrue,
-              reason: 'parent ${node.parentId} of ${node.id} missing');
+          expect(
+            cloneA.nodes.containsKey(node.parentId),
+            isTrue,
+            reason: 'parent ${node.parentId} of ${node.id} missing',
+          );
         }
         for (final childId in node.childIds) {
-          expect(cloneA.nodes.containsKey(childId), isTrue,
-              reason: 'child $childId of ${node.id} missing');
+          expect(
+            cloneA.nodes.containsKey(childId),
+            isTrue,
+            reason: 'child $childId of ${node.id} missing',
+          );
         }
       }
 
@@ -267,8 +286,7 @@ void main() {
     test('cloneForUse honours nameOverride', () async {
       final service = SampleSequenceService();
       final samples = await service.load();
-      final clone =
-          service.cloneForUse(samples.first, nameOverride: 'My Run');
+      final clone = service.cloneForUse(samples.first, nameOverride: 'My Run');
       expect(clone.name, 'My Run');
     });
   });

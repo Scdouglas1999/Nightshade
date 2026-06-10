@@ -2,13 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 /// Shader types used for star point-spread rendering.
-enum StarPsfShaderType {
-  glow,
-  outerRing,
-  midRing,
-  core,
-  balanced,
-}
+enum StarPsfShaderType { glow, outerRing, midRing, core, balanced }
 
 /// Cache for star PSF shaders keyed by type, radius, and color.
 class StarPsfShaderCache {
@@ -22,7 +16,8 @@ class StarPsfShaderCache {
     required double radius,
     required Color color,
   }) {
-    final key = '${type.index}_${color.toARGB32()}_${radius.toStringAsFixed(4)}';
+    final key =
+        '${type.index}_${color.toARGB32()}_${radius.toStringAsFixed(4)}';
     final existing = _cache[key];
     if (existing != null) return existing;
 
@@ -56,7 +51,8 @@ class StarPsfShaderCache {
     final brightBucket = (brightness * 10).round() / 10.0;
     // Quantize angle to nearest 45 degrees (spikes are at fixed angles)
     final angleBucket = (angle / 45).round() * 45;
-    final key = 'spike_${magBucket}_${brightBucket}_${angleBucket}_${color.toARGB32()}';
+    final key =
+        'spike_${magBucket}_${brightBucket}_${angleBucket}_${color.toARGB32()}';
 
     final existing = _spikeCache[key];
     if (existing != null) return existing;
@@ -65,14 +61,10 @@ class StarPsfShaderCache {
       _spikeCache.clear();
     }
 
-    final shader = ui.Gradient.linear(
-      center,
-      end,
-      [
-        color.withValues(alpha: brightness * 0.6),
-        color.withValues(alpha: 0.0),
-      ],
-    );
+    final shader = ui.Gradient.linear(center, end, [
+      color.withValues(alpha: brightness * 0.6),
+      color.withValues(alpha: 0.0),
+    ]);
     _spikeCache[key] = shader;
     return shader;
   }

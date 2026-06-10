@@ -86,13 +86,18 @@ void main() {
     });
 
     test('longNight enables local normalization', () {
-      final s = IntegrationSettings.smartDefaults(subCount: 30, longNight: true);
+      final s = IntegrationSettings.smartDefaults(
+        subCount: 30,
+        longNight: true,
+      );
       expect(s.normalization, NormalizationMode.local);
     });
 
     test('preferSpeed drops to the bilinear resampler', () {
-      final s =
-          IntegrationSettings.smartDefaults(subCount: 200, preferSpeed: true);
+      final s = IntegrationSettings.smartDefaults(
+        subCount: 200,
+        preferSpeed: true,
+      );
       expect(s.resampler, Resampler.bilinear);
     });
 
@@ -138,8 +143,9 @@ void main() {
 
     test('toJsonString / fromJsonStringOrDefault round-trips', () {
       final s = IntegrationSettings.preset(IntegrationPreset.longNightGradient);
-      final restored =
-          IntegrationSettings.fromJsonStringOrDefault(s.toJsonString());
+      final restored = IntegrationSettings.fromJsonStringOrDefault(
+        s.toJsonString(),
+      );
       expect(restored, s);
     });
 
@@ -181,15 +187,23 @@ void main() {
     });
 
     test('fromJsonStringOrDefault returns defaults for null/blank/corrupt', () {
-      expect(IntegrationSettings.fromJsonStringOrDefault(null),
-          IntegrationSettings.defaults);
-      expect(IntegrationSettings.fromJsonStringOrDefault('   '),
-          IntegrationSettings.defaults);
-      expect(IntegrationSettings.fromJsonStringOrDefault('{not json'),
-          IntegrationSettings.defaults);
+      expect(
+        IntegrationSettings.fromJsonStringOrDefault(null),
+        IntegrationSettings.defaults,
+      );
+      expect(
+        IntegrationSettings.fromJsonStringOrDefault('   '),
+        IntegrationSettings.defaults,
+      );
+      expect(
+        IntegrationSettings.fromJsonStringOrDefault('{not json'),
+        IntegrationSettings.defaults,
+      );
       // A JSON array (not an object) also falls back rather than throwing.
-      expect(IntegrationSettings.fromJsonStringOrDefault('[1,2,3]'),
-          IntegrationSettings.defaults);
+      expect(
+        IntegrationSettings.fromJsonStringOrDefault('[1,2,3]'),
+        IntegrationSettings.defaults,
+      );
     });
 
     test('fromJson forward-migrates missing keys to defaults', () {
@@ -203,44 +217,50 @@ void main() {
       // Everything unspecified falls back to the default value.
       expect(restored.resampler, IntegrationSettings.defaults.resampler);
       expect(restored.weighting, IntegrationSettings.defaults.weighting);
-      expect(restored.outputBitDepth,
-          IntegrationSettings.defaults.outputBitDepth);
+      expect(
+        restored.outputBitDepth,
+        IntegrationSettings.defaults.outputBitDepth,
+      );
     });
   });
 
   group('toBridgeSettings', () {
-    test('emits the native IntegrationSettingsArgs shape with camelCase keys',
-        () {
-      const s = IntegrationSettings.defaults;
-      final bridge = s.toBridgeSettings();
-      expect(bridge.keys,
-          containsAll(['align', 'weighting', 'normalization', 'integration']));
+    test(
+      'emits the native IntegrationSettingsArgs shape with camelCase keys',
+      () {
+        const s = IntegrationSettings.defaults;
+        final bridge = s.toBridgeSettings();
+        expect(
+          bridge.keys,
+          containsAll(['align', 'weighting', 'normalization', 'integration']),
+        );
 
-      final align = bridge['align'] as Map<String, dynamic>;
-      expect(align['model'], 'affine');
-      expect(align['resampler'], 'lanczos3');
-      expect(align['ransacThresholdPx'], 2.0);
-      expect(align['maxRefStars'], 60);
+        final align = bridge['align'] as Map<String, dynamic>;
+        expect(align['model'], 'affine');
+        expect(align['resampler'], 'lanczos3');
+        expect(align['ransacThresholdPx'], 2.0);
+        expect(align['maxRefStars'], 60);
 
-      final weighting = bridge['weighting'] as Map<String, dynamic>;
-      expect(weighting['enabled'], isTrue);
-      expect(weighting['formula'], 'snrSquared');
+        final weighting = bridge['weighting'] as Map<String, dynamic>;
+        expect(weighting['enabled'], isTrue);
+        expect(weighting['formula'], 'snrSquared');
 
-      final norm = bridge['normalization'] as Map<String, dynamic>;
-      expect(norm['enabled'], isTrue);
-      expect(norm['mode'], 'global');
+        final norm = bridge['normalization'] as Map<String, dynamic>;
+        expect(norm['enabled'], isTrue);
+        expect(norm['mode'], 'global');
 
-      final integ = bridge['integration'] as Map<String, dynamic>;
-      expect(integ['combine'], 'mean');
-      expect(integ['reject'], 'auto');
-      expect(integ['rejectLow'], 3.0);
-      expect(integ['generateRejectionMap'], isTrue);
-      expect(integ['outputBitDepth'], 'f32');
+        final integ = bridge['integration'] as Map<String, dynamic>;
+        expect(integ['combine'], 'mean');
+        expect(integ['reject'], 'auto');
+        expect(integ['rejectLow'], 3.0);
+        expect(integ['generateRejectionMap'], isTrue);
+        expect(integ['outputBitDepth'], 'f32');
 
-      // cosmeticCorrection rides on the native calibration block, NOT here.
-      expect(integ.containsKey('cosmeticCorrection'), isFalse);
-      expect(weighting.containsKey('cosmeticCorrection'), isFalse);
-    });
+        // cosmeticCorrection rides on the native calibration block, NOT here.
+        expect(integ.containsKey('cosmeticCorrection'), isFalse);
+        expect(weighting.containsKey('cosmeticCorrection'), isFalse);
+      },
+    );
 
     test('emits the v42 finishing block with camelCase native field names', () {
       const s = IntegrationSettings(
@@ -308,8 +328,7 @@ void main() {
       expect(narrowband.containsKey('weights'), isFalse);
     });
 
-    test(
-        'deconvolution with empirical psfKind routes through the '
+    test('deconvolution with empirical psfKind routes through the '
         'estimate-from-stars path', () {
       const s = IntegrationSettings(
         deconvolve: true,
@@ -317,8 +336,10 @@ void main() {
         deconRegularization: 0.03,
         // psfKind defaults to empirical.
       );
-      final decon = (s.toBridgeSettings()['finishing']
-          as Map<String, dynamic>)['deconvolution'] as Map<String, dynamic>;
+      final decon =
+          (s.toBridgeSettings()['finishing']
+                  as Map<String, dynamic>)['deconvolution']
+              as Map<String, dynamic>;
       // Empirical is unreachable analytically, so it must request estimation.
       expect(decon['estimatePsf'], isTrue);
       expect((decon['psf'] as Map<String, dynamic>)['kind'], 'empirical');
@@ -331,8 +352,10 @@ void main() {
       // none: the native parser rejects a 'none' token, so the combine step is
       // skipped entirely — no palette, no weights.
       const none = IntegrationSettings();
-      final noneNb = (none.toBridgeSettings()['finishing']
-          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      final noneNb =
+          (none.toBridgeSettings()['finishing']
+                  as Map<String, dynamic>)['narrowband']
+              as Map<String, dynamic>;
       expect(noneNb.containsKey('palette'), isFalse);
       expect(noneNb.containsKey('weights'), isFalse);
 
@@ -346,8 +369,10 @@ void main() {
           [0.0, 0.0, 1.0],
         ],
       );
-      final customNb = (custom.toBridgeSettings()['finishing']
-          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      final customNb =
+          (custom.toBridgeSettings()['finishing']
+                  as Map<String, dynamic>)['narrowband']
+              as Map<String, dynamic>;
       expect(customNb.containsKey('palette'), isFalse);
       final weights = customNb['weights'] as List;
       expect(weights, isNotEmpty);
@@ -355,11 +380,11 @@ void main() {
     });
 
     test('narrowband hoo emits the hoo palette token', () {
-      const s = IntegrationSettings(
-        narrowbandPalette: NarrowbandPalette.hoo,
-      );
-      final nb = (s.toBridgeSettings()['finishing']
-          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      const s = IntegrationSettings(narrowbandPalette: NarrowbandPalette.hoo);
+      final nb =
+          (s.toBridgeSettings()['finishing']
+                  as Map<String, dynamic>)['narrowband']
+              as Map<String, dynamic>;
       expect(nb['palette'], 'hoo');
       expect(nb.containsKey('weights'), isFalse);
     });
@@ -404,7 +429,8 @@ void main() {
               expect(
                 destructive(s),
                 isFalse,
-                reason: 'smartDefaults(subCount=$subCount, dithered=$dithered, '
+                reason:
+                    'smartDefaults(subCount=$subCount, dithered=$dithered, '
                     'underSampled=$underSampled, longNight=$longNight) must '
                     'leave every destructive post-stacking step OFF so the '
                     'default output is a pristine, unmodified linear master',
@@ -420,7 +446,8 @@ void main() {
         expect(
           destructive(IntegrationSettings.preset(preset)),
           isFalse,
-          reason: '$preset must not enable destructive finishing as a default; '
+          reason:
+              '$preset must not enable destructive finishing as a default; '
               'finishing steps are explicit opt-ins',
         );
       }

@@ -74,7 +74,9 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       );
 
       if (!await _columnExists(
-          'photometry_measurements', 'standard_magnitude')) {
+        'photometry_measurements',
+        'standard_magnitude',
+      )) {
         await customStatement(
           'ALTER TABLE photometry_measurements ADD COLUMN standard_magnitude REAL',
         );

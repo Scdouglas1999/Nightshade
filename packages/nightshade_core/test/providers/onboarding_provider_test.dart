@@ -40,9 +40,7 @@ void main() {
   setUp(() {
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-      ],
+      overrides: [databaseProvider.overrideWithValue(db)],
     );
   });
 
@@ -51,63 +49,68 @@ void main() {
     await db.close();
   });
 
-  test('shouldRunEquipmentOnboardingProvider returns true on fresh install',
-      () async {
-    final shouldRun =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
-    expect(shouldRun, isTrue);
-  });
-
-  test('shouldRunEquipmentOnboardingProvider returns false once a profile exists',
-      () async {
-    // Insert a profile through the DAO so the bootstrap gate flips false
-    // — mirrors what the rest of the codebase does when a user creates a
-    // profile outside the wizard.
-    final dao = container.read(equipmentProfilesDaoProvider);
-    await dao.createProfile(
-      const EquipmentProfileModel(name: 'existing').toCompanion(),
-    );
-
-    // Invalidate so the future re-resolves against the new DB state.
-    container.invalidate(shouldRunEquipmentOnboardingProvider);
-    final shouldRun =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
-    expect(shouldRun, isFalse);
-  });
+  test(
+    'shouldRunEquipmentOnboardingProvider returns true on fresh install',
+    () async {
+      final shouldRun = await container.read(
+        shouldRunEquipmentOnboardingProvider.future,
+      );
+      expect(shouldRun, isTrue);
+    },
+  );
 
   test(
-      'OnboardingNotifier persists draft across reads via app_settings JSON',
-      () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
-    await notifier.setCamera(
-      id: 'native:zwo:0',
-      name: 'ASI294MC Pro',
-      pixelSizeMicrons: 4.63,
-    );
-    await notifier.next();
+    'shouldRunEquipmentOnboardingProvider returns false once a profile exists',
+    () async {
+      // Insert a profile through the DAO so the bootstrap gate flips false
+      // — mirrors what the rest of the codebase does when a user creates a
+      // profile outside the wizard.
+      final dao = container.read(equipmentProfilesDaoProvider);
+      await dao.createProfile(
+        const EquipmentProfileModel(name: 'existing').toCompanion(),
+      );
 
-    // Re-create the notifier from a fresh container backed by the same
-    // database. The persisted JSON blob in app_settings should hydrate
-    // the camera selection.
-    final secondContainer = ProviderContainer(
-      overrides: [databaseProvider.overrideWithValue(db)],
-    );
-    try {
-      final loaded =
-          secondContainer.read(onboardingDraftProvider.notifier);
-      await loaded.loaded;
-      final draft = secondContainer.read(onboardingDraftProvider);
-      expect(draft.cameraId, 'native:zwo:0');
-      expect(draft.pixelSizeMicrons, 4.63);
-      expect(draft.currentStep, OnboardingStep.drivers);
-    } finally {
-      secondContainer.dispose();
-    }
-  });
+      // Invalidate so the future re-resolves against the new DB state.
+      container.invalidate(shouldRunEquipmentOnboardingProvider);
+      final shouldRun = await container.read(
+        shouldRunEquipmentOnboardingProvider.future,
+      );
+      expect(shouldRun, isFalse);
+    },
+  );
 
   test(
-      'complete() creates a profile (gain/offset/bin/cooling), persists '
+    'OnboardingNotifier persists draft across reads via app_settings JSON',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
+      await notifier.setCamera(
+        id: 'native:zwo:0',
+        name: 'ASI294MC Pro',
+        pixelSizeMicrons: 4.63,
+      );
+      await notifier.next();
+
+      // Re-create the notifier from a fresh container backed by the same
+      // database. The persisted JSON blob in app_settings should hydrate
+      // the camera selection.
+      final secondContainer = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      try {
+        final loaded = secondContainer.read(onboardingDraftProvider.notifier);
+        await loaded.loaded;
+        final draft = secondContainer.read(onboardingDraftProvider);
+        expect(draft.cameraId, 'native:zwo:0');
+        expect(draft.pixelSizeMicrons, 4.63);
+        expect(draft.currentStep, OnboardingStep.drivers);
+      } finally {
+        secondContainer.dispose();
+      }
+    },
+  );
+
+  test('complete() creates a profile (gain/offset/bin/cooling), persists '
       'capture dir, but does NOT yet mark the tutorial done', () async {
     final notifier = container.read(onboardingDraftProvider.notifier);
     await notifier.loaded;
@@ -170,8 +173,9 @@ void main() {
 
     // Tutorial progress is NOT yet completed — that waits for finishNextSteps.
     final tutorialDao = container.read(tutorialProgressDaoProvider);
-    final progress =
-        await tutorialDao.getProgress(OnboardingDraft.persistenceCategory);
+    final progress = await tutorialDao.getProgress(
+      OnboardingDraft.persistenceCategory,
+    );
     expect(
       progress == null || (!progress.completed && !progress.dismissed),
       isTrue,
@@ -179,132 +183,145 @@ void main() {
     );
 
     // Draft blob is still present (not wiped until finishNextSteps).
-    final draftRow =
-        await settingsDao.getSetting(OnboardingDraft.draftSettingsKey);
+    final draftRow = await settingsDao.getSetting(
+      OnboardingDraft.draftSettingsKey,
+    );
     expect(draftRow, isNotNull);
   });
 
   test(
-      'complete() threads telescopeName + leaves cooling null for a DSLR-style '
-      'preset (no cool-on-connect)', () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
+    'complete() threads telescopeName + leaves cooling null for a DSLR-style '
+    'preset (no cool-on-connect)',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
 
-    await notifier.applyTelescopePreset(
-      builtInTelescopePresets.firstWhere(
-        (p) => p.id == 'tel.williamoptics.redcat51',
-      ),
-    );
-    await notifier.applyCameraPreset(
-      builtInCameraDefaultsPresets.firstWhere(
-        (p) => p.id == 'cam.canon.eosra',
-      ),
-    );
-    await notifier.setProfileName('Wide-field rig');
+      await notifier.applyTelescopePreset(
+        builtInTelescopePresets.firstWhere(
+          (p) => p.id == 'tel.williamoptics.redcat51',
+        ),
+      );
+      await notifier.applyCameraPreset(
+        builtInCameraDefaultsPresets.firstWhere(
+          (p) => p.id == 'cam.canon.eosra',
+        ),
+      );
+      await notifier.setProfileName('Wide-field rig');
 
-    final profileId = await notifier.complete();
-    final dao = container.read(equipmentProfilesDaoProvider);
-    final profile = await dao.getProfileById(profileId);
-    expect(profile, isNotNull);
-    expect(profile!.telescopeName, 'William Optics RedCat 51');
-    expect(profile.focalLength, 250);
-    expect(profile.aperture, 51);
-    // The Canon EOS Ra preset has no regulated cooling.
-    expect(profile.defaultCoolingTemp, isNull);
-    expect(profile.coolOnConnect, isFalse);
-    expect(profile.defaultGain, 0);
-  });
-
-  test(
-      'finishNextSteps marks completed, wipes the draft, and flips the gate',
-      () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
-    await notifier.setCamera(
-      id: 'native:zwo:0',
-      name: 'ASI294MC Pro',
-      pixelSizeMicrons: 4.63,
-    );
-    await notifier.setProfileName('Backyard rig');
-    await notifier.complete();
-
-    // Profile exists -> the gate would already read false, so to prove
-    // finishNextSteps is what flips it via tutorial_progress we assert the
-    // progress + draft state directly.
-    await notifier.finishNextSteps();
-
-    final tutorialDao = container.read(tutorialProgressDaoProvider);
-    final progress =
-        await tutorialDao.getProgress(OnboardingDraft.persistenceCategory);
-    expect(progress, isNotNull);
-    expect(progress!.completed, isTrue);
-
-    final settingsDao = container.read(settingsDaoProvider);
-    final draftRow =
-        await settingsDao.getSetting(OnboardingDraft.draftSettingsKey);
-    expect(draftRow, isNull);
-
-    container.invalidate(shouldRunEquipmentOnboardingProvider);
-    final shouldRun =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
-    expect(shouldRun, isFalse);
-  });
+      final profileId = await notifier.complete();
+      final dao = container.read(equipmentProfilesDaoProvider);
+      final profile = await dao.getProfileById(profileId);
+      expect(profile, isNotNull);
+      expect(profile!.telescopeName, 'William Optics RedCat 51');
+      expect(profile.focalLength, 250);
+      expect(profile.aperture, 51);
+      // The Canon EOS Ra preset has no regulated cooling.
+      expect(profile.defaultCoolingTemp, isNull);
+      expect(profile.coolOnConnect, isFalse);
+      expect(profile.defaultGain, 0);
+    },
+  );
 
   test(
-      'finishNextSteps flips the gate to false even with no profile (tutorial '
+    'finishNextSteps marks completed, wipes the draft, and flips the gate',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
+      await notifier.setCamera(
+        id: 'native:zwo:0',
+        name: 'ASI294MC Pro',
+        pixelSizeMicrons: 4.63,
+      );
+      await notifier.setProfileName('Backyard rig');
+      await notifier.complete();
+
+      // Profile exists -> the gate would already read false, so to prove
+      // finishNextSteps is what flips it via tutorial_progress we assert the
+      // progress + draft state directly.
+      await notifier.finishNextSteps();
+
+      final tutorialDao = container.read(tutorialProgressDaoProvider);
+      final progress = await tutorialDao.getProgress(
+        OnboardingDraft.persistenceCategory,
+      );
+      expect(progress, isNotNull);
+      expect(progress!.completed, isTrue);
+
+      final settingsDao = container.read(settingsDaoProvider);
+      final draftRow = await settingsDao.getSetting(
+        OnboardingDraft.draftSettingsKey,
+      );
+      expect(draftRow, isNull);
+
+      container.invalidate(shouldRunEquipmentOnboardingProvider);
+      final shouldRun = await container.read(
+        shouldRunEquipmentOnboardingProvider.future,
+      );
+      expect(shouldRun, isFalse);
+    },
+  );
+
+  test('finishNextSteps flips the gate to false even with no profile (tutorial '
       'completion alone)', () async {
     // A no-profile container so the gate is driven purely by tutorial_progress.
     final notifier = container.read(onboardingDraftProvider.notifier);
     await notifier.loaded;
 
-    final before =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
+    final before = await container.read(
+      shouldRunEquipmentOnboardingProvider.future,
+    );
     expect(before, isTrue);
 
     await notifier.finishNextSteps();
 
     container.invalidate(shouldRunEquipmentOnboardingProvider);
-    final after =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
+    final after = await container.read(
+      shouldRunEquipmentOnboardingProvider.future,
+    );
     expect(after, isFalse);
   });
 
-  test('skip() marks tutorial dismissed and gates further launches',
-      () async {
+  test('skip() marks tutorial dismissed and gates further launches', () async {
     final notifier = container.read(onboardingDraftProvider.notifier);
     await notifier.loaded;
     await notifier.skip();
 
     final tutorialDao = container.read(tutorialProgressDaoProvider);
-    final progress = await tutorialDao
-        .getProgress(OnboardingDraft.persistenceCategory);
+    final progress = await tutorialDao.getProgress(
+      OnboardingDraft.persistenceCategory,
+    );
     expect(progress, isNotNull);
     expect(progress!.dismissed, isTrue);
 
     container.invalidate(shouldRunEquipmentOnboardingProvider);
-    final shouldRun =
-        await container.read(shouldRunEquipmentOnboardingProvider.future);
+    final shouldRun = await container.read(
+      shouldRunEquipmentOnboardingProvider.future,
+    );
     expect(shouldRun, isFalse);
   });
 
-  test('toggleDriver round-trips a driver in/out of the selection set',
-      () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
+  test(
+    'toggleDriver round-trips a driver in/out of the selection set',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
 
-    final initial = container.read(onboardingDraftProvider).selectedDrivers;
-    final hadAscom = initial.contains(DriverType.ascom);
+      final initial = container.read(onboardingDraftProvider).selectedDrivers;
+      final hadAscom = initial.contains(DriverType.ascom);
 
-    await notifier.toggleDriver(DriverType.ascom);
-    final afterFirst =
-        container.read(onboardingDraftProvider).selectedDrivers;
-    expect(afterFirst.contains(DriverType.ascom), !hadAscom);
+      await notifier.toggleDriver(DriverType.ascom);
+      final afterFirst = container
+          .read(onboardingDraftProvider)
+          .selectedDrivers;
+      expect(afterFirst.contains(DriverType.ascom), !hadAscom);
 
-    await notifier.toggleDriver(DriverType.ascom);
-    final afterSecond =
-        container.read(onboardingDraftProvider).selectedDrivers;
-    expect(afterSecond.contains(DriverType.ascom), hadAscom);
-  });
+      await notifier.toggleDriver(DriverType.ascom);
+      final afterSecond = container
+          .read(onboardingDraftProvider)
+          .selectedDrivers;
+      expect(afterSecond.contains(DriverType.ascom), hadAscom);
+    },
+  );
 
   test('back/next stay within step bounds', () async {
     final notifier = container.read(onboardingDraftProvider.notifier);
@@ -312,114 +329,137 @@ void main() {
 
     // Back on welcome is a no-op
     await notifier.back();
-    expect(container.read(onboardingDraftProvider).currentStep,
-        OnboardingStep.welcome);
+    expect(
+      container.read(onboardingDraftProvider).currentStep,
+      OnboardingStep.welcome,
+    );
 
     await notifier.next();
-    expect(container.read(onboardingDraftProvider).currentStep,
-        OnboardingStep.drivers);
+    expect(
+      container.read(onboardingDraftProvider).currentStep,
+      OnboardingStep.drivers,
+    );
 
     await notifier.back();
-    expect(container.read(onboardingDraftProvider).currentStep,
-        OnboardingStep.welcome);
+    expect(
+      container.read(onboardingDraftProvider).currentStep,
+      OnboardingStep.welcome,
+    );
 
     // Walk to the last step and verify next is a no-op there. The terminal
     // step is now `nextSteps` (summary is followed by the what's-next screen).
     for (var i = 0; i < OnboardingStep.values.length - 1; i++) {
       await notifier.next();
     }
-    expect(container.read(onboardingDraftProvider).currentStep,
-        OnboardingStep.nextSteps);
+    expect(
+      container.read(onboardingDraftProvider).currentStep,
+      OnboardingStep.nextSteps,
+    );
     await notifier.next();
-    expect(container.read(onboardingDraftProvider).currentStep,
-        OnboardingStep.nextSteps);
-  });
-
-  test('cameraDefaults is optional; nextSteps is the non-skippable terminal',
-      () {
-    expect(OnboardingStep.cameraDefaults.isOptional, isTrue);
-    expect(OnboardingStep.nextSteps.isOptional, isFalse);
-    // Ordering contract: cameraDefaults sits between opticalTrain and
-    // captureDir; nextSteps is last.
     expect(
-      OnboardingStep.cameraDefaults.order,
-      greaterThan(OnboardingStep.opticalTrain.order),
-    );
-    expect(
-      OnboardingStep.cameraDefaults.order,
-      lessThan(OnboardingStep.captureDir.order),
-    );
-    expect(OnboardingStep.nextSteps.order, OnboardingStep.values.length - 1);
-    expect(
-      OnboardingStep.nextSteps.order,
-      greaterThan(OnboardingStep.summary.order),
+      container.read(onboardingDraftProvider).currentStep,
+      OnboardingStep.nextSteps,
     );
   });
 
   test(
-      'applyTelescopePreset / applyCameraPreset populate the draft and persist',
-      () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
+    'cameraDefaults is optional; nextSteps is the non-skippable terminal',
+    () {
+      expect(OnboardingStep.cameraDefaults.isOptional, isTrue);
+      expect(OnboardingStep.nextSteps.isOptional, isFalse);
+      // Ordering contract: cameraDefaults sits between opticalTrain and
+      // captureDir; nextSteps is last.
+      expect(
+        OnboardingStep.cameraDefaults.order,
+        greaterThan(OnboardingStep.opticalTrain.order),
+      );
+      expect(
+        OnboardingStep.cameraDefaults.order,
+        lessThan(OnboardingStep.captureDir.order),
+      );
+      expect(OnboardingStep.nextSteps.order, OnboardingStep.values.length - 1);
+      expect(
+        OnboardingStep.nextSteps.order,
+        greaterThan(OnboardingStep.summary.order),
+      );
+    },
+  );
 
-    final scope = builtInTelescopePresets
-        .firstWhere((p) => p.id == 'tel.skywatcher.esprit100ed');
-    await notifier.applyTelescopePreset(scope);
-    final cam = builtInCameraDefaultsPresets
-        .firstWhere((p) => p.id == 'cam.zwo.asi294mc');
-    await notifier.applyCameraPreset(cam);
+  test(
+    'applyTelescopePreset / applyCameraPreset populate the draft and persist',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
 
-    final draft = container.read(onboardingDraftProvider);
-    expect(draft.telescopePresetId, scope.id);
-    expect(draft.telescopeName, 'Sky-Watcher Esprit 100ED');
-    expect(draft.focalLengthMm, 550);
-    expect(draft.apertureMm, 100);
+      final scope = builtInTelescopePresets.firstWhere(
+        (p) => p.id == 'tel.skywatcher.esprit100ed',
+      );
+      await notifier.applyTelescopePreset(scope);
+      final cam = builtInCameraDefaultsPresets.firstWhere(
+        (p) => p.id == 'cam.zwo.asi294mc',
+      );
+      await notifier.applyCameraPreset(cam);
 
-    expect(draft.cameraPresetId, cam.id);
-    expect(draft.pixelSizeMicrons, 4.63);
-    expect(draft.defaultGain, 120);
-    expect(draft.defaultOffset, 30);
-    expect(draft.defaultBinX, 1);
-    expect(draft.defaultBinY, 1);
-    expect(draft.defaultCoolingTempC, -10);
+      final draft = container.read(onboardingDraftProvider);
+      expect(draft.telescopePresetId, scope.id);
+      expect(draft.telescopeName, 'Sky-Watcher Esprit 100ED');
+      expect(draft.focalLengthMm, 550);
+      expect(draft.apertureMm, 100);
 
-    // Persisted: a fresh notifier over the same DB hydrates the same picks.
-    final secondContainer = ProviderContainer(
-      overrides: [databaseProvider.overrideWithValue(db)],
-    );
-    try {
-      final reloaded = secondContainer.read(onboardingDraftProvider.notifier);
-      await reloaded.loaded;
-      final restored = secondContainer.read(onboardingDraftProvider);
-      expect(restored.telescopePresetId, scope.id);
-      expect(restored.cameraPresetId, cam.id);
-      expect(restored.defaultGain, 120);
-      expect(restored.defaultCoolingTempC, -10);
-      expect(restored.focalLengthMm, 550);
-    } finally {
-      secondContainer.dispose();
-    }
-  });
+      expect(draft.cameraPresetId, cam.id);
+      expect(draft.pixelSizeMicrons, 4.63);
+      expect(draft.defaultGain, 120);
+      expect(draft.defaultOffset, 30);
+      expect(draft.defaultBinX, 1);
+      expect(draft.defaultBinY, 1);
+      expect(draft.defaultCoolingTempC, -10);
 
-  test('applyCameraPreset clears the cooling set-point for a DSLR preset',
-      () async {
-    final notifier = container.read(onboardingDraftProvider.notifier);
-    await notifier.loaded;
+      // Persisted: a fresh notifier over the same DB hydrates the same picks.
+      final secondContainer = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      try {
+        final reloaded = secondContainer.read(onboardingDraftProvider.notifier);
+        await reloaded.loaded;
+        final restored = secondContainer.read(onboardingDraftProvider);
+        expect(restored.telescopePresetId, scope.id);
+        expect(restored.cameraPresetId, cam.id);
+        expect(restored.defaultGain, 120);
+        expect(restored.defaultCoolingTempC, -10);
+        expect(restored.focalLengthMm, 550);
+      } finally {
+        secondContainer.dispose();
+      }
+    },
+  );
 
-    // Seed a cooled-CMOS preset first so cooling is non-null...
-    await notifier.applyCameraPreset(
-      builtInCameraDefaultsPresets
-          .firstWhere((p) => p.id == 'cam.zwo.asi294mc'),
-    );
-    expect(container.read(onboardingDraftProvider).defaultCoolingTempC, -10);
+  test(
+    'applyCameraPreset clears the cooling set-point for a DSLR preset',
+    () async {
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
 
-    // ...then apply the DSLR preset, which must null the cooling set-point
-    // rather than leaving the stale -10.
-    await notifier.applyCameraPreset(
-      builtInCameraDefaultsPresets.firstWhere((p) => p.id == 'cam.canon.eosra'),
-    );
-    expect(container.read(onboardingDraftProvider).defaultCoolingTempC, isNull);
-  });
+      // Seed a cooled-CMOS preset first so cooling is non-null...
+      await notifier.applyCameraPreset(
+        builtInCameraDefaultsPresets.firstWhere(
+          (p) => p.id == 'cam.zwo.asi294mc',
+        ),
+      );
+      expect(container.read(onboardingDraftProvider).defaultCoolingTempC, -10);
+
+      // ...then apply the DSLR preset, which must null the cooling set-point
+      // rather than leaving the stale -10.
+      await notifier.applyCameraPreset(
+        builtInCameraDefaultsPresets.firstWhere(
+          (p) => p.id == 'cam.canon.eosra',
+        ),
+      );
+      expect(
+        container.read(onboardingDraftProvider).defaultCoolingTempC,
+        isNull,
+      );
+    },
+  );
 
   test('OnboardingDraft JSON round-trip preserves the new fields', () {
     const draft = OnboardingDraft(
@@ -437,8 +477,9 @@ void main() {
       defaultCoolingTempC: -10,
     );
 
-    final restored =
-        OnboardingDraft.fromJsonStringOrEmpty(draft.toJsonString());
+    final restored = OnboardingDraft.fromJsonStringOrEmpty(
+      draft.toJsonString(),
+    );
     expect(restored, draft);
     expect(restored.hashCode, draft.hashCode);
     expect(restored.currentStep, OnboardingStep.cameraDefaults);
@@ -452,47 +493,47 @@ void main() {
     expect(restored.defaultCoolingTempC, -10);
   });
 
-  test('complete() on a NetworkBackend resolves the host-created profile id',
-      () async {
-    final backend = _MockNetworkBackend();
-    when(() => backend.eventStream)
-        .thenAnswer((_) => const Stream<NightshadeEvent>.empty());
-    when(() => backend.saveProfile(any())).thenAnswer((_) async {});
-    when(() => backend.loadProfile(any())).thenAnswer((_) async {});
-    // The host echoes back the saved profile with a server-assigned id.
-    when(() => backend.getProfiles()).thenAnswer(
-      (_) async => [
-        const remote_profile.EquipmentProfile(
-          id: '42',
-          name: 'Remote rig',
-        ),
-      ],
-    );
-
-    final remoteContainer = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        backendProvider.overrideWith(
-          (ref) => _FixedBackendNotifier(ref, backend),
-        ),
-      ],
-    );
-    try {
-      final notifier = remoteContainer.read(onboardingDraftProvider.notifier);
-      await notifier.loaded;
-      await notifier.setCamera(
-        id: 'native:zwo:0',
-        name: 'ASI294MC Pro',
-        pixelSizeMicrons: 4.63,
+  test(
+    'complete() on a NetworkBackend resolves the host-created profile id',
+    () async {
+      final backend = _MockNetworkBackend();
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(() => backend.saveProfile(any())).thenAnswer((_) async {});
+      when(() => backend.loadProfile(any())).thenAnswer((_) async {});
+      // The host echoes back the saved profile with a server-assigned id.
+      when(() => backend.getProfiles()).thenAnswer(
+        (_) async => [
+          const remote_profile.EquipmentProfile(id: '42', name: 'Remote rig'),
+        ],
       );
-      await notifier.setProfileName('Remote rig');
 
-      final id = await notifier.complete();
-      expect(id, 42);
-      verify(() => backend.saveProfile(any())).called(1);
-      verify(() => backend.loadProfile('42')).called(1);
-    } finally {
-      remoteContainer.dispose();
-    }
-  });
+      final remoteContainer = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      try {
+        final notifier = remoteContainer.read(onboardingDraftProvider.notifier);
+        await notifier.loaded;
+        await notifier.setCamera(
+          id: 'native:zwo:0',
+          name: 'ASI294MC Pro',
+          pixelSizeMicrons: 4.63,
+        );
+        await notifier.setProfileName('Remote rig');
+
+        final id = await notifier.complete();
+        expect(id, 42);
+        verify(() => backend.saveProfile(any())).called(1);
+        verify(() => backend.loadProfile('42')).called(1);
+      } finally {
+        remoteContainer.dispose();
+      }
+    },
+  );
 }

@@ -123,7 +123,8 @@ class _StarterCard extends ConsumerWidget {
                   height: 44,
                   decoration: NightshadeDecorations.statusChip(
                     _skillColor(colors, sample.skillLevel),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     bordered: false,
                   ),
                   child: Icon(
@@ -139,7 +140,8 @@ class _StarterCard extends ConsumerWidget {
                     children: [
                       Text(
                         sample.displayName,
-                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -201,9 +203,8 @@ class _StarterCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Tooltip(
-                    message: canEdit
-                        ? ''
-                        : 'Cannot edit while sequence is running',
+                    message:
+                        canEdit ? '' : 'Cannot edit while sequence is running',
                     child: NightshadeButton(
                       onPressed:
                           canEdit ? () => _useStarter(context, ref) : null,
@@ -341,13 +342,16 @@ class _StartersError extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Failed to load starter sequences',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 6),
             Text(
               '$error',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             ),
           ],
         ),

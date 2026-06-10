@@ -6,8 +6,13 @@ import '../models/annotation_data.dart';
 class GaiaProvider {
   static const String _baseUrl = 'https://gea.esac.esa.int/tap-server/tap/sync';
 
-  Future<ObjectData?> queryByCoordinates(double ra, double dec, {double radiusArcsec = 5.0}) async {
-    final adql = '''
+  Future<ObjectData?> queryByCoordinates(
+    double ra,
+    double dec, {
+    double radiusArcsec = 5.0,
+  }) async {
+    final adql =
+        '''
       SELECT TOP 1
       source_id, ra, dec, parallax, pmra, pmdec, 
       phot_g_mean_mag, teff_gspphot, mass_flame, radius_flame, dist_gspphot
@@ -29,11 +34,11 @@ class GaiaProvider {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         final data = json['data'];
-        
+
         if (data != null && (data as List).isNotEmpty) {
           final row = data[0];
           // Gaia JSON is usually list of lists
-          
+
           return ObjectData(
             description: 'Gaia DR3 Source',
             parallax: _parseDouble(row[3]),
@@ -47,10 +52,14 @@ class GaiaProvider {
         }
       }
     } catch (e) {
-      developer.log('[GAIA] Error: $e',
-          name: 'GaiaProvider', level: 900, error: e);
+      developer.log(
+        '[GAIA] Error: $e',
+        name: 'GaiaProvider',
+        level: 900,
+        error: e,
+      );
     }
-    
+
     return null;
   }
 

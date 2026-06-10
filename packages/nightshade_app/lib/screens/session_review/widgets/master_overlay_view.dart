@@ -143,7 +143,10 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (hasRejection || hasCoverage || hasAnnotations || finishing.isNotEmpty)
+        if (hasRejection ||
+            hasCoverage ||
+            hasAnnotations ||
+            finishing.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
             child: Wrap(
@@ -262,8 +265,8 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
             ),
             child: Text(
               'Showing ${active.label} preview — toggle off for the raw master',
-              style:
-                  NightshadeTypography.caption.copyWith(color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
         if (hasAnnotations && _showAnnotations)
@@ -274,8 +277,8 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
             ),
             child: Text(
               '${layer.items.length} catalog objects annotated',
-              style:
-                  NightshadeTypography.caption.copyWith(color: colors.textMuted),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
       ],
@@ -309,7 +312,8 @@ class _OverlayToggle extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceXs),
         Text(
           label,
-          style: NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(width: NightshadeTokens.spaceXs),
         NightshadeSwitch(value: value, compact: true, onChanged: onChanged),

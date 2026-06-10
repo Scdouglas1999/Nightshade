@@ -153,11 +153,13 @@ class _CompactEquipmentIcon extends StatelessWidget {
             decoration: isConnected
                 ? NightshadeDecorations.statusChip(
                     colors.success,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   )
                 : BoxDecoration(
                     color: colors.surface,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                     border: Border.all(color: colors.border),
                   ),
             child: Icon(

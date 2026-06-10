@@ -74,14 +74,14 @@ class UpdateService {
     UpdateVerifier? verifier,
     http.Client? httpClient,
     Future<Directory> Function()? applicationSupportDirectoryProvider,
-  })  : _currentVersion = currentVersion,
-        _currentBuildNumber = currentBuildNumber,
-        _downloader = downloader ?? UpdateDownloader(),
-        _verifier = verifier ?? UpdateVerifier(),
-        _httpClient = httpClient ?? http.Client(),
-        _applicationSupportDirectoryProvider =
-            applicationSupportDirectoryProvider ??
-                getApplicationSupportDirectory;
+  }) : _currentVersion = currentVersion,
+       _currentBuildNumber = currentBuildNumber,
+       _downloader = downloader ?? UpdateDownloader(),
+       _verifier = verifier ?? UpdateVerifier(),
+       _httpClient = httpClient ?? http.Client(),
+       _applicationSupportDirectoryProvider =
+           applicationSupportDirectoryProvider ??
+           getApplicationSupportDirectory;
 
   /// Cancel any in-progress download
   void cancelDownload() {
@@ -259,10 +259,7 @@ class UpdateService {
 
     // Verify package integrity: size and SHA-256 hash
     final packageFile = File(packagePath);
-    final verified = await _verifier.verifyPackage(
-      packageFile,
-      manifest,
-    );
+    final verified = await _verifier.verifyPackage(packageFile, manifest);
     if (!verified) {
       await packageFile.delete();
       throw UpdateException(
@@ -293,12 +290,14 @@ class UpdateService {
     // Marker file indicating staging is complete (separate from
     // staged_verified.marker which proves end-to-end verification).
     final markerFile = File(path.join(stagingDir.path, 'ready.json'));
-    await markerFile.writeAsString(jsonEncode({
-      'version': manifest.version,
-      'buildNumber': manifest.buildNumber,
-      'stagedAt': DateTime.now().toIso8601String(),
-      'extractPath': extractDir.path,
-    }));
+    await markerFile.writeAsString(
+      jsonEncode({
+        'version': manifest.version,
+        'buildNumber': manifest.buildNumber,
+        'stagedAt': DateTime.now().toIso8601String(),
+        'extractPath': extractDir.path,
+      }),
+    );
   }
 
   /// Get the staging directory for updates
@@ -406,7 +405,10 @@ class UpdateService {
     // Build expected_hashes.json (POSIX-relative path -> sha256 hex)
     // straight from the verified manifest. The Rust updater will
     // re-verify this exact data after apply.
-    final expectedHashesFile = await _writeExpectedHashes(stagingRoot, manifest);
+    final expectedHashesFile = await _writeExpectedHashes(
+      stagingRoot,
+      manifest,
+    );
 
     final installDir = await _getInstallDirectory();
     final updaterPath = path.join(installDir.path, 'updater.exe');
@@ -420,17 +422,24 @@ class UpdateService {
     if (!await File(updaterPath).exists()) {
       final stagedUpdaterPath = path.join(staged.extractPath, 'updater.exe');
       developer.log(
-          'Updater not in install dir, checking staging: $stagedUpdaterPath',
-          name: 'UpdateService',
-          level: 900);
+        'Updater not in install dir, checking staging: $stagedUpdaterPath',
+        name: 'UpdateService',
+        level: 900,
+      );
 
       if (await File(stagedUpdaterPath).exists()) {
-        developer.log('Found updater in staging, copying to install directory',
-            name: 'UpdateService', level: 800);
+        developer.log(
+          'Found updater in staging, copying to install directory',
+          name: 'UpdateService',
+          level: 800,
+        );
         try {
           await File(stagedUpdaterPath).copy(updaterPath);
-          developer.log('Updater bootstrapped successfully',
-              name: 'UpdateService', level: 800);
+          developer.log(
+            'Updater bootstrapped successfully',
+            name: 'UpdateService',
+            level: 800,
+          );
         } catch (e) {
           throw UpdateException(
             'Failed to bootstrap updater from staged update: $e\n'
@@ -450,16 +459,18 @@ class UpdateService {
     }
 
     await pendingFile.parent.create(recursive: true);
-    await pendingFile.writeAsString(jsonEncode({
-      'targetVersion': staged.version,
-      'targetBuildNumber': staged.buildNumber,
-      'previousVersion': _currentVersion,
-      'previousBuildNumber': _currentBuildNumber,
-      'installDir': installDir.path,
-      'backupDir': backupDir.path,
-      'stagingDir': staged.extractPath,
-      'createdAt': DateTime.now().toIso8601String(),
-    }));
+    await pendingFile.writeAsString(
+      jsonEncode({
+        'targetVersion': staged.version,
+        'targetBuildNumber': staged.buildNumber,
+        'previousVersion': _currentVersion,
+        'previousBuildNumber': _currentBuildNumber,
+        'installDir': installDir.path,
+        'backupDir': backupDir.path,
+        'stagingDir': staged.extractPath,
+        'createdAt': DateTime.now().toIso8601String(),
+      }),
+    );
 
     final args = <String>[
       '--parent-pid',
@@ -477,8 +488,11 @@ class UpdateService {
       '--launch-after',
     ];
 
-    developer.log('Launching updater: $updaterPath with args: $args',
-        name: 'UpdateService', level: 800);
+    developer.log(
+      'Launching updater: $updaterPath with args: $args',
+      name: 'UpdateService',
+      level: 800,
+    );
 
     final Process updaterProcess;
     try {
@@ -609,8 +623,11 @@ class UpdateService {
       '--launch-after',
     ];
 
-    developer.log('Launching updater for rollback: $updaterPath with args: $args',
-        name: 'UpdateService', level: 800);
+    developer.log(
+      'Launching updater for rollback: $updaterPath with args: $args',
+      name: 'UpdateService',
+      level: 800,
+    );
 
     final Process updaterProcess;
     try {
@@ -682,8 +699,7 @@ class UpdateService {
     }
     try {
       return UpdateManifest.fromJson(
-        jsonDecode(await manifestFile.readAsString())
-            as Map<String, dynamic>,
+        jsonDecode(await manifestFile.readAsString()) as Map<String, dynamic>,
       );
     } on FormatException catch (e) {
       throw UpdateException(
@@ -696,8 +712,7 @@ class UpdateService {
     Directory stagingDir,
     UpdateManifest manifest,
   ) async {
-    final markerFile =
-        File(path.join(stagingDir.path, _stagedVerifiedMarker));
+    final markerFile = File(path.join(stagingDir.path, _stagedVerifiedMarker));
     if (!await markerFile.exists()) {
       throw UpdateException(
         'Staged update is missing the verified marker '
@@ -720,8 +735,7 @@ class UpdateService {
     Directory stagingDir,
     UpdateManifest manifest,
   ) async {
-    final expectedFile =
-        File(path.join(stagingDir.path, _expectedHashesFile));
+    final expectedFile = File(path.join(stagingDir.path, _expectedHashesFile));
     final files = <String, String>{};
     for (final entry in manifest.files.entries) {
       // Why POSIX: the Rust updater normalises install-relative paths to
@@ -776,8 +790,7 @@ Future<void> persistStagedManifest(
   final manifestFile = File(path.join(stagingDir.path, _stagedManifestFile));
   await manifestFile.writeAsString(manifestJson);
 
-  final markerFile =
-      File(path.join(stagingDir.path, _stagedVerifiedMarker));
+  final markerFile = File(path.join(stagingDir.path, _stagedVerifiedMarker));
   await markerFile.writeAsString(computeStagedManifestHash(manifest));
 }
 
@@ -820,12 +833,7 @@ class StagedUpdate {
   });
 }
 
-enum PendingInstallState {
-  none,
-  verified,
-  rolledBack,
-  requiresAttention,
-}
+enum PendingInstallState { none, verified, rolledBack, requiresAttention }
 
 class PendingInstallStatus {
   final PendingInstallState state;
@@ -836,13 +844,13 @@ class PendingInstallStatus {
   const PendingInstallStatus.none() : this._(PendingInstallState.none, null);
 
   const PendingInstallStatus.verified(String message)
-      : this._(PendingInstallState.verified, message);
+    : this._(PendingInstallState.verified, message);
 
   const PendingInstallStatus.rolledBack(String message)
-      : this._(PendingInstallState.rolledBack, message);
+    : this._(PendingInstallState.rolledBack, message);
 
   const PendingInstallStatus.requiresAttention(String message)
-      : this._(PendingInstallState.requiresAttention, message);
+    : this._(PendingInstallState.requiresAttention, message);
 }
 
 /// Exception thrown by update operations

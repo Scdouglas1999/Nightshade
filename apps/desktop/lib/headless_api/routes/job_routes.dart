@@ -15,9 +15,8 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [JobHandlers].
 List<HeadlessRoute> buildJobRoutes(JobHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/jobs', h.handleListJobs),
-      HeadlessRoute(HttpMethod.get, '/api/jobs/<jobId>', h.handleGetJob),
-      HeadlessRoute(
-          HttpMethod.post, '/api/jobs/<jobId>/cancel', h.handleCancelJob),
-      HeadlessRoute(HttpMethod.delete, '/api/jobs/<jobId>', h.handlePurgeJob),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/jobs', h.handleListJobs),
+  HeadlessRoute(HttpMethod.get, '/api/jobs/<jobId>', h.handleGetJob),
+  HeadlessRoute(HttpMethod.post, '/api/jobs/<jobId>/cancel', h.handleCancelJob),
+  HeadlessRoute(HttpMethod.delete, '/api/jobs/<jobId>', h.handlePurgeJob),
+];

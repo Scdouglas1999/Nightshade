@@ -28,8 +28,10 @@ extension _FramingSurveyOperations on FramingNotifier {
   Future<void> _loadSurveyImage({double? canvasWidthLogicalPx}) async {
     if (_currentState.target == null) return;
 
-    _currentState =
-        _currentState.copyWith(isLoadingImage: true, imageError: null);
+    _currentState = _currentState.copyWith(
+      isLoadingImage: true,
+      imageError: null,
+    );
 
     final target = _currentState.target!;
     final source = _currentState.surveySource;
@@ -64,7 +66,9 @@ extension _FramingSurveyOperations on FramingNotifier {
       try {
         http.Response? response;
         try {
-          response = await client.get(Uri.parse(url)).timeout(
+          response = await client
+              .get(Uri.parse(url))
+              .timeout(
                 FramingNotifier._surveyImageTimeout,
                 onTimeout: () => throw TimeoutException(
                   'Aladin survey image fetch timed out',
@@ -100,14 +104,15 @@ extension _FramingSurveyOperations on FramingNotifier {
             requestPixelWidth,
           );
 
-          final skyViewResponse =
-              await client.get(Uri.parse(skyViewUrl)).timeout(
-                    FramingNotifier._surveyImageTimeout,
-                    onTimeout: () => throw TimeoutException(
-                      'SkyView survey image fetch timed out',
-                      FramingNotifier._surveyImageTimeout,
-                    ),
-                  );
+          final skyViewResponse = await client
+              .get(Uri.parse(skyViewUrl))
+              .timeout(
+                FramingNotifier._surveyImageTimeout,
+                onTimeout: () => throw TimeoutException(
+                  'SkyView survey image fetch timed out',
+                  FramingNotifier._surveyImageTimeout,
+                ),
+              );
 
           if (skyViewResponse.statusCode == 200) {
             await _applyFetchedImage(
@@ -461,7 +466,7 @@ extension _FramingSurveyOperations on FramingNotifier {
         _currentState.customEquipment != null) {
       return (
         _currentState.customEquipment!.fovWidthDeg,
-        _currentState.customEquipment!.fovHeightDeg
+        _currentState.customEquipment!.fovHeightDeg,
       );
     }
 

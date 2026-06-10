@@ -30,19 +30,19 @@ class SequenceCatalogUpdate {
   });
 
   Map<String, dynamic> toEventData() => {
-        'sequenceId': sequenceId,
-        'action': action,
-        if (name != null) 'name': name,
-        'isTemplate': isTemplate,
-      };
+    'sequenceId': sequenceId,
+    'action': action,
+    if (name != null) 'name': name,
+    'isTemplate': isTemplate,
+  };
 
   NightshadeEvent toNightshadeEvent() => NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.sequencer,
-        eventType: sequenceUpdatedEventType,
-        data: toEventData(),
-      );
+    timestamp: DateTime.now().millisecondsSinceEpoch,
+    severity: EventSeverity.info,
+    category: EventCategory.sequencer,
+    eventType: sequenceUpdatedEventType,
+    data: toEventData(),
+  );
 }
 
 /// In-process bus so headless API handlers and the desktop GUI share the same
@@ -63,16 +63,18 @@ class SequenceCatalogUpdateBus {
   }
 }
 
-final sequenceCatalogUpdateBusProvider =
-    Provider<SequenceCatalogUpdateBus>((ref) {
+final sequenceCatalogUpdateBusProvider = Provider<SequenceCatalogUpdateBus>((
+  ref,
+) {
   final bus = SequenceCatalogUpdateBus();
   ref.onDispose(bus.dispose);
   return bus;
 });
 
 /// Provider for sequences list — loads from local DB or remote host catalog.
-final savedSequencesProvider =
-    FutureProvider.autoDispose<List<Sequence>>((ref) async {
+final savedSequencesProvider = FutureProvider.autoDispose<List<Sequence>>((
+  ref,
+) async {
   final repository = ref.watch(sequenceRepositoryProvider);
   return repository.loadAllSequences();
 });
@@ -98,9 +100,10 @@ final sequenceLibrarySyncProvider = Provider<void>((ref) {
 
   void attachBus() {
     busSub?.cancel();
-    busSub = ref.read(sequenceCatalogUpdateBusProvider).stream.listen(
-          onCatalogUpdate,
-        );
+    busSub = ref
+        .read(sequenceCatalogUpdateBusProvider)
+        .stream
+        .listen(onCatalogUpdate);
   }
 
   void attachBackendEvents(NightshadeBackend backend) {
@@ -210,7 +213,7 @@ void _emitSequenceCatalogUpdate({
   String? name,
   bool isTemplate = false,
   required void Function(String mutationAction, Map<String, dynamic> extra)
-      publishHostMutation,
+  publishHostMutation,
 }) {
   bus.notify(
     SequenceCatalogUpdate(
@@ -221,14 +224,11 @@ void _emitSequenceCatalogUpdate({
     ),
   );
 
-  publishHostMutation(
-    _hostMutationActionForCatalogAction(action),
-    {
-      if (name != null) 'name': name,
-      'isTemplate': isTemplate,
-      'catalogAction': action,
-    },
-  );
+  publishHostMutation(_hostMutationActionForCatalogAction(action), {
+    if (name != null) 'name': name,
+    'isTemplate': isTemplate,
+    'catalogAction': action,
+  });
 }
 
 /// Reload the in-editor sequence when a remote/tablet save touched the same row.
@@ -244,8 +244,9 @@ Future<void> reloadOpenSequenceIfIdle(Ref ref, int sequenceId) async {
   }
 
   try {
-    final loaded =
-        await ref.read(sequenceRepositoryProvider).loadSequence(sequenceId);
+    final loaded = await ref
+        .read(sequenceRepositoryProvider)
+        .loadSequence(sequenceId);
     if (loaded != null) {
       editor.loadSequence(loaded, discardUnsaved: true);
     }

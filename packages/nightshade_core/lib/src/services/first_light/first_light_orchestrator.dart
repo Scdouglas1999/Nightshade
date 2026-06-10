@@ -23,20 +23,20 @@ import '../plate_solve_service.dart';
 /// type. Routing the orchestrator's annotation step through this typedef keeps
 /// production behaviour identical (the default delegates straight to the real
 /// service) while giving tests a clean override point.
-typedef FirstLightAnnotator = Future<ImageAnnotation> Function({
-  required String imagePath,
-  required PlateSolveData plateSolve,
-});
+typedef FirstLightAnnotator =
+    Future<ImageAnnotation> Function({
+      required String imagePath,
+      required PlateSolveData plateSolve,
+    });
 
 /// Default annotator provider: delegates to the production
 /// [AnnotationService]. Override [firstLightAnnotatorProvider] in tests to
 /// supply a fake.
 final firstLightAnnotatorProvider = Provider<FirstLightAnnotator>((ref) {
   return ({required String imagePath, required PlateSolveData plateSolve}) {
-    return ref.read(annotationServiceProvider).annotateImage(
-          imagePath: imagePath,
-          plateSolve: plateSolve,
-        );
+    return ref
+        .read(annotationServiceProvider)
+        .annotateImage(imagePath: imagePath, plateSolve: plateSolve);
   };
 });
 
@@ -172,7 +172,8 @@ class FirstLightState {
   }
 
   @override
-  String toString() => 'FirstLightState(phase: $phase, '
+  String toString() =>
+      'FirstLightState(phase: $phase, '
       'exposureSeconds: $exposureSeconds, '
       'capturedImageId: $capturedImageId, '
       'stretched: $stretched, '
@@ -213,9 +214,10 @@ class FirstLightOrchestrator {
   final Ref _ref;
   final void Function(FirstLightState) _onState;
 
-  FirstLightOrchestrator(this._ref,
-      {required void Function(FirstLightState) onState})
-      : _onState = onState;
+  FirstLightOrchestrator(
+    this._ref, {
+    required void Function(FirstLightState) onState,
+  }) : _onState = onState;
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
@@ -319,20 +321,16 @@ class FirstLightOrchestrator {
       state = state.copyWith(phase: FirstLightPhase.annotating);
       _emit(state);
       await _annotate(captured, solveResult);
-      state = state.copyWith(
-        phase: FirstLightPhase.success,
-        annotated: true,
-      );
+      state = state.copyWith(phase: FirstLightPhase.success, annotated: true);
       _emit(state);
     } on _FirstLightStageError catch (e) {
       _logger.warning(
         'First-light flow failed: ${e.message}',
         source: 'FirstLight',
       );
-      _emit(state.copyWith(
-        phase: FirstLightPhase.failed,
-        errorMessage: e.message,
-      ));
+      _emit(
+        state.copyWith(phase: FirstLightPhase.failed, errorMessage: e.message),
+      );
     } catch (e, st) {
       // Defensive: any unexpected exception from a stage still surfaces — it
       // must never be swallowed. The raw message is carried verbatim.
@@ -340,10 +338,12 @@ class FirstLightOrchestrator {
         'First-light flow failed unexpectedly: $e\n$st',
         source: 'FirstLight',
       );
-      _emit(state.copyWith(
-        phase: FirstLightPhase.failed,
-        errorMessage: e.toString(),
-      ));
+      _emit(
+        state.copyWith(
+          phase: FirstLightPhase.failed,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 

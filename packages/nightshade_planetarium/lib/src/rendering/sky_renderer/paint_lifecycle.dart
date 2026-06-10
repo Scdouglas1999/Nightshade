@@ -38,7 +38,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     );
 
     // Per-section timing for diagnostic breakdown (collected once, then printed)
-    final doTiming = !SkyCanvasPainter._hasLoggedTimingBreakdown &&
+    final doTiming =
+        !SkyCanvasPainter._hasLoggedTimingBreakdown &&
         SkyCanvasPainter._paintTimings.length >= 59;
     final sw = doTiming ? (Stopwatch()..start()) : null;
     int bgUs = 0, mwUs = 0, gridUs = 0, overlayUs = 0, constUs = 0;
@@ -237,7 +238,13 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         mountPosition != null &&
         mountStatus != MountRenderStatus.disconnected) {
       _drawMountPositionMarker(
-          canvas, size, center, scale, mountPosition!, mountStatus);
+        canvas,
+        size,
+        center,
+        scale,
+        mountPosition!,
+        mountStatus,
+      );
     }
 
     // Draw selected object marker (pulsing ring — overlay layer so the pulse
@@ -263,7 +270,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     // Print per-section timing breakdown once after 60 frames for diagnostics
     if (doTiming) {
       SkyCanvasPainter._hasLoggedTimingBreakdown = true;
-      final totalUs = bgUs +
+      final totalUs =
+          bgUs +
           mwUs +
           gridUs +
           overlayUs +
@@ -313,7 +321,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
       final now = DateTime.now();
       if (now.difference(SkyCanvasPainter._lastWarningTime).inSeconds >= 5) {
         SkyCanvasPainter._lastWarningTime = now;
-        final avgMs = SkyCanvasPainter._paintTimings.reduce((a, b) => a + b) /
+        final avgMs =
+            SkyCanvasPainter._paintTimings.reduce((a, b) => a + b) /
             SkyCanvasPainter._paintTimings.length;
         developer.log(
           'SkyCanvasPainter: paint() averaging ${avgMs.toStringAsFixed(1)}ms '
@@ -403,8 +412,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         return true;
       }
       final raDiff = (mountPosition!.ra - oldDelegate.mountPosition!.ra).abs();
-      final decDiff =
-          (mountPosition!.dec - oldDelegate.mountPosition!.dec).abs();
+      final decDiff = (mountPosition!.dec - oldDelegate.mountPosition!.dec)
+          .abs();
       if (raDiff > 0.05 / 15 || decDiff > 0.05) {
         return true;
       }
@@ -455,9 +464,11 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     }
     // Minor planets update every 30s; repaint if data changed
     if (config.showMinorPlanets && minorPlanets.isNotEmpty) {
-      for (int i = 0;
-          i < minorPlanets.length && i < oldDelegate.minorPlanets.length;
-          i++) {
+      for (
+        int i = 0;
+        i < minorPlanets.length && i < oldDelegate.minorPlanets.length;
+        i++
+      ) {
         if ((minorPlanets[i].ra - oldDelegate.minorPlanets[i].ra).abs() >
                 0.001 ||
             (minorPlanets[i].dec - oldDelegate.minorPlanets[i].dec).abs() >

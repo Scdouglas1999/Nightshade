@@ -20,8 +20,7 @@ import 'integration_goal_service.dart'
 class TargetConstraintService {
   final db.NightshadeDatabase _db;
   bool _schemaEnsured = false;
-  final StreamController<void> _mutations =
-      StreamController<void>.broadcast();
+  final StreamController<void> _mutations = StreamController<void>.broadcast();
 
   TargetConstraintService(this._db);
 
@@ -60,7 +59,9 @@ class TargetConstraintService {
   /// be non-null.
   Future<void> update(TargetConstraint constraint) async {
     if (constraint.id == null) {
-      throw StateError('TargetConstraintService.update requires a persisted id');
+      throw StateError(
+        'TargetConstraintService.update requires a persisted id',
+      );
     }
     await _ensureSchema();
     await _db.customStatement(
@@ -86,10 +87,9 @@ class TargetConstraintService {
 
   Future<void> delete(int constraintId) async {
     await _ensureSchema();
-    await _db.customStatement(
-      'DELETE FROM target_constraints WHERE id = ?',
-      [constraintId],
-    );
+    await _db.customStatement('DELETE FROM target_constraints WHERE id = ?', [
+      constraintId,
+    ]);
     _notifyMutated();
   }
 
@@ -115,18 +115,22 @@ class TargetConstraintService {
 
   Future<List<TargetConstraint>> listForTarget(int targetId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints WHERE target_id = ?',
-      variables: [Variable.withInt(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints WHERE target_id = ?',
+          variables: [Variable.withInt(targetId)],
+        )
+        .get();
     return rows.map(_rowToConstraint).toList();
   }
 
   Future<List<TargetConstraint>> listAll() async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints',
+        )
+        .get();
     return rows.map(_rowToConstraint).toList();
   }
 
@@ -151,8 +155,9 @@ class TargetConstraintService {
   }
 }
 
-final targetConstraintServiceProvider =
-    Provider<TargetConstraintService>((ref) {
+final targetConstraintServiceProvider = Provider<TargetConstraintService>((
+  ref,
+) {
   final svc = TargetConstraintService(ref.watch(databaseProvider));
   ref.onDispose(() => svc.dispose());
   return svc;

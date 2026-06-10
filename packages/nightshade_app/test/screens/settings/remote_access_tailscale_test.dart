@@ -212,8 +212,8 @@ void main() {
         reason: 'Tailscale QR must never embed the LAN address');
   });
 
-  testWidgets(
-      'not_detected_shows_alert_recheck_and_manual_field', (tester) async {
+  testWidgets('not_detected_shows_alert_recheck_and_manual_field',
+      (tester) async {
     await pumpAppScreen(
       tester,
       const RemoteAccessSettings(),
@@ -233,11 +233,12 @@ void main() {
     // No tailnet host => the Tailscale QR must not render even though a
     // pairing code exists (the separate LAN QR may still appear).
     expect(_tailscaleQrFinder, findsNothing,
-        reason: 'Without a usable tailnet host the Tailscale QR must not render');
+        reason:
+            'Without a usable tailnet host the Tailscale QR must not render');
   });
 
-  testWidgets(
-      'recheck_button_reresolves_without_dropping_state', (tester) async {
+  testWidgets('recheck_button_reresolves_without_dropping_state',
+      (tester) async {
     _StubWebServerNotifier? captured;
     await pumpAppScreen(
       tester,
@@ -261,8 +262,8 @@ void main() {
     // The replayed params preserve the runtime fields.
     expect(captured!.state.isRunning, isTrue);
     expect(captured!.state.actualPort, 8080);
-    expect(captured!.state.serverFingerprint,
-        'abcdef0123456789abcdef0123456789');
+    expect(
+        captured!.state.serverFingerprint, 'abcdef0123456789abcdef0123456789');
   });
 
   testWidgets('manual_lan_host_is_rejected', (tester) async {

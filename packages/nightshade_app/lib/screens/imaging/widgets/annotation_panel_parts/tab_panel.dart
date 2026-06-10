@@ -373,11 +373,13 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: NightshadeDecorations.tintedBadge(
                   widget.colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Text(
                   '${filteredObjects.length}/${displayableObjects.length} objects',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.primary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: widget.colors.primary),
                 ),
               ),
               const Spacer(),
@@ -397,7 +399,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     child: Text(
                       'Sort: Brightness',
                       style: TextStyle(
-                          color: widget.colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                          color: widget.colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize12),
                     ),
                   ),
                   PopupMenuItem(
@@ -405,7 +408,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     child: Text(
                       'Sort: Name',
                       style: TextStyle(
-                          color: widget.colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                          color: widget.colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize12),
                     ),
                   ),
                   PopupMenuItem(
@@ -413,7 +417,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     child: Text(
                       'Sort: Type',
                       style: TextStyle(
-                          color: widget.colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                          color: widget.colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize12),
                     ),
                   ),
                 ],
@@ -439,7 +444,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     )
                   : InkWell(
                       onTap: _handleReAnnotate,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       child: Tooltip(
                         message: 'Re-annotate image',
                         child: Padding(
@@ -466,7 +472,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                   : InkWell(
                       onTap:
                           annotation != null ? _handleSaveAnnotatedImage : null,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       child: Tooltip(
                         message: 'Save annotated image',
                         child: Padding(
@@ -610,7 +617,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         const SizedBox(width: 8),
                         Text('Save as Preset',
                             style: TextStyle(
-                                color: widget.colors.primary, fontSize: NightshadeTypography.fontSize12)),
+                                color: widget.colors.primary,
+                                fontSize: NightshadeTypography.fontSize12)),
                       ],
                     ),
                   ));
@@ -642,163 +650,168 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
         Material(
           type: MaterialType.transparency,
           child: ExpansionTile(
-          initiallyExpanded: _filtersExpanded,
-          onExpansionChanged: (expanded) =>
-              setState(() => _filtersExpanded = expanded),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-          childrenPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          dense: true,
-          title: Text(
-            'Filters',
-            style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary),
-          ),
-          trailing: Icon(
-            _filtersExpanded ? NightshadeIcons.chevronUp : NightshadeIcons.chevronDown,
-            size: 16,
-            color: widget.colors.textMuted,
-          ),
-          children: [
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                AnnotationQuickSettingChip(
-                  label: settings.visibleTypes
-                          .contains(AnnotationObjectFilter.stars)
-                      ? 'Stars On'
-                      : 'Stars Off',
-                  isSelected: settings.visibleTypes
-                      .contains(AnnotationObjectFilter.stars),
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .toggleObjectType(AnnotationObjectFilter.stars),
-                    );
-                  },
-                ),
-                AnnotationQuickSettingChip(
-                  label: settings.showLabels ? 'Labels On' : 'Labels Off',
-                  isSelected: settings.showLabels,
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .setShowLabels(!settings.showLabels),
-                    );
-                  },
-                ),
-                AnnotationQuickSettingChip(
-                  label: settings.showMagnitudes ? 'Mag On' : 'Mag Off',
-                  isSelected: settings.showMagnitudes,
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .setShowMagnitudes(!settings.showMagnitudes),
-                    );
-                  },
-                ),
-                AnnotationQuickSettingChip(
-                  label: settings.compassEnabled ? 'Compass On' : 'Compass Off',
-                  isSelected: settings.compassEnabled,
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .setCompassEnabled(!settings.compassEnabled),
-                    );
-                  },
-                ),
-                AnnotationQuickSettingChip(
-                  label: settings.scaleBarEnabled
-                      ? 'Scale Bar On'
-                      : 'Scale Bar Off',
-                  isSelected: settings.scaleBarEnabled,
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .setScaleBarEnabled(!settings.scaleBarEnabled),
-                    );
-                  },
-                ),
-                AnnotationQuickSettingChip(
-                  label: settings.showSolveResiduals
-                      ? 'Residuals On'
-                      : 'Residuals Off',
-                  isSelected: settings.showSolveResiduals,
-                  colors: widget.colors,
-                  onTap: () {
-                    unawaited(
-                      ref
-                          .read(annotationSettingsProvider.notifier)
-                          .setShowSolveResiduals(!settings.showSolveResiduals),
-                    );
-                  },
-                ),
-              ],
+            initiallyExpanded: _filtersExpanded,
+            onExpansionChanged: (expanded) =>
+                setState(() => _filtersExpanded = expanded),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+            childrenPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            dense: true,
+            title: Text(
+              'Filters',
+              style: NightshadeTypography.labelSm
+                  .copyWith(color: widget.colors.textSecondary),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: _filterTypes.map((type) {
-                final isSelected =
-                    isTypeVisibleFromSettings(type, settings.visibleTypes);
-                final count = _countForFilterType(type, typeCounts);
-                return AnnotationFilterChip(
-                  label: _getObjectTypeLabel(type),
-                  count: count,
-                  isSelected: isSelected,
-                  colors: widget.colors,
-                  onTap: () {
-                    final notifier =
-                        ref.read(annotationSettingsProvider.notifier);
-                    final updated =
-                        Set<AnnotationObjectFilter>.from(settings.visibleTypes);
-                    final typeFilters = filtersForObjectType(type);
-                    if (isSelected) {
-                      updated.removeAll(typeFilters);
-                    } else {
-                      updated.addAll(typeFilters);
-                    }
-                    unawaited(notifier.setObjectTypes(updated));
-                  },
-                );
-              }).toList(),
+            trailing: Icon(
+              _filtersExpanded
+                  ? NightshadeIcons.chevronUp
+                  : NightshadeIcons.chevronDown,
+              size: 16,
+              color: widget.colors.textMuted,
             ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: NightshadeButton(
-                onPressed: () {
-                  unawaited(
-                    ref
-                        .read(annotationSettingsProvider.notifier)
-                        .setObjectTypes(
-                      {
-                        AnnotationObjectFilter.galaxies,
-                        AnnotationObjectFilter.nebulae,
-                        AnnotationObjectFilter.starClusters,
-                        AnnotationObjectFilter.planetaryNebulae,
-                      },
-                    ),
-                  );
-                },
-                label: 'Reset to defaults',
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
+            children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  AnnotationQuickSettingChip(
+                    label: settings.visibleTypes
+                            .contains(AnnotationObjectFilter.stars)
+                        ? 'Stars On'
+                        : 'Stars Off',
+                    isSelected: settings.visibleTypes
+                        .contains(AnnotationObjectFilter.stars),
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .toggleObjectType(AnnotationObjectFilter.stars),
+                      );
+                    },
+                  ),
+                  AnnotationQuickSettingChip(
+                    label: settings.showLabels ? 'Labels On' : 'Labels Off',
+                    isSelected: settings.showLabels,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setShowLabels(!settings.showLabels),
+                      );
+                    },
+                  ),
+                  AnnotationQuickSettingChip(
+                    label: settings.showMagnitudes ? 'Mag On' : 'Mag Off',
+                    isSelected: settings.showMagnitudes,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setShowMagnitudes(!settings.showMagnitudes),
+                      );
+                    },
+                  ),
+                  AnnotationQuickSettingChip(
+                    label:
+                        settings.compassEnabled ? 'Compass On' : 'Compass Off',
+                    isSelected: settings.compassEnabled,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setCompassEnabled(!settings.compassEnabled),
+                      );
+                    },
+                  ),
+                  AnnotationQuickSettingChip(
+                    label: settings.scaleBarEnabled
+                        ? 'Scale Bar On'
+                        : 'Scale Bar Off',
+                    isSelected: settings.scaleBarEnabled,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setScaleBarEnabled(!settings.scaleBarEnabled),
+                      );
+                    },
+                  ),
+                  AnnotationQuickSettingChip(
+                    label: settings.showSolveResiduals
+                        ? 'Residuals On'
+                        : 'Residuals Off',
+                    isSelected: settings.showSolveResiduals,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setShowSolveResiduals(
+                                !settings.showSolveResiduals),
+                      );
+                    },
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: _filterTypes.map((type) {
+                  final isSelected =
+                      isTypeVisibleFromSettings(type, settings.visibleTypes);
+                  final count = _countForFilterType(type, typeCounts);
+                  return AnnotationFilterChip(
+                    label: _getObjectTypeLabel(type),
+                    count: count,
+                    isSelected: isSelected,
+                    colors: widget.colors,
+                    onTap: () {
+                      final notifier =
+                          ref.read(annotationSettingsProvider.notifier);
+                      final updated = Set<AnnotationObjectFilter>.from(
+                          settings.visibleTypes);
+                      final typeFilters = filtersForObjectType(type);
+                      if (isSelected) {
+                        updated.removeAll(typeFilters);
+                      } else {
+                        updated.addAll(typeFilters);
+                      }
+                      unawaited(notifier.setObjectTypes(updated));
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: NightshadeButton(
+                  onPressed: () {
+                    unawaited(
+                      ref
+                          .read(annotationSettingsProvider.notifier)
+                          .setObjectTypes(
+                        {
+                          AnnotationObjectFilter.galaxies,
+                          AnnotationObjectFilter.nebulae,
+                          AnnotationObjectFilter.starClusters,
+                          AnnotationObjectFilter.planetaryNebulae,
+                        },
+                      ),
+                    );
+                  },
+                  label: 'Reset to defaults',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
 

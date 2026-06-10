@@ -54,9 +54,8 @@ class FramingImageCacheService {
   /// Subdirectory under app support where framing images live.
   static const String _cacheDirName = 'framing_cache';
 
-  FramingImageCacheService({
-    Future<Directory> Function()? supportDirProvider,
-  }) : _supportDirProvider = supportDirProvider;
+  FramingImageCacheService({Future<Directory> Function()? supportDirProvider})
+    : _supportDirProvider = supportDirProvider;
 
   Future<Directory> _resolveSupportDir() async {
     final provider = _supportDirProvider;
@@ -211,15 +210,17 @@ class FramingImageCacheService {
     String extension = 'jpg',
   }) async {
     final dir = await ensureCacheDirectory();
-    final file = File(p.join(
-      dir.path,
-      buildFilename(
-        raHours: raHours,
-        decDegrees: decDegrees,
-        source: source,
-        extension: extension,
+    final file = File(
+      p.join(
+        dir.path,
+        buildFilename(
+          raHours: raHours,
+          decDegrees: decDegrees,
+          source: source,
+          extension: extension,
+        ),
       ),
-    ));
+    );
     if (await file.exists()) {
       return file;
     }
@@ -236,11 +237,13 @@ class FramingImageCacheService {
       final name = p.basename(entity.path);
       if (name.endsWith('.meta.json') || name.endsWith('.tmp')) continue;
       final stat = await entity.stat();
-      out.add(FramingImageCacheEntry(
-        filePath: entity.path,
-        sizeBytes: stat.size,
-        savedAt: stat.modified,
-      ));
+      out.add(
+        FramingImageCacheEntry(
+          filePath: entity.path,
+          sizeBytes: stat.size,
+          savedAt: stat.modified,
+        ),
+      );
     }
     return out;
   }

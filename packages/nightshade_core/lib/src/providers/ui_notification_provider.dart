@@ -1,12 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Severity level for UI notifications
-enum UiNotificationLevel {
-  info,
-  success,
-  warning,
-  error,
-}
+enum UiNotificationLevel { info, success, warning, error }
 
 /// A UI notification to be displayed to the user (e.g., snackbar, banner, toast)
 class UiNotification {
@@ -143,5 +138,5 @@ class UiNotificationNotifier extends StateNotifier<List<UiNotification>> {
 /// Provider for UI notifications
 final uiNotificationProvider =
     StateNotifierProvider<UiNotificationNotifier, List<UiNotification>>((ref) {
-  return UiNotificationNotifier();
-});
+      return UiNotificationNotifier();
+    });

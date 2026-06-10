@@ -11,8 +11,8 @@ import 'equipment_retry_defaults.dart';
 /// Focuser state provider
 final focuserStateProvider =
     StateNotifierProvider<FocuserStateNotifier, FocuserState>((ref) {
-  return FocuserStateNotifier(ref);
-});
+      return FocuserStateNotifier(ref);
+    });
 
 class FocuserStateNotifier extends StateNotifier<FocuserState> {
   final Ref _ref;
@@ -20,8 +20,10 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
 
   FocuserStateNotifier(this._ref) : super(const FocuserState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -139,8 +141,8 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
 /// This allows the dashboard to show a visual history of focus position changes.
 final focusPositionHistoryProvider =
     StateNotifierProvider<FocusPositionHistoryNotifier, List<int>>((ref) {
-  return FocusPositionHistoryNotifier(ref);
-});
+      return FocusPositionHistoryNotifier(ref);
+    });
 
 /// Notifier that maintains a rolling history of focus positions.
 class FocusPositionHistoryNotifier extends StateNotifier<List<int>> {

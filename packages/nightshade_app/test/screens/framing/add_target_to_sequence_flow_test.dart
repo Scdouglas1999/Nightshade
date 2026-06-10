@@ -26,14 +26,14 @@ void main() {
     });
 
     test('preserves a non-zero framing rotation', () {
-      final header =
-          bareTargetHeaderForFramedTarget(target: _target(), rotationDegrees: 37.5);
+      final header = bareTargetHeaderForFramedTarget(
+          target: _target(), rotationDegrees: 37.5);
       expect(header.rotation, closeTo(37.5, 1e-9));
     });
 
     test('drops a zero rotation (no constraint)', () {
-      final header =
-          bareTargetHeaderForFramedTarget(target: _target(), rotationDegrees: 0);
+      final header = bareTargetHeaderForFramedTarget(
+          target: _target(), rotationDegrees: 0);
       expect(header.rotation, isNull);
     });
   });
@@ -88,8 +88,7 @@ void main() {
       expect(ok, isTrue);
 
       final seq = container.read(currentSequenceProvider)!;
-      final targets =
-          seq.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = seq.nodes.values.whereType<TargetHeaderNode>().toList();
       expect(targets, hasLength(1));
       expect(targets.first.targetName, 'M51');
       expect(targets.first.rotation, closeTo(12, 1e-9));
@@ -144,8 +143,7 @@ void main() {
 
       final seq = container.read(currentSequenceProvider);
       expect(seq, isNotNull);
-      final targets =
-          seq!.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = seq!.nodes.values.whereType<TargetHeaderNode>().toList();
       expect(targets, hasLength(1));
       expect(targets.first.targetName, 'M51');
     });

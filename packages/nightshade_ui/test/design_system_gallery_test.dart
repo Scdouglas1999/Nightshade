@@ -14,10 +14,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: theme,
-        home: const NightshadeDesignSystemGallery(),
-      ),
+      MaterialApp(theme: theme, home: const NightshadeDesignSystemGallery()),
     );
     await tester.pump();
   }
@@ -41,7 +38,9 @@ void main() {
     expect(find.text('Chips and Status Pills'), findsOneWidget);
     expect(find.text('Alerts'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('gallery-button-primary')), findsOneWidget);
+      find.byKey(const ValueKey('gallery-button-primary')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('gallery-dropdown')), findsOneWidget);
     expect(find.byKey(const ValueKey('gallery-status-active')), findsOneWidget);
     expect(
@@ -104,9 +103,7 @@ void main() {
 
     expect(
       tester
-          .widget<SubTabButton>(
-            find.widgetWithText(SubTabButton, 'Guiding'),
-          )
+          .widget<SubTabButton>(find.widgetWithText(SubTabButton, 'Guiding'))
           .isSelected,
       isFalse,
     );
@@ -114,9 +111,7 @@ void main() {
     await tester.pump();
     expect(
       tester
-          .widget<SubTabButton>(
-            find.widgetWithText(SubTabButton, 'Guiding'),
-          )
+          .widget<SubTabButton>(find.widgetWithText(SubTabButton, 'Guiding'))
           .isSelected,
       isTrue,
     );

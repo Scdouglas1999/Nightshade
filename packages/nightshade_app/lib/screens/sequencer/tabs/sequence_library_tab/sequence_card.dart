@@ -322,7 +322,9 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Text(
           'Delete Sequence',
           style: TextStyle(color: widget.colors.textPrimary),

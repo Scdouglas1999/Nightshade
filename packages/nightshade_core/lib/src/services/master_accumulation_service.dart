@@ -31,10 +31,10 @@ class MasterAccumulationService {
     required DarkLibraryService darkLibrary,
     required FlatLibraryService flatLibrary,
     required PostSessionSeam seam,
-  })  : _mastersDao = mastersDao,
-        _darkLibrary = darkLibrary,
-        _flatLibrary = flatLibrary,
-        _seam = seam;
+  }) : _mastersDao = mastersDao,
+       _darkLibrary = darkLibrary,
+       _flatLibrary = flatLibrary,
+       _seam = seam;
 
   final IntegratedMastersDao _mastersDao;
   final DarkLibraryService _darkLibrary;
@@ -143,8 +143,9 @@ class MasterAccumulationService {
       'op': 'add',
       'sidecarPath': sidecar,
       'lightPaths': fresh.map((s) => s.filePath).toList(),
-      'exposuresSec':
-          fresh.map((s) => s.exposureDuration).toList(growable: false),
+      'exposuresSec': fresh
+          .map((s) => s.exposureDuration)
+          .toList(growable: false),
       'label': label,
       'calibration': calibration,
       'settings': settings.toBridgeSettings(),
@@ -282,14 +283,17 @@ class MasterAccumulationService {
     final base = (targetName != null && targetName.trim().isNotEmpty)
         ? targetName.trim()
         : 'Master';
-    final f = (filter != null && filter.trim().isNotEmpty) ? filter.trim() : null;
+    final f = (filter != null && filter.trim().isNotEmpty)
+        ? filter.trim()
+        : null;
     return f != null ? '$base · $f' : base;
   }
 }
 
 /// Provider for the [MasterAccumulationService].
-final masterAccumulationServiceProvider =
-    Provider<MasterAccumulationService>((ref) {
+final masterAccumulationServiceProvider = Provider<MasterAccumulationService>((
+  ref,
+) {
   return MasterAccumulationService(
     mastersDao: ref.watch(integratedMastersDaoProvider),
     darkLibrary: ref.watch(darkLibraryServiceProvider),

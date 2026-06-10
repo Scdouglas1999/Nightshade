@@ -67,8 +67,8 @@ class _OverflowGuard {
       final isOverflow = text.contains('overflowed');
       if (isOverflow) {
         final fromUiPackage = text.contains('packages/nightshade_ui/');
-        final fromAppGuiding =
-            text.contains('screens/guiding/') || text.contains('guiding_screen');
+        final fromAppGuiding = text.contains('screens/guiding/') ||
+            text.contains('guiding_screen');
         if (fromAppGuiding && !fromUiPackage) {
           appOverflows.add(details);
         }

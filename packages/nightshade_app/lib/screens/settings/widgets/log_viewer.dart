@@ -91,10 +91,8 @@ class _LogViewerState extends ConsumerState<LogViewer>
         if (!mounted) return;
         setState(() {
           _allLogs = logs;
-          _availableSources = logs
-              .where((e) => e.source != null)
-              .map((e) => e.source!)
-              .toSet();
+          _availableSources =
+              logs.where((e) => e.source != null).map((e) => e.source!).toSet();
           _applyFilters();
         });
         if (_autoScroll && _scrollController.hasClients) {
@@ -393,10 +391,14 @@ class _LogViewerState extends ConsumerState<LogViewer>
           height: 32,
           child: TextField(
             controller: _searchController,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search logs...',
-              hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              hintStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
               prefixIcon:
                   Icon(LucideIcons.search, size: 14, color: colors.textMuted),
               prefixIconConstraints:
@@ -445,23 +447,30 @@ class _LogViewerState extends ConsumerState<LogViewer>
           isDense: true,
           hint: Text(
             'All sources',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           dropdownColor: colors.surface,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textPrimary),
           items: [
             DropdownMenuItem<String?>(
               value: null,
               child: Text('All sources',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textPrimary)),
             ),
             ...sortedSources.map((s) => DropdownMenuItem<String?>(
                   value: s,
                   child: Text(s,
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary)),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textPrimary)),
                 )),
           ],
           onChanged: (value) => setState(() {
@@ -603,7 +612,7 @@ class _LevelFilterButton extends StatelessWidget {
     required this.isSelected,
     this.color,
     required this.onTap,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -649,7 +658,7 @@ class _ActionToggle extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {

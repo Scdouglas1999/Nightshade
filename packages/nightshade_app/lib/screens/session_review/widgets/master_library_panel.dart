@@ -51,9 +51,8 @@ class MasterLibraryPanel extends StatelessWidget {
             icon: NightshadeIcons.add,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: (busy || acceptedSubCount == 0)
-                ? null
-                : onCreateAccumulating,
+            onPressed:
+                (busy || acceptedSubCount == 0) ? null : onCreateAccumulating,
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
@@ -121,7 +120,8 @@ class _MasterCard extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final accumulating =
         master.accumulationMode == AccumulationMode.runningWeightedMean;
-    final canOpen = master.previewPngPath != null || master.masterFitsPath != null;
+    final canOpen =
+        master.previewPngPath != null || master.masterFitsPath != null;
 
     return NightshadeCard(
       onTap: canOpen && !busy ? onOpen : null,
@@ -191,8 +191,9 @@ class _MasterCard extends StatelessWidget {
                       _MiniButton(
                         label: 'Add tonight',
                         icon: NightshadeIcons.add,
-                        onPressed:
-                            (busy || acceptedSubCount == 0) ? null : onAddTonight,
+                        onPressed: (busy || acceptedSubCount == 0)
+                            ? null
+                            : onAddTonight,
                       ),
                     if (accumulating)
                       _MiniButton(

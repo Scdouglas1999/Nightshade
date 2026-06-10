@@ -23,7 +23,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
       throw StateError(
-          'Remote settings write requested without network backend');
+        'Remote settings write requested without network backend',
+      );
     }
 
     final remote = _toRemoteSettings(settings);
@@ -110,8 +111,9 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
       final updatedRemoteJson = Map<String, dynamic>.from(snapshot.toJson())
         ..[key] = value;
       try {
-        _remoteSettingsSnapshot =
-            models.AppSettings.fromJson(updatedRemoteJson);
+        _remoteSettingsSnapshot = models.AppSettings.fromJson(
+          updatedRemoteJson,
+        );
       } catch (e) {
         // Schema mismatch (e.g. forward-incompat key from a newer host).
         // Keep the previous snapshot to preserve diff integrity.
@@ -224,7 +226,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// because there's nothing to patch. The database write has already succeeded,
   /// so the next full load will pick up the new value.
   void _patchState(
-      AppSettingsState Function(AppSettingsState current) updater) {
+    AppSettingsState Function(AppSettingsState current) updater,
+  ) {
     final current = state.valueOrNull;
     if (current == null) return;
     state = AsyncData(updater(current));

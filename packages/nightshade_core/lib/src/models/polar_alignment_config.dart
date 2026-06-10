@@ -191,20 +191,20 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
 
   /// Create default configuration for quick start
   factory PolarAlignmentConfig.quickStart() => const PolarAlignmentConfig(
-        exposureTime: 3.0,
-        stepSize: 15.0,
-        binning: 2,
-        solveTimeout: 20.0,
-      );
+    exposureTime: 3.0,
+    stepSize: 15.0,
+    binning: 2,
+    solveTimeout: 20.0,
+  );
 
   /// Create configuration for high-precision alignment
   factory PolarAlignmentConfig.highPrecision() => const PolarAlignmentConfig(
-        exposureTime: 10.0,
-        stepSize: 30.0,
-        binning: 1,
-        solveTimeout: 45.0,
-        autoCompleteThreshold: 10.0,
-      );
+    exposureTime: 10.0,
+    stepSize: 30.0,
+    binning: 1,
+    solveTimeout: 45.0,
+    autoCompleteThreshold: 10.0,
+  );
 }
 
 /// A single polar alignment error measurement
@@ -345,8 +345,8 @@ abstract class PolarAlignmentState with _$PolarAlignmentState {
     if (initialError!.totalError == 0) return 100.0;
     final improvement =
         (initialError!.totalError - currentError!.totalError) /
-            initialError!.totalError *
-            100;
+        initialError!.totalError *
+        100;
     return improvement.clamp(0.0, 100.0);
   }
 
@@ -395,7 +395,10 @@ abstract class PolarAlignmentResult with _$PolarAlignmentResult {
   /// Calculate improvement percentage
   double get improvementPercent {
     if (initialError.totalError == 0) return 100.0;
-    return (improvementArcsec / initialError.totalError * 100).clamp(0.0, 100.0);
+    return (improvementArcsec / initialError.totalError * 100).clamp(
+      0.0,
+      100.0,
+    );
   }
 
   /// Duration of the alignment session
@@ -408,7 +411,8 @@ abstract class PolarAlignmentResult with _$PolarAlignmentResult {
 }
 
 /// Custom JSON converter for nullable Uint8List
-class NullableUint8ListConverter implements JsonConverter<Uint8List?, List<int>?> {
+class NullableUint8ListConverter
+    implements JsonConverter<Uint8List?, List<int>?> {
   const NullableUint8ListConverter();
 
   @override

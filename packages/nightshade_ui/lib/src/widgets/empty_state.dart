@@ -26,11 +26,11 @@ class EmptyState extends StatelessWidget {
     this.body,
     this.action,
     this.padding = const EdgeInsets.all(24),
-  })  : _iconSize = NightshadeTokens.iconXl,
-        _titleStyle = NightshadeTypography.h5,
-        _iconTitleGap = NightshadeTokens.spaceLg,
-        _bodyGap = NightshadeTokens.spaceSm,
-        _actionGap = NightshadeTokens.spaceLg;
+  }) : _iconSize = NightshadeTokens.iconXl,
+       _titleStyle = NightshadeTypography.h5,
+       _iconTitleGap = NightshadeTokens.spaceLg,
+       _bodyGap = NightshadeTokens.spaceSm,
+       _actionGap = NightshadeTokens.spaceLg;
 
   /// Tighter variant for side panels and embedded slots (32px icon).
   const EmptyState.compact({
@@ -40,11 +40,11 @@ class EmptyState extends StatelessWidget {
     this.body,
     this.action,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  })  : _iconSize = NightshadeTokens.iconXl,
-        _titleStyle = NightshadeTypography.h6,
-        _iconTitleGap = NightshadeTokens.spaceMd,
-        _bodyGap = NightshadeTokens.spaceXs,
-        _actionGap = NightshadeTokens.spaceMd;
+  }) : _iconSize = NightshadeTokens.iconXl,
+       _titleStyle = NightshadeTypography.h6,
+       _iconTitleGap = NightshadeTokens.spaceMd,
+       _bodyGap = NightshadeTokens.spaceXs,
+       _actionGap = NightshadeTokens.spaceMd;
 
   @override
   Widget build(BuildContext context) {
@@ -57,17 +57,11 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: _iconSize,
-                color: colors.textMuted,
-              ),
+              Icon(icon, size: _iconSize, color: colors.textMuted),
               SizedBox(height: _iconTitleGap),
               Text(
                 title,
-                style: _titleStyle.copyWith(
-                  color: colors.textPrimary,
-                ),
+                style: _titleStyle.copyWith(color: colors.textPrimary),
                 textAlign: TextAlign.center,
               ),
               if (body != null) ...[
@@ -81,10 +75,7 @@ class EmptyState extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
               ],
-              if (action != null) ...[
-                SizedBox(height: _actionGap),
-                action!,
-              ],
+              if (action != null) ...[SizedBox(height: _actionGap), action!],
             ],
           ),
         ),

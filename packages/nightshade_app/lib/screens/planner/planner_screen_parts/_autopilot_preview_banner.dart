@@ -66,7 +66,8 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             hasPick
-                ? decision.chosenTargetName ?? 'Target ${decision.chosenTargetId}'
+                ? decision.chosenTargetName ??
+                    'Target ${decision.chosenTargetId}'
                 : 'Nothing eligible right now',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize18,

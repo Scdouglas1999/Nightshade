@@ -27,8 +27,7 @@ class SmartNightDarkLibraryCoverage {
     required SmartNightSettings settings,
     required SmartNightExposureContext exposureContext,
     required int minCoverage,
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
   }) async {
     final result = await missing(
       profile: profile,
@@ -50,8 +49,7 @@ class SmartNightDarkLibraryCoverage {
     required SmartNightSettings settings,
     required SmartNightExposureContext exposureContext,
     required int minCoverage,
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
   }) async {
     final filters = resolveSmartNightFilterSet(
       strategy: strategy,
@@ -119,8 +117,8 @@ class SmartNightDarkLibraryMissing {
   });
 
   const SmartNightDarkLibraryMissing.empty()
-      : notes = const [],
-        requirements = const [];
+    : notes = const [],
+      requirements = const [];
 
   bool get isEmpty => notes.isEmpty && requirements.isEmpty;
 }
@@ -231,8 +229,8 @@ class SmartNightFlatPlan {
   });
 
   const SmartNightFlatPlan.empty()
-      : perFilter = const {},
-        uncalibratedFilters = const [];
+    : perFilter = const {},
+      uncalibratedFilters = const [];
 
   /// Whether any filter has a calibrated exposure to emit.
   bool get hasAnyCalibration => perFilter.isNotEmpty;

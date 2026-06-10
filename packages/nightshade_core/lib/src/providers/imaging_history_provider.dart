@@ -88,102 +88,103 @@ class ImagingHistory {
 /// Provider that looks up imaging history for a celestial object by matching
 /// against the targets database using name or coordinate proximity (~1 arcmin).
 final imagingHistoryProvider =
-    FutureProvider.family<ImagingHistory, ImagingHistoryQuery>(
-        (ref, query) async {
-  final allTargets = await ref.watch(allDbTargetsProvider.future);
-  final allSessions = await ref.watch(allSessionsProvider.future);
-  final allImages = await ref.watch(allDbImagesProvider.future);
+    FutureProvider.family<ImagingHistory, ImagingHistoryQuery>((
+      ref,
+      query,
+    ) async {
+      final allTargets = await ref.watch(allDbTargetsProvider.future);
+      final allSessions = await ref.watch(allSessionsProvider.future);
+      final allImages = await ref.watch(allDbImagesProvider.future);
 
-  db.Target? matched;
+      db.Target? matched;
 
-  // Normalize the query name for comparison.
-  final queryLower = query.objectName.toLowerCase().trim();
+      // Normalize the query name for comparison.
+      final queryLower = query.objectName.toLowerCase().trim();
 
-  // Try name match.
-  for (final t in allTargets) {
-    if (t.name.toLowerCase().trim() == queryLower) {
-      matched = t;
-      break;
-    }
-  }
-
-  // Try catalog ID match if no name match.
-  if (matched == null) {
-    for (final t in allTargets) {
-      if (t.catalogId != null &&
-          t.catalogId!.toLowerCase().trim() == queryLower) {
-        matched = t;
-        break;
+      // Try name match.
+      for (final t in allTargets) {
+        if (t.name.toLowerCase().trim() == queryLower) {
+          matched = t;
+          break;
+        }
       }
-    }
-  }
 
-  // Try coordinate proximity (~1 arcmin = 1/60 degree).
-  if (matched == null) {
-    const maxSepArcmin = 1.0;
-    double bestSep = double.infinity;
+      // Try catalog ID match if no name match.
+      if (matched == null) {
+        for (final t in allTargets) {
+          if (t.catalogId != null &&
+              t.catalogId!.toLowerCase().trim() == queryLower) {
+            matched = t;
+            break;
+          }
+        }
+      }
 
-    for (final t in allTargets) {
-      final sep = _angularSeparationArcmin(
-        ra1Hours: query.raHours,
-        dec1Deg: query.decDegrees,
-        ra2Hours: t.ra,
-        dec2Deg: t.dec,
+      // Try coordinate proximity (~1 arcmin = 1/60 degree).
+      if (matched == null) {
+        const maxSepArcmin = 1.0;
+        double bestSep = double.infinity;
+
+        for (final t in allTargets) {
+          final sep = _angularSeparationArcmin(
+            ra1Hours: query.raHours,
+            dec1Deg: query.decDegrees,
+            ra2Hours: t.ra,
+            dec2Deg: t.dec,
+          );
+          if (sep < maxSepArcmin && sep < bestSep) {
+            bestSep = sep;
+            matched = t;
+          }
+        }
+      }
+
+      if (matched == null) {
+        return ImagingHistory.empty;
+      }
+
+      final target = matched;
+
+      final sessions = allSessions
+          .where((session) => session.targetId == target.id)
+          .toList(growable: false);
+
+      double totalIntegration = 0;
+      int sessionCount = sessions.length;
+      DateTime? lastImaged;
+
+      for (final s in sessions) {
+        totalIntegration += s.totalIntegrationSecs;
+        final candidate = s.endTime ?? s.startTime;
+        if (lastImaged == null || candidate.isAfter(lastImaged)) {
+          lastImaged = candidate;
+        }
+      }
+
+      final targetImages = allImages
+          .where((image) => image.targetId == target.id)
+          .toList(growable: false);
+      final filterCounts = <String, int>{};
+      final filterIntegrationSecs = <String, double>{};
+      for (final img in targetImages) {
+        if (img.filter != null && img.isAccepted && img.frameType == 'light') {
+          filterCounts[img.filter!] = (filterCounts[img.filter!] ?? 0) + 1;
+          filterIntegrationSecs[img.filter!] =
+              (filterIntegrationSecs[img.filter!] ?? 0.0) +
+              img.exposureDuration;
+        }
+      }
+
+      return ImagingHistory(
+        target: target,
+        totalIntegrationSecs: totalIntegration,
+        filterCounts: filterCounts,
+        filterIntegrationSecs: filterIntegrationSecs,
+        sessionCount: sessionCount,
+        lastImaged: lastImaged,
+        goalIntegrationSecs: target.goalIntegrationSecs,
       );
-      if (sep < maxSepArcmin && sep < bestSep) {
-        bestSep = sep;
-        matched = t;
-      }
-    }
-  }
-
-  if (matched == null) {
-    return ImagingHistory.empty;
-  }
-
-  final target = matched;
-
-  final sessions = allSessions
-      .where((session) => session.targetId == target.id)
-      .toList(growable: false);
-
-  double totalIntegration = 0;
-  int sessionCount = sessions.length;
-  DateTime? lastImaged;
-
-  for (final s in sessions) {
-    totalIntegration += s.totalIntegrationSecs;
-    final candidate = s.endTime ?? s.startTime;
-    if (lastImaged == null || candidate.isAfter(lastImaged)) {
-      lastImaged = candidate;
-    }
-  }
-
-  final targetImages = allImages
-      .where((image) => image.targetId == target.id)
-      .toList(growable: false);
-  final filterCounts = <String, int>{};
-  final filterIntegrationSecs = <String, double>{};
-  for (final img in targetImages) {
-    if (img.filter != null &&
-        img.isAccepted &&
-        img.frameType == 'light') {
-      filterCounts[img.filter!] = (filterCounts[img.filter!] ?? 0) + 1;
-      filterIntegrationSecs[img.filter!] =
-          (filterIntegrationSecs[img.filter!] ?? 0.0) + img.exposureDuration;
-    }
-  }
-
-  return ImagingHistory(
-    target: target,
-    totalIntegrationSecs: totalIntegration,
-    filterCounts: filterCounts,
-    filterIntegrationSecs: filterIntegrationSecs,
-    sessionCount: sessionCount,
-    lastImaged: lastImaged,
-    goalIntegrationSecs: target.goalIntegrationSecs,
-  );
-});
+    });
 
 /// Angular separation between two sky positions in arcminutes.
 double _angularSeparationArcmin({

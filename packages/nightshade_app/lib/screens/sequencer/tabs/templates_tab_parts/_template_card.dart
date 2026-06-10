@@ -1,4 +1,4 @@
-﻿// Part of ../templates_tab.dart -- extracted for maintainability.
+// Part of ../templates_tab.dart -- extracted for maintainability.
 //
 // The per-template card with its hover state, instantiate/duplicate/edit/delete actions, body chips, and the _SmallIconButton primitive used for the card's icon-only secondary actions.
 part of '../templates_tab.dart';
@@ -166,7 +166,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                         height: 48,
                         decoration: NightshadeDecorations.tintedBadge(
                           templateColor,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline8),
                         ),
                         child: Icon(
                           _getTemplateIcon(),
@@ -193,9 +194,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           tooltip: canEdit
                               ? 'Edit'
                               : 'Edit (locked while sequence is running)',
-                          onPressed: canEdit
-                              ? () => _editTemplate(context)
-                              : null,
+                          onPressed:
+                              canEdit ? () => _editTemplate(context) : null,
                         ),
                         const SizedBox(width: 4),
                         // Delete removes the template from the library,
@@ -290,7 +290,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: templateColor,
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusMd),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -300,7 +301,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               const SizedBox(width: 6),
                               Text(
                                 'Use',
-                                style: NightshadeTypography.labelStrongSm.copyWith(color: onPrimary),
+                                style: NightshadeTypography.labelStrongSm
+                                    .copyWith(color: onPrimary),
                               ),
                             ],
                           ),
@@ -341,7 +343,9 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Row(
           children: [
             Icon(LucideIcons.target, size: 20, color: widget.colors.warning),
@@ -591,7 +595,9 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Text(
           'Delete Template',
           style: TextStyle(color: widget.colors.textPrimary),
@@ -686,13 +692,10 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
-        onEnter:
-            disabled ? null : (_) => setState(() => _isHovered = true),
-        onExit:
-            disabled ? null : (_) => setState(() => _isHovered = false),
-        cursor: disabled
-            ? SystemMouseCursors.forbidden
-            : SystemMouseCursors.click,
+        onEnter: disabled ? null : (_) => setState(() => _isHovered = true),
+        onExit: disabled ? null : (_) => setState(() => _isHovered = false),
+        cursor:
+            disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
@@ -703,7 +706,8 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
               color: !disabled && _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
                     ).color
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),

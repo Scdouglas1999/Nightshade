@@ -80,8 +80,9 @@ void main() {
         ),
       ];
 
-      final progress =
-          service.summarize(targets: targets, sessions: sessions).single;
+      final progress = service
+          .summarize(targets: targets, sessions: sessions)
+          .single;
 
       expect(progress.sessionCount, 2);
       expect(progress.successfulExposures, 35);

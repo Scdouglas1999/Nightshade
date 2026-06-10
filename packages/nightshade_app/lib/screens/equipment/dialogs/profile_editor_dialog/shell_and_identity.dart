@@ -117,7 +117,8 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           // Icon picker
           Text(
             'Icon',
-            style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.labelSm
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -138,7 +139,8 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           // Color picker
           Text(
             'Accent Color',
-            style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.labelSm
+                .copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -169,33 +171,34 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           Container(
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Material(
               type: MaterialType.transparency,
               child: CheckboxListTile(
-              value: _isDefault,
-              onChanged: (v) => setState(() => _isDefault = v ?? false),
-              title: Text(
-                'Default profile',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize14,
+                value: _isDefault,
+                onChanged: (v) => setState(() => _isDefault = v ?? false),
+                title: Text(
+                  'Default profile',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize14,
+                  ),
                 ),
-              ),
-              subtitle: Text(
-                'Set as active profile on startup',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
+                subtitle: Text(
+                  'Set as active profile on startup',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12,
+                  ),
                 ),
+                activeColor: colors.primary,
+                checkColor: Theme.of(context).colorScheme.onPrimary,
+                controlAffinity: ListTileControlAffinity.trailing,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
-              activeColor: colors.primary,
-              checkColor: Theme.of(context).colorScheme.onPrimary,
-              controlAffinity: ListTileControlAffinity.trailing,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
             ),
           ),
         ],

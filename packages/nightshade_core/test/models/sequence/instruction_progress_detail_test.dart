@@ -6,11 +6,7 @@ void main() {
     test('decodes structured exposure progress', () {
       final detail = InstructionProgressDetail.fromStructuredData(
         detailKind: 'Exposure',
-        detailJson: const {
-          'frame': 3,
-          'total': 12,
-          'duration_secs': 180,
-        },
+        detailJson: const {'frame': 3, 'total': 12, 'duration_secs': 180},
       );
 
       expect(detail, isA<ExposureInstructionProgressDetail>());

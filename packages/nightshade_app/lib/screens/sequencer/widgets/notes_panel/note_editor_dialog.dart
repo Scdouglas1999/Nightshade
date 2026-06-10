@@ -94,7 +94,9 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
                         'attached to run #${widget.sequenceRunId}',
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textMuted),
                       ),
                     ),
                   IconButton(

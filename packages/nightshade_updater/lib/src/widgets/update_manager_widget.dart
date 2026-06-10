@@ -16,10 +16,7 @@ import '../../nightshade_updater.dart';
 class UpdateManagerWidget extends ConsumerStatefulWidget {
   final Widget child;
 
-  const UpdateManagerWidget({
-    super.key,
-    required this.child,
-  });
+  const UpdateManagerWidget({super.key, required this.child});
 
   @override
   ConsumerState<UpdateManagerWidget> createState() =>
@@ -69,8 +66,11 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
-      developer.log('Found staged update: ${state.availableUpdate?.version}',
-          name: 'UpdateManager', level: 800);
+      developer.log(
+        'Found staged update: ${state.availableUpdate?.version}',
+        name: 'UpdateManager',
+        level: 800,
+      );
       _showLanPushBannerDirect(state.availableUpdate?.version ?? 'Unknown');
     } else {
       developer.log('No staged update found', name: 'UpdateManager');
@@ -83,8 +83,11 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
-        developer.log('LAN push received: ${manifest.version}',
-            name: 'UpdateManager', level: 800);
+        developer.log(
+          'LAN push received: ${manifest.version}',
+          name: 'UpdateManager',
+          level: 800,
+        );
         // Update provider state so applyUpdate() works
         ref
             .read(updateProvider.notifier)
@@ -95,8 +98,11 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
         // Could show progress indicator if desired
         break;
       case LanPushErrorEvent(:final error):
-        developer.log('LAN push error: $error',
-            name: 'UpdateManager', level: 1000);
+        developer.log(
+          'LAN push error: $error',
+          name: 'UpdateManager',
+          level: 1000,
+        );
         _showErrorBanner('LAN push error: $error');
         break;
     }
@@ -105,8 +111,10 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   void _showLanPushBannerDirect(String version) {
     if (!mounted) return;
 
-    developer.log('Showing banner for version: $version',
-        name: 'UpdateManager');
+    developer.log(
+      'Showing banner for version: $version',
+      name: 'UpdateManager',
+    );
     setState(() {
       _showingBanner = true;
       _bannerVersion = version;
@@ -242,8 +250,10 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
           case UpdateStatus.staged:
             // If banner is already showing (from LAN push), don't show dialog
             if (_showingBanner) {
-              developer.log('Banner already showing, skipping dialog',
-                  name: 'UpdateManager');
+              developer.log(
+                'Banner already showing, skipping dialog',
+                name: 'UpdateManager',
+              );
               break;
             }
             // If came from downloading, dialog handles it
@@ -253,13 +263,17 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
               // For non-LAN push staged updates, show banner instead of dialog
               // (dialogs don't work in MaterialApp.builder context)
               _showLanPushBannerDirect(
-                  next.availableUpdate?.version ?? 'Unknown');
+                next.availableUpdate?.version ?? 'Unknown',
+              );
             }
             break;
           case UpdateStatus.error:
             if (next.errorMessage != null) {
-              developer.log('Error: ${next.errorMessage}',
-                  name: 'UpdateManager', level: 1000);
+              developer.log(
+                'Error: ${next.errorMessage}',
+                name: 'UpdateManager',
+                level: 1000,
+              );
               // Show error in banner instead of snackbar (more reliable in builder context)
               _showErrorBanner(next.errorMessage!);
             }

@@ -10,8 +10,10 @@ const kDefaultAccentColorHex = '#5B9EC4';
 enum SafetyFailMode {
   /// Treat unavailable safety data as safe; allow imaging to continue uninterrupted.
   failOpen,
+
   /// Treat unavailable safety data as unsafe; pause imaging and optionally park the mount.
   failClosed,
+
   /// Treat unavailable safety data as safe but emit a UI warning so the user is aware.
   warnOnly,
 }
@@ -53,7 +55,9 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool autoDiscoverOnLaunch,
     @Default('') String accentColor,
     @Default('Medium') String fontSize,
-    @Default('Auto') String uiScale, // Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
+    @Default('Auto')
+    String
+    uiScale, // Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
     // Protocol settings
     @Default('localhost') String indiServerHost,
     @Default(7624) int indiServerPort,
@@ -84,18 +88,24 @@ abstract class AppSettings with _$AppSettings {
     // -------------------------------------------------------------------
     /// Master switch: when false, no grading runs at all.
     @Default(false) bool enableImageGrading,
+
     /// Reject if HFR exceeds this absolute pixel value. `null` => don't
     /// apply the absolute check.
     double? imageGradingHfrThresholdPx,
+
     /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
     /// don't apply the baseline-relative check.
     double? imageGradingHfrBaselinePercent,
+
     /// Reject if star eccentricity exceeds this value. `null` => don't apply.
     double? imageGradingEccentricityThreshold,
+
     /// Reject if detected star count falls below this. `null` => don't apply.
     int? imageGradingStarCountMin,
+
     /// Pause sequence after this many consecutive rejects (default 3).
     @Default(3) int imageGradingMaxConsecutiveRejects,
+
     /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
     /// Relative paths resolve against the run save_path; absolute paths
     /// are used verbatim.
@@ -111,26 +121,33 @@ abstract class AppSettings with _$AppSettings {
     /// is cleared and the executor falls back to nominal duration for
     /// any node without an explicit per-node override.
     @Default(false) bool adaptiveExposureEnabled,
+
     /// Target SNR for the SNR-based scaling (informational; the live
     /// math uses background flux ratio).
     @Default(30.0) double adaptiveExposureTargetSnr,
+
     /// Reference sky brightness in mag/arcsec² the nominal exposure
     /// duration was calibrated for. Dark-site default is 21.5.
     @Default(21.5) double adaptiveExposureReferenceMag,
+
     /// Global minimum exposure clamp in seconds.
     @Default(5.0) double adaptiveExposureMinSecs,
+
     /// Global maximum exposure clamp in seconds.
     @Default(600.0) double adaptiveExposureMaxSecs,
+
     /// Per-filter enable map (filter name -> bool). Empty => apply
     /// globally (matches the Rust `is_enabled_for_filter` semantics).
-    @Default(<String, bool>{}) Map<String, bool>
-        adaptiveExposurePerFilterEnabled,
+    @Default(<String, bool>{})
+    Map<String, bool> adaptiveExposurePerFilterEnabled,
+
     /// Per-filter minimum exposure overrides (seconds).
-    @Default(<String, double>{}) Map<String, double>
-        adaptiveExposurePerFilterMinSecs,
+    @Default(<String, double>{})
+    Map<String, double> adaptiveExposurePerFilterMinSecs,
+
     /// Per-filter maximum exposure overrides (seconds).
-    @Default(<String, double>{}) Map<String, double>
-        adaptiveExposurePerFilterMaxSecs,
+    @Default(<String, double>{})
+    Map<String, double> adaptiveExposurePerFilterMaxSecs,
     // -------------------------------------------------------------------
     // Full-night audit 2026-06-04 follow-up — high-value unattended-night
     // knobs that previously had NO wire field, so a phone/remote save of
@@ -141,31 +158,40 @@ abstract class AppSettings with _$AppSettings {
     /// Weather-safety: when true, the rig parks (not just pauses) when weather
     /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
     @Default(true) bool parkOnUnsafeWeather,
+
     /// Autofocus: run an autofocus pass on every filter change.
     /// DB key `auto_focus_on_filter_change`.
     @Default(true) bool autoFocusOnFilterChange,
+
     /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
     /// guide star wandering out of frame during the focuser sweep).
     /// DB key `af_disable_guiding`.
     @Default(false) bool afDisableGuidingDuringAf,
+
     /// Dither: master enable for between-frame dithering.
     /// DB key `dither_enabled`.
     @Default(true) bool ditherEnabled,
+
     /// Dither: dither step size — 'Small', 'Medium', or 'Large'.
     /// DB key `dither_scale`.
     @Default('Medium') String ditherScale,
+
     /// Recovery: minutes between auto-retry attempts during a recovery loop.
     /// DB key `recovery_default_retry_interval_mins`.
     @Default(10.0) double recoveryDefaultRetryIntervalMins,
+
     /// Recovery: total minutes before the recovery loop gives up.
     /// DB key `recovery_default_max_duration_mins`.
     @Default(90.0) double recoveryDefaultMaxDurationMins,
+
     /// Recovery: stop tracking while recovering (dew/cloud wait).
     /// DB key `recovery_stop_tracking_during_recovery`.
     @Default(true) bool recoveryStopTrackingDuringRecovery,
+
     /// Recovery: abort the recovery loop if a meridian crossing falls inside
     /// the recovery window. DB key `recovery_abort_on_meridian`.
     @Default(true) bool recoveryAbortOnMeridian,
+
     /// Recovery: ring the platform alert sound on recovery entry.
     /// DB key `recovery_audible_alert_when_entered`.
     @Default(true) bool recoveryAudibleAlertWhenEntered,
@@ -186,24 +212,29 @@ abstract class AppSettings with _$AppSettings {
     // Focuser temperature compensation + backlash (calibration).
     /// Enable focuser temperature compensation. DB key `temp_compensation`.
     @Default(true) bool tempCompensation,
+
     /// Temp-comp coefficient (steps per °C). DB key `temp_coefficient`.
     @Default(-12.0) double tempCoefficient,
+
     /// Focuser backlash compensation (steps). DB key `backlash_compensation`.
     @Default(0) int backlashCompensation,
     // Guider settle (calibration).
     /// Guider settle pixel threshold. DB key `settle_threshold`.
     @Default(0.5) double settleThreshold,
+
     /// Guider settle timeout in seconds. DB key `settle_timeout`.
     @Default(30) int settleTimeout,
     // Plate-solving extra.
     /// Selected plate solver ('ASTAP', 'Astrometry.net', 'PlateSolve2').
     /// DB key `plate_solver`.
     @Default('ASTAP') String plateSolver,
+
     /// Allow a blind (no-hint) solve fallback. DB key `blind_solve`.
     @Default(false) bool blindSolve,
     // Site / horizon.
     /// Bortle dark-sky class (1-9). DB key `bortle_class`.
     @Default(5) int bortleClass,
+
     /// Effective horizon altitude floor in degrees. DB key `effective_horizon_deg`.
     @Default(0.0) double effectiveHorizonDeg,
     // Pre-flight checklist strictness + freshness gates.
@@ -212,9 +243,11 @@ abstract class AppSettings with _$AppSettings {
     /// library that owns the `PreflightStrictness` enum. DB key
     /// `preflight_strictness`.
     @Default('normal') String preflightStrictness,
+
     /// Polar-alignment max age (days) before pre-flight flags it.
     /// DB key `polar_alignment_max_age_days`.
     @Default(7) int polarAlignmentMaxAgeDays,
+
     /// Optical-train drift threshold (arcmin) before pre-flight flags it.
     /// DB key `optical_train_drift_threshold`.
     @Default(8.0) double opticalTrainDriftThreshold,
@@ -230,33 +263,43 @@ abstract class AppSettings with _$AppSettings {
     /// Cap a planned session to this many hours. `null` => use the full dark
     /// window. DB key `smart_night_max_session_hours`.
     double? smartNightMaxSessionHours,
+
     /// Default autofocus cadence (frames) for built sequences.
     /// DB key `smart_night_default_af_cadence_frames`.
     @Default(25) int smartNightDefaultAfCadenceFrames,
+
     /// Default per-target integration budget (minutes).
     /// DB key `smart_night_default_integration_budget_mins_per_target`.
     @Default(240) int smartNightDefaultIntegrationBudgetMinsPerTarget,
+
     /// Append flats at the end of the planned night.
     /// DB key `smart_night_include_flats_at_end`.
     @Default(true) bool smartNightIncludeFlatsAtEnd,
+
     /// Use the scheduler (vs a single linear sequence) for multi-target nights.
     /// DB key `smart_night_use_scheduler_for_multi_target`.
     @Default(true) bool smartNightUseSchedulerForMultiTarget,
+
     /// Target count at/above which the scheduler is used.
     /// DB key `smart_night_scheduler_target_threshold`.
     @Default(3) int smartNightSchedulerTargetThreshold,
+
     /// Default capture strategy id (e.g. 'auto_lrgb').
     /// DB key `smart_night_default_strategy`.
     @Default('auto_lrgb') String smartNightDefaultStrategy,
+
     /// Days after which polar alignment is considered stale for the wizard.
     /// DB key `smart_night_polar_alignment_stale_after_days`.
     @Default(7) int smartNightPolarAlignmentStaleAfterDays,
+
     /// Sub-exposure floor (seconds) for the planner.
     /// DB key `smart_night_sub_exposure_floor_secs`.
     @Default(30.0) double smartNightSubExposureFloorSecs,
+
     /// Sub-exposure ceiling (seconds) for the planner.
     /// DB key `smart_night_sub_exposure_ceiling_secs`.
     @Default(300.0) double smartNightSubExposureCeilingSecs,
+
     /// Target SNR the planner sizes sub-exposures toward.
     /// DB key `smart_night_target_snr`.
     @Default(30.0) double smartNightTargetSnr,
@@ -272,105 +315,144 @@ abstract class AppSettings with _$AppSettings {
     // Equipment defaults (camera).
     /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
     @Default('On Connect') String coolingBehavior,
+
     /// Default camera gain. DB `default_gain`.
     @Default(100) int defaultGain,
+
     /// Default camera offset. DB `default_offset`.
     @Default(50) int defaultOffset,
     // Remote access / web server.
     /// Headless web server enabled. DB `web_server_enabled`.
     @Default(false) bool webServerEnabled,
+
     /// Headless web server port. DB `web_server_port`.
     @Default(8080) int webServerPort,
     // PHD2 connection.
     /// PHD2 executable path. DB `phd2_path`.
     @Default('') String phd2Path,
+
     /// PHD2 host. DB `phd2_host`.
     @Default('localhost') String phd2Host,
+
     /// PHD2 port. DB `phd2_port`.
     @Default(4400) int phd2Port,
     // Notification toggles.
     /// Master notifications switch. DB `notifications_enabled`.
     @Default(true) bool notificationsEnabled,
+
     /// Notify when a sequence completes. DB `notify_on_sequence_complete`.
     @Default(true) bool notifyOnSequenceComplete,
+
     /// Notify on error. DB `notify_on_error`.
     @Default(true) bool notifyOnError,
+
     /// Notify on meridian flip. DB `notify_on_meridian_flip`.
     @Default(false) bool notifyOnMeridianFlip,
+
     /// In-app notification sound. DB `sound_enabled`.
     @Default(true) bool soundEnabled,
+
     /// Ring the platform alert on critical-severity events. DB
     /// `audible_alerts_on_critical`.
     @Default(false) bool audibleAlertsOnCritical,
+
     /// Which sound for critical alerts ('systemBell' / 'none'). DB
     /// `critical_alert_sound`.
     @Default('systemBell') String criticalAlertSound,
+
     /// Forward critical alerts to paired phones as push. DB `push_critical_alerts`.
     @Default(true) bool pushCriticalAlerts,
     // Session-lifecycle + campaign-rollup prefs.
     /// Show the Smart-Night auto-prompt when equipment is ready. DB
     /// `smart_night.auto_prompt_enabled`.
     @Default(true) bool smartNightAutoPromptEnabled,
+
     /// Prompt for notes after a run. DB `notes.prompt_after_run`.
     @Default(true) bool promptForNotesAfterRun,
+
     /// Auto-open the multi-night carry-over banner. DB
     /// `session.handoff_auto_prompt`.
     @Default(true) bool sessionHandoffAutoPrompt,
+
     /// Surface the campaign-rollup column on the Targets tab. DB
     /// `campaign_rollup.surface_targets_tab`.
     @Default(true) bool campaignRollupSurfaceTargetsTab,
+
     /// Campaign-rollup grouping mode. DB `campaign_rollup.grouping_mode`.
     @Default('by_target_name') String campaignRollupGroupingMode,
     // Autofocus detailed sweep params.
     /// AF method. DB `af_method`.
     @Default('Star HFR') String afMethod,
+
     /// AF curve fitting. DB `af_curve_fitting`.
     @Default('Hyperbolic') String afCurveFitting,
+
     /// AF step size between measurement points. DB `af_step_size`.
     @Default(50) int afStepSize,
+
     /// AF exposure time (seconds). DB `af_exposure_time`.
     @Default(4.0) double afExposureTime,
+
     /// AF initial offset steps out from center. DB `af_initial_offset_steps`.
     @Default(4) int afInitialOffsetSteps,
+
     /// AF retry count on failure. DB `af_number_of_attempts`.
     @Default(1) int afNumberOfAttempts,
+
     /// AF brightest-N stars (0 = all). DB `af_use_brightest_n_stars`.
     @Default(0) int afUseBrightestNStars,
+
     /// AF outer crop ratio. DB `af_outer_crop_ratio`.
     @Default(1.0) double afOuterCropRatio,
+
     /// AF inner crop ratio. DB `af_inner_crop_ratio`.
     @Default(0.0) double afInnerCropRatio,
+
     /// AF binning. DB `af_binning`.
     @Default(1) int afBinning,
+
     /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
     @Default(0.7) double afRSquaredThreshold,
+
     /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
     @Default(500) int afFocuserSettleTimeMs,
+
     /// AF exposures per measurement point. DB `af_exposures_per_point`.
     @Default(1) int afExposuresPerPoint,
+
     /// AF backlash compensation method. DB `af_backlash_comp_method`.
     @Default('Overshoot') String afBacklashCompMethod,
+
     /// AF backlash-in steps. DB `af_backlash_in`.
     @Default(350) int afBacklashIn,
+
     /// AF backlash-out steps. DB `af_backlash_out`.
     @Default(0) int afBacklashOut,
+
     /// Designated AF filter (empty = current). DB `af_autofocus_filter_name`.
     @Default('') String afAutofocusFilterName,
+
     /// Per-filter AF config JSON map. DB `af_filter_settings`.
     @Default('{}') String afFilterSettingsJson,
+
     /// Apply focus offsets on filter change. DB `use_filter_focus_offsets`.
     @Default(true) bool useFilterFocusOffsets,
     // Misc imaging / FITS / plate-solve config relevant to an unattended night.
     /// Astrometry.net solver path. DB `astrometry_path`.
     @Default('') String astrometryPath,
+
     /// FITS OBSERVER keyword. DB `observer_name`.
     @Default('') String observerName,
+
     /// Image format ('FITS' / 'XISF' / 'TIFF'). DB `image_format`.
     @Default('FITS') String imageFormat,
+
     /// Bit depth ('16-bit' / '32-bit'). DB `bit_depth`.
     @Default('16-bit') String bitDepth,
+
     /// Observing timezone. DB `timezone`.
     @Default('UTC') String timezone,
+
     /// Use system time vs a fixed observing time. DB `use_system_time`.
     @Default(true) bool useSystemTime,
   }) = _AppSettings;
@@ -383,10 +465,10 @@ abstract class AppSettings with _$AppSettings {
 extension AppSettingsExtension on AppSettings {
   /// Get latitude from location or direct field
   double get effectiveLatitude => this.location?.latitude ?? this.latitude;
-  
+
   /// Get longitude from location or direct field
   double get effectiveLongitude => this.location?.longitude ?? this.longitude;
-  
+
   /// Get elevation from location or direct field
   double get effectiveElevation => this.location?.elevation ?? this.elevation;
 }

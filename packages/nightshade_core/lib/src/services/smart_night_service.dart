@@ -103,10 +103,10 @@ class SmartNightService {
     SmartNightExposureCalculator exposureCalculator =
         const SmartNightExposureCalculator(),
     HardwareSpecsService hardwareSpecs = const HardwareSpecsService(),
-  })  : _suggestionService = suggestionService,
-        _logging = logging,
-        _exposureCalculator = exposureCalculator,
-        _hardwareSpecs = hardwareSpecs;
+  }) : _suggestionService = suggestionService,
+       _logging = logging,
+       _exposureCalculator = exposureCalculator,
+       _hardwareSpecs = hardwareSpecs;
 
   /// Compute tonight's dark window from the observer location. Falls back
   /// to nautical / civil twilight at high latitudes, and finally to a
@@ -124,8 +124,11 @@ class SmartNightService {
 
     // If we're already past midnight but before dawn, use last night's
     // twilight. Mirrors the heuristic in [TargetSuggestionService].
-    final prevDate = DateTime(reference.year, reference.month, reference.day)
-        .subtract(const Duration(days: 1));
+    final prevDate = DateTime(
+      reference.year,
+      reference.month,
+      reference.day,
+    ).subtract(const Duration(days: 1));
     final prevTwilight = AstronomyCalculations.calculateTwilightTimes(
       date: prevDate,
       latitudeDeg: latitudeDeg,
@@ -135,11 +138,7 @@ class SmartNightService {
     if (prevBounds != null &&
         reference.isAfter(prevBounds.$1) &&
         reference.isBefore(prevBounds.$2)) {
-      return (
-        start: prevBounds.$1,
-        end: prevBounds.$2,
-        twilight: prevTwilight,
-      );
+      return (start: prevBounds.$1, end: prevBounds.$2, twilight: prevTwilight);
     }
 
     final todayDate = DateTime(reference.year, reference.month, reference.day);
@@ -165,17 +164,17 @@ class SmartNightService {
       'falling back to 21:00 → 05:00 local default.',
       source: _source,
     );
-    final fallbackStart =
-        DateTime(reference.year, reference.month, reference.day, 21);
+    final fallbackStart = DateTime(
+      reference.year,
+      reference.month,
+      reference.day,
+      21,
+    );
     var fallbackEnd = fallbackStart.add(const Duration(hours: 8));
     if (reference.isAfter(fallbackEnd)) {
       fallbackEnd = fallbackEnd.add(const Duration(days: 1));
     }
-    return (
-      start: fallbackStart,
-      end: fallbackEnd,
-      twilight: todayTwilight,
-    );
+    return (start: fallbackStart, end: fallbackEnd, twilight: todayTwilight);
   }
 
   (DateTime, DateTime)? _extractNightBounds(TwilightTimes tw) {
@@ -305,10 +304,10 @@ class SmartNightService {
         'focal length=$focalLength mm, '
         'pixel size=$pixelSizeUm µm.'
         '${pixelSizeUm <= 0 ? ' The camera '
-            '"${profile.cameraName ?? profile.cameraId ?? "<unknown>"}" is not '
-            'in the bundled hardware catalog — connect the camera so its real '
-            'pixel size is read, or add it to the Smart Night camera '
-            'overrides. Smart Night will not guess a pixel size.' : ''}',
+                  '"${profile.cameraName ?? profile.cameraId ?? "<unknown>"}" is not '
+                  'in the bundled hardware catalog — connect the camera so its real '
+                  'pixel size is read, or add it to the Smart Night camera '
+                  'overrides. Smart Night will not guess a pixel size.' : ''}',
       );
     }
 
@@ -346,8 +345,10 @@ class SmartNightService {
         continue;
       }
 
-      final intervalWindowSecs =
-          usable.$2.difference(usable.$1).inSeconds.toDouble();
+      final intervalWindowSecs = usable.$2
+          .difference(usable.$1)
+          .inSeconds
+          .toDouble();
       final windowSecs = _integrationWindowSecs(
         suggestion: suggestion,
         intervalWindowSecs: intervalWindowSecs,
@@ -390,18 +391,20 @@ class SmartNightService {
       );
       final clampedEnd = actualEnd.isBefore(usable.$2) ? actualEnd : usable.$2;
 
-      planned.add(SmartNightPlannedTarget(
-        suggestion: suggestion,
-        windowStart: usable.$1,
-        windowEnd: clampedEnd,
-        filterPlans: filterPlans,
-        integrationSecs: integrationSecs,
-        rationale: _composeTargetRationale(
+      planned.add(
+        SmartNightPlannedTarget(
           suggestion: suggestion,
+          windowStart: usable.$1,
+          windowEnd: clampedEnd,
           filterPlans: filterPlans,
-          windowSecs: clampedEnd.difference(usable.$1).inSeconds.toDouble(),
+          integrationSecs: integrationSecs,
+          rationale: _composeTargetRationale(
+            suggestion: suggestion,
+            filterPlans: filterPlans,
+            windowSecs: clampedEnd.difference(usable.$1).inSeconds.toDouble(),
+          ),
         ),
-      ));
+      );
       cursor = clampedEnd;
       first = false;
     }
@@ -417,7 +420,8 @@ class SmartNightService {
     }
 
     final warnings = <String>[];
-    final autoDarksActive = settings.autoScheduleMissingDarks &&
+    final autoDarksActive =
+        settings.autoScheduleMissingDarks &&
         context.missingDarkRequirements.isNotEmpty;
     if (context.missingDarkLibraryNotes.isNotEmpty && !autoDarksActive) {
       warnings.add(
@@ -467,10 +471,11 @@ class SmartNightService {
         for (final p in planned)
           for (final fp in p.filterPlans) fp.filterName,
       };
-      final missingFlatCalibration = flatFilters
-          .where((f) => (flatPlan?.perFilter[f]?.exposureSecs ?? 0) <= 0)
-          .toList()
-        ..sort();
+      final missingFlatCalibration =
+          flatFilters
+              .where((f) => (flatPlan?.perFilter[f]?.exposureSecs ?? 0) <= 0)
+              .toList()
+            ..sort();
       if (missingFlatCalibration.isNotEmpty) {
         warnings.add(
           'No ADU-calibrated flat exposure exists for: '
@@ -574,8 +579,10 @@ class SmartNightService {
     );
     if (usable == null) return null;
 
-    final intervalWindowSecs =
-        usable.$2.difference(usable.$1).inSeconds.toDouble();
+    final intervalWindowSecs = usable.$2
+        .difference(usable.$1)
+        .inSeconds
+        .toDouble();
     final windowSecs = _integrationWindowSecs(
       suggestion: suggestion,
       intervalWindowSecs: intervalWindowSecs,
@@ -608,8 +615,10 @@ class SmartNightService {
       (sum, plan) => sum + plan.integrationSecs,
     );
     final usableWindowHours =
-        (suggestion.visibility.hoursAboveMinAlt ?? (windowSecs / 3600))
-            .clamp(0.0, 24.0);
+        (suggestion.visibility.hoursAboveMinAlt ?? (windowSecs / 3600)).clamp(
+          0.0,
+          24.0,
+        );
 
     return TargetIntegrationPreview(
       estimatedIntegrationHours: integrationSecs / 3600,
@@ -690,8 +699,10 @@ class SmartNightService {
       );
     }
 
-    final intervalWindowSecs =
-        usable.$2.difference(usable.$1).inSeconds.toDouble();
+    final intervalWindowSecs = usable.$2
+        .difference(usable.$1)
+        .inSeconds
+        .toDouble();
     final windowSecs = _integrationWindowSecs(
       suggestion: suggestion,
       intervalWindowSecs: intervalWindowSecs,
@@ -726,9 +737,7 @@ class SmartNightService {
       0,
       (sum, plan) => sum + plan.integrationSecs,
     );
-    final actualEnd = usable.$1.add(
-      Duration(seconds: integrationSecs.round()),
-    );
+    final actualEnd = usable.$1.add(Duration(seconds: integrationSecs.round()));
     final clampedEnd = actualEnd.isBefore(usable.$2) ? actualEnd : usable.$2;
 
     final planned = SmartNightPlannedTarget(
@@ -905,7 +914,8 @@ class SmartNightService {
     SmartNightStrategy strategy,
   ) {
     final today = DateTime.now();
-    final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-'
+    final dateStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-'
         '${today.day.toString().padLeft(2, '0')}';
     final names = planned.map((p) => p.suggestion.targetName).join(' · ');
     return 'Smart Night $dateStr — $names (${_strategyLabel(strategy)})';
@@ -916,11 +926,8 @@ class SmartNightService {
     SmartNightStrategy strategy,
     SmartNightSettings settings,
   ) {
-    final integrationHours = planned.fold<double>(
-          0,
-          (s, p) => s + p.integrationSecs,
-        ) /
-        3600;
+    final integrationHours =
+        planned.fold<double>(0, (s, p) => s + p.integrationSecs) / 3600;
     final filters = planned
         .expand((p) => p.filterPlans.map((fp) => fp.filterName))
         .toSet()

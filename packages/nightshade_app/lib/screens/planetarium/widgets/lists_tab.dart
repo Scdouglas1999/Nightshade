@@ -55,17 +55,21 @@ class _ListsTabState extends ConsumerState<ListsTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(NightshadeIcons.list, size: 48, color: widget.colors.textMuted),
+            Icon(NightshadeIcons.list,
+                size: 48, color: widget.colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No observing lists',
-              style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
+              style: NightshadeTypography.h5
+                  .copyWith(color: widget.colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Create a list to organize your targets for tonight\'s session.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: widget.colors.textMuted),
             ),
             const SizedBox(height: 16),
             _CreateListButton(colors: widget.colors),
@@ -85,7 +89,8 @@ class _ListsTabState extends ConsumerState<ListsTab> {
             children: [
               Text(
                 'Observing Lists',
-                style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: widget.colors.textPrimary),
               ),
               _CreateListButton(colors: widget.colors, compact: true),
             ],
@@ -145,7 +150,8 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                   children: [
                     Text(
                       activeList.name,
-                      style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: widget.colors.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (activeList.description != null &&
@@ -300,29 +306,29 @@ class _CreateListButton extends ConsumerWidget {
             designMaxWidth: 400,
           ),
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'List Name',
-                hintText: 'e.g., Winter Galaxies',
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'List Name',
+                  hintText: 'e.g., Winter Galaxies',
+                ),
+                autofocus: true,
+                onSubmitted: (_) => _submit(
+                    context, ref, nameController, descriptionController),
               ),
-              autofocus: true,
-              onSubmitted: (_) =>
-                  _submit(context, ref, nameController, descriptionController),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                hintText: 'e.g., Best galaxies visible in winter',
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  hintText: 'e.g., Best galaxies visible in winter',
+                ),
+                maxLines: 2,
               ),
-              maxLines: 2,
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -396,9 +402,11 @@ class _ObservingListCard extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
-              child: Icon(NightshadeIcons.list, size: 16, color: colors.primary),
+              child:
+                  Icon(NightshadeIcons.list, size: 16, color: colors.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -407,7 +415,8 @@ class _ObservingListCard extends ConsumerWidget {
                 children: [
                   Text(
                     list.name,
-                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: colors.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
@@ -421,7 +430,8 @@ class _ObservingListCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Icon(NightshadeIcons.chevronRight, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.chevronRight,
+                size: 14, color: colors.textMuted),
           ],
         ),
       ),
@@ -481,7 +491,8 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                       children: [
                         Text(
                           widget.item.objectName,
-                          style: NightshadeTypography.h6.copyWith(color: widget.colors.textPrimary),
+                          style: NightshadeTypography.h6
+                              .copyWith(color: widget.colors.textPrimary),
                         ),
                         if (widget.item.catalogId != null) ...[
                           const SizedBox(width: 6),
@@ -491,7 +502,8 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                             decoration: BoxDecoration(
                               color:
                                   widget.colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusXs),
                             ),
                             child: Text(
                               widget.item.catalogId!,
@@ -534,7 +546,8 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: widget.colors.error.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Icon(NightshadeIcons.close,
                         size: 12, color: widget.colors.error),

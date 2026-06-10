@@ -20,10 +20,7 @@ void main() {
     });
 
     test('interpolates camera gain points when the exact gain is unknown', () {
-      final match = service.matchCamera(
-        cameraName: 'ASI2600MC',
-        gain: 50,
-      );
+      final match = service.matchCamera(cameraName: 'ASI2600MC', gain: 50);
 
       expect(match, isNotNull);
       expect(match!.spec.model, 'ZWO ASI2600MC Pro');
@@ -56,10 +53,7 @@ void main() {
         ],
       );
 
-      final match = service.matchCamera(
-        cameraName: 'ASI2600MM',
-        gain: 10,
-      );
+      final match = service.matchCamera(cameraName: 'ASI2600MM', gain: 10);
 
       expect(match, isNotNull);
       expect(match!.pixelSizeMicrons, closeTo(4.5, 0.001));

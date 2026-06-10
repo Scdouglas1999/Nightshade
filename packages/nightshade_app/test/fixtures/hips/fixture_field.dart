@@ -156,14 +156,16 @@ const List<int> grandparentNpix = <int>[163, 166, 169, 172];
 /// The committed primary (Norder6) tile ids, keyed to [surveyHipsId].
 final List<HipsTileId> primaryTiles = List<HipsTileId>.unmodifiable(
   primaryNpix.map(
-    (npix) => HipsTileId(survey: surveyHipsId, norder: primaryNorder, npix: npix),
+    (npix) =>
+        HipsTileId(survey: surveyHipsId, norder: primaryNorder, npix: npix),
   ),
 );
 
 /// The committed parent-fallback (Norder5) tile ids, keyed to [surveyHipsId].
 final List<HipsTileId> parentFallbackTiles = List<HipsTileId>.unmodifiable(
   parentNpix.map(
-    (npix) => HipsTileId(survey: surveyHipsId, norder: parentNorder, npix: npix),
+    (npix) =>
+        HipsTileId(survey: surveyHipsId, norder: parentNorder, npix: npix),
   ),
 );
 
@@ -223,8 +225,7 @@ String manifestPath() =>
     '${fixtureRootDir().path}/Norder6/Dir0/tiles_manifest.json';
 
 /// Absolute path to the committed real DSS2-colour `properties` document.
-String propertiesPath() =>
-    '${fixtureRootDir().path}/dss2color_properties.txt';
+String propertiesPath() => '${fixtureRootDir().path}/dss2color_properties.txt';
 
 /// Absolute path to the committed Allsky (Norder3) whole-sky preview JPEG.
 String allskyPath() => '${fixtureRootDir().path}/Allsky.jpg';
@@ -315,21 +316,80 @@ Uint8List _asUint8(List<int> bytes) =>
 /// dependencies). Used only by the self-test below, not by the descriptor API.
 String _sha256Hex(List<int> data) {
   const k = <int>[
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    0x428a2f98,
+    0x71374491,
+    0xb5c0fbcf,
+    0xe9b5dba5,
+    0x3956c25b,
+    0x59f111f1,
+    0x923f82a4,
+    0xab1c5ed5,
+    0xd807aa98,
+    0x12835b01,
+    0x243185be,
+    0x550c7dc3,
+    0x72be5d74,
+    0x80deb1fe,
+    0x9bdc06a7,
+    0xc19bf174,
+    0xe49b69c1,
+    0xefbe4786,
+    0x0fc19dc6,
+    0x240ca1cc,
+    0x2de92c6f,
+    0x4a7484aa,
+    0x5cb0a9dc,
+    0x76f988da,
+    0x983e5152,
+    0xa831c66d,
+    0xb00327c8,
+    0xbf597fc7,
+    0xc6e00bf3,
+    0xd5a79147,
+    0x06ca6351,
+    0x14292967,
+    0x27b70a85,
+    0x2e1b2138,
+    0x4d2c6dfc,
+    0x53380d13,
+    0x650a7354,
+    0x766a0abb,
+    0x81c2c92e,
+    0x92722c85,
+    0xa2bfe8a1,
+    0xa81a664b,
+    0xc24b8b70,
+    0xc76c51a3,
+    0xd192e819,
+    0xd6990624,
+    0xf40e3585,
+    0x106aa070,
+    0x19a4c116,
+    0x1e376c08,
+    0x2748774c,
+    0x34b0bcb5,
+    0x391c0cb3,
+    0x4ed8aa4a,
+    0x5b9cca4f,
+    0x682e6ff3,
+    0x748f82ee,
+    0x78a5636f,
+    0x84c87814,
+    0x8cc70208,
+    0x90befffa,
+    0xa4506ceb,
+    0xbef9a3f7,
+    0xc67178f2,
   ];
   final h = <int>[
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    0x6a09e667,
+    0xbb67ae85,
+    0x3c6ef372,
+    0xa54ff53a,
+    0x510e527f,
+    0x9b05688c,
+    0x1f83d9ab,
+    0x5be0cd19,
   ];
 
   const mask = 0xffffffff;
@@ -415,7 +475,8 @@ Directory _repoRoot() {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('HiPS fixtures (C-FIX) — committed real DSS2-colour data for $fieldName',
+  group(
+      'HiPS fixtures (C-FIX) — committed real DSS2-colour data for $fieldName',
       () {
     test('fixture root + manifest resolve and the descriptor is consistent',
         () {
@@ -493,13 +554,12 @@ void main() {
       expect(props.preferredFormat, surveyTileFormat);
       // The committed DSS2-colour attribution survives the round-trip.
       expect(props.obsCopyright, isNotNull);
-      expect(props.obsCopyright,
-          contains('Digitized Sky Survey - STScI/NASA'));
-      expect(props.obsCopyrightUrl, 'http://archive.stsci.edu/dss/copyright.html');
+      expect(props.obsCopyright, contains('Digitized Sky Survey - STScI/NASA'));
+      expect(
+          props.obsCopyrightUrl, 'http://archive.stsci.edu/dss/copyright.html');
     });
 
-    test(
-        'descriptor npix == production HipsTileSelection output for the field',
+    test('descriptor npix == production HipsTileSelection output for the field',
         () {
       final props = HipsProperties.parse(readPropertiesText());
       const plate = FramingPlateScale(
@@ -528,7 +588,12 @@ void main() {
       expect(norder, primaryNorder,
           reason: 'golden-zoom LOD order drifted from the committed fixture');
       final selected = HipsTileSelection.computeVisibleTiles(
-        plate, target, canvas, 1.0, norder, props,
+        plate,
+        target,
+        canvas,
+        1.0,
+        norder,
+        props,
         surveyId: surveyHipsId,
       );
       expect(selected.tileIds.map((t) => t.npix).toList(), primaryNpix,
@@ -544,6 +609,7 @@ void main() {
         final list = set.toList()..sort();
         return list;
       }
+
       expect(ancestors(primaryNpix, 1), parentNpix,
           reason: 'committed Norder5 parents are not the primary set parents');
       expect(ancestors(primaryNpix, 2), grandparentNpix,
@@ -568,8 +634,7 @@ void main() {
       }
     });
 
-    test(
-        'real-data mosaic composites + writes golden and .hips_verify sample',
+    test('real-data mosaic composites + writes golden and .hips_verify sample',
         () async {
       final props = HipsProperties.parse(readPropertiesText());
       const plate = FramingPlateScale(
@@ -601,7 +666,12 @@ void main() {
         props,
       );
       final visibleSet = HipsTileSelection.computeVisibleTiles(
-        plate, target, canvas, 1.0, norder, props,
+        plate,
+        target,
+        canvas,
+        1.0,
+        norder,
+        props,
         surveyId: surveyHipsId,
       );
       final primary = <HipsVisibleTile>[];
@@ -653,11 +723,11 @@ void main() {
 
       // Write the human-inspectable sample under <repo>/.hips_verify/.
       final png = await image.toByteData(format: ui.ImageByteFormat.png);
-      expect(png, isNotNull, reason: 'PNG encode of the real-data mosaic failed');
+      expect(png, isNotNull,
+          reason: 'PNG encode of the real-data mosaic failed');
       final outDir = Directory('${_repoRoot().path}/.hips_verify');
       outDir.createSync(recursive: true);
-      final outFile =
-          File('${outDir.path}/hips_fixture_m31_mosaic_sample.png');
+      final outFile = File('${outDir.path}/hips_fixture_m31_mosaic_sample.png');
       outFile.writeAsBytesSync(png!.buffer.asUint8List());
       // ignore: avoid_print
       print('HiPS fixture M31 real-data mosaic written to: '

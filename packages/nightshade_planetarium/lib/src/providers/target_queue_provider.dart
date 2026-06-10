@@ -111,8 +111,9 @@ class TargetQueueState {
   }) {
     return TargetQueueState(
       targets: targets ?? this.targets,
-      activeTargetId:
-          clearActiveTarget ? null : (activeTargetId ?? this.activeTargetId),
+      activeTargetId: clearActiveTarget
+          ? null
+          : (activeTargetId ?? this.activeTargetId),
       isRunning: isRunning ?? this.isRunning,
       autoAdvance: autoAdvance ?? this.autoAdvance,
       sessionStartTime: sessionStartTime ?? this.sessionStartTime,
@@ -122,9 +123,9 @@ class TargetQueueState {
   QueuedTarget? get activeTarget {
     if (activeTargetId == null) return null;
     return targets.cast<QueuedTarget?>().firstWhere(
-          (t) => t?.id == activeTargetId,
-          orElse: () => null,
-        );
+      (t) => t?.id == activeTargetId,
+      orElse: () => null,
+    );
   }
 
   List<QueuedTarget> get pendingTargets =>
@@ -141,8 +142,10 @@ class TargetQueueState {
 
   double get overallProgress {
     if (totalPlannedExposures <= 0) return 0;
-    return (totalCompletedExposures / totalPlannedExposures * 100)
-        .clamp(0, 100);
+    return (totalCompletedExposures / totalPlannedExposures * 100).clamp(
+      0,
+      100,
+    );
   }
 }
 
@@ -151,8 +154,12 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   TargetQueueNotifier() : super(const TargetQueueState());
 
   /// Add a target to the queue
-  void addTarget(CelestialObject object,
-      {int? priority, int plannedExposures = 0, String? notes}) {
+  void addTarget(
+    CelestialObject object, {
+    int? priority,
+    int plannedExposures = 0,
+    String? notes,
+  }) {
     final id = '${object.id}_${DateTime.now().millisecondsSinceEpoch}';
     final newTarget = QueuedTarget(
       id: id,
@@ -172,8 +179,13 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   }
 
   /// Add a coordinate target (not a catalog object)
-  void addCoordinateTarget(CelestialCoordinate coordinates, String name,
-      {int? priority, int plannedExposures = 0, String? notes}) {
+  void addCoordinateTarget(
+    CelestialCoordinate coordinates,
+    String name, {
+    int? priority,
+    int plannedExposures = 0,
+    String? notes,
+  }) {
     final id = 'coord_${DateTime.now().millisecondsSinceEpoch}';
     final newTarget = QueuedTarget(
       id: id,
@@ -193,12 +205,14 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Remove a target from the queue
   void removeTarget(String targetId) {
-    final updatedTargets =
-        state.targets.where((t) => t.id != targetId).toList();
+    final updatedTargets = state.targets
+        .where((t) => t.id != targetId)
+        .toList();
     state = state.copyWith(
       targets: updatedTargets,
-      activeTargetId:
-          state.activeTargetId == targetId ? null : state.activeTargetId,
+      activeTargetId: state.activeTargetId == targetId
+          ? null
+          : state.activeTargetId,
       clearActiveTarget: state.activeTargetId == targetId,
     );
   }
@@ -261,8 +275,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     // Auto-advance to next pending target if enabled
     if (state.autoAdvance) {
       final nextPending = updatedTargets.cast<QueuedTarget?>().firstWhere(
-          (t) => t?.status == QueuedTargetStatus.pending,
-          orElse: () => null);
+        (t) => t?.status == QueuedTargetStatus.pending,
+        orElse: () => null,
+      );
       if (nextPending != null) {
         setActiveTarget(nextPending.id);
       }
@@ -285,8 +300,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     // Auto-advance to next pending target if enabled
     if (state.autoAdvance) {
       final nextPending = updatedTargets.cast<QueuedTarget?>().firstWhere(
-          (t) => t?.status == QueuedTargetStatus.pending,
-          orElse: () => null);
+        (t) => t?.status == QueuedTargetStatus.pending,
+        orElse: () => null,
+      );
       if (nextPending != null) {
         setActiveTarget(nextPending.id);
       }
@@ -317,15 +333,13 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   void startSession() {
     if (state.targets.isEmpty) return;
 
-    state = state.copyWith(
-      isRunning: true,
-      sessionStartTime: DateTime.now(),
-    );
+    state = state.copyWith(isRunning: true, sessionStartTime: DateTime.now());
 
     // Set first pending target as active
     final firstPending = state.targets.cast<QueuedTarget?>().firstWhere(
-        (t) => t?.status == QueuedTargetStatus.pending,
-        orElse: () => null);
+      (t) => t?.status == QueuedTargetStatus.pending,
+      orElse: () => null,
+    );
     if (firstPending != null) {
       setActiveTarget(firstPending.id);
     }
@@ -386,10 +400,11 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
       final resolvedId = sourceId?.isNotEmpty == true
           ? sourceId!
           : (sequencerId?.isNotEmpty == true
-              ? 'seq_$sequencerId'
-              : 'seq_orphan_$i');
+                ? 'seq_$sequencerId'
+                : 'seq_orphan_$i');
 
-      final existing = existingById[resolvedId] ??
+      final existing =
+          existingById[resolvedId] ??
           (sequencerId != null ? existingBySequencerId[sequencerId] : null);
 
       final coordinates = _coordinatesFromSequencer(seqTarget, existing);
@@ -401,7 +416,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
         seqTarget['plannedExposures'] ?? seqTarget['totalExposures'],
       );
       final completedExposures = _intFromAny(
-          seqTarget['completedExposures'] ?? seqTarget['completed']);
+        seqTarget['completedExposures'] ?? seqTarget['completed'],
+      );
 
       final queuedTarget = QueuedTarget(
         id: resolvedId,
@@ -414,7 +430,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
         priority: _intFromAny(seqTarget['priority']) ?? (i + 1),
         addedAt: existing?.addedAt ?? DateTime.now(),
         startedAt: existing?.startedAt,
-        completedAt: _mapSequencerStatus(seqTarget['status']?.toString()) ==
+        completedAt:
+            _mapSequencerStatus(seqTarget['status']?.toString()) ==
                 QueuedTargetStatus.completed
             ? (existing?.completedAt ?? DateTime.now())
             : existing?.completedAt,
@@ -430,15 +447,16 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
     syncedTargets.sort((a, b) => a.priority.compareTo(b.priority));
 
-    final hasActiveTarget =
-        syncedTargets.any((t) => t.status == QueuedTargetStatus.active);
+    final hasActiveTarget = syncedTargets.any(
+      (t) => t.status == QueuedTargetStatus.active,
+    );
     final activeTargetId = hasActiveTarget
         ? syncedTargets
-            .firstWhere((t) => t.status == QueuedTargetStatus.active)
-            .id
+              .firstWhere((t) => t.status == QueuedTargetStatus.active)
+              .id
         : (syncedTargets.any((t) => t.id == state.activeTargetId)
-            ? state.activeTargetId
-            : null);
+              ? state.activeTargetId
+              : null);
 
     state = state.copyWith(
       targets: syncedTargets,
@@ -486,19 +504,13 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     final raDegrees = _doubleFromAny(seqTarget['raDegrees']);
     final decDegrees = _doubleFromAny(seqTarget['decDegrees']);
     if (raDegrees != null && decDegrees != null) {
-      return CelestialCoordinate(
-        ra: raDegrees / 15.0,
-        dec: decDegrees,
-      );
+      return CelestialCoordinate(ra: raDegrees / 15.0, dec: decDegrees);
     }
 
     final raHours = _doubleFromAny(seqTarget['ra']);
     final dec = _doubleFromAny(seqTarget['dec']);
     if (raHours != null && dec != null) {
-      return CelestialCoordinate(
-        ra: raHours,
-        dec: dec,
-      );
+      return CelestialCoordinate(ra: raHours, dec: dec);
     }
 
     return fallback?.coordinates;
@@ -507,19 +519,21 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   /// Export queue to sequencer format
   List<Map<String, dynamic>> exportToSequencer() {
     return state.targets
-        .map((t) => {
-              'id': t.id,
-              'name': t.displayName,
-              'ra': t.coordinates.ra,
-              'dec': t.coordinates.dec,
-              'raDegrees': t.coordinates.raDegrees,
-              'priority': t.priority,
-              'plannedExposures': t.plannedExposures,
-              'notes': t.notes,
-              if (t.object != null) 'objectId': t.object!.id,
-              if (t.object != null && t.object is DeepSkyObject)
-                'type': (t.object as DeepSkyObject).type.name,
-            })
+        .map(
+          (t) => {
+            'id': t.id,
+            'name': t.displayName,
+            'ra': t.coordinates.ra,
+            'dec': t.coordinates.dec,
+            'raDegrees': t.coordinates.raDegrees,
+            'priority': t.priority,
+            'plannedExposures': t.plannedExposures,
+            'notes': t.notes,
+            if (t.object != null) 'objectId': t.object!.id,
+            if (t.object != null && t.object is DeepSkyObject)
+              'type': (t.object as DeepSkyObject).type.name,
+          },
+        )
         .toList();
   }
 }
@@ -527,8 +541,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 /// Provider for the target queue
 final targetQueueProvider =
     StateNotifierProvider<TargetQueueNotifier, TargetQueueState>((ref) {
-  return TargetQueueNotifier();
-});
+      return TargetQueueNotifier();
+    });
 
 /// Provider for just the active target (for widgets that only care about current target)
 final activeTargetProvider = Provider<QueuedTarget?>((ref) {

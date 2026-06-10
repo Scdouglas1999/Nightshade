@@ -63,12 +63,16 @@ class FramingTargetSearch extends ConsumerWidget {
             key: FramingTutorialKeys.targetSearch,
             controller: searchController,
             focusNode: searchFocusNode,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search by name (M42, NGC7000, Orion)',
-              hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
-              prefixIcon:
-                  Icon(NightshadeIcons.search, size: 14, color: colors.textMuted),
+              hintStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
+              prefixIcon: Icon(NightshadeIcons.search,
+                  size: 14, color: colors.textMuted),
               suffixIcon: searchState.isSearching
                   ? const SizedBox(
                       width: 14,
@@ -148,7 +152,8 @@ class FramingTargetSearch extends ConsumerWidget {
                               children: [
                                 Text(
                                   target.name,
-                                  style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
+                                  style: NightshadeTypography.labelQuiet
+                                      .copyWith(color: colors.textPrimary),
                                 ),
                                 if (target.catalogId != null &&
                                     target.catalogId != target.name)
@@ -185,13 +190,18 @@ class FramingTargetSearch extends ConsumerWidget {
               Expanded(
                 child: TextField(
                   controller: raController,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'RA',
-                    labelStyle:
-                        TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    labelStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                     hintText: '05h 35m 17s',
-                    hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    hintStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                     filled: true,
                     fillColor: colors.surfaceAlt,
                     border: OutlineInputBorder(
@@ -207,13 +217,18 @@ class FramingTargetSearch extends ConsumerWidget {
               Expanded(
                 child: TextField(
                   controller: decController,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Dec',
-                    labelStyle:
-                        TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    labelStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                     hintText: '-05° 23\' 28"',
-                    hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    hintStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                     filled: true,
                     fillColor: colors.surfaceAlt,
                     border: OutlineInputBorder(
@@ -263,7 +278,8 @@ class FramingEquipmentSection extends StatelessWidget {
           children: [
             Text(
               'Equipment',
-              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
             // Flexible so a long profile name ellipsizes instead of pushing
             // the status badge off a narrow phone-landscape controls panel.
@@ -282,8 +298,9 @@ class FramingEquipmentSection extends StatelessWidget {
                             result.profileName ?? 'Ready',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style:
-                                TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.success),
+                            style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize10,
+                                color: colors.success),
                           ),
                         ),
                       ],
@@ -300,7 +317,9 @@ class FramingEquipmentSection extends StatelessWidget {
                           'Not Configured',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize10,
+                              color: colors.warning),
                         ),
                       ),
                     ],
@@ -318,7 +337,9 @@ class FramingEquipmentSection extends StatelessWidget {
                         'Error',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.error),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            color: colors.error),
                       ),
                     ),
                   ],
@@ -402,7 +423,8 @@ class FramingEquipmentSection extends StatelessWidget {
                               child: Text(
                                 result.message!,
                                 style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize10, color: colors.warning),
+                                    fontSize: NightshadeTypography.fontSize10,
+                                    color: colors.warning),
                               ),
                             ),
                           ],

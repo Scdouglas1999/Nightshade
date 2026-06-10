@@ -87,16 +87,20 @@ class SuggestionFilterState {
     return SuggestionFilterState(
       minMagnitude: minMagnitude != null ? minMagnitude() : this.minMagnitude,
       maxMagnitude: maxMagnitude != null ? maxMagnitude() : this.maxMagnitude,
-      minSizeArcmin:
-          minSizeArcmin != null ? minSizeArcmin() : this.minSizeArcmin,
-      maxSizeArcmin:
-          maxSizeArcmin != null ? maxSizeArcmin() : this.maxSizeArcmin,
+      minSizeArcmin: minSizeArcmin != null
+          ? minSizeArcmin()
+          : this.minSizeArcmin,
+      maxSizeArcmin: maxSizeArcmin != null
+          ? maxSizeArcmin()
+          : this.maxSizeArcmin,
       selectedConstellations:
           selectedConstellations ?? this.selectedConstellations,
-      minMoonDistance:
-          minMoonDistance != null ? minMoonDistance() : this.minMoonDistance,
-      minImagingHours:
-          minImagingHours != null ? minImagingHours() : this.minImagingHours,
+      minMoonDistance: minMoonDistance != null
+          ? minMoonDistance()
+          : this.minMoonDistance,
+      minImagingHours: minImagingHours != null
+          ? minImagingHours()
+          : this.minImagingHours,
       searchQuery: searchQuery ?? this.searchQuery,
       selectedObjectTypes: selectedObjectTypes ?? this.selectedObjectTypes,
       minCurrentAltitude: minCurrentAltitude != null
@@ -129,7 +133,8 @@ class SuggestionFilterState {
 
 /// Holds the current UI filter state. Defaults = no filtering.
 final suggestionFilterProvider = StateProvider<SuggestionFilterState>(
-    (ref) => const SuggestionFilterState());
+  (ref) => const SuggestionFilterState(),
+);
 
 /// Applies [SuggestionFilterState] on top of [tonightSuggestionsProvider].
 ///
@@ -138,18 +143,18 @@ final suggestionFilterProvider = StateProvider<SuggestionFilterState>(
 /// filtering on the already-generated list.
 final filteredSuggestionsProvider =
     Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
-  final filters = ref.watch(suggestionFilterProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final filters = ref.watch(suggestionFilterProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      final filtered = _applyFilters(suggestions, filters);
-      return AsyncData(filtered);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          final filtered = _applyFilters(suggestions, filters);
+          return AsyncData(filtered);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });
 
 List<TargetSuggestion> _applyFilters(
   List<TargetSuggestion> suggestions,
@@ -248,14 +253,7 @@ String _formatArcminLabel(double arcmin) {
 
 const Map<String, List<String>> _objectTypeAliases = {
   'galaxy': ['galaxy', 'galaxies'],
-  'nebula': [
-    'nebula',
-    'emission',
-    'reflection',
-    'dark nebula',
-    'hii',
-    'h ii',
-  ],
+  'nebula': ['nebula', 'emission', 'reflection', 'dark nebula', 'hii', 'h ii'],
   'cluster': ['cluster', 'association'],
   'planetary': ['planetary nebula'],
   'supernova remnant': ['supernova', 'snr'],
@@ -269,8 +267,9 @@ const Map<String, List<String>> _objectTypeAliases = {
 
 /// Extracts sorted unique constellation abbreviations from the full
 /// (unfiltered) suggestion list.
-final availableConstellationsProvider =
-    Provider.autoDispose<List<String>>((ref) {
+final availableConstellationsProvider = Provider.autoDispose<List<String>>((
+  ref,
+) {
   final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
   return suggestionsAsync.when(
@@ -291,33 +290,35 @@ final availableConstellationsProvider =
 
 /// Returns the (min, max) magnitude range present in the unfiltered data.
 /// Returns null if no suggestions have magnitude data.
-final availableMagnitudeRangeProvider =
-    Provider.autoDispose<(double, double)?>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+final availableMagnitudeRangeProvider = Provider.autoDispose<(double, double)?>(
+  (ref) {
+    final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      double? lo;
-      double? hi;
-      for (final s in suggestions) {
-        if (s.magnitude != null) {
-          final m = s.magnitude!;
-          if (lo == null || m < lo) lo = m;
-          if (hi == null || m > hi) hi = m;
+    return suggestionsAsync.when(
+      data: (suggestions) {
+        double? lo;
+        double? hi;
+        for (final s in suggestions) {
+          if (s.magnitude != null) {
+            final m = s.magnitude!;
+            if (lo == null || m < lo) lo = m;
+            if (hi == null || m > hi) hi = m;
+          }
         }
-      }
-      if (lo == null || hi == null) return null;
-      return (lo, hi);
-    },
-    loading: () => null,
-    error: (_, __) => null,
-  );
-});
+        if (lo == null || hi == null) return null;
+        return (lo, hi);
+      },
+      loading: () => null,
+      error: (_, __) => null,
+    );
+  },
+);
 
 /// Returns the (min, max) angular size range (arcmin) present in the
 /// unfiltered data. Returns null if no suggestions have size data.
-final availableSizeRangeProvider =
-    Provider.autoDispose<(double, double)?>((ref) {
+final availableSizeRangeProvider = Provider.autoDispose<(double, double)?>((
+  ref,
+) {
   final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
   return suggestionsAsync.when(
@@ -379,104 +380,106 @@ class FilterExclusionBreakdown {
 /// Distinct from [filteredSuggestionsProvider] (which keeps upstream sort).
 final plannerFilteredSuggestionsProvider =
     Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
-  final filters = ref.watch(suggestionFilterProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final filters = ref.watch(suggestionFilterProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      final filtered = _applyFilters(suggestions, filters);
-      final sortMode = filters.plannerSort ?? PlannerSortMode.score;
-      final sorted = _sortPlannerSuggestions(filtered, sortMode);
-      return AsyncData(sorted);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          final filtered = _applyFilters(suggestions, filters);
+          final sortMode = filters.plannerSort ?? PlannerSortMode.score;
+          final sorted = _sortPlannerSuggestions(filtered, sortMode);
+          return AsyncData(sorted);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });
 
 /// Builds a breakdown of which planner filters excluded the most candidates.
 /// Empty filters report zero; a filter is counted once per suggestion it
 /// removed, even when other filters would have removed the same suggestion.
 final plannerFilterExclusionProvider =
     Provider.autoDispose<FilterExclusionBreakdown>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
-  final filters = ref.watch(suggestionFilterProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final filters = ref.watch(suggestionFilterProvider);
 
-  final suggestions =
-      suggestionsAsync.valueOrNull ?? const <TargetSuggestion>[];
-  final breakdown = <String, int>{};
+      final suggestions =
+          suggestionsAsync.valueOrNull ?? const <TargetSuggestion>[];
+      final breakdown = <String, int>{};
 
-  int countExcluded(String label, bool Function(TargetSuggestion) reject) {
-    final n = suggestions.where(reject).length;
-    if (n > 0) breakdown[label] = n;
-    return n;
-  }
+      int countExcluded(String label, bool Function(TargetSuggestion) reject) {
+        final n = suggestions.where(reject).length;
+        if (n > 0) breakdown[label] = n;
+        return n;
+      }
 
-  if (filters.searchQuery.trim().isNotEmpty) {
-    countExcluded(
-      'Search "${filters.searchQuery.trim()}"',
-      (s) => !_matchesSearchQuery(s, filters.searchQuery),
-    );
-  }
-  if (filters.selectedObjectTypes.isNotEmpty) {
-    countExcluded(
-      'Object type filter',
-      (s) => !_matchesObjectTypes(s, filters.selectedObjectTypes),
-    );
-  }
-  if (filters.selectedConstellations.isNotEmpty) {
-    countExcluded(
-      'Constellation filter',
-      (s) =>
-          s.constellation == null ||
-          !filters.selectedConstellations.contains(s.constellation),
-    );
-  }
-  if (filters.minMagnitude != null) {
-    countExcluded(
-      'Min magnitude ${filters.minMagnitude!.toStringAsFixed(1)}',
-      (s) => s.magnitude == null || s.magnitude! < filters.minMagnitude!,
-    );
-  }
-  if (filters.maxMagnitude != null) {
-    countExcluded(
-      'Max magnitude ${filters.maxMagnitude!.toStringAsFixed(1)}',
-      (s) => s.magnitude == null || s.magnitude! > filters.maxMagnitude!,
-    );
-  }
-  if (filters.minSizeArcmin != null) {
-    countExcluded(
-      'Min size ${_formatArcminLabel(filters.minSizeArcmin!)}',
-      (s) => s.sizeArcmin == null || s.sizeArcmin! < filters.minSizeArcmin!,
-    );
-  }
-  if (filters.maxSizeArcmin != null) {
-    countExcluded(
-      'Max size ${_formatArcminLabel(filters.maxSizeArcmin!)}',
-      (s) => s.sizeArcmin == null || s.sizeArcmin! > filters.maxSizeArcmin!,
-    );
-  }
-  if (filters.minCurrentAltitude != null) {
-    countExcluded(
-      'Min altitude now ${filters.minCurrentAltitude!.toStringAsFixed(0)}°',
-      (s) => s.visibility.currentAltitude < filters.minCurrentAltitude!,
-    );
-  }
-  if (filters.minMoonDistance != null) {
-    countExcluded(
-      'Min moon separation ${filters.minMoonDistance!.toStringAsFixed(0)}°',
-      (s) => s.visibility.moonDistance < filters.minMoonDistance!,
-    );
-  }
+      if (filters.searchQuery.trim().isNotEmpty) {
+        countExcluded(
+          'Search "${filters.searchQuery.trim()}"',
+          (s) => !_matchesSearchQuery(s, filters.searchQuery),
+        );
+      }
+      if (filters.selectedObjectTypes.isNotEmpty) {
+        countExcluded(
+          'Object type filter',
+          (s) => !_matchesObjectTypes(s, filters.selectedObjectTypes),
+        );
+      }
+      if (filters.selectedConstellations.isNotEmpty) {
+        countExcluded(
+          'Constellation filter',
+          (s) =>
+              s.constellation == null ||
+              !filters.selectedConstellations.contains(s.constellation),
+        );
+      }
+      if (filters.minMagnitude != null) {
+        countExcluded(
+          'Min magnitude ${filters.minMagnitude!.toStringAsFixed(1)}',
+          (s) => s.magnitude == null || s.magnitude! < filters.minMagnitude!,
+        );
+      }
+      if (filters.maxMagnitude != null) {
+        countExcluded(
+          'Max magnitude ${filters.maxMagnitude!.toStringAsFixed(1)}',
+          (s) => s.magnitude == null || s.magnitude! > filters.maxMagnitude!,
+        );
+      }
+      if (filters.minSizeArcmin != null) {
+        countExcluded(
+          'Min size ${_formatArcminLabel(filters.minSizeArcmin!)}',
+          (s) => s.sizeArcmin == null || s.sizeArcmin! < filters.minSizeArcmin!,
+        );
+      }
+      if (filters.maxSizeArcmin != null) {
+        countExcluded(
+          'Max size ${_formatArcminLabel(filters.maxSizeArcmin!)}',
+          (s) => s.sizeArcmin == null || s.sizeArcmin! > filters.maxSizeArcmin!,
+        );
+      }
+      if (filters.minCurrentAltitude != null) {
+        countExcluded(
+          'Min altitude now ${filters.minCurrentAltitude!.toStringAsFixed(0)}°',
+          (s) => s.visibility.currentAltitude < filters.minCurrentAltitude!,
+        );
+      }
+      if (filters.minMoonDistance != null) {
+        countExcluded(
+          'Min moon separation ${filters.minMoonDistance!.toStringAsFixed(0)}°',
+          (s) => s.visibility.moonDistance < filters.minMoonDistance!,
+        );
+      }
 
-  final passed = suggestions.where((s) => _passesAllFilters(s, filters)).length;
+      final passed = suggestions
+          .where((s) => _passesAllFilters(s, filters))
+          .length;
 
-  return FilterExclusionBreakdown(
-    total: suggestions.length,
-    passed: passed,
-    excludedByFilter: breakdown,
-  );
-});
+      return FilterExclusionBreakdown(
+        total: suggestions.length,
+        passed: passed,
+        excludedByFilter: breakdown,
+      );
+    });
 
 /// External-catalog (SIMBAD) name-search results for the planner search bar.
 ///
@@ -491,35 +494,32 @@ final plannerFilterExclusionProvider =
 /// pattern in Riverpod 2.x without pulling in a CancelToken dependency.
 final plannerSimbadResultsProvider = FutureProvider.autoDispose
     .family<List<SimbadNameMatch>, String>((ref, query) async {
-  final trimmed = query.trim();
-  if (trimmed.length < 3) return const <SimbadNameMatch>[];
+      final trimmed = query.trim();
+      if (trimmed.length < 3) return const <SimbadNameMatch>[];
 
-  // Why an explicit Timer instead of Future.delayed: the dart:async Timer
-  // can be cancelled when ref is disposed (next keystroke arrives), which
-  // matters for widget tests — Future.delayed schedules a Timer that
-  // remains pending after the tree disposes and trips the framework's
-  // !timersPending invariant.
-  final completer = Completer<void>();
-  final debounceTimer = Timer(
-    const Duration(milliseconds: 350),
-    () {
-      if (!completer.isCompleted) completer.complete();
-    },
-  );
-  var cancelled = false;
-  ref.onDispose(() {
-    cancelled = true;
-    debounceTimer.cancel();
-    if (!completer.isCompleted) completer.complete();
-  });
+      // Why an explicit Timer instead of Future.delayed: the dart:async Timer
+      // can be cancelled when ref is disposed (next keystroke arrives), which
+      // matters for widget tests — Future.delayed schedules a Timer that
+      // remains pending after the tree disposes and trips the framework's
+      // !timersPending invariant.
+      final completer = Completer<void>();
+      final debounceTimer = Timer(const Duration(milliseconds: 350), () {
+        if (!completer.isCompleted) completer.complete();
+      });
+      var cancelled = false;
+      ref.onDispose(() {
+        cancelled = true;
+        debounceTimer.cancel();
+        if (!completer.isCompleted) completer.complete();
+      });
 
-  await completer.future;
-  if (cancelled) return const <SimbadNameMatch>[];
+      await completer.future;
+      if (cancelled) return const <SimbadNameMatch>[];
 
-  final results = await SimbadProvider().searchByName(trimmed);
-  if (cancelled) return const <SimbadNameMatch>[];
-  return results;
-});
+      final results = await SimbadProvider().searchByName(trimmed);
+      if (cancelled) return const <SimbadNameMatch>[];
+      return results;
+    });
 
 /// Installed-catalog search results for the planner search bar.
 ///
@@ -529,35 +529,36 @@ final plannerSimbadResultsProvider = FutureProvider.autoDispose
 /// database but are not recommendation candidates right now.
 final plannerInstalledCatalogSearchProvider = FutureProvider.autoDispose
     .family<List<CatalogSearchResult>, String>((ref, query) async {
-  final trimmed = query.trim();
-  if (trimmed.length < 2) return const <CatalogSearchResult>[];
+      final trimmed = query.trim();
+      if (trimmed.length < 2) return const <CatalogSearchResult>[];
 
-  final manager = CatalogManager.instance;
-  if (!manager.isInitialized) return const <CatalogSearchResult>[];
+      final manager = CatalogManager.instance;
+      if (!manager.isInitialized) return const <CatalogSearchResult>[];
 
-  final suggestions = ref.watch(tonightSuggestionsProvider).valueOrNull ??
-      const <TargetSuggestion>[];
-  final existingKeys = <String>{};
-  for (final suggestion in suggestions) {
-    existingKeys.add(_catalogSearchKey(suggestion.targetName));
-    final catalogId = suggestion.catalogId;
-    if (catalogId != null && catalogId.isNotEmpty) {
-      existingKeys.add(_catalogSearchKey(catalogId));
-    }
-  }
+      final suggestions =
+          ref.watch(tonightSuggestionsProvider).valueOrNull ??
+          const <TargetSuggestion>[];
+      final existingKeys = <String>{};
+      for (final suggestion in suggestions) {
+        existingKeys.add(_catalogSearchKey(suggestion.targetName));
+        final catalogId = suggestion.catalogId;
+        if (catalogId != null && catalogId.isNotEmpty) {
+          existingKeys.add(_catalogSearchKey(catalogId));
+        }
+      }
 
-  final results = await manager.search(trimmed);
-  return results
-      .where((result) {
-        final resultKeys = <String>{
-          _catalogSearchKey(result.name),
-          _catalogSearchKey(result.catalogId),
-        };
-        return resultKeys.intersection(existingKeys).isEmpty;
-      })
-      .take(12)
-      .toList(growable: false);
-});
+      final results = await manager.search(trimmed);
+      return results
+          .where((result) {
+            final resultKeys = <String>{
+              _catalogSearchKey(result.name),
+              _catalogSearchKey(result.catalogId),
+            };
+            return resultKeys.intersection(existingKeys).isEmpty;
+          })
+          .take(12)
+          .toList(growable: false);
+    });
 
 String _catalogSearchKey(String value) =>
     value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
@@ -590,10 +591,12 @@ List<TargetSuggestion> _sortPlannerSuggestions(
     case PlannerSortMode.size:
       // Largest first. Nulls/zero sink to the bottom.
       copy.sort((a, b) {
-        final aSize =
-            (a.sizeArcmin != null && a.sizeArcmin! > 0) ? a.sizeArcmin! : null;
-        final bSize =
-            (b.sizeArcmin != null && b.sizeArcmin! > 0) ? b.sizeArcmin! : null;
+        final aSize = (a.sizeArcmin != null && a.sizeArcmin! > 0)
+            ? a.sizeArcmin!
+            : null;
+        final bSize = (b.sizeArcmin != null && b.sizeArcmin! > 0)
+            ? b.sizeArcmin!
+            : null;
         if (aSize == null && bSize == null) return 0;
         if (aSize == null) return 1;
         if (bSize == null) return -1;

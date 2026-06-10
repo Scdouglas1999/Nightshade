@@ -22,9 +22,7 @@ void main() {
     setUp(() {
       container = ProviderContainer(
         overrides: [
-          backendProvider.overrideWith(
-            (ref) => _TestBackendNotifier(ref),
-          ),
+          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref)),
         ],
       );
       handlers = DeviceHandlers(container);
@@ -34,28 +32,30 @@ void main() {
       container.dispose();
     });
 
-    test('returns 200 with full CameraRecommendedSettings JSON shape',
-        () async {
-      final response = await translateHandlerErrors(
-        handlers.handleCameraGetRecommendedSettings(
-          Request(
-            'GET',
-            Uri.parse(
-              'http://localhost/api/camera/recommended-settings'
-              '?deviceId=native:zwo:1',
+    test(
+      'returns 200 with full CameraRecommendedSettings JSON shape',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleCameraGetRecommendedSettings(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/camera/recommended-settings'
+                '?deviceId=native:zwo:1',
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body, containsPair('unityGain', 120));
-      expect(body, containsPair('hcgGain', isNull));
-      expect(body, containsPair('defaultOffset', 30));
-      expect(body, containsPair('notes', 'fixture'));
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body, containsPair('unityGain', 120));
+        expect(body, containsPair('hcgGain', isNull));
+        expect(body, containsPair('defaultOffset', 30));
+        expect(body, containsPair('notes', 'fixture'));
+      },
+    );
 
     test('returns 400 when deviceId query parameter is missing', () async {
       final response = await translateHandlerErrors(
@@ -79,7 +79,8 @@ void main() {
 class _FixtureBackend extends DisconnectedBackend {
   @override
   Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     // Returns a deterministic non-empty struct so the handler test can
     // assert the wire shape exactly (unityGain present, hcgGain null,
     // defaultOffset present, notes carried through).

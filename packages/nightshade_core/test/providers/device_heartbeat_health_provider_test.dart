@@ -58,41 +58,44 @@ void main() {
 
   group('DeviceHeartbeatHealthNotifier — degraded', () {
     test(
-        'HeartbeatDegraded event populates degraded state with actual reason',
-        () {
-      final notifier = DeviceHeartbeatHealthNotifier(now: clock);
+      'HeartbeatDegraded event populates degraded state with actual reason',
+      () {
+        final notifier = DeviceHeartbeatHealthNotifier(now: clock);
 
-      notifier.applyStatusEvent(
-        deviceId: 'mount-1',
-        status: 'degraded',
-        consecutiveFailures: 3,
-        lastRttMs: 450,
-      );
+        notifier.applyStatusEvent(
+          deviceId: 'mount-1',
+          status: 'degraded',
+          consecutiveFailures: 3,
+          lastRttMs: 450,
+        );
 
-      final s = notifier.forDevice('mount-1');
-      expect(s.health, HeartbeatHealth.degraded);
-      // CLAUDE.md "errors are a feature": the actual failure count must
-      // be in the reason text so the tooltip surfaces it.
-      expect(s.reason, contains('3'));
-      expect(s.reason, contains('consecutive heartbeat'));
-      expect(s.reason, contains('450ms'));
-      expect(s.consecutiveFailures, 3);
-    });
+        final s = notifier.forDevice('mount-1');
+        expect(s.health, HeartbeatHealth.degraded);
+        // CLAUDE.md "errors are a feature": the actual failure count must
+        // be in the reason text so the tooltip surfaces it.
+        expect(s.reason, contains('3'));
+        expect(s.reason, contains('consecutive heartbeat'));
+        expect(s.reason, contains('450ms'));
+        expect(s.consecutiveFailures, 3);
+      },
+    );
 
-    test('degraded with no failure count still produces a non-empty reason',
-        () {
-      final notifier = DeviceHeartbeatHealthNotifier(now: clock);
-      notifier.applyStatusEvent(
-        deviceId: 'mount-1',
-        status: 'degraded',
-        consecutiveFailures: 0,
-      );
+    test(
+      'degraded with no failure count still produces a non-empty reason',
+      () {
+        final notifier = DeviceHeartbeatHealthNotifier(now: clock);
+        notifier.applyStatusEvent(
+          deviceId: 'mount-1',
+          status: 'degraded',
+          consecutiveFailures: 0,
+        );
 
-      final s = notifier.forDevice('mount-1');
-      expect(s.health, HeartbeatHealth.degraded);
-      expect(s.reason, isNotNull);
-      expect(s.reason, isNotEmpty);
-    });
+        final s = notifier.forDevice('mount-1');
+        expect(s.health, HeartbeatHealth.degraded);
+        expect(s.reason, isNotNull);
+        expect(s.reason, isNotEmpty);
+      },
+    );
 
     test('disconnected status maps to degraded with unresponsive message', () {
       final notifier = DeviceHeartbeatHealthNotifier(now: clock);
@@ -173,10 +176,7 @@ void main() {
 
     test('clearDevice on unknown id is a no-op', () {
       final notifier = DeviceHeartbeatHealthNotifier(now: clock);
-      notifier.applyStatusEvent(
-        deviceId: 'mount-1',
-        status: 'healthy',
-      );
+      notifier.applyStatusEvent(deviceId: 'mount-1', status: 'healthy');
       final before = notifier.state;
       notifier.clearDevice('nonexistent');
       expect(notifier.state, same(before));
@@ -213,30 +213,32 @@ void main() {
       expect(notifier.forDevice('mount-1').lastChange, firstChange);
     });
 
-    test('healthy → degraded → healthy bumps lastChange for each transition',
-        () {
-      var ticks = 0;
-      DateTime tick() {
-        ticks++;
-        return DateTime.utc(2026, 1, 1).add(Duration(seconds: ticks));
-      }
+    test(
+      'healthy → degraded → healthy bumps lastChange for each transition',
+      () {
+        var ticks = 0;
+        DateTime tick() {
+          ticks++;
+          return DateTime.utc(2026, 1, 1).add(Duration(seconds: ticks));
+        }
 
-      final notifier = DeviceHeartbeatHealthNotifier(now: tick);
-      notifier.applyStatusEvent(deviceId: 'mount-1', status: 'healthy');
-      final t1 = notifier.forDevice('mount-1').lastChange;
+        final notifier = DeviceHeartbeatHealthNotifier(now: tick);
+        notifier.applyStatusEvent(deviceId: 'mount-1', status: 'healthy');
+        final t1 = notifier.forDevice('mount-1').lastChange;
 
-      notifier.applyStatusEvent(
-        deviceId: 'mount-1',
-        status: 'degraded',
-        consecutiveFailures: 2,
-      );
-      final t2 = notifier.forDevice('mount-1').lastChange;
-      expect(t2.isAfter(t1), isTrue);
+        notifier.applyStatusEvent(
+          deviceId: 'mount-1',
+          status: 'degraded',
+          consecutiveFailures: 2,
+        );
+        final t2 = notifier.forDevice('mount-1').lastChange;
+        expect(t2.isAfter(t1), isTrue);
 
-      notifier.applyStatusEvent(deviceId: 'mount-1', status: 'healthy');
-      final t3 = notifier.forDevice('mount-1').lastChange;
-      expect(t3.isAfter(t2), isTrue);
-    });
+        notifier.applyStatusEvent(deviceId: 'mount-1', status: 'healthy');
+        final t3 = notifier.forDevice('mount-1').lastChange;
+        expect(t3.isAfter(t2), isTrue);
+      },
+    );
 
     test('per-device entries are isolated', () {
       final notifier = DeviceHeartbeatHealthNotifier(now: clock);
@@ -247,10 +249,8 @@ void main() {
       );
       notifier.applyStatusEvent(deviceId: 'camera-1', status: 'healthy');
 
-      expect(
-          notifier.forDevice('mount-1').health, HeartbeatHealth.degraded);
-      expect(
-          notifier.forDevice('camera-1').health, HeartbeatHealth.healthy);
+      expect(notifier.forDevice('mount-1').health, HeartbeatHealth.degraded);
+      expect(notifier.forDevice('camera-1').health, HeartbeatHealth.healthy);
     });
   });
 
@@ -259,8 +259,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final notifier =
-          container.read(deviceHeartbeatHealthProvider.notifier);
+      final notifier = container.read(deviceHeartbeatHealthProvider.notifier);
       notifier.applyHeartbeatStarted(deviceId: 'camera-1');
 
       final state = container.read(deviceHeartbeatHealthProvider);

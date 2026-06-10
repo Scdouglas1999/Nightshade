@@ -79,8 +79,7 @@ void main() {
         isFalse,
       );
       expect(
-        applyMeridianFlipEdit(n,
-                failureAction: FlipFailureAction.abortAndPark)
+        applyMeridianFlipEdit(n, failureAction: FlipFailureAction.abortAndPark)
             .useGlobalDefaults,
         isFalse,
       );
@@ -91,8 +90,7 @@ void main() {
       final n = MeridianFlipNode();
       expect(applyMeridianFlipEdit(n, name: 'X').useGlobalDefaults, isTrue);
       expect(applyMeridianFlipEdit(n, parentId: 'p').useGlobalDefaults, isTrue);
-      expect(
-          applyMeridianFlipEdit(n, orderIndex: 5).useGlobalDefaults, isTrue);
+      expect(applyMeridianFlipEdit(n, orderIndex: 5).useGlobalDefaults, isTrue);
       expect(applyMeridianFlipEdit(n, comment: 'c').useGlobalDefaults, isTrue);
       expect(
           applyMeridianFlipEdit(n, isEnabled: false).useGlobalDefaults, isTrue);

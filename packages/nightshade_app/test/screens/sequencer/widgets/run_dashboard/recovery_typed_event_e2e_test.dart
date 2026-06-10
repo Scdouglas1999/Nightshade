@@ -87,9 +87,8 @@ bridge_event.NightshadeEvent _recoveryCompletedEvent({
     category: bridge_event.EventCategory.sequencer,
     payload: bridge_event.EventPayload.sequencer(
       bridge_event.SequencerEvent.recoveryCompleted(
-        startedAtIso: now
-            .subtract(const Duration(minutes: 5))
-            .toIso8601String(),
+        startedAtIso:
+            now.subtract(const Duration(minutes: 5)).toIso8601String(),
         causeKind: causeKind,
         causeCustomLabel: null,
         lastAttemptAtIso: now.toIso8601String(),
@@ -123,8 +122,7 @@ void main() {
               .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
           // Inject a test stream into the typed bridge provider — the
           // recovery bridge subscribes here.
-          nightshadeEventsProvider
-              .overrideWith((ref) => controller.stream),
+          nightshadeEventsProvider.overrideWith((ref) => controller.stream),
         ],
       );
       addTearDown(container.dispose);
@@ -177,8 +175,7 @@ void main() {
       );
     });
 
-    test('GaveUp(abortedByUser=true) records aborted_by_user=true',
-        () async {
+    test('GaveUp(abortedByUser=true) records aborted_by_user=true', () async {
       final backend = _SpyBackend();
       final controller =
           StreamController<bridge_event.NightshadeEvent>.broadcast();
@@ -188,8 +185,7 @@ void main() {
         overrides: [
           backendProvider
               .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
-          nightshadeEventsProvider
-              .overrideWith((ref) => controller.stream),
+          nightshadeEventsProvider.overrideWith((ref) => controller.stream),
         ],
       );
       addTearDown(container.dispose);
@@ -208,9 +204,8 @@ void main() {
         category: bridge_event.EventCategory.sequencer,
         payload: bridge_event.EventPayload.sequencer(
           bridge_event.SequencerEvent.recoveryGaveUp(
-            startedAtIso: now
-                .subtract(const Duration(minutes: 1))
-                .toIso8601String(),
+            startedAtIso:
+                now.subtract(const Duration(minutes: 1)).toIso8601String(),
             causeKind: 'WeatherUnsafe',
             causeCustomLabel: null,
             lastAttemptAtIso: now.toIso8601String(),

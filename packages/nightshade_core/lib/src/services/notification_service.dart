@@ -31,8 +31,11 @@ Future<void> _defaultPlayAlertSound() async {
   try {
     await SystemSound.play(SystemSoundType.alert);
   } catch (e) {
-    developer.log('[Notification] SystemSound.play failed: $e',
-        name: 'NotificationService', level: 900);
+    developer.log(
+      '[Notification] SystemSound.play failed: $e',
+      name: 'NotificationService',
+      level: 900,
+    );
   }
 }
 
@@ -74,24 +77,24 @@ class NotificationService {
     http.Client? httpClient,
     Duration requestTimeout = defaultRequestTimeout,
     NotificationSoundPlayer? soundPlayer,
-  })  : _ref = ref,
-        _settingsReader = null,
-        _httpClient = httpClient ?? http.Client(),
-        _requestTimeout = requestTimeout,
-        _ownsHttpClient = httpClient == null,
-        _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
+  }) : _ref = ref,
+       _settingsReader = null,
+       _httpClient = httpClient ?? http.Client(),
+       _requestTimeout = requestTimeout,
+       _ownsHttpClient = httpClient == null,
+       _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
 
   NotificationService.testing({
     required AppSettingsState? Function() settingsReader,
     http.Client? httpClient,
     Duration requestTimeout = defaultRequestTimeout,
     NotificationSoundPlayer? soundPlayer,
-  })  : _ref = null,
-        _settingsReader = settingsReader,
-        _httpClient = httpClient ?? http.Client(),
-        _requestTimeout = requestTimeout,
-        _ownsHttpClient = httpClient == null,
-        _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
+  }) : _ref = null,
+       _settingsReader = settingsReader,
+       _httpClient = httpClient ?? http.Client(),
+       _requestTimeout = requestTimeout,
+       _ownsHttpClient = httpClient == null,
+       _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
 
   void dispose() {
     if (_ownsHttpClient) {
@@ -176,8 +179,9 @@ class NotificationService {
     required String errorMessage,
     String? source,
   }) async {
-    final message =
-        source != null ? 'Source: $source\n$errorMessage' : errorMessage;
+    final message = source != null
+        ? 'Source: $source\n$errorMessage'
+        : errorMessage;
 
     return notify(
       event: NotificationEvent.error,
@@ -192,13 +196,14 @@ class NotificationService {
     required bool isStarting,
     String? targetName,
   }) async {
-    final title =
-        isStarting ? 'Meridian Flip Starting' : 'Meridian Flip Complete';
+    final title = isStarting
+        ? 'Meridian Flip Starting'
+        : 'Meridian Flip Complete';
     final message = targetName != null
         ? 'Target: $targetName'
         : isStarting
-            ? 'Mount is flipping...'
-            : 'Mount flip completed successfully';
+        ? 'Mount is flipping...'
+        : 'Mount flip completed successfully';
 
     return notify(
       event: NotificationEvent.meridianFlip,
@@ -246,8 +251,11 @@ class NotificationService {
       // The router provider is unavailable (e.g. a minimal test container
       // without the notification graph). Surface, don't swallow — but never
       // break the legacy webhook/sound path on account of it.
-      developer.log('[Notification] Router forward skipped: $e',
-          name: 'NotificationService', level: 900);
+      developer.log(
+        '[Notification] Router forward skipped: $e',
+        name: 'NotificationService',
+        level: 900,
+      );
       return;
     }
     router.routeNotificationNode(
@@ -259,7 +267,10 @@ class NotificationService {
     );
   }
 
-  bool _shouldNotifyForEvent(NotificationEvent event, AppSettingsState settings) {
+  bool _shouldNotifyForEvent(
+    NotificationEvent event,
+    AppSettingsState settings,
+  ) {
     switch (event) {
       case NotificationEvent.sequenceComplete:
         return settings.notifyOnSequenceComplete;
@@ -306,26 +317,33 @@ class NotificationService {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         developer.log(
-            '[Notification] Discord notification sent successfully',
-            name: 'NotificationService',
-            level: 800);
+          '[Notification] Discord notification sent successfully',
+          name: 'NotificationService',
+          level: 800,
+        );
         return true;
       }
 
       developer.log(
-          '[Notification] Discord notification failed: ${response.statusCode} ${response.body}',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Discord notification failed: ${response.statusCode} ${response.body}',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } on TimeoutException {
       developer.log(
-          '[Notification] Discord notification timed out after ${_requestTimeout.inSeconds}s',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Discord notification timed out after ${_requestTimeout.inSeconds}s',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } catch (e) {
-      developer.log('[Notification] Discord notification error: $e',
-          name: 'NotificationService', level: 1000, error: e);
+      developer.log(
+        '[Notification] Discord notification error: $e',
+        name: 'NotificationService',
+        level: 1000,
+        error: e,
+      );
       return false;
     }
   }
@@ -342,39 +360,48 @@ class NotificationService {
     }
 
     try {
-      final response = await _httpClient.post(
-        Uri.parse('https://api.pushover.net/1/messages.json'),
-        body: {
-          'token': settings.pushoverKey,
-          'user': settings.pushoverUser,
-          'title': title,
-          'message': message,
-          'priority': priority.value.toString(),
-        },
-      ).timeout(_requestTimeout);
+      final response = await _httpClient
+          .post(
+            Uri.parse('https://api.pushover.net/1/messages.json'),
+            body: {
+              'token': settings.pushoverKey,
+              'user': settings.pushoverUser,
+              'title': title,
+              'message': message,
+              'priority': priority.value.toString(),
+            },
+          )
+          .timeout(_requestTimeout);
 
       if (response.statusCode == 200) {
         developer.log(
-            '[Notification] Pushover notification sent successfully',
-            name: 'NotificationService',
-            level: 800);
+          '[Notification] Pushover notification sent successfully',
+          name: 'NotificationService',
+          level: 800,
+        );
         return true;
       }
 
       developer.log(
-          '[Notification] Pushover notification failed: ${response.statusCode} ${response.body}',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Pushover notification failed: ${response.statusCode} ${response.body}',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } on TimeoutException {
       developer.log(
-          '[Notification] Pushover notification timed out after ${_requestTimeout.inSeconds}s',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Pushover notification timed out after ${_requestTimeout.inSeconds}s',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } catch (e) {
-      developer.log('[Notification] Pushover notification error: $e',
-          name: 'NotificationService', level: 1000, error: e);
+      developer.log(
+        '[Notification] Pushover notification error: $e',
+        name: 'NotificationService',
+        level: 1000,
+        error: e,
+      );
       return false;
     }
   }
@@ -435,13 +462,18 @@ class NotificationService {
       return response.statusCode >= 200 && response.statusCode < 300;
     } on TimeoutException {
       developer.log(
-          '[Notification] Discord test timed out after ${_requestTimeout.inSeconds}s',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Discord test timed out after ${_requestTimeout.inSeconds}s',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } catch (e) {
-      developer.log('[Notification] Discord test failed: $e',
-          name: 'NotificationService', level: 1000, error: e);
+      developer.log(
+        '[Notification] Discord test failed: $e',
+        name: 'NotificationService',
+        level: 1000,
+        error: e,
+      );
       return false;
     }
   }
@@ -449,28 +481,35 @@ class NotificationService {
   /// Test Pushover connection
   Future<bool> testPushover(String token, String user) async {
     try {
-      final response = await _httpClient.post(
-        Uri.parse('https://api.pushover.net/1/messages.json'),
-        body: {
-          'token': token,
-          'user': user,
-          'title': 'Test Notification',
-          'message':
-              'This is a test notification from Nightshade 2.0. If you see this, your Pushover is configured correctly!',
-          'priority': '0',
-        },
-      ).timeout(_requestTimeout);
+      final response = await _httpClient
+          .post(
+            Uri.parse('https://api.pushover.net/1/messages.json'),
+            body: {
+              'token': token,
+              'user': user,
+              'title': 'Test Notification',
+              'message':
+                  'This is a test notification from Nightshade 2.0. If you see this, your Pushover is configured correctly!',
+              'priority': '0',
+            },
+          )
+          .timeout(_requestTimeout);
 
       return response.statusCode == 200;
     } on TimeoutException {
       developer.log(
-          '[Notification] Pushover test timed out after ${_requestTimeout.inSeconds}s',
-          name: 'NotificationService',
-          level: 900);
+        '[Notification] Pushover test timed out after ${_requestTimeout.inSeconds}s',
+        name: 'NotificationService',
+        level: 900,
+      );
       return false;
     } catch (e) {
-      developer.log('[Notification] Pushover test failed: $e',
-          name: 'NotificationService', level: 1000, error: e);
+      developer.log(
+        '[Notification] Pushover test failed: $e',
+        name: 'NotificationService',
+        level: 1000,
+        error: e,
+      );
       return false;
     }
   }

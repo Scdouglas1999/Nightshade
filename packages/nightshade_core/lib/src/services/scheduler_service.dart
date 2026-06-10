@@ -88,12 +88,14 @@ class SchedulerService {
     final lst = _calculateLST(time, longitudeDegrees);
     final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
 
-    final sinAlt = math.sin(dec) * math.sin(lat) +
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
         math.cos(dec) * math.cos(lat) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
     final y = -math.sin(ha) * math.cos(dec);
-    final x = math.sin(dec) * math.cos(lat) -
+    final x =
+        math.sin(dec) * math.cos(lat) -
         math.cos(dec) * math.sin(lat) * math.cos(ha);
     var az = math.atan2(y, x);
     if (az < 0) az += 2 * math.pi;
@@ -110,7 +112,8 @@ class SchedulerService {
     final t = (jd - 2451545.0) / 36525.0;
 
     // Greenwich Mean Sidereal Time at 0h UT1
-    double gmst = 280.46061837 +
+    double gmst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000.0;
@@ -272,11 +275,13 @@ class SchedulerService {
     // Convert sidereal time to solar time (sidereal day is ~23h 56m 4s)
     final solarHours = hoursUntilTransit * 0.9972695663;
 
-    return midnight.add(Duration(
-      hours: solarHours.floor(),
-      minutes: ((solarHours % 1) * 60).floor(),
-      seconds: (((solarHours * 60) % 1) * 60).floor(),
-    ));
+    return midnight.add(
+      Duration(
+        hours: solarHours.floor(),
+        minutes: ((solarHours % 1) * 60).floor(),
+        seconds: (((solarHours * 60) % 1) * 60).floor(),
+      ),
+    );
   }
 
   /// Get altitude data for all targets in the sequence
@@ -330,17 +335,19 @@ class SchedulerService {
         minAltitude: minAltitude,
       );
 
-      results.add(AltitudeData(
-        targetId: target.id,
-        targetName: target.targetName,
-        raHours: target.raHours,
-        decDegrees: target.decDegrees,
-        transitTime: transitTime,
-        transitAltitude: transitAlt,
-        currentAltitude: currentAlt,
-        isRising: isRising,
-        hoursAboveHorizon: hoursAbove,
-      ));
+      results.add(
+        AltitudeData(
+          targetId: target.id,
+          targetName: target.targetName,
+          raHours: target.raHours,
+          decDegrees: target.decDegrees,
+          transitTime: transitTime,
+          transitAltitude: transitAlt,
+          currentAltitude: currentAlt,
+          isRising: isRising,
+          hoursAboveHorizon: hoursAbove,
+        ),
+      );
     }
 
     return results;
@@ -489,7 +496,7 @@ class SchedulerService {
 
   /// Calculate moon position (simplified)
   ({double raHours, double decDegrees, double illumination})
-      calculateMoonPosition(DateTime time) {
+  calculateMoonPosition(DateTime time) {
     // Simplified lunar ephemeris
     final jd = _julianDate(time);
     final t = (jd - 2451545.0) / 36525.0;
@@ -561,7 +568,8 @@ class SchedulerService {
     final dec2 = dec2Degrees * math.pi / 180.0;
 
     // Haversine formula
-    final cosSep = math.sin(dec1) * math.sin(dec2) +
+    final cosSep =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180.0 / math.pi;

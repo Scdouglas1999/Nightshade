@@ -163,8 +163,9 @@ class FramingState {
           ? null
           : (sourceSuggestion ?? this.sourceSuggestion),
       surveySource: surveySource ?? this.surveySource,
-      surveyImageBytes:
-          clearImage ? null : (surveyImageBytes ?? this.surveyImageBytes),
+      surveyImageBytes: clearImage
+          ? null
+          : (surveyImageBytes ?? this.surveyImageBytes),
       surveyImage: clearImage ? null : (surveyImage ?? this.surveyImage),
       plateScale: clearImage ? null : (plateScale ?? this.plateScale),
       isLoadingImage: isLoadingImage ?? this.isLoadingImage,
@@ -257,15 +258,15 @@ class FramingTarget {
   /// (`framing.lastTarget`). Used to remember the last framed target across
   /// app restarts WITHOUT writing a row into the `targets` library table.
   Map<String, dynamic> toJson() => {
-        'name': name,
-        if (catalogId != null) 'catalogId': catalogId,
-        'raHours': raHours,
-        'decDegrees': decDegrees,
-        if (type != null) 'type': type!.name,
-        if (magnitude != null) 'magnitude': magnitude,
-        if (sizeArcmin != null) 'sizeArcmin': sizeArcmin,
-        if (constellation != null) 'constellation': constellation,
-      };
+    'name': name,
+    if (catalogId != null) 'catalogId': catalogId,
+    'raHours': raHours,
+    'decDegrees': decDegrees,
+    if (type != null) 'type': type!.name,
+    if (magnitude != null) 'magnitude': magnitude,
+    if (sizeArcmin != null) 'sizeArcmin': sizeArcmin,
+    if (constellation != null) 'constellation': constellation,
+  };
 
   /// Reconstructs a target previously written by [toJson]. Returns null when
   /// the payload is missing required fields so the caller can fail closed
@@ -448,12 +449,7 @@ class FramingMosaicConfig {
 }
 
 /// Starting corner for mosaic capture
-enum MosaicStartCorner {
-  topLeft,
-  topRight,
-  bottomLeft,
-  bottomRight,
-}
+enum MosaicStartCorner { topLeft, topRight, bottomLeft, bottomRight }
 
 /// Individual panel in a framing-assistant mosaic.
 ///

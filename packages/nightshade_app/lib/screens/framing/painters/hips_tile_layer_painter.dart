@@ -488,10 +488,22 @@ class HipsTileLayerPainter extends CustomPainter {
   /// supply are already in image pixels). Built once and shared.
   static final Float64List _identityMatrix4 = Float64List.fromList(
     <double>[
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
     ],
   );
 }

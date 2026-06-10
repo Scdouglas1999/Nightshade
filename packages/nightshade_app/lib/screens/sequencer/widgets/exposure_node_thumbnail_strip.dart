@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -107,13 +107,14 @@ class _StripBody extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(LucideIcons.alertTriangle,
-                  size: 12, color: colors.warning),
+              Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
                   'Failed to load frame thumbnails: $error',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.warning),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -300,7 +301,8 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
     }
     if (t.starCount != null) parts.add('${t.starCount} stars');
     if (!t.isAccepted) {
-      parts.add('REJECTED${t.rejectionReason == null ? '' : ': ${t.rejectionReason!}'}');
+      parts.add(
+          'REJECTED${t.rejectionReason == null ? '' : ': ${t.rejectionReason!}'}');
     } else {
       parts.add(_gradeLabel(t.gradeKind));
     }
@@ -412,8 +414,7 @@ class _ThumbnailImage extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(
                 strokeWidth: 1.4,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(colors.textMuted),
+                valueColor: AlwaysStoppedAnimation<Color>(colors.textMuted),
               ),
             ),
           );
@@ -505,7 +506,8 @@ class _FullFrameDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       t.fileName,
-                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -529,8 +531,7 @@ class _FullFrameDialog extends ConsumerWidget {
                   future: bytesFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                          child: CircularProgressIndicator());
+                      return const Center(child: CircularProgressIndicator());
                     }
                     final bytes = snapshot.data;
                     if (bytes != null && bytes.isNotEmpty) {
@@ -553,7 +554,8 @@ class _FullFrameDialog extends ConsumerWidget {
                             'Preview unavailable for ${t.fileName}.\nOpen in the imaging viewer for the full frame.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                                color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                                color: colors.textMuted,
+                                fontSize: NightshadeTypography.fontSize12),
                           ),
                         ],
                       ),
@@ -588,10 +590,12 @@ class _FrameMetadata extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(label,
-                  style:
-                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted)),
               Text(value,
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary)),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary)),
             ],
           ),
         );
@@ -605,9 +609,7 @@ class _FrameMetadata extends StatelessWidget {
         chip('Stars', thumb.starCount?.toString() ?? '—'),
         chip(
           'Grade',
-          thumb.isAccepted
-              ? (thumb.runtimeGrade ?? 'accepted')
-              : 'REJECTED',
+          thumb.isAccepted ? (thumb.runtimeGrade ?? 'accepted') : 'REJECTED',
         ),
         chip(
           'Captured',

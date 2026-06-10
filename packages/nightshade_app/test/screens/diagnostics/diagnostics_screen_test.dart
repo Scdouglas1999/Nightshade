@@ -156,8 +156,7 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(tester.takeException(), isNull,
-        reason:
-            'Initial DiagnosticDumpScreen pump under the default harness '
+        reason: 'Initial DiagnosticDumpScreen pump under the default harness '
             'should not surface any uncaught exceptions.');
 
     expect(find.text('Diagnostic Dump'), findsOneWidget,

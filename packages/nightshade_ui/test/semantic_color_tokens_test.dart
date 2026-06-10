@@ -51,10 +51,7 @@ void main() {
       const colors = NightshadeColors.dark;
 
       expect(
-        AnnotationStatusColors.background(
-          AnnotationStatus.complete,
-          colors,
-        ),
+        AnnotationStatusColors.background(AnnotationStatus.complete, colors),
         isNot(Colors.transparent),
       );
       expect(

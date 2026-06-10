@@ -198,9 +198,7 @@ class _NativeContractStackingEngine implements StackingEngineSeam {
       case 'osc':
         if (resolved == null) {
           // Exactly the native error surface for OSC without a pattern.
-          throw StateError(
-            'OSC declared but no Bayer pattern resolvable',
-          );
+          throw StateError('OSC declared but no Bayer pattern resolvable');
         }
         startedColor = true;
         return;
@@ -228,8 +226,7 @@ class _NativeContractStackingEngine implements StackingEngineSeam {
     required int height,
     required List<int> data,
     int channels = 1,
-  }) =>
-      Uint8List(width * height * 4);
+  }) => Uint8List(width * height * 4);
 
   @override
   Future<void> stop() async {
@@ -242,10 +239,7 @@ class _NativeContractStackingEngine implements StackingEngineSeam {
 /// exercised deterministically. The reference is frame #1 (count 1); each
 /// follower add returns the next scripted count.
 class _FakeLiveStacking implements LiveStackingService {
-  _FakeLiveStacking({
-    required this.followerCounts,
-    required this.finalResult,
-  });
+  _FakeLiveStacking({required this.followerCounts, required this.finalResult});
 
   /// Stacked-frame count returned for each follower add, in order. A value that
   /// does not advance past the previous count marks that follower rejected.
@@ -290,8 +284,9 @@ class _FakeLiveStacking implements LiveStackingService {
   Future<LiveStackingResult> getCurrentResult() async => finalResult;
 
   @override
-  noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('${invocation.memberName} not used in this test');
+  noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    '${invocation.memberName} not used in this test',
+  );
 }
 
 /// A [StackLightSelector] stand-in returning a scripted selection.
@@ -304,12 +299,12 @@ class _FakeSelector implements StackLightSelector {
   Future<StackSelectionSummary> selectForSession({
     required int sessionId,
     required StackAndShareConfig config,
-  }) async =>
-      summary;
+  }) async => summary;
 
   @override
-  noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('${invocation.memberName} not used in this test');
+  noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    '${invocation.memberName} not used in this test',
+  );
 }
 
 /// Build a selection with [followerCount] followers after a single reference.
@@ -346,10 +341,7 @@ StackSelectionSummary _selection({
 /// is one 2x2 luminance plane (4 samples); a colour result is interleaved
 /// RGB16 (2x2x3 = 12 samples). The buffer length must match the channel count
 /// or the orchestrator's layout guard rejects it.
-LiveStackingResult _integrated({
-  int stackedFrameCount = 3,
-  int channels = 1,
-}) =>
+LiveStackingResult _integrated({int stackedFrameCount = 3, int channels = 1}) =>
     LiveStackingResult(
       width: 2,
       height: 2,
@@ -391,110 +383,126 @@ void main() {
     required LiveStackingService liveStacking,
     List<Override> extra = const [],
   }) {
-    return ProviderContainer(overrides: [
-      databaseProvider.overrideWithValue(db),
-      stackLightSelectorProvider.overrideWithValue(_FakeSelector(selection)),
-      liveStackingServiceProvider.overrideWithValue(liveStacking),
-      ...extra,
-    ]);
+    return ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        stackLightSelectorProvider.overrideWithValue(_FakeSelector(selection)),
+        liveStackingServiceProvider.overrideWithValue(liveStacking),
+        ...extra,
+      ],
+    );
   }
 
   group('busy guard', () {
-    test('throws LiveStackBusyException when the engine reports active',
-        () async {
-      final engine = _FakeStackingEngine(active: true);
-      final c = container(
-        selection: _selection(followerCount: 2),
-        liveStacking: _FakeLiveStacking(
-          followerCounts: const [2, 3],
-          finalResult: _integrated(),
-        ),
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'throws LiveStackBusyException when the engine reports active',
+      () async {
+        final engine = _FakeStackingEngine(active: true);
+        final c = container(
+          selection: _selection(followerCount: 2),
+          liveStacking: _FakeLiveStacking(
+            followerCounts: const [2, 3],
+            finalResult: _integrated(),
+          ),
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      await expectLater(
-        service.run(
-          sessionId: sessionId,
-          config: const StackAndShareConfig(applyCalibration: false),
-        ),
-        throwsA(isA<LiveStackBusyException>()),
-      );
-      // The guard fires before any engine work and before any stop — we must
-      // not touch a singleton owned by the live session we refused to clobber.
-      expect(engine.calls, isEmpty);
-      expect(engine.stopCount, 0);
-    });
+        await expectLater(
+          service.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(applyCalibration: false),
+          ),
+          throwsA(isA<LiveStackBusyException>()),
+        );
+        // The guard fires before any engine work and before any stop — we must
+        // not touch a singleton owned by the live session we refused to clobber.
+        expect(engine.calls, isEmpty);
+        expect(engine.stopCount, 0);
+      },
+    );
   });
 
   group('happy path (calibration off → file path)', () {
-    test('processes the reference first, then followers in order, and stops',
-        () async {
-      final engine = _FakeStackingEngine();
-      final live = _FakeLiveStacking(
-        followerCounts: const [2, 3], // both followers accepted
-        finalResult: _integrated(stackedFrameCount: 3),
-      );
-      final c = container(
-        selection: _selection(followerCount: 2),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'processes the reference first, then followers in order, and stops',
+      () async {
+        final engine = _FakeStackingEngine();
+        final live = _FakeLiveStacking(
+          followerCounts: const [2, 3], // both followers accepted
+          finalResult: _integrated(stackedFrameCount: 3),
+        );
+        final c = container(
+          selection: _selection(followerCount: 2),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      final progress = <StackAndShareProgress>[];
-      final result = await service.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(
-          applyCalibration: false,
-          autoStretch: true,
-        ),
-        onProgress: progress.add,
-      );
+        final progress = <StackAndShareProgress>[];
+        final result = await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: false,
+            autoStretch: true,
+          ),
+          onProgress: progress.add,
+        );
 
-      // (b) The default config uses sensorMode 'auto', so the reference is
-      // first read once for OSC discovery (it declares no Bayer pattern here, so
-      // the run stays mono), then the reference (frame 1) starts the stack via
-      // the FILE path, the two followers (frames 2, 3) are added via the file
-      // path in order, the result is stretched, and the engine is stopped.
-      expect(engine.calls, [
-        'read:/lights/1.fits',
-        'startFile:/lights/1.fits',
-        'stretch',
-        'stop',
-      ]);
-      expect(live.addCalls, [
-        'addFile:/lights/2.fits',
-        'addFile:/lights/3.fits',
-      ]);
+        // (b) The default config uses sensorMode 'auto', so the reference is
+        // first read once for OSC discovery (it declares no Bayer pattern here, so
+        // the run stays mono), then the reference (frame 1) starts the stack via
+        // the FILE path, the two followers (frames 2, 3) are added via the file
+        // path in order, the result is stretched, and the engine is stopped.
+        expect(engine.calls, [
+          'read:/lights/1.fits',
+          'startFile:/lights/1.fits',
+          'stretch',
+          'stop',
+        ]);
+        expect(live.addCalls, [
+          'addFile:/lights/2.fits',
+          'addFile:/lights/3.fits',
+        ]);
 
-      // (d) Stop — not reset — was invoked exactly once so a later run is not
-      // blocked by a wedged singleton.
-      expect(engine.stopCount, 1);
+        // (d) Stop — not reset — was invoked exactly once so a later run is not
+        // blocked by a wedged singleton.
+        expect(engine.stopCount, 1);
 
-      // Result provenance: target resolved from the seeded session, integration
-      // from the selection, alignment residual + stacked count from the engine.
-      expect(result.id, isNotNull);
-      expect(result.targetId, isNull); // session was seeded with no target
-      expect(result.targetName, 'M51'); // resolved by the selector
-      expect(result.framesStacked, 3);
-      expect(result.framesAttempted, 3);
-      expect(result.integrationSecs, 180);
-      expect(result.avgAlignmentResidual, closeTo(0.37, 1e-9));
-      expect(result.filter, 'L');
+        // Result provenance: target resolved from the seeded session, integration
+        // from the selection, alignment residual + stacked count from the engine.
+        expect(result.id, isNotNull);
+        expect(result.targetId, isNull); // session was seeded with no target
+        expect(result.targetName, 'M51'); // resolved by the selector
+        expect(result.framesStacked, 3);
+        expect(result.framesAttempted, 3);
+        expect(result.integrationSecs, 180);
+        expect(result.avgAlignmentResidual, closeTo(0.37, 1e-9));
+        expect(result.filter, 'L');
 
-      // The persisted row carries the same data, and the retained buffers are
-      // exposed for the export step.
-      final stored =
-          await c.read(stackedResultsDaoProvider).getResultById(result.id!);
-      expect(stored, isNotNull);
-      expect(service.lastRawResult, isNotNull);
-      expect(service.lastRawResult!.data, Uint16List.fromList([10, 20, 30, 40]));
-      expect(service.lastRgbaResult, isNotNull); // auto-stretch ran
+        // The persisted row carries the same data, and the retained buffers are
+        // exposed for the export step.
+        final stored = await c
+            .read(stackedResultsDaoProvider)
+            .getResultById(result.id!);
+        expect(stored, isNotNull);
+        expect(service.lastRawResult, isNotNull);
+        expect(
+          service.lastRawResult!.data,
+          Uint16List.fromList([10, 20, 30, 40]),
+        );
+        expect(service.lastRgbaResult, isNotNull); // auto-stretch ran
 
-      // The terminal progress event is the success phase.
-      expect(progress.last.phase, StackAndSharePhase.complete);
-    });
+        // The terminal progress event is the success phase.
+        expect(progress.last.phase, StackAndSharePhase.complete);
+      },
+    );
 
     test('auto-stretch off leaves the RGBA buffer unset', () async {
       final engine = _FakeStackingEngine();
@@ -506,7 +514,10 @@ void main() {
         ),
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       await service.run(
         sessionId: sessionId,
@@ -523,37 +534,42 @@ void main() {
   });
 
   group('frame rejection accounting (c)', () {
-    test('framesRejected increments only when the stacked count does not advance',
-        () async {
-      final engine = _FakeStackingEngine();
-      // Reference = count 1. Follower #2 advances to 2 (accepted). Follower #3
-      // stays at 2 (rejected — alignment/pixel rejection). Follower #4 advances
-      // to 3 (accepted).
-      final live = _FakeLiveStacking(
-        followerCounts: const [2, 2, 3],
-        finalResult: _integrated(stackedFrameCount: 3),
-      );
-      final c = container(
-        selection: _selection(followerCount: 3),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'framesRejected increments only when the stacked count does not advance',
+      () async {
+        final engine = _FakeStackingEngine();
+        // Reference = count 1. Follower #2 advances to 2 (accepted). Follower #3
+        // stays at 2 (rejected — alignment/pixel rejection). Follower #4 advances
+        // to 3 (accepted).
+        final live = _FakeLiveStacking(
+          followerCounts: const [2, 2, 3],
+          finalResult: _integrated(stackedFrameCount: 3),
+        );
+        final c = container(
+          selection: _selection(followerCount: 3),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      final progress = <StackAndShareProgress>[];
-      await service.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(applyCalibration: false),
-        onProgress: progress.add,
-      );
+        final progress = <StackAndShareProgress>[];
+        await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(applyCalibration: false),
+          onProgress: progress.add,
+        );
 
-      // Exactly one follower was rejected.
-      final terminalStacking = progress.lastWhere(
-        (p) => p.phase == StackAndSharePhase.stacking,
-      );
-      expect(terminalStacking.framesRejected, 1);
-      expect(terminalStacking.framesProcessed, 4); // reference + 3 followers
-    });
+        // Exactly one follower was rejected.
+        final terminalStacking = progress.lastWhere(
+          (p) => p.phase == StackAndSharePhase.stacking,
+        );
+        expect(terminalStacking.framesRejected, 1);
+        expect(terminalStacking.framesProcessed, 4); // reference + 3 followers
+      },
+    );
   });
 
   group('release on failure (d)', () {
@@ -572,7 +588,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       final progress = <StackAndShareProgress>[];
       await expectLater(
@@ -594,91 +613,98 @@ void main() {
       expect(service.lastRgbaResult, isNull);
     });
 
-    test('a subsequent run succeeds because stop released the singleton',
-        () async {
-      // First run fails; because the finally called stop (not reset), the
-      // engine reports inactive again and a second run passes the busy guard.
-      final engine = _FakeStackingEngine();
-      final failing = _ThrowingLiveStacking(
-        followerCounts: const [2],
-        error: StateError('first run failed'),
-      );
-      final c1 = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: failing,
-      );
-      addTearDown(c1.dispose);
-      final s1 = StackAndShareService(c1.read(_refProvider), engine: engine);
-      await expectLater(
-        s1.run(
+    test(
+      'a subsequent run succeeds because stop released the singleton',
+      () async {
+        // First run fails; because the finally called stop (not reset), the
+        // engine reports inactive again and a second run passes the busy guard.
+        final engine = _FakeStackingEngine();
+        final failing = _ThrowingLiveStacking(
+          followerCounts: const [2],
+          error: StateError('first run failed'),
+        );
+        final c1 = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: failing,
+        );
+        addTearDown(c1.dispose);
+        final s1 = StackAndShareService(c1.read(_refProvider), engine: engine);
+        await expectLater(
+          s1.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(applyCalibration: false),
+          ),
+          throwsA(isA<StateError>()),
+        );
+
+        // The fake engine's `active` flag was never flipped true by our fake (a
+        // real stop sets the native guard to None), so a fresh service still sees
+        // it inactive and runs to completion.
+        expect(engine.isActive(), isFalse);
+
+        final live2 = _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2),
+        );
+        final c2 = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: live2,
+        );
+        addTearDown(c2.dispose);
+        final s2 = StackAndShareService(c2.read(_refProvider), engine: engine);
+        final result = await s2.run(
           sessionId: sessionId,
           config: const StackAndShareConfig(applyCalibration: false),
-        ),
-        throwsA(isA<StateError>()),
-      );
-
-      // The fake engine's `active` flag was never flipped true by our fake (a
-      // real stop sets the native guard to None), so a fresh service still sees
-      // it inactive and runs to completion.
-      expect(engine.isActive(), isFalse);
-
-      final live2 = _FakeLiveStacking(
-        followerCounts: const [2],
-        finalResult: _integrated(stackedFrameCount: 2),
-      );
-      final c2 = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: live2,
-      );
-      addTearDown(c2.dispose);
-      final s2 = StackAndShareService(c2.read(_refProvider), engine: engine);
-      final result = await s2.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(applyCalibration: false),
-      );
-      expect(result.id, isNotNull);
-      // Two runs → two stops.
-      expect(engine.stopCount, 2);
-    });
+        );
+        expect(result.id, isNotNull);
+        // Two runs → two stops.
+        expect(engine.stopCount, 2);
+      },
+    );
   });
 
   group('calibration path split (e)', () {
-    test('calibration on uses the data path (readLinearFrame + startData)',
-        () async {
-      final engine = _FakeStackingEngine();
-      final live = _FakeLiveStacking(
-        followerCounts: const [2],
-        finalResult: _integrated(stackedFrameCount: 2),
-      );
-      // No dark/flat/bias is configured (the real in-memory DB has no
-      // calibration settings), and the selection's image ids have no captured-
-      // images rows, so the dark match resolves to none and `calibrateData`
-      // becomes a pure pass-through. That still proves the DATA path is taken:
-      // each frame's linear pixels are read and fed via startData / addData.
-      final c = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'calibration on uses the data path (readLinearFrame + startData)',
+      () async {
+        final engine = _FakeStackingEngine();
+        final live = _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2),
+        );
+        // No dark/flat/bias is configured (the real in-memory DB has no
+        // calibration settings), and the selection's image ids have no captured-
+        // images rows, so the dark match resolves to none and `calibrateData`
+        // becomes a pure pass-through. That still proves the DATA path is taken:
+        // each frame's linear pixels are read and fed via startData / addData.
+        final c = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      await service.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(
-          applyCalibration: true,
-          autoStretch: false,
-        ),
-      );
+        await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: true,
+            autoStretch: false,
+          ),
+        );
 
-      // The reference is read + started via the DATA path, and the follower is
-      // read + added via the DATA path. No file-path calls.
-      expect(engine.calls, contains('read:/lights/1.fits'));
-      expect(engine.calls, contains('startData:2x2'));
-      expect(engine.calls.any((c) => c.startsWith('startFile')), isFalse);
-      expect(live.addCalls, contains('addData:2x2'));
-      expect(live.addCalls.any((c) => c.startsWith('addFile')), isFalse);
-      expect(engine.stopCount, 1);
-    });
+        // The reference is read + started via the DATA path, and the follower is
+        // read + added via the DATA path. No file-path calls.
+        expect(engine.calls, contains('read:/lights/1.fits'));
+        expect(engine.calls, contains('startData:2x2'));
+        expect(engine.calls.any((c) => c.startsWith('startFile')), isFalse);
+        expect(live.addCalls, contains('addData:2x2'));
+        expect(live.addCalls.any((c) => c.startsWith('addFile')), isFalse);
+        expect(engine.stopCount, 1);
+      },
+    );
   });
 
   group('OSC / colour orchestration (C12)', () {
@@ -697,7 +723,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       final result = await service.run(
         sessionId: sessionId,
@@ -713,8 +742,10 @@ void main() {
       expect(result.filter, 'L');
       expect(service.lastRawResult!.channels, 1);
       expect(service.lastRawResult!.isColor, isFalse);
-      expect(service.lastRawResult!.data,
-          Uint16List.fromList([10, 20, 30, 40]));
+      expect(
+        service.lastRawResult!.data,
+        Uint16List.fromList([10, 20, 30, 40]),
+      );
       // Grayscale stretch route (channels == 1).
       expect(engine.lastStretchChannels, 1);
       // A mono run never reads the reference for a Bayer pattern (no discovery).
@@ -722,8 +753,7 @@ void main() {
     });
 
     test('OSC via FITS BAYERPAT: a 3-channel result persists channels==3, '
-        'isColor==true, filter OSC, and takes the per-channel stretch',
-        () async {
+        'isColor==true, filter OSC, and takes the per-channel stretch', () async {
       // auto mode + the reference frame declares a Bayer pattern → the resolved
       // engine config pins it, and the engine returns a 3-channel integration.
       final engine = _FakeStackingEngine(framePattern: 'RGGB');
@@ -736,7 +766,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       final result = await service.run(
         sessionId: sessionId,
@@ -765,8 +798,9 @@ void main() {
       expect(engine.lastStartConfig!.bayerPattern, 'RGGB');
 
       // The persisted row carries the colour provenance.
-      final stored =
-          await c.read(stackedResultsDaoProvider).getResultById(result.id!);
+      final stored = await c
+          .read(stackedResultsDaoProvider)
+          .getResultById(result.id!);
       expect(stored!.channels, 3);
       expect(stored.isColor, isTrue);
     });
@@ -799,7 +833,10 @@ void main() {
         ],
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       final result = await service.run(
         sessionId: sessionId,
@@ -818,34 +855,39 @@ void main() {
       expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
     });
 
-    test('explicit Bayer override wins over both camera caps and frame geometry',
-        () async {
-      final engine = _FakeStackingEngine(framePattern: 'RGGB');
-      final live = _FakeLiveStacking(
-        followerCounts: const [2],
-        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
-      );
-      final c = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'explicit Bayer override wins over both camera caps and frame geometry',
+      () async {
+        final engine = _FakeStackingEngine(framePattern: 'RGGB');
+        final live = _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+        );
+        final c = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      await service.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(
-          applyCalibration: false,
-          autoStretch: false,
-          sensorMode: 'osc',
-          bayerPatternOverride: 'GRBG',
-        ),
-      );
+        await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: false,
+            autoStretch: false,
+            sensorMode: 'osc',
+            bayerPatternOverride: 'GRBG',
+          ),
+        );
 
-      // The override pinned GRBG and short-circuited discovery (no frame read).
-      expect(engine.lastStartConfig!.bayerPattern, 'GRBG');
-      expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
-    });
+        // The override pinned GRBG and short-circuited discovery (no frame read).
+        expect(engine.lastStartConfig!.bayerPattern, 'GRBG');
+        expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
+      },
+    );
 
     test('osc mode without any resolvable pattern throws a clear StateError '
         'and still releases the engine', () async {
@@ -862,7 +904,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       await expectLater(
         service.run(
@@ -881,37 +926,42 @@ void main() {
       expect(engine.calls.last, 'stop');
     });
 
-    test('auto mode without any resolvable pattern falls back to mono (no throw)',
-        () async {
-      // auto + no pattern anywhere → treat as mono: the engine simply will not
-      // debayer. The result here reports channels==1, so it persists as mono.
-      final engine = _FakeStackingEngine(); // framePattern: null
-      final live = _FakeLiveStacking(
-        followerCounts: const [2],
-        finalResult: _integrated(stackedFrameCount: 2), // channels: 1
-      );
-      final c = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'auto mode without any resolvable pattern falls back to mono (no throw)',
+      () async {
+        // auto + no pattern anywhere → treat as mono: the engine simply will not
+        // debayer. The result here reports channels==1, so it persists as mono.
+        final engine = _FakeStackingEngine(); // framePattern: null
+        final live = _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2), // channels: 1
+        );
+        final c = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      final result = await service.run(
-        sessionId: sessionId,
-        config: const StackAndShareConfig(
-          applyCalibration: false,
-          autoStretch: false,
-          sensorMode: 'auto',
-        ),
-      );
+        final result = await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: false,
+            autoStretch: false,
+            sensorMode: 'auto',
+          ),
+        );
 
-      expect(result.isColor, isFalse);
-      expect(result.channels, 1);
-      // No explicit pattern was pinned (left null → engine decides per-frame).
-      expect(engine.lastStartConfig!.bayerPattern, isNull);
-      expect(engine.lastStartConfig!.sensorMode, 'auto');
-    });
+        expect(result.isColor, isFalse);
+        expect(result.channels, 1);
+        // No explicit pattern was pinned (left null → engine decides per-frame).
+        expect(engine.lastStartConfig!.bayerPattern, isNull);
+        expect(engine.lastStartConfig!.sensorMode, 'auto');
+      },
+    );
   });
 
   group('resolved config is accepted by the native sensor-mode contract', () {
@@ -923,7 +973,8 @@ void main() {
     // to brick every default mono Stack-and-Share run against FfiBackend.
     test('default config (auto) on a mono frame starts as mono, not an error '
         '(calibration off → file path)', () async {
-      final engine = _NativeContractStackingEngine(); // filePattern: null (mono)
+      final engine =
+          _NativeContractStackingEngine(); // filePattern: null (mono)
       final live = _FakeLiveStacking(
         followerCounts: const [2],
         finalResult: _integrated(stackedFrameCount: 2), // channels: 1
@@ -933,7 +984,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       // The literal default config — auto + calibration on — but with
       // calibration forced off so this exercises the native file-start path.
@@ -946,8 +1000,11 @@ void main() {
       );
 
       expect(result.isColor, isFalse);
-      expect(engine.startedColor, isFalse,
-          reason: 'auto + mono frame must NOT debayer');
+      expect(
+        engine.startedColor,
+        isFalse,
+        reason: 'auto + mono frame must NOT debayer',
+      );
       expect(engine.lastStartConfig!.sensorMode, 'auto');
     });
 
@@ -966,7 +1023,10 @@ void main() {
         liveStacking: live,
       );
       addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
 
       final result = await service.run(
         sessionId: sessionId,
@@ -977,52 +1037,58 @@ void main() {
       );
 
       expect(result.isColor, isTrue);
-      expect(engine.startedColor, isTrue,
-          reason: 'auto + CFA frame must debayer');
+      expect(
+        engine.startedColor,
+        isTrue,
+        reason: 'auto + CFA frame must debayer',
+      );
       expect(engine.lastStartConfig!.sensorMode, 'auto');
     });
 
-    test('osc without a resolvable pattern is rejected by the contract seam',
-        () async {
-      // Cross-check: the same faithful seam *does* reject osc-without-pattern,
-      // proving the auto-passes result above is not because the seam is lax.
-      // (The service also guards this Dart-side, so the surfaced error is a
-      // StateError either way.)
-      final engine = _NativeContractStackingEngine(); // filePattern: null
-      final live = _FakeLiveStacking(
-        followerCounts: const [2],
-        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
-      );
-      final c = container(
-        selection: _selection(followerCount: 1),
-        liveStacking: live,
-      );
-      addTearDown(c.dispose);
-      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+    test(
+      'osc without a resolvable pattern is rejected by the contract seam',
+      () async {
+        // Cross-check: the same faithful seam *does* reject osc-without-pattern,
+        // proving the auto-passes result above is not because the seam is lax.
+        // (The service also guards this Dart-side, so the surfaced error is a
+        // StateError either way.)
+        final engine = _NativeContractStackingEngine(); // filePattern: null
+        final live = _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+        );
+        final c = container(
+          selection: _selection(followerCount: 1),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
 
-      await expectLater(
-        service.run(
-          sessionId: sessionId,
-          config: const StackAndShareConfig(
-            applyCalibration: false,
-            autoStretch: false,
-            sensorMode: 'osc',
+        await expectLater(
+          service.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(
+              applyCalibration: false,
+              autoStretch: false,
+              sensorMode: 'osc',
+            ),
           ),
-        ),
-        throwsA(isA<StateError>()),
-      );
-      expect(engine.stopCount, 1, reason: 'engine released on failure');
-    });
+          throwsA(isA<StateError>()),
+        );
+        expect(engine.stopCount, 1, reason: 'engine released on failure');
+      },
+    );
   });
 }
 
 /// A [LiveStackingService] fake whose [getCurrentResult] throws, used to prove
 /// the finally still releases the engine on a mid-run failure.
 class _ThrowingLiveStacking extends _FakeLiveStacking {
-  _ThrowingLiveStacking({
-    required super.followerCounts,
-    required this.error,
-  }) : super(finalResult: _integrated());
+  _ThrowingLiveStacking({required super.followerCounts, required this.error})
+    : super(finalResult: _integrated());
 
   final Object error;
 

@@ -159,13 +159,17 @@ class _Legend extends StatelessWidget {
           const SizedBox(width: 4),
           // absolute: HUD label over the dark sky planner canvas
           const Text('Drag centre',
-              style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize10)),
+              style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: NightshadeTypography.fontSize10)),
           const SizedBox(width: 12),
           Icon(LucideIcons.mousePointerClick, size: 11, color: colors.accent),
           const SizedBox(width: 4),
           // absolute: HUD label over the dark sky planner canvas
           const Text('Tap panel to toggle',
-              style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize10)),
+              style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: NightshadeTypography.fontSize10)),
         ],
       ),
     );
@@ -206,7 +210,9 @@ class _ZoomControls extends StatelessWidget {
           ),
           Text('${(zoom * 100).round()}%',
               // absolute: HUD label over the dark sky planner canvas
-              style: const TextStyle(color: Colors.white54, fontSize: NightshadeTypography.fontSize9)),
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: NightshadeTypography.fontSize9)),
           IconButton(
             icon: const Icon(NightshadeIcons.remove, size: 14),
             onPressed: onZoomOut,

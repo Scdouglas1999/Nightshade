@@ -44,19 +44,21 @@ class LiveStackingNoExposureRule implements SequenceValidator {
     if (hasExposureNode) return issues;
 
     for (final node in liveStackingNodes) {
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.exposures,
-        title: 'Live Stacking has nothing to broadcast',
-        description:
-            'Live Stacking "${node.name}" is in this sequence but there are no '
-            'Exposure or Smart Exposure nodes. The broadcast will arm but no '
-            'frames will be stacked.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Add at least one Exposure or Smart Exposure node alongside Live '
-            'Stacking.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.exposures,
+          title: 'Live Stacking has nothing to broadcast',
+          description:
+              'Live Stacking "${node.name}" is in this sequence but there are no '
+              'Exposure or Smart Exposure nodes. The broadcast will arm but no '
+              'frames will be stacked.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Add at least one Exposure or Smart Exposure node alongside Live '
+              'Stacking.',
+        ),
+      );
     }
     return issues;
   }
@@ -103,34 +105,38 @@ class LiveStackingPortClashRule implements SequenceValidator {
       final nodes = entry.value;
       if (port <= 0 || port > 65535) {
         for (final n in nodes) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'Live Stacking port out of range',
-            description:
-                'Live Stacking "${n.name}" has broadcast port $port which is '
-                'outside the valid TCP range (1–65535).',
-            affectedNodeId: n.id,
-            resolutionHint: 'Pick a port between 1024 and 65535.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'Live Stacking port out of range',
+              description:
+                  'Live Stacking "${n.name}" has broadcast port $port which is '
+                  'outside the valid TCP range (1–65535).',
+              affectedNodeId: n.id,
+              resolutionHint: 'Pick a port between 1024 and 65535.',
+            ),
+          );
         }
         continue;
       }
       if (port == defaultMainAppPort) {
         for (final n in nodes) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'Live Stacking port clashes with main server',
-            description:
-                'Live Stacking "${n.name}" broadcasts on port $port, which is '
-                'the Nightshade headless API server\'s default port. The '
-                'broadcast will fail to bind.',
-            affectedNodeId: n.id,
-            resolutionHint:
-                'Choose a different broadcast port — 8081 is the recommended '
-                'default for the broadcast.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'Live Stacking port clashes with main server',
+              description:
+                  'Live Stacking "${n.name}" broadcasts on port $port, which is '
+                  'the Nightshade headless API server\'s default port. The '
+                  'broadcast will fail to bind.',
+              affectedNodeId: n.id,
+              resolutionHint:
+                  'Choose a different broadcast port — 8081 is the recommended '
+                  'default for the broadcast.',
+            ),
+          );
         }
       }
       if (nodes.length > 1) {
@@ -139,19 +145,21 @@ class LiveStackingPortClashRule implements SequenceValidator {
         // but the editor should warn the user that the older node's
         // broadcast will be torn down when the newer one runs.
         for (final n in nodes) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.exposures,
-            title: 'Multiple Live Stacking nodes share a port',
-            description:
-                'Live Stacking "${n.name}" shares broadcast port $port with '
-                '${nodes.length - 1} other Live Stacking node(s). Only the '
-                'most recently entered node\'s broadcast will be live.',
-            affectedNodeId: n.id,
-            resolutionHint:
-                'Either remove the duplicate nodes or assign each a distinct '
-                'broadcast port.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.exposures,
+              title: 'Multiple Live Stacking nodes share a port',
+              description:
+                  'Live Stacking "${n.name}" shares broadcast port $port with '
+                  '${nodes.length - 1} other Live Stacking node(s). Only the '
+                  'most recently entered node\'s broadcast will be live.',
+              affectedNodeId: n.id,
+              resolutionHint:
+                  'Either remove the duplicate nodes or assign each a distinct '
+                  'broadcast port.',
+            ),
+          );
         }
       }
     }

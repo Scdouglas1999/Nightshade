@@ -28,8 +28,11 @@ void main() {
     final fixture = StressFixture.load();
 
     // Sanity: the committed fixture must actually be the dense worst case.
-    expect(fixture.stars.length, greaterThan(5000),
-        reason: 'fixture is not dense — regenerate it');
+    expect(
+      fixture.stars.length,
+      greaterThan(5000),
+      reason: 'fixture is not dense — regenerate it',
+    );
     expect(fixture.dsos.length, greaterThan(100));
     expect(fixture.milkyWayPoints, isNotEmpty);
 
@@ -44,7 +47,8 @@ void main() {
       fixture: fixture,
       timeline: timeline,
       warmupFrames: 8,
-      note: 'headless rasterize-and-readback time (CPU raster proxy); '
+      note:
+          'headless rasterize-and-readback time (CPU raster proxy); '
           'balanced quality; $kBenchmarkCanvasDescription',
     );
 
@@ -62,10 +66,12 @@ void main() {
     expect(out.existsSync(), isTrue);
 
     // ignore: avoid_print
-    print('Paint benchmark: p50=${result.p50Ms}ms p95=${result.p95Ms}ms '
-        'p99=${result.p99Ms}ms avgFps=${result.avgFps.toStringAsFixed(1)} '
-        'rss=${result.rssMb.toStringAsFixed(1)}MB '
-        'objectsDrawn=${result.objectsDrawn} -> ${out.path}');
+    print(
+      'Paint benchmark: p50=${result.p50Ms}ms p95=${result.p95Ms}ms '
+      'p99=${result.p99Ms}ms avgFps=${result.avgFps.toStringAsFixed(1)} '
+      'rss=${result.rssMb.toStringAsFixed(1)}MB '
+      'objectsDrawn=${result.objectsDrawn} -> ${out.path}',
+    );
   });
 }
 

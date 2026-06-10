@@ -46,11 +46,11 @@ class FocusTrainingSample {
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'ts': timestampSecs,
-        'temp': temperatureCelsius,
-        'position': focusPosition,
-        'hfr': hfr,
-      };
+    'ts': timestampSecs,
+    'temp': temperatureCelsius,
+    'position': focusPosition,
+    'hfr': hfr,
+  };
 
   factory FocusTrainingSample.fromJson(Map<String, dynamic> json) =>
       FocusTrainingSample(
@@ -172,21 +172,21 @@ class FilterFocusModel {
   /// Export the full model + samples as a JSON blob (used by "Save my
   /// focus model for filter Ha as JSON" UI action).
   Map<String, dynamic> toExportJson() => <String, dynamic>{
-        'schema': 'nightshade.focus_model.v1',
-        'uuid': uuid,
-        'filter_name': filterName,
-        'filter_index': filterIndex,
-        'slope_steps_per_c': slopeStepsPerC,
-        'focus_offset_relative_to_lum': focusOffsetRelativeToLum,
-        'intercept_at_reference_temp': interceptAtReferenceTemp,
-        'reference_temp_celsius': referenceTempCelsius,
-        'last_trained_at': lastTrainedAt.toIso8601String(),
-        'training_run_count': trainingRunCount,
-        'confidence_score': confidenceScore,
-        'last_used_at': lastUsedAt?.toIso8601String(),
-        'samples': samples.map((s) => s.toJson()).toList(),
-        'max_training_samples': maxTrainingSamples,
-      };
+    'schema': 'nightshade.focus_model.v1',
+    'uuid': uuid,
+    'filter_name': filterName,
+    'filter_index': filterIndex,
+    'slope_steps_per_c': slopeStepsPerC,
+    'focus_offset_relative_to_lum': focusOffsetRelativeToLum,
+    'intercept_at_reference_temp': interceptAtReferenceTemp,
+    'reference_temp_celsius': referenceTempCelsius,
+    'last_trained_at': lastTrainedAt.toIso8601String(),
+    'training_run_count': trainingRunCount,
+    'confidence_score': confidenceScore,
+    'last_used_at': lastUsedAt?.toIso8601String(),
+    'samples': samples.map((s) => s.toJson()).toList(),
+    'max_training_samples': maxTrainingSamples,
+  };
 }
 
 /// Confidence-gated decision returned by
@@ -315,7 +315,7 @@ class PredictiveAfService {
   final _driftController = StreamController<DriftStatus>.broadcast();
 
   PredictiveAfService(this._db, {PredictiveAfConfig? config})
-      : _config = config ?? const PredictiveAfConfig();
+    : _config = config ?? const PredictiveAfConfig();
 
   // The getter/setter pair (rather than a plain field) is intentional:
   // it gives external code a stable API surface while leaving room for
@@ -375,8 +375,9 @@ class PredictiveAfService {
         for (var i = 0; i < samples.length; i++) MapEntry(i, samples[i]),
       ];
       indexedSamples.sort((a, b) {
-        final byTimestamp =
-            a.value.timestampSecs.compareTo(b.value.timestampSecs);
+        final byTimestamp = a.value.timestampSecs.compareTo(
+          b.value.timestampSecs,
+        );
         return byTimestamp != 0 ? byTimestamp : a.key.compareTo(b.key);
       });
       samples
@@ -605,7 +606,8 @@ class PredictiveAfService {
     );
 
     if (newConsecutive >= _config.driftRunsBeforeWarn) {
-      final msg = 'Your $filterName filter focus model has drifted by '
+      final msg =
+          'Your $filterName filter focus model has drifted by '
           '$newAccumulated steps over the last $newConsecutive runs. '
           'Consider re-training (clear samples and start fresh).';
       developer.log(
@@ -651,11 +653,13 @@ class PredictiveAfService {
     final query = equipmentProfileId == null
         ? _db.customSelect(
             'SELECT * FROM focus_models WHERE equipment_profile_id IS NULL '
-            'ORDER BY COALESCE(last_used_at, last_trained_at) DESC')
+            'ORDER BY COALESCE(last_used_at, last_trained_at) DESC',
+          )
         : _db.customSelect(
             'SELECT * FROM focus_models WHERE equipment_profile_id = ? '
             'ORDER BY COALESCE(last_used_at, last_trained_at) DESC',
-            variables: [Variable.withInt(equipmentProfileId)]);
+            variables: [Variable.withInt(equipmentProfileId)],
+          );
     final rows = await query.get();
     return rows.map((r) => _rawToModel(_rowToMap(r))!).toList();
   }
@@ -683,17 +687,16 @@ class PredictiveAfService {
     final parsed = jsonDecode(jsonBlob) as Map<String, dynamic>;
     final schema = parsed['schema'];
     if (schema != 'nightshade.focus_model.v1') {
-      throw FormatException(
-        'Unsupported focus_model export schema: $schema',
-      );
+      throw FormatException('Unsupported focus_model export schema: $schema');
     }
     final filterName = parsed['filter_name'] as String;
     final filterIndex = parsed['filter_index'] as int?;
     final slope = (parsed['slope_steps_per_c'] as num).toDouble();
     final intercept = (parsed['intercept_at_reference_temp'] as num).toInt();
     final refTemp = (parsed['reference_temp_celsius'] as num).toDouble();
-    final lastTrained =
-        DateTime.parse(parsed['last_trained_at'] as String).toUtc();
+    final lastTrained = DateTime.parse(
+      parsed['last_trained_at'] as String,
+    ).toUtc();
     final trainingRunCount = (parsed['training_run_count'] as num).toInt();
     final confidence = (parsed['confidence_score'] as num).toDouble();
     final maxSamples = (parsed['max_training_samples'] as num?)?.toInt() ?? 50;
@@ -821,16 +824,18 @@ class PredictiveAfService {
     int? equipmentProfileId,
     String filterName,
   ) async {
-    final rows = await _db.customSelect(
-      'SELECT * FROM focus_models WHERE equipment_profile_id IS ? AND filter_name = ?',
-      variables: <Variable<Object>>[
-        if (equipmentProfileId != null)
-          Variable.withInt(equipmentProfileId)
-        else
-          const Variable<Object>(null),
-        Variable.withString(filterName),
-      ],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM focus_models WHERE equipment_profile_id IS ? AND filter_name = ?',
+          variables: <Variable<Object>>[
+            if (equipmentProfileId != null)
+              Variable.withInt(equipmentProfileId)
+            else
+              const Variable<Object>(null),
+            Variable.withString(filterName),
+          ],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _rowToMap(rows.first);
   }
@@ -842,10 +847,7 @@ class PredictiveAfService {
     final samples = (jsonDecode(samplesJson) as List<dynamic>)
         .map((s) => FocusTrainingSample.fromJson(s as Map<String, dynamic>))
         .toList();
-    return <String, dynamic>{
-      ...data,
-      'samples': samples,
-    };
+    return <String, dynamic>{...data, 'samples': samples};
   }
 
   FilterFocusModel? _rawToModel(Map<String, dynamic>? raw) {
@@ -856,25 +858,27 @@ class PredictiveAfService {
       filterName: raw['filter_name'] as String,
       filterIndex: raw['filter_index'] as int?,
       slopeStepsPerC: (raw['temperature_compensation_slope'] as num).toDouble(),
-      focusOffsetRelativeToLum:
-          (raw['focus_offset_relative_to_lum'] as num).toInt(),
-      interceptAtReferenceTemp:
-          (raw['intercept_at_reference_temp'] as num).toInt(),
+      focusOffsetRelativeToLum: (raw['focus_offset_relative_to_lum'] as num)
+          .toInt(),
+      interceptAtReferenceTemp: (raw['intercept_at_reference_temp'] as num)
+          .toInt(),
       referenceTempCelsius: (raw['reference_temp_celsius'] as num).toDouble(),
       lastTrainedAt: DateTime.fromMillisecondsSinceEpoch(
-          (raw['last_trained_at'] as num).toInt() * 1000,
-          isUtc: true),
+        (raw['last_trained_at'] as num).toInt() * 1000,
+        isUtc: true,
+      ),
       trainingRunCount: (raw['training_run_count'] as num).toInt(),
       confidenceScore: (raw['confidence_score'] as num).toDouble(),
       lastUsedAt: raw['last_used_at'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(
               (raw['last_used_at'] as num).toInt() * 1000,
-              isUtc: true),
+              isUtc: true,
+            ),
       samples: raw['samples'] as List<FocusTrainingSample>,
       maxTrainingSamples: (raw['max_training_samples'] as num).toInt(),
-      consecutiveBadPredictions:
-          (raw['consecutive_bad_predictions'] as num).toInt(),
+      consecutiveBadPredictions: (raw['consecutive_bad_predictions'] as num)
+          .toInt(),
       accumulatedDriftSteps: (raw['accumulated_drift_steps'] as num).toInt(),
     );
   }
@@ -993,6 +997,7 @@ class PredictiveAfStatus {
   final DateTime at;
   final String filterName;
   final PredictiveAfDecision decision;
+
   /// Best-focus position the real sweep converged to. Null until the sweep
   /// completes; stays null when the sweep failed.
   final int? actualPosition;
@@ -1005,19 +1010,19 @@ class PredictiveAfStatus {
   });
 
   PredictiveAfStatus withActual(int actualPosition) => PredictiveAfStatus(
-        at: at,
-        filterName: filterName,
-        decision: decision,
-        actualPosition: actualPosition,
-      );
+    at: at,
+    filterName: filterName,
+    decision: decision,
+    actualPosition: actualPosition,
+  );
 
   /// Short human label for the decision band.
   String get decisionLabel => switch (decision) {
-        InsufficientData() => 'training',
-        ForceAutofocus() => 'low confidence',
-        ApplyDampened() => 'medium confidence',
-        ApplyDirect() => 'high confidence',
-      };
+    InsufficientData() => 'training',
+    ForceAutofocus() => 'low confidence',
+    ApplyDampened() => 'medium confidence',
+    ApplyDirect() => 'high confidence',
+  };
 
   /// Prediction error in steps once the sweep completed, when the model
   /// made a prediction at all.
@@ -1030,5 +1035,6 @@ class PredictiveAfStatus {
 }
 
 /// See [PredictiveAfStatus].
-final lastPredictiveAfStatusProvider =
-    StateProvider<PredictiveAfStatus?>((ref) => null);
+final lastPredictiveAfStatusProvider = StateProvider<PredictiveAfStatus?>(
+  (ref) => null,
+);

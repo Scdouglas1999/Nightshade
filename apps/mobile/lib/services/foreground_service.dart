@@ -137,16 +137,16 @@ class ImagingForegroundService {
     if (!_isRunning) return;
 
     _completedExposures = completedExposures;
-    _percentComplete =
-        totalExposures > 0 ? (completedExposures / totalExposures) * 100 : 0;
+    _percentComplete = totalExposures > 0
+        ? (completedExposures / totalExposures) * 100
+        : 0;
 
     // Render completed/total plus a percentage so the operator can see
     // long-sequence progress at a glance (audit §3.9).
     final percentText = _percentComplete > 0
         ? ' (${_percentComplete.toStringAsFixed(0)}%)'
         : '';
-    String text =
-        '$completedExposures/$totalExposures exposures$percentText';
+    String text = '$completedExposures/$totalExposures exposures$percentText';
     if (currentFilter != null) {
       text += ' ($currentFilter)';
     }

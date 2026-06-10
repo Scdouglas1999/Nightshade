@@ -31,11 +31,15 @@ class _SearchField extends StatelessWidget {
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            color: colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+          hintStyle: TextStyle(
+              fontSize: NightshadeTypography.fontSize13,
+              color: colors.textMuted),
           prefixIcon:
               Icon(LucideIcons.search, size: 16, color: colors.textMuted),
           suffixIcon: controller.text.isEmpty
@@ -231,7 +235,9 @@ class _ConstellationDropdown extends ConsumerWidget {
           value: selected,
           items: items,
           isDense: true,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textPrimary),
           dropdownColor: colors.surface,
           iconSize: 14,
           onChanged: (value) {
@@ -625,7 +631,9 @@ class _SortDropdown extends ConsumerWidget {
               DropdownMenuItem(value: m, child: Text(labels[m]!)),
           ],
           isDense: true,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textPrimary),
           dropdownColor: colors.surface,
           iconSize: 14,
           onChanged: (v) {

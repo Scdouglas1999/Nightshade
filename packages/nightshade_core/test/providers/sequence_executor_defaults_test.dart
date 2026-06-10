@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,12 +92,7 @@ Sequence _filterThenExposureSequence() {
     id: 'seq',
     name: 'unit-test',
     rootNodeId: 'root',
-    nodes: {
-      'root': root,
-      'filter': filter,
-      'exp1': exp1,
-      'exp2': exp2,
-    },
+    nodes: {'root': root, 'filter': filter, 'exp1': exp1, 'exp2': exp2},
   );
 }
 
@@ -120,7 +115,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final executor = container.read(sequenceExecutorProvider);
 
-      final json = executor.sequenceToJsonForTest(_filterThenExposureSequence());
+      final json = executor.sequenceToJsonForTest(
+        _filterThenExposureSequence(),
+      );
       final decoded = jsonDecode(json) as Map<String, dynamic>;
       final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
       final rootNode = nodes.firstWhere((n) => n['id'] == 'root');
@@ -156,7 +153,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final executor = container.read(sequenceExecutorProvider);
 
-      final json = executor.sequenceToJsonForTest(_filterThenExposureSequence());
+      final json = executor.sequenceToJsonForTest(
+        _filterThenExposureSequence(),
+      );
       final decoded = jsonDecode(json) as Map<String, dynamic>;
       final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
       final rootNode = nodes.firstWhere((n) => n['id'] == 'root');
@@ -182,17 +181,17 @@ void main() {
       container.read(sequencerDefaultsProvider);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final executor = container.read(sequenceExecutorProvider);
-      final json = executor.sequenceToJsonForTest(_filterThenExposureSequence());
+      final json = executor.sequenceToJsonForTest(
+        _filterThenExposureSequence(),
+      );
       final decoded = jsonDecode(json) as Map<String, dynamic>;
-      final metadata =
-          (decoded['metadata'] as Map<String, dynamic>).cast<String, String>();
+      final metadata = (decoded['metadata'] as Map<String, dynamic>)
+          .cast<String, String>();
       expect(metadata['autofocus_every_minutes'], '45');
       expect(metadata['autofocus_on_filter_change'], 'true');
     });
 
-    test(
-        'per-node dither_every wins over app-setting fallback',
-        () async {
+    test('per-node dither_every wins over app-setting fallback', () async {
       // The user explicitly set ditherEvery=7 on this exposure; the
       // app-setting default of 3 must NOT override it.
       final root = TargetHeaderNode(
@@ -238,112 +237,117 @@ void main() {
       expect(cfg['dither_every'], 7);
     });
 
-    test('exposure with no ditherEvery falls back to app-setting default',
-        () async {
-      final root = TargetHeaderNode(
-        id: 'root',
-        name: 'Test',
-        targetName: 'M81',
-        raHours: 0,
-        decDegrees: 0,
-        childIds: ['exp1'],
-      );
-      final exp1 = ExposureNode(
-        id: 'exp1',
-        parentId: 'root',
-        durationSecs: 60,
-        count: 5,
-        ditherEvery: null,
-      );
-      final sequence = Sequence.create(
-        id: 's',
-        name: 't',
-        rootNodeId: 'root',
-        nodes: {'root': root, 'exp1': exp1},
-      );
+    test(
+      'exposure with no ditherEvery falls back to app-setting default',
+      () async {
+        final root = TargetHeaderNode(
+          id: 'root',
+          name: 'Test',
+          targetName: 'M81',
+          raHours: 0,
+          decDegrees: 0,
+          childIds: ['exp1'],
+        );
+        final exp1 = ExposureNode(
+          id: 'exp1',
+          parentId: 'root',
+          durationSecs: 60,
+          count: 5,
+          ditherEvery: null,
+        );
+        final sequence = Sequence.create(
+          id: 's',
+          name: 't',
+          rootNodeId: 'root',
+          nodes: {'root': root, 'exp1': exp1},
+        );
 
-      final container = _container(
-        autoFocusOnFilterChange: false,
-        autoFocusEveryMinutes: 0,
-        ditherEnabled: true,
-        ditherEveryFrames: 4,
-      );
-      await container.read(appSettingsProvider.future);
-      // Warm sequencerDefaultsProvider so its async load completes
-      // before we serialise. Without this the notifier hasn't finished
-      // reading the (empty) settings DAO before the executor reads it.
-      container.read(sequencerDefaultsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      final executor = container.read(sequenceExecutorProvider);
-      final json = executor.sequenceToJsonForTest(sequence);
-      final decoded = jsonDecode(json) as Map<String, dynamic>;
-      final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
-      final exposureNode = nodes.firstWhere((n) => n['id'] == 'exp1');
-      final cfg = exposureNode['node_type'] as Map<String, dynamic>;
-      expect(cfg['dither_every'], 4);
-    });
+        final container = _container(
+          autoFocusOnFilterChange: false,
+          autoFocusEveryMinutes: 0,
+          ditherEnabled: true,
+          ditherEveryFrames: 4,
+        );
+        await container.read(appSettingsProvider.future);
+        // Warm sequencerDefaultsProvider so its async load completes
+        // before we serialise. Without this the notifier hasn't finished
+        // reading the (empty) settings DAO before the executor reads it.
+        container.read(sequencerDefaultsProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        final executor = container.read(sequenceExecutorProvider);
+        final json = executor.sequenceToJsonForTest(sequence);
+        final decoded = jsonDecode(json) as Map<String, dynamic>;
+        final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
+        final exposureNode = nodes.firstWhere((n) => n['id'] == 'exp1');
+        final cfg = exposureNode['node_type'] as Map<String, dynamic>;
+        expect(cfg['dither_every'], 4);
+      },
+    );
 
     // Phase B (scheduler-activation): the in-sequence TargetScheduler config
     // emitted to the Rust executor must carry the adaptive-swap threshold and
     // the azimuth horizon mask (samples-only shape) so the already-built Rust
     // swap engine + horizon runnable-gate engage.
-    test('TargetScheduler config emits swap threshold + horizon mask',
-        () async {
-      final scheduler = TargetSchedulerNode(
-        id: 'sched',
-        name: 'Scheduler',
-        childIds: const ['th'],
-        swapOnConditionsBelow: 80.0,
-        horizonProfile: const sched.HorizonProfile(
-          name: 'Site',
-          samples: [
-            sched.HorizonSample(0.0, 20.0),
-            sched.HorizonSample(180.0, 35.0),
-          ],
-        ),
-      );
-      final th = TargetHeaderNode(
-        id: 'th',
-        name: 'M31',
-        targetName: 'M31',
-        raHours: 0,
-        decDegrees: 0,
-        parentId: 'sched',
-      );
-      final sequence = Sequence.create(
-        id: 'seq',
-        name: 'sched-test',
-        rootNodeId: 'sched',
-        nodes: {'sched': scheduler, 'th': th},
-      );
+    test(
+      'TargetScheduler config emits swap threshold + horizon mask',
+      () async {
+        final scheduler = TargetSchedulerNode(
+          id: 'sched',
+          name: 'Scheduler',
+          childIds: const ['th'],
+          swapOnConditionsBelow: 80.0,
+          horizonProfile: const sched.HorizonProfile(
+            name: 'Site',
+            samples: [
+              sched.HorizonSample(0.0, 20.0),
+              sched.HorizonSample(180.0, 35.0),
+            ],
+          ),
+        );
+        final th = TargetHeaderNode(
+          id: 'th',
+          name: 'M31',
+          targetName: 'M31',
+          raHours: 0,
+          decDegrees: 0,
+          parentId: 'sched',
+        );
+        final sequence = Sequence.create(
+          id: 'seq',
+          name: 'sched-test',
+          rootNodeId: 'sched',
+          nodes: {'sched': scheduler, 'th': th},
+        );
 
-      final container = _container(
-        autoFocusOnFilterChange: false,
-        autoFocusEveryMinutes: 0,
-        ditherEnabled: false,
-        ditherEveryFrames: 0,
-      );
-      await container.read(appSettingsProvider.future);
-      container.read(sequencerDefaultsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      final executor = container.read(sequenceExecutorProvider);
+        final container = _container(
+          autoFocusOnFilterChange: false,
+          autoFocusEveryMinutes: 0,
+          ditherEnabled: false,
+          ditherEveryFrames: 0,
+        );
+        await container.read(appSettingsProvider.future);
+        container.read(sequencerDefaultsProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        final executor = container.read(sequenceExecutorProvider);
 
-      final json = executor.sequenceToJsonForTest(sequence);
-      final decoded = jsonDecode(json) as Map<String, dynamic>;
-      final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
-      final schedNode = nodes.firstWhere((n) => n['id'] == 'sched');
-      final cfg = schedNode['node_type'] as Map<String, dynamic>;
+        final json = executor.sequenceToJsonForTest(sequence);
+        final decoded = jsonDecode(json) as Map<String, dynamic>;
+        final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
+        final schedNode = nodes.firstWhere((n) => n['id'] == 'sched');
+        final cfg = schedNode['node_type'] as Map<String, dynamic>;
 
-      expect(cfg['type'], 'TargetScheduler');
-      expect(cfg['swap_on_conditions_below'], 80.0);
-      // recompute cadence already defaults to 5 (self-driving, ON).
-      expect(cfg['recompute_every_n_exposures'], 5);
-      // The horizon is serialised as the Rust samples-only shape.
-      final horizon = cfg['horizon_profile'] as Map<String, dynamic>;
-      final samples = (horizon['samples'] as List).cast<Map<String, dynamic>>();
-      expect(samples, hasLength(2));
-      expect(samples.first['az'], 0.0);
-      expect(samples.first['alt'], 20.0);
-    });
+        expect(cfg['type'], 'TargetScheduler');
+        expect(cfg['swap_on_conditions_below'], 80.0);
+        // recompute cadence already defaults to 5 (self-driving, ON).
+        expect(cfg['recompute_every_n_exposures'], 5);
+        // The horizon is serialised as the Rust samples-only shape.
+        final horizon = cfg['horizon_profile'] as Map<String, dynamic>;
+        final samples = (horizon['samples'] as List)
+            .cast<Map<String, dynamic>>();
+        expect(samples, hasLength(2));
+        expect(samples.first['az'], 0.0);
+        expect(samples.first['alt'], 20.0);
+      },
+    );
   });
 }

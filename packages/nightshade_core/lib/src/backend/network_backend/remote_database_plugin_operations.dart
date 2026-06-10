@@ -49,7 +49,7 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
 
   /// GET /api/polar-alignment-history?equipmentProfileId=&limit=&offset=
   Future<RemotePage<RemotePolarAlignmentHistoryEntry>>
-      fetchPolarAlignmentHistory({
+  fetchPolarAlignmentHistory({
     int? equipmentProfileId,
     int limit = 200,
     int offset = 0,
@@ -119,7 +119,8 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     final run = response['run'];
     if (run is! Map) {
       throw StateError(
-          'Malformed /sequence-runs/$runId response: missing run object');
+        'Malformed /sequence-runs/$runId response: missing run object',
+      );
     }
     return RemoteSequenceRunDetail.fromJson(run.cast<String, dynamic>());
   }
@@ -190,7 +191,8 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     final manifest = response['manifest'];
     if (manifest is! Map) {
       throw StateError(
-          'Malformed /plugins/upload response: missing manifest field');
+        'Malformed /plugins/upload response: missing manifest field',
+      );
     }
     return RemotePluginManifest.fromJson(manifest.cast<String, dynamic>());
   }
@@ -201,7 +203,8 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     final manifest = response['manifest'];
     if (manifest is! Map) {
       throw StateError(
-          'Malformed /plugins/enable response: missing manifest field');
+        'Malformed /plugins/enable response: missing manifest field',
+      );
     }
     return RemotePluginManifest.fromJson(manifest.cast<String, dynamic>());
   }
@@ -212,7 +215,8 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     final manifest = response['manifest'];
     if (manifest is! Map) {
       throw StateError(
-          'Malformed /plugins/disable response: missing manifest field');
+        'Malformed /plugins/disable response: missing manifest field',
+      );
     }
     return RemotePluginManifest.fromJson(manifest.cast<String, dynamic>());
   }

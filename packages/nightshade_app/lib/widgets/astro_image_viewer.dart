@@ -79,7 +79,8 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
   }
 
   /// Calculate the scale needed to fit the image within the container
-  double _calculateFitScale(Size containerSize, int imageWidth, int imageHeight) {
+  double _calculateFitScale(
+      Size containerSize, int imageWidth, int imageHeight) {
     if (containerSize.isEmpty || imageWidth <= 0 || imageHeight <= 0) {
       return 1.0;
     }
@@ -196,7 +197,8 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
       final delta = event.scrollDelta.dy;
       final scaleFactor = delta > 0 ? 0.9 : 1.1; // Zoom out or in
       final minScale = _effectiveMinScale ?? widget.minScale;
-      final newScale = (currentScale * scaleFactor).clamp(minScale, widget.maxScale);
+      final newScale =
+          (currentScale * scaleFactor).clamp(minScale, widget.maxScale);
 
       if (newScale != currentScale) {
         // Get the focal point in scene coordinates
@@ -211,7 +213,8 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
           ..scaleByDouble(scaleChange, scaleChange, 1.0, 1.0)
           ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1.0);
 
-        _transformationController.value = matrix * _transformationController.value;
+        _transformationController.value =
+            matrix * _transformationController.value;
 
         widget.onTransformChanged?.call(_transformationController);
       }
@@ -265,13 +268,16 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
 
         // Ensure minScale doesn't exceed the fit scale, otherwise the image
         // would appear zoomed in rather than fitting the container
-        final effectiveMinScale = fitScale < widget.minScale ? fitScale : widget.minScale;
+        final effectiveMinScale =
+            fitScale < widget.minScale ? fitScale : widget.minScale;
         _effectiveMinScale = effectiveMinScale;
 
         // Set initial fit transform once we know the container size
         // This is safe to call during build since it only updates the
         // transformation controller (not widget state) and only runs once
-        if (!_initialScaleSet && containerSize.width > 0 && containerSize.height > 0) {
+        if (!_initialScaleSet &&
+            containerSize.width > 0 &&
+            containerSize.height > 0) {
           _setInitialFitTransform(containerSize);
         }
 
@@ -311,6 +317,6 @@ class _AstroImagePainter extends CustomPainter {
   @override
   bool shouldRepaint(_AstroImagePainter oldDelegate) {
     return oldDelegate.image != image ||
-           oldDelegate.filterQuality != filterQuality;
+        oldDelegate.filterQuality != filterQuality;
   }
 }

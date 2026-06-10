@@ -289,9 +289,7 @@ class _TechnicalDetails extends StatelessWidget {
                     ),
                   ),
                   Icon(
-                    expanded
-                        ? LucideIcons.chevronUp
-                        : LucideIcons.chevronDown,
+                    expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                     size: NightshadeTokens.iconSm,
                     color: colors.textMuted,
                   ),

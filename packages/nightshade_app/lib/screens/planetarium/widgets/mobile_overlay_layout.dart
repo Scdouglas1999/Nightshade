@@ -92,14 +92,15 @@ class MobileOverlaySlots {
     // Bounded between the top and bottom bars; the rail itself scrolls, so its
     // *box* never needs to grow past this band. This is what keeps the rail
     // from ever colliding with the bottom panels in landscape.
-    final leftRail = Rect.fromLTRB(left, contentTop, left + railWidth, bandBottom);
+    final leftRail =
+        Rect.fromLTRB(left, contentTop, left + railWidth, bandBottom);
 
     // ---- FAB column (bottom-right) -----------------------------------------
     final fabLeft = _clamp(right - fabColumnSize.width, left, right);
-    final fabTop = _clamp(
-        bandBottom - fabColumnSize.height, contentTop, bandBottom);
-    final fabColumn =
-        Rect.fromLTWH(fabLeft, fabTop, fabColumnSize.width, fabColumnSize.height);
+    final fabTop =
+        _clamp(bandBottom - fabColumnSize.height, contentTop, bandBottom);
+    final fabColumn = Rect.fromLTWH(
+        fabLeft, fabTop, fabColumnSize.width, fabColumnSize.height);
 
     // ---- Time-travel panel + compass + mini-map ----------------------------
     // The right edge holds the FAB column (bottom) and the mini-map; the
@@ -127,29 +128,32 @@ class MobileOverlaySlots {
       // Mini-map then compass, left-to-right starting just right of the rail.
       final minimapLeft =
           _clamp(leftRail.right + edge, left, right - minimapSize);
-      minimap = Rect.fromLTWH(minimapLeft, contentTop, minimapSize, minimapSize);
+      minimap =
+          Rect.fromLTWH(minimapLeft, contentTop, minimapSize, minimapSize);
 
-      final compassLeft = _clamp(
-          minimap.right + edge, left, right - compassSize);
-      compass = Rect.fromLTWH(compassLeft, contentTop, compassSize, compassSize);
+      final compassLeft =
+          _clamp(minimap.right + edge, left, right - compassSize);
+      compass =
+          Rect.fromLTWH(compassLeft, contentTop, compassSize, compassSize);
 
       // Time panel hugs the bottom, right of the rail, left of the FAB column.
       final tpLeft =
           _clamp(leftRail.right + edge, left, right - timePanelSize.width);
-      timePanel =
-          Rect.fromLTWH(tpLeft, tpTop, timePanelSize.width, timePanelSize.height);
+      timePanel = Rect.fromLTWH(
+          tpLeft, tpTop, timePanelSize.width, timePanelSize.height);
     } else {
       final minimapLeft = _clamp(right - minimapSize, left, right);
-      final minimapTop = _clamp(
-          fabColumn.top - edge - minimapSize, contentTop, bandBottom - minimapSize);
-      minimap = Rect.fromLTWH(minimapLeft, minimapTop, minimapSize, minimapSize);
+      final minimapTop = _clamp(fabColumn.top - edge - minimapSize, contentTop,
+          bandBottom - minimapSize);
+      minimap =
+          Rect.fromLTWH(minimapLeft, minimapTop, minimapSize, minimapSize);
 
       final tpLeft = _clamp(left, left, right - timePanelSize.width);
-      timePanel =
-          Rect.fromLTWH(tpLeft, tpTop, timePanelSize.width, timePanelSize.height);
+      timePanel = Rect.fromLTWH(
+          tpLeft, tpTop, timePanelSize.width, timePanelSize.height);
 
-      final compassTop = _clamp(
-          timePanel.top - edge - compassSize, contentTop, bandBottom - compassSize);
+      final compassTop = _clamp(timePanel.top - edge - compassSize, contentTop,
+          bandBottom - compassSize);
       compass = Rect.fromLTWH(left, compassTop, compassSize, compassSize);
     }
 

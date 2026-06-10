@@ -95,9 +95,8 @@ class _MultiFovOverlayState extends ConsumerState<MultiFovOverlay> {
     if (fov == null) return null;
     final scale = _scale(size);
     final halfHeightPx = fov.$2 * scale / 2;
-    final angle = (active.positionAngleDeg + widget.viewRotationDeg) *
-        math.pi /
-        180;
+    final angle =
+        (active.positionAngleDeg + widget.viewRotationDeg) * math.pi / 180;
     final center = _centerOffset(active, size);
     // Handle sits "up" along the rotated rectangle's short axis.
     final up = Offset(math.sin(angle), -math.cos(angle));
@@ -155,9 +154,8 @@ class _MultiFovOverlayState extends ConsumerState<MultiFovOverlay> {
     final halfW = fov.$1 * scale / 2;
     final halfH = fov.$2 * scale / 2;
     final center = _centerOffset(active, size);
-    final angle = (active.positionAngleDeg + widget.viewRotationDeg) *
-        math.pi /
-        180;
+    final angle =
+        (active.positionAngleDeg + widget.viewRotationDeg) * math.pi / 180;
     final cos = math.cos(angle).abs();
     final sin = math.sin(angle).abs();
     // Half-extents of the rotated rectangle's enclosing AABB.
@@ -220,8 +218,8 @@ class _MultiFovOverlayState extends ConsumerState<MultiFovOverlay> {
                 rect: hitRect,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onPanStart: (d) => _onPanStart(
-                      _shift(d, hitRect.topLeft), size),
+                  onPanStart: (d) =>
+                      _onPanStart(_shift(d, hitRect.topLeft), size),
                   onPanUpdate: (d) =>
                       _onPanUpdate(_shiftUpdate(d, hitRect.topLeft), size),
                   onPanEnd: _onPanEnd,
@@ -235,7 +233,8 @@ class _MultiFovOverlayState extends ConsumerState<MultiFovOverlay> {
 
   // The hit region is offset from the overlay origin, so translate gesture
   // local positions back into overlay space before projecting.
-  DragStartDetails _shift(DragStartDetails d, Offset origin) => DragStartDetails(
+  DragStartDetails _shift(DragStartDetails d, Offset origin) =>
+      DragStartDetails(
         sourceTimeStamp: d.sourceTimeStamp,
         globalPosition: d.globalPosition,
         localPosition: d.localPosition + origin,
@@ -284,8 +283,7 @@ class _MultiFovPainter extends CustomPainter {
       Offset center = viewCenter;
       final pc = preset.center;
       if (pc != null) {
-        final deltaRaDeg =
-            (pc.ra - centerRaHours) * 15 * math.cos(viewDecRad);
+        final deltaRaDeg = (pc.ra - centerRaHours) * 15 * math.cos(viewDecRad);
         final deltaDecDeg = pc.dec - centerDecDeg;
         center = viewCenter + Offset(deltaRaDeg * scale, -deltaDecDeg * scale);
       }
@@ -305,8 +303,7 @@ class _MultiFovPainter extends CustomPainter {
   ) {
     final widthPx = fov.$1 * scale;
     final heightPx = fov.$2 * scale;
-    final angle =
-        (preset.positionAngleDeg + viewRotationDeg) * math.pi / 180;
+    final angle = (preset.positionAngleDeg + viewRotationDeg) * math.pi / 180;
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
@@ -396,8 +393,16 @@ class _MultiFovPainter extends CustomPainter {
     canvas.drawLine(rect.topRight, rect.topRight + Offset(-len, 0), paint);
     canvas.drawLine(rect.topRight, rect.topRight + Offset(0, len), paint);
     // Bottom-right
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(-len, 0), paint);
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(0, -len), paint);
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(-len, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(0, -len),
+      paint,
+    );
     // Bottom-left
     canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(len, 0), paint);
     canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(0, -len), paint);

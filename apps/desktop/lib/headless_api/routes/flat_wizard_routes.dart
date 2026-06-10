@@ -11,12 +11,24 @@ import 'headless_route.dart';
 /// Build the declarative route table for [FlatWizardHandlers].
 List<HeadlessRoute> buildFlatWizardRoutes(FlatWizardHandlers h) =>
     <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.post, '/api/flat-wizard/calibrate',
-          h.handleCalibrateFilter),
-      HeadlessRoute(HttpMethod.post, '/api/flat-wizard/calibrate-multi',
-          h.handleCalibrateMultipleFilters),
-      HeadlessRoute(HttpMethod.post, '/api/flat-wizard/generate-sequence',
-          h.handleGenerateSequence),
-      HeadlessRoute(HttpMethod.post, '/api/flat-wizard/quick-calibrate',
-          h.handleQuickCalibrate),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/flat-wizard/calibrate',
+        h.handleCalibrateFilter,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/flat-wizard/calibrate-multi',
+        h.handleCalibrateMultipleFilters,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/flat-wizard/generate-sequence',
+        h.handleGenerateSequence,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/flat-wizard/quick-calibrate',
+        h.handleQuickCalibrate,
+      ),
     ];

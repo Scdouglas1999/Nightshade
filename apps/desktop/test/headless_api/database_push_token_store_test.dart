@@ -24,38 +24,48 @@ void main() {
   });
 
   Future<void> pair(String deviceId) => db.addPairedDevice(
-        deviceId: deviceId,
-        deviceName: 'Test $deviceId',
-        sessionToken: 'tok-$deviceId',
-        deviceType: 'mobile',
-      );
+    deviceId: deviceId,
+    deviceName: 'Test $deviceId',
+    sessionToken: 'tok-$deviceId',
+    deviceType: 'mobile',
+  );
 
   test('implements StalePushTokenSink (so 404/410 cleanup is not a no-op)', () {
     expect(store, isA<StalePushTokenSink>());
   });
 
-  test('removeStaleToken deletes the dead token row (FCM 404 / APNs 410)',
-      () async {
-    await pair('phone-1');
-    await pair('phone-2');
-    await db.upsertPushToken(
-        deviceId: 'phone-1', platform: 'fcm', token: 'DEAD');
-    await db.upsertPushToken(
-        deviceId: 'phone-2', platform: 'fcm', token: 'LIVE');
+  test(
+    'removeStaleToken deletes the dead token row (FCM 404 / APNs 410)',
+    () async {
+      await pair('phone-1');
+      await pair('phone-2');
+      await db.upsertPushToken(
+        deviceId: 'phone-1',
+        platform: 'fcm',
+        token: 'DEAD',
+      );
+      await db.upsertPushToken(
+        deviceId: 'phone-2',
+        platform: 'fcm',
+        token: 'LIVE',
+      );
 
-    await (store as StalePushTokenSink).removeStaleToken('DEAD');
+      await (store as StalePushTokenSink).removeStaleToken('DEAD');
 
-    final remaining = await store.tokensForPlatform('fcm');
-    expect(remaining.map((t) => t.token), ['LIVE']);
-  });
+      final remaining = await store.tokensForPlatform('fcm');
+      expect(remaining.map((t) => t.token), ['LIVE']);
+    },
+  );
 
   test('revoking a device drops its token from the fan-out set', () async {
     await pair('keep');
     await pair('revoked');
+    await db.upsertPushToken(deviceId: 'keep', platform: 'fcm', token: 'KEEP');
     await db.upsertPushToken(
-        deviceId: 'keep', platform: 'fcm', token: 'KEEP');
-    await db.upsertPushToken(
-        deviceId: 'revoked', platform: 'fcm', token: 'REVOKED');
+      deviceId: 'revoked',
+      platform: 'fcm',
+      token: 'REVOKED',
+    );
 
     // Both reachable while active.
     expect(

@@ -295,7 +295,8 @@ class _PreFlightValidationDialogState
               children: [
                 Text(
                   'Pre-Flight Validation',
-                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h4
+                      .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   'Checking sequence before execution',
@@ -493,7 +494,9 @@ class _PreFlightValidationDialogState
               if (simulation != null)
                 Text(
                   'Ends ${_formatClock(simulation.end)}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
             ],
           ),
@@ -639,11 +642,12 @@ class _PreFlightValidationDialogState
                       : hasWarnings
                           ? 'Ready with Warnings'
                           : 'All Checks Passed',
-                  style: NightshadeTypography.h5.copyWith(color: hasErrors
-                        ? colors.error
-                        : hasWarnings
-                            ? colors.warning
-                            : colors.success),
+                  style: NightshadeTypography.h5.copyWith(
+                      color: hasErrors
+                          ? colors.error
+                          : hasWarnings
+                              ? colors.warning
+                              : colors.success),
                 ),
                 Text(
                   hasErrors
@@ -739,7 +743,8 @@ class _PreFlightValidationDialogState
                   children: [
                     Text(
                       issue.title,
-                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(width: 8),
                     Container(
@@ -747,7 +752,8 @@ class _PreFlightValidationDialogState
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline4),
                       ),
                       child: Text(
                         issue.category.label,
@@ -825,7 +831,8 @@ class _PreFlightValidationDialogState
               children: [
                 Text(
                   'Sequence has changed since last successful run',
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(

@@ -26,11 +26,11 @@ class FocusDataPoint {
   }
 
   Map<String, dynamic> toJson() => {
-        'position': position,
-        'hfr': hfr,
-        'fwhm': fwhm,
-        'starCount': starCount,
-      };
+    'position': position,
+    'hfr': hfr,
+    'fwhm': fwhm,
+    'starCount': starCount,
+  };
 }
 
 /// Autofocus result containing all data for display and analysis
@@ -57,7 +57,8 @@ class AutofocusResult {
 
   factory AutofocusResult.fromJson(Map<String, dynamic> json) {
     return AutofocusResult(
-      bestPosition: json['bestPosition'] as int? ?? json['best_position'] as int,
+      bestPosition:
+          json['bestPosition'] as int? ?? json['best_position'] as int,
       bestHfr: (json['bestHfr'] as num? ?? json['best_hfr'] as num).toDouble(),
       focusData: (json['focusData'] as List? ?? json['focus_data'] as List)
           .map((e) => FocusDataPoint.fromJson(e as Map<String, dynamic>))
@@ -65,21 +66,26 @@ class AutofocusResult {
       method: json['method'] as String,
       temperature: (json['temperature'] as num?)?.toDouble(),
       timestamp: json['timestamp'] as int,
-      curveFitQuality: (json['curveFitQuality'] as num? ?? json['curve_fit_quality'] as num).toDouble(),
-      backlashApplied: json['backlashApplied'] as bool? ?? json['backlash_applied'] as bool? ?? false,
+      curveFitQuality:
+          (json['curveFitQuality'] as num? ?? json['curve_fit_quality'] as num)
+              .toDouble(),
+      backlashApplied:
+          json['backlashApplied'] as bool? ??
+          json['backlash_applied'] as bool? ??
+          false,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'bestPosition': bestPosition,
-        'bestHfr': bestHfr,
-        'focusData': focusData.map((e) => e.toJson()).toList(),
-        'method': method,
-        'temperature': temperature,
-        'timestamp': timestamp,
-        'curveFitQuality': curveFitQuality,
-        'backlashApplied': backlashApplied,
-      };
+    'bestPosition': bestPosition,
+    'bestHfr': bestHfr,
+    'focusData': focusData.map((e) => e.toJson()).toList(),
+    'method': method,
+    'temperature': temperature,
+    'timestamp': timestamp,
+    'curveFitQuality': curveFitQuality,
+    'backlashApplied': backlashApplied,
+  };
 
   /// Check if this is a good focus result
   bool get isGoodFocus => curveFitQuality > 0.9;
@@ -103,7 +109,9 @@ class AutofocusConfig {
 
   factory AutofocusConfig.fromJson(Map<String, dynamic> json) {
     return AutofocusConfig(
-      exposureTime: (json['exposureTime'] as num? ?? json['exposure_time'] as num).toDouble(),
+      exposureTime:
+          (json['exposureTime'] as num? ?? json['exposure_time'] as num)
+              .toDouble(),
       stepSize: json['stepSize'] as int? ?? json['step_size'] as int,
       stepsOut: json['stepsOut'] as int? ?? json['steps_out'] as int,
       method: json['method'] as String,
@@ -112,10 +120,10 @@ class AutofocusConfig {
   }
 
   Map<String, dynamic> toJson() => {
-        'exposureTime': exposureTime,
-        'stepSize': stepSize,
-        'stepsOut': stepsOut,
-        'method': method,
-        'binning': binning,
-      };
+    'exposureTime': exposureTime,
+    'stepSize': stepSize,
+    'stepsOut': stepsOut,
+    'method': method,
+    'binning': binning,
+  };
 }

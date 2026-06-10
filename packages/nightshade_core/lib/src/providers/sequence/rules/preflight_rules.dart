@@ -75,7 +75,9 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
 
   @override
   Future<List<ValidationIssue>> validate(
-      Sequence sequence, ValidationContext ctx) async {
+    Sequence sequence,
+    ValidationContext ctx,
+  ) async {
     final ref = ctx.ref;
     final settings = ref.read(appSettingsProvider).valueOrNull;
     if (settings == null) return const [];
@@ -100,14 +102,16 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
       final binValue = _binningToInt(node.binning);
       final binX = binValue;
       final binY = binValue;
-      requirements.add(DarkFrameRequirement(
-        gain: gain,
-        offset: offset,
-        durationSecs: node.durationSecs,
-        binX: binX,
-        binY: binY,
-        targetTemp: camTargetTemp,
-      ));
+      requirements.add(
+        DarkFrameRequirement(
+          gain: gain,
+          offset: offset,
+          durationSecs: node.durationSecs,
+          binX: binX,
+          binY: binY,
+          targetTemp: camTargetTemp,
+        ),
+      );
     }
 
     if (requirements.isEmpty) return const [];
@@ -131,41 +135,49 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
     }
 
     final issues = <ValidationIssue>[];
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
 
     if (missing.isNotEmpty) {
       final lines = missing.map((r) => '  • ${r.describe()}').join('\n');
-      issues.add(ValidationIssue(
-        severity: severity,
-        category: ValidationCategory.darkLibrary,
-        title: 'Missing Dark Frames',
-        description:
-            'No matching darks found for ${missing.length} exposure combination'
-            '${missing.length == 1 ? "" : "s"}:\n$lines',
-        resolutionHint:
-            'Capture darks for the missing combinations. Open Calibration → '
-            'Dark Library to schedule them, or run the "Capture missing darks" '
-            'action from the pre-flight dialog.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: severity,
+          category: ValidationCategory.darkLibrary,
+          title: 'Missing Dark Frames',
+          description:
+              'No matching darks found for ${missing.length} exposure combination'
+              '${missing.length == 1 ? "" : "s"}:\n$lines',
+          resolutionHint:
+              'Capture darks for the missing combinations. Open Calibration → '
+              'Dark Library to schedule them, or run the "Capture missing darks" '
+              'action from the pre-flight dialog.',
+        ),
+      );
     }
 
     if (underCovered.isNotEmpty) {
       final lines = underCovered.entries
-          .map((e) =>
-              '  • ${e.key.describe()} — ${e.value} of ${settings.darkLibraryMinCoverage} frames')
+          .map(
+            (e) =>
+                '  • ${e.key.describe()} — ${e.value} of ${settings.darkLibraryMinCoverage} frames',
+          )
           .join('\n');
-      issues.add(ValidationIssue(
-        severity: severity,
-        category: ValidationCategory.darkLibrary,
-        title: 'Low Dark Library Coverage',
-        description:
-            'Some combinations have fewer than ${settings.darkLibraryMinCoverage} '
-            'darks (below the configured quorum):\n$lines',
-        resolutionHint:
-            'Capture additional darks to reach the quorum, then create a '
-            'master dark from Calibration → Dark Library.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: severity,
+          category: ValidationCategory.darkLibrary,
+          title: 'Low Dark Library Coverage',
+          description:
+              'Some combinations have fewer than ${settings.darkLibraryMinCoverage} '
+              'darks (below the configured quorum):\n$lines',
+          resolutionHint:
+              'Capture additional darks to reach the quorum, then create a '
+              'master dark from Calibration → Dark Library.',
+        ),
+      );
     }
 
     return issues;
@@ -197,7 +209,9 @@ class HistoryDrivenQualityRule implements AsyncSequenceValidator {
 
   @override
   Future<List<ValidationIssue>> validate(
-      Sequence sequence, ValidationContext ctx) async {
+    Sequence sequence,
+    ValidationContext ctx,
+  ) async {
     final targetNodes = sequence.nodes.values
         .whereType<TargetHeaderNode>()
         .where((node) => node.isEnabled)
@@ -226,8 +240,10 @@ class HistoryDrivenQualityRule implements AsyncSequenceValidator {
         if (plannedFilters.isNotEmpty && !plannedFilters.contains(filter)) {
           continue;
         }
-        final bucket =
-            buckets.putIfAbsent(filter, () => _HistoricalQualityBucket());
+        final bucket = buckets.putIfAbsent(
+          filter,
+          () => _HistoricalQualityBucket(),
+        );
         bucket.attempted += 1;
         if (!frame.isAccepted) {
           bucket.rejected += 1;
@@ -244,36 +260,40 @@ class HistoryDrivenQualityRule implements AsyncSequenceValidator {
         final rejectRate = bucket.rejected / bucket.attempted;
         final hfrRate = bucket.hfrRejected / bucket.attempted;
         if (rejectRate >= highRejectRate) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.equipmentHealth,
-            affectedNodeId: target.id,
-            title: 'High Previous Rejection Rate',
-            description:
-                '${target.targetName} has ${bucket.rejected} rejected light '
-                'frames out of ${bucket.attempted} recent ${entry.key} '
-                'captures (${(rejectRate * 100).round()}%).',
-            resolutionHint:
-                'Review recent rejected frames before starting. Consider '
-                'tightening focus cadence, checking guiding, or using a '
-                'brighter backup target if conditions are marginal.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.equipmentHealth,
+              affectedNodeId: target.id,
+              title: 'High Previous Rejection Rate',
+              description:
+                  '${target.targetName} has ${bucket.rejected} rejected light '
+                  'frames out of ${bucket.attempted} recent ${entry.key} '
+                  'captures (${(rejectRate * 100).round()}%).',
+              resolutionHint:
+                  'Review recent rejected frames before starting. Consider '
+                  'tightening focus cadence, checking guiding, or using a '
+                  'brighter backup target if conditions are marginal.',
+            ),
+          );
         }
 
         if (bucket.hfrRejected >= hfrRejectCount || hfrRate >= hfrRejectRate) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.equipmentHealth,
-            affectedNodeId: target.id,
-            title: 'Previous HFR Rejections',
-            description:
-                '${target.targetName} previously had ${bucket.hfrRejected} '
-                'HFR/focus-related rejected ${entry.key} frames out of '
-                '${bucket.attempted} attempts.',
-            resolutionHint:
-                'Start with a fresh autofocus run and consider a shorter '
-                'autofocus interval for this target/filter.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.equipmentHealth,
+              affectedNodeId: target.id,
+              title: 'Previous HFR Rejections',
+              description:
+                  '${target.targetName} previously had ${bucket.hfrRejected} '
+                  'HFR/focus-related rejected ${entry.key} frames out of '
+                  '${bucket.attempted} attempts.',
+              resolutionHint:
+                  'Start with a fresh autofocus run and consider a shorter '
+                  'autofocus interval for this target/filter.',
+            ),
+          );
         }
       }
     }
@@ -361,28 +381,34 @@ class UsbStabilityRule implements RefAwareSequenceValidator {
     final snapshots = ref.read(deviceHealthSnapshotsProvider);
     if (snapshots.isEmpty) return const [];
 
-    final flagged = snapshots.where((s) {
-      return s.disconnectCountLast24h > disconnectThreshold || !s.isHealthy;
-    }).toList(growable: false);
+    final flagged = snapshots
+        .where((s) {
+          return s.disconnectCountLast24h > disconnectThreshold || !s.isHealthy;
+        })
+        .toList(growable: false);
     if (flagged.isEmpty) return const [];
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
     final issues = <ValidationIssue>[];
     for (final snap in flagged) {
       final reason = !snap.isHealthy
           ? 'currently unhealthy (heartbeat stale)'
           : '${snap.disconnectCountLast24h} disconnects in the last 24 hours';
-      issues.add(ValidationIssue(
-        severity: severity,
-        category: ValidationCategory.equipmentHealth,
-        title: 'USB Stability Concern',
-        description: '${snap.displayName} is $reason.',
-        resolutionHint:
-            'Check the USB cable, hub, and power supply for ${snap.displayName}. '
-            'Marginal cables typically cause the longest unattended-run '
-            'failures.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: severity,
+          category: ValidationCategory.equipmentHealth,
+          title: 'USB Stability Concern',
+          description: '${snap.displayName} is $reason.',
+          resolutionHint:
+              'Check the USB cable, hub, and power supply for ${snap.displayName}. '
+              'Marginal cables typically cause the longest unattended-run '
+              'failures.',
+        ),
+      );
     }
     return issues;
   }
@@ -425,8 +451,10 @@ class FocuserRangeRule implements RefAwareSequenceValidator {
     final maxPos = focuser.maxPosition;
     if (pos == null || maxPos == null) return const [];
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
 
     if (pos <= edgeMarginSteps) {
       return [
@@ -517,14 +545,17 @@ class PolarAlignmentFreshnessRule implements RefAwareSequenceValidator {
       return const [];
     }
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
     return [
       ValidationIssue(
         severity: severity,
         category: ValidationCategory.equipmentHealth,
         title: 'Polar Alignment Is Stale',
-        description: 'Last polar alignment was $ageDays days ago '
+        description:
+            'Last polar alignment was $ageDays days ago '
             '(threshold ${settings.polarAlignmentMaxAgeDays} days). '
             'Final error was ${entry.finalTotalError.toStringAsFixed(1)} arcmin.',
         resolutionHint:
@@ -553,7 +584,9 @@ class TimeSyncRule implements AsyncSequenceValidator {
 
   @override
   Future<List<ValidationIssue>> validate(
-      Sequence sequence, ValidationContext ctx) async {
+    Sequence sequence,
+    ValidationContext ctx,
+  ) async {
     final ref = ctx.ref;
     final settings = ref.read(appSettingsProvider).valueOrNull;
     if (settings == null) return const [];
@@ -576,7 +609,8 @@ class TimeSyncRule implements AsyncSequenceValidator {
             severity: ValidationSeverity.error,
             category: ValidationCategory.equipmentHealth,
             title: 'System Clock Drift > 30 s',
-            description: 'System clock differs from ${result.server} by '
+            description:
+                'System clock differs from ${result.server} by '
                 '${result.offsetSeconds.toStringAsFixed(1)} s. FITS timestamps '
                 'and the scheduler will be wrong.',
             resolutionHint:
@@ -596,7 +630,8 @@ class TimeSyncRule implements AsyncSequenceValidator {
           severity: severity,
           category: ValidationCategory.equipmentHealth,
           title: 'System Clock Drift',
-          description: 'System clock differs from ${result.server} by '
+          description:
+              'System clock differs from ${result.server} by '
               '${result.offsetSeconds.toStringAsFixed(1)} s.',
           resolutionHint:
               'Run a time-sync (Settings → Date & Time) before starting.',
@@ -650,8 +685,10 @@ class CoolerDeltaRule implements RefAwareSequenceValidator {
     final delta = ambient - cam.targetTemp;
     if (delta <= maxRealisticDeltaC) return const [];
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
     return [
       ValidationIssue(
         severity: severity,
@@ -697,8 +734,10 @@ class FilterWheelHomingRule implements RefAwareSequenceValidator {
     if (fw.connectionState != DeviceConnectionState.connected) return const [];
     if (fw.currentPosition != null) return const [];
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
     return [
       ValidationIssue(
         severity: severity,
@@ -752,7 +791,8 @@ class OpticalTrainPreflightRule implements RefAwareSequenceValidator {
           severity: ValidationSeverity.info,
           category: ValidationCategory.opticalTrain,
           title: 'Optical Train Baseline Will Be Captured',
-          description: 'No prior optical-train baseline is on record. This run '
+          description:
+              'No prior optical-train baseline is on record. This run '
               'will establish one for future pre-flight comparisons.',
         ),
       ];
@@ -764,8 +804,10 @@ class OpticalTrainPreflightRule implements RefAwareSequenceValidator {
 
     if (drift < settings.opticalTrainDriftThreshold) return const [];
 
-    final severity =
-        _severityFor(ValidationSeverity.warning, settings.preflightStrictness);
+    final severity = _severityFor(
+      ValidationSeverity.warning,
+      settings.preflightStrictness,
+    );
     return [
       ValidationIssue(
         severity: severity,

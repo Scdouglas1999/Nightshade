@@ -22,11 +22,7 @@ class _AnalyzerPolicy {
   });
 
   static const defaults = _AnalyzerPolicy(
-    include: <String>[
-      'apps/**',
-      'packages/**',
-      'native/nightshade_native/**',
-    ],
+    include: <String>['apps/**', 'packages/**', 'native/nightshade_native/**'],
     exclude: <String>[
       '**/.dart_tool/**',
       '**/.git/**',
@@ -65,15 +61,15 @@ class _Issue {
   });
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'severity': severity,
-        'type': type,
-        'code': code,
-        'file': file,
-        'line': line,
-        'column': column,
-        'length': length,
-        'message': message,
-      };
+    'severity': severity,
+    'type': type,
+    'code': code,
+    'file': file,
+    'line': line,
+    'column': column,
+    'length': length,
+    'message': message,
+  };
 }
 
 class _Counts {
@@ -82,10 +78,10 @@ class _Counts {
   int infos = 0;
 
   Map<String, int> toJson() => <String, int>{
-        'errors': errors,
-        'warnings': warnings,
-        'infos': infos,
-      };
+    'errors': errors,
+    'warnings': warnings,
+    'infos': infos,
+  };
 }
 
 void main(List<String> args) async {
@@ -97,11 +93,13 @@ void main(List<String> args) async {
   final policy = _loadPolicy(policyPath);
   final criticalCodes = _loadCriticalCodes(criticalCodesPath);
 
-  final process = await Process.start(
-    'dart',
-    <String>['analyze', 'packages', 'apps', '--format', 'machine'],
-    runInShell: true,
-  );
+  final process = await Process.start('dart', <String>[
+    'analyze',
+    'packages',
+    'apps',
+    '--format',
+    'machine',
+  ], runInShell: true);
 
   final stdoutLines = <String>[];
   final stderrLines = <String>[];
@@ -118,8 +116,9 @@ void main(List<String> args) async {
   final exitCode = await process.exitCode;
   await Future.wait(<Future<void>>[stdoutFuture, stderrFuture]);
 
-  final workspaceRoot =
-      _normalize(Directory.current.absolute.path).toLowerCase();
+  final workspaceRoot = _normalize(
+    Directory.current.absolute.path,
+  ).toLowerCase();
   final allIssues = <_Issue>[];
   final productionIssues = <_Issue>[];
   final criticalWarningIssues = <_Issue>[];
@@ -150,7 +149,8 @@ void main(List<String> args) async {
     }
   }
 
-  final failed = productionCounts.errors > policy.errorThreshold ||
+  final failed =
+      productionCounts.errors > policy.errorThreshold ||
       productionCounts.warnings > policy.warningThreshold ||
       productionCounts.infos > policy.infoThreshold ||
       criticalWarningIssues.isNotEmpty;
@@ -175,10 +175,12 @@ void main(List<String> args) async {
       'failed': failed,
     },
     'criticalCodes': criticalCodes.toList()..sort(),
-    'criticalWarningIssues':
-        criticalWarningIssues.map((issue) => issue.toJson()).toList(),
-    'productionIssues':
-        productionIssues.map((issue) => issue.toJson()).toList(),
+    'criticalWarningIssues': criticalWarningIssues
+        .map((issue) => issue.toJson())
+        .toList(),
+    'productionIssues': productionIssues
+        .map((issue) => issue.toJson())
+        .toList(),
     'stderr': stderrLines,
   };
 
@@ -190,9 +192,11 @@ void main(List<String> args) async {
 
   stdout.writeln('Analyzer rollup complete.');
   stdout.writeln(
-      'All: errors=${allCounts.errors}, warnings=${allCounts.warnings}, infos=${allCounts.infos}');
+    'All: errors=${allCounts.errors}, warnings=${allCounts.warnings}, infos=${allCounts.infos}',
+  );
   stdout.writeln(
-      'Production: errors=${productionCounts.errors}, warnings=${productionCounts.warnings}, infos=${productionCounts.infos}');
+    'Production: errors=${productionCounts.errors}, warnings=${productionCounts.warnings}, infos=${productionCounts.infos}',
+  );
   stdout.writeln('Critical warnings: ${criticalWarningIssues.length}');
   stdout.writeln('Report: $reportPath');
 

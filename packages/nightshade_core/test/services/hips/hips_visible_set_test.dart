@@ -47,11 +47,7 @@ const _plateScale = FramingPlateScale(
   imagePixelHeight: 1000,
 );
 
-const _target = FramingTarget(
-  name: 'M42',
-  raHours: 5.5882,
-  decDegrees: -5.391,
-);
+const _target = FramingTarget(name: 'M42', raHours: 5.5882, decDegrees: -5.391);
 
 void main() {
   group('inclusive coverage of the canvas', () {
@@ -88,8 +84,11 @@ void main() {
           final sky = set.projection.screenToRaDec(Offset(sx, sy));
           final raDeg = sky.raHours * 15.0;
           final pix = healpix.ang2pixNest(raDeg, sky.decDegrees);
-          expect(returned, contains(pix),
-              reason: 'canvas ($sx,$sy) -> pix $pix not in the visible set');
+          expect(
+            returned,
+            contains(pix),
+            reason: 'canvas ($sx,$sy) -> pix $pix not in the visible set',
+          );
           checked++;
         }
       }
@@ -129,8 +128,11 @@ void main() {
       ]) {
         final sky = set.projection.screenToRaDec(corner);
         final pix = healpix.ang2pixNest(sky.raHours * 15.0, sky.decDegrees);
-        expect(returned, contains(pix),
-            reason: 'rotated corner $corner -> pix $pix missing from set');
+        expect(
+          returned,
+          contains(pix),
+          reason: 'rotated corner $corner -> pix $pix missing from set',
+        );
       }
     });
 
@@ -159,7 +161,11 @@ void main() {
       // we assert the set is always non-empty across the range (no blank frame)
       // rather than a strict monotone count.
       for (final zoom in <double>[0.25, 0.5, 1.0, 2.0, 4.0]) {
-        expect(countAt(zoom), greaterThan(0), reason: 'empty set at zoom=$zoom');
+        expect(
+          countAt(zoom),
+          greaterThan(0),
+          reason: 'empty set at zoom=$zoom',
+        );
       }
     });
   });
@@ -194,8 +200,7 @@ void main() {
         for (final nb in healpix.neighboursNest(tile.id.npix)) {
           final nbTile = byPix[nb];
           if (nbTile == null) continue;
-          final nbCorners =
-              nbTile.mesh.vertices.map((v) => v.screen).toList();
+          final nbCorners = nbTile.mesh.vertices.map((v) => v.screen).toList();
           for (final c in corners) {
             for (final nc in nbCorners) {
               if ((c - nc).distance < 1e-6) sharedPairs++;
@@ -204,8 +209,11 @@ void main() {
         }
       }
       // With a populated set, many neighbour pairs share corner pixels exactly.
-      expect(sharedPairs, greaterThan(0),
-          reason: 'no neighbouring tiles share a projected corner -> seams');
+      expect(
+        sharedPairs,
+        greaterThan(0),
+        reason: 'no neighbouring tiles share a projected corner -> seams',
+      );
     });
   });
 
@@ -307,10 +315,7 @@ void main() {
         throwsArgumentError,
       );
       // The last valid pixel is accepted.
-      expect(
-        HipsTileId(survey: _surveyId, norder: 1, npix: 47).npix,
-        47,
-      );
+      expect(HipsTileId(survey: _surveyId, norder: 1, npix: 47).npix, 47);
     });
   });
 
@@ -388,8 +393,11 @@ void main() {
       for (final tile in set.tiles) {
         expect(tile.id.norder, norder);
         expect(tile.id.npix, inInclusiveRange(0, tileCount - 1));
-        expect(tile.id.npix, greaterThan(previous),
-            reason: 'tile npix not strictly ascending (dedup + determinism)');
+        expect(
+          tile.id.npix,
+          greaterThan(previous),
+          reason: 'tile npix not strictly ascending (dedup + determinism)',
+        );
         previous = tile.id.npix;
         expect(tile.id.survey, _surveyId);
       }

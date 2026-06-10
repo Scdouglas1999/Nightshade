@@ -73,8 +73,7 @@ class _OnboardingFilterWheelStepState
     super.dispose();
   }
 
-  void _rebuildControllers(
-      {required int count, required List<String> names}) {
+  void _rebuildControllers({required int count, required List<String> names}) {
     for (final c in _controllers) {
       c.dispose();
     }
@@ -128,8 +127,9 @@ class _OnboardingFilterWheelStepState
 
   void _commitFilters() {
     final names = _controllers
-        .map((c) =>
-            c.text.trim().isNotEmpty ? c.text.trim() : 'Slot ${_controllers.indexOf(c) + 1}')
+        .map((c) => c.text.trim().isNotEmpty
+            ? c.text.trim()
+            : 'Slot ${_controllers.indexOf(c) + 1}')
         .toList();
     ref.read(onboardingDraftProvider.notifier).setFilterNames(names);
   }
@@ -290,9 +290,8 @@ class _OnboardingFilterWheelStepState
                     ),
                   ),
                   IconButton(
-                    onPressed: _controllers.length > 1
-                        ? () => _removeSlot(i)
-                        : null,
+                    onPressed:
+                        _controllers.length > 1 ? () => _removeSlot(i) : null,
                     icon: Icon(
                       NightshadeIcons.delete,
                       size: 16,

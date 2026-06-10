@@ -60,8 +60,7 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
         const SizedBox(height: NightshadeTokens.spaceMd),
         _AdvancedToggle(
           expanded: _advancedExpanded,
-          onTap: () =>
-              setState(() => _advancedExpanded = !_advancedExpanded),
+          onTap: () => setState(() => _advancedExpanded = !_advancedExpanded),
         ),
         if (_advancedExpanded) ...[
           const SizedBox(height: NightshadeTokens.spaceMd),
@@ -79,18 +78,17 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
         const _GroupLabel('Alignment'),
         _DropdownRow<TransformModel>(
           label: 'Transform model',
-          tooltip:
-              'Geometric model fit by RANSAC. Affine suits most rigs; '
+          tooltip: 'Geometric model fit by RANSAC. Affine suits most rigs; '
               'Homography for wide / uncorrected fields.',
           value: _s.model,
           values: TransformModel.values,
           labelOf: _transformLabel,
-          onChanged: (v) => _emit(_s.copyWith(model: v, clearSourcePreset: true)),
+          onChanged: (v) =>
+              _emit(_s.copyWith(model: v, clearSourcePreset: true)),
         ),
         _DropdownRow<Resampler>(
           label: 'Resampler',
-          tooltip:
-              'Output interpolation kernel. Lanczos-3 is highest quality '
+          tooltip: 'Output interpolation kernel. Lanczos-3 is highest quality '
               '(PixInsight default); Bilinear is fastest.',
           value: _s.resampler,
           values: Resampler.values,
@@ -106,8 +104,8 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
           max: 6.0,
           divisions: 11,
           suffix: ' px',
-          onChanged: (v) => _emit(
-              _s.copyWith(ransacThresholdPx: v, clearSourcePreset: true)),
+          onChanged: (v) =>
+              _emit(_s.copyWith(ransacThresholdPx: v, clearSourcePreset: true)),
         ),
         _StepperRow(
           label: 'Max reference stars',
@@ -245,7 +243,8 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
           ),
           _SliderRow(
             label: 'Pixfrac',
-            tooltip: 'Drop-shrink fraction in (0, 1]. Smaller = sharper, noisier.',
+            tooltip:
+                'Drop-shrink fraction in (0, 1]. Smaller = sharper, noisier.',
             value: _s.drizzlePixfrac,
             min: 0.1,
             max: 1.0,
@@ -264,8 +263,7 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
           ),
           _SwitchRow(
             label: 'Bayer drizzle',
-            tooltip:
-                'Drizzle the raw CFA mosaic directly into RGB (no debayer '
+            tooltip: 'Drizzle the raw CFA mosaic directly into RGB (no debayer '
                 'interpolation). Only for one-shot-colour sensors.',
             value: _s.bayerDrizzle,
             onChanged: (v) =>
@@ -413,7 +411,9 @@ class _AdvancedToggle extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              expanded ? NightshadeIcons.chevronDown : NightshadeIcons.chevronRight,
+              expanded
+                  ? NightshadeIcons.chevronDown
+                  : NightshadeIcons.chevronRight,
               size: 16,
               color: colors.textSecondary,
             ),
@@ -660,7 +660,8 @@ class _StepperRow extends StatelessWidget {
         children: [
           IconButton(
             visualDensity: VisualDensity.compact,
-            icon: Icon(NightshadeIcons.remove, size: 16, color: colors.textSecondary),
+            icon: Icon(NightshadeIcons.remove,
+                size: 16, color: colors.textSecondary),
             onPressed: value > min
                 ? () => onChanged((value - step).clamp(min, max))
                 : null,
@@ -677,7 +678,8 @@ class _StepperRow extends StatelessWidget {
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
-            icon: Icon(NightshadeIcons.add, size: 16, color: colors.textSecondary),
+            icon: Icon(NightshadeIcons.add,
+                size: 16, color: colors.textSecondary),
             onPressed: value < max
                 ? () => onChanged((value + step).clamp(min, max))
                 : null,

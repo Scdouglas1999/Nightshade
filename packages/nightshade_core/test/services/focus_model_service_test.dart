@@ -14,11 +14,11 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('focus-model-test');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, (call) async {
-      if (call.method == 'getApplicationDocumentsDirectory') {
-        return tempDir.path;
-      }
-      return null;
-    });
+          if (call.method == 'getApplicationDocumentsDirectory') {
+            return tempDir.path;
+          }
+          return null;
+        });
   });
 
   tearDown(() async {
@@ -30,32 +30,35 @@ void main() {
   });
 
   group('FocusModelService', () {
-    test('does not build a temperature model when all temperatures are identical', () async {
-      final service = FocusModelService();
+    test(
+      'does not build a temperature model when all temperatures are identical',
+      () async {
+        final service = FocusModelService();
 
-      await service.addDataPoint(
-        profileId: 'profile-a',
-        temperatureCelsius: 12.0,
-        focusPosition: 10000,
-        hfr: 2.1,
-      );
-      await service.addDataPoint(
-        profileId: 'profile-a',
-        temperatureCelsius: 12.0,
-        focusPosition: 10010,
-        hfr: 2.0,
-      );
-      await service.addDataPoint(
-        profileId: 'profile-a',
-        temperatureCelsius: 12.0,
-        focusPosition: 9990,
-        hfr: 1.9,
-      );
+        await service.addDataPoint(
+          profileId: 'profile-a',
+          temperatureCelsius: 12.0,
+          focusPosition: 10000,
+          hfr: 2.1,
+        );
+        await service.addDataPoint(
+          profileId: 'profile-a',
+          temperatureCelsius: 12.0,
+          focusPosition: 10010,
+          hfr: 2.0,
+        );
+        await service.addDataPoint(
+          profileId: 'profile-a',
+          temperatureCelsius: 12.0,
+          focusPosition: 9990,
+          hfr: 1.9,
+        );
 
-      final data = service.getProfileData('profile-a');
-      expect(data, isNotNull);
-      expect(data!.temperatureModel, isNull);
-    });
+        final data = service.getProfileData('profile-a');
+        expect(data, isNotNull);
+        expect(data!.temperatureModel, isNull);
+      },
+    );
 
     test('rejects unrealistic slopes', () async {
       final service = FocusModelService();
@@ -137,8 +140,9 @@ void main() {
           config: const FocusModelConfig(maxAcceptableSlopeStepsPerC: 2000),
         );
         await seed(permissiveSvc);
-        final model =
-            permissiveSvc.getProfileData('profile-c')?.temperatureModel;
+        final model = permissiveSvc
+            .getProfileData('profile-c')
+            ?.temperatureModel;
         expect(
           model,
           isNotNull,
@@ -186,8 +190,7 @@ void main() {
         return svc;
       }
 
-      test(
-          'temperature drift is NOT reported as a filter offset when '
+      test('temperature drift is NOT reported as a filter offset when '
           'true offset is zero', () async {
         // Physics: slope = 50 steps/°C, no per-filter offset.
         // Reference filter L: sampled at cold temperatures (5°C).
@@ -218,29 +221,33 @@ void main() {
 
         final data = svc.getProfileData('profile-img-p1-2-a');
         expect(data, isNotNull);
-        expect(data!.temperatureModel, isNotNull,
-            reason: 'sample set should yield a temperature model');
+        expect(
+          data!.temperatureModel,
+          isNotNull,
+          reason: 'sample set should yield a temperature model',
+        );
         expect(data.temperatureModel!.isReliable, isTrue);
 
         final rOffset = data.filterOffsets['R'];
         expect(rOffset, isNotNull);
         // Pre-fix raw average would have been 500. Post-fix should be ~0.
-        expect(rOffset!.offsetSteps.abs(), lessThan(5),
-            reason: 'pure temperature drift must NOT be reported as offset');
+        expect(
+          rOffset!.offsetSteps.abs(),
+          lessThan(5),
+          reason: 'pure temperature drift must NOT be reported as offset',
+        );
         expect(rOffset.temperatureCorrected, isTrue);
         expect(rOffset.confidenceBand, FilterOffsetConfidence.high);
       });
 
-      test(
-          'real per-filter offset on top of temperature drift is reported '
+      test('real per-filter offset on top of temperature drift is reported '
           'cleanly', () async {
         // Same drift physics, but filter R has a *true* 200-step offset.
         const slope = 50.0;
         const baseAtZero = 4750.0;
         const trueROffset = 200;
         int posL(double t) => (baseAtZero + slope * t).round();
-        int posR(double t) =>
-            (baseAtZero + slope * t + trueROffset).round();
+        int posR(double t) => (baseAtZero + slope * t + trueROffset).round();
         final samples = <({String filter, double temp, int position})>[
           (filter: 'L', temp: 0.0, position: posL(0.0)),
           (filter: 'L', temp: 2.0, position: posL(2.0)),
@@ -266,14 +273,16 @@ void main() {
         final rOffset = data.filterOffsets['R']!;
         // Pre-fix raw average would have been 200 + 500 = 700.
         // Post-fix should isolate the true 200.
-        expect((rOffset.offsetSteps - trueROffset).abs(), lessThan(5),
-            reason: 'true offset must survive temperature correction');
+        expect(
+          (rOffset.offsetSteps - trueROffset).abs(),
+          lessThan(5),
+          reason: 'true offset must survive temperature correction',
+        );
         expect(rOffset.temperatureCorrected, isTrue);
         expect(rOffset.confidenceBand, FilterOffsetConfidence.high);
       });
 
-      test(
-          'low-R² model falls back to raw average and reports low '
+      test('low-R² model falls back to raw average and reports low '
           'confidence', () async {
         // Inject noise large enough to drive R² well below 0.7 but keep the
         // slope inside the 500 steps/°C rejection gate.
@@ -306,25 +315,36 @@ void main() {
         // We expect R² to be low; if it sneaks above 0.7 the test premise
         // is wrong and we should redesign the dataset.
         expect(model, isNotNull);
-        expect(model!.rSquared, lessThan(0.7),
-            reason:
-                'test premise: dataset must yield low R² to exercise fallback');
+        expect(
+          model!.rSquared,
+          lessThan(0.7),
+          reason:
+              'test premise: dataset must yield low R² to exercise fallback',
+        );
 
         final rOffset = data.filterOffsets['R'];
         expect(rOffset, isNotNull);
-        expect(rOffset!.temperatureCorrected, isFalse,
-            reason: 'low R² must trigger the raw-average fallback');
+        expect(
+          rOffset!.temperatureCorrected,
+          isFalse,
+          reason: 'low R² must trigger the raw-average fallback',
+        );
         expect(rOffset.confidenceBand, FilterOffsetConfidence.low);
-        expect(rOffset.confidenceReason, isNotEmpty,
-            reason: 'fallback must explain itself');
-        expect(rOffset.confidence, lessThanOrEqualTo(0.3),
-            reason: 'scalar confidence must be capped in low band');
+        expect(
+          rOffset.confidenceReason,
+          isNotEmpty,
+          reason: 'fallback must explain itself',
+        );
+        expect(
+          rOffset.confidence,
+          lessThanOrEqualTo(0.3),
+          reason: 'scalar confidence must be capped in low band',
+        );
         // Raw average difference: 300 — the contaminated number.
         expect(rOffset.offsetSteps, inInclusiveRange(295, 305));
       });
 
-      test(
-          'narrow temperature spread downgrades a corrected offset to '
+      test('narrow temperature spread downgrades a corrected offset to '
           'medium confidence', () async {
         // Reliable slope, but all samples within a < 5°C window. The
         // correction is still applied, but with little leverage on the
@@ -333,8 +353,7 @@ void main() {
         const baseAtZero = 4750.0;
         const trueROffset = 100;
         int posL(double t) => (baseAtZero + slope * t).round();
-        int posR(double t) =>
-            (baseAtZero + slope * t + trueROffset).round();
+        int posR(double t) => (baseAtZero + slope * t + trueROffset).round();
         final samples = <({String filter, double temp, int position})>[
           (filter: 'L', temp: 10.0, position: posL(10.0)),
           (filter: 'L', temp: 10.5, position: posL(10.5)),
@@ -359,10 +378,16 @@ void main() {
 
         final rOffset = data.filterOffsets['R']!;
         expect(rOffset.temperatureCorrected, isTrue);
-        expect(rOffset.confidenceBand, FilterOffsetConfidence.medium,
-            reason: 'spread < 5°C must downgrade band to medium');
-        expect(rOffset.confidence, lessThanOrEqualTo(0.6),
-            reason: 'scalar confidence must be capped in medium band');
+        expect(
+          rOffset.confidenceBand,
+          FilterOffsetConfidence.medium,
+          reason: 'spread < 5°C must downgrade band to medium',
+        );
+        expect(
+          rOffset.confidence,
+          lessThanOrEqualTo(0.6),
+          reason: 'scalar confidence must be capped in medium band',
+        );
       });
 
       test('FilterOffset round-trips confidence ladder through JSON', () {
@@ -382,8 +407,7 @@ void main() {
         expect(round.temperatureCorrected, isTrue);
       });
 
-      test(
-          'legacy JSON without confidence-ladder fields decodes with '
+      test('legacy JSON without confidence-ladder fields decodes with '
           'low/false defaults', () {
         final legacy = FilterOffset.fromJson({
           'filterName': 'R',
@@ -392,9 +416,12 @@ void main() {
           'measurementCount': 5,
           'confidence': 0.85,
         });
-        expect(legacy.confidenceBand, FilterOffsetConfidence.low,
-            reason:
-                'pre-IMG-P1-2 offsets were raw averages; must not advertise high');
+        expect(
+          legacy.confidenceBand,
+          FilterOffsetConfidence.low,
+          reason:
+              'pre-IMG-P1-2 offsets were raw averages; must not advertise high',
+        );
         expect(legacy.temperatureCorrected, isFalse);
         expect(legacy.confidenceReason, isEmpty);
       });
@@ -415,10 +442,9 @@ void main() {
 
       // Lower the bars: now accepted.
       expect(
-        model.isReliableWith(const FocusModelConfig(
-          minRSquared: 0.5,
-          minDataPointCount: 3,
-        )),
+        model.isReliableWith(
+          const FocusModelConfig(minRSquared: 0.5, minDataPointCount: 3),
+        ),
         isTrue,
       );
 

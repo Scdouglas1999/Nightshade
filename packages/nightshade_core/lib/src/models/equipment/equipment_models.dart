@@ -219,8 +219,15 @@ class DeviceError extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [type, message, code, timestamp, deviceId, retryAttempts, recoverable];
+  List<Object?> get props => [
+    type,
+    message,
+    code,
+    timestamp,
+    deviceId,
+    retryAttempts,
+    recoverable,
+  ];
 
   @override
   String toString() =>

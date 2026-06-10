@@ -32,7 +32,7 @@ class OpenMeteoCloudProvider extends RadarProvider {
   ///
   /// Optionally accepts a custom [httpClient] for testing.
   OpenMeteoCloudProvider({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+    : _httpClient = httpClient ?? http.Client();
 
   @override
   String get name => 'Open-Meteo Cloud Cover';
@@ -62,14 +62,16 @@ class OpenMeteoCloudProvider extends RadarProvider {
       // of tolerance and silently collapse the whole week to "unavailable" for
       // any non-UTC user. Pinning the API to UTC and parsing the (now genuinely
       // UTC) naive strings as UTC keeps RadarFrame.timestamp a true UTC instant.
-      final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-        'latitude': latitude.toString(),
-        'longitude': longitude.toString(),
-        'hourly': 'cloud_cover',
-        'forecast_days': _forecastDays.toString(),
-        'past_days': _pastDays.toString(),
-        'timezone': 'UTC',
-      });
+      final uri = Uri.parse(_baseUrl).replace(
+        queryParameters: {
+          'latitude': latitude.toString(),
+          'longitude': longitude.toString(),
+          'hourly': 'cloud_cover',
+          'forecast_days': _forecastDays.toString(),
+          'past_days': _pastDays.toString(),
+          'timezone': 'UTC',
+        },
+      );
 
       // Fetch data from API
       final response = await _httpClient.get(uri);

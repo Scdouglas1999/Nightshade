@@ -1,9 +1,9 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiStatusProfileOperations on _FfiBackendBase {
-// =========================================================================
-// Equipment Status
-// =========================================================================
+  // =========================================================================
+  // Equipment Status
+  // =========================================================================
 
   @override
   Future<CameraStatus> getCameraStatus(String deviceId) async {
@@ -25,28 +25,31 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
 
   @override
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    final bridgeStatus =
-        await bridge.NativeBridge.getFilterWheelStatus(deviceId);
+    final bridgeStatus = await bridge.NativeBridge.getFilterWheelStatus(
+      deviceId,
+    );
     return _fromBridgeFilterWheelStatus(bridgeStatus);
   }
 
   @override
   Future<RotatorStatus> getRotatorStatus(String deviceId) async {
-    final bridgeStatus =
-        await bridge_api.apiGetRotatorStatus(deviceId: deviceId);
+    final bridgeStatus = await bridge_api.apiGetRotatorStatus(
+      deviceId: deviceId,
+    );
     return _fromBridgeRotatorStatus(bridgeStatus);
   }
 
-// Status conversion helpers
-// =========================================================================
-// Device Capabilities
-// =========================================================================
+  // Status conversion helpers
+  // =========================================================================
+  // Device Capabilities
+  // =========================================================================
 
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
-      final bridgeCaps =
-          await bridge_api.apiGetCameraCapabilities(deviceId: deviceId);
+      final bridgeCaps = await bridge_api.apiGetCameraCapabilities(
+        deviceId: deviceId,
+      );
       return _fromBridgeCameraCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get camera capabilities: $e');
@@ -57,8 +60,9 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   @override
   Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
     try {
-      final bridgeCaps =
-          await bridge_api.apiGetMountCapabilities(deviceId: deviceId);
+      final bridgeCaps = await bridge_api.apiGetMountCapabilities(
+        deviceId: deviceId,
+      );
       return _fromBridgeMountCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get mount capabilities: $e');
@@ -69,8 +73,9 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   @override
   Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
     try {
-      final bridgeCaps =
-          await bridge_api.apiGetFocuserCapabilities(deviceId: deviceId);
+      final bridgeCaps = await bridge_api.apiGetFocuserCapabilities(
+        deviceId: deviceId,
+      );
       return _fromBridgeFocuserCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get focuser capabilities: $e');
@@ -80,10 +85,12 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
 
   @override
   Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     try {
-      final bridgeCaps =
-          await bridge_api.apiGetFilterwheelCapabilities(deviceId: deviceId);
+      final bridgeCaps = await bridge_api.apiGetFilterwheelCapabilities(
+        deviceId: deviceId,
+      );
       return _fromBridgeFilterWheelCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get filter wheel capabilities: $e');
@@ -95,8 +102,9 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     try {
       // Use generic device capabilities and extract rotator
-      final result =
-          await bridge_api.apiGetDeviceCapabilities(deviceId: deviceId);
+      final result = await bridge_api.apiGetDeviceCapabilities(
+        deviceId: deviceId,
+      );
       if (result is bridge_caps.DeviceCapabilities_Rotator) {
         return _fromBridgeRotatorCapabilities(result.field0);
       }
@@ -107,9 +115,9 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
     }
   }
 
-// =========================================================================
-// Equipment Profiles
-// =========================================================================
+  // =========================================================================
+  // Equipment Profiles
+  // =========================================================================
 
   @override
   Future<List<EquipmentProfile>> getProfiles() async {
@@ -120,7 +128,8 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   @override
   Future<void> saveProfile(EquipmentProfile profile) async {
     await bridge.NativeBridge.apiSaveProfile(
-        profile: _toBridgeProfile(profile));
+      profile: _toBridgeProfile(profile),
+    );
   }
 
   @override
@@ -139,9 +148,9 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
     return bridgeProfile != null ? _fromBridgeProfile(bridgeProfile) : null;
   }
 
-// =========================================================================
-// Settings & Location
-// =========================================================================
+  // =========================================================================
+  // Settings & Location
+  // =========================================================================
 
   @override
   Future<models.AppSettings> getSettings() async {
@@ -152,7 +161,8 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   @override
   Future<void> updateSettings(models.AppSettings settings) async {
     await bridge.NativeBridge.apiUpdateSettings(
-        settings: _toBridgeSettings(settings));
+      settings: _toBridgeSettings(settings),
+    );
   }
 
   @override
@@ -165,7 +175,8 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
   Future<void> setLocation(models.ObserverLocation? location) async {
     final bridgeLoc = location != null ? _toBridgeLocation(location) : null;
     _logger.fine(
-        'setLocation: ${location != null ? "lat=${location.latitude}, lon=${location.longitude}, elev=${location.elevation}" : "null"}');
+      'setLocation: ${location != null ? "lat=${location.latitude}, lon=${location.longitude}, elev=${location.elevation}" : "null"}',
+    );
     bridge.NativeBridge.apiSetLocation(location: bridgeLoc);
   }
 }

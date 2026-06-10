@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -24,7 +24,8 @@ class EquipmentSettingsTab extends ConsumerWidget {
                 height: 180,
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
               ),
             );
@@ -80,7 +81,8 @@ class _CameraSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Camera Settings',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -142,7 +144,8 @@ class _MountSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Mount Settings',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             NightshadeSwitchRow(
@@ -205,7 +208,8 @@ class _FocuserSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Focuser Settings',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Tooltip(
@@ -274,7 +278,8 @@ class _GuiderSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Guider Settings',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -376,7 +381,8 @@ class _BuiltinGuiderSettingsCardState
     // through the backend. Rust returns the in-memory default when the
     // guider hasn't been connected, which is exactly what we want to show.
     try {
-      final config = await ref.read(guidingBackendProvider).builtinGuiderGetConfig();
+      final config =
+          await ref.read(guidingBackendProvider).builtinGuiderGetConfig();
       if (!mounted) return;
       _applyToControllers(config);
       setState(() {
@@ -479,7 +485,9 @@ class _BuiltinGuiderSettingsCardState
             .read(builtinGuiderConfigProvider.notifier)
             .updateConfig(newConfig);
       } else {
-        await ref.read(guidingBackendProvider).builtinGuiderSetConfig(newConfig);
+        await ref
+            .read(guidingBackendProvider)
+            .builtinGuiderSetConfig(newConfig);
       }
       if (!mounted) return;
       setState(() => _lastApplied = newConfig);
@@ -496,9 +504,7 @@ class _BuiltinGuiderSettingsCardState
     try {
       final isConnected = ref.read(isBuiltinGuiderProvider);
       if (isConnected) {
-        await ref
-            .read(builtinGuiderConfigProvider.notifier)
-            .resetToDefaults();
+        await ref.read(builtinGuiderConfigProvider.notifier).resetToDefaults();
       } else {
         await ref.read(guidingBackendProvider).builtinGuiderSetConfig(defaults);
       }
@@ -532,7 +538,8 @@ class _BuiltinGuiderSettingsCardState
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'Failed to load built-in guider config: $_loadError',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12, color: colors.error),
         ),
       );
     } else {
@@ -631,7 +638,8 @@ class _BuiltinGuiderSettingsCardState
                   onPressed: _initialized ? _resetDefaults : null,
                   icon: const Icon(NightshadeIcons.refresh, size: 14),
                   label: const Text('Reset',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
+                      style:
+                          TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -640,7 +648,8 @@ class _BuiltinGuiderSettingsCardState
                   onPressed: _initialized ? _applyConfig : null,
                   icon: const Icon(NightshadeIcons.check, size: 14),
                   label: const Text('Apply',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
+                      style:
+                          TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
               ),
             ],
@@ -660,7 +669,8 @@ class _BuiltinGuiderSettingsCardState
                 Expanded(
                   child: Text(
                     'Built-in Guider',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 Container(
@@ -668,7 +678,8 @@ class _BuiltinGuiderSettingsCardState
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.tintedBadge(
                     isConnected ? colors.success : colors.textMuted,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     isConnected ? 'Active' : 'Standby',

@@ -86,8 +86,7 @@ void main() {
       }
     });
 
-    test('dense random sky directions land in a pixel that contains them',
-        () {
+    test('dense random sky directions land in a pixel that contains them', () {
       final rng = math.Random(20260529);
       final h = HealpixNested(7);
       for (var i = 0; i < 5000; i++) {
@@ -100,8 +99,11 @@ void main() {
         final c = h.pix2RaDec(pix);
         final sep = _angularSepDeg(ra, dec, c.raDeg, c.decDeg);
         // Pixel diagonal upper bound at order 7 is comfortably < 1.2 deg.
-        expect(sep, lessThan(1.2),
-            reason: 'ra=$ra dec=$dec -> pix=$pix sep=$sep');
+        expect(
+          sep,
+          lessThan(1.2),
+          reason: 'ra=$ra dec=$dec -> pix=$pix sep=$sep',
+        );
       }
     });
   });
@@ -212,8 +214,11 @@ void main() {
       final a = h.boundaries(pix).map(_key).toSet();
       final b = h.boundaries(east).map(_key).toSet();
       final shared = a.intersection(b);
-      expect(shared.length, greaterThanOrEqualTo(2),
-          reason: 'pix $pix and east $east share ${shared.length} corners');
+      expect(
+        shared.length,
+        greaterThanOrEqualTo(2),
+        reason: 'pix $pix and east $east share ${shared.length} corners',
+      );
     });
   });
 
@@ -234,8 +239,11 @@ void main() {
       for (var pix = 0; pix < h.npix; pix++) {
         for (final nb in h.neighboursNest(pix)) {
           if (nb < 0) continue;
-          expect(h.neighboursNest(nb).contains(pix), isTrue,
-              reason: '$pix lists $nb but not vice-versa');
+          expect(
+            h.neighboursNest(nb).contains(pix),
+            isTrue,
+            reason: '$pix lists $nb but not vice-versa',
+          );
         }
       }
     });
@@ -250,8 +258,7 @@ void main() {
           final sepDeg =
               math.acos(c.dot(cn).clamp(-1.0, 1.0)) * 180.0 / math.pi;
           // Neighbour centers are within ~2 pixel scales.
-          expect(sepDeg, lessThan(4.0),
-              reason: 'pix $pix nb $nb sep $sepDeg');
+          expect(sepDeg, lessThan(4.0), reason: 'pix $pix nb $nb sep $sepDeg');
         }
       }
     });
@@ -277,10 +284,14 @@ void main() {
       const ra = 200.0;
       const dec = 40.0;
       final inc = h.queryDisc(ra, dec, radiusDeg: 3.0, inclusive: true).toSet();
-      final exc =
-          h.queryDisc(ra, dec, radiusDeg: 3.0, inclusive: false).toSet();
-      expect(exc.difference(inc), isEmpty,
-          reason: 'exclusive must be subset of inclusive');
+      final exc = h
+          .queryDisc(ra, dec, radiusDeg: 3.0, inclusive: false)
+          .toSet();
+      expect(
+        exc.difference(inc),
+        isEmpty,
+        reason: 'exclusive must be subset of inclusive',
+      );
       expect(inc.length, greaterThanOrEqualTo(exc.length));
     });
 
@@ -294,30 +305,38 @@ void main() {
       for (final pix in disc) {
         final c = h.pix2RaDec(pix);
         final sep = _angularSepDeg(ra, dec, c.raDeg, c.decDeg);
-        expect(sep, lessThanOrEqualTo(radius + 1e-6),
-            reason: 'pix $pix sep $sep > $radius');
+        expect(
+          sep,
+          lessThanOrEqualTo(radius + 1e-6),
+          reason: 'pix $pix sep $sep > $radius',
+        );
       }
     });
 
-    test('disc completeness: no pixel within radius is omitted (inclusive)',
-        () {
-      // Brute-force ground truth: scan all pixels at a modest order and
-      // collect those whose center is within the radius; the inclusive disc
-      // must contain every one of them.
-      final h = HealpixNested(5);
-      const ra = 150.0;
-      const dec = -20.0;
-      const radius = 5.0;
-      final disc = h.queryDisc(ra, dec, radiusDeg: radius).toSet();
-      for (var pix = 0; pix < h.npix; pix++) {
-        final c = h.pix2RaDec(pix);
-        final sep = _angularSepDeg(ra, dec, c.raDeg, c.decDeg);
-        if (sep <= radius) {
-          expect(disc, contains(pix),
-              reason: 'pix $pix (sep $sep) missing from inclusive disc');
+    test(
+      'disc completeness: no pixel within radius is omitted (inclusive)',
+      () {
+        // Brute-force ground truth: scan all pixels at a modest order and
+        // collect those whose center is within the radius; the inclusive disc
+        // must contain every one of them.
+        final h = HealpixNested(5);
+        const ra = 150.0;
+        const dec = -20.0;
+        const radius = 5.0;
+        final disc = h.queryDisc(ra, dec, radiusDeg: radius).toSet();
+        for (var pix = 0; pix < h.npix; pix++) {
+          final c = h.pix2RaDec(pix);
+          final sep = _angularSepDeg(ra, dec, c.raDeg, c.decDeg);
+          if (sep <= radius) {
+            expect(
+              disc,
+              contains(pix),
+              reason: 'pix $pix (sep $sep) missing from inclusive disc',
+            );
+          }
         }
-      }
-    });
+      },
+    );
 
     test('full-sky radius returns all pixels', () {
       final h = HealpixNested(3);
@@ -354,8 +373,11 @@ void main() {
           final fine = HealpixNested(5);
           final c = fine.pix2ang(k);
           // The child center must map back to the parent at the coarse order.
-          expect(coarse.angToPixNest(c), pix,
-              reason: 'child $k of $pix escaped parent');
+          expect(
+            coarse.angToPixNest(c),
+            pix,
+            reason: 'child $k of $pix escaped parent',
+          );
         }
       }
     });
@@ -369,39 +391,42 @@ void main() {
       expect(h.ancestorAtOrder(pix, 0), pix >> 16);
     });
 
-    test('childAtOrder of a pixel returns a descendant containing its center',
-        () {
-      final coarse = HealpixNested(3);
-      for (var pix = 0; pix < coarse.npix; pix += 5) {
-        final desc = coarse.childAtOrder(pix, 6);
-        final fine = HealpixNested(6);
-        // Descendant must live under pix in the quadtree.
-        expect(fine.ancestorAtOrder(desc, 3), pix);
-      }
-    });
+    test(
+      'childAtOrder of a pixel returns a descendant containing its center',
+      () {
+        final coarse = HealpixNested(3);
+        for (var pix = 0; pix < coarse.npix; pix += 5) {
+          final desc = coarse.childAtOrder(pix, 6);
+          final fine = HealpixNested(6);
+          // Descendant must live under pix in the quadtree.
+          expect(fine.ancestorAtOrder(desc, 3), pix);
+        }
+      },
+    );
 
     test('parent throws at order 0, children throw at max order', () {
-      expect(() => HealpixNested(0).parent(0),
-          throwsA(isA<HealpixArgumentError>()));
-      expect(() => HealpixNested(HealpixNested.maxOrder).children(0),
-          throwsA(isA<HealpixArgumentError>()));
+      expect(
+        () => HealpixNested(0).parent(0),
+        throwsA(isA<HealpixArgumentError>()),
+      );
+      expect(
+        () => HealpixNested(HealpixNested.maxOrder).children(0),
+        throwsA(isA<HealpixArgumentError>()),
+      );
     });
   });
 
   group('input validation (errors are a feature)', () {
     test('out-of-range declination throws', () {
       final h = HealpixNested(4);
-      expect(() => h.ang2pixNest(0, 91),
-          throwsA(isA<HealpixArgumentError>()));
-      expect(() => h.ang2pixNest(0, -91),
-          throwsA(isA<HealpixArgumentError>()));
+      expect(() => h.ang2pixNest(0, 91), throwsA(isA<HealpixArgumentError>()));
+      expect(() => h.ang2pixNest(0, -91), throwsA(isA<HealpixArgumentError>()));
     });
 
     test('out-of-range pixel index throws', () {
       final h = HealpixNested(2);
       expect(() => h.pix2ang(-1), throwsA(isA<HealpixArgumentError>()));
-      expect(() => h.pix2ang(h.npix),
-          throwsA(isA<HealpixArgumentError>()));
+      expect(() => h.pix2ang(h.npix), throwsA(isA<HealpixArgumentError>()));
     });
 
     test('RA wraps rather than throwing', () {
@@ -422,8 +447,7 @@ String _key(HealpixAngle a) =>
     '${a.theta.toStringAsFixed(12)},${a.phi.toStringAsFixed(12)}';
 
 /// Great-circle separation between two RA/Dec points, in degrees.
-double _angularSepDeg(
-    double ra1, double dec1, double ra2, double dec2) {
+double _angularSepDeg(double ra1, double dec1, double ra2, double dec2) {
   final r1 = ra1 * math.pi / 180.0;
   final d1 = dec1 * math.pi / 180.0;
   final r2 = ra2 * math.pi / 180.0;

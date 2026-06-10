@@ -25,10 +25,12 @@ void main() {
       ),
     ];
 
-    final container = ProviderContainer(overrides: [
-      loadedStarsProvider.overrideWith((ref) async => stars),
-      dynamicMagnitudeLimitsProvider.overrideWithValue((6.0, 10.0)),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        loadedStarsProvider.overrideWith((ref) async => stars),
+        dynamicMagnitudeLimitsProvider.overrideWithValue((6.0, 10.0)),
+      ],
+    );
     addTearDown(container.dispose);
 
     container.read(skyViewStateProvider.notifier).setCenter(0, 0);
@@ -69,10 +71,12 @@ void main() {
       ),
     ];
 
-    final container = ProviderContainer(overrides: [
-      loadedDsosProvider.overrideWith((ref) async => dsos),
-      dynamicMagnitudeLimitsProvider.overrideWithValue((6.0, 10.0)),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        loadedDsosProvider.overrideWith((ref) async => dsos),
+        dynamicMagnitudeLimitsProvider.overrideWithValue((6.0, 10.0)),
+      ],
+    );
     addTearDown(container.dispose);
 
     container.read(skyViewStateProvider.notifier).setCenter(0, 0);

@@ -138,8 +138,10 @@ class SciencePhotometryNode extends SequenceNode {
   NodeCategory get category => NodeCategory.instruction;
 
   @override
-  Set<DeviceType> get requiredDevices =>
-      {DeviceType.camera, DeviceType.filterWheel};
+  Set<DeviceType> get requiredDevices => {
+    DeviceType.camera,
+    DeviceType.filterWheel,
+  };
 
   bool get isPhotometricFilter => isPhotometricFilterBand(filter);
 
@@ -200,19 +202,19 @@ class SciencePhotometryNode extends SequenceNode {
   /// Serialise to the JSON shape expected by the Rust
   /// `SciencePhotometryConfig` (snake_case keys, externally tagged).
   Map<String, dynamic> toRustConfigJson() => {
-        'target_designation': targetDesignation,
-        'reference_stars': referenceStars,
-        'max_cadence_gap_secs': maxCadenceGapSecs,
-        'filter': filter,
-        'exposure_secs': exposureSecs,
-        'count': count,
-        'reduce_live': reduceLive,
-        'apply_differential': applyDifferential,
-        'quality': quality.toJson(),
-        'gain': gain,
-        'offset': offset,
-        'binning': _binningModeToRustString(binning),
-      };
+    'target_designation': targetDesignation,
+    'reference_stars': referenceStars,
+    'max_cadence_gap_secs': maxCadenceGapSecs,
+    'filter': filter,
+    'exposure_secs': exposureSecs,
+    'count': count,
+    'reduce_live': reduceLive,
+    'apply_differential': applyDifferential,
+    'quality': quality.toJson(),
+    'gain': gain,
+    'offset': offset,
+    'binning': _binningModeToRustString(binning),
+  };
 
   factory SciencePhotometryNode.fromRustConfigJson(
     Map<String, dynamic> json, {
@@ -224,7 +226,8 @@ class SciencePhotometryNode extends SequenceNode {
     int? orderIndex,
     String? comment,
   }) {
-    final refs = (json['reference_stars'] as List<dynamic>?)
+    final refs =
+        (json['reference_stars'] as List<dynamic>?)
             ?.map((e) => e.toString())
             .toList(growable: false) ??
         const <String>[];
@@ -258,20 +261,20 @@ class SciencePhotometryNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        targetDesignation,
-        referenceStars,
-        maxCadenceGapSecs,
-        filter,
-        exposureSecs,
-        count,
-        reduceLive,
-        applyDifferential,
-        quality,
-        gain,
-        offset,
-        binning,
-      ];
+    ...super.props,
+    targetDesignation,
+    referenceStars,
+    maxCadenceGapSecs,
+    filter,
+    exposureSecs,
+    count,
+    reduceLive,
+    applyDifferential,
+    quality,
+    gain,
+    offset,
+    binning,
+  ];
 }
 
 /// Operator-configured backup plan consulted by
@@ -425,12 +428,12 @@ class PluginInstructionNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        pluginId,
-        nodeTypeId,
-        configJson,
-        timeoutSecs,
-        pluginName,
-        iconHint,
-      ];
+    ...super.props,
+    pluginId,
+    nodeTypeId,
+    configJson,
+    timeoutSecs,
+    pluginName,
+    iconHint,
+  ];
 }

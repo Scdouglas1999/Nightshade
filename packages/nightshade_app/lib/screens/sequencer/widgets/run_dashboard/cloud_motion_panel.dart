@@ -79,18 +79,14 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
           _row(
             colors,
             label: 'Current Cover',
-            value: cover == null
-                ? 'No data'
-                : '${cover.toStringAsFixed(0)} %',
+            value: cover == null ? 'No data' : '${cover.toStringAsFixed(0)} %',
             highlight: coverColor,
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           _row(
             colors,
             label: 'Cloud Arrival',
-            value: arrivalMins == null
-                ? 'No prediction'
-                : '$arrivalMins min',
+            value: arrivalMins == null ? 'No prediction' : '$arrivalMins min',
             highlight: arrivalMins != null && arrivalMins <= 15
                 ? colors.error
                 : colors.textPrimary,
@@ -147,12 +143,15 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
           ),
         ),
         Text(
           value,
-          style: NightshadeTypography.h6.copyWith(color: highlight ?? colors.textPrimary),
+          style: NightshadeTypography.h6
+              .copyWith(color: highlight ?? colors.textPrimary),
         ),
       ],
     );

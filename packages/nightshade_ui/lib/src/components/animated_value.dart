@@ -6,8 +6,10 @@ import '../theme/nightshade_tokens.dart';
 enum ValueAnimationStyle {
   /// Brief highlight flash on change
   flash,
+
   /// Smooth interpolation between values (for numeric values)
   interpolate,
+
   /// Color shift based on value direction (up = green, down = red)
   directional,
 }
@@ -71,9 +73,10 @@ class _AnimatedValueState extends State<AnimatedValue>
       vsync: this,
       duration: widget.highlightDuration,
     );
-    _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _highlightAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _previousNumericValue = double.tryParse(widget.value);
   }
 
@@ -129,9 +132,7 @@ class _AnimatedValueState extends State<AnimatedValue>
     // Build text style with tabular figures for numeric alignment
     final baseStyle = widget.textStyle ?? TextStyle(color: colors.textPrimary);
     final effectiveStyle = widget.useTabularFigures
-        ? baseStyle.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
-          )
+        ? baseStyle.copyWith(fontFeatures: const [FontFeature.tabularFigures()])
         : baseStyle;
 
     return AnimatedBuilder(
@@ -143,7 +144,9 @@ class _AnimatedValueState extends State<AnimatedValue>
         return Container(
           decoration: highlightOpacity > 0.01
               ? BoxDecoration(
-                  color: effectiveHighlightColor.withValues(alpha: highlightOpacity),
+                  color: effectiveHighlightColor.withValues(
+                    alpha: highlightOpacity,
+                  ),
                   borderRadius: NightshadeTokens.borderRadiusXs,
                 )
               : null,
@@ -212,30 +215,27 @@ class _InterpolatedValueState extends State<InterpolatedValue>
   void initState() {
     super.initState();
     _previousValue = widget.value;
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-    );
-    _valueAnimation = Tween<double>(
-      begin: widget.value,
-      end: widget.value,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: NightshadeTokens.curvePrecise,
-    ));
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    _valueAnimation = Tween<double>(begin: widget.value, end: widget.value)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: NightshadeTokens.curvePrecise,
+          ),
+        );
   }
 
   @override
   void didUpdateWidget(InterpolatedValue oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      _valueAnimation = Tween<double>(
-        begin: _previousValue,
-        end: widget.value,
-      ).animate(CurvedAnimation(
-        parent: _controller,
-        curve: NightshadeTokens.curvePrecise,
-      ));
+      _valueAnimation = Tween<double>(begin: _previousValue, end: widget.value)
+          .animate(
+            CurvedAnimation(
+              parent: _controller,
+              curve: NightshadeTokens.curvePrecise,
+            ),
+          );
       _controller.forward(from: 0.0);
       _previousValue = widget.value;
     }
@@ -260,18 +260,13 @@ class _InterpolatedValueState extends State<InterpolatedValue>
     final colors = context.nightshadeColors;
     final baseStyle = widget.textStyle ?? TextStyle(color: colors.textPrimary);
     final effectiveStyle = widget.useTabularFigures
-        ? baseStyle.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
-          )
+        ? baseStyle.copyWith(fontFeatures: const [FontFeature.tabularFigures()])
         : baseStyle;
 
     return AnimatedBuilder(
       animation: _valueAnimation,
       builder: (context, child) {
-        return Text(
-          _formatValue(_valueAnimation.value),
-          style: effectiveStyle,
-        );
+        return Text(_formatValue(_valueAnimation.value), style: effectiveStyle);
       },
     );
   }

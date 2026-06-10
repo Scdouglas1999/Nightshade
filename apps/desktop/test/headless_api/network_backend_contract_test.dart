@@ -50,8 +50,9 @@ void main() {
       final spec = buildOpenApiSpec(routes: advertised.toList(), port: 8080);
       final paths = spec['paths'] as Map<String, dynamic>;
 
-      for (final route
-          in advertised.where((route) => !route.startsWith('WS '))) {
+      for (final route in advertised.where(
+        (route) => !route.startsWith('WS '),
+      )) {
         final parts = route.split(' ');
         final method = parts.first.toLowerCase();
         final path = openApiPath(parts.last);
@@ -81,8 +82,10 @@ Set<String> _registeredApiRoutes() {
   final routeFiles = Directory('lib/headless_api/routes')
       .listSync()
       .whereType<File>()
-      .where((f) =>
-          f.path.endsWith('.dart') && !f.path.endsWith('headless_route.dart'));
+      .where(
+        (f) =>
+            f.path.endsWith('.dart') && !f.path.endsWith('headless_route.dart'),
+      );
   final allSource = StringBuffer();
   for (final f in routeFiles) {
     allSource.writeln(f.readAsStringSync());
@@ -92,41 +95,43 @@ Set<String> _registeredApiRoutes() {
 }
 
 Set<String> _scanRegisteredRoutes(String source) {
-  final headlessRoutes = RegExp(
-    r"HeadlessRoute\(\s*HttpMethod\.(get|post|put|delete)\s*,\s*'([^']+)'",
-  ).allMatches(source).map((match) {
-    final path = match.group(2)!;
-    // Same WS-route classification rule as the legacy inline-route scanner:
-    // `/api/ws`, `/events`, and `/ws/*` upgrade routes are advertised as
-    // `WS <path>` in `availableHeadlessEndpoints()`, even though shelf_router
-    // registers them as HTTP GET handlers. websocket_routes.dart does this.
-    final isWsRoute =
-        path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
-    // Static-file routes (`/dashboard`, `/broadcast`, `/run-watch`) are
-    // registered but deliberately NOT advertised in the API catalog —
-    // they're operator-facing pages, not endpoints clients call.
-    if (!path.startsWith('/api/') && !isWsRoute) {
-      return null;
-    }
-    final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
-    return '$method ${_normalizeRoute(path)}';
-  }).whereType<String>();
+  final headlessRoutes =
+      RegExp(
+        r"HeadlessRoute\(\s*HttpMethod\.(get|post|put|delete)\s*,\s*'([^']+)'",
+      ).allMatches(source).map((match) {
+        final path = match.group(2)!;
+        // Same WS-route classification rule as the legacy inline-route scanner:
+        // `/api/ws`, `/events`, and `/ws/*` upgrade routes are advertised as
+        // `WS <path>` in `availableHeadlessEndpoints()`, even though shelf_router
+        // registers them as HTTP GET handlers. websocket_routes.dart does this.
+        final isWsRoute =
+            path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
+        // Static-file routes (`/dashboard`, `/broadcast`, `/run-watch`) are
+        // registered but deliberately NOT advertised in the API catalog —
+        // they're operator-facing pages, not endpoints clients call.
+        if (!path.startsWith('/api/') && !isWsRoute) {
+          return null;
+        }
+        final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
+        return '$method ${_normalizeRoute(path)}';
+      }).whereType<String>();
   final inlineRoutes = RegExp(r"router\.(get|post|put|delete)\(\s*'([^']+)'")
       .allMatches(source)
       .map((match) {
-    final path = match.group(2)!;
-    // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
-    // so the advertised-vs-registered diff catches typos in either
-    // place.
-    final isWsRoute =
-        path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
-    if (!path.startsWith('/api/') && !isWsRoute) {
-      return null;
-    }
+        final path = match.group(2)!;
+        // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
+        // so the advertised-vs-registered diff catches typos in either
+        // place.
+        final isWsRoute =
+            path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
+        if (!path.startsWith('/api/') && !isWsRoute) {
+          return null;
+        }
 
-    final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
-    return '$method ${_normalizeRoute(path)}';
-  }).whereType<String>();
+        final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
+        return '$method ${_normalizeRoute(path)}';
+      })
+      .whereType<String>();
   return {...headlessRoutes, ...inlineRoutes};
 }
 
@@ -134,16 +139,19 @@ Set<String> _advertisedApiRoutes() {
   // A-5b moved this catalog from `_getAvailableEndpoints()` in
   // `headless_api_server.dart` to `availableHeadlessEndpoints()` in
   // `handlers/system_handlers.dart`.
-  final source =
-      File('lib/headless_api/handlers/system_handlers.dart').readAsStringSync();
+  final source = File(
+    'lib/headless_api/handlers/system_handlers.dart',
+  ).readAsStringSync();
   final match = RegExp(
     r'List<String> availableHeadlessEndpoints\(\) \{\s*return (?:const )?\[(.*?)\];\s*\}',
     dotAll: true,
   ).firstMatch(source);
 
-  expect(match, isNotNull,
-      reason:
-          'availableHeadlessEndpoints() not found in system_handlers.dart.');
+  expect(
+    match,
+    isNotNull,
+    reason: 'availableHeadlessEndpoints() not found in system_handlers.dart.',
+  );
 
   return RegExp(r"'([^']+)'").allMatches(match!.group(1)!).map((match) {
     final parts = match.group(1)!.split(' ');
@@ -179,12 +187,13 @@ String _networkBackendSource() {
   if (!partsDirectory.existsSync()) {
     return sources.single;
   }
-  final partFiles = partsDirectory
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((file) => file.path.endsWith('.dart'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final partFiles =
+      partsDirectory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   sources.addAll(partFiles.map((file) => file.readAsStringSync()));
   return sources.join('\n');
 }
@@ -192,20 +201,8 @@ String _networkBackendSource() {
 String _normalizeRoute(String path) {
   final querylessPath = path.split('?').first;
   return querylessPath
-      .replaceAllMapped(
-        RegExp(r'<([^>|]+)(?:\|[^>]+)?>'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\$\{[^}]+\}'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'),
-        (_) => '{param}',
-      )
-      .replaceAllMapped(
-        RegExp(r'\{[^}]+\}'),
-        (_) => '{param}',
-      );
+      .replaceAllMapped(RegExp(r'<([^>|]+)(?:\|[^>]+)?>'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\$\{[^}]+\}'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'), (_) => '{param}')
+      .replaceAllMapped(RegExp(r'\{[^}]+\}'), (_) => '{param}');
 }

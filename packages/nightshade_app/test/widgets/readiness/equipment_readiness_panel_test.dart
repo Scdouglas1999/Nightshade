@@ -96,7 +96,8 @@ void main() {
     expect(find.text('Ready for first light'), findsOneWidget);
   });
 
-  testWidgets('caps inline rows and offers "View all" when many are outstanding',
+  testWidgets(
+      'caps inline rows and offers "View all" when many are outstanding',
       (tester) async {
     // Five outstanding items (> maxItems: 3): the inline panel shows 3 and
     // collapses the remaining 2 into a "View all (2 more)" button.

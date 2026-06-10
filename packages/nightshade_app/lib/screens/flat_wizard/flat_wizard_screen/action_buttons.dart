@@ -19,7 +19,8 @@ class _ActionButtons extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.error.withValues(alpha: 0.3)),
             ),
             child: Row(
@@ -29,7 +30,9 @@ class _ActionButtons extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     state.errorMessage!,
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.error),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: colors.error),
                   ),
                 ),
                 IconButton(

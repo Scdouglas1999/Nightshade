@@ -1,4 +1,4 @@
-﻿// Wave 5.5 — provider wiring for the USB / device disconnect log.
+// Wave 5.5 — provider wiring for the USB / device disconnect log.
 //
 // The log itself is a plain `UsbDisconnectLog` value object; this file
 // supplies the Riverpod plumbing that:
@@ -62,7 +62,8 @@ final usbDisconnectEventBridgeProvider = Provider<void>((ref) {
       final data = event.data;
       final deviceId = (data['device_id'] as String?) ?? '';
       final deviceType = data['device_type'] as String?;
-      final reason = (data['message'] as String?) ??
+      final reason =
+          (data['message'] as String?) ??
           (data['reason'] as String?) ??
           (isError ? 'device error' : null);
       // We use the wall-clock at receive time rather than the event's

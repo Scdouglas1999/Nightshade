@@ -5,7 +5,8 @@ void main() {
   group('profileSaveErrorMessage — UI-P0-5', () {
     test('maps unique constraint to actionable text', () {
       final message = profileSaveErrorMessage(
-        Exception('SqliteException(2067): UNIQUE constraint failed: equipment_profiles.name'),
+        Exception(
+            'SqliteException(2067): UNIQUE constraint failed: equipment_profiles.name'),
       );
       expect(message, contains('name already exists'));
       expect(message, isNot(contains('SqliteException')));

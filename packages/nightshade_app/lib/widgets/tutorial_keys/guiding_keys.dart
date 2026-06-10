@@ -14,15 +14,24 @@ class GuidingTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'guiding_connect_btn': return connectBtn;
-      case 'guiding_status_bar': return statusBar;
-      case 'guiding_star_view': return starView;
-      case 'guiding_target_display': return targetDisplay;
-      case 'guiding_graph': return graph;
-      case 'guiding_rms_display': return rmsDisplay;
-      case 'guiding_controls': return controls;
-      case 'guiding_brain_btn': return brainBtn;
-      default: return null;
+      case 'guiding_connect_btn':
+        return connectBtn;
+      case 'guiding_status_bar':
+        return statusBar;
+      case 'guiding_star_view':
+        return starView;
+      case 'guiding_target_display':
+        return targetDisplay;
+      case 'guiding_graph':
+        return graph;
+      case 'guiding_rms_display':
+        return rmsDisplay;
+      case 'guiding_controls':
+        return controls;
+      case 'guiding_brain_btn':
+        return brainBtn;
+      default:
+        return null;
     }
   }
 }

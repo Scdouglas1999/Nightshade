@@ -26,35 +26,41 @@ class FitsKeywordWrite {
     required this.doubleValue,
   });
 
-  factory FitsKeywordWrite.string(String keyword, String value,
-          {String? comment}) =>
-      FitsKeywordWrite._(
-        keyword: keyword,
-        comment: comment,
-        stringValue: value,
-        intValue: null,
-        doubleValue: null,
-      );
+  factory FitsKeywordWrite.string(
+    String keyword,
+    String value, {
+    String? comment,
+  }) => FitsKeywordWrite._(
+    keyword: keyword,
+    comment: comment,
+    stringValue: value,
+    intValue: null,
+    doubleValue: null,
+  );
 
-  factory FitsKeywordWrite.integer(String keyword, int value,
-          {String? comment}) =>
-      FitsKeywordWrite._(
-        keyword: keyword,
-        comment: comment,
-        stringValue: null,
-        intValue: value,
-        doubleValue: null,
-      );
+  factory FitsKeywordWrite.integer(
+    String keyword,
+    int value, {
+    String? comment,
+  }) => FitsKeywordWrite._(
+    keyword: keyword,
+    comment: comment,
+    stringValue: null,
+    intValue: value,
+    doubleValue: null,
+  );
 
-  factory FitsKeywordWrite.floating(String keyword, double value,
-          {String? comment}) =>
-      FitsKeywordWrite._(
-        keyword: keyword,
-        comment: comment,
-        stringValue: null,
-        intValue: null,
-        doubleValue: value,
-      );
+  factory FitsKeywordWrite.floating(
+    String keyword,
+    double value, {
+    String? comment,
+  }) => FitsKeywordWrite._(
+    keyword: keyword,
+    comment: comment,
+    stringValue: null,
+    intValue: null,
+    doubleValue: value,
+  );
 
   FitsKeywordKind get kind {
     if (stringValue != null) return FitsKeywordKind.string;
@@ -154,7 +160,8 @@ class FitsHeaderWriter {
     final bytes = await file.readAsBytes();
     if (bytes.length < blockSize) {
       throw FormatException(
-          'File is too small to be a valid FITS file: ${bytes.length} bytes');
+        'File is too small to be a valid FITS file: ${bytes.length} bytes',
+      );
     }
 
     // Locate END within the header. Header is everything from offset 0 up
@@ -193,16 +200,14 @@ class FitsHeaderWriter {
 
     // Pad to the next block boundary. Free cards become 80 spaces each.
     final totalCards = cards.length;
-    final blocksNeeded =
-        (totalCards + cardsPerBlock - 1) ~/ cardsPerBlock;
+    final blocksNeeded = (totalCards + cardsPerBlock - 1) ~/ cardsPerBlock;
     final paddedCardCount = blocksNeeded * cardsPerBlock;
     final blankCard = ' ' * cardSize;
     while (cards.length < paddedCardCount) {
       cards.add(blankCard);
     }
 
-    final headerBytes =
-        Uint8List(blocksNeeded * blockSize);
+    final headerBytes = Uint8List(blocksNeeded * blockSize);
     for (var i = 0; i < cards.length; i++) {
       final cardBytes = cards[i].codeUnits;
       // Defensive: any non-ASCII code unit would corrupt the file. We
@@ -212,7 +217,8 @@ class FitsHeaderWriter {
       for (final c in cardBytes) {
         if (c < 0x20 || c > 0x7E) {
           throw FormatException(
-              'Card $i contains non-ASCII byte 0x${c.toRadixString(16)}');
+            'Card $i contains non-ASCII byte 0x${c.toRadixString(16)}',
+          );
         }
       }
       headerBytes.setRange(i * cardSize, (i + 1) * cardSize, cardBytes);
@@ -262,7 +268,7 @@ class FitsHeaderWriter {
       if (bytes[off] == 0x45 /* E */ &&
           bytes[off + 1] == 0x4E /* N */ &&
           bytes[off + 2] == 0x44 /* D */ &&
-          bytes[off + 3] == 0x20 /* space */) {
+          bytes[off + 3] == 0x20 /* space */ ) {
         // Verify the remainder of the card is blank (FITS 4.4.2.1).
         var blank = true;
         for (var k = 3; k < cardSize; k++) {
@@ -327,8 +333,7 @@ class FitsHeaderWriter {
     // Per FITS 4.4.2.4 the quoted string is padded to ≥ 8 chars between
     // the quotes — gives older readers a predictable layout.
     final escaped = value.replaceAll("'", "''");
-    final padded =
-        escaped.length < 8 ? escaped.padRight(8, ' ') : escaped;
+    final padded = escaped.length < 8 ? escaped.padRight(8, ' ') : escaped;
     return "'$padded'";
   }
 
@@ -344,13 +349,15 @@ class FitsHeaderWriter {
     final abs = value.abs();
     if (abs >= 1e-4 && abs < 1e16) {
       // Fixed-point keeps headers human-readable.
-      return value.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '.0');
+      return value
+          .toStringAsFixed(6)
+          .replaceAll(RegExp(r'0+$'), '')
+          .replaceAll(RegExp(r'\.$'), '.0');
     }
     return value.toStringAsExponential(7).replaceAll('e', 'E');
   }
 
-  String _composeValueAndComment(
-      String value, String? comment, int budget) {
+  String _composeValueAndComment(String value, String? comment, int budget) {
     if (comment == null || comment.isEmpty) return value;
     const marker = ' / ';
     final cleaned = comment.replaceAll('\n', ' ');

@@ -14,15 +14,24 @@ class FramingTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'framing_target_search': return targetSearch;
-      case 'framing_canvas': return canvas;
-      case 'framing_fov_rect': return fovRect;
-      case 'framing_rotation': return rotation;
-      case 'framing_coordinates': return coordinates;
-      case 'framing_altitude_chart': return altitudeChart;
-      case 'framing_mosaic_btn': return mosaicBtn;
-      case 'framing_slew_btn': return slewBtn;
-      default: return null;
+      case 'framing_target_search':
+        return targetSearch;
+      case 'framing_canvas':
+        return canvas;
+      case 'framing_fov_rect':
+        return fovRect;
+      case 'framing_rotation':
+        return rotation;
+      case 'framing_coordinates':
+        return coordinates;
+      case 'framing_altitude_chart':
+        return altitudeChart;
+      case 'framing_mosaic_btn':
+        return mosaicBtn;
+      case 'framing_slew_btn':
+        return slewBtn;
+      default:
+        return null;
     }
   }
 }

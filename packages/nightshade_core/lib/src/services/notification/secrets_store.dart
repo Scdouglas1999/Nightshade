@@ -141,8 +141,12 @@ class SecretsStore {
       final v = await _store.read(key: _keyFor(field));
       return v ?? '';
     } catch (e) {
-      developer.log('[SecretsStore] read($field) failed: $e',
-          name: 'SecretsStore', level: 900, error: e);
+      developer.log(
+        '[SecretsStore] read($field) failed: $e',
+        name: 'SecretsStore',
+        level: 900,
+        error: e,
+      );
       return '';
     }
   }
@@ -160,8 +164,12 @@ class SecretsStore {
     } catch (e) {
       // Errors writing to the secure store are NOT swallowed silently.
       // Re-throwing so the UI surface (Save button) reports the failure.
-      developer.log('[SecretsStore] write($field) failed: $e',
-          name: 'SecretsStore', level: 1000, error: e);
+      developer.log(
+        '[SecretsStore] write($field) failed: $e',
+        name: 'SecretsStore',
+        level: 1000,
+        error: e,
+      );
       rethrow;
     }
   }
@@ -171,8 +179,12 @@ class SecretsStore {
     try {
       await _store.delete(key: _keyFor(field));
     } catch (e) {
-      developer.log('[SecretsStore] delete($field) failed: $e',
-          name: 'SecretsStore', level: 900, error: e);
+      developer.log(
+        '[SecretsStore] delete($field) failed: $e',
+        name: 'SecretsStore',
+        level: 900,
+        error: e,
+      );
     }
   }
 
@@ -208,9 +220,7 @@ class SecretsStore {
       dao,
       transportKey:
           'notification_transport_${NotificationTransportKind.email.storageKey}',
-      secretFields: const {
-        'password': SecretField.emailPassword,
-      },
+      secretFields: const {'password': SecretField.emailPassword},
     );
     await _migrateBlob(
       dao,
@@ -225,25 +235,19 @@ class SecretsStore {
       dao,
       transportKey:
           'notification_transport_${NotificationTransportKind.telegram.storageKey}',
-      secretFields: const {
-        'botToken': SecretField.telegramBotToken,
-      },
+      secretFields: const {'botToken': SecretField.telegramBotToken},
     );
     await _migrateBlob(
       dao,
       transportKey:
           'notification_transport_${NotificationTransportKind.discord.storageKey}',
-      secretFields: const {
-        'webhookUrl': SecretField.discordWebhookUrl,
-      },
+      secretFields: const {'webhookUrl': SecretField.discordWebhookUrl},
     );
     await _migrateBlob(
       dao,
       transportKey:
           'notification_transport_${NotificationTransportKind.mqtt.storageKey}',
-      secretFields: const {
-        'password': SecretField.mqttPassword,
-      },
+      secretFields: const {'password': SecretField.mqttPassword},
     );
 
     await dao.setSetting(_migrationFlagKey, 'true');
@@ -265,9 +269,10 @@ class SecretsStore {
       blob = Map<String, dynamic>.from(decoded);
     } catch (e) {
       developer.log(
-          '[SecretsStore] Skipping migration of $transportKey: bad JSON ($e)',
-          name: 'SecretsStore',
-          level: 900);
+        '[SecretsStore] Skipping migration of $transportKey: bad JSON ($e)',
+        name: 'SecretsStore',
+        level: 900,
+      );
       return;
     }
 
@@ -286,9 +291,10 @@ class SecretsStore {
     if (changed) {
       await dao.setSetting(transportKey, jsonEncode(blob));
       developer.log(
-          '[SecretsStore] Migrated secrets out of $transportKey',
-          name: 'SecretsStore',
-          level: 800);
+        '[SecretsStore] Migrated secrets out of $transportKey',
+        name: 'SecretsStore',
+        level: 800,
+      );
     }
   }
 }

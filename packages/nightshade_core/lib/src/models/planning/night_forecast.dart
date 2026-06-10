@@ -29,19 +29,19 @@ class ForecastTargetUp extends Equatable {
   });
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'upDarkHours': upDarkHours,
-        'maxAltitudeDeg': maxAltitudeDeg,
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'upDarkHours': upDarkHours,
+    'maxAltitudeDeg': maxAltitudeDeg,
+  };
 
   @override
   List<Object?> get props => [
-        targetId,
-        targetName,
-        upDarkHours,
-        maxAltitudeDeg,
-      ];
+    targetId,
+    targetName,
+    upDarkHours,
+    maxAltitudeDeg,
+  ];
 }
 
 /// Forecast score and supporting figures for one upcoming night.
@@ -112,14 +112,14 @@ class NightForecast extends Equatable {
   /// honest [reason]. All numeric fields are zero, twilight times are null, and
   /// [bestTargets] is empty — there is no clear-sky default.
   const NightForecast.unavailable(this.nightDateLocal, String reason)
-      : astronomicalDuskUtc = null,
-        astronomicalDawnUtc = null,
-        darkHours = 0,
-        clearDarkHours = 0,
-        meanCloudCoverDuringDark = 0,
-        bestTargets = const [],
-        forecastAvailable = false,
-        unavailableReason = reason;
+    : astronomicalDuskUtc = null,
+      astronomicalDawnUtc = null,
+      darkHours = 0,
+      clearDarkHours = 0,
+      meanCloudCoverDuringDark = 0,
+      bestTargets = const [],
+      forecastAvailable = false,
+      unavailableReason = reason;
 
   /// Composite forecast score in `[0.0, 1.0]` used to rank nights.
   ///
@@ -139,30 +139,30 @@ class NightForecast extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'nightDateLocal': nightDateLocal.toUtc().toIso8601String(),
-        'astronomicalDuskUtc': astronomicalDuskUtc?.toUtc().toIso8601String(),
-        'astronomicalDawnUtc': astronomicalDawnUtc?.toUtc().toIso8601String(),
-        'darkHours': darkHours,
-        'clearDarkHours': clearDarkHours,
-        'meanCloudCoverDuringDark': meanCloudCoverDuringDark,
-        'bestTargets': bestTargets.map((t) => t.toJson()).toList(),
-        'forecastAvailable': forecastAvailable,
-        'unavailableReason': unavailableReason,
-        'score': score,
-      };
+    'nightDateLocal': nightDateLocal.toUtc().toIso8601String(),
+    'astronomicalDuskUtc': astronomicalDuskUtc?.toUtc().toIso8601String(),
+    'astronomicalDawnUtc': astronomicalDawnUtc?.toUtc().toIso8601String(),
+    'darkHours': darkHours,
+    'clearDarkHours': clearDarkHours,
+    'meanCloudCoverDuringDark': meanCloudCoverDuringDark,
+    'bestTargets': bestTargets.map((t) => t.toJson()).toList(),
+    'forecastAvailable': forecastAvailable,
+    'unavailableReason': unavailableReason,
+    'score': score,
+  };
 
   @override
   List<Object?> get props => [
-        nightDateLocal,
-        astronomicalDuskUtc,
-        astronomicalDawnUtc,
-        darkHours,
-        clearDarkHours,
-        meanCloudCoverDuringDark,
-        bestTargets,
-        forecastAvailable,
-        unavailableReason,
-      ];
+    nightDateLocal,
+    astronomicalDuskUtc,
+    astronomicalDawnUtc,
+    darkHours,
+    clearDarkHours,
+    meanCloudCoverDuringDark,
+    bestTargets,
+    forecastAvailable,
+    unavailableReason,
+  ];
 }
 
 /// A multi-night forecast lookahead — the ranked collection the planner's week
@@ -195,9 +195,9 @@ class WeekForecast extends Equatable {
   /// Builds an explicitly-unavailable week carrying the honest [reason], with
   /// no nights — there is no clear-sky default.
   const WeekForecast.unavailable(String reason)
-      : nights = const [],
-        available = false,
-        unavailableReason = reason;
+    : nights = const [],
+      available = false,
+      unavailableReason = reason;
 
   /// The available night with the highest [NightForecast.score], or null when
   /// no night is available. Unavailable nights are ignored entirely; ties keep
@@ -214,10 +214,10 @@ class WeekForecast extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'nights': nights.map((n) => n.toJson()).toList(),
-        'available': available,
-        'unavailableReason': unavailableReason,
-      };
+    'nights': nights.map((n) => n.toJson()).toList(),
+    'available': available,
+    'unavailableReason': unavailableReason,
+  };
 
   @override
   List<Object?> get props => [nights, available, unavailableReason];

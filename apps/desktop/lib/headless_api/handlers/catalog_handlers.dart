@@ -122,8 +122,7 @@ class CatalogHandlers {
       );
     }
     final statuses = await _manager.getInstalledStatuses();
-    final totalBytes =
-        statuses.fold<int>(0, (sum, s) => sum + s.sizeBytes);
+    final totalBytes = statuses.fold<int>(0, (sum, s) => sum + s.sizeBytes);
 
     int? availableSpaceBytes;
     try {
@@ -170,7 +169,9 @@ class CatalogHandlers {
     return jsonOk({
       'available': entries.map((e) => e.toJson()).toList(growable: false),
       'cache': cacheStatus,
-      'fetchedAt': (_availableCache?.fetchedAt ?? now).toUtc().toIso8601String(),
+      'fetchedAt': (_availableCache?.fetchedAt ?? now)
+          .toUtc()
+          .toIso8601String(),
     });
   }
 
@@ -197,8 +198,7 @@ class CatalogHandlers {
     if (!CatalogManager.knownCatalogs.containsKey(name)) {
       throw BadRequestError(
         field: 'name',
-        expected:
-            'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
+        expected: 'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
         message: '"$name" is not a known catalog',
       );
     }
@@ -283,8 +283,7 @@ class CatalogHandlers {
     if (!CatalogManager.knownCatalogs.containsKey(name)) {
       throw BadRequestError(
         field: 'name',
-        expected:
-            'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
+        expected: 'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
         message: '"$name" is not a known catalog',
       );
     }
@@ -305,8 +304,7 @@ class CatalogHandlers {
       );
     }
 
-    final contentLength =
-        int.tryParse(request.headers['content-length'] ?? '');
+    final contentLength = int.tryParse(request.headers['content-length'] ?? '');
     if (contentLength != null && contentLength > catalogUploadMaxBytes) {
       return jsonTooLarge({
         'error': 'Catalog upload is too large',
@@ -318,8 +316,10 @@ class CatalogHandlers {
     // materialise in-memory. Use a unique name so concurrent uploads of
     // the same catalog don't collide.
     final tempDir = await Directory.systemTemp.createTemp('ns_catalog_upload_');
-    final tempPath =
-        p.join(tempDir.path, 'upload.${DateTime.now().millisecondsSinceEpoch}');
+    final tempPath = p.join(
+      tempDir.path,
+      'upload.${DateTime.now().millisecondsSinceEpoch}',
+    );
     final tempFile = File(tempPath);
     final sink = tempFile.openWrite();
     var bytesWritten = 0;
@@ -355,9 +355,7 @@ class CatalogHandlers {
           source: tempFile,
           expectedSha256: expectedSha256,
         );
-        return jsonOk({
-          'installed': result.toJson(),
-        });
+        return jsonOk({'installed': result.toJson()});
       } on CatalogHashMismatchException catch (e) {
         return jsonBadRequest({
           'error': 'sha256_mismatch',
@@ -442,16 +440,13 @@ class CatalogHandlers {
     if (name != null && !CatalogManager.knownCatalogs.containsKey(name)) {
       throw BadRequestError(
         field: 'name',
-        expected:
-            'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
+        expected: 'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
         message: '"$name" is not a known catalog',
       );
     }
 
     final results = await _manager.verify(name: name);
-    return jsonOk({
-      'verified': results.map((k, v) => MapEntry(k, v.toJson())),
-    });
+    return jsonOk({'verified': results.map((k, v) => MapEntry(k, v.toJson()))});
   }
 
   // ===========================================================================
@@ -473,22 +468,15 @@ class CatalogHandlers {
     if (!CatalogManager.knownCatalogs.containsKey(name)) {
       throw BadRequestError(
         field: 'name',
-        expected:
-            'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
+        expected: 'one of: ${CatalogManager.knownCatalogs.keys.join(', ')}',
         message: '"$name" is not a known catalog',
       );
     }
     final removed = await _manager.uninstall(name);
     if (!removed) {
-      return jsonNotFound({
-        'error': 'catalog_not_installed',
-        'name': name,
-      });
+      return jsonNotFound({'error': 'catalog_not_installed', 'name': name});
     }
-    return jsonOk({
-      'status': 'uninstalled',
-      'name': name,
-    });
+    return jsonOk({'status': 'uninstalled', 'name': name});
   }
 
   // ===========================================================================

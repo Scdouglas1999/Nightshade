@@ -102,8 +102,9 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
     });
 
-    testWidgets('renders the three setup steps without crashing',
-        (tester) async {
+    testWidgets('renders the three setup steps without crashing', (
+      tester,
+    ) async {
       // We render the screen with a non-NetworkBackend so it never tries
       // to make HTTP calls; the wizard still has to render its Stepper
       // shell and the three step headers.
@@ -111,9 +112,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            theme: ThemeData(
-              extensions: const [NightshadeColors.dark],
-            ),
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
             home: FirstRunSetupScreen(
               needs: const FirstRunSetupNeeds(
                 missingImageOutputPath: true,

@@ -132,19 +132,22 @@ class BatteryService {
       );
     }
 
-    _stateSubscription = _battery.onBatteryStateChanged.listen((_) {
-      // The charging-state stream tells us plug/unplug happened; resample
-      // immediately so isCharging/isLowPower flip without waiting 30 s.
-      unawaited(_sample());
-    }, onError: (Object e, StackTrace st) {
-      developer.log(
-        'battery_plus state stream errored: $e',
-        name: 'BatteryService',
-        level: 1000,
-        error: e,
-        stackTrace: st,
-      );
-    });
+    _stateSubscription = _battery.onBatteryStateChanged.listen(
+      (_) {
+        // The charging-state stream tells us plug/unplug happened; resample
+        // immediately so isCharging/isLowPower flip without waiting 30 s.
+        unawaited(_sample());
+      },
+      onError: (Object e, StackTrace st) {
+        developer.log(
+          'battery_plus state stream errored: $e',
+          name: 'BatteryService',
+          level: 1000,
+          error: e,
+          stackTrace: st,
+        );
+      },
+    );
 
     _levelTimer = Timer.periodic(pollInterval, (_) => unawaited(_sample()));
   }

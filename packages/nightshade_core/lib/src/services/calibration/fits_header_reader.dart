@@ -103,8 +103,7 @@ class FitsHeaderReader {
   }
 
   /// First present key wins — for keyword aliases like EXPTIME/EXPOSURE.
-  static double? firstDouble(
-      Map<String, String> headers, List<String> keys) {
+  static double? firstDouble(Map<String, String> headers, List<String> keys) {
     for (final key in keys) {
       final value = doubleValue(headers, key);
       if (value != null) return value;

@@ -8,9 +8,11 @@ import 'imaging_sessions.dart';
 @TableIndex(name: 'idx_science_session_config_session', columns: {#sessionId})
 class ScienceSessionConfig extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   BoolColumn get photometryEnabled =>
       boolean().withDefault(const Constant(true))();
@@ -37,19 +39,27 @@ class ScienceSessionConfig extends Table {
 
 @DataClassName('PhotometryMeasurementRow')
 @TableIndex(
-    name: 'idx_photometry_measurements_image', columns: {#capturedImageId})
+  name: 'idx_photometry_measurements_image',
+  columns: {#capturedImageId},
+)
 @TableIndex(name: 'idx_photometry_measurements_session', columns: {#sessionId})
 @TableIndex(
-    name: 'idx_photometry_measurements_timestamp', columns: {#timestamp})
+  name: 'idx_photometry_measurements_timestamp',
+  columns: {#timestamp},
+)
 @TableIndex(name: 'idx_photometry_measurements_object', columns: {#objectId})
 class PhotometryMeasurements extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   TextColumn get objectId => text()();
   TextColumn get role => text().withDefault(const Constant('target'))();
@@ -68,22 +78,33 @@ class PhotometryMeasurements extends Table {
 
 @DataClassName('FramePhotometricCalibrationRow')
 @TableIndex(
-    name: 'idx_frame_photometric_calibration_image',
-    columns: {#capturedImageId})
+  name: 'idx_frame_photometric_calibration_image',
+  columns: {#capturedImageId},
+)
 @TableIndex(
-    name: 'idx_frame_photometric_calibration_session', columns: {#sessionId})
+  name: 'idx_frame_photometric_calibration_session',
+  columns: {#sessionId},
+)
 @TableIndex(
-    name: 'idx_frame_photometric_calibration_timestamp', columns: {#timestamp})
+  name: 'idx_frame_photometric_calibration_timestamp',
+  columns: {#timestamp},
+)
 @TableIndex(
-    name: 'idx_frame_photometric_calibration_solver', columns: {#solverId})
+  name: 'idx_frame_photometric_calibration_solver',
+  columns: {#solverId},
+)
 class FramePhotometricCalibration extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   BoolColumn get isCalibrated => boolean().withDefault(const Constant(false))();
   RealColumn get zeroPoint => real().nullable()();
@@ -103,12 +124,16 @@ class FramePhotometricCalibration extends Table {
 @TableIndex(name: 'idx_transparency_samples_timestamp', columns: {#timestamp})
 class TransparencySamples extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   RealColumn get transparencyPercent => real()();
   RealColumn get extinctionCoefficient =>
@@ -126,12 +151,16 @@ class TransparencySamples extends Table {
 @TableIndex(name: 'idx_psf_field_tiles_timestamp', columns: {#timestamp})
 class PsfFieldTiles extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   IntColumn get tileRow => integer()();
   IntColumn get tileCol => integer()();
@@ -147,19 +176,25 @@ class PsfFieldTiles extends Table {
 
 @DataClassName('ScienceFrameQualityMetricsRow')
 @TableIndex(
-    name: 'idx_science_frame_quality_metrics_image',
-    columns: {#capturedImageId})
+  name: 'idx_science_frame_quality_metrics_image',
+  columns: {#capturedImageId},
+)
 @TableIndex(
-    name: 'idx_science_frame_quality_metrics_session_layer_timestamp',
-    columns: {#sessionId, #processingTier, #timestamp})
+  name: 'idx_science_frame_quality_metrics_session_layer_timestamp',
+  columns: {#sessionId, #processingTier, #timestamp},
+)
 class ScienceFrameQualityMetrics extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
   RealColumn get median => real().withDefault(const Constant(0.0))();
@@ -181,19 +216,25 @@ class ScienceFrameQualityMetrics extends Table {
 
 @DataClassName('ScienceTileMetricRow')
 @TableIndex(
-    name: 'idx_science_tile_metrics_session_layer_timestamp',
-    columns: {#sessionId, #layerType, #timestamp})
+  name: 'idx_science_tile_metrics_session_layer_timestamp',
+  columns: {#sessionId, #layerType, #timestamp},
+)
 @TableIndex(
-    name: 'idx_science_tile_metrics_image_layer',
-    columns: {#capturedImageId, #layerType})
+  name: 'idx_science_tile_metrics_image_layer',
+  columns: {#capturedImageId, #layerType},
+)
 class ScienceTileMetrics extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
   TextColumn get layerType => text()();
@@ -209,19 +250,29 @@ class ScienceTileMetrics extends Table {
 
 @DataClassName('AstrometryResidualVectorRow')
 @TableIndex(
-    name: 'idx_astrometry_residual_vectors_image', columns: {#capturedImageId})
+  name: 'idx_astrometry_residual_vectors_image',
+  columns: {#capturedImageId},
+)
 @TableIndex(
-    name: 'idx_astrometry_residual_vectors_session', columns: {#sessionId})
+  name: 'idx_astrometry_residual_vectors_session',
+  columns: {#sessionId},
+)
 @TableIndex(
-    name: 'idx_astrometry_residual_vectors_timestamp', columns: {#timestamp})
+  name: 'idx_astrometry_residual_vectors_timestamp',
+  columns: {#timestamp},
+)
 class AstrometryResidualVectors extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   RealColumn get x => real()();
   RealColumn get y => real()();
@@ -235,20 +286,30 @@ class AstrometryResidualVectors extends Table {
 
 @DataClassName('MovingObjectCandidateRow')
 @TableIndex(
-    name: 'idx_moving_object_candidates_image', columns: {#capturedImageId})
+  name: 'idx_moving_object_candidates_image',
+  columns: {#capturedImageId},
+)
 @TableIndex(name: 'idx_moving_object_candidates_session', columns: {#sessionId})
 @TableIndex(
-    name: 'idx_moving_object_candidates_timestamp', columns: {#timestamp})
+  name: 'idx_moving_object_candidates_timestamp',
+  columns: {#timestamp},
+)
 @TableIndex(
-    name: 'idx_moving_object_candidates_object', columns: {#candidateId})
+  name: 'idx_moving_object_candidates_object',
+  columns: {#candidateId},
+)
 class MovingObjectCandidates extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get capturedImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get capturedImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   TextColumn get candidateId => text()();
   RealColumn get raDegrees => real()();
@@ -265,17 +326,19 @@ class MovingObjectCandidates extends Table {
 }
 
 @DataClassName('PhotometricTransformRow')
+@TableIndex(name: 'idx_photometric_transforms_filter', columns: {#filterName})
+@TableIndex(name: 'idx_photometric_transforms_date', columns: {#dateComputed})
 @TableIndex(
-    name: 'idx_photometric_transforms_filter', columns: {#filterName})
-@TableIndex(
-    name: 'idx_photometric_transforms_date', columns: {#dateComputed})
-@TableIndex(
-    name: 'idx_photometric_transforms_profile', columns: {#equipmentProfileId})
+  name: 'idx_photometric_transforms_profile',
+  columns: {#equipmentProfileId},
+)
 class PhotometricTransforms extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get equipmentProfileId => integer()
-      .nullable()
-      .references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
+  IntColumn get equipmentProfileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   TextColumn get filterName => text()();
   RealColumn get colorTerm => real()();
@@ -298,19 +361,27 @@ class PhotometricTransforms extends Table {
 @TableIndex(name: 'idx_line_ratio_products_timestamp', columns: {#createdAt})
 class LineRatioProducts extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get sessionId => integer()
-      .nullable()
-      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sessionId => integer().nullable().references(
+    ImagingSessions,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
-  IntColumn get hAlphaImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.setNull)();
-  IntColumn get oiiiImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.setNull)();
-  IntColumn get siiImageId => integer()
-      .nullable()
-      .references(CapturedImages, #id, onDelete: KeyAction.setNull)();
+  IntColumn get hAlphaImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get oiiiImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get siiImageId => integer().nullable().references(
+    CapturedImages,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   RealColumn get ratioSiiHa => real().withDefault(const Constant(0.0))();
   RealColumn get ratioOiiiHa => real().withDefault(const Constant(0.0))();

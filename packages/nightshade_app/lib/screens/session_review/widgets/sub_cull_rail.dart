@@ -485,7 +485,8 @@ class _SelectionPill extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: NightshadeTokens.opacityStatusFill),
+        color: colors.primary
+            .withValues(alpha: NightshadeTokens.opacityStatusFill),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
         border: Border.all(color: colors.primary),
       ),
@@ -808,7 +809,8 @@ class _BlinkView extends ConsumerWidget {
         children: [
           Expanded(
             child: FutureBuilder<Uint8List>(
-              future: ref.read(imagingBackendProvider).getImageThumbnail(sub.id),
+              future:
+                  ref.read(imagingBackendProvider).getImageThumbnail(sub.id),
               builder: (context, snapshot) {
                 final bytes = snapshot.data;
                 if (bytes != null && bytes.isNotEmpty) {

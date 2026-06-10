@@ -49,16 +49,14 @@ Future<void> _tapConnect(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('valid tailnet host returns a result with the entered fields',
-      (tester) async {
+  testWidgets('valid tailnet host returns a result with the entered fields', (
+    tester,
+  ) async {
     final result = await _showAndCapture(
       tester,
       interact: (t) async {
         // Host field is the first NightshadeTextField (url keyboard).
-        await t.enterText(
-          find.byType(TextField).first,
-          '100.101.102.103',
-        );
+        await t.enterText(find.byType(TextField).first, '100.101.102.103');
         await _tapConnect(t);
       },
     );
@@ -87,8 +85,9 @@ void main() {
     expect(result.host, 'my-rig.tailnet.ts.net');
   });
 
-  testWidgets('a non-tailnet host is rejected inline (no result)',
-      (tester) async {
+  testWidgets('a non-tailnet host is rejected inline (no result)', (
+    tester,
+  ) async {
     final result = await _showAndCapture(
       tester,
       interact: (t) async {
@@ -96,8 +95,11 @@ void main() {
         await _tapConnect(t);
       },
     );
-    expect(result, isNull,
-        reason: 'a LAN/public host must not produce a Tailscale result');
+    expect(
+      result,
+      isNull,
+      reason: 'a LAN/public host must not produce a Tailscale result',
+    );
     // The sheet stays open with an inline error.
     expect(find.textContaining('Not a Tailscale address'), findsOneWidget);
   });

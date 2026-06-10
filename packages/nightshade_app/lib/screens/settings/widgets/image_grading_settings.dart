@@ -59,14 +59,12 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
       _hfrController.text = settings.imageGradingHfrThresholdPx != null
           ? settings.imageGradingHfrThresholdPx!.toStringAsFixed(2)
           : '';
-      _baselineController.text =
-          settings.imageGradingHfrBaselinePercent != null
-              ? settings.imageGradingHfrBaselinePercent!.toStringAsFixed(0)
-              : '';
+      _baselineController.text = settings.imageGradingHfrBaselinePercent != null
+          ? settings.imageGradingHfrBaselinePercent!.toStringAsFixed(0)
+          : '';
       _eccentricityController.text =
           settings.imageGradingEccentricityThreshold != null
-              ? settings.imageGradingEccentricityThreshold!
-                  .toStringAsFixed(2)
+              ? settings.imageGradingEccentricityThreshold!.toStringAsFixed(2)
               : '';
       _starCountController.text = settings.imageGradingStarCountMin != null
           ? settings.imageGradingStarCountMin!.toString()
@@ -238,8 +236,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                 SettingRow(
                   icon: LucideIcons.sparkles,
                   title: 'Auto-integrate at end of run',
-                  subtitle:
-                      'When on, the accepted subs are integrated into an '
+                  subtitle: 'When on, the accepted subs are integrated into an '
                       'archival master automatically when a sequence run '
                       'completes — wake up to a finished image. The result '
                       'lands in Session Review › Masters.',
@@ -302,8 +299,9 @@ class _AutoIntegrateSwitchState extends ConsumerState<_AutoIntegrateSwitch> {
   }
 
   Future<void> _read() async {
-    final raw =
-        await ref.read(settingsDaoProvider).getSetting(kAutoIntegrateSettingKey);
+    final raw = await ref
+        .read(settingsDaoProvider)
+        .getSetting(kAutoIntegrateSettingKey);
     if (!mounted) return;
     setState(() {
       _enabled = raw == 'true';
@@ -369,7 +367,9 @@ class _OptionalNumberInput extends StatelessWidget {
             keyboardType:
                 TextInputType.numberWithOptions(decimal: decimals > 0),
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize12,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize13
+                  : NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(
@@ -439,7 +439,9 @@ class _OptionalIntInput extends StatelessWidget {
             controller: controller,
             keyboardType: TextInputType.number,
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize12,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize13
+                  : NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(

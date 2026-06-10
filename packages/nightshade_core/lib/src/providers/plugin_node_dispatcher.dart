@@ -101,9 +101,10 @@ class PluginNodeDispatchResult {
 /// The dispatcher MUST not throw — failure paths return
 /// `PluginNodeDispatchResult(success: false, …)` so the Rust executor
 /// always observes a structured verdict.
-typedef PluginNodeDispatcher = Future<PluginNodeDispatchResult> Function(
-  PluginNodeDispatchRequest request,
-);
+typedef PluginNodeDispatcher =
+    Future<PluginNodeDispatchResult> Function(
+      PluginNodeDispatchRequest request,
+    );
 
 /// Best-effort in-process de-duplication for plugin node replies.
 ///
@@ -129,8 +130,8 @@ class PluginNodeDispatchCoordinator {
 
 final pluginNodeDispatchCoordinatorProvider =
     Provider<PluginNodeDispatchCoordinator>((ref) {
-  return PluginNodeDispatchCoordinator();
-});
+      return PluginNodeDispatchCoordinator();
+    });
 
 /// Riverpod provider for the plugin-node dispatcher.
 ///
@@ -142,9 +143,9 @@ final pluginNodeDispatchCoordinatorProvider =
 /// `ProviderScope`.
 final pluginNodeDispatcherProvider = Provider<PluginNodeDispatcher>((ref) {
   return (request) async => PluginNodeDispatchResult.unwired(
-        'Plugin node dispatcher is not wired in this environment. '
-        'Wire pluginNodeDispatcherProvider from the host application '
-        'before running PluginNode sequence nodes. '
-        '(plugin=${request.pluginId}, node_type=${request.nodeTypeId})',
-      );
+    'Plugin node dispatcher is not wired in this environment. '
+    'Wire pluginNodeDispatcherProvider from the host application '
+    'before running PluginNode sequence nodes. '
+    '(plugin=${request.pluginId}, node_type=${request.nodeTypeId})',
+  );
 });

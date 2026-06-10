@@ -43,8 +43,7 @@ class MosaicProjectsDao {
     DateTime? updatedAt,
   }) {
     final created = _toEpochSeconds(createdAt ?? DateTime.now());
-    final updated =
-        updatedAt == null ? created : _toEpochSeconds(updatedAt);
+    final updated = updatedAt == null ? created : _toEpochSeconds(updatedAt);
     return _db.customInsert(
       'INSERT INTO mosaic_projects('
       'target_id, name, rows, cols, overlap_pct, position_angle_deg, '
@@ -67,30 +66,36 @@ class MosaicProjectsDao {
 
   /// Fetch a project by id, or null when absent.
   Future<MosaicProject?> getById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM mosaic_projects WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_projects WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _map(rows.first);
   }
 
   /// All projects, newest first.
   Future<List<MosaicProject>> listAll() async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM mosaic_projects '
-      'ORDER BY created_at DESC, id DESC',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_projects '
+          'ORDER BY created_at DESC, id DESC',
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
   /// Projects with the given lifecycle [status], newest first.
   Future<List<MosaicProject>> listByStatus(MosaicProjectStatus status) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM mosaic_projects '
-      'WHERE status = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<String>(status.wire)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_projects '
+          'WHERE status = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<String>(status.wire)],
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
@@ -116,11 +121,7 @@ class MosaicProjectsDao {
   /// Attach the stitched output's `integrated_masters.id` to the project and
   /// mark it [MosaicProjectStatus.complete] (and bump `updated_at`). Returns the
   /// number of rows changed.
-  Future<int> setOutputMaster(
-    int id,
-    int outputMasterId, {
-    DateTime? now,
-  }) {
+  Future<int> setOutputMaster(int id, int outputMasterId, {DateTime? now}) {
     final at = _toEpochSeconds(now ?? DateTime.now());
     return _db.customUpdate(
       'UPDATE mosaic_projects SET output_master_id = ?, status = ?, '

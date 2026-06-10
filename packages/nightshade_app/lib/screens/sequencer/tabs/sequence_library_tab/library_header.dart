@@ -105,51 +105,51 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
         // Search
         Flexible(
           child: Container(
-          constraints: const BoxConstraints(maxWidth: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: Border.all(color: widget.colors.border),
-          ),
-          child: Row(
-            children: [
-              Icon(LucideIcons.search,
-                  size: 16, color: widget.colors.textMuted),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    ref.read(sequenceSearchProvider.notifier).state = value;
-                  },
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: widget.colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search sequences...',
-                    hintStyle: TextStyle(
+            constraints: const BoxConstraints(maxWidth: 250),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: widget.colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              border: Border.all(color: widget.colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.search,
+                    size: 16, color: widget.colors.textMuted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      ref.read(sequenceSearchProvider.notifier).state = value;
+                    },
+                    style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
-                      color: widget.colors.textMuted,
+                      color: widget.colors.textPrimary,
                     ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: InputDecoration(
+                      hintText: 'Search sequences...',
+                      hintStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: widget.colors.textMuted,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
-              ),
-              if (_searchController.text.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    _searchController.clear();
-                    ref.read(sequenceSearchProvider.notifier).state = '';
-                  },
-                  child: Icon(LucideIcons.x,
-                      size: 16, color: widget.colors.textMuted),
-                ),
-            ],
+                if (_searchController.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                      ref.read(sequenceSearchProvider.notifier).state = '';
+                    },
+                    child: Icon(LucideIcons.x,
+                        size: 16, color: widget.colors.textMuted),
+                  ),
+              ],
+            ),
           ),
-        ),
         ),
 
         const SizedBox(width: 16),

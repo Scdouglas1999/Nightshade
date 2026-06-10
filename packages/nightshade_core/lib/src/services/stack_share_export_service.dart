@@ -17,24 +17,26 @@ import 'share_card_renderer.dart';
 /// Defaults to the native bridge ([bridge.apiSaveRgbaPngFile]); injectable so
 /// the export path is unit-testable without loading the Rust dynamic library
 /// (tests substitute the pure-Dart [ShareCardRenderer]/`image` encoder).
-typedef SaveRgbaPng = Future<void> Function({
-  required String filePath,
-  required int width,
-  required int height,
-  required List<int> rgba,
-});
+typedef SaveRgbaPng =
+    Future<void> Function({
+      required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba,
+    });
 
 /// Signature of the function used to persist an 8-bit RGBA buffer as a JPEG.
 ///
 /// Defaults to the native bridge ([bridge.apiSaveRgbaJpegFile]); injectable for
 /// the same reason as [SaveRgbaPng].
-typedef SaveRgbaJpeg = Future<void> Function({
-  required String filePath,
-  required int width,
-  required int height,
-  required List<int> rgba,
-  required int quality,
-});
+typedef SaveRgbaJpeg =
+    Future<void> Function({
+      required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba,
+      required int quality,
+    });
 
 /// Thrown when a Stack-and-Share export is requested with an RGBA buffer whose
 /// length does not match `width * height * 4`.
@@ -91,9 +93,9 @@ class StackShareExportService {
     SaveRgbaPng? savePng,
     SaveRgbaJpeg? saveJpeg,
     ShareCardRenderer cardRenderer = const ShareCardRenderer(),
-  })  : _savePng = savePng ?? bridge.apiSaveRgbaPngFile,
-        _saveJpeg = saveJpeg ?? bridge.apiSaveRgbaJpegFile,
-        _cardRenderer = cardRenderer;
+  }) : _savePng = savePng ?? bridge.apiSaveRgbaPngFile,
+       _saveJpeg = saveJpeg ?? bridge.apiSaveRgbaJpegFile,
+       _cardRenderer = cardRenderer;
 
   final Ref _ref;
   final SaveRgbaPng _savePng;
@@ -253,12 +255,8 @@ class StackShareExportService {
   }) {
     final p0 = profile ?? _ref.read(activeEquipmentProfileProvider);
 
-    final telescope = _firstNonEmpty([
-      p0?.telescopeName,
-    ]);
-    final camera = _firstNonEmpty([
-      p0?.cameraName,
-    ]);
+    final telescope = _firstNonEmpty([p0?.telescopeName]);
+    final camera = _firstNonEmpty([p0?.cameraName]);
 
     // Prefer the profile-level optical values — these are the *effective*
     // focal length / aperture of the imaging train (post reducer / barlow),
@@ -273,10 +271,7 @@ class StackShareExportService {
       p0?.focalLength,
       p0?.telescopeFocalLength,
     ]);
-    final aperture = _firstPositive([
-      p0?.aperture,
-      p0?.telescopeAperture,
-    ]);
+    final aperture = _firstPositive([p0?.aperture, p0?.telescopeAperture]);
 
     return AstroBinExportMetadata(
       title: result.targetName,
@@ -312,10 +307,9 @@ class StackShareExportService {
     final markdownPath = p.join(dir, '$base.md');
     final jsonPath = p.join(dir, '$base.json');
 
-    await File(markdownPath).writeAsString(
-      '${meta.toMarkdown()}\n',
-      flush: true,
-    );
+    await File(
+      markdownPath,
+    ).writeAsString('${meta.toMarkdown()}\n', flush: true);
     await File(jsonPath).writeAsString(
       '${const JsonEncoder.withIndent('  ').convert(meta.toJson())}\n',
       flush: true,
@@ -409,7 +403,8 @@ class StackShareExportService {
 /// as the rest of the app, and so test overrides flow through. The save
 /// functions default to the native bridge; tests construct the service directly
 /// with pure-Dart substitutes.
-final stackShareExportServiceProvider =
-    Provider<StackShareExportService>((ref) {
+final stackShareExportServiceProvider = Provider<StackShareExportService>((
+  ref,
+) {
   return StackShareExportService(ref);
 });

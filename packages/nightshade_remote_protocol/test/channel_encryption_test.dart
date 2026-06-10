@@ -9,8 +9,7 @@ void main() {
     late ChannelEncryption encryption;
 
     setUp(() {
-      encryption =
-          ChannelEncryption.fromToken('test-session-token-12345');
+      encryption = ChannelEncryption.fromToken('test-session-token-12345');
     });
 
     tearDown(() {
@@ -75,7 +74,9 @@ void main() {
       addTearDown(b.dispose);
 
       // Both instances should derive the same key, so one can decrypt the other's output.
-      final plaintext = Uint8List.fromList(utf8.encode('round-trip via two instances'));
+      final plaintext = Uint8List.fromList(
+        utf8.encode('round-trip via two instances'),
+      );
       final encrypted = a.encrypt(plaintext);
       final decrypted = b.decrypt(encrypted);
 
@@ -106,7 +107,8 @@ void main() {
 
       // Flip a byte in the middle of the ciphertext (past the nonce region)
       final tampered = Uint8List.fromList(ciphertext);
-      final flipIndex = 12 + (tampered.length - 12) ~/ 2; // middle of ciphertext
+      final flipIndex =
+          12 + (tampered.length - 12) ~/ 2; // middle of ciphertext
       tampered[flipIndex] ^= 0xFF;
 
       expect(

@@ -99,10 +99,12 @@ class _AdaptiveExposureSettingsState
             const SizedBox(height: NightshadeTokens.spaceXs),
             Text(
               'Dynamically stretches per-frame exposure when the sky is brighter than '
-                  'the reference, so SNR stays roughly constant across changing conditions. '
-                  'Per-ExposureNode overrides always win at runtime; this page sets the '
-                  'default applied to nodes without their own block.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              'the reference, so SNR stays roughly constant across changing conditions. '
+              'Per-ExposureNode overrides always win at runtime; this page sets the '
+              'default applied to nodes without their own block.',
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
 
@@ -112,7 +114,8 @@ class _AdaptiveExposureSettingsState
                 Expanded(
                   child: Text(
                     'Enable global default',
-                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 SettingsSwitch(
@@ -127,7 +130,6 @@ class _AdaptiveExposureSettingsState
             // Conditional knobs
             if (settings.adaptiveExposureEnabled) ...[
               const SizedBox(height: NightshadeTokens.spaceLg),
-
               Row(
                 children: [
                   Expanded(
@@ -148,8 +150,8 @@ class _AdaptiveExposureSettingsState
                     child: _LabeledTextField(
                       label: 'Reference (mag/arcsec²)',
                       controller: _refMagController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onSubmitted: (v) {
                         final parsed = double.tryParse(v);
                         if (parsed != null) {
@@ -167,8 +169,8 @@ class _AdaptiveExposureSettingsState
                     child: _LabeledTextField(
                       label: 'Global minimum exposure (s)',
                       controller: _minSecsController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onSubmitted: (v) {
                         final parsed = double.tryParse(v);
                         if (parsed != null) {
@@ -182,8 +184,8 @@ class _AdaptiveExposureSettingsState
                     child: _LabeledTextField(
                       label: 'Global maximum exposure (s)',
                       controller: _maxSecsController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onSubmitted: (v) {
                         final parsed = double.tryParse(v);
                         if (parsed != null) {
@@ -194,19 +196,18 @@ class _AdaptiveExposureSettingsState
                   ),
                 ],
               ),
-
               const SizedBox(height: NightshadeTokens.spaceLg),
               _PerFilterEditor(
                 settings: settings,
                 notifier: notifier,
               ),
-
               const SizedBox(height: NightshadeTokens.spaceLg),
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.info,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,12 +217,13 @@ class _AdaptiveExposureSettingsState
                     Expanded(
                       child: Text(
                         'How it works: the Rust executor computes a flux ratio from the '
-                            'reference vs. live sky brightness (Pogson formula) and stretches '
-                            'or shrinks the configured exposure to keep the sky-noise-limited '
-                            'SNR roughly constant. Per-filter overrides are respected; the '
-                            'global min/max clamp prevents runaway exposures.',
+                        'reference vs. live sky brightness (Pogson formula) and stretches '
+                        'or shrinks the configured exposure to keep the sky-noise-limited '
+                        'SNR roughly constant. Per-filter overrides are respected; the '
+                        'global min/max clamp prevents runaway exposures.',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textSecondary),
                       ),
                     ),
                   ],
@@ -255,19 +257,23 @@ class _LabeledTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize13,
+              color: colors.textPrimary),
           decoration: InputDecoration(
             isDense: true,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             border: OutlineInputBorder(
               borderSide: BorderSide(color: colors.border),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
           ),
           keyboardType: keyboardType,
@@ -305,14 +311,15 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
         ),
         child: Row(
           children: [
-            Icon(LucideIcons.alertTriangle,
-                size: 14, color: colors.warning),
+            Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
                 'No filter wheel on active profile — adaptive applies to every '
-                    'capture (mono camera assumption).',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                'capture (mono camera assumption).',
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary),
               ),
             ),
           ],
@@ -320,8 +327,8 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
       );
     }
 
-    final enabledMap =
-        Map<String, bool>.from(widget.settings.adaptiveExposurePerFilterEnabled);
+    final enabledMap = Map<String, bool>.from(
+        widget.settings.adaptiveExposurePerFilterEnabled);
     final minMap = Map<String, double>.from(
         widget.settings.adaptiveExposurePerFilterMinSecs);
     final maxMap = Map<String, double>.from(
@@ -337,11 +344,14 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(
           'Empty rows inherit the global enable + clamp. Enable a filter to opt it '
-              'into adaptive exposure; set min/max to override the global clamps.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+          'into adaptive exposure; set min/max to override the global clamps.',
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        ...filterNames.map((filter) => _filterRow(filter, enabledMap, minMap, maxMap)),
+        ...filterNames
+            .map((filter) => _filterRow(filter, enabledMap, minMap, maxMap)),
       ],
     );
   }
@@ -373,8 +383,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
             value: enabled,
             onChanged: (v) {
               enabledMap[filter] = v ?? false;
-              widget.notifier
-                  .setAdaptiveExposurePerFilterEnabled(enabledMap);
+              widget.notifier.setAdaptiveExposurePerFilterEnabled(enabledMap);
               setState(() {});
             },
           ),
@@ -389,8 +398,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
                 } else {
                   minMap[filter] = v;
                 }
-                widget.notifier
-                    .setAdaptiveExposurePerFilterMinSecs(minMap);
+                widget.notifier.setAdaptiveExposurePerFilterMinSecs(minMap);
                 setState(() {});
               },
             ),
@@ -406,8 +414,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
                 } else {
                   maxMap[filter] = v;
                 }
-                widget.notifier
-                    .setAdaptiveExposurePerFilterMaxSecs(maxMap);
+                widget.notifier.setAdaptiveExposurePerFilterMaxSecs(maxMap);
                 setState(() {});
               },
             ),
@@ -439,9 +446,7 @@ class _OverrideFieldState extends State<_OverrideField> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: widget.initial == null
-          ? ''
-          : widget.initial!.toStringAsFixed(1),
+      text: widget.initial == null ? '' : widget.initial!.toStringAsFixed(1),
     );
   }
 
@@ -449,9 +454,8 @@ class _OverrideFieldState extends State<_OverrideField> {
   void didUpdateWidget(_OverrideField old) {
     super.didUpdateWidget(old);
     if (widget.initial != old.initial) {
-      _controller.text = widget.initial == null
-          ? ''
-          : widget.initial!.toStringAsFixed(1);
+      _controller.text =
+          widget.initial == null ? '' : widget.initial!.toStringAsFixed(1);
     }
   }
 
@@ -465,14 +469,16 @@ class _OverrideFieldState extends State<_OverrideField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
-      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: NightshadeColors.of(context).textPrimary),
+      style: TextStyle(
+          fontSize: NightshadeTypography.fontSize12,
+          color: NightshadeColors.of(context).textPrimary),
       decoration: InputDecoration(
         labelText: widget.label,
-        labelStyle:
-            TextStyle(fontSize: NightshadeTypography.fontSize10, color: NightshadeColors.of(context).textMuted),
+        labelStyle: TextStyle(
+            fontSize: NightshadeTypography.fontSize10,
+            color: NightshadeColors.of(context).textMuted),
         isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onSubmitted: (v) {

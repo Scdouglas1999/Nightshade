@@ -507,8 +507,13 @@ class NotificationNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props =>
-      [...super.props, title, message, level, explicitTransports];
+  List<Object?> get props => [
+    ...super.props,
+    title,
+    message,
+    level,
+    explicitTransports,
+  ];
 }
 
 /// Script instruction
@@ -567,6 +572,10 @@ class ScriptNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props =>
-      [...super.props, scriptPath, arguments, timeoutSecs];
+  List<Object?> get props => [
+    ...super.props,
+    scriptPath,
+    arguments,
+    timeoutSecs,
+  ];
 }

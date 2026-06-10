@@ -86,7 +86,8 @@ class ScienceOverlayLegend {
               padding: const EdgeInsets.all(8),
               decoration: NightshadeDecorations.tintedBadge(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Icon(entry.icon, color: colors.primary, size: 18),
             ),

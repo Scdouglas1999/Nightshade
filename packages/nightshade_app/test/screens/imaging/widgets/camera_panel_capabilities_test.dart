@@ -146,8 +146,7 @@ void main() {
     final readModeRow = tester.widgetList<DropdownRow>(
       find.byType(DropdownRow),
     );
-    final dropdowns =
-        readModeRow.where((d) => d.label == 'Read Mode').toList();
+    final dropdowns = readModeRow.where((d) => d.label == 'Read Mode').toList();
     expect(dropdowns, hasLength(1),
         reason: 'Read Mode row must be present when modes are reported.');
     expect(dropdowns.single.items, ['Mode A', 'Mode B'],

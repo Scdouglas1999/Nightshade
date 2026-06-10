@@ -20,10 +20,10 @@ class _Uplink {
 }
 
 Uint8List _control(Map<String, dynamic> message) => MuxFrame(
-      kMuxControlStreamId,
-      MuxFrameType.control,
-      Uint8List.fromList(utf8.encode(jsonEncode(message))),
-    ).encode();
+  kMuxControlStreamId,
+  MuxFrameType.control,
+  Uint8List.fromList(utf8.encode(jsonEncode(message))),
+).encode();
 
 Map<String, dynamic> _decodeControl(dynamic message) {
   final bytes = message is Uint8List
@@ -64,11 +64,13 @@ void main() {
       onError: (_) {},
       onDone: () {},
     );
-    ws.add(_control({
-      'op': 'register',
-      if (id != null) 'applianceId': id,
-      if (secret != null) 'secret': secret,
-    }));
+    ws.add(
+      _control({
+        'op': 'register',
+        if (id != null) 'applianceId': id,
+        if (secret != null) 'secret': secret,
+      }),
+    );
     final reply = await firstReply.future.timeout(const Duration(seconds: 5));
     return _Uplink(ws, reply);
   }
@@ -86,21 +88,26 @@ void main() {
     await up.ws.close();
   });
 
-  test('returning appliance re-registers with id + secret, no new secret',
-      () async {
-    await startServer();
-    final first = await registerUplink();
-    final id = first.firstReply['applianceId'] as String;
-    final secret = first.firstReply['secret'] as String;
-    await first.ws.close();
+  test(
+    'returning appliance re-registers with id + secret, no new secret',
+    () async {
+      await startServer();
+      final first = await registerUplink();
+      final id = first.firstReply['applianceId'] as String;
+      final secret = first.firstReply['secret'] as String;
+      await first.ws.close();
 
-    final again = await registerUplink(id: id, secret: secret);
-    expect(again.firstReply['op'], 'registered');
-    expect(again.firstReply['applianceId'], id);
-    expect(again.firstReply.containsKey('secret'), isFalse,
-        reason: 'returning registration must not re-mint a secret');
-    await again.ws.close();
-  });
+      final again = await registerUplink(id: id, secret: secret);
+      expect(again.firstReply['op'], 'registered');
+      expect(again.firstReply['applianceId'], id);
+      expect(
+        again.firstReply.containsKey('secret'),
+        isFalse,
+        reason: 'returning registration must not re-mint a secret',
+      );
+      await again.ws.close();
+    },
+  );
 
   test('wrong secret is rejected with auth_failed', () async {
     await startServer();
@@ -124,8 +131,8 @@ void main() {
 
   test('repeated auth failures from one IP are rate-limited', () async {
     await startServer(
-        config: const RelayServerConfig(
-            port: 0, registrationFailureLimit: 3));
+      config: const RelayServerConfig(port: 0, registrationFailureLimit: 3),
+    );
     // Burn through the failure budget.
     for (var i = 0; i < 3; i++) {
       final bad = await registerUplink(id: 'aaaa-bbbb-cccc', secret: 'x$i');
@@ -139,7 +146,8 @@ void main() {
 
   test('capacity limit refuses new registrations but keeps existing', () async {
     await startServer(
-        config: const RelayServerConfig(port: 0, maxAppliances: 1));
+      config: const RelayServerConfig(port: 0, maxAppliances: 1),
+    );
     final first = await registerUplink();
     expect(first.firstReply['op'], 'registered');
     final id = first.firstReply['applianceId'] as String;
@@ -177,11 +185,11 @@ void main() {
     await startServer();
     final up = await registerUplink();
     final client = HttpClient();
-    final req =
-        await client.getUrl(Uri.parse('http://127.0.0.1:${server.port}/healthz'));
+    final req = await client.getUrl(
+      Uri.parse('http://127.0.0.1:${server.port}/healthz'),
+    );
     final resp = await req.close();
-    final body =
-        jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
+    final body = jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
     expect(resp.statusCode, 200);
     expect(body['status'], 'ok');
     expect(body['appliancesRegistered'], 1);
@@ -192,8 +200,9 @@ void main() {
 
   test('connecting to an offline/unknown appliance is refused', () async {
     await startServer();
-    final ws =
-        await WebSocket.connect('ws://127.0.0.1:${server.port}/connect/zzzz-zzzz-zzzz');
+    final ws = await WebSocket.connect(
+      'ws://127.0.0.1:${server.port}/connect/zzzz-zzzz-zzzz',
+    );
     final reply = Completer<Map<String, dynamic>>();
     ws.listen((m) {
       if (!reply.isCompleted) reply.complete(_decodeControl(m));
@@ -207,7 +216,8 @@ void main() {
   test('connecting with a malformed appliance id is refused', () async {
     await startServer();
     final ws = await WebSocket.connect(
-        'ws://127.0.0.1:${server.port}/connect/not-an-id');
+      'ws://127.0.0.1:${server.port}/connect/not-an-id',
+    );
     final reply = Completer<Map<String, dynamic>>();
     ws.listen((m) {
       if (!reply.isCompleted) reply.complete(_decodeControl(m));
@@ -223,7 +233,8 @@ void main() {
     final statePath = '${dir.path}/state.json';
     try {
       await startServer(
-          config: RelayServerConfig(port: 0, stateFilePath: statePath));
+        config: RelayServerConfig(port: 0, stateFilePath: statePath),
+      );
       final up = await registerUplink();
       final id = up.firstReply['applianceId'] as String;
       final secret = up.firstReply['secret'] as String;
@@ -232,7 +243,8 @@ void main() {
 
       // Fresh server, same state file: the appliance must re-auth.
       await startServer(
-          config: RelayServerConfig(port: 0, stateFilePath: statePath));
+        config: RelayServerConfig(port: 0, stateFilePath: statePath),
+      );
       final back = await registerUplink(id: id, secret: secret);
       expect(back.firstReply['op'], 'registered');
       expect(back.firstReply['applianceId'], id);

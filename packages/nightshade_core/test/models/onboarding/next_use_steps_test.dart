@@ -21,47 +21,61 @@ void main() {
     });
 
     test('is in the required teaching order', () {
-      expect(
-        kNextUseSteps.map((s) => s.id).toList(),
-        const <NextUseActionId>[
-          NextUseActionId.buildSmartNight,
-          NextUseActionId.frameTarget,
-          NextUseActionId.configurePlateSolver,
-          NextUseActionId.runAutofocus,
-          NextUseActionId.captureFirstLight,
-        ],
-      );
+      expect(kNextUseSteps.map((s) => s.id).toList(), const <NextUseActionId>[
+        NextUseActionId.buildSmartNight,
+        NextUseActionId.frameTarget,
+        NextUseActionId.configurePlateSolver,
+        NextUseActionId.runAutofocus,
+        NextUseActionId.captureFirstLight,
+      ]);
     });
 
     test('maps each id to the exact deep-link route', () {
-      expect(stepFor(NextUseActionId.buildSmartNight).deepLinkRoute,
-          '/planner?tab=scheduler');
+      expect(
+        stepFor(NextUseActionId.buildSmartNight).deepLinkRoute,
+        '/planner?tab=scheduler',
+      );
       expect(stepFor(NextUseActionId.frameTarget).deepLinkRoute, '/framing');
-      expect(stepFor(NextUseActionId.configurePlateSolver).deepLinkRoute,
-          '/settings?section=plate-solving');
+      expect(
+        stepFor(NextUseActionId.configurePlateSolver).deepLinkRoute,
+        '/settings?section=plate-solving',
+      );
       expect(stepFor(NextUseActionId.runAutofocus).deepLinkRoute, '/equipment');
-      expect(stepFor(NextUseActionId.captureFirstLight).deepLinkRoute,
-          '/imaging?firstLight=1');
+      expect(
+        stepFor(NextUseActionId.captureFirstLight).deepLinkRoute,
+        '/imaging?firstLight=1',
+      );
     });
 
-    test('has non-empty title, body, actionLabel and iconKey for every step',
-        () {
-      for (final step in kNextUseSteps) {
-        expect(step.title.trim(), isNotEmpty, reason: '${step.id} title');
-        expect(step.body.trim(), isNotEmpty, reason: '${step.id} body');
-        expect(step.actionLabel.trim(), isNotEmpty,
-            reason: '${step.id} actionLabel');
-        expect(step.iconKey.trim(), isNotEmpty, reason: '${step.id} iconKey');
-      }
-    });
+    test(
+      'has non-empty title, body, actionLabel and iconKey for every step',
+      () {
+        for (final step in kNextUseSteps) {
+          expect(step.title.trim(), isNotEmpty, reason: '${step.id} title');
+          expect(step.body.trim(), isNotEmpty, reason: '${step.id} body');
+          expect(
+            step.actionLabel.trim(),
+            isNotEmpty,
+            reason: '${step.id} actionLabel',
+          );
+          expect(step.iconKey.trim(), isNotEmpty, reason: '${step.id} iconKey');
+        }
+      },
+    );
 
     test('every deep-link route is a parseable, rooted path', () {
       for (final step in kNextUseSteps) {
-        expect(step.deepLinkRoute.startsWith('/'), isTrue,
-            reason: '${step.id} route must be app-rooted');
+        expect(
+          step.deepLinkRoute.startsWith('/'),
+          isTrue,
+          reason: '${step.id} route must be app-rooted',
+        );
         // Must not throw — a malformed deep link should fail loudly here.
-        expect(() => Uri.parse(step.deepLinkRoute), returnsNormally,
-            reason: '${step.id} route');
+        expect(
+          () => Uri.parse(step.deepLinkRoute),
+          returnsNormally,
+          reason: '${step.id} route',
+        );
       }
     });
 
@@ -71,23 +85,32 @@ void main() {
       for (final step in kNextUseSteps) {
         final uri = Uri.parse(step.deepLinkRoute);
         uri.queryParameters.forEach((key, value) {
-          expect(key.trim(), isNotEmpty,
-              reason: '${step.id} has an empty query key');
-          expect(value.trim(), isNotEmpty,
-              reason: '${step.id} query "$key" has an empty value');
+          expect(
+            key.trim(),
+            isNotEmpty,
+            reason: '${step.id} has an empty query key',
+          );
+          expect(
+            value.trim(),
+            isNotEmpty,
+            reason: '${step.id} query "$key" has an empty value',
+          );
         });
       }
     });
 
-    test('the configure-plate-solver step carries a non-empty section= value',
-        () {
-      final uri = Uri.parse(
-          stepFor(NextUseActionId.configurePlateSolver).deepLinkRoute);
-      final section = uri.queryParameters['section'];
-      expect(section, isNotNull);
-      expect(section!.trim(), isNotEmpty);
-      expect(section, 'plate-solving');
-    });
+    test(
+      'the configure-plate-solver step carries a non-empty section= value',
+      () {
+        final uri = Uri.parse(
+          stepFor(NextUseActionId.configurePlateSolver).deepLinkRoute,
+        );
+        final section = uri.queryParameters['section'];
+        expect(section, isNotNull);
+        expect(section!.trim(), isNotEmpty);
+        expect(section, 'plate-solving');
+      },
+    );
   });
 
   group('stepFor', () {
@@ -114,8 +137,9 @@ void main() {
       // stepFor is live, not dead code — the production list happens to be
       // exhaustive, so the throw is otherwise unreachable.
       const removed = NextUseActionId.frameTarget;
-      final pruned =
-          kNextUseSteps.where((s) => s.id != removed).toList(growable: false);
+      final pruned = kNextUseSteps
+          .where((s) => s.id != removed)
+          .toList(growable: false);
 
       NextUseStep lookup(NextUseActionId id) {
         for (final step in pruned) {
@@ -130,8 +154,10 @@ void main() {
 
       expect(() => lookup(removed), throwsStateError);
       // Remaining ids still resolve through the pruned list.
-      expect(lookup(NextUseActionId.buildSmartNight).id,
-          NextUseActionId.buildSmartNight);
+      expect(
+        lookup(NextUseActionId.buildSmartNight).id,
+        NextUseActionId.buildSmartNight,
+      );
     });
   });
 }

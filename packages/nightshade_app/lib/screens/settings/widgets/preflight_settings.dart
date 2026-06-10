@@ -141,8 +141,7 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
                     max: 90,
                     decimals: 0,
                     onChanged: (value) async {
-                      await notifier
-                          .setPolarAlignmentMaxAgeDays(value.toInt());
+                      await notifier.setPolarAlignmentMaxAgeDays(value.toInt());
                     },
                     isMobile: widget.isMobile,
                   ),

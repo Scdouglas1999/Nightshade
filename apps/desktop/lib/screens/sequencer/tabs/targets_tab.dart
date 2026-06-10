@@ -52,16 +52,18 @@ class TargetsTab extends ConsumerWidget {
                 var filtered = targets;
                 if (searchQuery.isNotEmpty) {
                   filtered = filtered.where((t) {
-                    final nameMatch = t.name
-                        .toLowerCase()
-                        .contains(searchQuery.toLowerCase());
-                    final catalogMatch = t.catalogId
-                            ?.toLowerCase()
-                            .contains(searchQuery.toLowerCase()) ??
+                    final nameMatch = t.name.toLowerCase().contains(
+                      searchQuery.toLowerCase(),
+                    );
+                    final catalogMatch =
+                        t.catalogId?.toLowerCase().contains(
+                          searchQuery.toLowerCase(),
+                        ) ??
                         false;
-                    final constMatch = t.constellation
-                            ?.toLowerCase()
-                            .contains(searchQuery.toLowerCase()) ??
+                    final constMatch =
+                        t.constellation?.toLowerCase().contains(
+                          searchQuery.toLowerCase(),
+                        ) ??
                         false;
                     return nameMatch || catalogMatch || constMatch;
                   }).toList();
@@ -84,10 +86,7 @@ class TargetsTab extends ConsumerWidget {
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    return _TargetCard(
-                      colors: colors,
-                      target: filtered[index],
-                    );
+                    return _TargetCard(colors: colors, target: filtered[index]);
                   },
                 );
               },
@@ -100,8 +99,11 @@ class TargetsTab extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.alertTriangle,
-                          size: 48, color: colors.error),
+                      Icon(
+                        LucideIcons.alertTriangle,
+                        size: 48,
+                        color: colors.error,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Failed to load targets',

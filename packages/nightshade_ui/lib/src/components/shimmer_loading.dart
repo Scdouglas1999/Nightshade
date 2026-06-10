@@ -30,10 +30,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-    );
+    _controller = AnimationController(vsync: this, duration: widget.duration);
     if (widget.isLoading) {
       _controller.repeat();
     }
@@ -138,9 +135,7 @@ class SkeletonBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
       ),
     );
   }
@@ -150,10 +145,7 @@ class SkeletonBox extends StatelessWidget {
 class SkeletonCircle extends StatelessWidget {
   final double size;
 
-  const SkeletonCircle({
-    super.key,
-    required this.size,
-  });
+  const SkeletonCircle({super.key, required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -165,9 +157,7 @@ class SkeletonCircle extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
       ),
     );
   }
@@ -207,8 +197,9 @@ class SkeletonText extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: List.generate(lines, (index) {
         // Make last line shorter for a more natural look
-        final lineWidth =
-            index == lines - 1 && width != null ? width! * 0.7 : width;
+        final lineWidth = index == lines - 1 && width != null
+            ? width! * 0.7
+            : width;
 
         return Padding(
           padding: EdgeInsets.only(bottom: index < lines - 1 ? spacing : 0),

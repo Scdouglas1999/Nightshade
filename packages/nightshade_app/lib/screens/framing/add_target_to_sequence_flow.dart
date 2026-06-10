@@ -75,8 +75,9 @@ TargetHeaderNode bareTargetHeaderForFramedTarget({
   required FramingTarget target,
   double? rotationDegrees,
 }) {
-  final rotation =
-      (rotationDegrees != null && rotationDegrees != 0) ? rotationDegrees : null;
+  final rotation = (rotationDegrees != null && rotationDegrees != 0)
+      ? rotationDegrees
+      : null;
   return TargetHeaderNode(
     name: target.name,
     targetName: target.name,
@@ -140,9 +141,8 @@ Future<bool> addFramedTargetToExistingSequence({
 
   // Default selection: the open sequence if there is one, else the first saved
   // sequence, else the "new empty" option.
-  final initialIndex = current != null
-      ? 0
-      : (saved.isNotEmpty ? 0 : destinations.length - 1);
+  final initialIndex =
+      current != null ? 0 : (saved.isNotEmpty ? 0 : destinations.length - 1);
 
   final chosen = await showDialog<_SequenceDestination>(
     context: context,
@@ -154,8 +154,8 @@ Future<bool> addFramedTargetToExistingSequence({
   );
   if (chosen == null || !context.mounted) return false;
 
-  final header =
-      bareTargetHeaderForFramedTarget(target: target, rotationDegrees: rotationDegrees);
+  final header = bareTargetHeaderForFramedTarget(
+      target: target, rotationDegrees: rotationDegrees);
   final notifier = ref.read(currentSequenceProvider.notifier);
 
   try {
@@ -189,7 +189,8 @@ Future<bool> addFramedTargetToExistingSequence({
           discardUnsaved: true,
         );
       } else {
-        notifier.loadCopyForEditing(chosen.savedSequence!, discardUnsaved: true);
+        notifier.loadCopyForEditing(chosen.savedSequence!,
+            discardUnsaved: true);
       }
       notifier.addTargetHeader(header);
       return true;
@@ -219,8 +220,7 @@ Future<bool> addFramedTargetToExistingSequence({
 }
 
 String? _targetCountSubtitle(Sequence sequence) {
-  final count =
-      sequence.nodes.values.whereType<TargetHeaderNode>().length;
+  final count = sequence.nodes.values.whereType<TargetHeaderNode>().length;
   if (count == 0) return 'No targets yet';
   return '$count target${count == 1 ? '' : 's'}';
 }
@@ -362,14 +362,13 @@ class _DestinationTile extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                selected
-                    ? LucideIcons.checkCircle2
-                    : NightshadeIcons.circle,
+                selected ? LucideIcons.checkCircle2 : NightshadeIcons.circle,
                 size: NightshadeTokens.iconSm,
                 color: selected ? colors.primary : colors.textMuted,
               ),
               const SizedBox(width: NightshadeTokens.spaceMd),
-              Icon(icon, size: NightshadeTokens.iconSm, color: colors.textSecondary),
+              Icon(icon,
+                  size: NightshadeTokens.iconSm, color: colors.textSecondary),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: Column(
@@ -389,8 +388,7 @@ class _DestinationTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (destination.isCurrent)
-                _Badge(label: 'Open', colors: colors),
+              if (destination.isCurrent) _Badge(label: 'Open', colors: colors),
             ],
           ),
         ),

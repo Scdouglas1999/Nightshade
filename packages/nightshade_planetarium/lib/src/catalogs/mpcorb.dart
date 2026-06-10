@@ -51,8 +51,11 @@ class MpcOrbParser {
       results.add(parsed);
     }
     if (results.isEmpty && failed > 0) {
-      developer.log('[MPCORB] no parsable asteroid lines ($failed skipped)',
-          name: 'MpcOrbParser', level: 900);
+      developer.log(
+        '[MPCORB] no parsable asteroid lines ($failed skipped)',
+        name: 'MpcOrbParser',
+        level: 900,
+      );
     }
     return results;
   }
@@ -183,7 +186,8 @@ class MpcOrbParser {
         name = line.substring(102, end).trim();
       }
       if (name.isEmpty) {
-        name = '${line.substring(0, 4).trim()}'
+        name =
+            '${line.substring(0, 4).trim()}'
             '${line.substring(4, 5).trim()}/'
             '${line.substring(5, 12).trim()}';
       }

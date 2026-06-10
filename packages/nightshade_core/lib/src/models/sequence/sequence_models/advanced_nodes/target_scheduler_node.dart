@@ -118,7 +118,8 @@ class TargetSchedulerNode extends SequenceNode {
   /// so floating-point rounding from UI sliders doesn't trip the warning).
   /// Used by the validator's [TargetSchedulerWeightsRule].
   bool get weightsNormalised {
-    final sum = altitudeWeight +
+    final sum =
+        altitudeWeight +
         moonDistanceWeight +
         transitProximityWeight +
         darknessWeight +
@@ -215,22 +216,22 @@ class TargetSchedulerNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        altitudeWeight,
-        moonDistanceWeight,
-        transitProximityWeight,
-        darknessWeight,
-        airmassWeight,
-        minScoreToRun,
-        recomputeEveryNExposures,
-        finishIterationOnSwitch,
-        swapOnConditionsBelow,
-        swapHysteresisSecs,
-        brightnessTierPreferences,
-        maxConditionsScoreAgeSecs,
-        minMoonSeparationDeg,
-        horizonProfile,
-      ];
+    ...super.props,
+    altitudeWeight,
+    moonDistanceWeight,
+    transitProximityWeight,
+    darknessWeight,
+    airmassWeight,
+    minScoreToRun,
+    recomputeEveryNExposures,
+    finishIterationOnSwitch,
+    swapOnConditionsBelow,
+    swapHysteresisSecs,
+    brightnessTierPreferences,
+    maxConditionsScoreAgeSecs,
+    minMoonSeparationDeg,
+    horizonProfile,
+  ];
 }
 
 // =============================================================================

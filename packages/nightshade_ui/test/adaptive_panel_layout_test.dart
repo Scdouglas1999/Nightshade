@@ -16,7 +16,8 @@ Widget _host({
           color: Color(0xFF101010),
           child: Center(child: Text('PRIMARY')),
         ),
-        secondary: secondary ??
+        secondary:
+            secondary ??
             const [
               AdaptivePanel(
                 title: 'Controls',
@@ -46,8 +47,8 @@ Future<void> _pumpAt(
 }
 
 Finder get _resizeHandle => find.byWidgetPredicate(
-      (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
-    );
+  (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
+);
 
 void main() {
   group('phone portrait', () {
@@ -94,8 +95,9 @@ void main() {
   });
 
   group('phone landscape', () {
-    testWidgets('shows side-by-side split when wide enough (844x390)',
-        (tester) async {
+    testWidgets('shows side-by-side split when wide enough (844x390)', (
+      tester,
+    ) async {
       await _pumpAt(tester, const Size(844, 390), _host());
       expect(tester.takeException(), isNull);
       // Both visible at once — no collapse.
@@ -103,8 +105,9 @@ void main() {
       expect(find.text('CONTROLS'), findsOneWidget);
     });
 
-    testWidgets('falls back to collapse when too narrow (640x360)',
-        (tester) async {
+    testWidgets('falls back to collapse when too narrow (640x360)', (
+      tester,
+    ) async {
       // 640 < landscapeSplitMinWidth (560)? 640 >= 560 so it WILL split.
       await _pumpAt(tester, const Size(640, 360), _host());
       expect(tester.takeException(), isNull);
@@ -117,10 +120,15 @@ void main() {
     // The regression: a phone in landscape reports a desktop-class WIDTH, so a
     // width-only check took the desktop resizable split. On a mobile OS the
     // device is still a phone and must use the phone split — no desktop chrome.
-    testWidgets('android phone at 1100x480 uses the phone split, not desktop',
-        (tester) async {
-      await _pumpAt(tester, const Size(1100, 480), _host(),
-          platform: TargetPlatform.android);
+    testWidgets('android phone at 1100x480 uses the phone split, not desktop', (
+      tester,
+    ) async {
+      await _pumpAt(
+        tester,
+        const Size(1100, 480),
+        _host(),
+        platform: TargetPlatform.android,
+      );
       expect(tester.takeException(), isNull);
       // Side-by-side phone split: both visible...
       expect(find.text('PRIMARY'), findsOneWidget);
@@ -129,15 +137,21 @@ void main() {
       expect(_resizeHandle, findsNothing);
     });
 
-    testWidgets('android phone at 932x430 (Pro Max landscape) is a phone split',
-        (tester) async {
-      await _pumpAt(tester, const Size(932, 430), _host(),
-          platform: TargetPlatform.iOS);
-      expect(tester.takeException(), isNull);
-      expect(find.text('PRIMARY'), findsOneWidget);
-      expect(find.text('CONTROLS'), findsOneWidget);
-      expect(_resizeHandle, findsNothing);
-    });
+    testWidgets(
+      'android phone at 932x430 (Pro Max landscape) is a phone split',
+      (tester) async {
+        await _pumpAt(
+          tester,
+          const Size(932, 430),
+          _host(),
+          platform: TargetPlatform.iOS,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('PRIMARY'), findsOneWidget);
+        expect(find.text('CONTROLS'), findsOneWidget);
+        expect(_resizeHandle, findsNothing);
+      },
+    );
   });
 
   group('tablet / desktop', () {
@@ -168,16 +182,23 @@ void main() {
     });
   });
 
-  testWidgets('two secondary panels segment correctly on phone',
-      (tester) async {
+  testWidgets('two secondary panels segment correctly on phone', (
+    tester,
+  ) async {
     await _pumpAt(
       tester,
       const Size(390, 844),
       _host(
         strategy: PhonePanelStrategy.segmented,
         secondary: const [
-          AdaptivePanel(title: 'Tune', child: Center(child: Text('TUNE'))),
-          AdaptivePanel(title: 'Stats', child: Center(child: Text('STATS'))),
+          AdaptivePanel(
+            title: 'Tune',
+            child: Center(child: Text('TUNE')),
+          ),
+          AdaptivePanel(
+            title: 'Stats',
+            child: Center(child: Text('STATS')),
+          ),
         ],
       ),
     );

@@ -220,7 +220,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
                 height: 4,
                 decoration: BoxDecoration(
                   color: colors.textMuted.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline2),
                 ),
               ),
               Expanded(child: profileSidebar),
@@ -249,8 +250,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar(
-          context.l10n.text('equipmentCreateProfileFailed',
-              params: {'error': '$e'}),
+          context.l10n
+              .text('equipmentCreateProfileFailed', params: {'error': '$e'}),
         );
       }
     }
@@ -281,7 +282,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar(
-          context.l10n.text('equipmentSetDefaultFailed', params: {'error': '$e'}),
+          context.l10n
+              .text('equipmentSetDefaultFailed', params: {'error': '$e'}),
         );
       }
     }
@@ -309,7 +311,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar(
-          context.l10n.text('equipmentDuplicateFailed', params: {'error': '$e'}),
+          context.l10n
+              .text('equipmentDuplicateFailed', params: {'error': '$e'}),
         );
       }
     }

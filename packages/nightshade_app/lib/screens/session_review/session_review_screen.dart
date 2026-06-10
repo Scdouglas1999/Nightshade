@@ -58,43 +58,44 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
       body: SafeArea(
         bottom: false,
         child: Column(
-        children: [
-          ScreenHeader(
-            title: state.title,
-            subtitle: state.loading
-                ? 'Loading…'
-                : '${state.acceptedCount} accepted · ${state.rejectedCount} rejected',
-            icon: NightshadeIcons.image,
-            trailing: NightshadeButton(
-              label: 'Refresh',
-              icon: NightshadeIcons.refresh,
-              variant: ButtonVariant.outline,
-              size: ButtonSize.small,
-              onPressed: () => _controller.refresh(),
+          children: [
+            ScreenHeader(
+              title: state.title,
+              subtitle: state.loading
+                  ? 'Loading…'
+                  : '${state.acceptedCount} accepted · ${state.rejectedCount} rejected',
+              icon: NightshadeIcons.image,
+              trailing: NightshadeButton(
+                label: 'Refresh',
+                icon: NightshadeIcons.refresh,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => _controller.refresh(),
+              ),
             ),
-          ),
-          // Narrative ↔ workbench toggle: one tap, two renderings of one model.
-          _ViewToggleBar(
-            mode: state.viewMode,
-            onChanged: (m) => _controller.setViewMode(m),
-          ),
-          // Live integration progress (phase + fraction). Only present while a
-          // long-running run is reporting progress.
-          if (progress != null)
-            _ProgressStrip(phase: progress.phase, fraction: progress.fraction),
-          Expanded(
-            child: state.loading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : isNarrative
-                    ? NarrativeView(scope: widget.scope)
-                    : WorkbenchView(scope: widget.scope),
-          ),
-        ],
+            // Narrative ↔ workbench toggle: one tap, two renderings of one model.
+            _ViewToggleBar(
+              mode: state.viewMode,
+              onChanged: (m) => _controller.setViewMode(m),
+            ),
+            // Live integration progress (phase + fraction). Only present while a
+            // long-running run is reporting progress.
+            if (progress != null)
+              _ProgressStrip(
+                  phase: progress.phase, fraction: progress.fraction),
+            Expanded(
+              child: state.loading
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : isNarrative
+                      ? NarrativeView(scope: widget.scope)
+                      : WorkbenchView(scope: widget.scope),
+            ),
+          ],
         ),
       ),
     );
   }
-
 }
 
 /// The narrative ↔ workbench segmented toggle that sits under the header. One

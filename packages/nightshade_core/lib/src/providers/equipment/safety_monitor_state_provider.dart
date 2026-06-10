@@ -9,10 +9,11 @@ import 'equipment_retry_defaults.dart';
 
 /// Safety monitor state provider
 final safetyMonitorStateProvider =
-    StateNotifierProvider<SafetyMonitorStateNotifier, SafetyMonitorState>(
-        (ref) {
-  return SafetyMonitorStateNotifier(ref);
-});
+    StateNotifierProvider<SafetyMonitorStateNotifier, SafetyMonitorState>((
+      ref,
+    ) {
+      return SafetyMonitorStateNotifier(ref);
+    });
 
 class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
   final Ref _ref;
@@ -20,8 +21,10 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
 
   SafetyMonitorStateNotifier(this._ref) : super(const SafetyMonitorState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -107,10 +110,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
   }
 
   void updateSafetyStatus(bool isSafe) {
-    state = state.copyWith(
-      isSafe: isSafe,
-      lastChecked: DateTime.now(),
-    );
+    state = state.copyWith(isSafe: isSafe, lastChecked: DateTime.now());
   }
 
   void setError(Object error) {

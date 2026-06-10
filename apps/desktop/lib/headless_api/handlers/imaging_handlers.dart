@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +33,7 @@ class ImagingHandlers {
   static const Map<String, Object> _hostOnlyProcessingBody = {
     'error':
         'Full-frame pixel upload is not supported on the remote API. '
-            'Processing runs on the host; use host-authoritative endpoints.',
+        'Processing runs on the host; use host-authoritative endpoints.',
     'code': 'host_only_processing',
     'hostEndpoints': <String>[
       'POST /api/imaging/save-fits-from-capture',
@@ -44,10 +44,7 @@ class ImagingHandlers {
 
   Response _rejectClientPixelUpload(String operation) {
     _logInfo('[API] $operation rejected (host-only processing)');
-    return jsonBadRequest({
-      ..._hostOnlyProcessingBody,
-      'operation': operation,
-    });
+    return jsonBadRequest({..._hostOnlyProcessingBody, 'operation': operation});
   }
 
   // ===========================================================================
@@ -79,7 +76,9 @@ class ImagingHandlers {
           );
           final result = await Future.any<dynamic>([
             workFuture,
-            cancellation.whenCancelled.then((_) => _PlateSolveCancelled.instance),
+            cancellation.whenCancelled.then(
+              (_) => _PlateSolveCancelled.instance,
+            ),
           ]);
           if (result is _PlateSolveCancelled) {
             throw const JobCancelledException(
@@ -229,13 +228,15 @@ class ImagingHandlers {
 
     return jsonOk({
       'crops': crops
-          .map((crop) => {
-                'pixels_base64': crop.pixelsBase64,
-                'width': crop.width,
-                'height': crop.height,
-                'hfr': crop.hfr,
-                'snr': crop.snr,
-              })
+          .map(
+            (crop) => {
+              'pixels_base64': crop.pixelsBase64,
+              'width': crop.width,
+              'height': crop.height,
+              'hfr': crop.hfr,
+              'snr': crop.snr,
+            },
+          )
           .toList(),
     });
   }
@@ -282,7 +283,9 @@ class ImagingHandlers {
   }
 
   Future<Response> handleClearDeviceImage(
-      Request request, String deviceId) async {
+    Request request,
+    String deviceId,
+  ) async {
     _logInfo('[API] DELETE /api/imaging/device-image/$deviceId');
     // clearDeviceImage lives on DeviceBackend (operates on the camera
     // driver's last-image cache).

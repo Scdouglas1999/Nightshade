@@ -16,15 +16,17 @@ extension ClickIdentifyService on AnnotationService {
     final coords = plateSolve.pixelToSky(x, y);
 
     _logger.debug(
-        'Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}',
-        source: 'Annotation');
+      'Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}',
+      source: 'Annotation',
+    );
 
     // Search for object at these coordinates
     final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-    final effectiveRadiusArcsec = (searchRadiusArcsec ??
-            settings?.clickSearchRadiusArcsec ??
-            const AnnotationSettings().clickSearchRadiusArcsec)
-        .clamp(1.0, 600.0);
+    final effectiveRadiusArcsec =
+        (searchRadiusArcsec ??
+                settings?.clickSearchRadiusArcsec ??
+                const AnnotationSettings().clickSearchRadiusArcsec)
+            .clamp(1.0, 600.0);
 
     final ObjectData? details;
     try {
@@ -35,8 +37,9 @@ extension ClickIdentifyService on AnnotationService {
       ).timeout(const Duration(seconds: 10));
     } on TimeoutException {
       _logger.warning(
-          'Click-to-identify timed out after 10s at RA=${coords.ra}, Dec=${coords.dec}',
-          source: 'Annotation');
+        'Click-to-identify timed out after 10s at RA=${coords.ra}, Dec=${coords.dec}',
+        source: 'Annotation',
+      );
       // Return a sentinel annotation so the UI can distinguish timeout from
       // "nothing found" (null).
       return CelestialObjectAnnotation(
@@ -48,7 +51,8 @@ extension ClickIdentifyService on AnnotationService {
         x: x,
         y: y,
         detailedData: ObjectData(
-          description: 'The catalog query timed out after 10 seconds. '
+          description:
+              'The catalog query timed out after 10 seconds. '
               'Check your network connection and try again.',
           dataSource: 'timeout',
           lastUpdated: DateTime.now(),
@@ -60,7 +64,8 @@ extension ClickIdentifyService on AnnotationService {
 
     // Convert to annotation format
     final objectType = _inferObjectType(details.objectClass);
-    final name = details.catalogIds?['Name'] ??
+    final name =
+        details.catalogIds?['Name'] ??
         (details.catalogIds?['NGC'] != null
             ? 'NGC ${details.catalogIds!['NGC']}'
             : null) ??
@@ -124,12 +129,16 @@ extension ClickIdentifyService on AnnotationService {
           dataSource: 'Local Catalog',
         );
 
-        _logger.debug('Found in local DSO catalog: ${closest.displayName}',
-            source: 'Annotation');
+        _logger.debug(
+          'Found in local DSO catalog: ${closest.displayName}',
+          source: 'Annotation',
+        );
       }
     } catch (e) {
-      _logger.error('Error searching local DSO catalog: $e',
-          source: 'Annotation');
+      _logger.error(
+        'Error searching local DSO catalog: $e',
+        source: 'Annotation',
+      );
     }
 
     // Also check local star catalog
@@ -163,19 +172,26 @@ extension ClickIdentifyService on AnnotationService {
             dataSource: 'Local Catalog',
           );
 
-          _logger.debug('Found in local star catalog: ${closest.name}',
-              source: 'Annotation');
+          _logger.debug(
+            'Found in local star catalog: ${closest.name}',
+            source: 'Annotation',
+          );
         }
       } catch (e) {
-        _logger.error('Error searching local star catalog: $e',
-            source: 'Annotation');
+        _logger.error(
+          'Error searching local star catalog: $e',
+          source: 'Annotation',
+        );
       }
     }
 
     // 2. Query SIMBAD for identification and basic data
     try {
-      final simbadData = await _simbadProvider.queryByCoordinates(ra, dec,
-          radiusArcmin: radiusArcmin);
+      final simbadData = await _simbadProvider.queryByCoordinates(
+        ra,
+        dec,
+        radiusArcmin: radiusArcmin,
+      );
       if (simbadData != null) {
         // Merge with local data or use as base
         result = _mergeObjectData(result, simbadData);
@@ -200,7 +216,8 @@ extension ClickIdentifyService on AnnotationService {
     // 4. Check for Exoplanets (if it's a star)
     if (result != null && result.catalogIds != null) {
       // Try to find a name to query
-      final name = result.catalogIds?['Name'] ??
+      final name =
+          result.catalogIds?['Name'] ??
           (result.catalogIds?['HD'] != null
               ? 'HD ${result.catalogIds!['HD']}'
               : null) ??

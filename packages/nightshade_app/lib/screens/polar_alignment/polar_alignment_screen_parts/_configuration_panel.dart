@@ -131,7 +131,9 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                 width: 40,
                 child: Text(
                   '${config.exposureTime.toInt()}s',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary),
                 ),
               ),
             ],
@@ -153,91 +155,96 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
     return Material(
       type: MaterialType.transparency,
       child: Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(bottom: 8),
-        initiallyExpanded: ui.showCommonSettings,
-        onExpansionChanged: uiNotifier.setShowCommonSettings,
-        title: Row(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          initiallyExpanded: ui.showCommonSettings,
+          onExpansionChanged: uiNotifier.setShowCommonSettings,
+          title: Row(
+            children: [
+              Icon(NightshadeIcons.sliders, size: 14, color: colors.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Common',
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              ),
+            ],
+          ),
           children: [
-            Icon(NightshadeIcons.sliders, size: 14, color: colors.textMuted),
-            const SizedBox(width: 8),
-            Text(
-              'Common',
-              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+            // Binning
+            _SettingRow(
+              label: 'Binning',
+              tooltip: 'Higher binning = faster plate solves, lower resolution',
+              colors: colors,
+              child: PolarAlignmentSegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 1, label: Text('1x1')),
+                  ButtonSegment(value: 2, label: Text('2x2')),
+                  ButtonSegment(value: 4, label: Text('4x4')),
+                ],
+                selected: {config.binning},
+                onSelectionChanged: isRunning
+                    ? null
+                    : (v) => configNotifier.setBinning(v.first),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Step size
+            _SettingRow(
+              label: 'Step Size',
+              tooltip:
+                  'Distance between measurement points. Larger = more accurate but may hit mount limits',
+              colors: colors,
+              child: Row(
+                key: PolarAlignmentTutorialKeys.stepSize,
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: config.stepSize,
+                      min: 10,
+                      max: 45,
+                      divisions: 7,
+                      onChanged: isRunning
+                          ? null
+                          : (v) => configNotifier.setStepSize(v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${config.stepSize.toInt()}°',
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Direction
+            _SettingRow(
+              label: 'Direction',
+              tooltip:
+                  'Which way to rotate for measurements. Use West if near Eastern meridian limit',
+              colors: colors,
+              child: PolarAlignmentSegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('East')),
+                  ButtonSegment(value: false, label: Text('West')),
+                ],
+                selected: {config.rotateEast},
+                onSelectionChanged: isRunning
+                    ? null
+                    : (v) => configNotifier.setRotateEast(v.first),
+              ),
             ),
           ],
         ),
-        children: [
-          // Binning
-          _SettingRow(
-            label: 'Binning',
-            tooltip: 'Higher binning = faster plate solves, lower resolution',
-            colors: colors,
-            child: PolarAlignmentSegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 1, label: Text('1x1')),
-                ButtonSegment(value: 2, label: Text('2x2')),
-                ButtonSegment(value: 4, label: Text('4x4')),
-              ],
-              selected: {config.binning},
-              onSelectionChanged:
-                  isRunning ? null : (v) => configNotifier.setBinning(v.first),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Step size
-          _SettingRow(
-            label: 'Step Size',
-            tooltip:
-                'Distance between measurement points. Larger = more accurate but may hit mount limits',
-            colors: colors,
-            child: Row(
-              key: PolarAlignmentTutorialKeys.stepSize,
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: config.stepSize,
-                    min: 10,
-                    max: 45,
-                    divisions: 7,
-                    onChanged:
-                        isRunning ? null : (v) => configNotifier.setStepSize(v),
-                  ),
-                ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    '${config.stepSize.toInt()}°',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Direction
-          _SettingRow(
-            label: 'Direction',
-            tooltip:
-                'Which way to rotate for measurements. Use West if near Eastern meridian limit',
-            colors: colors,
-            child: PolarAlignmentSegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('East')),
-                ButtonSegment(value: false, label: Text('West')),
-              ],
-              selected: {config.rotateEast},
-              onSelectionChanged: isRunning
-                  ? null
-                  : (v) => configNotifier.setRotateEast(v.first),
-            ),
-          ),
-        ],
-      ),
       ),
     );
   }
@@ -254,115 +261,122 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
     return Material(
       type: MaterialType.transparency,
       child: Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(bottom: 8),
-        initiallyExpanded: ui.showAdvancedSettings,
-        onExpansionChanged: uiNotifier.setShowAdvancedSettings,
-        title: Row(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          initiallyExpanded: ui.showAdvancedSettings,
+          onExpansionChanged: uiNotifier.setShowAdvancedSettings,
+          title: Row(
+            children: [
+              Icon(NightshadeIcons.settings2,
+                  size: 14, color: colors.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Advanced',
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              ),
+            ],
+          ),
           children: [
-            Icon(NightshadeIcons.settings2, size: 14, color: colors.textMuted),
-            const SizedBox(width: 8),
-            Text(
-              'Advanced',
-              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+            // Manual rotation toggle
+            _SettingRow(
+              label: 'Manual Rotation',
+              tooltip: 'Enable for star trackers without GoTo capability',
+              colors: colors,
+              child: NightshadeSwitch(
+                value: config.manualRotation,
+                onChanged: isRunning
+                    ? null
+                    : (v) => configNotifier.setManualRotation(v),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Solve timeout
+            _SettingRow(
+              label: 'Solve Timeout',
+              tooltip: 'Maximum time to wait for plate solve',
+              colors: colors,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: config.solveTimeout,
+                      min: 10,
+                      max: 120,
+                      divisions: 11,
+                      onChanged: isRunning
+                          ? null
+                          : (v) => configNotifier.setSolveTimeout(v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${config.solveTimeout.toInt()}s',
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Start position
+            _SettingRow(
+              label: 'Start From',
+              tooltip: 'Use current telescope position or slew near pole first',
+              colors: colors,
+              child: PolarAlignmentSegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('Current')),
+                  ButtonSegment(value: false, label: Text('Pole')),
+                ],
+                selected: {config.startFromCurrent},
+                onSelectionChanged: isRunning
+                    ? null
+                    : (v) => configNotifier.setStartFromCurrent(v.first),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Auto-complete threshold
+            _SettingRow(
+              label: 'Auto-Complete',
+              tooltip:
+                  'Automatically finish when error stays below this value for 3 seconds',
+              colors: colors,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: config.autoCompleteThreshold,
+                      min: 10,
+                      max: 120,
+                      divisions: 11,
+                      onChanged: isRunning
+                          ? null
+                          : (v) => configNotifier.setAutoCompleteThreshold(v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${config.autoCompleteThreshold.toInt()}"',
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        children: [
-          // Manual rotation toggle
-          _SettingRow(
-            label: 'Manual Rotation',
-            tooltip: 'Enable for star trackers without GoTo capability',
-            colors: colors,
-            child: NightshadeSwitch(
-              value: config.manualRotation,
-              onChanged:
-                  isRunning ? null : (v) => configNotifier.setManualRotation(v),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Solve timeout
-          _SettingRow(
-            label: 'Solve Timeout',
-            tooltip: 'Maximum time to wait for plate solve',
-            colors: colors,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: config.solveTimeout,
-                    min: 10,
-                    max: 120,
-                    divisions: 11,
-                    onChanged: isRunning
-                        ? null
-                        : (v) => configNotifier.setSolveTimeout(v),
-                  ),
-                ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    '${config.solveTimeout.toInt()}s',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Start position
-          _SettingRow(
-            label: 'Start From',
-            tooltip: 'Use current telescope position or slew near pole first',
-            colors: colors,
-            child: PolarAlignmentSegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Current')),
-                ButtonSegment(value: false, label: Text('Pole')),
-              ],
-              selected: {config.startFromCurrent},
-              onSelectionChanged: isRunning
-                  ? null
-                  : (v) => configNotifier.setStartFromCurrent(v.first),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Auto-complete threshold
-          _SettingRow(
-            label: 'Auto-Complete',
-            tooltip:
-                'Automatically finish when error stays below this value for 3 seconds',
-            colors: colors,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: config.autoCompleteThreshold,
-                    min: 10,
-                    max: 120,
-                    divisions: 11,
-                    onChanged: isRunning
-                        ? null
-                        : (v) => configNotifier.setAutoCompleteThreshold(v),
-                  ),
-                ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    '${config.autoCompleteThreshold.toInt()}"',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
       ),
     );
   }

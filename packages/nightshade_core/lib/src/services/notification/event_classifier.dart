@@ -76,7 +76,8 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _categoryAndContext(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     switch (event.category) {
       case EventCategory.sequencer:
         return _classifySequencer(event);
@@ -108,7 +109,8 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _classifySequencer(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     switch (event.eventType) {
       case 'Started':
         return (NotificationCategory.sequenceStarted, <String, String>{});
@@ -138,8 +140,8 @@ class NotificationEventClassifier {
           },
         );
       case 'NodeCompleted':
-        final nodeType =
-            (event.data['node_type'] as String? ?? '').toLowerCase();
+        final nodeType = (event.data['node_type'] as String? ?? '')
+            .toLowerCase();
         final success = event.data['success'] as bool? ?? true;
         if (nodeType.contains('autofocus')) {
           return (
@@ -151,8 +153,8 @@ class NotificationEventClassifier {
         }
         return null;
       case 'InstructionProgress':
-        final instr =
-            (event.data['instruction'] as String? ?? '').toLowerCase();
+        final instr = (event.data['instruction'] as String? ?? '')
+            .toLowerCase();
         if (instr.contains('meridian')) {
           return (
             NotificationCategory.meridianFlipPerformed,
@@ -185,7 +187,8 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _classifyImaging(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     switch (event.eventType) {
       case 'ExposureCompleted':
         return (
@@ -199,7 +202,8 @@ class NotificationEventClassifier {
         return (
           NotificationCategory.exposureFailed,
           <String, String>{
-            'frame.reason': (event.data['error'] as String?) ??
+            'frame.reason':
+                (event.data['error'] as String?) ??
                 (event.data['reason'] as String?) ??
                 '',
           },
@@ -209,7 +213,8 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _classifyGuiding(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     switch (event.eventType) {
       case 'StarLost':
       case 'Disconnected':
@@ -222,13 +227,13 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _classifyEquipment(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     if (event.eventType == 'Disconnected' || event.eventType == 'Error') {
       return (
         NotificationCategory.equipmentDisconnected,
         <String, String>{
-          'equipment.device_type':
-              (event.data['device_type'] as String?) ?? '',
+          'equipment.device_type': (event.data['device_type'] as String?) ?? '',
           'equipment.device_id': (event.data['device_id'] as String?) ?? '',
         },
       );
@@ -237,7 +242,8 @@ class NotificationEventClassifier {
   }
 
   static (NotificationCategory, Map<String, String>)? _classifySystem(
-      NightshadeEvent event) {
+    NightshadeEvent event,
+  ) {
     if (event.eventType.toLowerCase().contains('disk')) {
       return (NotificationCategory.diskSpaceLow, <String, String>{});
     }

@@ -79,11 +79,7 @@ class PlateSolverUtils {
         '/opt/homebrew/bin/astap',
       ];
     } else if (Platform.isLinux) {
-      return [
-        '/opt/astap/astap',
-        '/usr/local/bin/astap',
-        '/usr/bin/astap',
-      ];
+      return ['/opt/astap/astap', '/usr/local/bin/astap', '/usr/bin/astap'];
     }
     return [];
   }
@@ -173,7 +169,10 @@ class PlateSolverUtils {
   /// Rust `identify_catalog` function — magnitude limits come from the
   /// published ASTAP catalog documentation
   /// (https://www.hnsky.org/star_databases.htm).
-  static AstapCatalogInfo? _identifyCatalog(String dir, List<String> filenames) {
+  static AstapCatalogInfo? _identifyCatalog(
+    String dir,
+    List<String> filenames,
+  ) {
     var hasIndexFiles = false;
     String? detectedName;
     double? detectedMag;
@@ -296,10 +295,15 @@ class PlateSolverUtils {
   }
 
   /// Get Astrometry.net executable with fallback to common installation paths
-  static Future<String?> findAstrometryNetExecutable(String? configuredPath) async {
+  static Future<String?> findAstrometryNetExecutable(
+    String? configuredPath,
+  ) async {
     // First, try the configured path if provided
     if (configuredPath != null && configuredPath.isNotEmpty) {
-      final configured = await _validateExecutablePath(configuredPath, 'solve-field');
+      final configured = await _validateExecutablePath(
+        configuredPath,
+        'solve-field',
+      );
       if (configured != null) return configured;
     }
 
@@ -337,7 +341,10 @@ class PlateSolverUtils {
   }
 
   /// Validate that a path points to a valid executable
-  static Future<String?> _validateExecutablePath(String path, String executableName) async {
+  static Future<String?> _validateExecutablePath(
+    String path,
+    String executableName,
+  ) async {
     try {
       final file = File(path);
       final dir = Directory(path);

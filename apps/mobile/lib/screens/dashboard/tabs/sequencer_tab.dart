@@ -254,7 +254,8 @@ class _StickyFooter extends ConsumerWidget {
                 Expanded(
                   child: _Stat(
                     label: 'Frames',
-                    value: '${progress.completedExposures}/'
+                    value:
+                        '${progress.completedExposures}/'
                         '${progress.totalExposures}',
                     colors: colors,
                   ),
@@ -292,10 +293,7 @@ class _StickyFooter extends ConsumerWidget {
                 ),
               ),
             const Spacer(),
-            _ControlButtons(
-              sequence: sequence,
-              execState: execState,
-            ),
+            _ControlButtons(sequence: sequence, execState: execState),
           ],
         ),
       ),
@@ -332,7 +330,10 @@ class _ExecBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w600),
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -342,19 +343,14 @@ class _Stat extends StatelessWidget {
   final String label;
   final String value;
   final NightshadeColors colors;
-  const _Stat({
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
+  const _Stat({required this.label, required this.value, required this.colors});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 10, color: colors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 10, color: colors.textMuted)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -443,7 +439,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
   Widget build(BuildContext context) {
     final isRunning = widget.execState == SequenceExecutionState.running;
     final isPaused = widget.execState == SequenceExecutionState.paused;
-    final canStart = widget.sequence != null &&
+    final canStart =
+        widget.sequence != null &&
         !isRunning &&
         !isPaused &&
         widget.execState != SequenceExecutionState.stopping;
@@ -462,8 +459,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
             onPressed: _busy
                 ? null
                 : (canStart
-                    ? _start
-                    : (isRunning ? _pause : (isPaused ? _resume : null))),
+                      ? _start
+                      : (isRunning ? _pause : (isPaused ? _resume : null))),
           ),
         ),
         const SizedBox(width: 8),
@@ -486,10 +483,7 @@ class _HoldToStopButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onConfirmed;
 
-  const _HoldToStopButton({
-    required this.enabled,
-    required this.onConfirmed,
-  });
+  const _HoldToStopButton({required this.enabled, required this.onConfirmed});
 
   @override
   Widget build(BuildContext context) {
@@ -505,9 +499,7 @@ class _HoldToStopButton extends StatelessWidget {
       decoration: BoxDecoration(
         color: enabled ? colors.error : colors.surfaceAlt,
         borderRadius: NightshadeTokens.borderRadiusSm,
-        border: Border.all(
-          color: enabled ? colors.error : colors.border,
-        ),
+        border: Border.all(color: enabled ? colors.error : colors.border),
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceLg + 2,
@@ -570,15 +562,15 @@ class _WeatherSafetyExpansion extends ConsumerWidget {
     final (label, tint, icon) = switch (safety.status) {
       WeatherSafetyStatus.safe => ('Safe', colors.success, LucideIcons.check),
       WeatherSafetyStatus.unsafe => (
-          'Unsafe',
-          colors.error,
-          LucideIcons.alertTriangle,
-        ),
+        'Unsafe',
+        colors.error,
+        LucideIcons.alertTriangle,
+      ),
       WeatherSafetyStatus.snoozed => (
-          'Snoozed',
-          colors.warning,
-          LucideIcons.bellOff,
-        ),
+        'Snoozed',
+        colors.warning,
+        LucideIcons.bellOff,
+      ),
     };
     return Container(
       decoration: BoxDecoration(
@@ -590,10 +582,8 @@ class _WeatherSafetyExpansion extends ConsumerWidget {
         // part of the sticky header strip rather than a floating tile.
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-          childrenPadding:
-              const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           leading: Icon(LucideIcons.shield, size: 18, color: colors.primary),
           title: Text(
             'Weather safety',
@@ -617,8 +607,11 @@ class _WeatherSafetyExpansion extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(LucideIcons.chevronDown,
-                  size: 16, color: colors.textSecondary),
+              Icon(
+                LucideIcons.chevronDown,
+                size: 16,
+                color: colors.textSecondary,
+              ),
             ],
           ),
           children: const [RunDashboardWeatherSafetyCard()],

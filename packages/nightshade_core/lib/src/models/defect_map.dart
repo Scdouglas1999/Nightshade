@@ -27,7 +27,10 @@ enum DefectMapMethod {
   final String wireValue;
   const DefectMapMethod(this.wireValue);
 
-  static DefectMapMethod fromWire(String? value, {DefectMapMethod fallback = DefectMapMethod.median}) {
+  static DefectMapMethod fromWire(
+    String? value, {
+    DefectMapMethod fallback = DefectMapMethod.median,
+  }) {
     if (value == null || value.isEmpty) return fallback;
     for (final m in DefectMapMethod.values) {
       if (m.wireValue == value) return m;
@@ -59,7 +62,10 @@ enum DefectMapKernelSize {
   final int diameter;
   const DefectMapKernelSize(this.diameter);
 
-  static DefectMapKernelSize fromDiameter(int diameter, {DefectMapKernelSize fallback = DefectMapKernelSize.k3}) {
+  static DefectMapKernelSize fromDiameter(
+    int diameter, {
+    DefectMapKernelSize fallback = DefectMapKernelSize.k3,
+  }) {
     for (final k in DefectMapKernelSize.values) {
       if (k.diameter == diameter) return k;
     }
@@ -199,15 +205,15 @@ class DefectMapStatus {
 
   @override
   int get hashCode => Object.hash(
-        cameraId,
-        width,
-        height,
-        temperatureBucket,
-        defectivePixelCount,
-        lastRebuiltUnixSeconds,
-        applyDuringCapture,
-        storedOnDisk,
-      );
+    cameraId,
+    width,
+    height,
+    temperatureBucket,
+    defectivePixelCount,
+    lastRebuiltUnixSeconds,
+    applyDuringCapture,
+    storedOnDisk,
+  );
 
   @override
   String toString() =>

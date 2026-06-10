@@ -312,7 +312,9 @@ class _CommandBarStat extends StatelessWidget {
             ),
             Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize9,
+                  color: colors.textMuted),
             ),
           ],
         ),

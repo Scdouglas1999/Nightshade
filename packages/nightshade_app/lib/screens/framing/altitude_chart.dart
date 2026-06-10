@@ -1,4 +1,3 @@
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,7 +138,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       longitudeDeg: lon,
     );
     _currentAltitude = currentAlt;
-    _currentAirmass = currentAlt > 0 ? AstronomyCalculations.airmass(currentAlt) : 0;
+    _currentAirmass =
+        currentAlt > 0 ? AstronomyCalculations.airmass(currentAlt) : 0;
 
     setState(() {
       _altitudeData = altitudePoints;
@@ -164,7 +164,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 'Altitude',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             const Spacer(),
@@ -174,14 +175,18 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               child: Row(
                 children: [
                   Icon(
-                    _showAirmass ? LucideIcons.checkSquare : NightshadeIcons.stop,
+                    _showAirmass
+                        ? LucideIcons.checkSquare
+                        : NightshadeIcons.stop,
                     size: 12,
                     color: colors.textMuted,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Airmass',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                   ),
                 ],
               ),
@@ -250,7 +255,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         children: [
           Text(
             '$label: ',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           Text(
             value,
@@ -269,24 +276,26 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     return AdaptiveChartContainer.fixed(
       height: 120,
       child: Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(NightshadeIcons.location, size: 24, color: colors.textMuted),
-            const SizedBox(height: 8),
-            Text(
-              'Set location in Settings',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
-            ),
-          ],
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: NightshadeTokens.borderRadiusInline8,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(NightshadeIcons.location, size: 24, color: colors.textMuted),
+              const SizedBox(height: 8),
+              Text(
+                'Set location in Settings',
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -313,19 +322,19 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               // Highlight 30° line for altitude
               if (!_showAirmass && value == 30) {
                 return FlLine(
-                  color: colors.warning.withValues(alpha:0.5),
+                  color: colors.warning.withValues(alpha: 0.5),
                   strokeWidth: 1,
                   dashArray: [4, 4],
                 );
               }
               return FlLine(
-                color: colors.border.withValues(alpha:0.3),
+                color: colors.border.withValues(alpha: 0.3),
                 strokeWidth: 0.5,
               );
             },
             getDrawingVerticalLine: (value) {
               return FlLine(
-                color: colors.border.withValues(alpha:0.3),
+                color: colors.border.withValues(alpha: 0.3),
                 strokeWidth: 0.5,
               );
             },
@@ -341,14 +350,21 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                     if (value == 1 || value == 2 || value == 3 || value == 4) {
                       return Text(
                         value.toInt().toString(),
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize9,
+                            color: colors.textMuted),
                       );
                     }
                   } else {
-                    if (value == 0 || value == 30 || value == 60 || value == 90) {
+                    if (value == 0 ||
+                        value == 30 ||
+                        value == 60 ||
+                        value == 90) {
                       return Text(
                         '${value.toInt()}°',
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize9,
+                            color: colors.textMuted),
                       );
                     }
                   }
@@ -365,7 +381,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   final time = _startTime.add(Duration(minutes: value.toInt()));
                   return Text(
                     DateFormat('HH:mm').format(time),
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize9,
+                        color: colors.textMuted),
                   );
                 },
               ),
@@ -379,7 +397,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           ),
           borderData: FlBorderData(
             show: true,
-            border: Border.all(color: colors.border.withValues(alpha:0.5)),
+            border: Border.all(color: colors.border.withValues(alpha: 0.5)),
           ),
           lineBarsData: [
             // Altitude curve
@@ -398,8 +416,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      colors.primary.withValues(alpha:0.3),
-                      colors.primary.withValues(alpha:0.0),
+                      colors.primary.withValues(alpha: 0.3),
+                      colors.primary.withValues(alpha: 0.0),
                     ],
                   ),
                 ),
@@ -427,7 +445,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 label: VerticalLineLabel(
                   show: true,
                   alignment: Alignment.topRight,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize8, color: colors.error),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize8,
+                      color: colors.error),
                   labelResolver: (_) => 'Now',
                 ),
               ),
@@ -435,13 +455,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               if (_twilight?.astronomicalDusk != null)
                 _twilightLine(
                   _twilight!.astronomicalDusk!,
-                  colors.textMuted.withValues(alpha:0.5),
+                  colors.textMuted.withValues(alpha: 0.5),
                   totalMinutes,
                 ),
               if (_twilight?.astronomicalDawn != null)
                 _twilightLine(
                   _twilight!.astronomicalDawn!,
-                  colors.textMuted.withValues(alpha:0.5),
+                  colors.textMuted.withValues(alpha: 0.5),
                   totalMinutes,
                 ),
             ],
@@ -450,14 +470,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               if (!_showAirmass)
                 HorizontalLine(
                   y: 0,
-                  color: colors.error.withValues(alpha:0.5),
+                  color: colors.error.withValues(alpha: 0.5),
                   strokeWidth: 1,
                 ),
               // Good altitude threshold (30°)
               if (!_showAirmass)
                 HorizontalLine(
                   y: 30,
-                  color: colors.warning.withValues(alpha:0.5),
+                  color: colors.warning.withValues(alpha: 0.5),
                   strokeWidth: 1,
                   dashArray: [4, 4],
                 ),
@@ -476,12 +496,16 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   if (_showAirmass) {
                     return LineTooltipItem(
                       '$timeStr\nAirmass: ${spot.y.toStringAsFixed(2)}',
-                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textPrimary),
+                      TextStyle(
+                          fontSize: NightshadeTypography.fontSize10,
+                          color: colors.textPrimary),
                     );
                   }
                   return LineTooltipItem(
                     '$timeStr\nAlt: ${spot.y.toStringAsFixed(1)}°',
-                    TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textPrimary),
+                    TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textPrimary),
                   );
                 }).toList();
               },
@@ -548,12 +572,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           _visibility!.transitAltitude! > 0) {
         return Text(
           'Circumpolar - always visible',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.success),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10, color: colors.success),
         );
       } else {
         return Text(
           'Never rises at this location',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.error),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10, color: colors.error),
         );
       }
     }
@@ -580,7 +606,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           const SizedBox(width: 4),
           Text(
             '$label: ',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9,
+                color: colors.textMuted),
           ),
           Text(
             value,

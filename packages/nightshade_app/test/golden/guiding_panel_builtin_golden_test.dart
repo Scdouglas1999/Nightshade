@@ -57,7 +57,14 @@ class _SeededBuiltinConfig extends BuiltinGuiderConfigNotifier {
 }
 
 const _seededStars = <GuideStar>[
-  GuideStar(id: 0, x: 410, y: 286, flux: 9100, snr: 24.6, isLock: true, residual: 0.18),
+  GuideStar(
+      id: 0,
+      x: 410,
+      y: 286,
+      flux: 9100,
+      snr: 24.6,
+      isLock: true,
+      residual: 0.18),
   GuideStar(id: 1, x: 128, y: 512, flux: 6400, snr: 17.2, residual: 0.34),
   GuideStar(id: 2, x: 745, y: 190, flux: 4100, snr: 11.8, residual: 0.51),
   GuideStar(id: 3, x: 612, y: 640, flux: 2800, snr: 8.4, residual: 0.77),

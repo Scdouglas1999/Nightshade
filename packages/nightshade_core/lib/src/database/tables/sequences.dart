@@ -12,17 +12,18 @@ class Sequences extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().nullable()();
-  
+
   // The root node ID of the behavior tree (nullable for new sequences)
   TextColumn get rootNodeId => text().nullable()();
-  
+
   // Estimated duration in minutes
-  IntColumn get estimatedDurationMins => integer().withDefault(const Constant(0))();
-  
+  IntColumn get estimatedDurationMins =>
+      integer().withDefault(const Constant(0))();
+
   // Timestamps
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
-  
+
   // Template flag - templates are reusable sequence patterns
   BoolColumn get isTemplate => boolean().withDefault(const Constant(false))();
 }
@@ -38,31 +39,36 @@ class Sequences extends Table {
 class SequenceNodes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get nodeId => text()(); // UUID
-  IntColumn get sequenceId => integer().references(Sequences, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sequenceId =>
+      integer().references(Sequences, #id, onDelete: KeyAction.cascade)();
 
   // Optional target reference for target groups
-  IntColumn get targetId => integer().nullable().references(Targets, #id, onDelete: KeyAction.setNull)();
-  
+  IntColumn get targetId => integer().nullable().references(
+    Targets,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
   // Node type (coarse category): instruction, trigger, logic, target.
   // Written from SequenceNode.category (see sequence_repository
   // _getNodeCategory) so this stays the single source of truth.
   TextColumn get nodeType => text()();
   // Specific type: slew, expose, autofocus, loop, etc.
   TextColumn get specificType => text()();
-  
+
   // Display name
   TextColumn get name => text()();
-  
+
   // Node properties as JSON
   TextColumn get properties => text().withDefault(const Constant('{}'))();
-  
+
   // Recovery configuration as JSON
   TextColumn get recoveryConfig => text().nullable()();
-  
+
   // Parent-child relationships
   TextColumn get parentNodeId => text().nullable()();
   IntColumn get orderIndex => integer().withDefault(const Constant(0))();
-  
+
   // Enabled state
   BoolColumn get isEnabled => boolean().withDefault(const Constant(true))();
 }
@@ -73,7 +79,8 @@ class SequenceNodes extends Table {
 @DataClassName('SequenceCheckpoint')
 @TableIndex(name: 'idx_checkpoints_checkpointed_at', columns: {#checkpointedAt})
 class SequenceCheckpoints extends Table {
-  IntColumn get sequenceId => integer().references(Sequences, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sequenceId =>
+      integer().references(Sequences, #id, onDelete: KeyAction.cascade)();
 
   // Current execution state
   TextColumn get currentNodeId => text()();
@@ -85,9 +92,9 @@ class SequenceCheckpoints extends Table {
   IntColumn get currentTargetIndex => integer()();
 
   // Timestamp
-  DateTimeColumn get checkpointedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get checkpointedAt =>
+      dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {sequenceId};
 }
-

@@ -193,8 +193,7 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(find.byKey(GuidingTutorialKeys.connectBtn), findsOneWidget,
-        reason:
-            'Status-bar Connect/Disconnect button must always carry the '
+        reason: 'Status-bar Connect/Disconnect button must always carry the '
             'GuidingTutorialKeys.connectBtn key so the tutorial system can '
             'anchor its "Connect to PHD2" tooltip.');
     // The controls panel and graph also belong to the tutorial system; a

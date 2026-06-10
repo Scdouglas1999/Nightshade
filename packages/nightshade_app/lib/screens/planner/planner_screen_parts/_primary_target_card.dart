@@ -228,8 +228,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           for (final warning in target.warnings.take(3))
             Padding(
-              padding:
-                  const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+              padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

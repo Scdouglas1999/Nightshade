@@ -96,10 +96,9 @@ class SkyBrightnessTracker {
     // Normalize ADU to ADU per second for comparison
     final aduPerSecond = adu / exposureTime;
 
-    _samples.add(_BrightnessSample(
-      aduPerSecond: aduPerSecond,
-      timestamp: timestamp,
-    ));
+    _samples.add(
+      _BrightnessSample(aduPerSecond: aduPerSecond, timestamp: timestamp),
+    );
 
     // Prune old samples outside the diagnostic retention horizon. Live rate
     // calculations filter to the much shorter [_maxSampleAge] window.
@@ -236,8 +235,5 @@ class _BrightnessSample {
   final double aduPerSecond;
   final DateTime timestamp;
 
-  _BrightnessSample({
-    required this.aduPerSecond,
-    required this.timestamp,
-  });
+  _BrightnessSample({required this.aduPerSecond, required this.timestamp});
 }

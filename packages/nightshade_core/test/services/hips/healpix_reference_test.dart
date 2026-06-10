@@ -25,11 +25,12 @@ void main() {
   late Map<String, dynamic> ref;
 
   setUpAll(() {
-    final file = File(
-      'test/services/hips/healpix_reference.json',
+    final file = File('test/services/hips/healpix_reference.json');
+    expect(
+      file.existsSync(),
+      isTrue,
+      reason: 'reference fixture must be present at ${file.absolute.path}',
     );
-    expect(file.existsSync(), isTrue,
-        reason: 'reference fixture must be present at ${file.absolute.path}');
     ref = json.decode(file.readAsStringSync()) as Map<String, dynamic>;
   });
 
@@ -43,8 +44,11 @@ void main() {
       final dec = (c['dec'] as num).toDouble();
       final expected = c['ipix'] as int;
       final h = HealpixNested(order);
-      expect(h.ang2pixNest(ra, dec), expected,
-          reason: 'order $order ra=$ra dec=$dec');
+      expect(
+        h.ang2pixNest(ra, dec),
+        expected,
+        reason: 'order $order ra=$ra dec=$dec',
+      );
       checked++;
     }
     expect(checked, greaterThan(1000));
@@ -65,8 +69,11 @@ void main() {
       // floating-point trig round-off (a different acos/atan2 evaluation
       // order), not an algorithmic difference: it is ~1.2e-6 deg and
       // independent of order, far below any HiPS pixel scale.
-      expect(sep, lessThan(1e-5),
-          reason: 'order $order ipix $ipix sep=${sep}deg');
+      expect(
+        sep,
+        lessThan(1e-5),
+        reason: 'order $order ipix $ipix sep=${sep}deg',
+      );
     }
   });
 
@@ -82,11 +89,11 @@ void main() {
       final ras = (c['ras'] as List).cast<num>().map((e) => e.toDouble());
       final decs = (c['decs'] as List).cast<num>().map((e) => e.toDouble());
       final refCorners = [
-        for (final (i, ra) in ras.indexed)
-          (ra: ra, dec: decs.elementAt(i)),
+        for (final (i, ra) in ras.indexed) (ra: ra, dec: decs.elementAt(i)),
       ];
       final h = HealpixNested(order);
-      final got = h.boundaries(ipix)
+      final got = h
+          .boundaries(ipix)
           .map((a) => (ra: a.raDeg, dec: a.decDeg))
           .toList();
       expect(got.length, 4);
@@ -97,8 +104,11 @@ void main() {
           final s = _angularSepDeg(g.ra, g.dec, r.ra, r.dec);
           if (s < best) best = s;
         }
-        expect(best, lessThan(1e-5),
-            reason: 'order $order ipix $ipix corner ($g) unmatched');
+        expect(
+          best,
+          lessThan(1e-5),
+          reason: 'order $order ipix $ipix corner ($g) unmatched',
+        );
       }
     }
   });
@@ -114,8 +124,10 @@ void main() {
     for (final c in cases) {
       final order = c['order'] as int;
       final ipix = c['ipix'] as int;
-      final expected =
-          (c['neighbours'] as List).cast<num>().map((e) => e.toInt()).toSet();
+      final expected = (c['neighbours'] as List)
+          .cast<num>()
+          .map((e) => e.toInt())
+          .toSet();
       final h = HealpixNested(order);
       final got = h.neighboursNest(ipix).toSet();
       expect(got, expected, reason: 'order $order ipix $ipix');

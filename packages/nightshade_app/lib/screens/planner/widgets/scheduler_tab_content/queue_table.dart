@@ -31,7 +31,9 @@ class _QueueTable extends ConsumerWidget {
             'Remove $targetName from the scheduler? Integration goals and '
             'constraints will be deleted; the target itself stays in your '
             'catalog.',
-            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+            style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13),
           ),
           actions: [
             NightshadeButton(
@@ -82,7 +84,9 @@ class _QueueTable extends ConsumerWidget {
             'Clear all targets from the scheduler? Integration goals and '
             'constraints will be deleted; targets themselves stay in your '
             'catalog.',
-            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+            style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13),
           ),
           actions: [
             NightshadeButton(
@@ -148,7 +152,9 @@ class _QueueTable extends ConsumerWidget {
                       const EdgeInsets.only(right: NightshadeTokens.spaceSm),
                   child: Text(
                     'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
               if (hasRows)
@@ -180,7 +186,9 @@ class _QueueTable extends ConsumerWidget {
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 child: Text(
                   'Failed to load integration goals: $e',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.error),
                 ),
               ),
               data: (goals) {

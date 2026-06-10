@@ -22,27 +22,29 @@ void main() {
     });
 
     test('live view missing deviceId returns JSON bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCameraLiveViewFrame(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/camera/live-view/frame'),
+      final response = await translateHandlerErrors(
+        handlers.handleCameraLiveViewFrame(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/camera/live-view/frame'),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
     });
 
     test('live view unknown camera returns JSON not found', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCameraLiveViewFrame(
-        Request(
-          'GET',
-          Uri.parse(
-            'http://localhost/api/camera/live-view/frame?deviceId=missing-camera',
+      final response = await translateHandlerErrors(
+        handlers.handleCameraLiveViewFrame(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/camera/live-view/frame?deviceId=missing-camera',
+            ),
           ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.notFound);
     });

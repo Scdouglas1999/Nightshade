@@ -34,7 +34,8 @@ class _FOVOverlayPainter extends CustomPainter {
       // Calculate angular difference between view center and FOV center
       // RA is in hours, convert to degrees. Apply cos(dec) correction for RA.
       final viewCenterDecRad = viewState.centerDec * math.pi / 180;
-      final deltaRA = (fovCenter!.ra - viewState.centerRA) *
+      final deltaRA =
+          (fovCenter!.ra - viewState.centerRA) *
           15 *
           math.cos(viewCenterDecRad);
       final deltaDec = fovCenter!.dec - viewState.centerDec;
@@ -127,16 +128,8 @@ class _FOVOverlayPainter extends CustomPainter {
       ..color = const Color(0xFF00E676).withValues(alpha: 0.5)
       ..strokeWidth = 1;
 
-    canvas.drawLine(
-      const Offset(-15, 0),
-      const Offset(15, 0),
-      crosshairPaint,
-    );
-    canvas.drawLine(
-      const Offset(0, -15),
-      const Offset(0, 15),
-      crosshairPaint,
-    );
+    canvas.drawLine(const Offset(-15, 0), const Offset(15, 0), crosshairPaint);
+    canvas.drawLine(const Offset(0, -15), const Offset(0, 15), crosshairPaint);
 
     // Draw rotation indicator
     if (rotation != 0) {

@@ -93,8 +93,7 @@ final thumbnailStripPrefsProvider =
   return ThumbnailStripPrefsNotifier();
 });
 
-class ThumbnailStripPrefsNotifier
-    extends AsyncNotifier<ThumbnailStripPrefs> {
+class ThumbnailStripPrefsNotifier extends AsyncNotifier<ThumbnailStripPrefs> {
   @override
   Future<ThumbnailStripPrefs> build() async {
     final dao = ref.read(settingsDaoProvider);

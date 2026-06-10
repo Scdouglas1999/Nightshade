@@ -105,12 +105,13 @@ class _CollapsibleSidebarState extends State<CollapsibleSidebar>
   }
 
   void _rebuildTween() {
-    _widthAnimation = Tween<double>(
-      begin: widget.collapsedWidth,
-      end: _currentExpandedWidth,
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: widget.animationCurve),
-    );
+    _widthAnimation =
+        Tween<double>(
+          begin: widget.collapsedWidth,
+          end: _currentExpandedWidth,
+        ).animate(
+          CurvedAnimation(parent: _controller, curve: widget.animationCurve),
+        );
   }
 
   @override
@@ -159,8 +160,7 @@ class _CollapsibleSidebarState extends State<CollapsibleSidebar>
         final width = _widthAnimation.value;
         // 20px hysteresis keeps the icon strip from flickering during the
         // tween; matches the heuristic the duplicated screens used.
-        final isEffectivelyCollapsed =
-            width < widget.collapsedWidth + 20.0;
+        final isEffectivelyCollapsed = width < widget.collapsedWidth + 20.0;
 
         // Defer the callback to a post-frame microtask: AnimatedBuilder
         // rebuilds inside the animation tick, so calling setState on a

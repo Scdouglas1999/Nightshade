@@ -32,14 +32,14 @@ void main() {
       backend = MockBackend();
       // Default no-op for the proxy call so tests that only care about
       // *whether* the proxy fired don't have to re-stub every time.
-      when(() => backend.sequencerSkipToNode(any()))
-          .thenAnswer((_) async {});
+      when(() => backend.sequencerSkipToNode(any())).thenAnswer((_) async {});
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
       container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(db),
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
         ],
       );
       addTearDown(() async {
@@ -56,16 +56,14 @@ void main() {
     });
 
     test('propagates backend errors so the UI can show a snackbar', () async {
-      when(() => backend.sequencerSkipToNode(any()))
-          .thenThrow(StateError('Executor is not running'));
+      when(
+        () => backend.sequencerSkipToNode(any()),
+      ).thenThrow(StateError('Executor is not running'));
       final executor = container.read(sequenceExecutorProvider);
       // The UI handler (sequence_tree_context_menu.dart) catches this and
       // routes it into a snackbar. Verify here that the throw is preserved
       // so the catch site actually has something to report.
-      expect(
-        () => executor.skipToNode('node-1'),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => executor.skipToNode('node-1'), throwsA(isA<StateError>()));
     });
 
     test('multiple sequential calls are all forwarded', () async {

@@ -85,8 +85,9 @@ void main() {
 
   group('SnippetFileService', () {
     test('export then import preserves snippet contents', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('snippet_file_service_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'snippet_file_service_',
+      );
       addTearDown(() async => tempDir.delete(recursive: true));
 
       final filePath = path.join(tempDir.path, 'fixture.nsnippet.json');
@@ -126,16 +127,23 @@ void main() {
       final first = service.encodeSnippet(snippet);
       final second = service.encodeSnippet(snippet);
 
-      expect(first, second,
-          reason: 'Encoding the same snippet twice must be byte-identical '
-              'so checksums are reproducible across machines.');
+      expect(
+        first,
+        second,
+        reason:
+            'Encoding the same snippet twice must be byte-identical '
+            'so checksums are reproducible across machines.',
+      );
 
       final decoded = jsonDecode(first) as Map<String, dynamic>;
       expect(decoded['kind'], 'nightshade.snippet');
       expect(decoded['schemaVersion'], snippetFileCurrentSchemaVersion);
       expect(decoded['checksum'], isA<String>());
-      expect((decoded['checksum'] as String).length, 64,
-          reason: 'SHA-256 hex digest is 64 chars.');
+      expect(
+        (decoded['checksum'] as String).length,
+        64,
+        reason: 'SHA-256 hex digest is 64 chars.',
+      );
     });
 
     test('parseEncoded rejects checksum mismatch with a clear issue', () {
@@ -154,7 +162,8 @@ void main() {
         throwsA(
           isA<SnippetImportException>().having(
             (e) => e.issues.any(
-                (i) => i.field == 'checksum' && i.message.contains('mismatch')),
+              (i) => i.field == 'checksum' && i.message.contains('mismatch'),
+            ),
             'lists checksum mismatch',
             isTrue,
           ),

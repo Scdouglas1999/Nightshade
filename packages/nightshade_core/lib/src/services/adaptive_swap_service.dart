@@ -265,8 +265,10 @@ class AdaptiveSwapDriver {
   /// Compose + push. Returns the score that was sent (or `null` when
   /// no axis had data — backend receives `null` in that case so it can
   /// distinguish "no data" from "stale data").
-  Future<ConditionsScore?> tick(AdaptiveSwapInputs inputs,
-      {DateTime? now}) async {
+  Future<ConditionsScore?> tick(
+    AdaptiveSwapInputs inputs, {
+    DateTime? now,
+  }) async {
     final score = composer.compose(inputs, now: now);
     lastPushed = score;
     await backend.sequencerUpdateConditionsScore(score);

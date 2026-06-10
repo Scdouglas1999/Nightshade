@@ -195,7 +195,8 @@ class _VerdictChip extends StatelessWidget {
 
     final pill = DecoratedBox(
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: NightshadeTokens.opacityStatusFill),
+        color:
+            statusColor.withValues(alpha: NightshadeTokens.opacityStatusFill),
         borderRadius: NightshadeTokens.borderRadiusSm,
         border: Border.all(
           color: statusColor.withValues(

@@ -23,17 +23,13 @@ void main(List<String> args) async {
 
   final port = await _reservePort();
   final processLog = _ProcessLog();
-  final process = await Process.start(
-    exe.absolute.path,
-    [
-      '--headless',
-      '--port=$port',
-      '--auth-token=$_adminToken',
-      '--view-token=$_viewToken',
-      '--control-token=$_controlToken',
-    ],
-    workingDirectory: exe.parent.absolute.path,
-  );
+  final process = await Process.start(exe.absolute.path, [
+    '--headless',
+    '--port=$port',
+    '--auth-token=$_adminToken',
+    '--view-token=$_viewToken',
+    '--control-token=$_controlToken',
+  ], workingDirectory: exe.parent.absolute.path);
 
   process.stdout
       .transform(utf8.decoder)
@@ -340,10 +336,12 @@ class _ExitTracker {
   int? _exitCode;
 
   _ExitTracker(Process process) {
-    unawaited(process.exitCode.then((code) {
-      _exited = true;
-      _exitCode = code;
-    }));
+    unawaited(
+      process.exitCode.then((code) {
+        _exited = true;
+        _exitCode = code;
+      }),
+    );
   }
 
   bool hasExited() => _exited;

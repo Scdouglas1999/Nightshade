@@ -78,13 +78,15 @@ class _AutofocusProgressPanelState
             height: 40,
             decoration: BoxDecoration(
               color: widget.colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(color: widget.colors.border),
             ),
             child: Center(
               child: Text('Waiting for data...',
-                  style:
-                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: widget.colors.textMuted)),
             ),
           ),
           const SizedBox(height: 8),
@@ -180,7 +182,8 @@ class _AutofocusProgressPanelState
                   child: Container(
                     decoration: BoxDecoration(
                       color: widget.colors.surface,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       border: Border.all(color: widget.colors.border),
                     ),
                     child: CustomPaint(
@@ -259,13 +262,16 @@ class _AutofocusProgressPanelState
         const SizedBox(width: 8),
         Text(
           'Autofocus',
-          style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: widget.colors.textPrimary),
         ),
         const Spacer(),
         if (currentPoint != null && totalPoints != null)
           Text(
             'Point $currentPoint of $totalPoints',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: widget.colors.textMuted),
           ),
       ],
     );

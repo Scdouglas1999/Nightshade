@@ -71,59 +71,53 @@ class StressFixture {
   });
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': kStressFixtureSchemaVersion,
-        'composition': composition,
-        'seed': seed,
-        'latitude': latitude,
-        'longitude': longitude,
-        'baseTimeUtcMs': baseTimeUtc.toUtc().millisecondsSinceEpoch,
-        'sun': [sunPosition.$1, sunPosition.$2],
-        'moon': [moonPosition.$1, moonPosition.$2, moonPosition.$3],
-        'stars': [
-          for (final s in stars)
-            [
-              s.id,
-              s.coordinates.ra,
-              s.coordinates.dec,
-              s.magnitude,
-              s.colorIndex,
-            ],
+    'schemaVersion': kStressFixtureSchemaVersion,
+    'composition': composition,
+    'seed': seed,
+    'latitude': latitude,
+    'longitude': longitude,
+    'baseTimeUtcMs': baseTimeUtc.toUtc().millisecondsSinceEpoch,
+    'sun': [sunPosition.$1, sunPosition.$2],
+    'moon': [moonPosition.$1, moonPosition.$2, moonPosition.$3],
+    'stars': [
+      for (final s in stars)
+        [s.id, s.coordinates.ra, s.coordinates.dec, s.magnitude, s.colorIndex],
+    ],
+    'dsos': [
+      for (final d in dsos)
+        [
+          d.id,
+          d.name,
+          d.coordinates.ra,
+          d.coordinates.dec,
+          d.magnitude,
+          d.type.index,
+          d.sizeArcMin,
+          d.minorAxisArcMin,
+          d.positionAngle,
         ],
-        'dsos': [
-          for (final d in dsos)
-            [
-              d.id,
-              d.name,
-              d.coordinates.ra,
-              d.coordinates.dec,
-              d.magnitude,
-              d.type.index,
-              d.sizeArcMin,
-              d.minorAxisArcMin,
-              d.positionAngle,
-            ],
-        ],
-        'constellations': [
-          for (final c in constellations)
-            {
-              'abbr': c.abbreviation,
-              'name': c.name,
-              'centerRa': c.center.ra,
-              'centerDec': c.center.dec,
-              'lines': [
-                for (final l in c.lines)
-                  [l.start.ra, l.start.dec, l.end.ra, l.end.dec],
-              ],
-            },
-        ],
-        'milkyWay': [
-          for (final p in milkyWayPoints)
-            [p.ra, p.dec, p.intensity, p.galacticLon, p.galacticLat],
-        ],
-        'planets': [
-          for (final p in planets) [p.name, p.ra, p.dec, p.magnitude, p.color],
-        ],
-      };
+    ],
+    'constellations': [
+      for (final c in constellations)
+        {
+          'abbr': c.abbreviation,
+          'name': c.name,
+          'centerRa': c.center.ra,
+          'centerDec': c.center.dec,
+          'lines': [
+            for (final l in c.lines)
+              [l.start.ra, l.start.dec, l.end.ra, l.end.dec],
+          ],
+        },
+    ],
+    'milkyWay': [
+      for (final p in milkyWayPoints)
+        [p.ra, p.dec, p.intensity, p.galacticLon, p.galacticLat],
+    ],
+    'planets': [
+      for (final p in planets) [p.name, p.ra, p.dec, p.magnitude, p.color],
+    ],
+  };
 
   factory StressFixture.fromJson(Map<String, dynamic> json) {
     final version = json['schemaVersion'] as int? ?? 0;
@@ -191,9 +185,13 @@ class StressFixture {
                   final n = nums(l);
                   return ConstellationLine(
                     start: CelestialCoordinate(
-                        ra: n[0].toDouble(), dec: n[1].toDouble()),
+                      ra: n[0].toDouble(),
+                      dec: n[1].toDouble(),
+                    ),
                     end: CelestialCoordinate(
-                        ra: n[2].toDouble(), dec: n[3].toDouble()),
+                      ra: n[2].toDouble(),
+                      dec: n[3].toDouble(),
+                    ),
                   );
                 }(),
             ],
@@ -247,15 +245,18 @@ class StressFixture {
         isUtc: true,
       ),
       sunPosition: (sun[0].toDouble(), sun[1].toDouble()),
-      moonPosition: (moon[0].toDouble(), moon[1].toDouble(), moon[2].toDouble()),
+      moonPosition: (
+        moon[0].toDouble(),
+        moon[1].toDouble(),
+        moon[2].toDouble(),
+      ),
     );
   }
 
   /// Absolute path to the committed fixture JSON, resolved relative to the
   /// package root. `flutter test` runs with the package directory as the
   /// current working directory, so the relative path is stable.
-  static String defaultPath() =>
-      'benchmark/fixtures/stress_scene.json';
+  static String defaultPath() => 'benchmark/fixtures/stress_scene.json';
 
   /// Load the committed fixture from [path] (defaults to [defaultPath]).
   static StressFixture load([String? path]) {

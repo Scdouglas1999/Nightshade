@@ -14,11 +14,9 @@ import 'logging_service.dart';
 /// and error events that share the same EventBus, and a mid-disposal
 /// provider read must not propagate up the device-event router.
 class DeviceHeartbeatRouter {
-  DeviceHeartbeatRouter({
-    required Ref ref,
-    required NightshadeBackend backend,
-  })  : _ref = ref,
-        _backend = backend;
+  DeviceHeartbeatRouter({required Ref ref, required NightshadeBackend backend})
+    : _ref = ref,
+      _backend = backend;
 
   final Ref _ref;
   final NightshadeBackend _backend;
@@ -153,10 +151,7 @@ class DeviceHeartbeatRouter {
   }
 
   /// Apply a `HeartbeatReconnected` event to the provider.
-  void onReconnected({
-    required String? deviceId,
-    required int? afterAttempts,
-  }) {
+  void onReconnected({required String? deviceId, required int? afterAttempts}) {
     if (deviceId == null || deviceId.isEmpty) return;
     _safeApply(
       contextTag: 'heartbeat-reconnected',
@@ -223,7 +218,8 @@ class DeviceHeartbeatRouter {
       apply(notifier);
     } on Object catch (e) {
       _log(
-        (l) => l.warning('Heartbeat provider dispatch failed ($contextTag): $e'),
+        (l) =>
+            l.warning('Heartbeat provider dispatch failed ($contextTag): $e'),
       );
     }
   }

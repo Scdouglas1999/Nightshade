@@ -53,17 +53,19 @@ extension _NetworkBackendEventTracking on _NetworkBackendTransport {
         _lastSeenEventSeq = null;
         _serverInstanceId = eventInstance;
         _previousServerInstanceId = eventInstance;
-        _eventController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          category: EventCategory.system,
-          eventType: 'BackendReconnected',
-          severity: EventSeverity.info,
-          data: {
-            'message': 'Server instance changed mid-stream',
-            'previousInstance': cached,
-            'currentInstance': eventInstance,
-          },
-        ));
+        _eventController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            category: EventCategory.system,
+            eventType: 'BackendReconnected',
+            severity: EventSeverity.info,
+            data: {
+              'message': 'Server instance changed mid-stream',
+              'previousInstance': cached,
+              'currentInstance': eventInstance,
+            },
+          ),
+        );
       } else if (cached == null) {
         _serverInstanceId = eventInstance;
         _previousServerInstanceId = eventInstance;

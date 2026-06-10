@@ -66,7 +66,9 @@ void main() {
       expect(recorder.events.first.data['jobId'], job.jobId);
 
       completer.complete({'result': 'ok'});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
     });
 
     test('queued -> running transition emits a JobProgress event', () async {
@@ -86,26 +88,33 @@ void main() {
       expect(progressEvents.first.data['state'], 'running');
 
       completer.complete({'result': 'ok'});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
-    });
-
-    test('successful work transitions to succeeded with result payload', () async {
-      final recorder = _EventRecorder();
-      final manager = JobManager(emitEvent: recorder.record);
-      addTearDown(manager.dispose);
-
-      final job = manager.start(
-        operation: 'test.op',
-        work: (sink, cancellation) async => {'value': 42},
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
-
-      final final_ = manager.get(job.jobId)!;
-      expect(final_.state, JobState.succeeded);
-      expect(final_.result, {'value': 42});
-      expect(final_.progress, 1.0);
-      expect(recorder.ofType('JobCompleted'), hasLength(1));
     });
+
+    test(
+      'successful work transitions to succeeded with result payload',
+      () async {
+        final recorder = _EventRecorder();
+        final manager = JobManager(emitEvent: recorder.record);
+        addTearDown(manager.dispose);
+
+        final job = manager.start(
+          operation: 'test.op',
+          work: (sink, cancellation) async => {'value': 42},
+        );
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.succeeded,
+        );
+
+        final final_ = manager.get(job.jobId)!;
+        expect(final_.state, JobState.succeeded);
+        expect(final_.result, {'value': 42});
+        expect(final_.progress, 1.0);
+        expect(recorder.ofType('JobCompleted'), hasLength(1));
+      },
+    );
 
     test('progress sink updates broadcast JobProgress events', () async {
       final recorder = _EventRecorder();
@@ -131,12 +140,16 @@ void main() {
       // running + 3 explicit progress = 4 JobProgress events.
       final progressEvents = recorder.ofType('JobProgress');
       expect(progressEvents.length, greaterThanOrEqualTo(4));
-      final messages =
-          progressEvents.map((e) => e.data['message']).whereType<String>().toList();
+      final messages = progressEvents
+          .map((e) => e.data['message'])
+          .whereType<String>()
+          .toList();
       expect(messages, containsAll(['one quarter', 'half']));
 
       completer.complete({'done': true});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
     });
   });
 
@@ -165,49 +178,59 @@ void main() {
   });
 
   group('JobManager (cancellation)', () {
-    test('cancel() flips cancellation.isCancelled and work surfaces it',
-        () async {
-      final recorder = _EventRecorder();
-      final manager = JobManager(emitEvent: recorder.record);
-      addTearDown(manager.dispose);
+    test(
+      'cancel() flips cancellation.isCancelled and work surfaces it',
+      () async {
+        final recorder = _EventRecorder();
+        final manager = JobManager(emitEvent: recorder.record);
+        addTearDown(manager.dispose);
 
-      final job = manager.start(
-        operation: 'test.op',
-        work: (sink, cancellation) async {
-          await cancellation.whenCancelled;
-          throw const JobCancelledException('client asked');
-        },
-      );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.running);
+        final job = manager.start(
+          operation: 'test.op',
+          work: (sink, cancellation) async {
+            await cancellation.whenCancelled;
+            throw const JobCancelledException('client asked');
+          },
+        );
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.running,
+        );
 
-      final cancelled = manager.cancel(job.jobId);
-      expect(cancelled, isNotNull);
+        final cancelled = manager.cancel(job.jobId);
+        expect(cancelled, isNotNull);
 
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.cancelled);
-      final terminal = manager.get(job.jobId)!;
-      expect(terminal.state, JobState.cancelled);
-      expect(terminal.error!['code'], 'job_cancelled');
-      expect(recorder.ofType('JobCancelled'), hasLength(1));
-    });
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.cancelled,
+        );
+        final terminal = manager.get(job.jobId)!;
+        expect(terminal.state, JobState.cancelled);
+        expect(terminal.error!['code'], 'job_cancelled');
+        expect(recorder.ofType('JobCancelled'), hasLength(1));
+      },
+    );
 
-    test('cancel() on a queued job transitions straight to cancelled',
-        () async {
-      final recorder = _EventRecorder();
-      final manager = JobManager(emitEvent: recorder.record);
-      addTearDown(manager.dispose);
+    test(
+      'cancel() on a queued job transitions straight to cancelled',
+      () async {
+        final recorder = _EventRecorder();
+        final manager = JobManager(emitEvent: recorder.record);
+        addTearDown(manager.dispose);
 
-      // Work that never starts. We cancel synchronously before any
-      // scheduleMicrotask gets to flip the state to running.
-      final job = manager.start(
-        operation: 'test.op',
-        work: (sink, cancellation) async => {'never': 'runs'},
-      );
-      expect(job.state, JobState.queued);
-      final result = manager.cancel(job.jobId);
-      expect(result, isNotNull);
-      expect(result!.state, JobState.cancelled);
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.cancelled);
-    });
+        // Work that never starts. We cancel synchronously before any
+        // scheduleMicrotask gets to flip the state to running.
+        final job = manager.start(
+          operation: 'test.op',
+          work: (sink, cancellation) async => {'never': 'runs'},
+        );
+        expect(job.state, JobState.queued);
+        final result = manager.cancel(job.jobId);
+        expect(result, isNotNull);
+        expect(result!.state, JobState.cancelled);
+        await _pumpUntil(
+          () => manager.get(job.jobId)?.state == JobState.cancelled,
+        );
+      },
+    );
 
     test('cancel() returns null when the job is unknown', () {
       final recorder = _EventRecorder();
@@ -226,40 +249,52 @@ void main() {
         operation: 'test.op',
         work: (sink, cancellation) async => {'done': true},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
       expect(() => manager.cancel(job.jobId), throwsStateError);
     });
   });
 
   group('JobManager (multiple concurrent jobs)', () {
-    test('multiple jobs receive distinct ids and progress independently',
-        () async {
-      final recorder = _EventRecorder();
-      final manager = JobManager(emitEvent: recorder.record);
-      addTearDown(manager.dispose);
+    test(
+      'multiple jobs receive distinct ids and progress independently',
+      () async {
+        final recorder = _EventRecorder();
+        final manager = JobManager(emitEvent: recorder.record);
+        addTearDown(manager.dispose);
 
-      final completerA = Completer<Map<String, Object?>>();
-      final completerB = Completer<Map<String, Object?>>();
-      final jobA = manager.start(
-        operation: 'test.a',
-        work: (sink, cancellation) => completerA.future,
-      );
-      final jobB = manager.start(
-        operation: 'test.b',
-        work: (sink, cancellation) => completerB.future,
-      );
+        final completerA = Completer<Map<String, Object?>>();
+        final completerB = Completer<Map<String, Object?>>();
+        final jobA = manager.start(
+          operation: 'test.a',
+          work: (sink, cancellation) => completerA.future,
+        );
+        final jobB = manager.start(
+          operation: 'test.b',
+          work: (sink, cancellation) => completerB.future,
+        );
 
-      expect(jobA.jobId, isNot(jobB.jobId));
-      await _pumpUntil(() => manager.get(jobA.jobId)?.state == JobState.running);
-      await _pumpUntil(() => manager.get(jobB.jobId)?.state == JobState.running);
+        expect(jobA.jobId, isNot(jobB.jobId));
+        await _pumpUntil(
+          () => manager.get(jobA.jobId)?.state == JobState.running,
+        );
+        await _pumpUntil(
+          () => manager.get(jobB.jobId)?.state == JobState.running,
+        );
 
-      completerB.complete({'b': 'done'});
-      await _pumpUntil(() => manager.get(jobB.jobId)?.state == JobState.succeeded);
-      expect(manager.get(jobA.jobId)?.state, JobState.running);
+        completerB.complete({'b': 'done'});
+        await _pumpUntil(
+          () => manager.get(jobB.jobId)?.state == JobState.succeeded,
+        );
+        expect(manager.get(jobA.jobId)?.state, JobState.running);
 
-      completerA.complete({'a': 'done'});
-      await _pumpUntil(() => manager.get(jobA.jobId)?.state == JobState.succeeded);
-    });
+        completerA.complete({'a': 'done'});
+        await _pumpUntil(
+          () => manager.get(jobA.jobId)?.state == JobState.succeeded,
+        );
+      },
+    );
   });
 
   group('JobManager (24-hour purge)', () {
@@ -277,7 +312,9 @@ void main() {
         operation: 'test.op',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
 
       clock.advance(const Duration(hours: 23));
       manager.evictExpired();
@@ -310,7 +347,9 @@ void main() {
       expect(manager.get(job.jobId), isNotNull);
 
       completer.complete({'late': true});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
     });
   });
 
@@ -329,8 +368,12 @@ void main() {
         operation: 'test.b',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.get(done.jobId)?.state == JobState.succeeded);
-      await _pumpUntil(() => manager.get(running.jobId)?.state == JobState.running);
+      await _pumpUntil(
+        () => manager.get(done.jobId)?.state == JobState.succeeded,
+      );
+      await _pumpUntil(
+        () => manager.get(running.jobId)?.state == JobState.running,
+      );
 
       final runningJobs = manager.list(state: JobState.running);
       expect(runningJobs, hasLength(1));
@@ -341,7 +384,9 @@ void main() {
       expect(succeededJobs.single.jobId, done.jobId);
 
       completer.complete({'ok': true});
-      await _pumpUntil(() => manager.get(running.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(running.jobId)?.state == JobState.succeeded,
+      );
     });
 
     test('list filters by operation', () async {
@@ -382,7 +427,9 @@ void main() {
         operation: 'test.op',
         work: (sink, cancellation) async => {'ok': true},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
 
       expect(manager.purge(job.jobId), isTrue);
       expect(manager.get(job.jobId), isNull);
@@ -401,7 +448,9 @@ void main() {
       await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.running);
       expect(() => manager.purge(job.jobId), throwsStateError);
       completer.complete({'done': true});
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
     });
 
     test('purge returns false for unknown id', () {
@@ -422,7 +471,9 @@ void main() {
         deviceId: 'camera-1',
         work: (sink, cancellation) async => {'ra': 1.0},
       );
-      await _pumpUntil(() => manager.get(job.jobId)?.state == JobState.succeeded);
+      await _pumpUntil(
+        () => manager.get(job.jobId)?.state == JobState.succeeded,
+      );
 
       for (final event in recorder.forJob(job.jobId)) {
         expect(event.category, EventCategory.job);

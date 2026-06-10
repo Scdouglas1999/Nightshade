@@ -23,22 +23,11 @@ const _requiredFiles = <String>[
   'data/flutter_assets/web_dashboard/js/app.js',
 ];
 
-const _requiredGlobPrefixes = <String>[
-  'FF',
-];
+const _requiredGlobPrefixes = <String>['FF'];
 
-const _disallowedFileNames = <String>{
-  '.gitkeep',
-  '.DS_Store',
-  'Thumbs.db',
-};
+const _disallowedFileNames = <String>{'.gitkeep', '.DS_Store', 'Thumbs.db'};
 
-const _disallowedExtensions = <String>{
-  '.ilk',
-  '.pdb',
-  '.tmp',
-  '.log',
-};
+const _disallowedExtensions = <String>{'.ilk', '.pdb', '.tmp', '.log'};
 
 const _disallowedSegments = <String>{
   '.git',
@@ -105,14 +94,17 @@ void main(List<String> args) {
     'disallowedFiles': disallowed,
   };
   Directory('docs/production-readiness').createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    bundlePath: bundleDir.path,
-    fileCount: relativeFiles.length,
-    missing: missing,
-    disallowed: disallowed,
-  ));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(
+      bundlePath: bundleDir.path,
+      fileCount: relativeFiles.length,
+      missing: missing,
+      disallowed: disallowed,
+    ),
+  );
   stdout.writeln('JSON: $_jsonOutputPath');
   stdout.writeln('Markdown: $_markdownOutputPath');
 

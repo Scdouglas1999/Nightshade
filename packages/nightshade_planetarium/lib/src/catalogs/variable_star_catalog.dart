@@ -289,7 +289,8 @@ class VariableStarCatalog {
   static List<VariableStarData> getByConstellation(String constellation) {
     return stars
         .where(
-            (s) => s.constellation.toLowerCase() == constellation.toLowerCase())
+          (s) => s.constellation.toLowerCase() == constellation.toLowerCase(),
+        )
         .toList();
   }
 

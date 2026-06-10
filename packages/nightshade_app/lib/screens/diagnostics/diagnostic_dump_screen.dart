@@ -63,7 +63,9 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
               Text(
                 'Diagnostic Dump',
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize18
+                      : NightshadeTypography.fontSize22,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -219,7 +221,8 @@ class _ContentsCard extends StatelessWidget {
                       children: [
                         Text(
                           entry.$1,
-                          style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                          style: NightshadeTypography.labelStrong
+                              .copyWith(color: colors.textPrimary),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -273,7 +276,8 @@ class _LastResultCard extends StatelessWidget {
               children: [
                 Text(
                   'Last dump',
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 SelectableText(

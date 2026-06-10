@@ -64,8 +64,7 @@ class IntegrationGoalService {
   // via codegen, and this table is created out-of-band with raw SQL.
   // Every mutation method below calls `_notifyMutated()` so subscribers of
   // [watchAll] see the change immediately.
-  final StreamController<void> _mutations =
-      StreamController<void>.broadcast();
+  final StreamController<void> _mutations = StreamController<void>.broadcast();
 
   IntegrationGoalService(this._db);
 
@@ -90,14 +89,16 @@ class IntegrationGoalService {
   /// duplicates.
   Future<int> upsert(IntegrationGoal goal) async {
     await _ensureSchema();
-    final existing = await _db.customSelect(
-      'SELECT id FROM integration_goals WHERE target_id = ? AND filter = ? AND exposure_seconds = ?',
-      variables: [
-        Variable.withInt(goal.targetId),
-        Variable.withString(goal.filter),
-        Variable.withReal(goal.exposureSeconds),
-      ],
-    ).getSingleOrNull();
+    final existing = await _db
+        .customSelect(
+          'SELECT id FROM integration_goals WHERE target_id = ? AND filter = ? AND exposure_seconds = ?',
+          variables: [
+            Variable.withInt(goal.targetId),
+            Variable.withString(goal.filter),
+            Variable.withReal(goal.exposureSeconds),
+          ],
+        )
+        .getSingleOrNull();
     if (existing != null) {
       final id = existing.read<int>('id');
       await _db.customStatement(
@@ -115,8 +116,7 @@ class IntegrationGoalService {
         Variable.withReal(goal.exposureSeconds),
         Variable.withInt(goal.frameCount),
         Variable.withInt(goal.priority),
-        Variable.withInt(
-            goal.createdAt.toUtc().millisecondsSinceEpoch ~/ 1000),
+        Variable.withInt(goal.createdAt.toUtc().millisecondsSinceEpoch ~/ 1000),
       ],
     );
     _notifyMutated();
@@ -125,10 +125,9 @@ class IntegrationGoalService {
 
   Future<void> delete(int goalId) async {
     await _ensureSchema();
-    await _db.customStatement(
-      'DELETE FROM integration_goals WHERE id = ?',
-      [goalId],
-    );
+    await _db.customStatement('DELETE FROM integration_goals WHERE id = ?', [
+      goalId,
+    ]);
     _notifyMutated();
   }
 
@@ -166,19 +165,23 @@ class IntegrationGoalService {
 
   Future<List<IntegrationGoal>> listForTarget(int targetId) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, target_id, filter, exposure_seconds, frame_count, priority, created_at '
-      'FROM integration_goals WHERE target_id = ? ORDER BY priority DESC, filter ASC',
-      variables: [Variable.withInt(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, target_id, filter, exposure_seconds, frame_count, priority, created_at '
+          'FROM integration_goals WHERE target_id = ? ORDER BY priority DESC, filter ASC',
+          variables: [Variable.withInt(targetId)],
+        )
+        .get();
     return rows.map(_rowToGoal).toList();
   }
 
   Future<List<IntegrationGoal>> listAll() async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT id, target_id, filter, exposure_seconds, frame_count, priority, created_at FROM integration_goals',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, target_id, filter, exposure_seconds, frame_count, priority, created_at FROM integration_goals',
+        )
+        .get();
     return rows.map(_rowToGoal).toList();
   }
 
@@ -191,15 +194,14 @@ class IntegrationGoalService {
     required int targetId,
     required String filter,
   }) async {
-    final rows = await _db.customSelect(
-      "SELECT COUNT(*) AS c FROM captured_images "
-      "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
-      "AND LOWER(filter) = LOWER(?)",
-      variables: [
-        Variable.withInt(targetId),
-        Variable.withString(filter),
-      ],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          "SELECT COUNT(*) AS c FROM captured_images "
+          "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
+          "AND LOWER(filter) = LOWER(?)",
+          variables: [Variable.withInt(targetId), Variable.withString(filter)],
+        )
+        .get();
     if (rows.isEmpty) return 0;
     return rows.first.read<int>('c');
   }

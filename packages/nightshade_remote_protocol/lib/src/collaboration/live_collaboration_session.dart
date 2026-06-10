@@ -12,10 +12,10 @@ class CollaborationViewer {
   });
 
   Map<String, dynamic> toJson() => {
-        'viewerId': viewerId,
-        'name': name,
-        'joinedAt': joinedAt.toIso8601String(),
-      };
+    'viewerId': viewerId,
+    'name': name,
+    'joinedAt': joinedAt.toIso8601String(),
+  };
 }
 
 class CollaborationChatMessage {
@@ -32,11 +32,11 @@ class CollaborationChatMessage {
   });
 
   Map<String, dynamic> toJson() => {
-        'viewerId': viewerId,
-        'viewerName': viewerName,
-        'message': message,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'viewerId': viewerId,
+    'viewerName': viewerName,
+    'message': message,
+    'timestamp': timestamp.toIso8601String(),
+  };
 }
 
 class CollaborationAnnotation {
@@ -55,12 +55,12 @@ class CollaborationAnnotation {
   });
 
   Map<String, dynamic> toJson() => {
-        'annotationId': annotationId,
-        'viewerId': viewerId,
-        'kind': kind,
-        'payload': payload,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'annotationId': annotationId,
+    'viewerId': viewerId,
+    'kind': kind,
+    'payload': payload,
+    'timestamp': timestamp.toIso8601String(),
+  };
 }
 
 class LiveCollaborationState {
@@ -79,13 +79,14 @@ class LiveCollaborationState {
   });
 
   Map<String, dynamic> toJson() => {
-        'preview': preview,
-        'sessionHandoff': sessionHandoff,
-        'viewers': viewers.map((viewer) => viewer.toJson()).toList(growable: false),
-        'chat': chat.map((entry) => entry.toJson()).toList(growable: false),
-        'annotations':
-            annotations.map((entry) => entry.toJson()).toList(growable: false),
-      };
+    'preview': preview,
+    'sessionHandoff': sessionHandoff,
+    'viewers': viewers.map((viewer) => viewer.toJson()).toList(growable: false),
+    'chat': chat.map((entry) => entry.toJson()).toList(growable: false),
+    'annotations': annotations
+        .map((entry) => entry.toJson())
+        .toList(growable: false),
+  };
 }
 
 class LiveCollaborationSessionManager {
@@ -107,7 +108,9 @@ class LiveCollaborationSessionManager {
   }
 
   void upsertViewer(String viewerId, String name) {
-    final viewers = [..._state.viewers.where((viewer) => viewer.viewerId != viewerId)];
+    final viewers = [
+      ..._state.viewers.where((viewer) => viewer.viewerId != viewerId),
+    ];
     viewers.add(
       CollaborationViewer(
         viewerId: viewerId,
@@ -122,7 +125,9 @@ class LiveCollaborationSessionManager {
   void removeViewer(String viewerId) {
     _emit(
       _copyWith(
-        viewers: _state.viewers.where((viewer) => viewer.viewerId != viewerId).toList(growable: false),
+        viewers: _state.viewers
+            .where((viewer) => viewer.viewerId != viewerId)
+            .toList(growable: false),
       ),
     );
   }
@@ -151,7 +156,9 @@ class LiveCollaborationSessionManager {
     required Map<String, dynamic> payload,
   }) {
     final annotations = [
-      ..._state.annotations.where((annotation) => annotation.annotationId != annotationId),
+      ..._state.annotations.where(
+        (annotation) => annotation.annotationId != annotationId,
+      ),
       CollaborationAnnotation(
         annotationId: annotationId,
         viewerId: viewerId,
@@ -160,7 +167,9 @@ class LiveCollaborationSessionManager {
         timestamp: DateTime.now(),
       ),
     ];
-    _emit(_copyWith(annotations: annotations.takeLast(100).toList(growable: false)));
+    _emit(
+      _copyWith(annotations: annotations.takeLast(100).toList(growable: false)),
+    );
   }
 
   void setSessionHandoff(Map<String, dynamic>? handoff) {

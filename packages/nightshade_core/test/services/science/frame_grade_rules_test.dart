@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' as drift
+import 'package:nightshade_core/src/database/database.dart'
+    as drift
     show CapturedImage;
 
 drift.CapturedImage _light({
@@ -66,8 +67,7 @@ void main() {
       expect(reason, contains('4.00'));
     });
 
-    test(
-        'configuring an eccentricity rule without supplying the metric trips '
+    test('configuring an eccentricity rule without supplying the metric trips '
         'an assert (loud, not silent)', () {
       // The old code silently returned null here forever; the new code makes
       // the misuse loud in debug/test builds.
@@ -78,18 +78,22 @@ void main() {
     });
 
     test(
-        'configuring a FWHM rule without supplying the metric trips an assert',
-        () {
-      expect(
-        () => fwhmRule.gradeFrame(_light()),
-        throwsA(isA<AssertionError>()),
-      );
-    });
+      'configuring a FWHM rule without supplying the metric trips an assert',
+      () {
+        expect(
+          () => fwhmRule.gradeFrame(_light()),
+          throwsA(isA<AssertionError>()),
+        );
+      },
+    );
 
     test('rules without ecc/FWHM thresholds grade fine with no extra args', () {
       const rules = FrameGradeRules(maxHfr: 2.5, minStars: 30);
       expect(rules.gradeFrame(_light(hfr: 1.8, starCount: 50)), isNull);
-      expect(rules.gradeFrame(_light(hfr: 3.2, starCount: 50)), contains('HFR'));
+      expect(
+        rules.gradeFrame(_light(hfr: 3.2, starCount: 50)),
+        contains('HFR'),
+      );
       expect(
         rules.gradeFrame(_light(hfr: 1.8, starCount: 10)),
         contains('Stars 10 < 30'),
@@ -202,8 +206,12 @@ void main() {
       // The native detector now measures per-frame eccentricity and it rides
       // on ImageStats. With no out-of-band eccentricity arg, the gate must read
       // the live measured value and reject a trailed frame.
-      const trailed =
-          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.9, starCount: 120);
+      const trailed = ImageStats(
+        hfr: 2.0,
+        fwhm: 3.0,
+        eccentricity: 0.9,
+        starCount: 120,
+      );
       final reason = rules.gradeStats(trailed, guidingRmsTotal: 0.5);
       expect(reason, isNotNull);
       expect(reason, contains('Eccentricity'));
@@ -211,20 +219,34 @@ void main() {
     });
 
     test('(g2) round live ImageStats.eccentricity passes the gate', () {
-      const round =
-          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.18, starCount: 120);
+      const round = ImageStats(
+        hfr: 2.0,
+        fwhm: 3.0,
+        eccentricity: 0.18,
+        starCount: 120,
+      );
       expect(rules.gradeStats(round, guidingRmsTotal: 0.5), isNull);
     });
 
     test('(g3) explicit eccentricity arg overrides the live stats value', () {
       // The science-row override (e.g. a more authoritative offline measure)
       // takes precedence over the live ImageStats value.
-      const liveRound =
-          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.1, starCount: 120);
-      final reason =
-          rules.gradeStats(liveRound, guidingRmsTotal: 0.5, eccentricity: 0.9);
-      expect(reason, isNotNull,
-          reason: 'explicit arg 0.9 must override live 0.1 and reject');
+      const liveRound = ImageStats(
+        hfr: 2.0,
+        fwhm: 3.0,
+        eccentricity: 0.1,
+        starCount: 120,
+      );
+      final reason = rules.gradeStats(
+        liveRound,
+        guidingRmsTotal: 0.5,
+        eccentricity: 0.9,
+      );
+      expect(
+        reason,
+        isNotNull,
+        reason: 'explicit arg 0.9 must override live 0.1 and reject',
+      );
       expect(reason, contains('Eccentricity'));
     });
 
@@ -276,19 +298,26 @@ void main() {
       // eccentricity rule. A clean frame passes; a bloated one fails on HFR.
       const clean = ImageStats(hfr: 2.0, starCount: 80);
       expect(
-        FrameGradeRules.conservativeDefaults
-            .gradeStats(clean, guidingRmsTotal: 0.6),
+        FrameGradeRules.conservativeDefaults.gradeStats(
+          clean,
+          guidingRmsTotal: 0.6,
+        ),
         isNull,
       );
 
       const bloated = ImageStats(hfr: 4.0, starCount: 80);
-      final reason = FrameGradeRules.conservativeDefaults
-          .gradeStats(bloated, guidingRmsTotal: 0.6);
+      final reason = FrameGradeRules.conservativeDefaults.gradeStats(
+        bloated,
+        guidingRmsTotal: 0.6,
+      );
       expect(reason, isNotNull);
       expect(reason, contains('HFR'));
       // Eccentricity arg supplied but no rule configured -> never reported.
-      final neverEcc = FrameGradeRules.conservativeDefaults
-          .gradeStats(clean, guidingRmsTotal: 0.6, eccentricity: 0.95);
+      final neverEcc = FrameGradeRules.conservativeDefaults.gradeStats(
+        clean,
+        guidingRmsTotal: 0.6,
+        eccentricity: 0.95,
+      );
       expect(neverEcc, isNull);
     });
 

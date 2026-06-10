@@ -22,11 +22,9 @@ import 'logging_service.dart';
 /// the parent never reaches into half-completed state during a backend
 /// swap or device-swap.
 class CameraWarmupController {
-  CameraWarmupController({
-    required Ref ref,
-    required NightshadeBackend backend,
-  })  : _ref = ref,
-        _backend = backend;
+  CameraWarmupController({required Ref ref, required NightshadeBackend backend})
+    : _ref = ref,
+      _backend = backend;
 
   final Ref _ref;
   final NightshadeBackend _backend;
@@ -110,10 +108,7 @@ class CameraWarmupController {
       final coolerPower = state.coolerPower ?? 0.0;
       if (coolerPower <= 2.0) {
         try {
-          await _backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: false,
-          );
+          await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
           _log(
             (l) => l.info(
               'Warm-up complete. Cooler power reached '
@@ -131,10 +126,7 @@ class CameraWarmupController {
 
       if (DateTime.now().difference(warmingStartTime) > maxWarmingDuration) {
         try {
-          await _backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: false,
-          );
+          await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
           _log(
             (l) => l.warning(
               'Warm-up safety timeout (30 min). Cooler disabled at power '

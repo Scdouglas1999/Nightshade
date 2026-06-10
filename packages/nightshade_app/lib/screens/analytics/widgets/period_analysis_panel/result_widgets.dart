@@ -70,7 +70,9 @@ class _BlsStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize10),
         ),
         Text(
           value,

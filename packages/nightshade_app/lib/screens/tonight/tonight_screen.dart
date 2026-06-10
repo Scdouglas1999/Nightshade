@@ -129,7 +129,8 @@ class TonightBodyView extends StatelessWidget {
           _ErrorBanner(colors: colors, message: state.error!),
         ],
         const SizedBox(height: NightshadeTokens.spaceXl),
-        _MorningPayoff(colors: colors, running: state.phase == OneTapPhase.running),
+        _MorningPayoff(
+            colors: colors, running: state.phase == OneTapPhase.running),
         const SizedBox(height: NightshadeTokens.spaceLg),
         _AdvancedFooter(colors: colors),
       ],
@@ -152,7 +153,8 @@ class _Header extends StatelessWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Tonight',
-              style: NightshadeTypography.h2.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h2.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
@@ -160,8 +162,8 @@ class _Header extends StatelessWidget {
         Text(
           'One tap and Nightshade frames, plans, and runs the best target for '
           'you. Wake up to a finished master.',
-          style: NightshadeTypography.bodySm
-              .copyWith(color: colors.textSecondary),
+          style:
+              NightshadeTypography.bodySm.copyWith(color: colors.textSecondary),
         ),
       ],
     );
@@ -244,8 +246,7 @@ class _TargetConfirmCard extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             target.targetName,
-            style:
-                NightshadeTypography.h3.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.h3.copyWith(color: colors.textPrimary),
           ),
           if (target.objectType != null) ...[
             const SizedBox(height: 2),
@@ -493,7 +494,8 @@ class _AdvancedFooter extends StatelessWidget {
       children: [
         TextButton.icon(
           onPressed: () => context.go('/planner'),
-          icon: Icon(LucideIcons.sliders, size: 15, color: colors.textSecondary),
+          icon:
+              Icon(LucideIcons.sliders, size: 15, color: colors.textSecondary),
           label: Text(
             'Advanced: full planner & sequencer',
             style: NightshadeTypography.bodySm

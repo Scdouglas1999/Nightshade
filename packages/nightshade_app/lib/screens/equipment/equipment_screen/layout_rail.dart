@@ -35,7 +35,8 @@ class _DashboardHeader extends StatelessWidget {
             child: Text(
               profileName!,
               overflow: TextOverflow.ellipsis,
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
           ),
           if (isMobile) ...[
@@ -142,7 +143,8 @@ class _PolarAlignmentShortcut extends ConsumerWidget {
                   children: [
                     Text(
                       'Polar Alignment',
-                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -453,7 +455,8 @@ class _ReadinessSummaryBar extends ConsumerWidget {
                           horizontal: 6, vertical: 1),
                       decoration: NightshadeDecorations.tintedBadge(
                         dotColor,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                       ),
                       child: Text(
                         '$outstanding ${outstanding == 1 ? 'item' : 'items'}',

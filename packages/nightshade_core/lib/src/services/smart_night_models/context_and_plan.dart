@@ -120,35 +120,37 @@ class SmartNightContext {
   }
 
   Map<String, dynamic> toJson() => {
-        'windowStart': windowStart.toIso8601String(),
-        'windowEnd': windowEnd.toIso8601String(),
-        'rainOrCloudProbability': rainOrCloudProbability,
-        'cloudArrivalLeadTimeMinutes': cloudArrivalLeadTimeMinutes,
-        'bortleClass': bortleClass,
-        'recentGuideRmsArcsec': recentGuideRmsArcsec,
-        'recentGuideSamples': recentGuideSamples,
-        'daysSinceLastPolarAlignment': daysSinceLastPolarAlignment,
-        'missingDarkLibraryNotes': missingDarkLibraryNotes,
-        'missingDarkRequirements':
-            missingDarkRequirements.map(_darkRequirementToJson).toList(),
-        'adaptiveExposuresRecommended': adaptiveExposuresRecommended,
-        if (horizonProfile != null)
-          'horizonProfile': {
-            if (horizonProfile!.id != null) 'id': horizonProfile!.id,
-            'name': horizonProfile!.name,
-            'samples':
-                horizonProfile!.samples.map((s) => s.toJson()).toList(),
-          },
-      };
+    'windowStart': windowStart.toIso8601String(),
+    'windowEnd': windowEnd.toIso8601String(),
+    'rainOrCloudProbability': rainOrCloudProbability,
+    'cloudArrivalLeadTimeMinutes': cloudArrivalLeadTimeMinutes,
+    'bortleClass': bortleClass,
+    'recentGuideRmsArcsec': recentGuideRmsArcsec,
+    'recentGuideSamples': recentGuideSamples,
+    'daysSinceLastPolarAlignment': daysSinceLastPolarAlignment,
+    'missingDarkLibraryNotes': missingDarkLibraryNotes,
+    'missingDarkRequirements': missingDarkRequirements
+        .map(_darkRequirementToJson)
+        .toList(),
+    'adaptiveExposuresRecommended': adaptiveExposuresRecommended,
+    if (horizonProfile != null)
+      'horizonProfile': {
+        if (horizonProfile!.id != null) 'id': horizonProfile!.id,
+        'name': horizonProfile!.name,
+        'samples': horizonProfile!.samples.map((s) => s.toJson()).toList(),
+      },
+  };
 
   factory SmartNightContext.fromJson(Map<String, dynamic> json) {
     return SmartNightContext(
       windowStart: DateTime.parse(json['windowStart'] as String),
       windowEnd: DateTime.parse(json['windowEnd'] as String),
-      rainOrCloudProbability:
-          (json['rainOrCloudProbability'] as num?)?.toDouble(),
-      cloudArrivalLeadTimeMinutes:
-          _jsonInt(json['cloudArrivalLeadTimeMinutes'], 30),
+      rainOrCloudProbability: (json['rainOrCloudProbability'] as num?)
+          ?.toDouble(),
+      cloudArrivalLeadTimeMinutes: _jsonInt(
+        json['cloudArrivalLeadTimeMinutes'],
+        30,
+      ),
       bortleClass: _jsonInt(json['bortleClass'], 5),
       recentGuideRmsArcsec: (json['recentGuideRmsArcsec'] as num?)?.toDouble(),
       recentGuideSamples: _jsonInt(json['recentGuideSamples'], 0),
@@ -226,24 +228,27 @@ class SmartNightPlan {
   });
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': 1,
-        'sequence': SequenceFileService().sequenceToMap(sequence),
-        'plannedTargets': plannedTargets.map((t) => t.toJson()).toList(),
-        'totalIntegrationSecs': totalIntegrationSecs,
-        'estimatedWallClockSecs': estimatedWallClockSecs,
-        'warnings': warnings,
-        'strategy': strategy.name,
-        'settings': settings.toJson(),
-        'context': context.toJson(),
-      };
+    'schemaVersion': 1,
+    'sequence': SequenceFileService().sequenceToMap(sequence),
+    'plannedTargets': plannedTargets.map((t) => t.toJson()).toList(),
+    'totalIntegrationSecs': totalIntegrationSecs,
+    'estimatedWallClockSecs': estimatedWallClockSecs,
+    'warnings': warnings,
+    'strategy': strategy.name,
+    'settings': settings.toJson(),
+    'context': context.toJson(),
+  };
 
   factory SmartNightPlan.fromJson(Map<String, dynamic> json) {
     final sequenceJson = (json['sequence'] as Map).cast<String, dynamic>();
     return SmartNightPlan(
       sequence: SequenceFileService().parseFromMap(sequenceJson),
       plannedTargets: (json['plannedTargets'] as List? ?? const [])
-          .map((e) => SmartNightPlannedTarget.fromJson(
-              (e as Map).cast<String, dynamic>()))
+          .map(
+            (e) => SmartNightPlannedTarget.fromJson(
+              (e as Map).cast<String, dynamic>(),
+            ),
+          )
           .toList(),
       totalIntegrationSecs: _jsonDouble(json['totalIntegrationSecs'], 0.0),
       estimatedWallClockSecs: _jsonDouble(json['estimatedWallClockSecs'], 0.0),
@@ -254,9 +259,11 @@ class SmartNightPlan {
         SmartNightStrategy.autoLrgb,
       ),
       settings: SmartNightSettings.fromJson(
-          (json['settings'] as Map).cast<String, dynamic>()),
+        (json['settings'] as Map).cast<String, dynamic>(),
+      ),
       context: SmartNightContext.fromJson(
-          (json['context'] as Map).cast<String, dynamic>()),
+        (json['context'] as Map).cast<String, dynamic>(),
+      ),
     );
   }
 }

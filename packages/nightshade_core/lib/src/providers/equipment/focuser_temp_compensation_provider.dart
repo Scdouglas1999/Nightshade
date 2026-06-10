@@ -53,20 +53,16 @@ import 'focuser_state_provider.dart';
 ///   - After a successful move, advance the baseline to the new
 ///     (temperature, position) pair so future deltas are computed against
 ///     the most recent applied correction.
-final focuserTempCompensationProvider = Provider<FocuserTempCompensator>(
-  (ref) {
-    final compensator = FocuserTempCompensator(ref);
-    ref.onDispose(compensator.dispose);
-    return compensator;
-  },
-);
+final focuserTempCompensationProvider = Provider<FocuserTempCompensator>((ref) {
+  final compensator = FocuserTempCompensator(ref);
+  ref.onDispose(compensator.dispose);
+  return compensator;
+});
 
 /// Internal observable for tests: holds the most recent baseline so unit
 /// tests can verify the controller advanced after a move.
 final focuserTempCompensationBaselineProvider =
-    StateProvider<FocuserTempCompensationBaseline?>(
-  (_) => null,
-);
+    StateProvider<FocuserTempCompensationBaseline?>((_) => null);
 
 class FocuserTempCompensationBaseline {
   final double temperature;
@@ -156,8 +152,9 @@ class FocuserTempCompensator {
       return;
     }
 
-    final baselineHolder =
-        _ref.read(focuserTempCompensationBaselineProvider.notifier);
+    final baselineHolder = _ref.read(
+      focuserTempCompensationBaselineProvider.notifier,
+    );
     final baseline = baselineHolder.state;
     if (baseline == null) {
       baselineHolder.state = FocuserTempCompensationBaseline(
@@ -192,7 +189,9 @@ class FocuserTempCompensator {
     final targetPosition = baseline.position + deltaSteps;
     if (targetPosition < 0) {
       // Refuse impossible commands rather than silently clamping.
-      _ref.read(loggingServiceProvider).warning(
+      _ref
+          .read(loggingServiceProvider)
+          .warning(
             'Temp compensation computed negative target position '
             '($targetPosition); skipping move.',
             source: 'FocuserTempCompensator',
@@ -227,8 +226,9 @@ class FocuserTempCompensator {
         '(new baseline temp ${newBaselineTemp.toStringAsFixed(2)}C)',
         source: 'FocuserTempCompensator',
       );
-      _ref.read(focuserTempCompensationBaselineProvider.notifier).state =
-          FocuserTempCompensationBaseline(
+      _ref
+          .read(focuserTempCompensationBaselineProvider.notifier)
+          .state = FocuserTempCompensationBaseline(
         temperature: newBaselineTemp,
         position: targetPosition,
         capturedAt: DateTime.now(),

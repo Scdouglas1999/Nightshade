@@ -26,8 +26,8 @@ import '../../../models/notification/transport_configs.dart';
 import 'notification_transport.dart';
 
 /// Strategy hook so tests can substitute a fake socket.
-typedef MqttSocketOpener = Future<Socket> Function(
-    String host, int port, bool useTls);
+typedef MqttSocketOpener =
+    Future<Socket> Function(String host, int port, bool useTls);
 
 Future<Socket> _defaultMqttOpener(String host, int port, bool useTls) {
   if (useTls) return SecureSocket.connect(host, port);
@@ -43,9 +43,9 @@ class MqttTransport extends NotificationTransport {
     required MqttTransportConfig config,
     Duration timeout = const Duration(seconds: 10),
     MqttSocketOpener? opener,
-  })  : _config = config,
-        _timeout = timeout,
-        _open = opener ?? _defaultMqttOpener;
+  }) : _config = config,
+       _timeout = timeout,
+       _open = opener ?? _defaultMqttOpener;
 
   @override
   NotificationTransportKind get kind => NotificationTransportKind.mqtt;
@@ -75,10 +75,15 @@ class MqttTransport extends NotificationTransport {
       return await _runSession(category, title, body).timeout(_timeout);
     } on TimeoutException {
       return NotificationResult.fail(
-          'MQTT session timed out after ${_timeout.inSeconds}s');
+        'MQTT session timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/MQTT] Send failed: $e',
-          name: 'MqttTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/MQTT] Send failed: $e',
+        name: 'MqttTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }
@@ -109,9 +114,10 @@ class MqttTransport extends NotificationTransport {
       final effectiveQos = qos == 2 ? 1 : qos;
       if (qos == 2) {
         developer.log(
-            '[Notifications/MQTT] QoS 2 downgraded to QoS 1 (PUBREC/PUBREL not implemented).',
-            name: 'MqttTransport',
-            level: 800);
+          '[Notifications/MQTT] QoS 2 downgraded to QoS 1 (PUBREC/PUBREL not implemented).',
+          name: 'MqttTransport',
+          level: 800,
+        );
       }
 
       final payload = jsonEncode({
@@ -124,13 +130,15 @@ class MqttTransport extends NotificationTransport {
       });
 
       const packetId = 1;
-      socket.add(_buildPublishPacket(
-        topic: _config.topic,
-        payload: utf8.encode(payload),
-        qos: effectiveQos,
-        retain: _config.retain,
-        packetId: packetId,
-      ));
+      socket.add(
+        _buildPublishPacket(
+          topic: _config.topic,
+          payload: utf8.encode(payload),
+          qos: effectiveQos,
+          retain: _config.retain,
+          packetId: packetId,
+        ),
+      );
 
       if (effectiveQos == 1) {
         final puback = await session.readPacket();
@@ -146,7 +154,9 @@ class MqttTransport extends NotificationTransport {
     } catch (e) {
       try {
         await socket.close();
-      } catch (_) {/* already closed */}
+      } catch (_) {
+        /* already closed */
+      }
       rethrow;
     } finally {
       session.dispose();
@@ -158,11 +168,7 @@ class MqttTransport extends NotificationTransport {
 // Frame builders + reader
 // ---------------------------------------------------------------------------
 
-enum _MqttPacketType {
-  connack,
-  puback,
-  unknown,
-}
+enum _MqttPacketType { connack, puback, unknown }
 
 class _MqttPacket {
   final _MqttPacketType type;
@@ -178,8 +184,7 @@ class _MqttSession {
   Object? _streamError;
 
   _MqttSession(this._socket) {
-    _subscription = _socket.listen(_onData,
-        onError: _onError, onDone: _onDone);
+    _subscription = _socket.listen(_onData, onError: _onError, onDone: _onDone);
   }
 
   void _onData(List<int> bytes) {
@@ -230,8 +235,8 @@ class _MqttSession {
   }
 
   void _onDone() {
-    final err = _streamError ??
-        StateError('MQTT socket closed before reply arrived');
+    final err =
+        _streamError ?? StateError('MQTT socket closed before reply arrived');
     for (final w in _waiters) {
       w.completeError(err);
     }
@@ -271,7 +276,9 @@ Uint8List _buildConnectPacket(MqttTransportConfig cfg) {
 
   // Payload: client id, optional username, optional password
   final payload = BytesBuilder();
-  payload.add(_encodeString(cfg.clientId.isEmpty ? 'nightshade' : cfg.clientId));
+  payload.add(
+    _encodeString(cfg.clientId.isEmpty ? 'nightshade' : cfg.clientId),
+  );
   if (cfg.username != null && cfg.username!.isNotEmpty) {
     payload.add(_encodeString(cfg.username!));
   }
@@ -298,7 +305,10 @@ Uint8List _buildPublishPacket({
   // Fixed header byte 1: type (3) << 4 | dup (0) | qos << 1 | retain
   final headerByte = (3 << 4) | ((qos & 0x03) << 1) | (retain ? 1 : 0);
   return _buildFixedHeader(
-      headerByte, variable.toBytes(), Uint8List.fromList(payload));
+    headerByte,
+    variable.toBytes(),
+    Uint8List.fromList(payload),
+  );
 }
 
 Uint8List _buildDisconnectPacket() {
@@ -309,7 +319,10 @@ Uint8List _buildDisconnectPacket() {
 }
 
 Uint8List _buildFixedHeader(
-    int firstByte, Uint8List variableHeader, Uint8List payload) {
+  int firstByte,
+  Uint8List variableHeader,
+  Uint8List payload,
+) {
   final out = BytesBuilder();
   out.addByte(firstByte);
   final remaining = variableHeader.length + payload.length;

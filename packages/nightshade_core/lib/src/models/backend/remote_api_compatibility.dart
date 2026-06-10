@@ -136,8 +136,9 @@ class SemanticVersion implements Comparable<SemanticVersion> {
 
   static SemanticVersion? tryParse(String? value) {
     if (value == null) return null;
-    final match =
-        RegExp(r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(value.trim());
+    final match = RegExp(
+      r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?',
+    ).firstMatch(value.trim());
     if (match == null) return null;
 
     return SemanticVersion(

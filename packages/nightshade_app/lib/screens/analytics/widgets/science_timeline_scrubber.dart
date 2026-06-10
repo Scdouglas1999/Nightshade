@@ -80,7 +80,8 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                                 height:
                                     8 + _normalized(metrics[i].snr) * barSpan,
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusXs),
                                   color: i == selectedIndex
                                       ? NightshadeChartColors.selectedFrame(
                                           widget.colors)

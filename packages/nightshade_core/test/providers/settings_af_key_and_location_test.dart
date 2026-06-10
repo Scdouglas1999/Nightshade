@@ -37,20 +37,27 @@ void main() {
       await database.close();
     });
 
-    test('stored af_disable_guiding=true loads as afDisableGuidingDuringAf',
-        () async {
-      await database.into(database.appSettings).insert(
-            AppSettingsCompanion.insert(
-              key: 'af_disable_guiding',
-              value: 'true',
-            ),
-            mode: InsertMode.insertOrReplace,
-          );
+    test(
+      'stored af_disable_guiding=true loads as afDisableGuidingDuringAf',
+      () async {
+        await database
+            .into(database.appSettings)
+            .insert(
+              AppSettingsCompanion.insert(
+                key: 'af_disable_guiding',
+                value: 'true',
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
 
-      final settings = await container.read(appSettingsProvider.future);
-      expect(settings.afDisableGuidingDuringAf, isTrue,
-          reason: 'stored-snapshot loader must read the canonical key');
-    });
+        final settings = await container.read(appSettingsProvider.future);
+        expect(
+          settings.afDisableGuidingDuringAf,
+          isTrue,
+          reason: 'stored-snapshot loader must read the canonical key',
+        );
+      },
+    );
 
     test('setter persists and reloads through the canonical key', () async {
       await container.read(appSettingsProvider.future);
@@ -79,8 +86,11 @@ void main() {
   group('observer location unset detection (Finding #3)', () {
     test('default (0,0) is treated as unset', () {
       const settings = AppSettingsState();
-      expect(settings.isLocationUnset, isTrue,
-          reason: 'a never-configured location defaults to the null island');
+      expect(
+        settings.isLocationUnset,
+        isTrue,
+        reason: 'a never-configured location defaults to the null island',
+      );
       expect(settings.isLocationSet, isFalse);
     });
 

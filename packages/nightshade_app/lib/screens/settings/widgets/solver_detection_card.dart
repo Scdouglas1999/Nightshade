@@ -13,8 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 ///   * No solver installed → red, with a clickable install link
 class SolverDetectionCard extends StatelessWidget {
   static const String astapDownloadUrl = 'https://www.hnsky.org/astap.htm';
-  static const String astrometryDownloadUrl =
-      'https://astrometry.net/use.html';
+  static const String astrometryDownloadUrl = 'https://astrometry.net/use.html';
 
   final PlateSolverDetection detection;
 
@@ -267,7 +266,7 @@ class _LinkText extends StatelessWidget {
   const _LinkText({
     required this.url,
     required this.label,
-    });
+  });
 
   Future<void> _open() async {
     final uri = Uri.parse(url);

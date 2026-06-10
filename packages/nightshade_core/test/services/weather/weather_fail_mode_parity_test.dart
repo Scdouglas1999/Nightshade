@@ -25,7 +25,8 @@ void main() {
       expect(
         noDataFailModeResolution(SafetyFailMode.failClosed),
         NoDataResolution.unsafe,
-        reason: 'failClosed must treat missing safety data as unsafe — this is '
+        reason:
+            'failClosed must treat missing safety data as unsafe — this is '
             'the unattended-run default that pauses/parks the rig.',
       );
     });
@@ -34,7 +35,8 @@ void main() {
       expect(
         noDataFailModeResolution(SafetyFailMode.failOpen),
         NoDataResolution.safe,
-        reason: 'failOpen must treat missing safety data as safe so the '
+        reason:
+            'failOpen must treat missing safety data as safe so the '
             'sequence keeps running (daytime / intentional-no-device runs).',
       );
     });
@@ -43,7 +45,8 @@ void main() {
       expect(
         noDataFailModeResolution(SafetyFailMode.warnOnly),
         NoDataResolution.preserve,
-        reason: 'warnOnly must preserve the prior reading (last good wins) and '
+        reason:
+            'warnOnly must preserve the prior reading (last good wins) and '
             'surface a warning rather than asserting safe or unsafe.',
       );
     });
@@ -84,7 +87,8 @@ void main() {
     test('only failClosed asserts UNSAFE on the verdict channel', () {
       expect(
         verdictForResolution(
-            noDataFailModeResolution(SafetyFailMode.failClosed)),
+          noDataFailModeResolution(SafetyFailMode.failClosed),
+        ),
         isTrue,
       );
     });

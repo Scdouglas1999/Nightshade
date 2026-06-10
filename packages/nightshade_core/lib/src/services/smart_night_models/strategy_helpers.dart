@@ -53,7 +53,8 @@ List<String> resolveSmartNightFilterSet({
       if (sii != null) out.add(sii);
       return out;
     case SmartNightStrategy.oscOneShot:
-      final preferred = present('L-eXtreme') ??
+      final preferred =
+          present('L-eXtreme') ??
           present('L-uLtimate') ??
           present('L-Pro') ??
           present('L') ??
@@ -218,8 +219,9 @@ List<SmartNightFilterPlan> composeSmartNightFilterPlans({
       0,
       (sum, plan) => sum + plan.integrationSecs,
     );
-    final remainingWindowSecs =
-        math.max(0.0, windowSecs - goalIntegrationSecs).toDouble();
+    final remainingWindowSecs = math
+        .max(0.0, windowSecs - goalIntegrationSecs)
+        .toDouble();
     final goalNames = goalPlans.map((p) => p.filterName.toLowerCase()).toSet();
     final budgetFilters = activeFilters
         .where((f) => !goalNames.contains(f.toLowerCase()))
@@ -271,10 +273,7 @@ List<SmartNightFilterPlan> composeSmartNightFilterPlans({
 // stay self-contained.
 // ---------------------------------------------------------------------------
 
-bool _filterAliasPresent(
-  Map<String, String> lookup,
-  Iterable<String> aliases,
-) {
+bool _filterAliasPresent(Map<String, String> lookup, Iterable<String> aliases) {
   for (final alias in aliases) {
     if (lookup.containsKey(alias.toLowerCase())) return true;
   }
@@ -369,17 +368,20 @@ List<SmartNightFilterPlan> _composeBudgetFilterPlans({
     final pickedSecs = recommendation.seconds > 0
         ? recommendation.seconds
         : settings.defaultFrameDurationSecs[filterName.toUpperCase()] ??
-            settings.defaultFrameDurationSecs[filterName] ??
-            180.0;
+              settings.defaultFrameDurationSecs[filterName] ??
+              180.0;
     final budgetSecs = perFilterBudget[filterName] ?? 0;
-    final count =
-        budgetSecs <= 0 ? 1 : math.max(1, (budgetSecs / pickedSecs).floor());
-    out.add(SmartNightFilterPlan(
-      filterName: filterName,
-      count: count,
-      durationSecs: pickedSecs,
-      recommendation: recommendation,
-    ));
+    final count = budgetSecs <= 0
+        ? 1
+        : math.max(1, (budgetSecs / pickedSecs).floor());
+    out.add(
+      SmartNightFilterPlan(
+        filterName: filterName,
+        count: count,
+        durationSecs: pickedSecs,
+        recommendation: recommendation,
+      ),
+    );
   }
   return out;
 }
@@ -432,16 +434,18 @@ List<SmartNightFilterPlan>? _composeFilterPlansFromIntegrationGoals({
       durationSecs = recommendation.seconds > 0
           ? recommendation.seconds
           : settings.defaultFrameDurationSecs[matched.toUpperCase()] ??
-              settings.defaultFrameDurationSecs[matched] ??
-              180.0;
+                settings.defaultFrameDurationSecs[matched] ??
+                180.0;
     }
 
-    out.add(SmartNightFilterPlan(
-      filterName: matched,
-      count: progress.remainingFrames,
-      durationSecs: durationSecs,
-      recommendation: recommendation,
-    ));
+    out.add(
+      SmartNightFilterPlan(
+        filterName: matched,
+        count: progress.remainingFrames,
+        durationSecs: durationSecs,
+        recommendation: recommendation,
+      ),
+    );
   }
 
   return out.isEmpty ? null : out;

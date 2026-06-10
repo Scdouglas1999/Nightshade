@@ -4,11 +4,17 @@ import 'package:http/http.dart' as http;
 import '../models/annotation_data.dart';
 
 class SimbadProvider {
-  static const String _baseUrl = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync';
+  static const String _baseUrl =
+      'http://simbad.u-strasbg.fr/simbad/sim-tap/sync';
 
-  Future<ObjectData?> queryByCoordinates(double ra, double dec, {double radiusArcmin = 1.0}) async {
+  Future<ObjectData?> queryByCoordinates(
+    double ra,
+    double dec, {
+    double radiusArcmin = 1.0,
+  }) async {
     // ADQL Query
-    final adql = '''
+    final adql =
+        '''
       SELECT TOP 1
       basic.main_id, basic.ra, basic.dec, basic.coo_err_maj, basic.coo_err_min, 
       basic.coo_err_angle, basic.otype, basic.sp_type,
@@ -34,12 +40,12 @@ class SimbadProvider {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         final data = json['data'];
-        
+
         if (data != null && (data as List).isNotEmpty) {
           final row = data[0];
           // Parse row data (simplified mapping)
           // Note: SIMBAD JSON format is [[val1, val2, ...], ...]
-          
+
           return ObjectData(
             description: 'Identified via SIMBAD',
             objectClass: row[6]?.toString(), // otype
@@ -53,8 +59,12 @@ class SimbadProvider {
         }
       }
     } catch (e) {
-      developer.log('[SIMBAD] Error: $e',
-          name: 'SimbadProvider', level: 900, error: e);
+      developer.log(
+        '[SIMBAD] Error: $e',
+        name: 'SimbadProvider',
+        level: 900,
+        error: e,
+      );
     }
 
     return null;
@@ -86,7 +96,8 @@ class SimbadProvider {
     final patternA = '%$escaped%';
     final patternB = '%${escaped.replaceAll(RegExp(r'\s+'), '')}%';
 
-    final adql = '''
+    final adql =
+        '''
       SELECT TOP $limit basic.main_id, basic.ra, basic.dec, basic.otype, flux.V
       FROM basic
       LEFT JOIN flux ON basic.oid = flux.oidref AND flux.filter = 'V'
@@ -105,8 +116,11 @@ class SimbadProvider {
         },
       );
       if (response.statusCode != 200) {
-        developer.log('[SIMBAD] name search HTTP ${response.statusCode}',
-            name: 'SimbadProvider', level: 900);
+        developer.log(
+          '[SIMBAD] name search HTTP ${response.statusCode}',
+          name: 'SimbadProvider',
+          level: 900,
+        );
         return const <SimbadNameMatch>[];
       }
       final json = jsonDecode(response.body);
@@ -123,13 +137,15 @@ class SimbadProvider {
         final raDeg = _parseDouble(row[1]);
         final decDeg = _parseDouble(row[2]);
         if (raDeg == null || decDeg == null) continue;
-        out.add(SimbadNameMatch(
-          mainId: mainId,
-          raHours: raDeg / 15.0,
-          decDegrees: decDeg,
-          objectType: row[3]?.toString(),
-          magnitudeV: row.length > 4 ? _parseDouble(row[4]) : null,
-        ));
+        out.add(
+          SimbadNameMatch(
+            mainId: mainId,
+            raHours: raDeg / 15.0,
+            decDegrees: decDeg,
+            objectType: row[3]?.toString(),
+            magnitudeV: row.length > 4 ? _parseDouble(row[4]) : null,
+          ),
+        );
       }
       // Why: SIMBAD returns matches in DB-internal order; ranking by main_id
       // length puts canonical identifiers ("M 31") before catalog crossrefs
@@ -137,8 +153,12 @@ class SimbadProvider {
       out.sort((a, b) => a.mainId.length.compareTo(b.mainId.length));
       return out;
     } catch (e) {
-      developer.log('[SIMBAD] name search error: $e',
-          name: 'SimbadProvider', level: 900, error: e);
+      developer.log(
+        '[SIMBAD] name search error: $e',
+        name: 'SimbadProvider',
+        level: 900,
+        error: e,
+      );
       return const <SimbadNameMatch>[];
     }
   }
@@ -147,14 +167,22 @@ class SimbadProvider {
     if (spType == null || spType.isEmpty) return null;
     final firstChar = spType[0].toUpperCase();
     switch (firstChar) {
-      case 'O': return SpectralClass.o;
-      case 'B': return SpectralClass.b;
-      case 'A': return SpectralClass.a;
-      case 'F': return SpectralClass.f;
-      case 'G': return SpectralClass.g;
-      case 'K': return SpectralClass.k;
-      case 'M': return SpectralClass.m;
-      default: return SpectralClass.unknown;
+      case 'O':
+        return SpectralClass.o;
+      case 'B':
+        return SpectralClass.b;
+      case 'A':
+        return SpectralClass.a;
+      case 'F':
+        return SpectralClass.f;
+      case 'G':
+        return SpectralClass.g;
+      case 'K':
+        return SpectralClass.k;
+      case 'M':
+        return SpectralClass.m;
+      default:
+        return SpectralClass.unknown;
     }
   }
 

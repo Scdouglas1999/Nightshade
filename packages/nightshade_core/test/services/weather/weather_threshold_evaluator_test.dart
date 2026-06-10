@@ -127,43 +127,47 @@ void main() {
   /// standard trigger has been removed; this test pins that the evaluator
   /// honours whatever ceiling the operator configures (NOT a fixed 85), which is
   /// the single source of truth both languages now share.
-  group('humidity gate uses the operator-configured ceiling (single source)',
-      () {
-    test('a 70% operator ceiling makes 80% unsafe (stricter than old 85)', () {
-      const strict = WeatherThresholds(
-        maxHumidityPercent: 70.0,
-        maxWindSpeedKph: 30.0,
-        maxCloudCoverPercent: 80.0,
-      );
-      final result = evaluator.evaluate(
-        const WeatherReading(humidityPercent: 80.0),
-        strict,
-      );
-      expect(
-        result.isSafe,
-        isFalse,
-        reason: 'with a 70% ceiling, 80% humidity is unsafe — the old hardcoded '
-            'Rust 85% gate would have wrongly judged this safe.',
-      );
-      expect(result.breach, WeatherThresholdBreach.humidity);
-    });
+  group(
+    'humidity gate uses the operator-configured ceiling (single source)',
+    () {
+      test('a 70% operator ceiling makes 80% unsafe (stricter than old 85)', () {
+        const strict = WeatherThresholds(
+          maxHumidityPercent: 70.0,
+          maxWindSpeedKph: 30.0,
+          maxCloudCoverPercent: 80.0,
+        );
+        final result = evaluator.evaluate(
+          const WeatherReading(humidityPercent: 80.0),
+          strict,
+        );
+        expect(
+          result.isSafe,
+          isFalse,
+          reason:
+              'with a 70% ceiling, 80% humidity is unsafe — the old hardcoded '
+              'Rust 85% gate would have wrongly judged this safe.',
+        );
+        expect(result.breach, WeatherThresholdBreach.humidity);
+      });
 
-    test('a 95% operator ceiling keeps 90% safe (looser than old 85)', () {
-      const loose = WeatherThresholds(
-        maxHumidityPercent: 95.0,
-        maxWindSpeedKph: 30.0,
-        maxCloudCoverPercent: 80.0,
-      );
-      final result = evaluator.evaluate(
-        const WeatherReading(humidityPercent: 90.0),
-        loose,
-      );
-      expect(
-        result.isSafe,
-        isTrue,
-        reason: 'with a 95% ceiling, 90% humidity is safe — the old hardcoded '
-            'Rust 85% gate would have wrongly aborted here.',
-      );
-    });
-  });
+      test('a 95% operator ceiling keeps 90% safe (looser than old 85)', () {
+        const loose = WeatherThresholds(
+          maxHumidityPercent: 95.0,
+          maxWindSpeedKph: 30.0,
+          maxCloudCoverPercent: 80.0,
+        );
+        final result = evaluator.evaluate(
+          const WeatherReading(humidityPercent: 90.0),
+          loose,
+        );
+        expect(
+          result.isSafe,
+          isTrue,
+          reason:
+              'with a 95% ceiling, 90% humidity is safe — the old hardcoded '
+              'Rust 85% gate would have wrongly aborted here.',
+        );
+      });
+    },
+  );
 }

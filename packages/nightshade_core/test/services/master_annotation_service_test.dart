@@ -13,87 +13,88 @@ OpenNgcData _dso({
   double? positionAngle,
   String? messier,
   String? commonNames,
-}) =>
-    OpenNgcData(
-      name: name,
-      type: type,
-      ra: raDeg,
-      dec: decDeg,
-      magnitude: 9.0,
-      majorAxis: majorAxis,
-      minorAxis: majorAxis,
-      positionAngle: positionAngle,
-      messier: messier,
-      commonNames: commonNames,
-      constellation: 'And',
-    );
+}) => OpenNgcData(
+  name: name,
+  type: type,
+  ra: raDeg,
+  dec: decDeg,
+  magnitude: 9.0,
+  majorAxis: majorAxis,
+  minorAxis: majorAxis,
+  positionAngle: positionAngle,
+  messier: messier,
+  commonNames: commonNames,
+  constellation: 'And',
+);
 
 Star _star(String id, String name, double raDeg, double decDeg) => Star(
-      id: id,
-      name: name,
-      coordinates: CelestialCoordinate(ra: raDeg / 15.0, dec: decDeg),
-      magnitude: 2.0,
-    );
+  id: id,
+  name: name,
+  coordinates: CelestialCoordinate(ra: raDeg / 15.0, dec: decDeg),
+  magnitude: 2.0,
+);
 
 void main() {
   // WCS centred at RA=10°, Dec=20°, 2"/px, 200×200, no rotation.
   WcsOverlay buildWcs() => WcsOverlay(
-        crpix1: 100,
-        crpix2: 100,
-        crval1: 10.0,
-        crval2: 20.0,
-        cdelt1: 2.0 / 3600.0,
-        cdelt2: 2.0 / 3600.0,
+    crpix1: 100,
+    crpix2: 100,
+    crval1: 10.0,
+    crval2: 20.0,
+    cdelt1: 2.0 / 3600.0,
+    cdelt2: 2.0 / 3600.0,
+  );
+
+  test(
+    'maps a known sky coord to the expected pixel and assigns kind/size',
+    () async {
+      final wcs = buildWcs();
+      // Place a galaxy at the projection of pixel (150, 100): +50px in X from the
+      // crpix centre at 2"/px. The marker must land back on (150, 100).
+      final (gRa, gDec) = wcs.pixelToCelestial(150, 100);
+
+      final svc = MasterAnnotationService(
+        dsoSearch:
+            ({
+              required double ra,
+              required double dec,
+              required double radiusDegrees,
+              double? maxMagnitude,
+            }) async => [
+              _dso(
+                name: 'NGC 1',
+                type: 'G',
+                raDeg: gRa,
+                decDeg: gDec,
+                majorAxis: 4.0, // arcmin
+                positionAngle: 45.0,
+                messier: '110',
+              ),
+            ],
+        starSearch: (_, __, {maxMagnitude}) async => const [],
       );
 
-  test('maps a known sky coord to the expected pixel and assigns kind/size',
-      () async {
-    final wcs = buildWcs();
-    // Place a galaxy at the projection of pixel (150, 100): +50px in X from the
-    // crpix centre at 2"/px. The marker must land back on (150, 100).
-    final (gRa, gDec) = wcs.pixelToCelestial(150, 100);
+      final layer = await svc.annotate(
+        wcs: wcs,
+        width: 200,
+        height: 200,
+        fovDeg: 200 * 2.0 / 3600.0,
+      );
 
-    final svc = MasterAnnotationService(
-      dsoSearch: ({
-        required double ra,
-        required double dec,
-        required double radiusDegrees,
-        double? maxMagnitude,
-      }) async =>
-          [
-            _dso(
-              name: 'NGC 1',
-              type: 'G',
-              raDeg: gRa,
-              decDeg: gDec,
-              majorAxis: 4.0, // arcmin
-              positionAngle: 45.0,
-              messier: '110',
-            ),
-          ],
-      starSearch: (_, __, {maxMagnitude}) async => const [],
-    );
-
-    final layer = await svc.annotate(
-      wcs: wcs,
-      width: 200,
-      height: 200,
-      fovDeg: 200 * 2.0 / 3600.0,
-    );
-
-    expect(layer.width, 200);
-    expect(layer.height, 200);
-    expect(layer.items, hasLength(1));
-    final a = layer.items.single;
-    expect(a.kind, AnnotationKind.galaxy);
-    expect(a.label, 'M110'); // Messier preferred
-    expect(a.paDeg, 45.0);
-    // 4 arcmin major axis at 2"/px → 4*60/2 = 120 px.
-    expect(a.sizePx, closeTo(120.0, 0.5));
-    // Pixel position: the DSO was placed at the projection of (150,100).
-    expect(a.x, closeTo(150.0, 0.5));
-    expect(a.y, closeTo(100.0, 0.5));
-  });
+      expect(layer.width, 200);
+      expect(layer.height, 200);
+      expect(layer.items, hasLength(1));
+      final a = layer.items.single;
+      expect(a.kind, AnnotationKind.galaxy);
+      expect(a.label, 'M110'); // Messier preferred
+      expect(a.paDeg, 45.0);
+      // 4 arcmin major axis at 2"/px → 4*60/2 = 120 px.
+      expect(a.sizePx, closeTo(120.0, 0.5));
+      // Pixel position: the DSO was placed at the projection of (150,100).
+      expect(a.x, closeTo(150.0, 0.5));
+      expect(a.y, closeTo(100.0, 0.5));
+    },
+  );
 
   test('clips out-of-frame objects', () async {
     final wcs = buildWcs();
@@ -103,13 +104,13 @@ void main() {
     final (outRa, outDec) = wcs.pixelToCelestial(5000, 5000);
 
     final svc = MasterAnnotationService(
-      dsoSearch: ({
-        required double ra,
-        required double dec,
-        required double radiusDegrees,
-        double? maxMagnitude,
-      }) async =>
-          [
+      dsoSearch:
+          ({
+            required double ra,
+            required double dec,
+            required double radiusDegrees,
+            double? maxMagnitude,
+          }) async => [
             _dso(name: 'NGC off', type: 'PN', raDeg: outRa, decDeg: outDec),
           ],
       starSearch: (_, __, {maxMagnitude}) async => [
@@ -140,13 +141,15 @@ void main() {
 
     Future<AnnotationKind> kindFor(String code) async {
       final svc = MasterAnnotationService(
-        dsoSearch: ({
-          required double ra,
-          required double dec,
-          required double radiusDegrees,
-          double? maxMagnitude,
-        }) async =>
-            [_dso(name: code, type: code, raDeg: centreRa, decDeg: centreDec)],
+        dsoSearch:
+            ({
+              required double ra,
+              required double dec,
+              required double radiusDegrees,
+              double? maxMagnitude,
+            }) async => [
+              _dso(name: code, type: code, raDeg: centreRa, decDeg: centreDec),
+            ],
         starSearch: (_, __, {maxMagnitude}) async => const [],
       );
       final layer = await svc.annotate(
@@ -168,13 +171,13 @@ void main() {
 
   test('zero-size frame returns an empty layer', () async {
     final svc = MasterAnnotationService(
-      dsoSearch: ({
-        required double ra,
-        required double dec,
-        required double radiusDegrees,
-        double? maxMagnitude,
-      }) async =>
-          throw StateError('should not search'),
+      dsoSearch:
+          ({
+            required double ra,
+            required double dec,
+            required double radiusDegrees,
+            double? maxMagnitude,
+          }) async => throw StateError('should not search'),
       starSearch: (_, __, {maxMagnitude}) async =>
           throw StateError('should not search'),
     );
@@ -189,13 +192,13 @@ void main() {
 
   test('catalog error fail-softs to an empty (non-throwing) layer', () async {
     final svc = MasterAnnotationService(
-      dsoSearch: ({
-        required double ra,
-        required double dec,
-        required double radiusDegrees,
-        double? maxMagnitude,
-      }) async =>
-          throw StateError('catalog offline'),
+      dsoSearch:
+          ({
+            required double ra,
+            required double dec,
+            required double radiusDegrees,
+            double? maxMagnitude,
+          }) async => throw StateError('catalog offline'),
       starSearch: (_, __, {maxMagnitude}) async =>
           throw StateError('catalog offline'),
     );

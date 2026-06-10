@@ -36,8 +36,11 @@ class NotificationContext {
     final now = DateTime.now();
     m.putIfAbsent('time.now', () => now.toUtc().toIso8601String());
     m.putIfAbsent('time.local', () => now.toIso8601String());
-    m.putIfAbsent('time.date',
-        () => '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
+    m.putIfAbsent(
+      'time.date',
+      () =>
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+    );
     return NotificationContext(m);
   }
 }

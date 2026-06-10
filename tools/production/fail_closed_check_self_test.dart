@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/fail_closed_check.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/fail_closed_check.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Fail-closed audit not found: ${script.path}');
   }
@@ -39,9 +40,9 @@ Future<void> main() async {
     );
     final patternViolations = patternFailure['violations'] as List? ?? const [];
     _expect(
-      patternViolations.single['description']
-          .toString()
-          .contains('UnimplementedError'),
+      patternViolations.single['description'].toString().contains(
+        'UnimplementedError',
+      ),
       'forbidden pattern fixture should identify the failed rule',
     );
 
@@ -54,8 +55,10 @@ Future<void> main() async {
     );
     final missingViolations = missingFailure['violations'] as List? ?? const [];
     _expect(
-      missingViolations.any((violation) =>
-          violation['description'].toString().contains('[MISSING FILE]')),
+      missingViolations.any(
+        (violation) =>
+            violation['description'].toString().contains('[MISSING FILE]'),
+      ),
       'missing file fixture should report a missing production file',
     );
 

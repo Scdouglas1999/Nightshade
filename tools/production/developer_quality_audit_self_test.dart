@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/developer_quality_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/developer_quality_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Developer quality audit not found: ${script.path}');
   }
@@ -21,7 +22,9 @@ Future<void> main() async {
     );
     _expect(passing['passed'] == true, 'passing fixture should pass');
     _expect(
-        passing['issueCount'] == 0, 'passing fixture should have no issues');
+      passing['issueCount'] == 0,
+      'passing fixture should have no issues',
+    );
 
     await _writeFailingFixture(temp);
     final failingResult = await _runAudit(script, temp, allowFailure: true);
@@ -61,16 +64,16 @@ Future<void> main() async {
 
 Future<void> _writePassingFixture(Directory root) async {
   await _writeJson(
-      root, 'docs/production-readiness/ui-consistency-audit.json', {
-    'findingCount': 203,
-    'blockingFindingCount': 0,
-    'countsByRule': {'raw_material_color': 203},
-    'rawColorClassifications': {'intentional_image_overlay': 203},
-    'designSystemGallery': {
-      'ready': true,
-      'missing': [],
+    root,
+    'docs/production-readiness/ui-consistency-audit.json',
+    {
+      'findingCount': 203,
+      'blockingFindingCount': 0,
+      'countsByRule': {'raw_material_color': 203},
+      'rawColorClassifications': {'intentional_image_overlay': 203},
+      'designSystemGallery': {'ready': true, 'missing': []},
     },
-  });
+  );
   await _writeJson(
     root,
     'docs/production-readiness/headless-api-contract-audit.json',
@@ -84,18 +87,12 @@ Future<void> _writePassingFixture(Directory root) async {
       'advertisedNotRegisteredCount': 0,
       'networkBackendMissingOnServerCount': 0,
       'advertisedHttpMissingOpenApiCount': 0,
-      'openApiMetadataCoverage': {
-        'request_body_limit_extension': true,
-      },
-      'webSocketContractCoverage': {
-        'heartbeat_ping_pong': true,
-      },
+      'openApiMetadataCoverage': {'request_body_limit_extension': true},
+      'webSocketContractCoverage': {'heartbeat_ping_pong': true},
       'networkBackendContractCoverage': {
         'network_backend_calls_registered_routes': true,
       },
-      'versionNegotiationCoverage': {
-        'network_backend_preflight': true,
-      },
+      'versionNegotiationCoverage': {'network_backend_preflight': true},
     },
   );
   await _writeJson(
@@ -108,9 +105,7 @@ Future<void> _writePassingFixture(Directory root) async {
       'defaultLimitedPolicyCount': 9,
       'ordinaryReadLimited': false,
       'fileBrowseAuditAction': 'file_browse',
-      'bodyLimits': {
-        '/api/mount/slew': 1048576,
-      },
+      'bodyLimits': {'/api/mount/slew': 1048576},
       'bodyLimitedApiWriteRouteCount': 3,
       'serverMiddlewareTestCount': 3,
       'serverMiddlewareTests': {
@@ -135,35 +130,41 @@ Future<void> _writePassingFixture(Directory root) async {
     },
   );
   await _writeJson(
-      root, 'docs/production-readiness/oversized-file-audit.json', {
-    'scannedFileCount': 10,
-    'warningFileCount': 1,
-    'criticalFileCount': 1,
-    'prioritySplitCandidateCount': 1,
-    'modularizedSourceFamilyCount': 1,
-    'warningLineLimit': 1000,
-    'criticalLineLimit': 2500,
-  });
+    root,
+    'docs/production-readiness/oversized-file-audit.json',
+    {
+      'scannedFileCount': 10,
+      'warningFileCount': 1,
+      'criticalFileCount': 1,
+      'prioritySplitCandidateCount': 1,
+      'modularizedSourceFamilyCount': 1,
+      'warningLineLimit': 1000,
+      'criticalLineLimit': 2500,
+    },
+  );
   await _writeStructuredLoggingFixture(root);
 }
 
 Future<void> _writeFailingFixture(Directory root) async {
   await _writeJson(
-      root, 'docs/production-readiness/ui-consistency-audit.json', {
-    'findingCount': 4,
-    'blockingFindingCount': 2,
-    'countsByRule': {
-      'raw_button_style': 1,
-      'empty_callback': 1,
-      'fake_callback': 1,
-      'stub_callback': 1,
-      'raw_material_color': 2,
+    root,
+    'docs/production-readiness/ui-consistency-audit.json',
+    {
+      'findingCount': 4,
+      'blockingFindingCount': 2,
+      'countsByRule': {
+        'raw_button_style': 1,
+        'empty_callback': 1,
+        'fake_callback': 1,
+        'stub_callback': 1,
+        'raw_material_color': 2,
+      },
+      'rawColorClassifications': {
+        'semantic_theme_color': 1,
+        'intentional_image_overlay': 1,
+      },
     },
-    'rawColorClassifications': {
-      'semantic_theme_color': 1,
-      'intentional_image_overlay': 1,
-    },
-  });
+  );
   await _writeJson(
     root,
     'docs/production-readiness/headless-api-contract-audit.json',
@@ -177,18 +178,12 @@ Future<void> _writeFailingFixture(Directory root) async {
       'advertisedNotRegisteredCount': 0,
       'networkBackendMissingOnServerCount': 1,
       'advertisedHttpMissingOpenApiCount': 0,
-      'openApiMetadataCoverage': {
-        'request_body_limit_extension': false,
-      },
-      'webSocketContractCoverage': {
-        'heartbeat_ping_pong': false,
-      },
+      'openApiMetadataCoverage': {'request_body_limit_extension': false},
+      'webSocketContractCoverage': {'heartbeat_ping_pong': false},
       'networkBackendContractCoverage': {
         'network_backend_calls_registered_routes': false,
       },
-      'versionNegotiationCoverage': {
-        'network_backend_preflight': false,
-      },
+      'versionNegotiationCoverage': {'network_backend_preflight': false},
     },
   );
   await _writeJson(
@@ -218,15 +213,18 @@ Future<void> _writeFailingFixture(Directory root) async {
     },
   );
   await _writeJson(
-      root, 'docs/production-readiness/oversized-file-audit.json', {
-    'scannedFileCount': 10,
-    'warningFileCount': 1,
-    'criticalFileCount': 1,
-    'prioritySplitCandidateCount': 1,
-    'modularizedSourceFamilyCount': 1,
-    'warningLineLimit': 1000,
-    'criticalLineLimit': 2500,
-  });
+    root,
+    'docs/production-readiness/oversized-file-audit.json',
+    {
+      'scannedFileCount': 10,
+      'warningFileCount': 1,
+      'criticalFileCount': 1,
+      'prioritySplitCandidateCount': 1,
+      'modularizedSourceFamilyCount': 1,
+      'warningLineLimit': 1000,
+      'criticalLineLimit': 2500,
+    },
+  );
   await _writeFile(
     root,
     'packages/nightshade_core/lib/src/services/logging_service.dart',
@@ -259,10 +257,7 @@ void main() {
 }
 ''',
   );
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', '''
 void logRequest() {
   final fields = {
     'requestId': requestId,
@@ -271,8 +266,7 @@ void logRequest() {
     'phase': 'completed',
   };
 }
-''',
-  );
+''');
   await _writeFile(
     root,
     'packages/nightshade_core/lib/src/backend/network_backend.dart',

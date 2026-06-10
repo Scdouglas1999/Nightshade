@@ -4,7 +4,11 @@ part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
   void _drawConstellationBoundaries(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     final boundaryPaint = Paint()
       ..color = config.constellationBoundaryColor
       ..strokeWidth = 0.5
@@ -22,9 +26,15 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
         final v1 = vertices[(i + 1) % vertices.length];
 
         final start = _celestialToScreen(
-            CelestialCoordinate(ra: v0.ra, dec: v0.dec), center, scale);
+          CelestialCoordinate(ra: v0.ra, dec: v0.dec),
+          center,
+          scale,
+        );
         final end = _celestialToScreen(
-            CelestialCoordinate(ra: v1.ra, dec: v1.dec), center, scale);
+          CelestialCoordinate(ra: v1.ra, dec: v1.dec),
+          center,
+          scale,
+        );
 
         if (start == null || end == null) continue;
         if (!_isInView(start, size) && !_isInView(end, size)) continue;
@@ -43,14 +53,8 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
         var dist = 0.0;
         while (dist < length) {
           final segEnd = math.min(dist + dashLength, length);
-          path.moveTo(
-            start.dx + unitDx * dist,
-            start.dy + unitDy * dist,
-          );
-          path.lineTo(
-            start.dx + unitDx * segEnd,
-            start.dy + unitDy * segEnd,
-          );
+          path.moveTo(start.dx + unitDx * dist, start.dy + unitDy * dist);
+          path.lineTo(start.dx + unitDx * segEnd, start.dy + unitDy * segEnd);
           dist += dashLength + gapLength;
         }
       }
@@ -60,12 +64,21 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
   }
 
   void _drawConstellationLines(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     // Check if we can reuse a cached Picture of constellation lines.
     // Constellation lines are static relative to the sky — they only change
     // when the view moves, so caching saves redrawing hundreds of line segments.
-    if (_constellationLineCache.isValid(viewState.centerRA, viewState.centerDec,
-        viewState.fieldOfView, size, constellations.length)) {
+    if (_constellationLineCache.isValid(
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      size,
+      constellations.length,
+    )) {
       canvas.drawPicture(_constellationLineCache.picture!);
       return;
     }
@@ -74,8 +87,9 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
     final recorder = ui.PictureRecorder();
     final recordCanvas = Canvas(recorder);
 
-    final paint =
-        _PaintCache.getConstellationPaint(config.constellationLineColor);
+    final paint = _PaintCache.getConstellationPaint(
+      config.constellationLineColor,
+    );
 
     // Batch all lines into a single Path for better performance
     final path = Path();
@@ -105,19 +119,24 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
 
     final picture = recorder.endRecording();
     _constellationLineCache.store(
-        picture,
-        viewState.centerRA,
-        viewState.centerDec,
-        viewState.fieldOfView,
-        size,
-        constellations.length);
+      picture,
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      size,
+      constellations.length,
+    );
 
     // Draw the picture to the real canvas
     canvas.drawPicture(picture);
   }
 
   void _drawConstellationLabels(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     final textStyle = TextStyle(
       color: Colors.white.withValues(alpha: 0.5),
       fontSize: 10,
@@ -129,8 +148,10 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
 
       if (offset != null && _isInView(offset, size)) {
         // Use cached TextPainter for constellation labels
-        final textPainter =
-            _TextCache.get(constellation.name.toUpperCase(), textStyle);
+        final textPainter = _TextCache.get(
+          constellation.name.toUpperCase(),
+          textStyle,
+        );
         textPainter.paint(
           canvas,
           offset - Offset(textPainter.width / 2, textPainter.height / 2),
@@ -140,15 +161,21 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
   }
 
   void _drawConstellationArt(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     // Gold/amber fill with 20% opacity
     final fillPaint = Paint()
-      ..color = const Color(0x33DAA520) // goldenrod at ~20% opacity
+      ..color =
+          const Color(0x33DAA520) // goldenrod at ~20% opacity
       ..style = PaintingStyle.fill;
 
     // Slightly brighter stroke for figure outlines
     final strokePaint = Paint()
-      ..color = const Color(0x28DAA520) // goldenrod at ~16% opacity
+      ..color =
+          const Color(0x28DAA520) // goldenrod at ~16% opacity
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
@@ -159,8 +186,11 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
           .firstOrNull;
       if (constellationData == null) continue;
 
-      final centerOffset =
-          _celestialToScreen(constellationData.center, center, scale);
+      final centerOffset = _celestialToScreen(
+        constellationData.center,
+        center,
+        scale,
+      );
       if (centerOffset == null) continue;
 
       // Skip if constellation center is far off-screen (generous margin for large figures)

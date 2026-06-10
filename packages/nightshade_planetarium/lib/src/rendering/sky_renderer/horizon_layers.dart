@@ -17,12 +17,15 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     // Custom horizon profile: draw as a very subtle polyline following the
     // terrain so the user can see where trees/buildings clip the sky.
     final paint = _PaintCache.getHorizonPaint(
-      config.horizonColor
-          .withValues(alpha: (config.horizonColor.a * 0.4).clamp(0.0, 1.0)),
+      config.horizonColor.withValues(
+        alpha: (config.horizonColor.a * 0.4).clamp(0.0, 1.0),
+      ),
     );
 
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     final path = Path();
     var firstPoint = true;
@@ -30,8 +33,9 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
 
     for (var az = 0.0; az <= 360.0; az += step) {
       final azIdx = az.round() % 360;
-      final horizonAlt =
-          (azIdx < horizonAltitudes!.length) ? horizonAltitudes![azIdx] : 0.0;
+      final horizonAlt = (azIdx < horizonAltitudes!.length)
+          ? horizonAltitudes![azIdx]
+          : 0.0;
 
       final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
         altDeg: horizonAlt,
@@ -71,8 +75,10 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   void _drawGroundPlane(Canvas canvas, Size size, Offset center, double scale) {
     if (!config.showGroundPlane) return;
 
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     if (horizonAltitudes != null && horizonAltitudes!.isNotEmpty) {
       // Custom horizon: fill below the profile as a polygon
@@ -129,11 +135,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
           config.groundColorDark.withValues(alpha: 0.5),
           config.groundColorDark,
         ],
-        stops: [
-          0.0,
-          horizonFraction,
-          (horizonFraction + 0.15).clamp(0.0, 1.0),
-        ],
+        stops: [0.0, horizonFraction, (horizonFraction + 0.15).clamp(0.0, 1.0)],
       );
       final paint = Paint()..shader = gradient.createShader(groundRect);
       canvas.drawRect(groundRect, paint);
@@ -149,15 +151,18 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
       //   horizonFraction   : sky-horizon color at moderate opacity (the "seam")
       //   below horizon     : blends to ground colors
       final midBlend = (horizonFraction * 0.5).clamp(0.0, 1.0);
-      final belowHorizon1 =
-          (horizonFraction + (1.0 - horizonFraction) * 0.25).clamp(0.0, 1.0);
-      final belowHorizon2 =
-          (horizonFraction + (1.0 - horizonFraction) * 0.55).clamp(0.0, 1.0);
+      final belowHorizon1 = (horizonFraction + (1.0 - horizonFraction) * 0.25)
+          .clamp(0.0, 1.0);
+      final belowHorizon2 = (horizonFraction + (1.0 - horizonFraction) * 0.55)
+          .clamp(0.0, 1.0);
 
       // Blend sky-horizon color toward the ground-light color for the seam
       // so there is never a jarring hue shift.
-      final seamColor =
-          Color.lerp(skyHorizonColor, config.groundColorLight, 0.35)!;
+      final seamColor = Color.lerp(
+        skyHorizonColor,
+        config.groundColorLight,
+        0.35,
+      )!;
 
       final gradient = LinearGradient(
         begin: Alignment.topCenter,
@@ -169,13 +174,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
           config.groundColorLight,
           config.groundColorDark,
         ],
-        stops: [
-          0.0,
-          midBlend,
-          horizonFraction,
-          belowHorizon1,
-          belowHorizon2,
-        ],
+        stops: [0.0, midBlend, horizonFraction, belowHorizon1, belowHorizon2],
       );
 
       final paint = Paint()..shader = gradient.createShader(groundRect);
@@ -191,7 +190,12 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   /// Uses the same sky-matching gradient approach as the flat horizon path
   /// so the ground blends seamlessly with the sky.
   void _drawCustomHorizonGroundPlane(
-      Canvas canvas, Size size, Offset center, double scale, double lst) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+    double lst,
+  ) {
     final path = Path();
     const step = 5.0;
 
@@ -200,8 +204,9 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
 
     for (var az = 0.0; az <= 360.0; az += step) {
       final azIdx = az.round() % 360;
-      final horizonAlt =
-          (azIdx < horizonAltitudes!.length) ? horizonAltitudes![azIdx] : 0.0;
+      final horizonAlt = (azIdx < horizonAltitudes!.length)
+          ? horizonAltitudes![azIdx]
+          : 0.0;
 
       final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
         altDeg: horizonAlt,
@@ -279,11 +284,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
           config.groundColorDark.withValues(alpha: 0.5),
           config.groundColorDark,
         ],
-        stops: [
-          0.0,
-          horizonFraction,
-          (horizonFraction + 0.15).clamp(0.0, 1.0),
-        ],
+        stops: [0.0, horizonFraction, (horizonFraction + 0.15).clamp(0.0, 1.0)],
       );
 
       final paint = Paint()..shader = gradient.createShader(groundRect);
@@ -302,13 +303,16 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
       final horizonFraction = (topY - gradientTop) / totalHeight;
 
       final midBlend = (horizonFraction * 0.5).clamp(0.0, 1.0);
-      final belowHorizon1 =
-          (horizonFraction + (1.0 - horizonFraction) * 0.25).clamp(0.0, 1.0);
-      final belowHorizon2 =
-          (horizonFraction + (1.0 - horizonFraction) * 0.55).clamp(0.0, 1.0);
+      final belowHorizon1 = (horizonFraction + (1.0 - horizonFraction) * 0.25)
+          .clamp(0.0, 1.0);
+      final belowHorizon2 = (horizonFraction + (1.0 - horizonFraction) * 0.55)
+          .clamp(0.0, 1.0);
 
-      final seamColor =
-          Color.lerp(skyHorizonColor, config.groundColorLight, 0.35)!;
+      final seamColor = Color.lerp(
+        skyHorizonColor,
+        config.groundColorLight,
+        0.35,
+      )!;
 
       final gradient = LinearGradient(
         begin: Alignment.topCenter,
@@ -320,13 +324,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
           config.groundColorLight,
           config.groundColorDark,
         ],
-        stops: [
-          0.0,
-          midBlend,
-          horizonFraction,
-          belowHorizon1,
-          belowHorizon2,
-        ],
+        stops: [0.0, midBlend, horizonFraction, belowHorizon1, belowHorizon2],
       );
 
       final paint = Paint()..shader = gradient.createShader(groundRect);
@@ -345,12 +343,18 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   ///   Bortle 4-5: moderate suburban glow
   ///   Bortle 8-9: heavy urban wash extending high overhead
   void _drawLightPollutionDome(
-      Canvas canvas, Size size, Offset center, double scale) {
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
     // Bortle 1-2 produces negligible light pollution
     if (bortleClass <= 2) return;
 
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     // Get the altitude of the view center
     final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
@@ -418,8 +422,10 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   /// uses a single vertical gradient rect that fades smoothly from the horizon
   /// upward, simulating the natural sky-brightening near the horizon.
   void _drawHorizonGlow(Canvas canvas, Size size, Offset center, double scale) {
-    final lst =
-        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    final lst = AstronomyCalculations.localSiderealTime(
+      observationTime,
+      longitude,
+    );
 
     // Get the altitude of the view center
     final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
@@ -444,12 +450,18 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
       glowColor = const Color(0xFF1A2030);
     } else if (sunAlt <= -6) {
       final t = ((sunAlt + 18) / 12).clamp(0.0, 1.0);
-      glowColor =
-          Color.lerp(const Color(0xFF1A2030), const Color(0xFF3A2840), t)!;
+      glowColor = Color.lerp(
+        const Color(0xFF1A2030),
+        const Color(0xFF3A2840),
+        t,
+      )!;
     } else if (sunAlt <= 0) {
       final t = ((sunAlt + 6) / 6).clamp(0.0, 1.0);
-      glowColor =
-          Color.lerp(const Color(0xFF3A2840), const Color(0xFF604030), t)!;
+      glowColor = Color.lerp(
+        const Color(0xFF3A2840),
+        const Color(0xFF604030),
+        t,
+      )!;
     } else {
       glowColor = const Color(0xFF706050);
     }
@@ -459,8 +471,10 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     const glowExtentDeg = 20.0;
     final horizonFraction = (centerAlt / fovHalf).clamp(-1.5, 1.5);
     final horizonY = size.height / 2 + (horizonFraction * size.height / 2);
-    final topFraction =
-        ((centerAlt - glowExtentDeg) / fovHalf).clamp(-1.5, 1.5);
+    final topFraction = ((centerAlt - glowExtentDeg) / fovHalf).clamp(
+      -1.5,
+      1.5,
+    );
     final glowTopY = size.height / 2 + (topFraction * size.height / 2);
 
     // Both off screen? Nothing to draw.

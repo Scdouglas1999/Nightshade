@@ -156,8 +156,7 @@ void main() {
     expect(find.byType(LivePreviewArea), findsOneWidget);
     expect(find.byType(PanelTabs), findsOneWidget);
     expect(find.byType(AdaptivePanelLayout), findsOneWidget,
-        reason:
-            'Desktop layout is provided by AdaptivePanelLayout (resizable '
+        reason: 'Desktop layout is provided by AdaptivePanelLayout (resizable '
             'split) now that ResizablePanel has been removed.');
     expect(find.byType(ResizablePanel), findsNothing);
     // Desktop keeps the thin bottom control banner (only rendered on the
@@ -168,7 +167,8 @@ void main() {
             '(Snapshot/Loop + duration + filters + stats + display).');
   });
 
-  testWidgets('renders_without_throwing: default MockBackend pump is exception-free',
+  testWidgets(
+      'renders_without_throwing: default MockBackend pump is exception-free',
       (tester) async {
     _swallowKnownOverflows();
     // Smoke test — the screen wires many providers (cameraState,
@@ -407,8 +407,7 @@ void main() {
             'banner is wide enough to fit it; 1600x900 should clear that '
             'threshold.');
     expect(find.text('17.3°C'), findsOneWidget,
-        reason:
-            'The connected camera temperature must surface in the sensor '
+        reason: 'The connected camera temperature must surface in the sensor '
             'stat readout — a missing match means the cameraStateProvider '
             '→ banner stats binding has drifted.');
   });
@@ -489,8 +488,7 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(find.text('Calibrated'), findsOneWidget,
-        reason:
-            'A frame whose saved path ends in _cal.fits is the only signal '
+        reason: 'A frame whose saved path ends in _cal.fits is the only signal '
             'the imaging pipeline has that calibration actually succeeded — '
             'the badge MUST render so users can tell raw vs calibrated.');
   });
@@ -600,8 +598,7 @@ void main() {
 
         // No uncaught exception (which would include any RenderFlex overflow).
         expect(tester.takeException(), isNull,
-            reason:
-                'ImagingScreen at $size ($orientation) must not overflow.');
+            reason: 'ImagingScreen at $size ($orientation) must not overflow.');
 
         // Primary capture action reachable without opening a sheet — but HOW
         // differs by orientation:
@@ -631,8 +628,7 @@ void main() {
                   'Landscape shows the controls beside the image (split), so '
                   'the tab strip must be visible at $size.');
           expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsNothing,
-              reason:
-                  'The redundant bottom capture bar must NOT render in the '
+              reason: 'The redundant bottom capture bar must NOT render in the '
                   'landscape split (it overflows the short height).');
         }
 

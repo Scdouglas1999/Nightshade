@@ -26,8 +26,9 @@ class ImageOutputPathRule implements RefAwareSequenceValidator {
   @override
   List<ValidationIssue> validate(Sequence sequence, ValidationContext ctx) {
     // Only relevant if the sequence will actually capture.
-    final hasEnabledExposure =
-        sequence.nodes.values.whereType<ExposureNode>().any((n) => n.isEnabled);
+    final hasEnabledExposure = sequence.nodes.values
+        .whereType<ExposureNode>()
+        .any((n) => n.isEnabled);
     if (!hasEnabledExposure) return const [];
 
     // appSettingsProvider is an AsyncNotifier; `.read()` returns AsyncValue.
@@ -101,7 +102,8 @@ class ImageOutputPathRule implements RefAwareSequenceValidator {
           severity: ValidationSeverity.error,
           category: ValidationCategory.settings,
           title: 'Image Output Path Not Writable',
-          description: 'Configured image output directory cannot be written: '
+          description:
+              'Configured image output directory cannot be written: '
               '$trimmed ($e)',
           resolutionHint:
               'Check filesystem permissions, free disk space, or update '
@@ -185,10 +187,12 @@ class MeridianFlipTriggerRule implements RefAwareSequenceValidator {
     );
     if (hasFlipNode) return const [];
 
-    final hasRecoveryFlip = sequence.nodes.values.any((n) =>
-        n is RecoveryNode &&
-        n.isEnabled &&
-        n.triggerType == TriggerType.meridianFlip);
+    final hasRecoveryFlip = sequence.nodes.values.any(
+      (n) =>
+          n is RecoveryNode &&
+          n.isEnabled &&
+          n.triggerType == TriggerType.meridianFlip,
+    );
     if (hasRecoveryFlip) return const [];
 
     double totalMins = 0;

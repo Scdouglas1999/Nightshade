@@ -42,13 +42,9 @@ void main() {
     });
 
     Future<int> _createTarget(String name) async {
-      return db.into(db.targets).insert(
-            TargetsCompanion.insert(
-              name: name,
-              ra: 5.6,
-              dec: -5.4,
-            ),
-          );
+      return db
+          .into(db.targets)
+          .insert(TargetsCompanion.insert(name: name, ra: 5.6, dec: -5.4));
     }
 
     Future<int> _insertSession({
@@ -104,8 +100,7 @@ void main() {
       );
     }
 
-    test('aggregates per-filter integration across multiple sessions',
-        () async {
+    test('aggregates per-filter integration across multiple sessions', () async {
       final targetId = await _createTarget('M42');
 
       final n1 = await _insertSession(
@@ -131,16 +126,28 @@ void main() {
       // 5x L + 2x R on night 1
       for (var i = 0; i < 5; i++) {
         await _insertLight(
-            sessionId: n1, targetId: targetId, filter: 'L', exposure: 60);
+          sessionId: n1,
+          targetId: targetId,
+          filter: 'L',
+          exposure: 60,
+        );
       }
       for (var i = 0; i < 2; i++) {
         await _insertLight(
-            sessionId: n1, targetId: targetId, filter: 'R', exposure: 120);
+          sessionId: n1,
+          targetId: targetId,
+          filter: 'R',
+          exposure: 120,
+        );
       }
       // 10x L on night 2 — mixed case to confirm normalisation
       for (var i = 0; i < 10; i++) {
         await _insertLight(
-            sessionId: n2, targetId: targetId, filter: 'l', exposure: 60);
+          sessionId: n2,
+          targetId: targetId,
+          filter: 'l',
+          exposure: 60,
+        );
       }
 
       final rollup = await service.buildForTarget(targetId);
@@ -149,16 +156,22 @@ void main() {
       expect(rollup.sessionCount, 2);
       // Drift stores DateTimes as Unix seconds and returns them in local
       // time, so we compare the underlying instants directly.
-      expect(rollup.firstSessionAt!.millisecondsSinceEpoch,
-          DateTime.utc(2026, 1, 1, 22).millisecondsSinceEpoch);
-      expect(rollup.lastSessionAt!.millisecondsSinceEpoch,
-          DateTime.utc(2026, 1, 3, 22).millisecondsSinceEpoch);
+      expect(
+        rollup.firstSessionAt!.millisecondsSinceEpoch,
+        DateTime.utc(2026, 1, 1, 22).millisecondsSinceEpoch,
+      );
+      expect(
+        rollup.lastSessionAt!.millisecondsSinceEpoch,
+        DateTime.utc(2026, 1, 3, 22).millisecondsSinceEpoch,
+      );
       // Sessions sorted most-recent-first.
       expect(rollup.sessions.first.sessionId, n2);
 
       // L and R rollups; L is grouped case-insensitively.
-      expect(rollup.filters.map((f) => f.filter.toLowerCase()).toList(),
-          ['l', 'r']);
+      expect(rollup.filters.map((f) => f.filter.toLowerCase()).toList(), [
+        'l',
+        'r',
+      ]);
       final l = rollup.filters.firstWhere((f) => f.filter.toLowerCase() == 'l');
       expect(l.capturedFrames, 15);
       expect(l.capturedIntegrationSecs, 900.0);
@@ -178,54 +191,64 @@ void main() {
       expect(rollup.meanEffectiveImagingFraction, closeTo(0.075, 1e-3));
     });
 
-    test('attaches goals and reports progress, including goal-only filters',
-        () async {
-      final targetId = await _createTarget('NGC7000');
-      final sId = await _insertSession(
-        targetId: targetId,
-        name: 'Pelican',
-        startTime: DateTime.utc(2026, 2, 1, 22),
-        endTime: DateTime.utc(2026, 2, 2, 1),
-        successfulExposures: 4,
-        totalIntegrationSecs: 4 * 180.0,
-      );
-      for (var i = 0; i < 4; i++) {
-        await _insertLight(
-            sessionId: sId, targetId: targetId, filter: 'Ha', exposure: 180);
-      }
+    test(
+      'attaches goals and reports progress, including goal-only filters',
+      () async {
+        final targetId = await _createTarget('NGC7000');
+        final sId = await _insertSession(
+          targetId: targetId,
+          name: 'Pelican',
+          startTime: DateTime.utc(2026, 2, 1, 22),
+          endTime: DateTime.utc(2026, 2, 2, 1),
+          successfulExposures: 4,
+          totalIntegrationSecs: 4 * 180.0,
+        );
+        for (var i = 0; i < 4; i++) {
+          await _insertLight(
+            sessionId: sId,
+            targetId: targetId,
+            filter: 'Ha',
+            exposure: 180,
+          );
+        }
 
-      // Two goals: one for the captured Ha filter, one for OIII with no
-      // captures yet — the rollup should show OIII as a 0% row.
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'Ha',
-        exposureSeconds: 180,
-        frameCount: 20,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'OIII',
-        exposureSeconds: 180,
-        frameCount: 15,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
+        // Two goals: one for the captured Ha filter, one for OIII with no
+        // captures yet — the rollup should show OIII as a 0% row.
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: targetId,
+            filter: 'Ha',
+            exposureSeconds: 180,
+            frameCount: 20,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: targetId,
+            filter: 'OIII',
+            exposureSeconds: 180,
+            frameCount: 15,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
 
-      final rollup = await service.buildForTarget(targetId);
-      expect(rollup.hasGoals, isTrue);
-      final ha = rollup.filters.firstWhere((f) => f.filter == 'Ha');
-      expect(ha.goalFrames, 20);
-      expect(ha.percentComplete, closeTo(4 / 20, 1e-6));
-      expect(ha.remainingFrames, 16);
-      expect(ha.goalIntegrationSecs, 3600.0);
+        final rollup = await service.buildForTarget(targetId);
+        expect(rollup.hasGoals, isTrue);
+        final ha = rollup.filters.firstWhere((f) => f.filter == 'Ha');
+        expect(ha.goalFrames, 20);
+        expect(ha.percentComplete, closeTo(4 / 20, 1e-6));
+        expect(ha.remainingFrames, 16);
+        expect(ha.goalIntegrationSecs, 3600.0);
 
-      final oiii = rollup.filters.firstWhere((f) => f.filter == 'OIII');
-      expect(oiii.capturedFrames, 0);
-      expect(oiii.goalFrames, 15);
-      expect(oiii.percentComplete, 0.0);
-      expect(rollup.isComplete, isFalse);
-      expect(rollup.totalGoalIntegrationSecs, 20 * 180.0 + 15 * 180.0);
-    });
+        final oiii = rollup.filters.firstWhere((f) => f.filter == 'OIII');
+        expect(oiii.capturedFrames, 0);
+        expect(oiii.goalFrames, 15);
+        expect(oiii.percentComplete, 0.0);
+        expect(rollup.isComplete, isFalse);
+        expect(rollup.totalGoalIntegrationSecs, 20 * 180.0 + 15 * 180.0);
+      },
+    );
 
     test('isComplete is true only when every goal is met', () async {
       final targetId = await _createTarget('Heart');
@@ -239,15 +262,21 @@ void main() {
       );
       for (var i = 0; i < 10; i++) {
         await _insertLight(
-            sessionId: sId, targetId: targetId, filter: 'L', exposure: 180);
+          sessionId: sId,
+          targetId: targetId,
+          filter: 'L',
+          exposure: 180,
+        );
       }
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'L',
-        exposureSeconds: 180,
-        frameCount: 10,
-        createdAt: DateTime.utc(2026, 2, 1),
-      ));
+      await goalService.upsert(
+        IntegrationGoal(
+          targetId: targetId,
+          filter: 'L',
+          exposureSeconds: 180,
+          frameCount: 10,
+          createdAt: DateTime.utc(2026, 2, 1),
+        ),
+      );
       final rollup = await service.buildForTarget(targetId);
       expect(rollup.isComplete, isTrue);
     });
@@ -259,26 +288,28 @@ void main() {
       );
     });
 
-    test('buildForAllTargets returns entries for targets without sessions',
-        () async {
-      final t1 = await _createTarget('Untouched');
-      final t2 = await _createTarget('M101');
-      final sId = await _insertSession(
-        targetId: t2,
-        name: 'M101 night',
-        startTime: DateTime.utc(2026, 4, 1, 22),
-        endTime: DateTime.utc(2026, 4, 2, 0),
-        successfulExposures: 1,
-        totalIntegrationSecs: 60,
-      );
-      await _insertLight(sessionId: sId, targetId: t2, filter: 'L');
+    test(
+      'buildForAllTargets returns entries for targets without sessions',
+      () async {
+        final t1 = await _createTarget('Untouched');
+        final t2 = await _createTarget('M101');
+        final sId = await _insertSession(
+          targetId: t2,
+          name: 'M101 night',
+          startTime: DateTime.utc(2026, 4, 1, 22),
+          endTime: DateTime.utc(2026, 4, 2, 0),
+          successfulExposures: 1,
+          totalIntegrationSecs: 60,
+        );
+        await _insertLight(sessionId: sId, targetId: t2, filter: 'L');
 
-      final all = await service.buildForAllTargets();
-      expect(all.keys.toSet(), {t1, t2});
-      expect(all[t1]!.sessionCount, 0);
-      expect(all[t1]!.filters, isEmpty);
-      expect(all[t2]!.sessionCount, 1);
-      expect(all[t2]!.filters, hasLength(1));
-    });
+        final all = await service.buildForAllTargets();
+        expect(all.keys.toSet(), {t1, t2});
+        expect(all[t1]!.sessionCount, 0);
+        expect(all[t1]!.filters, isEmpty);
+        expect(all[t2]!.sessionCount, 1);
+        expect(all[t2]!.filters, hasLength(1));
+      },
+    );
   });
 }

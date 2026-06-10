@@ -36,10 +36,7 @@ class PsfMapOptions {
   final int gridRows;
   final int gridCols;
 
-  const PsfMapOptions({
-    this.gridRows = 4,
-    this.gridCols = 6,
-  });
+  const PsfMapOptions({this.gridRows = 4, this.gridCols = 6});
 }
 
 class PsfTileMetric {
@@ -77,9 +74,7 @@ class PsfFieldMap {
 class AstrometryOptions {
   final int sampleCount;
 
-  const AstrometryOptions({
-    this.sampleCount = 250,
-  });
+  const AstrometryOptions({this.sampleCount = 250});
 }
 
 class ResidualVectorSample {

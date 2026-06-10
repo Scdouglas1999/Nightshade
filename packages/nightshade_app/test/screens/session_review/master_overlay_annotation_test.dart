@@ -50,10 +50,10 @@ void main() {
     // function of the layer + viewport. The enclosing InteractiveViewer Transform
     // is the single source of the on-screen zoom/pan; the painter never re-applies
     // it. This asserts the mapping is stable and ordered the same as the pixels.
-    final first = annotationLocalCenter(layer.items[0], viewport,
-        layer.width, layer.height);
-    final second = annotationLocalCenter(layer.items[1], viewport,
-        layer.width, layer.height);
+    final first = annotationLocalCenter(
+        layer.items[0], viewport, layer.width, layer.height);
+    final second = annotationLocalCenter(
+        layer.items[1], viewport, layer.width, layer.height);
     // M31 (x=280,y=200) is down-right of NGC 7000 (x=120,y=90).
     expect(second.dx, greaterThan(first.dx));
     expect(second.dy, greaterThan(first.dy));
@@ -62,8 +62,7 @@ void main() {
   test('annotation center sits on the contained image, mapped by scale', () {
     // BoxFit.contain scale for 400x300 into 640x480 is min(640/400, 480/300) =
     // min(1.6, 1.6) = 1.6; the image fills the viewport exactly here.
-    final scale =
-        annotationContainScale(viewport, layer.width, layer.height);
+    final scale = annotationContainScale(viewport, layer.width, layer.height);
     expect(scale, closeTo(1.6, 1e-9));
 
     final c = annotationLocalCenter(
@@ -73,7 +72,8 @@ void main() {
     expect(c.dy, closeTo(90 * 1.6, 1e-9));
   });
 
-  testWidgets('MasterOverlayView survives a non-identity zoom/pan without error',
+  testWidgets(
+      'MasterOverlayView survives a non-identity zoom/pan without error',
       (tester) async {
     final previewPath = await tester.runAsync(_writeSamplePng);
     final controller = TransformationController();
@@ -93,8 +93,8 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
 
     // Drive the InteractiveViewer's controller to a zoomed + panned matrix and

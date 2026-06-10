@@ -37,11 +37,11 @@ class _ActionButtonState extends State<_ActionButton> {
           decoration: BoxDecoration(
             color: widget.isPrimary
                 ? _isHovered
-                    ? widget.colors.primary.withValues(alpha: 0.9)
-                    : widget.colors.primary
+                      ? widget.colors.primary.withValues(alpha: 0.9)
+                      : widget.colors.primary
                 : _isHovered
-                    ? widget.colors.surfaceAlt
-                    : Colors.transparent,
+                ? widget.colors.surfaceAlt
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: widget.isPrimary
                 ? null

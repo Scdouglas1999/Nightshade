@@ -52,8 +52,11 @@ class InMemorySyncTarget implements SyncTarget {
   Future<List<int>> downloadFile(String path) async {
     final bytes = files[path];
     if (bytes == null) {
-      throw SyncTargetException('not found: $path',
-          kind: SyncTargetErrorKind.notFound, statusCode: 404);
+      throw SyncTargetException(
+        'not found: $path',
+        kind: SyncTargetErrorKind.notFound,
+        statusCode: 404,
+      );
     }
     return bytes;
   }
@@ -67,8 +70,11 @@ class InMemorySyncTarget implements SyncTarget {
   @override
   Future<List<SyncRemoteEntry>> listDirectory(String path) async {
     if (!dirs.contains(path)) {
-      throw SyncTargetException('not found: $path',
-          kind: SyncTargetErrorKind.notFound, statusCode: 404);
+      throw SyncTargetException(
+        'not found: $path',
+        kind: SyncTargetErrorKind.notFound,
+        statusCode: 404,
+      );
     }
     final prefix = '$path/';
     final names = <String, bool>{}; // name -> isDirectory
@@ -88,8 +94,7 @@ class InMemorySyncTarget implements SyncTarget {
         SyncRemoteEntry(
           name: entry.key,
           isDirectory: entry.value,
-          sizeBytes:
-              entry.value ? null : files['$prefix${entry.key}']!.length,
+          sizeBytes: entry.value ? null : files['$prefix${entry.key}']!.length,
         ),
     ];
   }
@@ -103,10 +108,13 @@ void main() {
 
   group('SyncManifest.withBundle', () {
     SyncBundleInfo bundle(String file, DateTime createdAt) => SyncBundleInfo(
-        file: file, sha256: 'h-$file', sizeBytes: 1, createdAt: createdAt);
+      file: file,
+      sha256: 'h-$file',
+      sizeBytes: 1,
+      createdAt: createdAt,
+    );
 
-    test('prepends newest and trims to retainCount, returning pruned',
-        () {
+    test('prepends newest and trims to retainCount, returning pruned', () {
       final t0 = DateTime.utc(2026, 6, 1);
       final manifest = SyncManifest(
         machine: 'm',
@@ -153,7 +161,8 @@ void main() {
         bundles: [bundle('b1', DateTime.utc(2026, 6, 8))],
       );
       final decoded = SyncManifest.fromJson(
-          jsonDecode(jsonEncode(manifest.toJson())) as Map<String, dynamic>);
+        jsonDecode(jsonEncode(manifest.toJson())) as Map<String, dynamic>,
+      );
       expect(decoded.machine, 'laptop');
       expect(decoded.appVersion, '2.6.0');
       expect(decoded.bundles.single.file, 'b1');
@@ -230,15 +239,18 @@ void main() {
           remote.files['nightshade-sync/test-machine/manifest.json'];
       expect(manifestBytes, isNotNull);
       final manifest = SyncManifest.fromJson(
-          jsonDecode(utf8.decode(manifestBytes!)) as Map<String, dynamic>);
+        jsonDecode(utf8.decode(manifestBytes!)) as Map<String, dynamic>,
+      );
       expect(manifest.machine, 'test-machine');
       expect(manifest.appVersion, BackupService.appVersion);
       expect(manifest.bundles, hasLength(1));
 
       final bundleBytes = remote.files[result.remotePath!];
       expect(bundleBytes, isNotNull);
-      expect(manifest.bundles.single.sha256,
-          sha256.convert(bundleBytes!).toString());
+      expect(
+        manifest.bundles.single.sha256,
+        sha256.convert(bundleBytes!).toString(),
+      );
       expect(manifest.bundles.single.sizeBytes, bundleBytes.length);
 
       // State recorded for the settings UI / status endpoint.
@@ -259,9 +271,14 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 2));
       }
 
-      final manifest = SyncManifest.fromJson(jsonDecode(utf8.decode(
-              remote.files['nightshade-sync/test-machine/manifest.json']!))
-          as Map<String, dynamic>);
+      final manifest = SyncManifest.fromJson(
+        jsonDecode(
+              utf8.decode(
+                remote.files['nightshade-sync/test-machine/manifest.json']!,
+              ),
+            )
+            as Map<String, dynamic>,
+      );
       expect(manifest.bundles, hasLength(2));
 
       final remoteBundles = remote.files.keys
@@ -271,29 +288,33 @@ void main() {
       expect(remote.deletedPaths, hasLength(1));
       // The kept bundles are exactly the manifest's.
       for (final b in manifest.bundles) {
-        expect(remote.files,
-            contains('nightshade-sync/test-machine/${b.file}'));
+        expect(
+          remote.files,
+          contains('nightshade-sync/test-machine/${b.file}'),
+        );
       }
     });
 
-    test('pushNow records the error and reports failure when unconfigured',
-        () async {
-      final service = serviceFor(db); // no serverUrl configured
+    test(
+      'pushNow records the error and reports failure when unconfigured',
+      () async {
+        final service = serviceFor(db); // no serverUrl configured
 
-      final result = await service.pushNow();
+        final result = await service.pushNow();
 
-      expect(result.success, isFalse);
-      expect(result.errorMessage, contains('not configured'));
-      final status = await service.status();
-      expect(status.lastError, contains('not configured'));
-    });
+        expect(result.success, isFalse);
+        expect(result.errorMessage, contains('not configured'));
+        final status = await service.status();
+        expect(status.lastError, contains('not configured'));
+      },
+    );
 
     test('pullAndRestore round-trips data into another database', () async {
       // Source machine: one target row, pushed to the fake remote.
       await configure(db);
-      await TargetsDao(db).createTarget(
-        TargetsCompanion.insert(name: 'M42', ra: 5.6, dec: -5.4),
-      );
+      await TargetsDao(
+        db,
+      ).createTarget(TargetsCompanion.insert(name: 'M42', ra: 5.6, dec: -5.4));
       final push = await serviceFor(db).pushNow();
       expect(push.success, isTrue, reason: push.errorMessage);
       final bundleFile = push.remotePath!.split('/').last;
@@ -302,53 +323,56 @@ void main() {
       final dstDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
       addTearDown(dstDb.close);
       await configure(dstDb);
-      final restore = await serviceFor(dstDb).pullAndRestore(
-        machine: 'test-machine',
-        bundleFile: bundleFile,
-      );
+      final restore = await serviceFor(
+        dstDb,
+      ).pullAndRestore(machine: 'test-machine', bundleFile: bundleFile);
 
       expect(restore.success, isTrue, reason: restore.errorMessage);
       final targets = await TargetsDao(dstDb).getAllTargets();
       expect(targets.map((t) => t.name), contains('M42'));
     });
 
-    test('pullAndRestore aborts on hash mismatch without touching data',
-        () async {
-      await configure(db);
-      final push = await serviceFor(db).pushNow();
-      expect(push.success, isTrue, reason: push.errorMessage);
+    test(
+      'pullAndRestore aborts on hash mismatch without touching data',
+      () async {
+        await configure(db);
+        final push = await serviceFor(db).pushNow();
+        expect(push.success, isTrue, reason: push.errorMessage);
 
-      // Corrupt the remote bundle AFTER the manifest recorded its hash.
-      remote.files[push.remotePath!] = utf8.encode('{"version":"evil"}');
+        // Corrupt the remote bundle AFTER the manifest recorded its hash.
+        remote.files[push.remotePath!] = utf8.encode('{"version":"evil"}');
 
-      final dstDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(dstDb.close);
-      await configure(dstDb);
-      final restore = await serviceFor(dstDb).pullAndRestore(
-        machine: 'test-machine',
-        bundleFile: push.remotePath!.split('/').last,
-      );
+        final dstDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(dstDb.close);
+        await configure(dstDb);
+        final restore = await serviceFor(dstDb).pullAndRestore(
+          machine: 'test-machine',
+          bundleFile: push.remotePath!.split('/').last,
+        );
 
-      expect(restore.success, isFalse);
-      expect(restore.errorMessage, contains('Hash mismatch'));
-      expect(restore.itemsRestored, 0);
-    });
+        expect(restore.success, isFalse);
+        expect(restore.errorMessage, contains('Hash mismatch'));
+        expect(restore.itemsRestored, 0);
+      },
+    );
 
-    test('listRemoteMachines and listRemoteBundles surface pushed state',
-        () async {
-      await configure(db);
-      final service = serviceFor(db);
-      final push = await service.pushNow();
-      expect(push.success, isTrue, reason: push.errorMessage);
+    test(
+      'listRemoteMachines and listRemoteBundles surface pushed state',
+      () async {
+        await configure(db);
+        final service = serviceFor(db);
+        final push = await service.pushNow();
+        expect(push.success, isTrue, reason: push.errorMessage);
 
-      final machines = await service.listRemoteMachines();
-      expect(machines.map((m) => m.name), ['test-machine']);
+        final machines = await service.listRemoteMachines();
+        expect(machines.map((m) => m.name), ['test-machine']);
 
-      final bundles = await service.listRemoteBundles('test-machine');
-      expect(bundles, hasLength(1));
-      expect(bundles.single.file, push.remotePath!.split('/').last);
-      expect(bundles.single.sha256, isNotEmpty);
-    });
+        final bundles = await service.listRemoteBundles('test-machine');
+        expect(bundles, hasLength(1));
+        expect(bundles.single.file, push.remotePath!.split('/').last);
+        expect(bundles.single.sha256, isNotEmpty);
+      },
+    );
 
     test('maybeAutoPush is a no-op when auto-push is disabled', () async {
       await configure(db, autoPush: false);

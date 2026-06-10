@@ -258,8 +258,11 @@ class SequenceTimeEstimator {
     final targetId = node is TargetHeaderNode ? node.id : currentTargetHeaderId;
 
     // Calculate duration for this node
-    final nodeDuration =
-        _estimateNodeDuration(node, currentTime, locationContext);
+    final nodeDuration = _estimateNodeDuration(
+      node,
+      currentTime,
+      locationContext,
+    );
 
     // Add timing entry if this node has a meaningful duration
     if (nodeDuration.inSeconds > 0) {
@@ -271,16 +274,18 @@ class SequenceTimeEstimator {
         warnings.add(loopIterationNote);
       }
 
-      timings.add(NodeTiming(
-        nodeId: node.id,
-        nodeName: node.name,
-        nodeType: node.nodeType,
-        estimatedStart: currentTime,
-        estimatedEnd: endTime,
-        duration: nodeDuration,
-        warnings: warnings.isNotEmpty ? warnings : null,
-        targetHeaderId: targetId,
-      ));
+      timings.add(
+        NodeTiming(
+          nodeId: node.id,
+          nodeName: node.name,
+          nodeType: node.nodeType,
+          estimatedStart: currentTime,
+          estimatedEnd: endTime,
+          duration: nodeDuration,
+          warnings: warnings.isNotEmpty ? warnings : null,
+          targetHeaderId: targetId,
+        ),
+      );
 
       currentTime = endTime;
     }
@@ -444,11 +449,12 @@ class SequenceTimeEstimator {
     // a zero-duration default and mis-estimate sequence timing.
     return switch (node) {
       ExposureNode() => Duration(
-          milliseconds: ((node.count * node.durationSecs +
-                      node.count * _downloadOverheadSecs) *
-                  1000)
-              .round(),
-        ),
+        milliseconds:
+            ((node.count * node.durationSecs +
+                        node.count * _downloadOverheadSecs) *
+                    1000)
+                .round(),
+      ),
       // Wave 3 Agent 2: SmartExposure. Sum of (count * duration) across
       // all plans + per-frame download overhead + one filter-change penalty
       // per plan + dither-cost for each dither point. When an integration
@@ -456,103 +462,108 @@ class SequenceTimeEstimator {
       // the budget so the Run Dashboard's "estimated total" shrinks to
       // match expected behaviour.
       SmartExposureNode() => () {
-          if (node.plans.isEmpty) return Duration.zero;
-          // Per-plan integration time + per-frame download overhead.
-          double secs = 0.0;
-          for (final p in node.plans) {
-            secs += p.count * p.durationSecs;
-            secs += p.count * _downloadOverheadSecs;
-            // Dither cost: one settle cycle per ditherEvery frames (treat
-            // 0 / null as "no dither"). Same heuristic as ExposureNode but
-            // applied per-plan.
-            final every = p.ditherEvery ?? 0;
-            if (every > 0) {
-              final ditherCount = (p.count / every).floor();
-              secs += ditherCount * _ditherDurationSecs;
-            }
+        if (node.plans.isEmpty) return Duration.zero;
+        // Per-plan integration time + per-frame download overhead.
+        double secs = 0.0;
+        for (final p in node.plans) {
+          secs += p.count * p.durationSecs;
+          secs += p.count * _downloadOverheadSecs;
+          // Dither cost: one settle cycle per ditherEvery frames (treat
+          // 0 / null as "no dither"). Same heuristic as ExposureNode but
+          // applied per-plan.
+          final every = p.ditherEvery ?? 0;
+          if (every > 0) {
+            final ditherCount = (p.count / every).floor();
+            secs += ditherCount * _ditherDurationSecs;
           }
-          // One filter change per plan (skipped only if two consecutive
-          // plans share the same filter — the estimator can't tell which
-          // ones will overlap with the live current-filter state, so we
-          // assume worst case). 10s mirrors the FilterChangeNode case
-          // below.
-          const filterChangeDurationSecs = 10.0;
-          secs += node.plans.length * filterChangeDurationSecs;
-          // Clamp to the integration budget when one is set. The budget
-          // measures *integration* not wall-clock — we approximate by
-          // capping the integration component only.
-          if (node.integrationBudgetSecs > 0 &&
-              node.totalIntegrationSecs > node.integrationBudgetSecs) {
-            final overshoot =
-                node.totalIntegrationSecs - node.integrationBudgetSecs;
-            secs -= overshoot;
-          }
-          return Duration(milliseconds: (secs * 1000).round());
-        }(),
+        }
+        // One filter change per plan (skipped only if two consecutive
+        // plans share the same filter — the estimator can't tell which
+        // ones will overlap with the live current-filter state, so we
+        // assume worst case). 10s mirrors the FilterChangeNode case
+        // below.
+        const filterChangeDurationSecs = 10.0;
+        secs += node.plans.length * filterChangeDurationSecs;
+        // Clamp to the integration budget when one is set. The budget
+        // measures *integration* not wall-clock — we approximate by
+        // capping the integration component only.
+        if (node.integrationBudgetSecs > 0 &&
+            node.totalIntegrationSecs > node.integrationBudgetSecs) {
+          final overshoot =
+              node.totalIntegrationSecs - node.integrationBudgetSecs;
+          secs -= overshoot;
+        }
+        return Duration(milliseconds: (secs * 1000).round());
+      }(),
       AutofocusNode() => Duration(
-          milliseconds: (((node.stepsOut * 2 + 1) *
-                      node.exposuresPerPoint *
-                      node.exposureDuration) *
-                  1000)
-              .round(),
-        ),
+        milliseconds:
+            (((node.stepsOut * 2 + 1) *
+                        node.exposuresPerPoint *
+                        node.exposureDuration) *
+                    1000)
+                .round(),
+      ),
       DitherNode() => Duration(
-          milliseconds:
-              (((node.settleTime > 0 ? node.settleTime : _ditherDurationSecs)) *
-                      1000)
-                  .round(),
-        ),
+        milliseconds:
+            (((node.settleTime > 0 ? node.settleTime : _ditherDurationSecs)) *
+                    1000)
+                .round(),
+      ),
       DelayNode() => Duration(milliseconds: (node.seconds * 1000).round()),
-      WaitTimeNode() =>
-        _estimateWaitTimeDuration(node, currentTime, locationContext),
+      WaitTimeNode() => _estimateWaitTimeDuration(
+        node,
+        currentTime,
+        locationContext,
+      ),
       SlewNode() => const Duration(seconds: 30),
       CenterNode() => () {
-          // Centering involves multiple plate solves and slews. Estimate:
-          // maxAttempts iterations of (expose + solve + slew). In practice,
-          // usually succeeds in 1-3 attempts.
-          final estimatedAttempts = (node.maxAttempts / 2).ceil();
-          const secsPerAttempt = 10.0 + _slewDurationSecs / 2;
-          final totalSecs = estimatedAttempts * secsPerAttempt;
-          return Duration(milliseconds: (totalSecs * 1000).round());
-        }(),
+        // Centering involves multiple plate solves and slews. Estimate:
+        // maxAttempts iterations of (expose + solve + slew). In practice,
+        // usually succeeds in 1-3 attempts.
+        final estimatedAttempts = (node.maxAttempts / 2).ceil();
+        const secsPerAttempt = 10.0 + _slewDurationSecs / 2;
+        final totalSecs = estimatedAttempts * secsPerAttempt;
+        return Duration(milliseconds: (totalSecs * 1000).round());
+      }(),
       MeridianFlipNode() => () {
-          // Flip includes: stop guiding, slew, recenter, restart guiding.
-          double totalSecs = _meridianFlipDurationSecs;
-          if (node.autoCenter) {
-            totalSecs += _centerDurationSecs;
-          }
-          totalSecs += node.settleTime;
-          return Duration(milliseconds: (totalSecs * 1000).round());
-        }(),
+        // Flip includes: stop guiding, slew, recenter, restart guiding.
+        double totalSecs = _meridianFlipDurationSecs;
+        if (node.autoCenter) {
+          totalSecs += _centerDurationSecs;
+        }
+        totalSecs += node.settleTime;
+        return Duration(milliseconds: (totalSecs * 1000).round());
+      }(),
       FilterChangeNode() => const Duration(seconds: 10),
       RotatorNode() => const Duration(seconds: 15),
       ParkNode() || UnparkNode() => const Duration(seconds: 30),
-      CoolCameraNode() =>
-        Duration(minutes: (node.durationMins ?? _defaultCoolingMins).round()),
+      CoolCameraNode() => Duration(
+        minutes: (node.durationMins ?? _defaultCoolingMins).round(),
+      ),
       WarmCameraNode() => () {
-          // Estimate warming time using a typical 30 C delta (e.g., -10 to +20)
-          // at the configured rate.
-          const deltaTemp = 30.0;
-          final mins = deltaTemp / node.ratePerMin;
-          return Duration(minutes: mins.round());
-        }(),
-      StartGuidingNode() =>
-        Duration(milliseconds: (node.settleTimeout * 1000).round()),
+        // Estimate warming time using a typical 30 C delta (e.g., -10 to +20)
+        // at the configured rate.
+        const deltaTemp = 30.0;
+        final mins = deltaTemp / node.ratePerMin;
+        return Duration(minutes: mins.round());
+      }(),
+      StartGuidingNode() => Duration(
+        milliseconds: (node.settleTimeout * 1000).round(),
+      ),
       StopGuidingNode() => const Duration(seconds: 2),
       OpenDomeNode() ||
       CloseDomeNode() ||
-      ParkDomeNode() =>
-        const Duration(seconds: 60),
+      ParkDomeNode() => const Duration(seconds: 60),
       // Mechanical cover and calibrator toggles are quick — ~5 seconds covers
       // both the dust cover motion and the EL panel power cycle.
       OpenCoverNode() ||
       CloseCoverNode() ||
       CalibratorOnNode() ||
-      CalibratorOffNode() =>
-        const Duration(seconds: 5),
+      CalibratorOffNode() => const Duration(seconds: 5),
       PolarAlignmentNode() => const Duration(minutes: 5),
-      ScriptNode() =>
-        Duration(seconds: node.timeoutSecs ?? _defaultScriptTimeoutSecs),
+      ScriptNode() => Duration(
+        seconds: node.timeoutSecs ?? _defaultScriptTimeoutSecs,
+      ),
       NotificationNode() => Duration.zero,
       // Container nodes (TargetHeaderNode, LoopNode, ParallelNode,
       // ConditionalNode, RecoveryNode, InstructionSetNode) have no intrinsic
@@ -571,27 +582,28 @@ class SequenceTimeEstimator {
       // broadcast service and returns immediately. The actual wall-clock
       // cost is paid by sibling exposure nodes, which are accounted for
       // separately. Zero intrinsic duration.
-      LiveStackingNode() =>
-        Duration.zero,
+      LiveStackingNode() => Duration.zero,
       // Wave 7 Science: SciencePhotometry — count * exposure + per-frame
       // download overhead, plus one filter change at the start. No
       // dithering during photometry runs.
       SciencePhotometryNode() => Duration(
-          milliseconds: ((node.count * node.exposureSecs +
-                      node.count * _downloadOverheadSecs +
-                      10.0 /* filter change */) *
-                  1000)
-              .round(),
-        ),
+        milliseconds:
+            ((node.count * node.exposureSecs +
+                        node.count * _downloadOverheadSecs +
+                        10.0 /* filter change */ ) *
+                    1000)
+                .round(),
+      ),
       // Audit §11 — plugin nodes execute opaque user-authored logic.
       // We cannot estimate their duration without round-tripping into
       // the plugin, so we use the optional per-node timeout as the
       // upper bound; with no timeout configured the estimator returns
       // zero (matching how it treats NotificationNode and other
       // short-running side effects).
-      PluginInstructionNode() => node.timeoutSecs != null && node.timeoutSecs! > 0
-          ? Duration(seconds: node.timeoutSecs!)
-          : Duration.zero,
+      PluginInstructionNode() =>
+        node.timeoutSecs != null && node.timeoutSecs! > 0
+            ? Duration(seconds: node.timeoutSecs!)
+            : Duration.zero,
     };
   }
 
@@ -703,8 +715,9 @@ class SequenceTimeEstimator {
       final window = windows[timing.targetHeaderId];
       if (window == null) continue;
       final targetNode = sequence.nodes[timing.targetHeaderId];
-      final targetName =
-          targetNode is TargetHeaderNode ? targetNode.targetName : 'Target';
+      final targetName = targetNode is TargetHeaderNode
+          ? targetNode.targetName
+          : 'Target';
 
       if (targetNode is TargetHeaderNode) {
         final startAfter = _effectiveStartAfter(targetNode);
@@ -778,7 +791,10 @@ class SequenceTimeEstimator {
     return _minDate(node.endBefore, triggerTime);
   }
 
-  double _effectiveMinAltitude(TargetHeaderNode node, double globalMinAltitude) {
+  double _effectiveMinAltitude(
+    TargetHeaderNode node,
+    double globalMinAltitude,
+  ) {
     final triggerAltitude = _startAltitudeAbove(node.startWhen);
     return [
       globalMinAltitude,
@@ -791,10 +807,11 @@ class SequenceTimeEstimator {
     return switch (trigger) {
       null => null,
       TimeAfterTrigger(unixSeconds: final ts) => _fromUnixSeconds(ts),
-      AndTrigger(children: final children) => children
-          .map(_startTimeAfter)
-          .whereType<DateTime>()
-          .fold<DateTime?>(null, _maxDate),
+      AndTrigger(children: final children) =>
+        children
+            .map(_startTimeAfter)
+            .whereType<DateTime>()
+            .fold<DateTime?>(null, _maxDate),
       // An OR can be satisfied by a non-time term, so waiting on one branch
       // would fabricate precision the runtime does not guarantee.
       OrTrigger() => null,
@@ -806,10 +823,11 @@ class SequenceTimeEstimator {
     return switch (trigger) {
       null => null,
       TimeAfterTrigger(unixSeconds: final ts) => _fromUnixSeconds(ts),
-      OrTrigger(children: final children) => children
-          .map(_endTimeAfter)
-          .whereType<DateTime>()
-          .fold<DateTime?>(null, _minDate),
+      OrTrigger(children: final children) =>
+        children
+            .map(_endTimeAfter)
+            .whereType<DateTime>()
+            .fold<DateTime?>(null, _minDate),
       // AND requires every term to become true, so a TimeAfter child is only
       // a lower bound, not a reliable stop cap.
       AndTrigger() => null,
@@ -821,13 +839,14 @@ class SequenceTimeEstimator {
     return switch (trigger) {
       null => null,
       AltitudeAboveTrigger(altitudeDeg: final altitude) => altitude,
-      AndTrigger(children: final children) => children
-          .map(_startAltitudeAbove)
-          .whereType<double>()
-          .fold<double?>(null, (current, next) {
-        if (current == null) return next;
-        return current > next ? current : next;
-      }),
+      AndTrigger(children: final children) =>
+        children.map(_startAltitudeAbove).whereType<double>().fold<double?>(
+          null,
+          (current, next) {
+            if (current == null) return next;
+            return current > next ? current : next;
+          },
+        ),
       // As with time ORs, an altitude OR may be satisfied by a different
       // branch; treating it as a hard floor would over-constrain simulation.
       OrTrigger() => null,
@@ -860,7 +879,8 @@ class SequenceTimeEstimator {
     List<NodeTiming> timings,
     Map<String, TargetWindow> windows,
     List<String> conflicts,
-  }) analyzeSequence(
+  })
+  analyzeSequence(
     Sequence sequence,
     DateTime startTime, {
     required double latitude,

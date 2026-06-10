@@ -51,23 +51,25 @@ class DevicesTab extends ConsumerWidget {
           // here so the FocusModelCurveCard never renders its "Focuser not
           // connected" / "No active profile" empty states underneath the
           // _FocuserCard (which already conveys both of those facts).
-          Consumer(builder: (context, ref, _) {
-            final focuser = ref.watch(focuserStateProvider);
-            final profile = ref.watch(activeEquipmentProfileProvider);
-            if (focuser.connectionState != DeviceConnectionState.connected) {
-              return const SizedBox.shrink();
-            }
-            if (profile == null) return const SizedBox.shrink();
-            final focusService = ref.watch(focusModelServiceProvider);
-            final data = focusService.getProfileData(profile.id.toString());
-            if (data == null || data.dataPoints.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: FocusModelCurveCard(compact: true),
-            );
-          }),
+          Consumer(
+            builder: (context, ref, _) {
+              final focuser = ref.watch(focuserStateProvider);
+              final profile = ref.watch(activeEquipmentProfileProvider);
+              if (focuser.connectionState != DeviceConnectionState.connected) {
+                return const SizedBox.shrink();
+              }
+              if (profile == null) return const SizedBox.shrink();
+              final focusService = ref.watch(focusModelServiceProvider);
+              final data = focusService.getProfileData(profile.id.toString());
+              if (data == null || data.dataPoints.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: FocusModelCurveCard(compact: true),
+              );
+            },
+          ),
           const SizedBox(height: 12),
           const _FilterWheelCard(),
           const SizedBox(height: 12),
@@ -77,16 +79,18 @@ class DevicesTab extends ConsumerWidget {
           // itself when disconnected too, but checking here keeps the
           // disconnected-state copy from duplicating _GuiderCard's
           // "Connect" call to action.
-          Consumer(builder: (context, ref, _) {
-            final guider = ref.watch(guiderStateProvider);
-            if (guider.connectionState != DeviceConnectionState.connected) {
-              return const SizedBox.shrink();
-            }
-            return const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: GuideHealthCard(),
-            );
-          }),
+          Consumer(
+            builder: (context, ref, _) {
+              final guider = ref.watch(guiderStateProvider);
+              if (guider.connectionState != DeviceConnectionState.connected) {
+                return const SizedBox.shrink();
+              }
+              return const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: GuideHealthCard(),
+              );
+            },
+          ),
           const SizedBox(height: 12),
           // Bottom padding above the safe-area inset so the last card is
           // not tucked against the bottom nav.
@@ -228,10 +232,7 @@ class _DeviceCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             deviceName ?? 'No device assigned',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
           if (statusLine != null) ...[
             const SizedBox(height: 4),
@@ -323,7 +324,8 @@ class _CameraCard extends ConsumerWidget {
     if (state.connectionState == DeviceConnectionState.connected) {
       final temp = state.temperature;
       if (temp != null) {
-        status = 'Sensor ${temp.toStringAsFixed(1)} °C  '
+        status =
+            'Sensor ${temp.toStringAsFixed(1)} °C  '
             '${state.isCooling ? "cooling" : "warm"}';
       }
     }
@@ -372,7 +374,8 @@ class _MountCard extends ConsumerWidget {
       final ra = state.ra;
       final dec = state.dec;
       if (ra != null && dec != null) {
-        status = 'RA ${_formatRa(ra)}  Dec ${_formatDec(dec)}  '
+        status =
+            'RA ${_formatRa(ra)}  Dec ${_formatDec(dec)}  '
             '${state.isParked ? "parked" : (state.isTracking ? "tracking" : "idle")}';
       }
     }

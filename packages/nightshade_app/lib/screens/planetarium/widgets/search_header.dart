@@ -123,252 +123,258 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
           MediaQuery.sizeOf(context).height * 0.45,
         );
         return Positioned(
-        width: overlayWidth,
-        child: CompositedTransformFollower(
-          link: _layerLink,
-          showWhenUnlinked: false,
-          offset: const Offset(0, 46), // Height of text field + padding
-          child: Material(
-            elevation: 8,
-            color: widget.colors.surface,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: widget.colors.border),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                color: widget.colors.surface,
-              ),
-              constraints: BoxConstraints(maxHeight: maxOverlayHeight),
-              child: Consumer(
-                builder: (context, ref, child) {
-                  // Check for parsed coordinates first
-                  if (_parsedCoordinate != null) {
-                    final coord = _parsedCoordinate!;
+          width: overlayWidth,
+          child: CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            offset: const Offset(0, 46), // Height of text field + padding
+            child: Material(
+              elevation: 8,
+              color: widget.colors.surface,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: widget.colors.border),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  color: widget.colors.surface,
+                ),
+                constraints: BoxConstraints(maxHeight: maxOverlayHeight),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    // Check for parsed coordinates first
+                    if (_parsedCoordinate != null) {
+                      final coord = _parsedCoordinate!;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SearchCategoryHeader(
+                            title: 'Coordinates',
+                            icon: NightshadeIcons.compass,
+                            colors: widget.colors,
+                          ),
+                          MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                // Smoothly fly to the parsed coordinates.
+                                ref
+                                    .read(flyToRequestProvider.notifier)
+                                    .flyTo(coord);
+                                _hideOverlay();
+                                _focusNode.unfocus();
+                              },
+                              child: ListTile(
+                                dense: true,
+                                leading: Container(
+                                  width: 32,
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: widget.colors.accent
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(
+                                        NightshadeTokens.radiusInline4),
+                                  ),
+                                  child: Icon(
+                                    NightshadeIcons.crosshair,
+                                    size: 16,
+                                    color: widget.colors.accent,
+                                  ),
+                                ),
+                                title: Text(
+                                  'Go to coordinates',
+                                  style: TextStyle(
+                                      color: widget.colors.textPrimary),
+                                ),
+                                subtitle: Text(
+                                  'RA ${CoordinateFormatUtils.formatRACompact(coord.ra)}, Dec ${CoordinateFormatUtils.formatDec(coord.dec)}',
+                                  style: TextStyle(
+                                      color: widget.colors.textMuted,
+                                      fontSize:
+                                          NightshadeTypography.fontSize11),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final searchState = ref.watch(objectSearchProvider);
+
+                    if (searchState.isSearching) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
+
+                    if (searchState.results.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'No results found',
+                          style: TextStyle(color: widget.colors.textMuted),
+                        ),
+                      );
+                    }
+
+                    // Show all results grouped by category, no hardcoded limit.
+                    // Solar-system bodies are wrapped as Star objects with
+                    // PLANET_/MINORBODY_ ids by the search resolver; split them
+                    // out so they get their own group instead of mixing with
+                    // catalog stars.
+                    final allStars =
+                        searchState.results.whereType<Star>().toList();
+                    final solarSystem =
+                        allStars.where(_isSolarSystemBody).toList();
+                    final stars =
+                        allStars.where((s) => !_isSolarSystemBody(s)).toList();
+                    final dsos =
+                        searchState.results.whereType<DeepSkyObject>().toList();
+
+                    if (stars.isEmpty && dsos.isEmpty && solarSystem.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'No results found',
+                          style: TextStyle(color: widget.colors.textMuted),
+                        ),
+                      );
+                    }
+
+                    // Show result count
+                    final totalCount =
+                        stars.length + dsos.length + solarSystem.length;
+
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SearchCategoryHeader(
-                          title: 'Coordinates',
-                          icon: NightshadeIcons.compass,
-                          colors: widget.colors,
-                        ),
-                        MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              // Smoothly fly to the parsed coordinates.
-                              ref
-                                  .read(flyToRequestProvider.notifier)
-                                  .flyTo(coord);
-                              _hideOverlay();
-                              _focusNode.unfocus();
-                            },
-                            child: ListTile(
-                              dense: true,
-                              leading: Container(
-                                width: 32,
-                                height: 32,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: widget.colors.accent
-                                      .withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-                                ),
-                                child: Icon(
-                                  NightshadeIcons.crosshair,
-                                  size: 16,
-                                  color: widget.colors.accent,
-                                ),
-                              ),
-                              title: Text(
-                                'Go to coordinates',
-                                style:
-                                    TextStyle(color: widget.colors.textPrimary),
-                              ),
-                              subtitle: Text(
-                                'RA ${CoordinateFormatUtils.formatRACompact(coord.ra)}, Dec ${CoordinateFormatUtils.formatDec(coord.dec)}',
+                        // Result count header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color:
+                                widget.colors.surfaceAlt.withValues(alpha: 0.3),
+                            border: Border(
+                                bottom: BorderSide(
+                                    color: widget.colors.border
+                                        .withValues(alpha: 0.5))),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '$totalCount result${totalCount == 1 ? '' : 's'}',
                                 style: TextStyle(
-                                    color: widget.colors.textMuted,
-                                    fontSize: NightshadeTypography.fontSize11),
+                                  fontSize: NightshadeTypography.fontSize10,
+                                  color: widget.colors.textMuted,
+                                ),
                               ),
-                            ),
+                              if (searchState.filters.hasActiveFilters) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: widget.colors.accent
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(
+                                        NightshadeTokens.radiusXs),
+                                  ),
+                                  child: Text(
+                                    'filtered',
+                                    style: TextStyle(
+                                      fontSize: NightshadeTypography.fontSize9,
+                                      color: widget.colors.accent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: ListView(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            children: [
+                              // Solar System section (planets, comets, asteroids)
+                              if (solarSystem.isNotEmpty) ...[
+                                SearchCategoryHeader(
+                                  title: 'Solar System (${solarSystem.length})',
+                                  icon: NightshadeIcons.sun,
+                                  colors: widget.colors,
+                                ),
+                                ...solarSystem.map((body) =>
+                                    _buildSolarSystemResultTile(ref, body)),
+                              ],
+                              // DSO section
+                              if (dsos.isNotEmpty) ...[
+                                SearchCategoryHeader(
+                                  title: 'Deep Sky Objects (${dsos.length})',
+                                  icon: NightshadeIcons.sparkle,
+                                  colors: widget.colors,
+                                ),
+                                // Show first 20 DSOs in overlay, full list in Search tab
+                                ...dsos.take(20).map(
+                                    (dso) => _buildDsoResultTile(ref, dso)),
+                                if (dsos.length > 20)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    child: Text(
+                                      '${dsos.length - 20} more in Search tab...',
+                                      style: TextStyle(
+                                        fontSize:
+                                            NightshadeTypography.fontSize11,
+                                        color: widget.colors.textMuted,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                              // Stars section
+                              if (stars.isNotEmpty) ...[
+                                SearchCategoryHeader(
+                                  title: 'Stars (${stars.length})',
+                                  icon: NightshadeIcons.star,
+                                  colors: widget.colors,
+                                ),
+                                ...stars.take(10).map(
+                                    (star) => _buildStarResultTile(ref, star)),
+                                if (stars.length > 10)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    child: Text(
+                                      '${stars.length - 10} more in Search tab...',
+                                      style: TextStyle(
+                                        fontSize:
+                                            NightshadeTypography.fontSize11,
+                                        color: widget.colors.textMuted,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ],
                           ),
                         ),
                       ],
                     );
-                  }
-
-                  final searchState = ref.watch(objectSearchProvider);
-
-                  if (searchState.isSearching) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
-
-                  if (searchState.results.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'No results found',
-                        style: TextStyle(color: widget.colors.textMuted),
-                      ),
-                    );
-                  }
-
-                  // Show all results grouped by category, no hardcoded limit.
-                  // Solar-system bodies are wrapped as Star objects with
-                  // PLANET_/MINORBODY_ ids by the search resolver; split them
-                  // out so they get their own group instead of mixing with
-                  // catalog stars.
-                  final allStars =
-                      searchState.results.whereType<Star>().toList();
-                  final solarSystem =
-                      allStars.where(_isSolarSystemBody).toList();
-                  final stars =
-                      allStars.where((s) => !_isSolarSystemBody(s)).toList();
-                  final dsos =
-                      searchState.results.whereType<DeepSkyObject>().toList();
-
-                  if (stars.isEmpty && dsos.isEmpty && solarSystem.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'No results found',
-                        style: TextStyle(color: widget.colors.textMuted),
-                      ),
-                    );
-                  }
-
-                  // Show result count
-                  final totalCount =
-                      stars.length + dsos.length + solarSystem.length;
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Result count header
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color:
-                              widget.colors.surfaceAlt.withValues(alpha: 0.3),
-                          border: Border(
-                              bottom: BorderSide(
-                                  color: widget.colors.border
-                                      .withValues(alpha: 0.5))),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              '$totalCount result${totalCount == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                color: widget.colors.textMuted,
-                              ),
-                            ),
-                            if (searchState.filters.hasActiveFilters) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: widget.colors.accent
-                                      .withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
-                                ),
-                                child: Text(
-                                  'filtered',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize9,
-                                    color: widget.colors.accent,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Flexible(
-                        child: ListView(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          children: [
-                            // Solar System section (planets, comets, asteroids)
-                            if (solarSystem.isNotEmpty) ...[
-                              SearchCategoryHeader(
-                                title: 'Solar System (${solarSystem.length})',
-                                icon: NightshadeIcons.sun,
-                                colors: widget.colors,
-                              ),
-                              ...solarSystem.map(
-                                  (body) => _buildSolarSystemResultTile(ref, body)),
-                            ],
-                            // DSO section
-                            if (dsos.isNotEmpty) ...[
-                              SearchCategoryHeader(
-                                title: 'Deep Sky Objects (${dsos.length})',
-                                icon: NightshadeIcons.sparkle,
-                                colors: widget.colors,
-                              ),
-                              // Show first 20 DSOs in overlay, full list in Search tab
-                              ...dsos
-                                  .take(20)
-                                  .map((dso) => _buildDsoResultTile(ref, dso)),
-                              if (dsos.length > 20)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  child: Text(
-                                    '${dsos.length - 20} more in Search tab...',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize11,
-                                      color: widget.colors.textMuted,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                            // Stars section
-                            if (stars.isNotEmpty) ...[
-                              SearchCategoryHeader(
-                                title: 'Stars (${stars.length})',
-                                icon: NightshadeIcons.star,
-                                colors: widget.colors,
-                              ),
-                              ...stars.take(10).map(
-                                  (star) => _buildStarResultTile(ref, star)),
-                              if (stars.length > 10)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  child: Text(
-                                    '${stars.length - 10} more in Search tab...',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize11,
-                                      color: widget.colors.textMuted,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
       },
     );
 
@@ -404,7 +410,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               catalogTag,
@@ -423,15 +430,18 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             showCommonName
                 ? '$commonName - ${dso.type.displayName}'
                 : dso.type.displayName,
-            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+            style: TextStyle(
+                color: widget.colors.textMuted,
+                fontSize: NightshadeTypography.fontSize11),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           trailing: dso.magnitude != null
               ? Text(
                   'mag ${dso.magnitude!.toStringAsFixed(1)}',
-                  style:
-                      TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                  style: TextStyle(
+                      color: widget.colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11),
                 )
               : null,
         ),
@@ -465,7 +475,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: widget.colors.accent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               isPlanet ? NightshadeIcons.globe : NightshadeIcons.sparkle,
@@ -516,7 +527,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               '\u2605',
@@ -534,13 +546,16 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             star.constellation != null
                 ? 'Star - ${star.constellation}'
                 : 'Star',
-            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+            style: TextStyle(
+                color: widget.colors.textMuted,
+                fontSize: NightshadeTypography.fontSize11),
           ),
           trailing: star.magnitude != null
               ? Text(
                   'mag ${star.magnitude!.toStringAsFixed(1)}',
-                  style:
-                      TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                  style: TextStyle(
+                      color: widget.colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11),
                 )
               : null,
         ),
@@ -605,11 +620,13 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                     controller: widget.controller,
                     focusNode: _focusNode,
                     style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13, color: widget.colors.textPrimary),
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: widget.colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Search objects, names...',
                       hintStyle: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13, color: widget.colors.textMuted),
+                          fontSize: NightshadeTypography.fontSize13,
+                          color: widget.colors.textMuted),
                       prefixIcon: Icon(NightshadeIcons.search,
                           size: 16, color: widget.colors.textMuted),
                       suffixIcon: Container(
@@ -618,26 +635,31 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: widget.colors.background,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           '\u2318K',
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted),
+                              fontSize: NightshadeTypography.fontSize10,
+                              color: widget.colors.textMuted),
                         ),
                       ),
                       filled: true,
                       fillColor: widget.colors.surfaceAlt,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.primary),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -660,7 +682,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                     color: filters.hasActiveFilters
                         ? widget.colors.accent.withValues(alpha: 0.2)
                         : widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(
                       color: filters.hasActiveFilters
                           ? widget.colors.accent.withValues(alpha: 0.5)
@@ -739,7 +762,8 @@ class _SearchFilterControls extends StatelessWidget {
                   color: isSelected
                       ? colors.accent.withValues(alpha: 0.2)
                       : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: isSelected ? colors.accent : colors.border,
                   ),
@@ -790,7 +814,9 @@ class _SearchFilterControls extends StatelessWidget {
           children: [
             Text(
               'Max:',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
             Expanded(
               child: SliderTheme(
@@ -818,7 +844,8 @@ class _SearchFilterControls extends StatelessWidget {
               width: 32,
               child: Text(
                 filters.maxMagnitude?.toStringAsFixed(1) ?? '--',
-                style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelQuiet
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
           ],
@@ -839,7 +866,8 @@ class _SearchFilterControls extends StatelessWidget {
                   color: filters.observableNow
                       ? colors.accent
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   border: Border.all(
                     color:
                         filters.observableNow ? colors.accent : colors.border,
@@ -847,7 +875,8 @@ class _SearchFilterControls extends StatelessWidget {
                   ),
                 ),
                 child: filters.observableNow
-                    ? Icon(NightshadeIcons.check, size: 12, color: colors.surface)
+                    ? Icon(NightshadeIcons.check,
+                        size: 12, color: colors.surface)
                     : null,
               ),
               const SizedBox(width: 8),
@@ -882,22 +911,29 @@ class _SearchFilterControls extends StatelessWidget {
               child: SizedBox(
                 height: 28,
                 child: TextField(
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'e.g. Orion',
-                    hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    hintStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                     filled: true,
                     fillColor: colors.surfaceAlt,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.primary),
                     ),
                     contentPadding:

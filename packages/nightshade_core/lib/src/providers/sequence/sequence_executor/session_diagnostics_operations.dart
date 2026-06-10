@@ -106,13 +106,14 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         // finished run, so the second session would see no drift.
         _ref.read(opticalTrainBaselineProvider.notifier).state = postSnapshot;
         if (_sessionStartBaseline != null) {
-          final drift =
-              _sessionStartBaseline!.driftAgainst(OpticalTrainDiagnostics(
-            tiltScore: postSnapshot.tiltScore,
-            collimationScore: postSnapshot.collimationScore,
-            dominantTiltDirection: 'unknown',
-            issues: const [],
-          ));
+          final drift = _sessionStartBaseline!.driftAgainst(
+            OpticalTrainDiagnostics(
+              tiltScore: postSnapshot.tiltScore,
+              collimationScore: postSnapshot.collimationScore,
+              dominantTiltDirection: 'unknown',
+              issues: const [],
+            ),
+          );
           _logger.info(
             'Optical-train drift vs. session-start baseline: '
             '${drift.toStringAsFixed(2)} (tilt '
@@ -166,8 +167,9 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           sessionStartedAt: sessionStart,
         );
         _ref
-            .read(postSessionHealthSummaryProvider(dbSessionId).notifier)
-            .state = summary;
+                .read(postSessionHealthSummaryProvider(dbSessionId).notifier)
+                .state =
+            summary;
         _logger.debug(
           'Published post-session diagnostics for session $dbSessionId: '
           'disconnects=${summary.disconnectsDuringSession}, '
@@ -188,12 +190,13 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
       if (dbSessionId != null) {
         final mountState = _ref.read(mountStateProvider);
-        final profileMountId =
-            _ref.read(activeEquipmentProfileProvider)?.mountId;
+        final profileMountId = _ref
+            .read(activeEquipmentProfileProvider)
+            ?.mountId;
         final mountId =
             mountState.connectionState == DeviceConnectionState.connected
-                ? mountState.deviceId
-                : profileMountId;
+            ? mountState.deviceId
+            : profileMountId;
         final collector = GuideRmsCollector(
           imagesDao: _ref.read(imagesDaoProvider),
           guideRmsHistoryDao: _ref.read(guideRmsHistoryDaoProvider),
@@ -201,17 +204,17 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         unawaited(
           collector
               .collectSession(
-            sessionId: dbSessionId,
-            mountId: mountId,
-            recordedAt: DateTime.now(),
-          )
+                sessionId: dbSessionId,
+                mountId: mountId,
+                recordedAt: DateTime.now(),
+              )
               .catchError((Object e, StackTrace st) {
-            _logger.warning(
-              'Failed to collect Smart Night guide-RMS history: $e\n$st',
-              source: 'SequenceExecutor',
-            );
-            return null;
-          }),
+                _logger.warning(
+                  'Failed to collect Smart Night guide-RMS history: $e\n$st',
+                  source: 'SequenceExecutor',
+                );
+                return null;
+              }),
         );
       }
     } catch (e, st) {
@@ -244,7 +247,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         _ref.read(sessionPsfTilesProvider(dbSessionId)).valueOrNull ?? const [];
     final residuals =
         _ref.read(sessionResidualVectorsProvider(dbSessionId)).valueOrNull ??
-            const [];
+        const [];
     if (psfTiles.isEmpty) {
       // Nothing solved yet — calling analyze() would emit the
       // "No diagnostics data" placeholder, which has tilt=0 and
@@ -329,23 +332,20 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   ({double min, double max, double median})? _skyBrightnessSummarySince(
     DateTime? sessionStartedAt,
   ) {
-    final samples = _ref
-        .read(skyBrightnessTrackerProvider)
-        .magSamplesSince(sessionStartedAt)
-        .where((value) => value.isFinite)
-        .toList()
-      ..sort();
+    final samples =
+        _ref
+            .read(skyBrightnessTrackerProvider)
+            .magSamplesSince(sessionStartedAt)
+            .where((value) => value.isFinite)
+            .toList()
+          ..sort();
     if (samples.isEmpty) return null;
 
     final mid = samples.length ~/ 2;
     final median = samples.length.isOdd
         ? samples[mid]
         : (samples[mid - 1] + samples[mid]) / 2.0;
-    return (
-      min: samples.first,
-      max: samples.last,
-      median: median,
-    );
+    return (min: samples.first, max: samples.last, median: median);
   }
 
   /// Fetch the last captured image and update the UI providers so the Imaging
@@ -357,15 +357,19 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         final cameraState = _ref.read(cameraStateProvider);
         final cameraDeviceId = cameraState.deviceId;
         if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
-          _logger.debug('No camera device ID available, skipping image fetch',
-              source: 'SequenceExecutor');
+          _logger.debug(
+            'No camera device ID available, skipping image fetch',
+            source: 'SequenceExecutor',
+          );
           return;
         }
         final backend = _ref.read(backendProvider);
         final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
         if (capturedImage == null) {
-          _logger.debug('No image data available from camera',
-              source: 'SequenceExecutor');
+          _logger.debug(
+            'No image data available from camera',
+            source: 'SequenceExecutor',
+          );
           return;
         }
 
@@ -382,15 +386,15 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           ),
         );
 
-        _ref.read(capturePreviewPublisherProvider).publish(
-              _ref,
-              imageData,
-              cameraDeviceId,
-            );
+        _ref
+            .read(capturePreviewPublisherProvider)
+            .publish(_ref, imageData, cameraDeviceId);
       } catch (e) {
         // Image display is non-critical; log only.
-        _logger.warning('Failed to fetch sequence image for display: $e',
-            source: 'SequenceExecutor');
+        _logger.warning(
+          'Failed to fetch sequence image for display: $e',
+          source: 'SequenceExecutor',
+        );
       }
     });
   }

@@ -278,7 +278,8 @@ bridge.SafetyEvent _safetyEventFromCore(
       );
     default:
       return bridge.SafetyEvent.weatherUnsafe(
-        reason: data['reason'] as String? ??
+        reason:
+            data['reason'] as String? ??
             data['message'] as String? ??
             eventType,
       );

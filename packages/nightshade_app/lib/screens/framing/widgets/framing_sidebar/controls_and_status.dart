@@ -78,7 +78,9 @@ class FramingControlsSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to see FOV overlay',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
               ],
@@ -91,7 +93,9 @@ class FramingControlsSection extends ConsumerWidget {
         // Preview FOV control (always available for browsing)
         Text(
           'Preview Field of View',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         FramingPreviewFovSlider(
@@ -129,7 +133,9 @@ class FramingControlsSection extends ConsumerWidget {
         // Survey source dropdown (always available - can browse sky without FOV)
         Text(
           'Survey Source',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         Container(
@@ -143,7 +149,9 @@ class FramingControlsSection extends ConsumerWidget {
             value: framingState.surveySource,
             isExpanded: true,
             underline: const SizedBox(),
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textPrimary),
             dropdownColor: colors.surfaceAlt,
             items: SurveySource.values.map((source) {
               return DropdownMenuItem(
@@ -226,12 +234,13 @@ class FramingCoordinatesPanel extends StatelessWidget {
             children: [
               Text(
                 'Coordinates',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textPrimary),
               ),
               if (target != null)
                 IconButton(
-                  icon:
-                      Icon(NightshadeIcons.copy, size: 12, color: colors.textMuted),
+                  icon: Icon(NightshadeIcons.copy,
+                      size: 12, color: colors.textMuted),
                   tooltip: 'Copy coordinates',
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
@@ -284,7 +293,9 @@ class FramingCoordinatesPanel extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     'Target below horizon',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.warning),
                   ),
                 ],
               ),
@@ -325,7 +336,8 @@ class FramingAltitudePanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Altitude',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -333,7 +345,9 @@ class FramingAltitudePanel extends StatelessWidget {
             Center(
               child: Text(
                 'Select a target to view altitude chart',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
             ),
           ],

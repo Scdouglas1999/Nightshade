@@ -5,11 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 /// Network connection status
-enum NetworkStatus {
-  connected,
-  disconnected,
-  reconnecting,
-}
+enum NetworkStatus { connected, disconnected, reconnecting }
 
 /// Network service state
 class NetworkServiceState {
@@ -27,7 +23,8 @@ class NetworkServiceState {
 
   bool get hasWifi => connectivityResults.contains(ConnectivityResult.wifi);
   bool get hasMobile => connectivityResults.contains(ConnectivityResult.mobile);
-  bool get hasConnection => connectivityResults.isNotEmpty &&
+  bool get hasConnection =>
+      connectivityResults.isNotEmpty &&
       !connectivityResults.every((r) => r == ConnectivityResult.none);
 
   NetworkServiceState copyWith({
@@ -40,7 +37,9 @@ class NetworkServiceState {
     return NetworkServiceState(
       status: status ?? this.status,
       connectivityResults: connectivityResults ?? this.connectivityResults,
-      connectedServer: clearServer ? null : (connectedServer ?? this.connectedServer),
+      connectedServer: clearServer
+          ? null
+          : (connectedServer ?? this.connectedServer),
       statusMessage: statusMessage ?? this.statusMessage,
     );
   }
@@ -71,8 +70,7 @@ class NetworkService {
   /// Initialize the network service
   Future<void> initialize() async {
     if (_isInitialized) {
-      developer.log('Already initialized',
-          name: 'NetworkService', level: 800);
+      developer.log('Already initialized', name: 'NetworkService', level: 800);
       return;
     }
 
@@ -94,14 +92,17 @@ class NetworkService {
     // In 6.0.0+, it returns List<ConnectivityResult>
     List<ConnectivityResult> connectivityResults;
     if (connectivityResult is List) {
-      connectivityResults = (connectivityResult as List).cast<ConnectivityResult>();
+      connectivityResults = (connectivityResult as List)
+          .cast<ConnectivityResult>();
     } else {
       connectivityResults = [connectivityResult];
     }
-    _updateState(_state.copyWith(
-      connectivityResults: connectivityResults,
-      statusMessage: _getConnectivityMessage(connectivityResults),
-    ));
+    _updateState(
+      _state.copyWith(
+        connectivityResults: connectivityResults,
+        statusMessage: _getConnectivityMessage(connectivityResults),
+      ),
+    );
 
     // Listen for connectivity changes
     // In 5.0.0, stream emits ConnectivityResult
@@ -186,14 +187,17 @@ class NetworkService {
     );
 
     final hadConnection = _state.hasConnection;
-    final hasConnection = results.isNotEmpty &&
+    final hasConnection =
+        results.isNotEmpty &&
         !results.every((r) => r == ConnectivityResult.none);
     final hasWifi = results.contains(ConnectivityResult.wifi);
 
-    _updateState(_state.copyWith(
-      connectivityResults: results,
-      statusMessage: _getConnectivityMessage(results),
-    ));
+    _updateState(
+      _state.copyWith(
+        connectivityResults: results,
+        statusMessage: _getConnectivityMessage(results),
+      ),
+    );
 
     // If we gained *any* usable link (was offline, now online), try to
     // reconnect. This covers WiFi-on as before, but also cellular-on for a
@@ -218,27 +222,27 @@ class NetworkService {
     if (hadConnection && !hasConnection) {
       // Lost all transport — degraded UX, surface as warning.
       developer.log('All network lost', name: 'NetworkService', level: 900);
-      _updateState(_state.copyWith(
-        status: NetworkStatus.disconnected,
-        statusMessage: 'No network connection',
-        clearServer: true,
-      ));
+      _updateState(
+        _state.copyWith(
+          status: NetworkStatus.disconnected,
+          statusMessage: 'No network connection',
+          clearServer: true,
+        ),
+      );
     } else if (!hasWifi &&
         results.contains(ConnectivityResult.mobile) &&
         _lastKnownServer != null) {
       // On cellular only. Surface the data-usage hint, and for a tailnet
       // host kick a reconnect probe — it may have just dropped off WiFi
       // mid-session and the tailnet path is still live over cellular.
-      developer.log(
-        'Using mobile data',
-        name: 'NetworkService',
-        level: 900,
+      developer.log('Using mobile data', name: 'NetworkService', level: 900);
+      _updateState(
+        _state.copyWith(
+          statusMessage: lastServerIsTailscale
+              ? 'On mobile data — reachable over Tailscale (may use data)'
+              : 'Connected via mobile data (may use data)',
+        ),
       );
-      _updateState(_state.copyWith(
-        statusMessage: lastServerIsTailscale
-            ? 'On mobile data — reachable over Tailscale (may use data)'
-            : 'Connected via mobile data (may use data)',
-      ));
       if (lastServerIsTailscale &&
           _state.status != NetworkStatus.connected &&
           _state.status != NetworkStatus.reconnecting) {
@@ -279,24 +283,27 @@ class NetworkService {
       return;
     }
 
-    _updateState(_state.copyWith(
-      status: NetworkStatus.reconnecting,
-      statusMessage: 'Reconnecting to ${_lastKnownServer!.name}...',
-    ));
+    _updateState(
+      _state.copyWith(
+        status: NetworkStatus.reconnecting,
+        statusMessage: 'Reconnecting to ${_lastKnownServer!.name}...',
+      ),
+    );
 
     try {
       // Test if server is reachable. A tailnet host fronted by TLS answers
       // only on https, so probe with the server's recorded scheme; a longer
       // timeout for a tailnet host rides out DERP-relay latency on cellular.
-      final isReachable = await EnhancedNightshadeDiscovery.testServerConnection(
-        _lastKnownServer!.host,
-        _lastKnownServer!.webPort,
-        authToken: _lastKnownServer!.authToken,
-        scheme: _lastKnownServer!.scheme,
-        timeout: lastServerIsTailscale
-            ? const Duration(seconds: 6)
-            : const Duration(seconds: 3),
-      );
+      final isReachable =
+          await EnhancedNightshadeDiscovery.testServerConnection(
+            _lastKnownServer!.host,
+            _lastKnownServer!.webPort,
+            authToken: _lastKnownServer!.authToken,
+            scheme: _lastKnownServer!.scheme,
+            timeout: lastServerIsTailscale
+                ? const Duration(seconds: 6)
+                : const Duration(seconds: 3),
+          );
 
       if (isReachable) {
         developer.log(
@@ -304,11 +311,13 @@ class NetworkService {
           name: 'NetworkService',
           level: 800,
         );
-        _updateState(_state.copyWith(
-          status: NetworkStatus.connected,
-          connectedServer: _lastKnownServer,
-          statusMessage: 'Connected to ${_lastKnownServer!.name}',
-        ));
+        _updateState(
+          _state.copyWith(
+            status: NetworkStatus.connected,
+            connectedServer: _lastKnownServer,
+            statusMessage: 'Connected to ${_lastKnownServer!.name}',
+          ),
+        );
       } else {
         // Caught + degraded path — reconnect failed, retry scheduled.
         developer.log(
@@ -316,10 +325,12 @@ class NetworkService {
           name: 'NetworkService',
           level: 900,
         );
-        _updateState(_state.copyWith(
-          status: NetworkStatus.disconnected,
-          statusMessage: 'Server not found on network',
-        ));
+        _updateState(
+          _state.copyWith(
+            status: NetworkStatus.disconnected,
+            statusMessage: 'Server not found on network',
+          ),
+        );
 
         // Schedule retry
         _scheduleReconnect();
@@ -334,10 +345,12 @@ class NetworkService {
         error: e,
         stackTrace: st,
       );
-      _updateState(_state.copyWith(
-        status: NetworkStatus.disconnected,
-        statusMessage: 'Failed to reconnect: $e',
-      ));
+      _updateState(
+        _state.copyWith(
+          status: NetworkStatus.disconnected,
+          statusMessage: 'Failed to reconnect: $e',
+        ),
+      );
 
       // Schedule retry
       _scheduleReconnect();
@@ -367,10 +380,12 @@ class NetworkService {
       return null;
     }
 
-    _updateState(_state.copyWith(
-      status: NetworkStatus.reconnecting,
-      statusMessage: 'Searching for servers...',
-    ));
+    _updateState(
+      _state.copyWith(
+        status: NetworkStatus.reconnecting,
+        statusMessage: 'Searching for servers...',
+      ),
+    );
 
     try {
       final server = await EnhancedNightshadeDiscovery.discoverWithFallback(
@@ -383,10 +398,12 @@ class NetworkService {
         await connectToServer(server);
         return server;
       } else {
-        _updateState(_state.copyWith(
-          status: NetworkStatus.disconnected,
-          statusMessage: 'No servers found',
-        ));
+        _updateState(
+          _state.copyWith(
+            status: NetworkStatus.disconnected,
+            statusMessage: 'No servers found',
+          ),
+        );
         return null;
       }
     } catch (e, st) {
@@ -399,10 +416,12 @@ class NetworkService {
         error: e,
         stackTrace: st,
       );
-      _updateState(_state.copyWith(
-        status: NetworkStatus.disconnected,
-        statusMessage: 'Discovery failed: $e',
-      ));
+      _updateState(
+        _state.copyWith(
+          status: NetworkStatus.disconnected,
+          statusMessage: 'Discovery failed: $e',
+        ),
+      );
       return null;
     }
   }
@@ -419,11 +438,13 @@ class NetworkService {
     await EnhancedNightshadeDiscovery.saveLastServer(server);
     _lastKnownServer = server;
 
-    _updateState(_state.copyWith(
-      status: NetworkStatus.connected,
-      connectedServer: server,
-      statusMessage: 'Connected to ${server.name}',
-    ));
+    _updateState(
+      _state.copyWith(
+        status: NetworkStatus.connected,
+        connectedServer: server,
+        statusMessage: 'Connected to ${server.name}',
+      ),
+    );
   }
 
   /// Disconnect from current server
@@ -438,12 +459,14 @@ class NetworkService {
     await EnhancedNightshadeDiscovery.clearLastServer();
     _lastKnownServer = null;
 
-    _updateState(_state.copyWith(
-      status: NetworkStatus.disconnected,
-      connectedServer: null,
-      statusMessage: 'Disconnected',
-      clearServer: true,
-    ));
+    _updateState(
+      _state.copyWith(
+        status: NetworkStatus.disconnected,
+        connectedServer: null,
+        statusMessage: 'Disconnected',
+        clearServer: true,
+      ),
+    );
 
     // Cancel any reconnection attempts
     _reconnectTimer?.cancel();

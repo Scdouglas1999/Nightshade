@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/dependency_hygiene.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/dependency_hygiene.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Dependency hygiene audit not found: ${script.path}');
   }
@@ -21,16 +22,20 @@ Future<void> main() async {
     );
     _expect(passing['passed'] == true, 'passing fixture should pass');
     _expect(
-        passing['packageCount'] == 2, 'passing fixture should scan packages');
+      passing['packageCount'] == 2,
+      'passing fixture should scan packages',
+    );
     _expect(
       passing['violationCount'] == 0,
       'passing fixture should have no dependency violations',
     );
     final packages = passing['packages'] as List? ?? const [];
     _expect(
-      packages.any((pkg) =>
-          pkg['packageName'] == 'good_app' &&
-          pkg['missingDirectDependencies'].isEmpty),
+      packages.any(
+        (pkg) =>
+            pkg['packageName'] == 'good_app' &&
+            pkg['missingDirectDependencies'].isEmpty,
+      ),
       'passing fixture should report good_app with no missing dependencies',
     );
 
@@ -60,61 +65,41 @@ Future<void> main() async {
 
 Future<void> _writePassingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'apps/good_app/pubspec.yaml',
-    '''
+  await _writeFile(root, 'apps/good_app/pubspec.yaml', '''
 name: good_app
 dependencies:
   meta: any
 dev_dependencies:
   test: any
-''',
-  );
-  await _writeFile(
-    root,
-    'apps/good_app/lib/main.dart',
-    '''
+''');
+  await _writeFile(root, 'apps/good_app/lib/main.dart', '''
 import 'package:meta/meta.dart';
 import 'package:good_app/main.dart';
 
 @visibleForTesting
 void entrypoint() {}
-''',
-  );
-  await _writeFile(
-    root,
-    'packages/no_lib/pubspec.yaml',
-    '''
+''');
+  await _writeFile(root, 'packages/no_lib/pubspec.yaml', '''
 name: no_lib
 dependencies:
   path: any
-''',
-  );
+''');
 }
 
 Future<void> _writeFailingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'apps/bad_app/pubspec.yaml',
-    '''
+  await _writeFile(root, 'apps/bad_app/pubspec.yaml', '''
 name: bad_app
 dependencies:
   meta: any
-''',
-  );
-  await _writeFile(
-    root,
-    'apps/bad_app/lib/main.dart',
-    '''
+''');
+  await _writeFile(root, 'apps/bad_app/lib/main.dart', '''
 import 'package:collection/collection.dart';
 
 void entrypoint() {
   const DeepCollectionEquality().equals([], []);
 }
-''',
-  );
+''');
 }
 
 Future<void> _resetWorkspace(Directory root) async {

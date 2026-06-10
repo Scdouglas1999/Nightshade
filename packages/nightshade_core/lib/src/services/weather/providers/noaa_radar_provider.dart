@@ -60,8 +60,8 @@ class NoaaRadarProvider extends RadarProvider {
   ///
   /// Optionally accepts a custom HTTP [client] for testing or custom configuration.
   NoaaRadarProvider({http.Client? client})
-      : _client = client ?? http.Client(),
-        _decoder = const RadarTileDecoder();
+    : _client = client ?? http.Client(),
+      _decoder = const RadarTileDecoder();
 
   @override
   String get name => 'NOAA NEXRAD';
@@ -112,10 +112,11 @@ class NoaaRadarProvider extends RadarProvider {
       }
 
       developer.log(
-          'NoaaRadarProvider: Built ${frames.length} frames '
-          '(${frames.where((f) => !f.isNoData).length} with spatial data)',
-          name: 'NoaaRadarProvider',
-          level: 800);
+        'NoaaRadarProvider: Built ${frames.length} frames '
+        '(${frames.where((f) => !f.isNoData).length} with spatial data)',
+        name: 'NoaaRadarProvider',
+        level: 800,
+      );
 
       return RadarFetchResult.success(frames);
     } on http.ClientException catch (e) {
@@ -134,10 +135,7 @@ class NoaaRadarProvider extends RadarProvider {
     final timeParam = timestamp.toUtc().toIso8601String();
     final url = _getMapUrl(timeParam, fov);
 
-    final wmsOptions = {
-      'time': timeParam,
-      'transparent': 'true',
-    };
+    final wmsOptions = {'time': timeParam, 'transparent': 'true'};
 
     img.Image? image;
     try {
@@ -145,12 +143,18 @@ class NoaaRadarProvider extends RadarProvider {
       if (response.statusCode == 200) {
         image = _decoder.decodePng(response.bodyBytes);
       } else {
-        developer.log('NOAA GetMap status ${response.statusCode}',
-            name: 'NoaaRadarProvider', level: 900);
+        developer.log(
+          'NOAA GetMap status ${response.statusCode}',
+          name: 'NoaaRadarProvider',
+          level: 900,
+        );
       }
     } catch (e) {
-      developer.log('NOAA GetMap fetch failed: $e',
-          name: 'NoaaRadarProvider', level: 900);
+      developer.log(
+        'NOAA GetMap fetch failed: $e',
+        name: 'NoaaRadarProvider',
+        level: 900,
+      );
     }
 
     if (image == null) {
@@ -203,19 +207,23 @@ class NoaaRadarProvider extends RadarProvider {
   String _getMapUrl(String timeParam, _FovBounds fov) {
     // WMS 1.1.1 EPSG:4326 BBOX order is minx,miny,maxx,maxy = west,south,east,north.
     final bbox = '${fov.west},${fov.south},${fov.east},${fov.north}';
-    return Uri.parse(_baseWmsUrl).replace(queryParameters: {
-      'service': 'WMS',
-      'version': '1.1.1',
-      'request': 'GetMap',
-      'layers': 'nexrad-n0q-900913',
-      'format': 'image/png',
-      'transparent': 'true',
-      'srs': 'EPSG:4326',
-      'width': '$_wmsImageSize',
-      'height': '$_wmsImageSize',
-      'time': timeParam,
-      'bbox': bbox,
-    }).toString();
+    return Uri.parse(_baseWmsUrl)
+        .replace(
+          queryParameters: {
+            'service': 'WMS',
+            'version': '1.1.1',
+            'request': 'GetMap',
+            'layers': 'nexrad-n0q-900913',
+            'format': 'image/png',
+            'transparent': 'true',
+            'srs': 'EPSG:4326',
+            'width': '$_wmsImageSize',
+            'height': '$_wmsImageSize',
+            'time': timeParam,
+            'bbox': bbox,
+          },
+        )
+        .toString();
   }
 
   /// Computes the padded geographic bounding box of a [radiusKm] circle around
@@ -244,11 +252,13 @@ class NoaaRadarProvider extends RadarProvider {
   /// Returns a list of timestamps in reverse chronological order (newest first).
   Future<List<DateTime>> _fetchAvailableTimestamps() async {
     // Request GetCapabilities to get available time dimensions
-    final url = Uri.parse(_baseWmsUrl).replace(queryParameters: {
-      'service': 'WMS',
-      'version': '1.1.1',
-      'request': 'GetCapabilities',
-    });
+    final url = Uri.parse(_baseWmsUrl).replace(
+      queryParameters: {
+        'service': 'WMS',
+        'version': '1.1.1',
+        'request': 'GetCapabilities',
+      },
+    );
 
     final response = await _client.get(url);
 
@@ -298,8 +308,12 @@ class NoaaRadarProvider extends RadarProvider {
           final dateTime = DateTime.parse(ts.trim());
           timestamps.add(dateTime);
         } catch (e) {
-          developer.log('Failed to parse NOAA timestamp: $ts',
-              name: 'NoaaRadarProvider', level: 900, error: e);
+          developer.log(
+            'Failed to parse NOAA timestamp: $ts',
+            name: 'NoaaRadarProvider',
+            level: 900,
+            error: e,
+          );
         }
       }
     } else if (timeString.contains('/')) {
@@ -319,8 +333,12 @@ class NoaaRadarProvider extends RadarProvider {
             current = current.add(period);
           }
         } catch (e) {
-          developer.log('Failed to parse NOAA time period: $timeString',
-              name: 'NoaaRadarProvider', level: 900, error: e);
+          developer.log(
+            'Failed to parse NOAA time period: $timeString',
+            name: 'NoaaRadarProvider',
+            level: 900,
+            error: e,
+          );
           return _generateFallbackTimestamps();
         }
       }

@@ -29,9 +29,7 @@ final catalogOverlayIncludeStarsProvider = StateProvider<bool>((_) => false);
 /// Catalog overlay service instance. Singleton-per-Riverpod-container so
 /// the underlying planetarium catalogs are loaded once and cached.
 final catalogOverlayServiceProvider = Provider<CatalogOverlayService>((_) {
-  return CatalogOverlayService(
-    source: PlanetariumCatalogOverlaySource(),
-  );
+  return CatalogOverlayService(source: PlanetariumCatalogOverlaySource());
 });
 
 /// Query parameters that uniquely identify a catalog overlay request.
@@ -67,16 +65,16 @@ class CatalogOverlayQuery {
 
   @override
   int get hashCode => Object.hash(
-        wcs.raHours,
-        wcs.decDegrees,
-        wcs.rotationDeg,
-        wcs.pixelScaleArcsec,
-        wcs.imageWidth,
-        wcs.imageHeight,
-        magnitudeLimit,
-        includeStars,
-        includeDsos,
-      );
+    wcs.raHours,
+    wcs.decDegrees,
+    wcs.rotationDeg,
+    wcs.pixelScaleArcsec,
+    wcs.imageWidth,
+    wcs.imageHeight,
+    magnitudeLimit,
+    includeStars,
+    includeDsos,
+  );
 }
 
 /// Future provider that runs the catalog overlay query asynchronously
@@ -85,14 +83,14 @@ class CatalogOverlayQuery {
 /// free.
 final catalogOverlayQueryProvider = FutureProvider.autoDispose
     .family<CatalogOverlayResult, CatalogOverlayQuery>((ref, query) async {
-  final service = ref.watch(catalogOverlayServiceProvider);
-  return service.queryFov(
-    wcs: query.wcs,
-    magnitudeLimit: query.magnitudeLimit,
-    includeStars: query.includeStars,
-    includeDsos: query.includeDsos,
-  );
-});
+      final service = ref.watch(catalogOverlayServiceProvider);
+      return service.queryFov(
+        wcs: query.wcs,
+        magnitudeLimit: query.magnitudeLimit,
+        includeStars: query.includeStars,
+        includeDsos: query.includeDsos,
+      );
+    });
 
 /// Currently selected catalog object (for the details side panel). Null
 /// when nothing is selected.

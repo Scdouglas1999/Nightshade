@@ -14,13 +14,21 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [PluginHandlers].
 List<HeadlessRoute> buildPluginRoutes(PluginHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/plugins', h.handleListPlugins),
-      HeadlessRoute(
-          HttpMethod.post, '/api/plugins/upload', h.handleUploadPlugin),
-      HeadlessRoute(HttpMethod.post, '/api/plugins/<pluginId>/enable',
-          h.handleEnablePlugin),
-      HeadlessRoute(HttpMethod.post, '/api/plugins/<pluginId>/disable',
-          h.handleDisablePlugin),
-      HeadlessRoute(HttpMethod.delete, '/api/plugins/<pluginId>',
-          h.handleUninstallPlugin),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/plugins', h.handleListPlugins),
+  HeadlessRoute(HttpMethod.post, '/api/plugins/upload', h.handleUploadPlugin),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/plugins/<pluginId>/enable',
+    h.handleEnablePlugin,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/plugins/<pluginId>/disable',
+    h.handleDisablePlugin,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/plugins/<pluginId>',
+    h.handleUninstallPlugin,
+  ),
+];

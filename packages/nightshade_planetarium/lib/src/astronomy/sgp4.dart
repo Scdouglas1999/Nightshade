@@ -24,7 +24,8 @@ class Sgp4 {
   static const double _de2ra = math.pi / 180.0;
   static const double _twoPi = 2.0 * math.pi;
   static const double _minutesPerDay = 1440.0;
-  static const double _xke = 0.07436691613317342; // sqrt(3.986008e5) * (60/6378.135^1.5)
+  static const double _xke =
+      0.07436691613317342; // sqrt(3.986008e5) * (60/6378.135^1.5)
   static const double _ck2 = 0.5 * _j2 * _ae * _ae;
   static const double _ck4 = -0.375 * _j4 * _ae * _ae * _ae * _ae;
   static const double _qoms2t = 1.880279159015271e-09; // ((120-78.0)/xkmper)^4
@@ -38,7 +39,10 @@ class Sgp4 {
   ///
   /// Returns ECI position (km) and velocity (km/s), or null if propagation fails
   /// (e.g., satellite has decayed).
-  static Sgp4Result? propagate(OrbitalElements elements, double minutesSinceEpoch) {
+  static Sgp4Result? propagate(
+    OrbitalElements elements,
+    double minutesSinceEpoch,
+  ) {
     final satrec = _initSatrec(elements);
     if (satrec == null) return null;
     return _sgp4(satrec, minutesSinceEpoch);
@@ -57,7 +61,8 @@ class Sgp4 {
     rec.ecco = elements.eccentricity;
     rec.argpo = elements.argumentOfPerigee * _de2ra;
     rec.mo = elements.meanAnomaly * _de2ra;
-    rec.no = elements.meanMotion * _twoPi / _minutesPerDay; // rev/day -> rad/min
+    rec.no =
+        elements.meanMotion * _twoPi / _minutesPerDay; // rev/day -> rad/min
 
     // Recover original mean motion (xnodp) and semimajor axis (aodp) from input elements
     final cosio = math.cos(rec.inclo);
@@ -73,7 +78,9 @@ class Sgp4 {
     // Recover original mean motion from kozai mean motion
     final a1 = math.pow(_xke / rec.no, 2.0 / 3.0).toDouble();
     final del1 = 1.5 * _ck2 * rec.x3thm1 / (a1 * a1 * betao * betao2);
-    final ao = a1 * (1.0 - del1 * (0.5 * (2.0 / 3.0) + del1 * (1.0 + 134.0 / 81.0 * del1)));
+    final ao =
+        a1 *
+        (1.0 - del1 * (0.5 * (2.0 / 3.0) + del1 * (1.0 + 134.0 / 81.0 * del1)));
     final delo = 1.5 * _ck2 * rec.x3thm1 / (ao * ao * betao * betao2);
     rec.xnodp = rec.no / (1.0 + delo);
     rec.aodp = ao / (1.0 - delo);
@@ -115,19 +122,44 @@ class Sgp4 {
     final coef = qms4 * math.pow(tsi, 4).toDouble();
     final coef1 = coef / math.pow(psisq, 3.5).toDouble();
 
-    final c2 = coef1 * rec.xnodp * (rec.aodp * (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
-        0.75 * _ck2 * tsi / psisq * rec.x3thm1 * (8.0 + 3.0 * etasq * (8.0 + etasq)));
+    final c2 =
+        coef1 *
+        rec.xnodp *
+        (rec.aodp * (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
+            0.75 *
+                _ck2 *
+                tsi /
+                psisq *
+                rec.x3thm1 *
+                (8.0 + 3.0 * etasq * (8.0 + etasq)));
     rec.c1 = rec.bstar * c2;
 
     final x1mth2 = 1.0 - theta2;
-    rec.c4 = 2.0 * rec.xnodp * coef1 * rec.aodp * betao2 *
-        (rec.eta * (2.0 + 0.5 * etasq) + rec.ecco * (0.5 + 2.0 * etasq) -
-            2.0 * _ck2 * tsi / (rec.aodp * psisq) *
-                (-3.0 * rec.x3thm1 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
-                    0.75 * x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) *
+    rec.c4 =
+        2.0 *
+        rec.xnodp *
+        coef1 *
+        rec.aodp *
+        betao2 *
+        (rec.eta * (2.0 + 0.5 * etasq) +
+            rec.ecco * (0.5 + 2.0 * etasq) -
+            2.0 *
+                _ck2 *
+                tsi /
+                (rec.aodp * psisq) *
+                (-3.0 *
+                        rec.x3thm1 *
+                        (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
+                    0.75 *
+                        x1mth2 *
+                        (2.0 * etasq - eeta * (1.0 + etasq)) *
                         math.cos(2.0 * rec.argpo)));
 
-    rec.c5 = 2.0 * coef1 * rec.aodp * betao2 *
+    rec.c5 =
+        2.0 *
+        coef1 *
+        rec.aodp *
+        betao2 *
         (1.0 + 2.75 * (etasq + eeta) + eeta * etasq);
 
     final theta4 = theta2 * theta2;
@@ -135,15 +167,21 @@ class Sgp4 {
     final temp2 = temp1 * _ck2 * pinvsq;
     final temp3 = 1.25 * _ck4 * pinvsq * pinvsq * rec.xnodp;
 
-    rec.xmdot = rec.xnodp + 0.5 * temp1 * betao * rec.x3thm1 +
+    rec.xmdot =
+        rec.xnodp +
+        0.5 * temp1 * betao * rec.x3thm1 +
         0.0625 * temp2 * betao * (13.0 - 78.0 * theta2 + 137.0 * theta4);
     final x1m5th = 1.0 - 5.0 * theta2;
-    rec.omgdot = -0.5 * temp1 * x1m5th +
+    rec.omgdot =
+        -0.5 * temp1 * x1m5th +
         0.0625 * temp2 * (7.0 - 114.0 * theta2 + 395.0 * theta4) +
         temp3 * (3.0 - 36.0 * theta2 + 49.0 * theta4);
     final xhdot1 = -temp1 * cosio;
-    rec.xnodot = xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * theta2) +
-        2.0 * temp3 * (3.0 - 7.0 * theta2)) * cosio;
+    rec.xnodot =
+        xhdot1 +
+        (0.5 * temp2 * (4.0 - 19.0 * theta2) +
+                2.0 * temp3 * (3.0 - 7.0 * theta2)) *
+            cosio;
 
     rec.omgcof = rec.bstar * c2 * math.cos(rec.argpo);
     rec.xmcof = -(2.0 / 3.0) * coef * rec.bstar * _ae / eeta;
@@ -160,11 +198,17 @@ class Sgp4 {
       rec.d2 = 4.0 * rec.aodp * tsi * c1sq;
       final temp = rec.d2 * tsi * rec.c1 / 3.0;
       rec.d3 = (17.0 * rec.aodp + s4) * temp;
-      rec.d4 = 0.5 * temp * rec.aodp * tsi * (221.0 * rec.aodp + 31.0 * s4) * rec.c1;
+      rec.d4 =
+          0.5 * temp * rec.aodp * tsi * (221.0 * rec.aodp + 31.0 * s4) * rec.c1;
       rec.t3cof = rec.d2 + 2.0 * c1sq;
-      rec.t4cof = 0.25 * (3.0 * rec.d3 + rec.c1 * (12.0 * rec.d2 + 10.0 * c1sq));
-      rec.t5cof = 0.2 * (3.0 * rec.d4 + 12.0 * rec.c1 * rec.d3 +
-          6.0 * rec.d2 * rec.d2 + 15.0 * c1sq * (2.0 * rec.d2 + c1sq));
+      rec.t4cof =
+          0.25 * (3.0 * rec.d3 + rec.c1 * (12.0 * rec.d2 + 10.0 * c1sq));
+      rec.t5cof =
+          0.2 *
+          (3.0 * rec.d4 +
+              12.0 * rec.c1 * rec.d3 +
+              6.0 * rec.d2 * rec.d2 +
+              15.0 * c1sq * (2.0 * rec.d2 + c1sq));
     }
 
     return rec;
@@ -188,7 +232,10 @@ class Sgp4 {
 
     if (!satrec.isimp) {
       final delomg = satrec.omgcof * tsince;
-      final delm = satrec.xmcof * (math.pow(1.0 + satrec.eta * math.cos(xmdf), 3).toDouble() - satrec.delmo);
+      final delm =
+          satrec.xmcof *
+          (math.pow(1.0 + satrec.eta * math.cos(xmdf), 3).toDouble() -
+              satrec.delmo);
       final temp = delomg + delm;
       xmp = xmdf + temp;
       omega = omgadf - temp;
@@ -196,7 +243,10 @@ class Sgp4 {
       final tfour = tsince * tcube;
       tempa = tempa - satrec.d2 * tsq - satrec.d3 * tcube - satrec.d4 * tfour;
       tempe = tempe + satrec.bstar * satrec.c5 * (math.sin(xmp) - satrec.sinmo);
-      templ = templ + satrec.t3cof * tcube + tfour * (satrec.t4cof + tsince * satrec.t5cof);
+      templ =
+          templ +
+          satrec.t3cof * tcube +
+          tfour * (satrec.t4cof + tsince * satrec.t5cof);
     }
 
     var a = satrec.aodp * tempa * tempa;
@@ -229,7 +279,8 @@ class Sgp4 {
     for (int i = 0; i < 10; i++) {
       final sinEpw = math.sin(epw);
       final cosEpw = math.cos(epw);
-      final deltaEpw = (capu - ayn * cosEpw + axn * sinEpw - epw) /
+      final deltaEpw =
+          (capu - ayn * cosEpw + axn * sinEpw - epw) /
           (1.0 - cosEpw * axn - sinEpw * ayn);
       if (deltaEpw.abs() < 1.0e-12) break;
       epw += deltaEpw;
@@ -259,14 +310,23 @@ class Sgp4 {
     final cos2u = 2.0 * cosu * cosu - 1.0;
 
     // Short period periodics
-    final rk = r * (1.0 - 1.5 * _ck2 * math.sqrt(temp) / (pl) * satrec.x3thm1) +
+    final rk =
+        r * (1.0 - 1.5 * _ck2 * math.sqrt(temp) / (pl) * satrec.x3thm1) +
         0.5 * _ck2 * temp2 / pl * satrec.x3thm1 * cos2u;
     final uk = u - 0.25 * _ck2 * temp2 / (pl) * satrec.x7thm1 * sin2u;
     final xnodek = xnode + 1.5 * _ck2 * temp2 * satrec.cosio * sin2u;
-    final xinck = satrec.inclo + 1.5 * _ck2 * temp2 * satrec.cosio * satrec.sinio * cos2u;
+    final xinck =
+        satrec.inclo + 1.5 * _ck2 * temp2 * satrec.cosio * satrec.sinio * cos2u;
     final rdotk = rdot - xn * _ck2 * temp2 / pl * satrec.x3thm1 * sin2u;
-    final rfdotk = rfdot + xn * _ck2 * temp2 *
-        (satrec.x3thm1 * cos2u + 1.5 * (1.0 - 3.0 * satrec.cosio * satrec.cosio) * (-0.5 * sin2u));
+    final rfdotk =
+        rfdot +
+        xn *
+            _ck2 *
+            temp2 *
+            (satrec.x3thm1 * cos2u +
+                1.5 *
+                    (1.0 - 3.0 * satrec.cosio * satrec.cosio) *
+                    (-0.5 * sin2u));
 
     // Orientation vectors
     final sinuk = math.sin(uk);
@@ -418,7 +478,8 @@ class Sgp4 {
   /// Calculate GMST (Greenwich Mean Sidereal Time) in radians for a given Julian Date.
   static double gstime(double jd) {
     final tUT1 = (jd - 2451545.0) / 36525.0;
-    var temp = -6.2e-6 * tUT1 * tUT1 * tUT1 +
+    var temp =
+        -6.2e-6 * tUT1 * tUT1 * tUT1 +
         0.093104 * tUT1 * tUT1 +
         (876600.0 * 3600 + 8640184.812866) * tUT1 +
         67310.54841;
@@ -465,8 +526,15 @@ class Sgp4 {
   /// Convert ECI position to RA/Dec (J2000 equatorial coordinates).
   ///
   /// Returns (RA in hours, Dec in degrees).
-  static (double raHours, double decDeg) eciToRaDec(EciVector position, double gmst) {
-    final r = math.sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
+  static (double raHours, double decDeg) eciToRaDec(
+    EciVector position,
+    double gmst,
+  ) {
+    final r = math.sqrt(
+      position.x * position.x +
+          position.y * position.y +
+          position.z * position.z,
+    );
 
     // Declination
     final dec = math.asin(position.z / r);
@@ -489,11 +557,15 @@ class Sgp4 {
   /// Uses cylindrical shadow model. Returns true if satellite is in shadow.
   static bool isEclipsed(EciVector satPos, EciVector sunEci) {
     // Vector from Earth center to satellite
-    final satDist = math.sqrt(satPos.x * satPos.x + satPos.y * satPos.y + satPos.z * satPos.z);
+    final satDist = math.sqrt(
+      satPos.x * satPos.x + satPos.y * satPos.y + satPos.z * satPos.z,
+    );
 
     // Angle between satellite and Sun as seen from Earth center
     final dot = satPos.x * sunEci.x + satPos.y * sunEci.y + satPos.z * sunEci.z;
-    final sunDist = math.sqrt(sunEci.x * sunEci.x + sunEci.y * sunEci.y + sunEci.z * sunEci.z);
+    final sunDist = math.sqrt(
+      sunEci.x * sunEci.x + sunEci.y * sunEci.y + sunEci.z * sunEci.z,
+    );
     final cosAngle = dot / (satDist * sunDist);
 
     // If satellite is on the sunlit side, it's not eclipsed
@@ -524,7 +596,8 @@ class Sgp4 {
     final mRad = m * _de2ra;
 
     // Equation of center
-    final c = (1.914602 - 0.004817 * t) * math.sin(mRad) +
+    final c =
+        (1.914602 - 0.004817 * t) * math.sin(mRad) +
         0.019993 * math.sin(2.0 * mRad);
 
     // Ecliptic longitude
@@ -624,7 +697,8 @@ class OrbitalElements {
   }
 
   @override
-  String toString() => 'OrbitalElements($name, cat#$catalogNumber, '
+  String toString() =>
+      'OrbitalElements($name, cat#$catalogNumber, '
       'inc=${inclination.toStringAsFixed(1)}, '
       'ecc=${eccentricity.toStringAsFixed(4)}, '
       'mm=${meanMotion.toStringAsFixed(4)})';
@@ -641,7 +715,8 @@ class EciVector {
   double get magnitude => math.sqrt(x * x + y * y + z * z);
 
   @override
-  String toString() => 'ECI(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)}, ${z.toStringAsFixed(1)})';
+  String toString() =>
+      'ECI(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)}, ${z.toStringAsFixed(1)})';
 }
 
 /// Result of SGP4 propagation.
@@ -682,7 +757,8 @@ class LookAngles {
   bool get isAboveHorizon => elevation > 0;
 
   @override
-  String toString() => 'Az: ${azimuth.toStringAsFixed(1)}, El: ${elevation.toStringAsFixed(1)}, '
+  String toString() =>
+      'Az: ${azimuth.toStringAsFixed(1)}, El: ${elevation.toStringAsFixed(1)}, '
       'Range: ${range.toStringAsFixed(0)}km';
 }
 

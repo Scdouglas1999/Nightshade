@@ -18,7 +18,6 @@ import 'smart_exposure_properties.dart';
 import 'target_node_properties.dart';
 import 'target_scheduler_properties.dart';
 
-
 // ---------------------------------------------------------------------------
 // File split: the per-node property widgets, input primitives, dispatcher,
 // and timing section live in `node_properties_panel_parts/`. The public
@@ -78,7 +77,8 @@ class NodePropertiesPanel extends ConsumerWidget {
             height: 4,
             decoration: BoxDecoration(
               color: colors.border,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
         ),
@@ -158,7 +158,8 @@ class NodePropertiesPanel extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Properties',
-                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 if (onCollapse != null)
@@ -166,7 +167,8 @@ class NodePropertiesPanel extends ConsumerWidget {
                     message: 'Collapse panel',
                     child: InkWell(
                       onTap: onCollapse,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(

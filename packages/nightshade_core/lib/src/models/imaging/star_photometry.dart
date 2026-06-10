@@ -70,16 +70,16 @@ class DetectedStarPhotometry {
   }
 
   Map<String, dynamic> toJson() => {
-        'x': x,
-        'y': y,
-        'flux': flux,
-        'snr': snr,
-        'hfr': hfr,
-        'fwhm': fwhm,
-        'eccentricity': eccentricity,
-        'peak': peak,
-        'channelFlux': channelFlux,
-      };
+    'x': x,
+    'y': y,
+    'flux': flux,
+    'snr': snr,
+    'hfr': hfr,
+    'fwhm': fwhm,
+    'eccentricity': eccentricity,
+    'peak': peak,
+    'channelFlux': channelFlux,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -97,16 +97,16 @@ class DetectedStarPhotometry {
 
   @override
   int get hashCode => Object.hash(
-        x,
-        y,
-        flux,
-        snr,
-        hfr,
-        fwhm,
-        eccentricity,
-        peak,
-        Object.hashAll(channelFlux),
-      );
+    x,
+    y,
+    flux,
+    snr,
+    hfr,
+    fwhm,
+    eccentricity,
+    peak,
+    Object.hashAll(channelFlux),
+  );
 }
 
 /// The full `api_detect_stars_photometry` result: master dimensions plus the
@@ -155,11 +155,11 @@ class StarPhotometryResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'channels': channels,
-        'stars': stars.map((s) => s.toJson()).toList(),
-      };
+    'width': width,
+    'height': height,
+    'channels': channels,
+    'stars': stars.map((s) => s.toJson()).toList(),
+  };
 
   @override
   bool operator ==(Object other) =>

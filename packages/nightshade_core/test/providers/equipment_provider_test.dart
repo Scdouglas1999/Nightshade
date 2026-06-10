@@ -233,16 +233,10 @@ void main() {
 
     test('provides user-friendly error messages', () {
       final timeoutError = DeviceError.fromException(Exception('timeout'));
-      expect(
-        timeoutError.userMessage,
-        contains('timed out'),
-      );
+      expect(timeoutError.userMessage, contains('timed out'));
 
       final notFoundError = DeviceError.fromException(Exception('not found'));
-      expect(
-        notFoundError.userMessage,
-        contains('not found'),
-      );
+      expect(notFoundError.userMessage, contains('not found'));
     });
 
     test('provides suggested recovery actions', () {

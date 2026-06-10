@@ -23,13 +23,14 @@ void main() {
     });
 
     test('subscribe info returns JSON websocket metadata', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetSubscribeInfo(
-        Request(
-          'GET',
-          Uri.parse('http://localhost:8080/api/planetarium/subscribe-info'),
+      final response = await translateHandlerErrors(
+        handlers.handleGetSubscribeInfo(
+          Request(
+            'GET',
+            Uri.parse('http://localhost:8080/api/planetarium/subscribe-info'),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -40,36 +41,45 @@ void main() {
       expect(body['eventTypes'], contains('mount_position'));
     });
 
-    test('catalog region missing parameters returns JSON bad request',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCatalogRegion(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/planetarium/catalog/region?ra=12.5'),
-        ),
-      ));
+    test(
+      'catalog region missing parameters returns JSON bad request',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleCatalogRegion(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/planetarium/catalog/region?ra=12.5',
+              ),
+            ),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(
-        body['error'],
-        'Missing required parameters: ra, dec, radius (in degrees)',
-      );
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(
+          body['error'],
+          'Missing required parameters: ra, dec, radius (in degrees)',
+        );
+      },
+    );
 
     test('slew to malformed payload returns JSON internal error', () async {
-      final response = await translateHandlerErrors(handlers.handleSlewTo(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/planetarium/slew-to'),
-          body: jsonEncode({}),
+      final response = await translateHandlerErrors(
+        handlers.handleSlewTo(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/planetarium/slew-to'),
+            body: jsonEncode({}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

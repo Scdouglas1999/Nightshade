@@ -22,7 +22,8 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
   final dRa = ra2Rad - ra1Rad;
   final dDec = dec2Rad - dec1Rad;
 
-  final a = math.sin(dDec / 2) * math.sin(dDec / 2) +
+  final a =
+      math.sin(dDec / 2) * math.sin(dDec / 2) +
       math.cos(dec1Rad) *
           math.cos(dec2Rad) *
           math.sin(dRa / 2) *
@@ -45,8 +46,9 @@ final annotationServiceProvider = Provider<AnnotationService>((ref) {
   return service;
 });
 
-final currentAnnotationProvider =
-    StateProvider<ImageAnnotation?>((ref) => null);
+final currentAnnotationProvider = StateProvider<ImageAnnotation?>(
+  (ref) => null,
+);
 
 /// Status of the annotation processing pipeline
 enum AnnotationStatus {
@@ -77,44 +79,46 @@ class AnnotationState {
   const AnnotationState.idle() : this();
 
   const AnnotationState.checking()
-      : this(
-            status: AnnotationStatus.checkingCatalogs,
-            message: 'Checking catalogs...');
+    : this(
+        status: AnnotationStatus.checkingCatalogs,
+        message: 'Checking catalogs...',
+      );
 
   const AnnotationState.plateSolving()
-      : this(
-            status: AnnotationStatus.plateSolving, message: 'Plate solving...');
+    : this(status: AnnotationStatus.plateSolving, message: 'Plate solving...');
 
   const AnnotationState.searching()
-      : this(
-            status: AnnotationStatus.searchingCatalogs,
-            message: 'Searching catalogs...');
+    : this(
+        status: AnnotationStatus.searchingCatalogs,
+        message: 'Searching catalogs...',
+      );
 
   AnnotationState.complete(int objects)
-      : this(
-          status: AnnotationStatus.complete,
-          message: 'Found $objects objects',
-          objectsFound: objects,
-        );
+    : this(
+        status: AnnotationStatus.complete,
+        message: 'Found $objects objects',
+        objectsFound: objects,
+      );
 
   const AnnotationState.error(String error)
-      : this(
-            status: AnnotationStatus.error,
-            message: 'Error',
-            errorDetails: error);
+    : this(
+        status: AnnotationStatus.error,
+        message: 'Error',
+        errorDetails: error,
+      );
 
   const AnnotationState.catalogsNotInstalled()
-      : this(
-          status: AnnotationStatus.catalogsNotInstalled,
-          message: 'No catalogs installed',
-        );
+    : this(
+        status: AnnotationStatus.catalogsNotInstalled,
+        message: 'No catalogs installed',
+      );
 
   const AnnotationState.plateSolveFailed(String reason)
-      : this(
-          status: AnnotationStatus.plateSolveFailed,
-          message: 'Plate solve failed',
-          errorDetails: reason,
-        );
+    : this(
+        status: AnnotationStatus.plateSolveFailed,
+        message: 'Plate solve failed',
+        errorDetails: reason,
+      );
 
   bool get isProcessing =>
       status == AnnotationStatus.checkingCatalogs ||
@@ -123,8 +127,9 @@ class AnnotationState {
 }
 
 /// Provider for current annotation processing state
-final annotationStateProvider =
-    StateProvider<AnnotationState>((ref) => const AnnotationState.idle());
+final annotationStateProvider = StateProvider<AnnotationState>(
+  (ref) => const AnnotationState.idle(),
+);
 
 /// State for the SNR-based re-annotate suggestion banner
 class ReAnnotateSuggestion {
@@ -144,8 +149,9 @@ class ReAnnotateSuggestion {
 
 /// Provider that surfaces when re-annotation is suggested due to SNR improvement.
 /// The annotation service updates this when SNR improves >40% since last annotation.
-final reAnnotateSuggestionProvider =
-    StateProvider<ReAnnotateSuggestion>((ref) => const ReAnnotateSuggestion.none());
+final reAnnotateSuggestionProvider = StateProvider<ReAnnotateSuggestion>(
+  (ref) => const ReAnnotateSuggestion.none(),
+);
 
 /// Constants for SNR-based progressive annotation reveal
 class _SnrAnnotationConstants {
@@ -218,7 +224,9 @@ class AnnotationService {
 
   void _attachListeners() {
     _ref.listen<CapturedImageData?>(
-        currentImageProvider, handleCurrentImageChanged);
+      currentImageProvider,
+      handleCurrentImageChanged,
+    );
     _ref.listen<ImageStats?>(lastImageStatsProvider, handleImageStatsChanged);
   }
 
@@ -346,10 +354,7 @@ class AnnotationService {
       simbadId: base.simbadId ?? new_.simbadId,
       wikipediaUrl: base.wikipediaUrl ?? new_.wikipediaUrl,
       // Merge maps
-      catalogIds: {
-        ...?base.catalogIds,
-        ...?new_.catalogIds,
-      },
+      catalogIds: {...?base.catalogIds, ...?new_.catalogIds},
       dataSource: '${base.dataSource}, ${new_.dataSource}',
     );
   }
@@ -417,7 +422,10 @@ class AnnotationService {
     }
 
     // Too few stars detected
-    final starMatch = RegExp(r'(\d+)\s*stars?\s*(detected|found|extracted)', caseSensitive: false).firstMatch(raw);
+    final starMatch = RegExp(
+      r'(\d+)\s*stars?\s*(detected|found|extracted)',
+      caseSensitive: false,
+    ).firstMatch(raw);
     if (starMatch != null) {
       final count = int.tryParse(starMatch.group(1)!) ?? 0;
       if (count < 10) {
@@ -458,8 +466,9 @@ class AnnotationService {
 
   double _normalizeRaHintDegrees(double raValue) {
     // Heuristic: treat values in [0, 24] as hours; otherwise assume degrees.
-    final degrees =
-        (raValue >= 0.0 && raValue <= 24.0) ? raValue * 15.0 : raValue;
+    final degrees = (raValue >= 0.0 && raValue <= 24.0)
+        ? raValue * 15.0
+        : raValue;
     return ((degrees % 360.0) + 360.0) % 360.0;
   }
 
@@ -487,8 +496,10 @@ class AnnotationService {
     return name.replaceAll(RegExp(r'\s+'), '_');
   }
 
-  static final _catalogPrefixPattern =
-      RegExp(r'^(NGC|M|IC|PGC|UGC|Ced|Sh2|Abell|Mel|Cr|Pal)\s*(\d+)', caseSensitive: false);
+  static final _catalogPrefixPattern = RegExp(
+    r'^(NGC|M|IC|PGC|UGC|Ced|Sh2|Abell|Mel|Cr|Pal)\s*(\d+)',
+    caseSensitive: false,
+  );
 
   /// Merge two annotation objects, preferring the entry with more data.
   ///
@@ -525,15 +536,19 @@ class AnnotationService {
   Future<void> reAnnotate() async {
     final image = _ref.read(currentImageProvider);
     if (image == null || image.filePath == null) {
-      _logger.warning('Cannot re-annotate: no current image',
-          source: 'Annotation');
+      _logger.warning(
+        'Cannot re-annotate: no current image',
+        source: 'Annotation',
+      );
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.error('No image loaded');
       return;
     }
 
-    _logger.info('Manual re-annotation triggered for: ${image.filePath}',
-        source: 'Annotation');
+    _logger.info(
+      'Manual re-annotation triggered for: ${image.filePath}',
+      source: 'Annotation',
+    );
 
     // Reset progressive annotation state so we start fresh
     _lastProcessedImagePath = null;
@@ -564,7 +579,9 @@ class AnnotationService {
     }
 
     final buffer = StringBuffer();
-    buffer.writeln('Name,Common Name,Type,RA (deg),Dec (deg),RA (HMS),Dec (DMS),Magnitude,Size (arcmin)');
+    buffer.writeln(
+      'Name,Common Name,Type,RA (deg),Dec (deg),RA (HMS),Dec (DMS),Magnitude,Size (arcmin)',
+    );
 
     for (final obj in annotation.objects) {
       if (!obj.visible) continue;
@@ -573,14 +590,16 @@ class AnnotationService {
       final raH = raHours.floor();
       final raM = ((raHours - raH) * 60).floor();
       final raS = (((raHours - raH) * 60 - raM) * 60);
-      final raHms = '${raH.toString().padLeft(2, '0')}h${raM.toString().padLeft(2, '0')}m${raS.toStringAsFixed(1)}s';
+      final raHms =
+          '${raH.toString().padLeft(2, '0')}h${raM.toString().padLeft(2, '0')}m${raS.toStringAsFixed(1)}s';
 
       final decSign = obj.dec >= 0 ? '+' : '-';
       final absDec = obj.dec.abs();
       final decD = absDec.floor();
       final decM = ((absDec - decD) * 60).floor();
       final decS = (((absDec - decD) * 60 - decM) * 60);
-      final decDms = "$decSign${decD.toString().padLeft(2, '0')}d${decM.toString().padLeft(2, '0')}m${decS.toStringAsFixed(1)}s";
+      final decDms =
+          "$decSign${decD.toString().padLeft(2, '0')}d${decM.toString().padLeft(2, '0')}m${decS.toStringAsFixed(1)}s";
 
       final name = _csvEscape(obj.name);
       final commonName = _csvEscape(obj.commonName ?? '');
@@ -588,7 +607,9 @@ class AnnotationService {
       final mag = obj.magnitude?.toStringAsFixed(2) ?? '';
       final size = obj.size?.toStringAsFixed(2) ?? '';
 
-      buffer.writeln('$name,$commonName,$typeName,${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},$raHms,$decDms,$mag,$size');
+      buffer.writeln(
+        '$name,$commonName,$typeName,${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},$raHms,$decDms,$mag,$size',
+      );
     }
 
     return buffer.toString();
@@ -604,7 +625,9 @@ class AnnotationService {
 
     final buffer = StringBuffer();
     buffer.writeln('# Region file format: DS9 version 4.1');
-    buffer.writeln('global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1');
+    buffer.writeln(
+      'global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1',
+    );
     buffer.writeln('fk5');
 
     for (final obj in annotation.objects) {
@@ -612,13 +635,17 @@ class AnnotationService {
 
       // Default radius: use object size if available, otherwise 30 arcseconds
       final radiusArcsec = (obj.size != null && obj.size! > 0)
-          ? obj.size! * 60.0 / 2.0 // size is in arcminutes, need radius in arcsec
+          ? obj.size! *
+                60.0 /
+                2.0 // size is in arcminutes, need radius in arcsec
           : 30.0;
 
       final color = _ds9ColorForType(obj.type);
       final label = obj.commonName ?? obj.name;
 
-      buffer.writeln('circle(${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},${radiusArcsec.toStringAsFixed(1)}") # color=$color text={$label}');
+      buffer.writeln(
+        'circle(${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},${radiusArcsec.toStringAsFixed(1)}") # color=$color text={$label}',
+      );
     }
 
     return buffer.toString();

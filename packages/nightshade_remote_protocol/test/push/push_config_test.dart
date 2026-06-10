@@ -57,22 +57,24 @@ void main() {
     expect(cfg.fcm.serviceAccountPath, secret.path);
   });
 
-  test('enabled fcm but missing service-account file => channel disabled',
-      () async {
-    final dir = Directory(p.join(tmp.path, 'Nightshade'))
-      ..createSync(recursive: true);
-    File(p.join(dir.path, 'push_config.json')).writeAsStringSync('''
+  test(
+    'enabled fcm but missing service-account file => channel disabled',
+    () async {
+      final dir = Directory(p.join(tmp.path, 'Nightshade'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'push_config.json')).writeAsStringSync('''
       { "fcm": { "enabled": true,
                  "serviceAccountPath": "/does/not/exist.json" } }
     ''');
 
-    final cfg = await PushConfig.load(
-      appSupportDir: tmp.path,
-      environment: const {},
-    );
-    // Half-configured deployment still runs: bad channel silently disabled.
-    expect(cfg.fcm.enabled, isFalse);
-  });
+      final cfg = await PushConfig.load(
+        appSupportDir: tmp.path,
+        environment: const {},
+      );
+      // Half-configured deployment still runs: bad channel silently disabled.
+      expect(cfg.fcm.enabled, isFalse);
+    },
+  );
 
   test('apns requires all id fields + an existing .p8', () async {
     final p8 = File(p.join(tmp.path, 'AuthKey.p8'))..writeAsStringSync('key');
@@ -85,7 +87,9 @@ void main() {
                   "keyId": "K", "bundleId": "com.x" } }
     ''');
     var cfg = await PushConfig.load(
-        appSupportDir: tmp.path, environment: const {});
+      appSupportDir: tmp.path,
+      environment: const {},
+    );
     expect(cfg.apns.enabled, isFalse);
 
     // Complete + existing .p8 => enabled.
@@ -94,8 +98,7 @@ void main() {
                   "keyId": "K1", "teamId": "T1",
                   "bundleId": "com.x", "useSandbox": true } }
     ''');
-    cfg = await PushConfig.load(
-        appSupportDir: tmp.path, environment: const {});
+    cfg = await PushConfig.load(appSupportDir: tmp.path, environment: const {});
     expect(cfg.apns.enabled, isTrue);
     expect(cfg.apns.useSandbox, isTrue);
     expect(cfg.apns.bundleId, 'com.x');
@@ -104,11 +107,14 @@ void main() {
   test('mock flag is preserved even with no cloud channel', () async {
     final dir = Directory(p.join(tmp.path, 'Nightshade'))
       ..createSync(recursive: true);
-    File(p.join(dir.path, 'push_config.json'))
-        .writeAsStringSync('{ "mock": true }');
+    File(
+      p.join(dir.path, 'push_config.json'),
+    ).writeAsStringSync('{ "mock": true }');
 
     final cfg = await PushConfig.load(
-        appSupportDir: tmp.path, environment: const {});
+      appSupportDir: tmp.path,
+      environment: const {},
+    );
     expect(cfg.mock, isTrue);
     expect(cfg.hasCloudChannel, isFalse);
   });

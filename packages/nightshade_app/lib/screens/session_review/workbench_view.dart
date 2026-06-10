@@ -306,7 +306,8 @@ List<FinishingResultLayer> _finishingLayers(IntegratedMaster? master) {
     out.add(FinishingResultLayer(label: label, pngPath: png, icon: icon));
   }
 
-  add(master.backgroundExtractedPath, 'Background extract', NightshadeIcons.grid);
+  add(master.backgroundExtractedPath, 'Background extract',
+      NightshadeIcons.grid);
   add(master.deconvolvedPath, 'Deconvolve', NightshadeIcons.sparkle);
   add(master.starReducedPath, 'Reduce stars', NightshadeIcons.star);
   add(master.colorCalibratedPath, 'Color calibrate', NightshadeIcons.star);
@@ -347,8 +348,8 @@ class _FinishingActions extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Finishing (non-destructive previews)',
-                  style:
-                      NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -538,8 +539,8 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
                 final tiles = snapshot.data ?? const <PsfFieldTileRow>[];
                 if (tiles.isEmpty) {
                   return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceMd),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: NightshadeTokens.spaceMd),
                     child: Text(
                       'No PSF field tiles for this sub yet — capture '
                       'plate-solved frames to populate the per-sub map.',
@@ -604,7 +605,8 @@ class _NarrowbandCompositeCard extends StatelessWidget {
     final components = c.componentMasterIds.isEmpty
         ? '—'
         : c.componentMasterIds.map((id) => '#$id').join(' · ');
-    final dims = (c.width > 0 && c.height > 0) ? '${c.width}×${c.height}' : null;
+    final dims =
+        (c.width > 0 && c.height > 0) ? '${c.width}×${c.height}' : null;
 
     return NightshadeCard(
       padding: EdgeInsets.zero,

@@ -165,7 +165,8 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                   const SizedBox(width: 8),
                   Text(
                     'Capturing',
-                    style: NightshadeTypography.label.copyWith(color: colors.success),
+                    style: NightshadeTypography.label
+                        .copyWith(color: colors.success),
                   ),
                 ],
               ),

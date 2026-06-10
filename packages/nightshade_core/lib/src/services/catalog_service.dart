@@ -54,10 +54,11 @@ class CatalogService {
     final results = <CatalogEntry>[];
 
     // Stream file line by line to avoid loading everything into memory
-    await for (final line in file
-        .openRead()
-        .transform(systemEncoding.decoder)
-        .transform(const LineSplitter())) {
+    await for (final line
+        in file
+            .openRead()
+            .transform(systemEncoding.decoder)
+            .transform(const LineSplitter())) {
       // Skip header
       if (offset == 0) {
         offset++;
@@ -127,10 +128,11 @@ class CatalogService {
     int lineNum = 0;
 
     // Read only the lines we need
-    await for (final line in file
-        .openRead()
-        .transform(systemEncoding.decoder)
-        .transform(const LineSplitter())) {
+    await for (final line
+        in file
+            .openRead()
+            .transform(systemEncoding.decoder)
+            .transform(const LineSplitter())) {
       // Skip header
       if (lineNum == 0) {
         lineNum++;
@@ -225,10 +227,11 @@ class CatalogService {
 
     // Count lines efficiently
     int count = 0;
-    await for (final _ in file
-        .openRead()
-        .transform(systemEncoding.decoder)
-        .transform(const LineSplitter())) {
+    await for (final _
+        in file
+            .openRead()
+            .transform(systemEncoding.decoder)
+            .transform(const LineSplitter())) {
       count++;
     }
 
@@ -304,10 +307,7 @@ class StarCatalogService extends CatalogService {
         dec: dec,
         magnitude: magnitude,
         type: 'star',
-        metadata: {
-          'hipId': hipId,
-          'properName': properName,
-        },
+        metadata: {'hipId': hipId, 'properName': properName},
       );
     } catch (e) {
       return null;
@@ -352,8 +352,9 @@ class DsoCatalogService extends CatalogService {
       final ra = _parseRa(parts.length > 2 ? parts[2] : '');
       final dec = _parseDec(parts.length > 3 ? parts[3] : '');
       final magnitude = parts.length > 9 ? double.tryParse(parts[9]) : null;
-      final messier =
-          parts.length > 18 && parts[18].isNotEmpty ? 'M${parts[18]}' : null;
+      final messier = parts.length > 18 && parts[18].isNotEmpty
+          ? 'M${parts[18]}'
+          : null;
       final commonNames = parts.length > 23 ? parts[23] : '';
 
       // Determine display name
@@ -373,10 +374,7 @@ class DsoCatalogService extends CatalogService {
         dec: dec,
         magnitude: magnitude,
         type: type,
-        metadata: {
-          'messier': messier,
-          'commonNames': commonNames,
-        },
+        metadata: {'messier': messier, 'commonNames': commonNames},
       );
     } catch (e) {
       return null;
@@ -429,10 +427,7 @@ class AnnotationCatalogService extends CatalogService {
         dec: dec,
         magnitude: magnitude,
         type: 'galaxy',
-        metadata: {
-          'redshift': redshift,
-          'pgc': pgc,
-        },
+        metadata: {'redshift': redshift, 'pgc': pgc},
       );
     } catch (e) {
       return null;

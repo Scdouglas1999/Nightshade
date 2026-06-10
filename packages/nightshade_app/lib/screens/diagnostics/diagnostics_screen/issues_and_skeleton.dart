@@ -22,12 +22,15 @@ class _IssuesCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Findings',
-                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(
                 '${diagnostics.issues.length} item${diagnostics.issues.length == 1 ? '' : 's'}',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -38,7 +41,9 @@ class _IssuesCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Text(
                   'No issues detected',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted),
                 ),
               ),
             )
@@ -85,7 +90,8 @@ class _IssueRow extends StatelessWidget {
               children: [
                 Text(
                   issue.title,
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -139,7 +145,8 @@ class _DiagnosticsLoadingSkeleton extends StatelessWidget {
             height: height,
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
           ),

@@ -80,7 +80,8 @@ class _CoolingProgressPanel extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 isWarming ? 'Warming Camera' : 'Cooling Camera',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -192,7 +193,8 @@ class _PowerGauge extends StatelessWidget {
               width: 40,
               height: 8,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: LinearProgressIndicator(
                   value: power / 100.0,
                   backgroundColor: colors.border,
@@ -209,7 +211,8 @@ class _PowerGauge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${power.toStringAsFixed(0)}%',
-              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ],
         ),

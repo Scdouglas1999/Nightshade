@@ -98,7 +98,8 @@ void main() {
       expect(fragments, _hasEditable(InlineEditKind.binning, '2x2'));
     });
 
-    test('ExposureNode without a gain override emits no gain fragment, but '
+    test(
+        'ExposureNode without a gain override emits no gain fragment, but '
         'binning is always editable', () {
       final node = ExposureNode(
         count: 2,
@@ -256,8 +257,7 @@ void main() {
       // A trip-wire: if the model grows a subtype, the sealed `switch` in
       // nodeSummary fails to compile first; this count keeps the guard list
       // itself honest so we never silently drop a type from coverage.
-      final types =
-          _oneOfEverySubtype().map((n) => n.runtimeType).toSet();
+      final types = _oneOfEverySubtype().map((n) => n.runtimeType).toSet();
       expect(types.length, _oneOfEverySubtype().length);
       expect(types.length, 37);
     });
@@ -301,8 +301,7 @@ void main() {
 
     test('summaryHasInlineEdits agrees with the fragment list', () {
       for (final node in [...editable, ...notEditable]) {
-        final hasEditable =
-            nodeSummary(node).any((f) => f is EditableFragment);
+        final hasEditable = nodeSummary(node).any((f) => f is EditableFragment);
         expect(summaryHasInlineEdits(node), hasEditable);
       }
     });

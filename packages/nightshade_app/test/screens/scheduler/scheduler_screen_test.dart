@@ -132,10 +132,8 @@ TargetScore _score({
     targetName: name,
     totalScore: total,
     factors: const [
-      ScoreFactor(
-          name: 'altitude', value: 0.7, weight: 1.0, weighted: 0.7),
-      ScoreFactor(
-          name: 'meridian', value: 0.5, weight: 1.0, weighted: 0.5),
+      ScoreFactor(name: 'altitude', value: 0.7, weight: 1.0, weighted: 0.7),
+      ScoreFactor(name: 'meridian', value: 0.5, weight: 1.0, weighted: 0.5),
     ],
     hardConstraintFailed: hardFail,
     rejectionReasons: rejections,
@@ -225,8 +223,8 @@ void main() {
     // Re-evaluate (Pause/Resume/Stop hidden while idle).
     expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
         findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Re-evaluate'),
-        findsOneWidget);
+    expect(
+        find.widgetWithText(NightshadeButton, 'Re-evaluate'), findsOneWidget);
 
     // Active target name appears in the decision panel.
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
@@ -321,8 +319,7 @@ void main() {
     );
   });
 
-  testWidgets(
-      'idle decision panel surfaces the explicit "Start" hint copy',
+  testWidgets('idle decision panel surfaces the explicit "Start" hint copy',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1280, 800);
@@ -387,8 +384,7 @@ void main() {
               state: SchedulerState.running,
               currentTargetId: 1,
               currentTargetName: 'NGC 7000',
-              nextEvaluationAt:
-                  DateTime.now().add(const Duration(seconds: 45)),
+              nextEvaluationAt: DateTime.now().add(const Duration(seconds: 45)),
             ));
           }),
           currentSchedulerDecisionProvider.overrideWith((ref) {
@@ -413,8 +409,8 @@ void main() {
     expect(find.text('Running'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Pause'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Stop'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
-        findsNothing);
+    expect(
+        find.widgetWithText(NightshadeButton, 'Start scheduler'), findsNothing);
   });
 
   testWidgets(
@@ -468,8 +464,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Tap the delete icon on the second row (target id=2, M31).
-    final deleteButton =
-        find.byKey(const ValueKey('scheduler-delete-row-2'));
+    final deleteButton = find.byKey(const ValueKey('scheduler-delete-row-2'));
     expect(deleteButton, findsOneWidget);
     await tester.tap(deleteButton);
     await tester.pumpAndSettle();

@@ -88,112 +88,129 @@ void main() {
       return dbFile;
     }
 
-    test('adds is_color + channels columns with NOT NULL mono defaults',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v38_v39_cols_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV38Database(tempDir);
-
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final info = await upgraded
-            .customSelect("PRAGMA table_info('stacked_results')")
-            .get();
-        final isColor = info.firstWhere(
-          (r) => r.data['name'] == 'is_color',
-          orElse: () => throw StateError(
-            'is_color column missing after v38 -> v39 upgrade',
-          ),
+    test(
+      'adds is_color + channels columns with NOT NULL mono defaults',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v38_v39_cols_',
         );
-        final channels = info.firstWhere(
-          (r) => r.data['name'] == 'channels',
-          orElse: () => throw StateError(
-            'channels column missing after v38 -> v39 upgrade',
-          ),
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV38Database(tempDir);
+
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final info = await upgraded
+              .customSelect("PRAGMA table_info('stacked_results')")
+              .get();
+          final isColor = info.firstWhere(
+            (r) => r.data['name'] == 'is_color',
+            orElse: () => throw StateError(
+              'is_color column missing after v38 -> v39 upgrade',
+            ),
+          );
+          final channels = info.firstWhere(
+            (r) => r.data['name'] == 'channels',
+            orElse: () => throw StateError(
+              'channels column missing after v38 -> v39 upgrade',
+            ),
+          );
+          expect(isColor.data['notnull'], equals(1));
+          expect(isColor.data['dflt_value'].toString(), equals('0'));
+          expect(channels.data['notnull'], equals(1));
+          expect(channels.data['dflt_value'].toString(), equals('1'));
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
+
+    test(
+      'existing pre-v39 rows backfill to mono (is_color=0, channels=1)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v38_v39_backfill_',
         );
-        expect(isColor.data['notnull'], equals(1));
-        expect(isColor.data['dflt_value'].toString(), equals('0'));
-        expect(channels.data['notnull'], equals(1));
-        expect(channels.data['dflt_value'].toString(), equals('1'));
-      } finally {
-        await upgraded.close();
-      }
-    });
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV38Database(tempDir);
 
-    test('existing pre-v39 rows backfill to mono (is_color=0, channels=1)',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v38_v39_backfill_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV38Database(tempDir);
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          // The seeded row must survive untouched and adopt the mono defaults.
+          final dao = StackedResultsDao(upgraded);
+          final rows = await dao.getResultsForSession(7);
+          expect(
+            rows,
+            hasLength(1),
+            reason:
+                'The seeded pre-v39 row must survive the in-place ALTER. '
+                'If this fails the migration is destroying user data.',
+          );
+          final read = rows.single;
+          expect(read.targetName, 'M81 (legacy mono)');
+          expect(read.isColor, isFalse);
+          expect(read.channels, 1);
+          // The unrelated columns are untouched by the ALTER.
+          expect(read.width, 4144);
+          expect(read.framesStacked, 30);
+          expect(read.exportedImagePath, '/exports/m81.png');
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        // The seeded row must survive untouched and adopt the mono defaults.
-        final dao = StackedResultsDao(upgraded);
-        final rows = await dao.getResultsForSession(7);
-        expect(rows, hasLength(1),
-            reason: 'The seeded pre-v39 row must survive the in-place ALTER. '
-                'If this fails the migration is destroying user data.');
-        final read = rows.single;
-        expect(read.targetName, 'M81 (legacy mono)');
-        expect(read.isColor, isFalse);
-        expect(read.channels, 1);
-        // The unrelated columns are untouched by the ALTER.
-        expect(read.width, 4144);
-        expect(read.framesStacked, 30);
-        expect(read.exportedImagePath, '/exports/m81.png');
-      } finally {
-        await upgraded.close();
-      }
-    });
+    test(
+      'a colour stack can be inserted and read back after the upgrade',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v38_v39_insert_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV38Database(tempDir);
 
-    test('a colour stack can be inserted and read back after the upgrade',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v38_v39_insert_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV38Database(tempDir);
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final dao = StackedResultsDao(upgraded);
+          final id = await dao.insertResult(
+            StackAndShareResult(
+              sessionId: 99,
+              targetName: 'NGC 7000 (OSC)',
+              width: 6248,
+              height: 4176,
+              framesStacked: 60,
+              framesAttempted: 64,
+              integrationSecs: 7200,
+              avgAlignmentResidual: 0.38,
+              isColor: true,
+              channels: 3,
+              createdAt: DateTime.utc(2026, 5, 29, 4, 0),
+            ),
+          );
+          expect(id, greaterThan(0));
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final dao = StackedResultsDao(upgraded);
-        final id = await dao.insertResult(StackAndShareResult(
-          sessionId: 99,
-          targetName: 'NGC 7000 (OSC)',
-          width: 6248,
-          height: 4176,
-          framesStacked: 60,
-          framesAttempted: 64,
-          integrationSecs: 7200,
-          avgAlignmentResidual: 0.38,
-          isColor: true,
-          channels: 3,
-          createdAt: DateTime.utc(2026, 5, 29, 4, 0),
-        ));
-        expect(id, greaterThan(0));
+          final read = await dao.getResultById(id);
+          expect(read, isNotNull);
+          expect(read!.isColor, isTrue);
+          expect(read.channels, 3);
 
-        final read = await dao.getResultById(id);
-        expect(read, isNotNull);
-        expect(read!.isColor, isTrue);
-        expect(read.channels, 3);
-
-        final stored = await upgraded.customSelect(
-          'SELECT is_color, channels FROM stacked_results WHERE id = ?',
-          variables: [Variable<int>(id)],
-        ).getSingle();
-        expect(stored.read<int>('is_color'), 1);
-        expect(stored.read<int>('channels'), 3);
-      } finally {
-        await upgraded.close();
-      }
-    });
+          final stored = await upgraded
+              .customSelect(
+                'SELECT is_color, channels FROM stacked_results WHERE id = ?',
+                variables: [Variable<int>(id)],
+              )
+              .getSingle();
+          expect(stored.read<int>('is_color'), 1);
+          expect(stored.read<int>('channels'), 3);
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
   });
 }

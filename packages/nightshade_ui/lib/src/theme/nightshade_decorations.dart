@@ -53,10 +53,7 @@ abstract final class NightshadeDecorations {
   ///
   /// Use for compact inline badges; pair with [NightshadeCard] when the badge
   /// wraps substantial content.
-  static BoxDecoration tintedBadge(
-    Color color, {
-    BorderRadius? borderRadius,
-  }) {
+  static BoxDecoration tintedBadge(Color color, {BorderRadius? borderRadius}) {
     return BoxDecoration(
       color: color.withValues(alpha: NightshadeTokens.opacitySubtle),
       borderRadius: borderRadius ?? NightshadeTokens.borderRadiusMd,
@@ -145,8 +142,9 @@ abstract final class NightshadeDecorations {
       ),
       borderRadius: borderRadius ?? NightshadeTokens.borderRadiusMd,
       border: Border.all(
-        color: colors.primary
-            .withValues(alpha: NightshadeTokens.opacityEmphasisBorder),
+        color: colors.primary.withValues(
+          alpha: NightshadeTokens.opacityEmphasisBorder,
+        ),
       ),
     );
   }

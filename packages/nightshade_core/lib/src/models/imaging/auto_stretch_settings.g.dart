@@ -9,7 +9,8 @@ part of 'auto_stretch_settings.dart';
 _AutoStretchSettings _$AutoStretchSettingsFromJson(Map<String, dynamic> json) =>
     _AutoStretchSettings(
       enabled: json['enabled'] as bool? ?? false,
-      method: $enumDecodeNullable(_$AutoStretchMethodEnumMap, json['method']) ??
+      method:
+          $enumDecodeNullable(_$AutoStretchMethodEnumMap, json['method']) ??
           AutoStretchMethod.stf,
       shadowClip: (json['shadowClip'] as num?)?.toDouble() ?? -2.8,
       highlightClip: (json['highlightClip'] as num?)?.toDouble() ?? -0.5,
@@ -19,16 +20,16 @@ _AutoStretchSettings _$AutoStretchSettingsFromJson(Map<String, dynamic> json) =>
     );
 
 Map<String, dynamic> _$AutoStretchSettingsToJson(
-        _AutoStretchSettings instance) =>
-    <String, dynamic>{
-      'enabled': instance.enabled,
-      'method': _$AutoStretchMethodEnumMap[instance.method]!,
-      'shadowClip': instance.shadowClip,
-      'highlightClip': instance.highlightClip,
-      'targetMedian': instance.targetMedian,
-      'linkedChannels': instance.linkedChannels,
-      'gammaValue': instance.gammaValue,
-    };
+  _AutoStretchSettings instance,
+) => <String, dynamic>{
+  'enabled': instance.enabled,
+  'method': _$AutoStretchMethodEnumMap[instance.method]!,
+  'shadowClip': instance.shadowClip,
+  'highlightClip': instance.highlightClip,
+  'targetMedian': instance.targetMedian,
+  'linkedChannels': instance.linkedChannels,
+  'gammaValue': instance.gammaValue,
+};
 
 const _$AutoStretchMethodEnumMap = {
   AutoStretchMethod.stf: 'stf',

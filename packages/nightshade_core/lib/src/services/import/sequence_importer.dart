@@ -67,15 +67,15 @@ class SequenceImporter {
     AstrobinImporter? astrobin,
     CanonicalNodeMapper? mapper,
     List<ValidationIssue> Function(Sequence)? validateSequenceFn,
-  })  : _nina = nina ?? NinaSequenceParser(),
-        _sgp = sgp ?? SgpSequenceParser(),
-        _telescopius = telescopius ?? TelescopiusCsvImporter(),
-        _observingList = observingList ?? ObservingListJsonImporter(),
-        _ics = ics ?? IcsCalendarImporter(),
-        _genericCsv = genericCsv ?? GenericCsvImporter(),
-        _astrobin = astrobin ?? AstrobinImporter(),
-        _mapper = mapper ?? CanonicalNodeMapper(),
-        _validate = validateSequenceFn ?? validateSequence;
+  }) : _nina = nina ?? NinaSequenceParser(),
+       _sgp = sgp ?? SgpSequenceParser(),
+       _telescopius = telescopius ?? TelescopiusCsvImporter(),
+       _observingList = observingList ?? ObservingListJsonImporter(),
+       _ics = ics ?? IcsCalendarImporter(),
+       _genericCsv = genericCsv ?? GenericCsvImporter(),
+       _astrobin = astrobin ?? AstrobinImporter(),
+       _mapper = mapper ?? CanonicalNodeMapper(),
+       _validate = validateSequenceFn ?? validateSequence;
 
   /// Detect the format from [content]. Inspects only the first ~16 KB.
   ///
@@ -93,8 +93,9 @@ class SequenceImporter {
   ///
   /// Throws [UnknownFormatError] if no detector matched.
   SourceFormat detectFormat(String content) {
-    final snippet =
-        content.length > 16 * 1024 ? content.substring(0, 16 * 1024) : content;
+    final snippet = content.length > 16 * 1024
+        ? content.substring(0, 16 * 1024)
+        : content;
     if (NinaSequenceParser.sniff(snippet)) return SourceFormat.nina;
     if (SgpSequenceParser.sniff(snippet)) return SourceFormat.sgp;
     if (TelescopiusCsvImporter.sniff(snippet)) {
@@ -110,7 +111,9 @@ class SequenceImporter {
       'Could not identify file format. Supported: NINA (.json), '
       'Sequence Generator Pro (.sgf), Telescopius (.csv), Astrobin (.csv), '
       'Nightshade observing list (.json), iCalendar (.ics).',
-      sniffedSnippet: snippet.length > 200 ? snippet.substring(0, 200) : snippet,
+      sniffedSnippet: snippet.length > 200
+          ? snippet.substring(0, 200)
+          : snippet,
     );
   }
 
@@ -133,11 +136,13 @@ class SequenceImporter {
   }
 
   /// Import a file directly from disk.
-  Future<ImportResult> importFromPath(String filePath,
-      {required bool forceUnsupported,
-      bool forceImport = false,
-      String? sequenceName,
-      CsvColumnMapping? csvColumnMapping}) async {
+  Future<ImportResult> importFromPath(
+    String filePath, {
+    required bool forceUnsupported,
+    bool forceImport = false,
+    String? sequenceName,
+    CsvColumnMapping? csvColumnMapping,
+  }) async {
     final file = File(filePath);
     if (!await file.exists()) {
       throw MalformedSourceError('File does not exist: $filePath');
@@ -236,8 +241,7 @@ class SequenceImporter {
     bool forceImport = false,
     required String sequenceName,
   }) async {
-    final summary =
-        await _astrobin.parse(content, sequenceName: sequenceName);
+    final summary = await _astrobin.parse(content, sequenceName: sequenceName);
     final result = _mapAndAssemble(
       summary.root,
       SourceFormat.astrobinCsv,
@@ -301,8 +305,7 @@ class SequenceImporter {
     // forceImport is set, we still run validation so the issues can be
     // surfaced in the summary dialog — just don't throw.
     final issues = _validate(mapped.sequence);
-    final hasErrors =
-        issues.any((i) => i.severity == ValidationSeverity.error);
+    final hasErrors = issues.any((i) => i.severity == ValidationSeverity.error);
 
     final result = ImportResult(
       sourceFormat: format,

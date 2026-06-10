@@ -10,16 +10,17 @@ import '../equipment/camera_state_provider.dart';
 // =============================================================================
 
 /// Current sequence execution state
-final sequenceExecutionStateProvider =
-    StateProvider<SequenceExecutionState>((ref) {
+final sequenceExecutionStateProvider = StateProvider<SequenceExecutionState>((
+  ref,
+) {
   return SequenceExecutionState.idle;
 });
 
 /// Current sequence progress
 final sequenceProgressProvider =
     StateNotifierProvider<SequenceProgressNotifier, SequenceProgress>((ref) {
-  return SequenceProgressNotifier();
-});
+      return SequenceProgressNotifier();
+    });
 
 class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   SequenceProgressNotifier() : super(const SequenceProgress());
@@ -84,11 +85,16 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   }
 
   void updateNodeProgress(
-      String nodeId, double progressPercent, String detail) {
-    final newProgressPercent =
-        Map<String, double>.from(state.nodeProgressPercent);
-    final newProgressDetail =
-        Map<String, String>.from(state.nodeProgressDetail);
+    String nodeId,
+    double progressPercent,
+    String detail,
+  ) {
+    final newProgressPercent = Map<String, double>.from(
+      state.nodeProgressPercent,
+    );
+    final newProgressDetail = Map<String, String>.from(
+      state.nodeProgressDetail,
+    );
 
     newProgressPercent[nodeId] = progressPercent;
     newProgressDetail[nodeId] = detail;
@@ -104,10 +110,12 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     double progressPercent,
     InstructionProgressDetail detail,
   ) {
-    final newProgressPercent =
-        Map<String, double>.from(state.nodeProgressPercent);
+    final newProgressPercent = Map<String, double>.from(
+      state.nodeProgressPercent,
+    );
     final newStructuredDetail = Map<String, InstructionProgressDetail>.from(
-        state.nodeProgressStructuredDetail);
+      state.nodeProgressStructuredDetail,
+    );
 
     newProgressPercent[nodeId] = progressPercent;
     newStructuredDetail[nodeId] = detail;
@@ -212,9 +220,7 @@ void applySequencerEventToSequenceProviders(
 
     case 'TargetCompleted':
       final targetName = data['target_name'] as String? ?? '';
-      progressNotifier.updateProgress(
-        message: 'Completed target: $targetName',
-      );
+      progressNotifier.updateProgress(message: 'Completed target: $targetName');
       break;
 
     case 'ExposureStarted':

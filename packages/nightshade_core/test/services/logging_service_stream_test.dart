@@ -50,35 +50,40 @@ void main() {
       // Filter to the entries we wrote — initialization itself emits a
       // couple of "Logging service initialized" lines.
       final messages = received.map((e) => e.message).toList();
-      expect(messages, containsAll(<String>[
-        'debug-msg',
-        'info-msg',
-        'warn-msg',
-        'err-msg',
-        'crit-msg',
-      ]));
-    });
-
-    test('preserves severity, source, message, and fields on emission',
-        () async {
-      final received = <LogEntry>[];
-      final sub = service.logEntryStream.listen(received.add);
-
-      service.warning(
-        'guiding lost',
-        source: 'GuidingService',
-        fields: {'rms': 1.42, 'deviceId': 'phd2:default'},
+      expect(
+        messages,
+        containsAll(<String>[
+          'debug-msg',
+          'info-msg',
+          'warn-msg',
+          'err-msg',
+          'crit-msg',
+        ]),
       );
-
-      await Future<void>.delayed(Duration.zero);
-      await sub.cancel();
-
-      final entry = received.firstWhere((e) => e.message == 'guiding lost');
-      expect(entry.level, LogLevel.warning);
-      expect(entry.source, 'GuidingService');
-      expect(entry.fields['rms'], 1.42);
-      expect(entry.fields['deviceId'], 'phd2:default');
     });
+
+    test(
+      'preserves severity, source, message, and fields on emission',
+      () async {
+        final received = <LogEntry>[];
+        final sub = service.logEntryStream.listen(received.add);
+
+        service.warning(
+          'guiding lost',
+          source: 'GuidingService',
+          fields: {'rms': 1.42, 'deviceId': 'phd2:default'},
+        );
+
+        await Future<void>.delayed(Duration.zero);
+        await sub.cancel();
+
+        final entry = received.firstWhere((e) => e.message == 'guiding lost');
+        expect(entry.level, LogLevel.warning);
+        expect(entry.source, 'GuidingService');
+        expect(entry.fields['rms'], 1.42);
+        expect(entry.fields['deviceId'], 'phd2:default');
+      },
+    );
 
     test('every subscriber on a broadcast stream sees each entry', () async {
       final aReceived = <LogEntry>[];
@@ -106,20 +111,22 @@ void main() {
       expect(sawBoth(cReceived), isTrue, reason: 'subscriber C missed entries');
     });
 
-    test('dispose() closes the stream and emits onDone to subscribers',
-        () async {
-      final done = Completer<void>();
-      final sub = service.logEntryStream.listen(
-        (_) {},
-        onDone: () => done.complete(),
-      );
+    test(
+      'dispose() closes the stream and emits onDone to subscribers',
+      () async {
+        final done = Completer<void>();
+        final sub = service.logEntryStream.listen(
+          (_) {},
+          onDone: () => done.complete(),
+        );
 
-      await service.dispose();
-      // dispose() awaits close() internally, but the subscription's
-      // onDone fires on the next microtask.
-      await done.future.timeout(const Duration(seconds: 2));
-      await sub.cancel();
-    });
+        await service.dispose();
+        // dispose() awaits close() internally, but the subscription's
+        // onDone fires on the next microtask.
+        await done.future.timeout(const Duration(seconds: 2));
+        await sub.cancel();
+      },
+    );
 
     test('dispose() is idempotent', () async {
       await service.dispose();
@@ -158,10 +165,7 @@ void main() {
     });
 
     test('rejects path traversal and other extensions', () {
-      expect(
-        LoggingService.isNightshadeLogFileName('../etc/passwd'),
-        isFalse,
-      );
+      expect(LoggingService.isNightshadeLogFileName('../etc/passwd'), isFalse);
       expect(
         LoggingService.isNightshadeLogFileName('nightshade.log.txt'),
         isFalse,
@@ -204,21 +208,26 @@ void main() {
     test('returns metadata for nightshade log files only', () async {
       final logsDir = Directory('${service.logDirectory}');
       // Plant three rotated logs and one decoy.
-      await File('${logsDir.path}/nightshade.log.2026-05-22')
-          .writeAsString('day1');
-      await File('${logsDir.path}/nightshade.log.2026-05-23')
-          .writeAsString('day2');
+      await File(
+        '${logsDir.path}/nightshade.log.2026-05-22',
+      ).writeAsString('day1');
+      await File(
+        '${logsDir.path}/nightshade.log.2026-05-23',
+      ).writeAsString('day2');
       await File('${logsDir.path}/nightshade.log').writeAsString('current');
       await File('${logsDir.path}/decoy.txt').writeAsString('not-a-log');
 
       final infos = await service.getLogFileInfos();
       final names = infos.map((e) => e.name).toList();
 
-      expect(names, containsAll(<String>[
-        'nightshade.log',
-        'nightshade.log.2026-05-22',
-        'nightshade.log.2026-05-23',
-      ]));
+      expect(
+        names,
+        containsAll(<String>[
+          'nightshade.log',
+          'nightshade.log.2026-05-22',
+          'nightshade.log.2026-05-23',
+        ]),
+      );
       expect(names.contains('decoy.txt'), isFalse);
       for (final info in infos) {
         expect(info.sizeBytes, greaterThan(0));
@@ -248,8 +257,9 @@ void main() {
       currentLogPath = service.currentLogFile!;
       // Plant the files AFTER initialization so they aren't clobbered.
       await File(currentLogPath).writeAsString('current');
-      await File('${service.logDirectory}/nightshade.log.2026-05-22')
-          .writeAsString('day1-day1');
+      await File(
+        '${service.logDirectory}/nightshade.log.2026-05-22',
+      ).writeAsString('day1-day1');
     });
 
     tearDown(() async {

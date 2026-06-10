@@ -98,8 +98,9 @@ BinningMode _binningModeFromInt(int binning) {
 final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   final defaults = ref.watch(sequencerDefaultsProvider);
   final profile = ref.watch(activeEquipmentProfileProvider);
-  final exposureContext =
-      ref.watch(smartNightExposureContextProvider).valueOrNull;
+  final exposureContext = ref
+      .watch(smartNightExposureContextProvider)
+      .valueOrNull;
   // Wave 8 — read user-tuned adaptive-swap defaults so new
   // TargetScheduler nodes pick up the operator's preferred conditions
   // floor + hysteresis. Falls back to the constructor defaults when
@@ -123,7 +124,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   final effectiveExposureDuration = defaults.isExposureDurationConfigured
       ? defaults.exposureDuration
       : exposureContext?.recommendForFilter(effectiveFilter).seconds ??
-          defaults.exposureDuration;
+            defaults.exposureDuration;
 
   return [
     NodePaletteCategory(
@@ -164,9 +165,8 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           name: 'Change Filter',
           icon: 'circle',
           description: 'Change the filter wheel position',
-          createNode: () => FilterChangeNode(
-            filterName: effectiveFilter ?? 'L',
-          ),
+          createNode: () =>
+              FilterChangeNode(filterName: effectiveFilter ?? 'L'),
         ),
         // Wave 3 Agent 2: SmartExposure — multi-filter container instruction
         // that internally handles filter changes, dither cadence, and
@@ -421,8 +421,8 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           createNode: () => TargetSchedulerNode(
             swapOnConditionsBelow:
                 (appSettings?.adaptiveSwapEnabledByDefault ?? false)
-                    ? (appSettings?.adaptiveSwapDefaultThreshold ?? 50.0)
-                    : null,
+                ? (appSettings?.adaptiveSwapDefaultThreshold ?? 50.0)
+                : null,
             swapHysteresisSecs:
                 appSettings?.adaptiveSwapDefaultHysteresisSecs ?? 180.0,
           ),
@@ -513,33 +513,35 @@ List<NodePaletteCategory> _buildPluginPaletteCategories(
 
   // Stable ordering: categories alphabetically, items by display name.
   final orderedCategories = grouped.keys.toList()..sort();
-  return orderedCategories.map((categoryName) {
-    final items = grouped[categoryName]!
-      ..sort((a, b) => a.name.compareTo(b.name));
-    return NodePaletteCategory(
-      name: 'Plugins / $categoryName',
-      icon: 'puzzle',
-      items: items
-          .map(
-            (blueprint) => NodePaletteItem(
-              name: blueprint.name,
-              icon: blueprint.iconHint,
-              description: blueprint.description.isEmpty
-                  ? '${blueprint.pluginName} plugin node'
-                  : blueprint.description,
-              createNode: () => PluginInstructionNode(
-                name: blueprint.name,
-                pluginId: blueprint.pluginId,
-                nodeTypeId: blueprint.nodeTypeId,
-                pluginName: blueprint.pluginName,
-                configJson: blueprint.defaultConfigJson,
-                iconHint: blueprint.iconHint,
-              ),
-            ),
-          )
-          .toList(growable: false),
-    );
-  }).toList(growable: false);
+  return orderedCategories
+      .map((categoryName) {
+        final items = grouped[categoryName]!
+          ..sort((a, b) => a.name.compareTo(b.name));
+        return NodePaletteCategory(
+          name: 'Plugins / $categoryName',
+          icon: 'puzzle',
+          items: items
+              .map(
+                (blueprint) => NodePaletteItem(
+                  name: blueprint.name,
+                  icon: blueprint.iconHint,
+                  description: blueprint.description.isEmpty
+                      ? '${blueprint.pluginName} plugin node'
+                      : blueprint.description,
+                  createNode: () => PluginInstructionNode(
+                    name: blueprint.name,
+                    pluginId: blueprint.pluginId,
+                    nodeTypeId: blueprint.nodeTypeId,
+                    pluginName: blueprint.pluginName,
+                    configJson: blueprint.defaultConfigJson,
+                    iconHint: blueprint.iconHint,
+                  ),
+                ),
+              )
+              .toList(growable: false),
+        );
+      })
+      .toList(growable: false);
 }
 
 class NodePaletteCategory {

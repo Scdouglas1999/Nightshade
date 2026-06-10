@@ -101,7 +101,8 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
               const SizedBox(width: 8),
               Text(
                 widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
-                style: NightshadeTypography.labelStrong.copyWith(color: onPrimary),
+                style:
+                    NightshadeTypography.labelStrong.copyWith(color: onPrimary),
               ),
             ],
           ),

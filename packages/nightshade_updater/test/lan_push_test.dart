@@ -14,7 +14,8 @@ import 'package:test/test.dart';
 ///
 /// Run with: dart test packages/nightshade_updater/test/lan_push_test.dart
 
-const int testDiscoveryPort = 45689; // Different from production to avoid conflicts
+const int testDiscoveryPort =
+    45689; // Different from production to avoid conflicts
 const int testPushPort = 45690;
 const String updatePushMessage = 'NIGHTSHADE_UPDATE_PUSH';
 const String updateResponsePrefix = 'NIGHTSHADE_UPDATE_TARGET:';
@@ -40,7 +41,8 @@ void main() {
 
             // Send response
             if (message == updatePushMessage) {
-              final response = updateResponsePrefix +
+              final response =
+                  updateResponsePrefix +
                   jsonEncode({
                     'name': 'TestReceiver',
                     'version': '2.0.0',
@@ -92,7 +94,8 @@ void main() {
             final message = utf8.decode(datagram.data);
             if (message == updatePushMessage) {
               // Respond as busy
-              final response = updateResponsePrefix +
+              final response =
+                  updateResponsePrefix +
                   jsonEncode({
                     'name': 'BusyReceiver',
                     'version': '2.0.0',
@@ -120,7 +123,9 @@ void main() {
           if (datagram != null) {
             final message = utf8.decode(datagram.data);
             if (message.startsWith(updateResponsePrefix)) {
-              final json = jsonDecode(message.substring(updateResponsePrefix.length));
+              final json = jsonDecode(
+                message.substring(updateResponsePrefix.length),
+              );
               responseReceived.complete(json as Map<String, dynamic>);
             }
           }
@@ -147,7 +152,10 @@ void main() {
   group('LAN Push Transfer Protocol', () {
     test('should transfer manifest and package data', () async {
       // Start mock receiver
-      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, testPushPort);
+      final server = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        testPushPort,
+      );
       final connectionReceived = Completer<void>();
       Map<String, dynamic>? receivedManifest;
       int receivedBytes = 0;
@@ -186,7 +194,9 @@ void main() {
         }
 
         // Send success response
-        socket.write(jsonEncode({'status': 'complete', 'receivedBytes': receivedBytes}));
+        socket.write(
+          jsonEncode({'status': 'complete', 'receivedBytes': receivedBytes}),
+        );
         await socket.close();
         connectionReceived.complete();
       });
@@ -202,7 +212,10 @@ void main() {
       final packageData = List.generate(1024, (i) => i % 256);
 
       // Connect and send
-      final client = await Socket.connect(InternetAddress.loopbackIPv4, testPushPort);
+      final client = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        testPushPort,
+      );
 
       // Send manifest length (4 bytes, big-endian)
       final lengthBytes = ByteData(4);
@@ -239,79 +252,100 @@ void main() {
       );
     });
 
-    test('should handle large package transfer', () async {
-      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, testPushPort);
-      final completer = Completer<int>();
+    test(
+      'should handle large package transfer',
+      () async {
+        final server = await ServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          testPushPort,
+        );
+        final completer = Completer<int>();
 
-      server.listen((socket) async {
-        final buffer = BytesBuilder();
-        int? manifestLength;
-        Map<String, dynamic>? manifest;
-        int receivedBytes = 0;
+        server.listen((socket) async {
+          final buffer = BytesBuilder();
+          int? manifestLength;
+          Map<String, dynamic>? manifest;
+          int receivedBytes = 0;
 
-        await for (final chunk in socket) {
-          buffer.add(chunk);
+          await for (final chunk in socket) {
+            buffer.add(chunk);
 
-          if (manifestLength == null && buffer.length >= 4) {
-            final bytes = buffer.takeBytes();
-            manifestLength = ByteData.view(
-              Uint8List.fromList(bytes.sublist(0, 4)).buffer,
-            ).getInt32(0, Endian.big);
-            buffer.add(bytes.sublist(4));
+            if (manifestLength == null && buffer.length >= 4) {
+              final bytes = buffer.takeBytes();
+              manifestLength = ByteData.view(
+                Uint8List.fromList(bytes.sublist(0, 4)).buffer,
+              ).getInt32(0, Endian.big);
+              buffer.add(bytes.sublist(4));
+            }
+
+            if (manifest == null &&
+                manifestLength != null &&
+                buffer.length >= manifestLength) {
+              final bytes = buffer.takeBytes();
+              final manifestJson = utf8.decode(
+                bytes.sublist(0, manifestLength),
+              );
+              manifest = jsonDecode(manifestJson) as Map<String, dynamic>;
+              receivedBytes = bytes.length - manifestLength;
+              buffer.add(bytes.sublist(manifestLength));
+            }
+
+            if (manifest != null) {
+              final bytes = buffer.takeBytes();
+              receivedBytes += bytes.length;
+            }
           }
 
-          if (manifest == null && manifestLength != null && buffer.length >= manifestLength) {
-            final bytes = buffer.takeBytes();
-            final manifestJson = utf8.decode(bytes.sublist(0, manifestLength));
-            manifest = jsonDecode(manifestJson) as Map<String, dynamic>;
-            receivedBytes = bytes.length - manifestLength;
-            buffer.add(bytes.sublist(manifestLength));
-          }
+          socket.write(jsonEncode({'status': 'complete'}));
+          await socket.close();
+          completer.complete(receivedBytes);
+        });
 
-          if (manifest != null) {
-            final bytes = buffer.takeBytes();
-            receivedBytes += bytes.length;
-          }
+        // Send 1MB of data
+        const largeSize = 1024 * 1024; // 1MB
+        final manifest = {
+          'version': '2.1.0',
+          'buildNumber': 100,
+          'compressedSize': largeSize,
+          'files': {},
+        };
+        final manifestBytes = utf8.encode(jsonEncode(manifest));
+        final largeData = List.generate(largeSize, (i) => i % 256);
+
+        final client = await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          testPushPort,
+        );
+
+        final lengthBytes = ByteData(4);
+        lengthBytes.setInt32(0, manifestBytes.length, Endian.big);
+        client.add(lengthBytes.buffer.asUint8List());
+        client.add(manifestBytes);
+
+        // Send in chunks
+        const chunkSize = 64 * 1024; // 64KB chunks
+        for (var i = 0; i < largeData.length; i += chunkSize) {
+          final end = (i + chunkSize < largeData.length)
+              ? i + chunkSize
+              : largeData.length;
+          client.add(largeData.sublist(i, end));
+          await client.flush();
         }
 
-        socket.write(jsonEncode({'status': 'complete'}));
-        await socket.close();
-        completer.complete(receivedBytes);
-      });
+        await client.close();
 
-      // Send 1MB of data
-      const largeSize = 1024 * 1024; // 1MB
-      final manifest = {
-        'version': '2.1.0',
-        'buildNumber': 100,
-        'compressedSize': largeSize,
-        'files': {},
-      };
-      final manifestBytes = utf8.encode(jsonEncode(manifest));
-      final largeData = List.generate(largeSize, (i) => i % 256);
+        final received = await completer.future.timeout(
+          const Duration(seconds: 10),
+        );
+        expect(
+          received,
+          greaterThanOrEqualTo(largeSize * 0.99),
+        ); // Allow 1% tolerance
 
-      final client = await Socket.connect(InternetAddress.loopbackIPv4, testPushPort);
-
-      final lengthBytes = ByteData(4);
-      lengthBytes.setInt32(0, manifestBytes.length, Endian.big);
-      client.add(lengthBytes.buffer.asUint8List());
-      client.add(manifestBytes);
-
-      // Send in chunks
-      const chunkSize = 64 * 1024; // 64KB chunks
-      for (var i = 0; i < largeData.length; i += chunkSize) {
-        final end = (i + chunkSize < largeData.length) ? i + chunkSize : largeData.length;
-        client.add(largeData.sublist(i, end));
-        await client.flush();
-      }
-
-      await client.close();
-
-      final received = await completer.future.timeout(const Duration(seconds: 10));
-      expect(received, greaterThanOrEqualTo(largeSize * 0.99)); // Allow 1% tolerance
-
-      await server.close();
-    }, timeout: const Timeout(Duration(seconds: 30)));
+        await server.close();
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
   });
 
   group('UpdateManifest', () {

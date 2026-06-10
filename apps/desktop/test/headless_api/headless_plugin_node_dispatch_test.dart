@@ -26,9 +26,7 @@ class _PluginVerdict {
 }
 
 class _PluginDispatchBackend extends DisconnectedBackend {
-  _PluginDispatchBackend({
-    required this.events,
-  });
+  _PluginDispatchBackend({required this.events});
 
   final Stream<NightshadeEvent> events;
   bool dispatchLocally = true;
@@ -47,12 +45,14 @@ class _PluginDispatchBackend extends DisconnectedBackend {
     String? message,
     String? structuredDetailJson,
   }) async {
-    verdicts.add(_PluginVerdict(
-      nodeId: nodeId,
-      success: success,
-      message: message,
-      structuredDetailJson: structuredDetailJson,
-    ));
+    verdicts.add(
+      _PluginVerdict(
+        nodeId: nodeId,
+        success: success,
+        message: message,
+        structuredDetailJson: structuredDetailJson,
+      ),
+    );
   }
 }
 
@@ -73,13 +73,12 @@ void main() {
     await events.close();
   });
 
-  Future<void> startServer({
-    required PluginNodeDispatcher dispatcher,
-  }) async {
+  Future<void> startServer({required PluginNodeDispatcher dispatcher}) async {
     final testContainer = ProviderContainer(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
         pluginNodeDispatcherProvider.overrideWithValue(dispatcher),
       ],
     );
@@ -106,58 +105,62 @@ void main() {
     );
   }
 
-  test('dispatches PluginNodeRequested events from the headless host stream',
-      () async {
-    PluginNodeDispatchRequest? captured;
-    await startServer(
-      dispatcher: (request) async {
-        captured = request;
-        return const PluginNodeDispatchResult(
-          success: true,
-          message: 'sent',
-          structuredDetailJson: '{"provider":"test"}',
-        );
-      },
-    );
+  test(
+    'dispatches PluginNodeRequested events from the headless host stream',
+    () async {
+      PluginNodeDispatchRequest? captured;
+      await startServer(
+        dispatcher: (request) async {
+          captured = request;
+          return const PluginNodeDispatchResult(
+            success: true,
+            message: 'sent',
+            structuredDetailJson: '{"provider":"test"}',
+          );
+        },
+      );
 
-    events.add(pluginRequest('plugin-node-headless'));
+      events.add(pluginRequest('plugin-node-headless'));
 
-    for (var i = 0; i < 40; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-      if (backend.verdicts.isNotEmpty) {
-        final verdict = backend.verdicts.single;
-        expect(verdict.nodeId, 'plugin-node-headless');
-        expect(verdict.success, isTrue);
-        expect(verdict.message, 'sent');
-        expect(verdict.structuredDetailJson, '{"provider":"test"}');
-        expect(captured, isNotNull);
-        expect(captured!.pluginId, 'com.example.notify');
-        expect(captured!.nodeTypeId, 'notify.send');
-        expect(captured!.configJson, '{"message":"hello"}');
-        expect(captured!.displayName, 'Notify');
-        expect(captured!.timeoutSecs, 12);
-        return;
+      for (var i = 0; i < 40; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        if (backend.verdicts.isNotEmpty) {
+          final verdict = backend.verdicts.single;
+          expect(verdict.nodeId, 'plugin-node-headless');
+          expect(verdict.success, isTrue);
+          expect(verdict.message, 'sent');
+          expect(verdict.structuredDetailJson, '{"provider":"test"}');
+          expect(captured, isNotNull);
+          expect(captured!.pluginId, 'com.example.notify');
+          expect(captured!.nodeTypeId, 'notify.send');
+          expect(captured!.configJson, '{"message":"hello"}');
+          expect(captured!.displayName, 'Notify');
+          expect(captured!.timeoutSecs, 12);
+          return;
+        }
       }
-    }
 
-    fail('Headless API server never posted the plugin node verdict');
-  });
+      fail('Headless API server never posted the plugin node verdict');
+    },
+  );
 
-  test('does not dispatch when the backend marks plugin dispatch remote',
-      () async {
-    backend.dispatchLocally = false;
-    var dispatched = false;
-    await startServer(
-      dispatcher: (request) async {
-        dispatched = true;
-        return const PluginNodeDispatchResult(success: true);
-      },
-    );
+  test(
+    'does not dispatch when the backend marks plugin dispatch remote',
+    () async {
+      backend.dispatchLocally = false;
+      var dispatched = false;
+      await startServer(
+        dispatcher: (request) async {
+          dispatched = true;
+          return const PluginNodeDispatchResult(success: true);
+        },
+      );
 
-    events.add(pluginRequest('plugin-node-network'));
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+      events.add(pluginRequest('plugin-node-network'));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
-    expect(dispatched, isFalse);
-    expect(backend.verdicts, isEmpty);
-  });
+      expect(dispatched, isFalse);
+      expect(backend.verdicts, isEmpty);
+    },
+  );
 }

@@ -14,15 +14,24 @@ class SettingsTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'settings_categories': return categories;
-      case 'settings_connection': return connection;
-      case 'settings_location': return location;
-      case 'settings_appearance': return appearance;
-      case 'settings_file_paths': return filePaths;
-      case 'settings_plate_solving': return plateSolving;
-      case 'settings_notifications': return notifications;
-      case 'settings_help': return help;
-      default: return null;
+      case 'settings_categories':
+        return categories;
+      case 'settings_connection':
+        return connection;
+      case 'settings_location':
+        return location;
+      case 'settings_appearance':
+        return appearance;
+      case 'settings_file_paths':
+        return filePaths;
+      case 'settings_plate_solving':
+        return plateSolving;
+      case 'settings_notifications':
+        return notifications;
+      case 'settings_help':
+        return help;
+      default:
+        return null;
     }
   }
 }

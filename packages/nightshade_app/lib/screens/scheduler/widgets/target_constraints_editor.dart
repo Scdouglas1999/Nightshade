@@ -167,7 +167,8 @@ class _TargetConstraintsEditorState
         if (snap.hasError) {
           return Text(
             'Failed to load constraints: ${snap.error}',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12, color: colors.error),
           );
         }
         final loaded = snap.data!;
@@ -190,7 +191,9 @@ class _TargetConstraintsEditorState
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               'A failing constraint excludes ${widget.targetName} from selection regardless of score.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             for (final c in loaded.constraints)

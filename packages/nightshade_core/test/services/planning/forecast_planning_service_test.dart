@@ -53,15 +53,17 @@ void main() {
     final end = to.add(pad);
     var t = DateTime.utc(start.year, start.month, start.day, start.hour);
     while (!t.isAfter(end)) {
-      frames.add(RadarFrame(
-        timestamp: t,
-        tileUrlTemplate: '',
-        north: lat + 0.5,
-        south: lat - 0.5,
-        east: lon + 0.5,
-        west: lon - 0.5,
-        opacity: opacity,
-      ));
+      frames.add(
+        RadarFrame(
+          timestamp: t,
+          tileUrlTemplate: '',
+          north: lat + 0.5,
+          south: lat - 0.5,
+          east: lon + 0.5,
+          west: lon - 0.5,
+          opacity: opacity,
+        ),
+      );
       t = t.add(const Duration(hours: 1));
     }
     return frames;
@@ -89,10 +91,8 @@ void main() {
     minAltitudeDeg: 30.0,
   );
 
-  ForecastPlanningService service() => ForecastPlanningService(
-        latitudeDegrees: lat,
-        longitudeDegrees: lon,
-      );
+  ForecastPlanningService service() =>
+      ForecastPlanningService(latitudeDegrees: lat, longitudeDegrees: lon);
 
   group('construction', () {
     test('rejects a cloud threshold outside [0,1]', () {
@@ -146,17 +146,19 @@ void main() {
       expect(week.bestNight, isNull);
     });
 
-    test('empty-frames success → unavailable week (never fabricates clear)',
-        () {
-      final week = service().buildWeek(
-        cloudResult: RadarFetchResult.success(const []),
-        targets: const [alwaysUp],
-        nowLocal: nowLocal,
-      );
-      expect(week.available, isFalse);
-      expect(week.unavailableReason, contains('no forecast frames'));
-      expect(week.bestNight, isNull);
-    });
+    test(
+      'empty-frames success → unavailable week (never fabricates clear)',
+      () {
+        final week = service().buildWeek(
+          cloudResult: RadarFetchResult.success(const []),
+          targets: const [alwaysUp],
+          nowLocal: nowLocal,
+        );
+        expect(week.available, isFalse);
+        expect(week.unavailableReason, contains('no forecast frames'));
+        expect(week.bestNight, isNull);
+      },
+    );
   });
 
   group('per-night scoring', () {
@@ -208,47 +210,58 @@ void main() {
       expect(night.score, closeTo(0.0, 1e-9));
     });
 
-    test('clear night with NO target up has empty bestTargets and scores 0',
-        () {
-      final win = darkWindow(nowLocal);
-      final frames = hourlyFrames(from: win.dusk, to: win.dawn, opacity: 0.0);
+    test(
+      'clear night with NO target up has empty bestTargets and scores 0',
+      () {
+        final win = darkWindow(nowLocal);
+        final frames = hourlyFrames(from: win.dusk, to: win.dawn, opacity: 0.0);
 
-      final week = service().buildWeek(
-        cloudResult: RadarFetchResult.success(frames),
-        targets: const [neverUp],
-        nowLocal: nowLocal,
-        nights: 1,
-      );
+        final week = service().buildWeek(
+          cloudResult: RadarFetchResult.success(frames),
+          targets: const [neverUp],
+          nowLocal: nowLocal,
+          nights: 1,
+        );
 
-      final night = week.nights.single;
-      expect(night.forecastAvailable, isTrue);
-      expect(night.clearDarkHours, greaterThan(8.0)); // genuinely clear
-      expect(night.bestTargets, isEmpty); // nothing to point at
-      // Composite score gates on a target being up → 0 despite clear sky.
-      expect(night.score, closeTo(0.0, 1e-9));
-    });
+        final night = week.nights.single;
+        expect(night.forecastAvailable, isTrue);
+        expect(night.clearDarkHours, greaterThan(8.0)); // genuinely clear
+        expect(night.bestTargets, isEmpty); // nothing to point at
+        // Composite score gates on a target being up → 0 despite clear sky.
+        expect(night.score, closeTo(0.0, 1e-9));
+      },
+    );
 
-    test('threshold boundary: opacity exactly at threshold counts as clear',
-        () {
-      final win = darkWindow(nowLocal);
-      // opacity == threshold (0.35) must be treated as clear (<=).
-      final frames = hourlyFrames(from: win.dusk, to: win.dawn, opacity: 0.35);
+    test(
+      'threshold boundary: opacity exactly at threshold counts as clear',
+      () {
+        final win = darkWindow(nowLocal);
+        // opacity == threshold (0.35) must be treated as clear (<=).
+        final frames = hourlyFrames(
+          from: win.dusk,
+          to: win.dawn,
+          opacity: 0.35,
+        );
 
-      final week = service().buildWeek(
-        cloudResult: RadarFetchResult.success(frames),
-        targets: const [alwaysUp],
-        nowLocal: nowLocal,
-        nights: 1,
-      );
-      final night = week.nights.single;
-      expect(night.clearDarkHours, greaterThan(8.0));
-      expect(night.score, greaterThan(0.9));
-    });
+        final week = service().buildWeek(
+          cloudResult: RadarFetchResult.success(frames),
+          targets: const [alwaysUp],
+          nowLocal: nowLocal,
+          nights: 1,
+        );
+        final night = week.nights.single;
+        expect(night.clearDarkHours, greaterThan(8.0));
+        expect(night.score, greaterThan(0.9));
+      },
+    );
 
     test('a target just over threshold opacity is NOT clear', () {
       final win = darkWindow(nowLocal);
-      final frames =
-          hourlyFrames(from: win.dusk, to: win.dawn, opacity: 0.3501);
+      final frames = hourlyFrames(
+        from: win.dusk,
+        to: win.dawn,
+        opacity: 0.3501,
+      );
       final week = service().buildWeek(
         cloudResult: RadarFetchResult.success(frames),
         targets: const [alwaysUp],
@@ -285,8 +298,11 @@ void main() {
       );
 
       final night = week.nights.single;
-      expect(night.forecastAvailable, isTrue,
-          reason: 'no darkness is honest, not a forecast failure');
+      expect(
+        night.forecastAvailable,
+        isTrue,
+        reason: 'no darkness is honest, not a forecast failure',
+      );
       expect(night.darkHours, 0.0);
       expect(night.clearDarkHours, 0.0);
       expect(night.bestTargets, isEmpty);
@@ -298,8 +314,7 @@ void main() {
   });
 
   group('partial horizon (fail-closed per-night)', () {
-    test(
-        'forecast shorter than the lookahead → early nights available, later '
+    test('forecast shorter than the lookahead → early nights available, later '
         'nights unavailable', () {
       // Cover only the first two nights' dark windows with frames; nights
       // beyond the horizon must be unavailable, not silently clear.
@@ -322,8 +337,9 @@ void main() {
       // Nights are sorted ascending by date.
       for (var i = 1; i < week.nights.length; i++) {
         expect(
-          week.nights[i].nightDateLocal
-              .isAfter(week.nights[i - 1].nightDateLocal),
+          week.nights[i].nightDateLocal.isAfter(
+            week.nights[i - 1].nightDateLocal,
+          ),
           isTrue,
         );
       }
@@ -334,8 +350,11 @@ void main() {
       expect(week.nights[1].score, greaterThan(0.9));
       // Later nights have no cloud frame within tolerance → unavailable.
       for (var i = 2; i < week.nights.length; i++) {
-        expect(week.nights[i].forecastAvailable, isFalse,
-            reason: 'night $i is beyond the fetched horizon');
+        expect(
+          week.nights[i].forecastAvailable,
+          isFalse,
+          reason: 'night $i is beyond the fetched horizon',
+        );
         expect(week.nights[i].unavailableReason, contains('horizon'));
         expect(week.nights[i].score, 0.0);
       }
@@ -351,17 +370,20 @@ void main() {
 
       // Night 2: first half of dark hours clear, second half clouded.
       final mid2 = win2.dusk.add(
-        Duration(
-          seconds: win2.dawn.difference(win2.dusk).inSeconds ~/ 2,
-        ),
+        Duration(seconds: win2.dawn.difference(win2.dusk).inSeconds ~/ 2),
       );
-      final night2Clear =
-          hourlyFrames(from: win2.dusk, to: mid2, opacity: 0.0, pad: Duration.zero);
+      final night2Clear = hourlyFrames(
+        from: win2.dusk,
+        to: mid2,
+        opacity: 0.0,
+        pad: Duration.zero,
+      );
       final night2Cloud = hourlyFrames(
-          from: mid2.add(const Duration(hours: 1)),
-          to: win2.dawn,
-          opacity: 1.0,
-          pad: Duration.zero);
+        from: mid2.add(const Duration(hours: 1)),
+        to: win2.dawn,
+        opacity: 1.0,
+        pad: Duration.zero,
+      );
 
       final frames = [
         ...hourlyFrames(from: win0.dusk, to: win0.dawn, opacity: 0.0),
@@ -422,11 +444,15 @@ void main() {
       for (var i = 1; i < best.length; i++) {
         final prev = best[i - 1];
         final cur = best[i];
-        final ordered = prev.upDarkHours > cur.upDarkHours ||
+        final ordered =
+            prev.upDarkHours > cur.upDarkHours ||
             (prev.upDarkHours == cur.upDarkHours &&
                 prev.maxAltitudeDeg >= cur.maxAltitudeDeg);
-        expect(ordered, isTrue,
-            reason: 'targets must be ranked desc by up-time then altitude');
+        expect(
+          ordered,
+          isTrue,
+          reason: 'targets must be ranked desc by up-time then altitude',
+        );
       }
     });
   });
@@ -480,7 +506,8 @@ double _refAltDeg({
 }) {
   final jd = SkyCalculations.julianDate(timeUtc);
   final t = (jd - 2451545.0) / 36525.0;
-  var gmstDeg = 280.46061837 +
+  var gmstDeg =
+      280.46061837 +
       360.98564736629 * (jd - 2451545.0) +
       0.000387933 * t * t -
       t * t * t / 38710000.0;
@@ -492,7 +519,8 @@ double _refAltDeg({
   final haRad = (lstHours - raHours) * 15.0 * math.pi / 180.0;
   final decRad = decDegrees * math.pi / 180.0;
   final latRad = latDeg * math.pi / 180.0;
-  final sinAlt = math.sin(decRad) * math.sin(latRad) +
+  final sinAlt =
+      math.sin(decRad) * math.sin(latRad) +
       math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
   return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
 }

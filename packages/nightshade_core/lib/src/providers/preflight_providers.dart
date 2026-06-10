@@ -32,9 +32,9 @@ final timeSyncProbeProvider = Provider<TimeSyncProbe>((ref) {
 /// honouring strictness).
 final lastPolarAlignmentAnywhereProvider =
     FutureProvider.autoDispose<PolarAlignmentHistoryEntry?>((ref) async {
-  final db = ref.watch(databaseProvider);
-  return db.polarAlignmentHistoryDao.getLastAlignment(null);
-});
+      final db = ref.watch(databaseProvider);
+      return db.polarAlignmentHistoryDao.getLastAlignment(null);
+    });
 
 /// Pre-session optical-train baseline snapshot. Captured the first time
 /// the user runs a sequence (or after the user clears it via the
@@ -84,8 +84,9 @@ class OpticalTrainBaseline {
 /// further out (the executor writes it to a key in `app_settings` on
 /// every run start); the in-process provider here is the runtime
 /// cache. Tests override it directly via `overrideWith`.
-final opticalTrainBaselineProvider =
-    StateProvider<OpticalTrainBaseline?>((ref) => null);
+final opticalTrainBaselineProvider = StateProvider<OpticalTrainBaseline?>(
+  (ref) => null,
+);
 
 /// Current optical-train snapshot supplied by the post-session pipeline
 /// (or by the test harness). Wave 5 Agent 3 fills this from the live
@@ -155,4 +156,5 @@ class PostSessionHealthSummary {
 /// post-session report dialog.
 final postSessionHealthSummaryProvider =
     StateProvider.family<PostSessionHealthSummary, int>(
-        (ref, sessionId) => const PostSessionHealthSummary());
+      (ref, sessionId) => const PostSessionHealthSummary(),
+    );

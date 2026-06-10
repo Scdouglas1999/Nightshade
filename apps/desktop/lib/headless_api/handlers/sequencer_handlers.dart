@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
@@ -247,10 +247,7 @@ class SequencerHandlers {
     final rawOffsets = payload['filterFocusOffsets'];
     if (rawOffsets != null) {
       if (rawOffsets is! Map) {
-        throw BadRequestError(
-          field: 'filterFocusOffsets',
-          expected: 'object',
-        );
+        throw BadRequestError(field: 'filterFocusOffsets', expected: 'object');
       }
       filterFocusOffsets = <String, int>{};
       rawOffsets.forEach((key, value) {
@@ -288,7 +285,8 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSetSafetyCheckInterval(
-      Request request) async {
+    Request request,
+  ) async {
     _logInfo('[API] POST /api/sequencer/safety-check-interval');
     final payload = await readJsonObject(request);
     final seconds = requireInt(payload, 'seconds', min: 5, max: 3600);
@@ -369,10 +367,7 @@ class SequencerHandlers {
       }
       rawOffsets.forEach((key, value) {
         if (value is! num) {
-          throw BadRequestError(
-            field: 'offsets.$key',
-            expected: 'integer',
-          );
+          throw BadRequestError(field: 'offsets.$key', expected: 'integer');
         }
         offsets[key.toString()] = value.toInt();
       });
@@ -403,7 +398,8 @@ class SequencerHandlers {
   /// sequencer must be told to re-evaluate without restarting. Values < 1 are
   /// rejected as a structured 400 (the Rust bridge enforces the same gate).
   Future<Response> handleSequencerUpdateAutofocusInterval(
-      Request request) async {
+    Request request,
+  ) async {
     _logInfo('[API] POST /api/sequencer/update-autofocus-interval');
     final payload = await readJsonObject(request);
     final everyNFrames = requireInt(payload, 'everyNFrames', min: 1);
@@ -424,15 +420,19 @@ class SequencerHandlers {
       hfrBaselinePercent: optionalDouble(payload, 'hfrBaselinePercent'),
       eccentricityThreshold: optionalDouble(payload, 'eccentricityThreshold'),
       starCountMin: optionalInt(payload, 'starCountMin', min: 0),
-      maxConsecutiveRejects:
-          requireInt(payload, 'maxConsecutiveRejects', min: 1),
+      maxConsecutiveRejects: requireInt(
+        payload,
+        'maxConsecutiveRejects',
+        min: 1,
+      ),
       enabled: requireBool(payload, 'enabled'),
     );
     return jsonOk({'status': 'ok'});
   }
 
   Future<Response> handleSequencerUpdateRejectFolderPath(
-      Request request) async {
+    Request request,
+  ) async {
     _logInfo('[API] POST /api/sequencer/update-reject-folder-path');
     final payload = await readJsonObject(request);
     final backend = container.read(sequencerBackendProvider);
@@ -547,8 +547,7 @@ class SequencerHandlers {
       autoCenter: payload['autoCenter'] as bool? ?? true,
       refocusAfter: payload['refocusAfter'] as bool? ?? false,
       resumeGuiding: payload['resumeGuiding'] as bool? ?? true,
-      settleTimeSecs:
-          (payload['settleTimeSecs'] as num?)?.toDouble() ?? 10.0,
+      settleTimeSecs: (payload['settleTimeSecs'] as num?)?.toDouble() ?? 10.0,
     );
     return jsonOk({'status': 'flipped'});
   }
@@ -606,11 +605,15 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final retryIntervalSecs = requireDouble(payload, 'retryIntervalSecs');
     final maxDurationSecs = requireDouble(payload, 'maxDurationSecs');
-    final stopTrackingDuringRecovery =
-        requireBool(payload, 'stopTrackingDuringRecovery');
+    final stopTrackingDuringRecovery = requireBool(
+      payload,
+      'stopTrackingDuringRecovery',
+    );
     final abortOnMeridian = requireBool(payload, 'abortOnMeridian');
-    final audibleAlertWhenEntered =
-        requireBool(payload, 'audibleAlertWhenEntered');
+    final audibleAlertWhenEntered = requireBool(
+      payload,
+      'audibleAlertWhenEntered',
+    );
 
     final backend = container.read(sequencerBackendProvider);
     await backend.updateRecoveryConfig(
@@ -654,14 +657,22 @@ class SequencerHandlers {
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateCloudMotion(
       currentCoverPercent: _readNullableDouble(payload, 'currentCoverPercent'),
-      predictedArrivalMinutes:
-          _readNullableDouble(payload, 'predictedArrivalMinutes'),
-      predictedOpeningMinutes:
-          _readNullableDouble(payload, 'predictedOpeningMinutes'),
-      predictedOpeningDurationSecs:
-          _readNullableDouble(payload, 'predictedOpeningDurationSecs'),
-      predictedClearSkyAlt:
-          _readNullableDouble(payload, 'predictedClearSkyAlt'),
+      predictedArrivalMinutes: _readNullableDouble(
+        payload,
+        'predictedArrivalMinutes',
+      ),
+      predictedOpeningMinutes: _readNullableDouble(
+        payload,
+        'predictedOpeningMinutes',
+      ),
+      predictedOpeningDurationSecs: _readNullableDouble(
+        payload,
+        'predictedOpeningDurationSecs',
+      ),
+      predictedClearSkyAlt: _readNullableDouble(
+        payload,
+        'predictedClearSkyAlt',
+      ),
       predictedClearSkyAz: _readNullableDouble(payload, 'predictedClearSkyAz'),
     );
     return jsonOk({'status': 'ok'});

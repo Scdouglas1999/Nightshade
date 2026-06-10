@@ -85,10 +85,7 @@ class RunWatchHandlers {
   final List<NightshadeEvent> _recentBuffer = <NightshadeEvent>[];
   StreamSubscription<NightshadeEvent>? _bufferSubscription;
 
-  RunWatchHandlers({
-    required this.container,
-    required this.eventBroadcast,
-  }) {
+  RunWatchHandlers({required this.container, required this.eventBroadcast}) {
     // Track recent events for the snapshot endpoint. We tolerate
     // duplicate subscriptions on the same broadcast stream — the
     // upstream is a single broadcast controller in headless_api_server.
@@ -235,12 +232,14 @@ class RunWatchHandlers {
     try {
       final connected = await backend.getConnectedDevices();
       devices = connected
-          .map((d) => <String, Object?>{
-                'id': d.id,
-                'name': d.name,
-                'type': d.deviceType.name,
-                'driver': d.driverType.name,
-              })
+          .map(
+            (d) => <String, Object?>{
+              'id': d.id,
+              'name': d.name,
+              'type': d.deviceType.name,
+              'driver': d.driverType.name,
+            },
+          )
           .toList(growable: false);
     } catch (e) {
       _logWarning('snapshot: connected devices fetch failed: $e');
@@ -262,10 +261,7 @@ class RunWatchHandlers {
 
     return jsonOk({
       'serverTime': DateTime.now().toUtc().toIso8601String(),
-      'sequencer': {
-        ...sequencerStatus,
-        'progress': progressBlock,
-      },
+      'sequencer': {...sequencerStatus, 'progress': progressBlock},
       'activeTarget': activeTargetBlock,
       'guiding': guidingBlock,
       'weather': weatherBlock,
@@ -276,36 +272,36 @@ class RunWatchHandlers {
   }
 
   Map<String, Object?> _progressToJson(SequenceProgress p) => {
-        'state': p.state.name,
-        'currentNodeId': p.currentNodeId,
-        'currentNodeName': p.currentNodeName,
-        'currentTarget': p.currentTarget,
-        'currentFilter': p.currentFilter,
-        'totalExposures': p.totalExposures,
-        'completedExposures': p.completedExposures,
-        'totalIntegrationSecs': p.totalIntegrationSecs,
-        'completedIntegrationSecs': p.completedIntegrationSecs,
-        'elapsedSecs': p.elapsedSecs,
-        'estimatedRemainingSecs': p.estimatedRemainingSecs,
-        'message': p.message,
-        'progressPercent': p.progressPercent,
-      };
+    'state': p.state.name,
+    'currentNodeId': p.currentNodeId,
+    'currentNodeName': p.currentNodeName,
+    'currentTarget': p.currentTarget,
+    'currentFilter': p.currentFilter,
+    'totalExposures': p.totalExposures,
+    'completedExposures': p.completedExposures,
+    'totalIntegrationSecs': p.totalIntegrationSecs,
+    'completedIntegrationSecs': p.completedIntegrationSecs,
+    'elapsedSecs': p.elapsedSecs,
+    'estimatedRemainingSecs': p.estimatedRemainingSecs,
+    'message': p.message,
+    'progressPercent': p.progressPercent,
+  };
 
   Map<String, Object?> _idleProgressJson() => {
-        'state': 'idle',
-        'currentNodeId': null,
-        'currentNodeName': null,
-        'currentTarget': null,
-        'currentFilter': null,
-        'totalExposures': 0,
-        'completedExposures': 0,
-        'totalIntegrationSecs': 0.0,
-        'completedIntegrationSecs': 0.0,
-        'elapsedSecs': 0.0,
-        'estimatedRemainingSecs': null,
-        'message': null,
-        'progressPercent': 0.0,
-      };
+    'state': 'idle',
+    'currentNodeId': null,
+    'currentNodeName': null,
+    'currentTarget': null,
+    'currentFilter': null,
+    'totalExposures': 0,
+    'completedExposures': 0,
+    'totalIntegrationSecs': 0.0,
+    'completedIntegrationSecs': 0.0,
+    'elapsedSecs': 0.0,
+    'estimatedRemainingSecs': null,
+    'message': null,
+    'progressPercent': 0.0,
+  };
 
   /// Derives the active TargetHeaderNode from the currently-loaded
   /// sequence and, if location is configured, computes live alt/az +
@@ -350,8 +346,9 @@ class RunWatchHandlers {
         }
       }
     }
-    target ??=
-        sequence.targetHeaders.isNotEmpty ? sequence.targetHeaders.first : null;
+    target ??= sequence.targetHeaders.isNotEmpty
+        ? sequence.targetHeaders.first
+        : null;
     if (target == null) return null;
 
     double? altitude;
@@ -425,9 +422,7 @@ class RunWatchHandlers {
   /// page-load snapshot agrees with the live SSE feed.
   List<Map<String, Object?>> _recentEvents({required int limit}) {
     final take = _recentBuffer.length < limit ? _recentBuffer.length : limit;
-    return [
-      for (var i = 0; i < take; i++) _eventToJson(_recentBuffer[i]),
-    ];
+    return [for (var i = 0; i < take; i++) _eventToJson(_recentBuffer[i])];
   }
 
   Object? _safeJsonDecode(String raw) {
@@ -467,8 +462,9 @@ class RunWatchHandlers {
     final backend = container.read(deviceBackendProvider);
 
     final queryDeviceId = request.url.queryParameters['deviceId']?.trim();
-    String? deviceId =
-        (queryDeviceId == null || queryDeviceId.isEmpty) ? null : queryDeviceId;
+    String? deviceId = (queryDeviceId == null || queryDeviceId.isEmpty)
+        ? null
+        : queryDeviceId;
 
     if (deviceId == null) {
       try {
@@ -523,8 +519,9 @@ class RunWatchHandlers {
     );
     if (encoded == null) {
       _logWarning(
-          'frame-thumbnail: displayData length ${image.displayData.length} != '
-          '${image.width * image.height * 4} (w=${image.width} h=${image.height})');
+        'frame-thumbnail: displayData length ${image.displayData.length} != '
+        '${image.width * image.height * 4} (w=${image.width} h=${image.height})',
+      );
       return jsonInternalServerError({
         'error': 'bad_image_buffer',
         'message': 'Display buffer size mismatch.',
@@ -592,10 +589,7 @@ class RunWatchHandlers {
             // reconnect, `data:` is the payload, blank line terminates.
             // We include the eventName in the body too so default
             // `message` listeners can route without inspecting headers.
-            final payload = jsonEncode({
-              ...json,
-              'eventName': eventName,
-            });
+            final payload = jsonEncode({...json, 'eventName': eventName});
             // Use monotonic counter for the id; the core
             // NightshadeEvent has no stable id field. EventSource
             // resends `Last-Event-ID` on reconnect but we don't replay,
@@ -651,10 +645,7 @@ class RunWatchHandlers {
   /// Encode a NightshadeEvent the way the SSE/snapshot path expects.
   Map<String, Object?> _eventToJson(NightshadeEvent event) {
     final json = event.toJson();
-    return {
-      ...json,
-      'eventName': _eventTypeName(event),
-    };
+    return {...json, 'eventName': _eventTypeName(event)};
   }
 
   /// Extract a coarse event-type name for SSE `event:` framing.

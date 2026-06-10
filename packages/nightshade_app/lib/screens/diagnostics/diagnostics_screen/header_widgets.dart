@@ -30,7 +30,8 @@ class _DocsInfoChip extends StatelessWidget {
                   'Learn more about optical diagnostics',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: NightshadeTypography.labelSm.copyWith(color: colors.accent),
+                  style: NightshadeTypography.labelSm
+                      .copyWith(color: colors.accent),
                 ),
               ),
             ],
@@ -59,7 +60,8 @@ class _SessionSelector extends StatelessWidget {
     if (sessions.isEmpty) {
       return Text(
         context.l10n.text('diagnosticsNoSessions'),
-        style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+        style: TextStyle(
+            color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
       );
     }
 
@@ -100,10 +102,14 @@ class _SessionSelector extends StatelessWidget {
           isExpanded: true,
           hint: Text(
             context.l10n.text('diagnosticsSelectSession'),
-            style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
+            style: TextStyle(
+                color: colors.textMuted,
+                fontSize: NightshadeTypography.fontSize13),
           ),
           dropdownColor: colors.surfaceElevated,
-          style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: NightshadeTypography.fontSize13),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           items: visibleSessions.map((session) {

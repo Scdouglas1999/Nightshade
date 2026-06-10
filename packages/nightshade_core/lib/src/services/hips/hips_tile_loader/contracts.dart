@@ -81,7 +81,8 @@ class HipsViewport {
   }
 
   @override
-  String toString() => 'HipsViewport($surveyId @ ${target.raHours}h '
+  String toString() =>
+      'HipsViewport($surveyId @ ${target.raHours}h '
       '${target.decDegrees}deg, zoom=$zoom, pan=$pan, rot=$rotationDegrees, '
       'canvas=$canvasSize)';
 }
@@ -195,7 +196,8 @@ class HipsResidentSnapshot {
       primaryTiles.isNotEmpty || fallbackTiles.isNotEmpty || allsky != null;
 
   @override
-  String toString() => 'HipsResidentSnapshot(v$version, Norder$selectedNorder, '
+  String toString() =>
+      'HipsResidentSnapshot(v$version, Norder$selectedNorder, '
       '${primaryTiles.length} primary, ${fallbackTiles.length} fallback, '
       'allsky=${allsky != null}, ${failures.length} failures)';
 }

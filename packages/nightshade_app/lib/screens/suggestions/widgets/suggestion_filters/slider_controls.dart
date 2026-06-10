@@ -54,7 +54,8 @@ class _SliderControl extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 valueFormatter(value),
@@ -154,7 +155,9 @@ class _RangeSliderControl extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     '–',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
                 _valueBadge(maxValueFormatter(clampedMax)),
@@ -171,12 +174,16 @@ class _RangeSliderControl extends StatelessWidget {
               if (minLabel != null)
                 Text(
                   minLabel!,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
               if (maxLabel != null)
                 Text(
                   maxLabel!,
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
             ],
           ),

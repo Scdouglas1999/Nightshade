@@ -28,8 +28,7 @@ Widget _harness({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('hides itself when idle and hideWhenIdle is set',
-      (tester) async {
+  testWidgets('hides itself when idle and hideWhenIdle is set', (tester) async {
     final tracker = ScienceProcessingStatusTracker();
     addTearDown(tracker.dispose);
 

@@ -97,7 +97,8 @@ class _LoopProperties extends ConsumerWidget {
                         horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       border: Border.all(color: colors.border),
                     ),
                     child: Row(
@@ -395,7 +396,8 @@ class _WaitTimeProperties extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -586,8 +588,7 @@ class _SafetyMonitorPicker extends ConsumerWidget {
     // discovered monitor keyed by its active device id.
     final options = <({String key, String label})>[
       (key: _aggregatedSentinel, label: 'Aggregated (all monitors)'),
-      for (final m in monitors)
-        (key: m.activeDeviceId, label: m.displayName),
+      for (final m in monitors) (key: m.activeDeviceId, label: m.displayName),
     ];
 
     // If the node references a monitor that's no longer discovered (e.g. it
@@ -621,7 +622,9 @@ class _SafetyMonitorPicker extends ConsumerWidget {
               color: colors.textMuted,
             ),
             dropdownColor: colors.surface,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textPrimary),
             items: options
                 .map((o) => DropdownMenuItem(
                       value: o.key,

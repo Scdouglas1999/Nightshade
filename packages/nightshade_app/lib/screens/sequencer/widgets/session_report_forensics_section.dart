@@ -118,16 +118,14 @@ class _ForensicsSummaryBlock extends StatelessWidget {
 
   String _buildHeadline(
       ForensicSummary summary, List<FrameForensicsRecord> records) {
-    final top = summary.rankedCauses.isNotEmpty
-        ? summary.rankedCauses.first
-        : null;
+    final top =
+        summary.rankedCauses.isNotEmpty ? summary.rankedCauses.first : null;
     if (top == null) {
       return 'Out of ${summary.total} rejections, no dominant cause was identified.';
     }
     final topWindow = _findCauseWindow(records, top.key);
-    final topWindowText = topWindow == null
-        ? ''
-        : ' between ${topWindow.$1} and ${topWindow.$2}';
+    final topWindowText =
+        topWindow == null ? '' : ' between ${topWindow.$1} and ${topWindow.$2}';
     return 'Out of ${summary.total} rejection${summary.total == 1 ? '' : 's'}, '
         '${top.value} ${top.value == 1 ? 'was' : 'were'} '
         '${top.key.humanLabel}$topWindowText.';
@@ -173,7 +171,8 @@ class _StackedBar extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
               color: forensicsCauseColor(e.key, colors),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
           ),
         );
@@ -213,14 +212,16 @@ class _CauseSummaryRow extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
                 cause.humanLabel,
-                style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textPrimary),
               ),
             ),
             Text(
@@ -313,7 +314,8 @@ class _CauseDrilldownDialog extends ConsumerWidget {
                           dense: true,
                           title: Text(
                             'Frame ${r.frameIndex}/${r.totalFrames}',
-                            style: const TextStyle(fontSize: NightshadeTypography.fontSize13),
+                            style: const TextStyle(
+                                fontSize: NightshadeTypography.fontSize13),
                           ),
                           subtitle: Text(
                             r.reason,
@@ -329,15 +331,16 @@ class _CauseDrilldownDialog extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize11,
                               color: colors.textMuted,
-                              fontFeatures: const [FontFeature.tabularFigures()],
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
                             ),
                           ),
                           onTap: () {
                             Navigator.of(context).pop();
                             showDialog<void>(
                               context: context,
-                              builder: (_) =>
-                                  FrameDetailDialog(record: r),
+                              builder: (_) => FrameDetailDialog(record: r),
                             );
                           },
                         );
@@ -378,7 +381,8 @@ class _ErrorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       'Forensics section unavailable: $message',
-      style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
+      style: TextStyle(
+          fontSize: NightshadeTypography.fontSize11, color: colors.error),
     );
   }
 }

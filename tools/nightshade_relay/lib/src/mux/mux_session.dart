@@ -91,7 +91,8 @@ class MuxStream {
     if (_reset) return;
     _reset = true;
     _session._sendFrame(
-        MuxFrame(id, MuxFrameType.reset, Uint8List.fromList(utf8.encode(reason))));
+      MuxFrame(id, MuxFrameType.reset, Uint8List.fromList(utf8.encode(reason))),
+    );
     _closeIncoming(error: null);
     _maybeComplete(force: true);
     _session._forget(id);
@@ -115,7 +116,8 @@ class MuxStream {
     if (_reset) return;
     _reset = true;
     _closeIncoming(
-        error: MuxStreamResetException(reason.isEmpty ? 'reset by peer' : reason));
+      error: MuxStreamResetException(reason.isEmpty ? 'reset by peer' : reason),
+    );
     _maybeComplete(force: true);
     _session._forget(id);
   }
@@ -190,11 +192,13 @@ class MuxSession {
 
   /// Send a stream-0 JSON control message.
   void sendControl(Map<String, dynamic> message) {
-    _sendFrame(MuxFrame(
-      kMuxControlStreamId,
-      MuxFrameType.control,
-      Uint8List.fromList(utf8.encode(jsonEncode(message))),
-    ));
+    _sendFrame(
+      MuxFrame(
+        kMuxControlStreamId,
+        MuxFrameType.control,
+        Uint8List.fromList(utf8.encode(jsonEncode(message))),
+      ),
+    );
   }
 
   /// Feed one inbound transport message (exactly one frame).
@@ -219,14 +223,20 @@ class MuxSession {
         }
         if (_streams.containsKey(frame.streamId)) {
           throw MuxProtocolException(
-              'open for already-active stream ${frame.streamId}');
+            'open for already-active stream ${frame.streamId}',
+          );
         }
         final stream = MuxStream._(frame.streamId, this);
         if (onStream == null) {
           // Initiator-only endpoint refusing an unexpected inbound stream.
           stream._reset = true;
-          _sendFrame(MuxFrame(frame.streamId, MuxFrameType.reset,
-              Uint8List.fromList(utf8.encode('not accepting streams'))));
+          _sendFrame(
+            MuxFrame(
+              frame.streamId,
+              MuxFrameType.reset,
+              Uint8List.fromList(utf8.encode('not accepting streams')),
+            ),
+          );
           return;
         }
         _streams[frame.streamId] = stream;

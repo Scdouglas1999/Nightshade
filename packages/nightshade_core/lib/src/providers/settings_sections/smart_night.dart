@@ -55,23 +55,23 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
   /// full day at the upper end — anyone asking for >24 h per target is
   /// either testing limits or mis-entering hours as minutes.
   Future<void> setSmartNightDefaultIntegrationBudgetMinsPerTarget(
-      int value) async {
+    int value,
+  ) async {
     final clamped = value.clamp(1, 24 * 60);
     await _saveSetting(
       'smart_night_default_integration_budget_mins_per_target',
       clamped.toString(),
     );
-    _patchState((s) =>
-        s.copyWith(smartNightDefaultIntegrationBudgetMinsPerTarget: clamped));
+    _patchState(
+      (s) =>
+          s.copyWith(smartNightDefaultIntegrationBudgetMinsPerTarget: clamped),
+    );
   }
 
   /// Whether the wizard appends end-of-session flats when the active
   /// profile has a cover calibrator.
   Future<void> setSmartNightIncludeFlatsAtEnd(bool value) async {
-    await _saveSetting(
-      'smart_night_include_flats_at_end',
-      value.toString(),
-    );
+    await _saveSetting('smart_night_include_flats_at_end', value.toString());
     _patchState((s) => s.copyWith(smartNightIncludeFlatsAtEnd: value));
   }
 
@@ -110,7 +110,8 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
     };
     if (!allowed.contains(value)) {
       throw ArgumentError(
-          'smartNightDefaultStrategy must be one of $allowed, got: $value');
+        'smartNightDefaultStrategy must be one of $allowed, got: $value',
+      );
     }
     await _saveSetting('smart_night_default_strategy', value);
     _patchState((s) => s.copyWith(smartNightDefaultStrategy: value));
@@ -125,7 +126,8 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
       clamped.toString(),
     );
     _patchState(
-        (s) => s.copyWith(smartNightPolarAlignmentStaleAfterDays: clamped));
+      (s) => s.copyWith(smartNightPolarAlignmentStaleAfterDays: clamped),
+    );
   }
 
   /// Smart Night sub-exposure floor in seconds. Clamped to [1, 3600].

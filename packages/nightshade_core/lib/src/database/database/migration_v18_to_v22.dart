@@ -31,7 +31,8 @@ extension _NightshadeDatabaseMigrationV18ToV22 on NightshadeDatabase {
       ''');
         await customStatement('DROP TABLE sequence_nodes');
         await customStatement(
-            'ALTER TABLE sequence_nodes_new RENAME TO sequence_nodes');
+          'ALTER TABLE sequence_nodes_new RENAME TO sequence_nodes',
+        );
         // Recreate indexes for sequence_nodes
         await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_nodes_sequence ON sequence_nodes (sequence_id)',
@@ -105,8 +106,10 @@ extension _NightshadeDatabaseMigrationV18ToV22 on NightshadeDatabase {
         );
         await customStatement('DROP TABLE line_ratio_products');
 
-        final capturedImagesHasQualityScore =
-            await _columnExists('captured_images', 'quality_score');
+        final capturedImagesHasQualityScore = await _columnExists(
+          'captured_images',
+          'quality_score',
+        );
         final qualityScoreSelect = capturedImagesHasQualityScore
             ? 'quality_score'
             : 'NULL AS quality_score';
@@ -247,7 +250,8 @@ extension _NightshadeDatabaseMigrationV18ToV22 on NightshadeDatabase {
       ''');
         await customStatement('DROP TABLE captured_images');
         await customStatement(
-            'ALTER TABLE captured_images_new RENAME TO captured_images');
+          'ALTER TABLE captured_images_new RENAME TO captured_images',
+        );
 
         // Recreate indexes for captured_images
         await customStatement(

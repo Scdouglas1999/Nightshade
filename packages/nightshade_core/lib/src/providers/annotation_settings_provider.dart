@@ -43,14 +43,16 @@ const builtInAnnotationPresets = <AnnotationPreset>[
 /// Provider for annotation display settings (persisted to database)
 final annotationSettingsProvider =
     AsyncNotifierProvider<AnnotationSettingsNotifier, AnnotationSettings>(() {
-  return AnnotationSettingsNotifier();
-});
+      return AnnotationSettingsNotifier();
+    });
 
 /// Provider for annotation marker styles (persisted to database)
 final annotationMarkerStyleProvider =
-    AsyncNotifierProvider<AnnotationMarkerStyleNotifier, AnnotationMarkerStyle>(() {
-  return AnnotationMarkerStyleNotifier();
-});
+    AsyncNotifierProvider<AnnotationMarkerStyleNotifier, AnnotationMarkerStyle>(
+      () {
+        return AnnotationMarkerStyleNotifier();
+      },
+    );
 
 /// Provider for tracking if mouse is hovering over image
 final annotationHoverStateProvider = StateProvider<bool>((ref) => false);
@@ -104,14 +106,18 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
 
   Future<void> setMagnitudeCutoff(double magnitude) async {
     final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(magnitudeCutoff: magnitude.clamp(0.0, 25.0));
+    final updated = current.copyWith(
+      magnitudeCutoff: magnitude.clamp(0.0, 25.0),
+    );
     await _save(updated);
     state = AsyncData(updated);
   }
 
   Future<void> setMinMagnitude(double magnitude) async {
     final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(minMagnitude: magnitude.clamp(-10.0, 20.0));
+    final updated = current.copyWith(
+      minMagnitude: magnitude.clamp(-10.0, 20.0),
+    );
     await _save(updated);
     state = AsyncData(updated);
   }
@@ -187,7 +193,9 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
 
   Future<void> setClickSearchRadius(double arcsec) async {
     final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(clickSearchRadiusArcsec: arcsec.clamp(1.0, 300.0));
+    final updated = current.copyWith(
+      clickSearchRadiusArcsec: arcsec.clamp(1.0, 300.0),
+    );
     await _save(updated);
     state = AsyncData(updated);
   }
@@ -269,7 +277,8 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
 }
 
 /// Notifier for annotation marker styles with database persistence
-class AnnotationMarkerStyleNotifier extends AsyncNotifier<AnnotationMarkerStyle> {
+class AnnotationMarkerStyleNotifier
+    extends AsyncNotifier<AnnotationMarkerStyle> {
   static const _settingsKey = 'annotation_marker_style';
 
   @override
@@ -382,9 +391,10 @@ class AnnotationMarkerStyleNotifier extends AsyncNotifier<AnnotationMarkerStyle>
 /// Provider for user-created annotation presets (persisted to database)
 final annotationPresetsProvider =
     AsyncNotifierProvider<AnnotationPresetsNotifier, List<AnnotationPreset>>(
-        () {
-  return AnnotationPresetsNotifier();
-});
+      () {
+        return AnnotationPresetsNotifier();
+      },
+    );
 
 class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
   static const _settingsKey = 'annotation_presets';
@@ -405,7 +415,9 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
         // empty state. Surface it loudly (per project "errors are a feature"
         // policy) while still degrading gracefully to an empty preset list so
         // the UI remains usable.
-        ref.read(loggingServiceProvider).warning(
+        ref
+            .read(loggingServiceProvider)
+            .warning(
               'Failed to decode annotation presets; returning empty list. '
               'Stored value may be corrupt: $e',
               source: 'AnnotationPresetsNotifier',
@@ -440,10 +452,7 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
 
     final current = state.valueOrNull ?? [];
     // Replace existing preset with same name, or append
-    final updated = current
-        .where((p) => p.name != name)
-        .toList()
-      ..add(preset);
+    final updated = current.where((p) => p.name != name).toList()..add(preset);
     await _save(updated);
     state = AsyncData(updated);
   }
@@ -459,14 +468,16 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
 /// Provider for custom user-drawn annotations on the current image.
 /// These are in-memory and scoped to the current image.
 final customAnnotationsProvider =
-    StateNotifierProvider<CustomAnnotationsNotifier, List<CustomAnnotation>>(
-        (ref) {
-  return CustomAnnotationsNotifier();
-});
+    StateNotifierProvider<CustomAnnotationsNotifier, List<CustomAnnotation>>((
+      ref,
+    ) {
+      return CustomAnnotationsNotifier();
+    });
 
 /// Active drawing tool for custom annotations (null = no tool active)
-final customAnnotationToolProvider =
-    StateProvider<CustomAnnotationType?>((ref) => null);
+final customAnnotationToolProvider = StateProvider<CustomAnnotationType?>(
+  (ref) => null,
+);
 
 class CustomAnnotationsNotifier extends StateNotifier<List<CustomAnnotation>> {
   CustomAnnotationsNotifier() : super(const []);

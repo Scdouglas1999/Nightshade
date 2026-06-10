@@ -5,10 +5,7 @@ class SkyViewToolbar extends ConsumerWidget {
   /// Whether to show extended options (solar system objects, milky way)
   final bool showExtendedOptions;
 
-  const SkyViewToolbar({
-    super.key,
-    this.showExtendedOptions = true,
-  });
+  const SkyViewToolbar({super.key, this.showExtendedOptions = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

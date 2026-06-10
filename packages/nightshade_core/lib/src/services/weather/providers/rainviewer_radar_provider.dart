@@ -49,8 +49,8 @@ class RainViewerRadarProvider extends RadarProvider {
   ///
   /// Optionally accepts a custom [httpClient] for testing purposes.
   RainViewerRadarProvider({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client(),
-        _decoder = const RadarTileDecoder();
+    : _httpClient = httpClient ?? http.Client(),
+      _decoder = const RadarTileDecoder();
 
   @override
   String get name => 'RainViewer';
@@ -67,8 +67,11 @@ class RainViewerRadarProvider extends RadarProvider {
     required double longitude,
     double radiusKm = 100.0,
   }) async {
-    developer.log('Fetching radar frames for ($latitude, $longitude)',
-        name: 'RainViewer', level: 800);
+    developer.log(
+      'Fetching radar frames for ($latitude, $longitude)',
+      name: 'RainViewer',
+      level: 800,
+    );
     try {
       // Fetch the radar metadata from RainViewer API
       final response = await _httpClient.get(Uri.parse(_apiUrl));
@@ -135,8 +138,11 @@ class RainViewerRadarProvider extends RadarProvider {
       }
 
       if (descriptors.isEmpty) {
-        developer.log('No frames returned from API',
-            name: 'RainViewer', level: 900);
+        developer.log(
+          'No frames returned from API',
+          name: 'RainViewer',
+          level: 900,
+        );
         return RadarFetchResult.error(
           'RainViewer API returned no radar frames',
         );
@@ -154,10 +160,11 @@ class RainViewerRadarProvider extends RadarProvider {
       }
 
       developer.log(
-          'Parsed ${frames.length} frames from host: $host '
-          '(${frames.where((f) => !f.isNoData).length} with spatial data)',
-          name: 'RainViewer',
-          level: 800);
+        'Parsed ${frames.length} frames from host: $host '
+        '(${frames.where((f) => !f.isNoData).length} with spatial data)',
+        name: 'RainViewer',
+        level: 800,
+      );
       return RadarFetchResult.success(frames);
     } on http.ClientException catch (e) {
       return RadarFetchResult.error(
@@ -175,10 +182,7 @@ class RainViewerRadarProvider extends RadarProvider {
     // RainViewer typically provides:
     // - 2 hours of historical radar data
     // - 30 minutes of nowcast (forecast) data
-    return (
-      const Duration(hours: 2),
-      const Duration(minutes: 30),
-    );
+    return (const Duration(hours: 2), const Duration(minutes: 30));
   }
 
   @override
@@ -192,8 +196,9 @@ class RainViewerRadarProvider extends RadarProvider {
   }
 
   String _buildFrameTileUrl(String host, String path) {
-    final normalizedHost =
-        host.endsWith('/') ? host.substring(0, host.length - 1) : host;
+    final normalizedHost = host.endsWith('/')
+        ? host.substring(0, host.length - 1)
+        : host;
     final normalizedPath = path.startsWith('/') ? path : '/$path';
 
     // RainViewer generally returns a full tile template in `path`.
@@ -258,27 +263,34 @@ class RainViewerRadarProvider extends RadarProvider {
         } catch (e) {
           // A single tile failing to fetch is non-fatal — other tiles may still
           // cover the FOV. Record nothing for this tile.
-          developer.log('Tile fetch failed ($url): $e',
-              name: 'RainViewer', level: 900);
+          developer.log(
+            'Tile fetch failed ($url): $e',
+            name: 'RainViewer',
+            level: 900,
+          );
           continue;
         }
 
         if (response.statusCode != 200) {
-          developer.log('Tile fetch status ${response.statusCode} for $url',
-              name: 'RainViewer', level: 900);
+          developer.log(
+            'Tile fetch status ${response.statusCode} for $url',
+            name: 'RainViewer',
+            level: 900,
+          );
           continue;
         }
 
         final image = _decoder.decodePng(response.bodyBytes);
         if (image == null) {
-          developer.log('Tile decode failed for $url',
-              name: 'RainViewer', level: 900);
+          developer.log(
+            'Tile decode failed for $url',
+            name: 'RainViewer',
+            level: 900,
+          );
           continue;
         }
 
-        tiles.add(
-          DecodedRadarTile(z: _decodeZoom, x: x, y: y, image: image),
-        );
+        tiles.add(DecodedRadarTile(z: _decodeZoom, x: x, y: y, image: image));
       }
     }
 

@@ -7,10 +7,7 @@ void main() {
   group('OpenAPI route metadata', () {
     test('converts shelf route parameters to OpenAPI parameters', () {
       expect(openApiPath('/api/targets/<id>'), '/api/targets/{id}');
-      expect(
-        openApiPath('/dashboard/<path|.*>'),
-        '/dashboard/{path}',
-      );
+      expect(openApiPath('/dashboard/<path|.*>'), '/dashboard/{path}');
     });
 
     test('builds HTTP route spec and excludes WebSocket routes', () {
@@ -51,8 +48,10 @@ void main() {
       expect(fileBrowse['x-required-scope'], 'admin');
       expect(fileBrowse['security'], isNotEmpty);
       expect(fileBrowse['responses'], contains('429'));
-      expect(fileBrowse['x-rate-limit']['maxRequests'],
-          defaultControlRateLimitMaxRequests);
+      expect(
+        fileBrowse['x-rate-limit']['maxRequests'],
+        defaultControlRateLimitMaxRequests,
+      );
       expect(fileBrowse['x-audit-action'], 'file_browse');
       final slew = paths['/api/mount/slew']['post'] as Map<String, dynamic>;
       expect(slew['x-auth-required'], isTrue);
@@ -109,29 +108,19 @@ void main() {
       expect(requestBodyLimitForPath('/api/mount/slew'), oneMiB);
     });
 
-    test('uses larger explicit limits for image processing and backup upload',
-        () {
-      expect(
-        requestBodyLimitForPath('/api/imaging/stretch'),
-        64 * oneMiB,
-      );
-      expect(
-        requestBodyLimitForPath('/api/imaging/stats'),
-        64 * oneMiB,
-      );
-      expect(
-        requestBodyLimitForPath('/api/imaging/debayer'),
-        64 * oneMiB,
-      );
-      expect(
-        requestBodyLimitForPath('/api/imaging/save-fits'),
-        64 * oneMiB,
-      );
-      expect(
-        requestBodyLimitForPath('/api/backup/upload-restore'),
-        256 * oneMiB,
-      );
-    });
+    test(
+      'uses larger explicit limits for image processing and backup upload',
+      () {
+        expect(requestBodyLimitForPath('/api/imaging/stretch'), 64 * oneMiB);
+        expect(requestBodyLimitForPath('/api/imaging/stats'), 64 * oneMiB);
+        expect(requestBodyLimitForPath('/api/imaging/debayer'), 64 * oneMiB);
+        expect(requestBodyLimitForPath('/api/imaging/save-fits'), 64 * oneMiB);
+        expect(
+          requestBodyLimitForPath('/api/backup/upload-restore'),
+          256 * oneMiB,
+        );
+      },
+    );
 
     test('allows GET and missing Content-Length headers', () {
       expect(
@@ -179,10 +168,7 @@ void main() {
 
   group('endpoint rate limits', () {
     test('does not rate limit ordinary read endpoints', () {
-      expect(
-        endpointRateLimitFor(method: 'GET', path: '/api/info'),
-        isNull,
-      );
+      expect(endpointRateLimitFor(method: 'GET', path: '/api/info'), isNull);
     });
 
     test('uses high-risk limits for release-gated remote commands', () {
@@ -217,20 +203,21 @@ void main() {
 
     test('rate limits file browsing without blocking ordinary reads', () {
       expect(
-        endpointRateLimitFor(method: 'GET', path: '/api/files/browse')!
-            .maxRequests,
+        endpointRateLimitFor(
+          method: 'GET',
+          path: '/api/files/browse',
+        )!.maxRequests,
         defaultControlRateLimitMaxRequests,
       );
-      expect(
-        endpointRateLimitFor(method: 'GET', path: '/api/status'),
-        isNull,
-      );
+      expect(endpointRateLimitFor(method: 'GET', path: '/api/status'), isNull);
     });
 
     test('uses default limits for other control endpoints', () {
       expect(
-        endpointRateLimitFor(method: 'POST', path: '/api/camera/cooling')!
-            .maxRequests,
+        endpointRateLimitFor(
+          method: 'POST',
+          path: '/api/camera/cooling',
+        )!.maxRequests,
         defaultControlRateLimitMaxRequests,
       );
     });
@@ -359,10 +346,7 @@ void main() {
     test('default bucket capacities match the task spec', () {
       expect(defaultTokenBucketConfigs[TokenRouteClass.read]!.capacity, 60);
       expect(defaultTokenBucketConfigs[TokenRouteClass.write]!.capacity, 20);
-      expect(
-        defaultTokenBucketConfigs[TokenRouteClass.liveView]!.capacity,
-        30,
-      );
+      expect(defaultTokenBucketConfigs[TokenRouteClass.liveView]!.capacity, 30);
       expect(
         defaultTokenBucketConfigs[TokenRouteClass.imageDownload]!.capacity,
         5,
@@ -413,8 +397,11 @@ void main() {
         tokenId: 'tokA',
         routeClass: TokenRouteClass.write,
       );
-      expect(after.allowed, isTrue,
-          reason: 'bucket should have fully refilled after 2s');
+      expect(
+        after.allowed,
+        isTrue,
+        reason: 'bucket should have fully refilled after 2s',
+      );
     });
 
     test('isolates buckets per (tokenId, routeClass) pair', () {

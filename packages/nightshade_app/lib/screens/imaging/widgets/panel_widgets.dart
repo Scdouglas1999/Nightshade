@@ -430,7 +430,8 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
             ),
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color:
                     _isEditing ? widget.colors.primary : widget.colors.border,
@@ -853,7 +854,8 @@ class _SmallButtonState extends State<SmallButton> {
                           alpha: NightshadeTokens.opacitySubtle,
                         )
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: primaryColor),
                 )
               : NightshadeDecorations.filledButton(

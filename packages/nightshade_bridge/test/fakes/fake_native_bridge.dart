@@ -142,7 +142,8 @@ class FakeNativeBridge {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: severity,
       category: category,
-      payload: payload ??
+      payload:
+          payload ??
           // SystemEvent.notification is the cheapest default payload — it's
           // accepted by EventPayload.system and carries free-form strings.
           EventPayload.system(
@@ -225,8 +226,9 @@ class FakeNativeBridge {
   Stream<NightshadeEvent> sequencerEventStream() {
     _record('sequencerEventStream', const {});
     _maybeThrow('sequencerEventStream');
-    return _events.stream
-        .where((event) => event.category == EventCategory.sequencer);
+    return _events.stream.where(
+      (event) => event.category == EventCategory.sequencer,
+    );
   }
 
   // --- Discovery / connection -------------------------------------------------
@@ -235,10 +237,7 @@ class FakeNativeBridge {
     required String host,
     required int port,
   }) async {
-    _record(
-      'apiDiscoverIndiAtAddress',
-      {'host': host, 'port': port},
-    );
+    _record('apiDiscoverIndiAtAddress', {'host': host, 'port': port});
     _maybeThrow('apiDiscoverIndiAtAddress');
     return _typed<List<DeviceInfo>>(
       'apiDiscoverIndiAtAddress',
@@ -261,18 +260,18 @@ class FakeNativeBridge {
   }
 
   Future<void> disconnectDevice(DeviceType deviceType, String deviceId) async {
-    _record(
-      'disconnectDevice',
-      {'deviceType': deviceType, 'deviceId': deviceId},
-    );
+    _record('disconnectDevice', {
+      'deviceType': deviceType,
+      'deviceId': deviceId,
+    });
     _maybeThrow('disconnectDevice');
   }
 
   Future<bool> isDeviceConnected(DeviceType deviceType, String deviceId) async {
-    _record(
-      'isDeviceConnected',
-      {'deviceType': deviceType, 'deviceId': deviceId},
-    );
+    _record('isDeviceConnected', {
+      'deviceType': deviceType,
+      'deviceId': deviceId,
+    });
     _maybeThrow('isDeviceConnected');
     return _typed<bool>('isDeviceConnected', defaultValue: false);
   }
@@ -302,10 +301,11 @@ class FakeNativeBridge {
     bool enabled,
     double? targetTemp,
   ) async {
-    _record(
-      'setCameraCooler',
-      {'deviceId': deviceId, 'enabled': enabled, 'targetTemp': targetTemp},
-    );
+    _record('setCameraCooler', {
+      'deviceId': deviceId,
+      'enabled': enabled,
+      'targetTemp': targetTemp,
+    });
     _maybeThrow('setCameraCooler');
   }
 
@@ -320,10 +320,11 @@ class FakeNativeBridge {
   }
 
   Future<void> setCameraBinning(String deviceId, int binX, int binY) async {
-    _record(
-      'setCameraBinning',
-      {'deviceId': deviceId, 'binX': binX, 'binY': binY},
-    );
+    _record('setCameraBinning', {
+      'deviceId': deviceId,
+      'binX': binX,
+      'binY': binY,
+    });
     _maybeThrow('setCameraBinning');
   }
 
@@ -331,10 +332,7 @@ class FakeNativeBridge {
     required String deviceId,
     required int modeIndex,
   }) async {
-    _record(
-      'setReadoutMode',
-      {'deviceId': deviceId, 'modeIndex': modeIndex},
-    );
+    _record('setReadoutMode', {'deviceId': deviceId, 'modeIndex': modeIndex});
     _maybeThrow('setReadoutMode');
   }
 
@@ -388,10 +386,11 @@ class FakeNativeBridge {
     double ra,
     double dec,
   ) async {
-    _record(
-      'mountSlewToCoordinates',
-      {'deviceId': deviceId, 'ra': ra, 'dec': dec},
-    );
+    _record('mountSlewToCoordinates', {
+      'deviceId': deviceId,
+      'ra': ra,
+      'dec': dec,
+    });
     _maybeThrow('mountSlewToCoordinates');
   }
 
@@ -441,10 +440,11 @@ class FakeNativeBridge {
   }
 
   Future<void> mountMoveAxis(String deviceId, int axis, double rate) async {
-    _record(
-      'mountMoveAxis',
-      {'deviceId': deviceId, 'axis': axis, 'rate': rate},
-    );
+    _record('mountMoveAxis', {
+      'deviceId': deviceId,
+      'axis': axis,
+      'rate': rate,
+    });
     _maybeThrow('mountMoveAxis');
   }
 
@@ -509,10 +509,10 @@ class FakeNativeBridge {
   }
 
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
-    _record(
-      'filterWheelSetPosition',
-      {'deviceId': deviceId, 'position': position},
-    );
+    _record('filterWheelSetPosition', {
+      'deviceId': deviceId,
+      'position': position,
+    });
     _maybeThrow('filterWheelSetPosition');
   }
 
@@ -520,15 +520,16 @@ class FakeNativeBridge {
     required String deviceId,
     required int position,
   }) async {
-    _record(
-      'apiFilterwheelSetPosition',
-      {'deviceId': deviceId, 'position': position},
-    );
+    _record('apiFilterwheelSetPosition', {
+      'deviceId': deviceId,
+      'position': position,
+    });
     _maybeThrow('apiFilterwheelSetPosition');
   }
 
-  Future<List<String>> apiFilterwheelGetNames(
-      {required String deviceId}) async {
+  Future<List<String>> apiFilterwheelGetNames({
+    required String deviceId,
+  }) async {
     _record('apiFilterwheelGetNames', {'deviceId': deviceId});
     _maybeThrow('apiFilterwheelGetNames');
     return _typed<List<String>>(
@@ -541,10 +542,7 @@ class FakeNativeBridge {
     required String deviceId,
     required String name,
   }) async {
-    _record(
-      'apiFilterwheelSetByName',
-      {'deviceId': deviceId, 'name': name},
-    );
+    _record('apiFilterwheelSetByName', {'deviceId': deviceId, 'name': name});
     _maybeThrow('apiFilterwheelSetByName');
   }
 
@@ -562,10 +560,7 @@ class FakeNativeBridge {
     required String deviceId,
     required double delta,
   }) async {
-    _record(
-      'apiRotatorMoveRelative',
-      {'deviceId': deviceId, 'delta': delta},
-    );
+    _record('apiRotatorMoveRelative', {'deviceId': deviceId, 'delta': delta});
     _maybeThrow('apiRotatorMoveRelative');
   }
 
@@ -607,11 +602,7 @@ class FakeNativeBridge {
     double? ra,
     double? dec,
   }) async {
-    _record('startSession', {
-      'targetName': targetName,
-      'ra': ra,
-      'dec': dec,
-    });
+    _record('startSession', {'targetName': targetName, 'ra': ra, 'dec': dec});
     _maybeThrow('startSession');
   }
 
@@ -680,8 +671,10 @@ class FakeNativeBridge {
 
   // --- PHD2 / Guider ----------------------------------------------------------
 
-  Future<bool> isPhd2Running(
-      {String host = 'localhost', int port = 4400}) async {
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
     _record('isPhd2Running', {'host': host, 'port': port});
     _maybeThrow('isPhd2Running');
     return _typed<bool>('isPhd2Running', defaultValue: false);
@@ -947,10 +940,10 @@ class FakeNativeBridge {
     required double latitude,
     required double longitude,
   }) async {
-    _record(
-      'sequencerUpdateLocation',
-      {'latitude': latitude, 'longitude': longitude},
-    );
+    _record('sequencerUpdateLocation', {
+      'latitude': latitude,
+      'longitude': longitude,
+    });
     _maybeThrow('sequencerUpdateLocation');
   }
 
@@ -967,8 +960,9 @@ class FakeNativeBridge {
   Future<void> sequencerUpdatePendingIntegrationCarryOver({
     required Map<String, Map<String, double>> carryOver,
   }) async {
-    _record(
-        'sequencerUpdatePendingIntegrationCarryOver', {'carryOver': carryOver});
+    _record('sequencerUpdatePendingIntegrationCarryOver', {
+      'carryOver': carryOver,
+    });
     _maybeThrow('sequencerUpdatePendingIntegrationCarryOver');
   }
 
@@ -1142,10 +1136,7 @@ class FakeNativeBridge {
   Future<EquipmentProfile?> apiGetActiveProfile() async {
     _record('apiGetActiveProfile', const {});
     _maybeThrow('apiGetActiveProfile');
-    return _typed<EquipmentProfile?>(
-      'apiGetActiveProfile',
-      defaultValue: null,
-    );
+    return _typed<EquipmentProfile?>('apiGetActiveProfile', defaultValue: null);
   }
 
   // --- Settings & location ----------------------------------------------------
@@ -1189,10 +1180,11 @@ class FakeNativeBridge {
     required int height,
     required Uint16List data,
   }) async {
-    _record(
-      'apiGetImageStats',
-      {'width': width, 'height': height, 'dataLength': data.length},
-    );
+    _record('apiGetImageStats', {
+      'width': width,
+      'height': height,
+      'dataLength': data.length,
+    });
     _maybeThrow('apiGetImageStats');
     return _typed<bridge_stub.ImageStats>(
       'apiGetImageStats',
@@ -1205,10 +1197,11 @@ class FakeNativeBridge {
     required int height,
     required Uint16List data,
   }) async {
-    _record(
-      'apiAutoStretchImage',
-      {'width': width, 'height': height, 'dataLength': data.length},
-    );
+    _record('apiAutoStretchImage', {
+      'width': width,
+      'height': height,
+      'dataLength': data.length,
+    });
     _maybeThrow('apiAutoStretchImage');
     return _typed<Uint8List>(
       'apiAutoStretchImage',
@@ -1363,14 +1356,14 @@ class FakeNativeBridge {
 
   static final bridge_stub.NativeSessionState _defaultSessionState =
       bridge_stub.NativeSessionState(
-    isActive: false,
-    totalExposures: 0,
-    completedExposures: 0,
-    totalIntegrationSecs: 0.0,
-    isGuiding: false,
-    isCapturing: false,
-    isDithering: false,
-  );
+        isActive: false,
+        totalExposures: 0,
+        completedExposures: 0,
+        totalIntegrationSecs: 0.0,
+        isGuiding: false,
+        isCapturing: false,
+        isDithering: false,
+      );
 
   static const Phd2Status _defaultPhd2Status = Phd2Status(
     connected: false,
@@ -1384,18 +1377,15 @@ class FakeNativeBridge {
   );
 
   static final bridge_stub.SequencerStatus _defaultSequencerStatus =
-      bridge_stub.SequencerStatus(
-    state: 'idle',
-    progress: 0.0,
-  );
+      bridge_stub.SequencerStatus(state: 'idle', progress: 0.0);
 
   static final bridge_stub.ImageStats _defaultImageStats =
       bridge_stub.ImageStats(
-    min: 0,
-    max: 0,
-    mean: 0,
-    median: 0,
-    stdDev: 0,
-    mad: 0,
-  );
+        min: 0,
+        max: 0,
+        mean: 0,
+        median: 0,
+        stdDev: 0,
+        mad: 0,
+      );
 }

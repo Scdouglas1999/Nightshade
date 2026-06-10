@@ -38,14 +38,13 @@ class _NavItemState extends State<NavItem> {
     final backgroundColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.06)
         : _isHovered
-            ? colors.surfaceHover
-            : Colors.transparent;
+        ? colors.surfaceHover
+        : Colors.transparent;
 
     final horizontalPadding = widget.isExpanded
         ? NightshadeTokens.panelSectionPadding
         : NightshadeTokens.spaceXs;
-    final verticalPadding =
-        widget.isExpanded ? NightshadeTokens.spaceMd : 10.0;
+    final verticalPadding = widget.isExpanded ? NightshadeTokens.spaceMd : 10.0;
     final iconSize = Responsive.iconSize(context, 18);
     final labelFontSize = Responsive.fontSize(context, 13);
     final descriptionFontSize = Responsive.fontSize(context, 11);
@@ -76,17 +75,16 @@ class _NavItemState extends State<NavItem> {
                 color: backgroundColor,
                 borderRadius: NightshadeTokens.borderRadiusMd,
                 border: widget.isSelected
-                    ? Border(
-                        left: BorderSide(color: colors.primary, width: 2),
-                      )
+                    ? Border(left: BorderSide(color: colors.primary, width: 2))
                     : null,
               ),
               child: Row(
                 mainAxisAlignment: widget.isExpanded
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
-                mainAxisSize:
-                    widget.isExpanded ? MainAxisSize.max : MainAxisSize.min,
+                mainAxisSize: widget.isExpanded
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
                 children: [
                   Icon(
                     widget.icon,

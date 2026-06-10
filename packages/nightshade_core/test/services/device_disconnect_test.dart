@@ -30,8 +30,12 @@ void main() {
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
     // Configure mock backend
-    when(() => mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     container = ProviderContainer(
       overrides: [
@@ -63,16 +67,15 @@ void main() {
       );
 
       // Emit disconnect event
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'camera',
-          'device_id': 'camera-1',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'camera', 'device_id': 'camera-1'},
+        ),
+      );
 
       // Wait for event processing
       await Future.delayed(const Duration(milliseconds: 100));
@@ -96,16 +99,15 @@ void main() {
       );
 
       // Emit disconnect event
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'mount',
-          'device_id': 'mount-1',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'mount', 'device_id': 'mount-1'},
+        ),
+      );
 
       // Wait for event processing
       await Future.delayed(const Duration(milliseconds: 100));
@@ -129,16 +131,15 @@ void main() {
       );
 
       // Emit disconnect event
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'focuser',
-          'device_id': 'focuser-1',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'focuser', 'device_id': 'focuser-1'},
+        ),
+      );
 
       // Wait for event processing
       await Future.delayed(const Duration(milliseconds: 100));
@@ -152,18 +153,21 @@ void main() {
   });
 
   group('Connection Health Monitoring', () {
-    test('Camera health indicator shows healthy after recent communication', () {
-      final cameraNotifier = container.read(cameraStateProvider.notifier);
-      cameraNotifier.setConnecting('camera-1', 'Test Camera');
-      cameraNotifier.setConnected();
+    test(
+      'Camera health indicator shows healthy after recent communication',
+      () {
+        final cameraNotifier = container.read(cameraStateProvider.notifier);
+        cameraNotifier.setConnecting('camera-1', 'Test Camera');
+        cameraNotifier.setConnected();
 
-      // Update communication timestamp
-      cameraNotifier.updateCommunication();
+        // Update communication timestamp
+        cameraNotifier.updateCommunication();
 
-      final state = container.read(cameraStateProvider);
-      expect(state.isHealthy, isTrue);
-      expect(state.lastSuccessfulCommunication, isNotNull);
-    });
+        final state = container.read(cameraStateProvider);
+        expect(state.isHealthy, isTrue);
+        expect(state.lastSuccessfulCommunication, isNotNull);
+      },
+    );
 
     test('Camera health indicator shows unhealthy after timeout', () {
       final cameraNotifier = container.read(cameraStateProvider.notifier);
@@ -172,17 +176,17 @@ void main() {
 
       // Set communication timestamp to 31 seconds ago (past the 30 second threshold)
       final oldTimestamp = DateTime.now().subtract(const Duration(seconds: 31));
-      final oldState = container.read(cameraStateProvider).copyWith(
-        lastSuccessfulCommunication: oldTimestamp,
-      );
+      final oldState = container
+          .read(cameraStateProvider)
+          .copyWith(lastSuccessfulCommunication: oldTimestamp);
 
       // Create a new notifier with the old state for testing
       // This is a bit hacky, but demonstrates the health check logic
       expect(
         oldState.lastSuccessfulCommunication!
-            .difference(DateTime.now())
-            .inSeconds
-            .abs() >
+                .difference(DateTime.now())
+                .inSeconds
+                .abs() >
             30,
         isTrue,
       );
@@ -288,15 +292,18 @@ void main() {
       expect(error.recoverable, isTrue);
     });
 
-    test('DeviceError.fromException categorizes not found errors as non-recoverable', () {
-      final error = DeviceError.fromException(
-        Exception('Device not found'),
-        deviceId: 'test-device',
-      );
+    test(
+      'DeviceError.fromException categorizes not found errors as non-recoverable',
+      () {
+        final error = DeviceError.fromException(
+          Exception('Device not found'),
+          deviceId: 'test-device',
+        );
 
-      expect(error.type, DeviceErrorType.deviceNotFound);
-      expect(error.recoverable, isFalse);
-    });
+        expect(error.type, DeviceErrorType.deviceNotFound);
+        expect(error.recoverable, isFalse);
+      },
+    );
 
     test('DeviceError provides user-friendly messages', () {
       final timeoutError = DeviceError(
@@ -305,10 +312,7 @@ void main() {
         timestamp: DateTime.now(),
       );
 
-      expect(
-        timeoutError.userMessage,
-        contains('Operation timed out'),
-      );
+      expect(timeoutError.userMessage, contains('Operation timed out'));
 
       final notFoundError = DeviceError(
         type: DeviceErrorType.deviceNotFound,
@@ -316,10 +320,7 @@ void main() {
         timestamp: DateTime.now(),
       );
 
-      expect(
-        notFoundError.userMessage,
-        contains('Device not found'),
-      );
+      expect(notFoundError.userMessage, contains('Device not found'));
     });
 
     test('DeviceError provides suggested recovery actions', () {
@@ -335,91 +336,96 @@ void main() {
   });
 
   group('DEV-P0-1: Cover calibrator + switch disconnect cases', () {
-    test('Cover calibrator disconnect event updates state to disconnected',
-        () async {
-      // Setup initial connected state
-      final coverCal = container.read(coverCalibratorStateProvider.notifier);
-      coverCal.setConnecting('covercal-1', 'Test Cover Cal');
-      coverCal.setConnected();
+    test(
+      'Cover calibrator disconnect event updates state to disconnected',
+      () async {
+        // Setup initial connected state
+        final coverCal = container.read(coverCalibratorStateProvider.notifier);
+        coverCal.setConnecting('covercal-1', 'Test Cover Cal');
+        coverCal.setConnected();
 
-      expect(
-        container.read(coverCalibratorStateProvider).connectionState,
-        DeviceConnectionState.connected,
-      );
+        expect(
+          container.read(coverCalibratorStateProvider).connectionState,
+          DeviceConnectionState.connected,
+        );
 
-      // Emit disconnect event
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'covercalibrator',
-          'device_id': 'covercal-1',
-        },
-      ));
+        // Emit disconnect event
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            data: {'device_type': 'covercalibrator', 'device_id': 'covercal-1'},
+          ),
+        );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(
-        container.read(coverCalibratorStateProvider).connectionState,
-        DeviceConnectionState.disconnected,
-      );
-    });
+        expect(
+          container.read(coverCalibratorStateProvider).connectionState,
+          DeviceConnectionState.disconnected,
+        );
+      },
+    );
 
     test(
-        'Cover calibrator disconnect also handles "cover calibrator" spelling',
-        () async {
-      final coverCal = container.read(coverCalibratorStateProvider.notifier);
-      coverCal.setConnecting('covercal-2', 'Test Cover Cal');
-      coverCal.setConnected();
+      'Cover calibrator disconnect also handles "cover calibrator" spelling',
+      () async {
+        final coverCal = container.read(coverCalibratorStateProvider.notifier);
+        coverCal.setConnecting('covercal-2', 'Test Cover Cal');
+        coverCal.setConnected();
 
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'cover calibrator',
-          'device_id': 'covercal-2',
-        },
-      ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            data: {
+              'device_type': 'cover calibrator',
+              'device_id': 'covercal-2',
+            },
+          ),
+        );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(
-        container.read(coverCalibratorStateProvider).connectionState,
-        DeviceConnectionState.disconnected,
-      );
-    });
+        expect(
+          container.read(coverCalibratorStateProvider).connectionState,
+          DeviceConnectionState.disconnected,
+        );
+      },
+    );
 
-    test('Switch disconnect event clears state via the provider (DEV-P2-1)',
-        () async {
-      // DEV-P2-1: switch now has a first-class state provider, so
-      // disconnects route through `setDisconnected` instead of just
-      // emitting a notification.
-      final notifier = container.read(switchStateProvider.notifier);
-      notifier.setConnecting('switch-1', 'Test Switch');
-      notifier.setConnected();
+    test(
+      'Switch disconnect event clears state via the provider (DEV-P2-1)',
+      () async {
+        // DEV-P2-1: switch now has a first-class state provider, so
+        // disconnects route through `setDisconnected` instead of just
+        // emitting a notification.
+        final notifier = container.read(switchStateProvider.notifier);
+        notifier.setConnecting('switch-1', 'Test Switch');
+        notifier.setConnected();
 
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'switch',
-          'device_id': 'switch-1',
-        },
-      ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            data: {'device_type': 'switch', 'device_id': 'switch-1'},
+          ),
+        );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(
-        container.read(switchStateProvider).connectionState,
-        DeviceConnectionState.disconnected,
-      );
-    });
+        expect(
+          container.read(switchStateProvider).connectionState,
+          DeviceConnectionState.disconnected,
+        );
+      },
+    );
   });
 
   group('DEV-P0-5: Driver Error events surface to state + notifications', () {
@@ -430,66 +436,76 @@ void main() {
       cameraNotifier.setConnected();
 
       // Driver fires an Error event.
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.error,
-        category: EventCategory.equipment,
-        eventType: 'Error',
-        data: {
-          'device_type': 'camera',
-          'device_id': 'camera-1',
-          'message': 'Sensor temperature read failed',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.error,
+          category: EventCategory.equipment,
+          eventType: 'Error',
+          data: {
+            'device_type': 'camera',
+            'device_id': 'camera-1',
+            'message': 'Sensor temperature read failed',
+          },
+        ),
+      );
 
       await Future.delayed(const Duration(milliseconds: 50));
 
       final state = container.read(cameraStateProvider);
       expect(state.connectionState, DeviceConnectionState.error);
       expect(state.lastError, isNotNull);
-      expect(state.lastError!.message,
-          contains('Sensor temperature read failed'));
+      expect(
+        state.lastError!.message,
+        contains('Sensor temperature read failed'),
+      );
     });
 
-    test('Error event with errorCode includes code in stored message',
-        () async {
-      final mountNotifier = container.read(mountStateProvider.notifier);
-      mountNotifier.setConnecting('mount-1');
-      mountNotifier.setConnected();
+    test(
+      'Error event with errorCode includes code in stored message',
+      () async {
+        final mountNotifier = container.read(mountStateProvider.notifier);
+        mountNotifier.setConnecting('mount-1');
+        mountNotifier.setConnected();
 
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.error,
-        category: EventCategory.equipment,
-        eventType: 'Error',
-        data: {
-          'device_type': 'mount',
-          'device_id': 'mount-1',
-          'message': 'Slew refused: park engaged',
-          'error_code': 'ASCOM_E04',
-        },
-      ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.error,
+            category: EventCategory.equipment,
+            eventType: 'Error',
+            data: {
+              'device_type': 'mount',
+              'device_id': 'mount-1',
+              'message': 'Slew refused: park engaged',
+              'error_code': 'ASCOM_E04',
+            },
+          ),
+        );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      final state = container.read(mountStateProvider);
-      expect(state.connectionState, DeviceConnectionState.error);
-      expect(state.lastError!.message, contains('Slew refused'));
-      expect(state.lastError!.message, contains('ASCOM_E04'));
-    });
+        final state = container.read(mountStateProvider);
+        expect(state.connectionState, DeviceConnectionState.error);
+        expect(state.lastError!.message, contains('Slew refused'));
+        expect(state.lastError!.message, contains('ASCOM_E04'));
+      },
+    );
 
     test('Error event for unknown device type does not crash', () async {
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.error,
-        category: EventCategory.equipment,
-        eventType: 'Error',
-        data: {
-          'device_type': 'flux_capacitor',
-          'device_id': 'fc-1',
-          'message': 'too much flux',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.error,
+          category: EventCategory.equipment,
+          eventType: 'Error',
+          data: {
+            'device_type': 'flux_capacitor',
+            'device_id': 'fc-1',
+            'message': 'too much flux',
+          },
+        ),
+      );
 
       await Future.delayed(const Duration(milliseconds: 50));
       // Should not throw; warning path is exercised.
@@ -501,17 +517,19 @@ void main() {
       focuserNotifier.setConnecting('focuser-1');
       focuserNotifier.setConnected();
 
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.error,
-        category: EventCategory.equipment,
-        eventType: 'Error',
-        data: {
-          'device_type': 'focuser',
-          'device_id': 'focuser-1',
-          // no 'message' field
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.error,
+          category: EventCategory.equipment,
+          eventType: 'Error',
+          data: {
+            'device_type': 'focuser',
+            'device_id': 'focuser-1',
+            // no 'message' field
+          },
+        ),
+      );
 
       await Future.delayed(const Duration(milliseconds: 50));
 
@@ -522,8 +540,7 @@ void main() {
   });
 
   group('DEV-P1-4: Camera disconnect guards stale device-id events', () {
-    test(
-        'Stale camera Disconnected for non-tracked id does not flip current '
+    test('Stale camera Disconnected for non-tracked id does not flip current '
         'camera state', () async {
       // Connect camera-A
       final cameraNotifier = container.read(cameraStateProvider.notifier);
@@ -539,16 +556,15 @@ void main() {
       // i.e. no crash, no double-tear-down. The primary observable
       // here is that no exception bubbles up from temperature polling
       // teardown for the wrong camera.
-      eventStreamController.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'Disconnected',
-        data: {
-          'device_type': 'camera',
-          'device_id': 'camera-B',
-        },
-      ));
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'camera', 'device_id': 'camera-B'},
+        ),
+      );
 
       await Future.delayed(const Duration(milliseconds: 50));
 
@@ -564,12 +580,16 @@ void main() {
       const cameraId = 'simulator:camera-1';
 
       // Configure mock to succeed
-      when(() => mockBackend.connectDevice(any(), any())).thenAnswer((_) async {});
-      when(() => mockBackend.startDeviceHeartbeat(
-        deviceType: any(named: 'deviceType'),
-        deviceId: any(named: 'deviceId'),
-        intervalMs: any(named: 'intervalMs'),
-      )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.connectDevice(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: any(named: 'deviceType'),
+          deviceId: any(named: 'deviceId'),
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      ).thenAnswer((_) async {});
 
       final deviceService = container.read(deviceServiceProvider);
 
@@ -577,17 +597,23 @@ void main() {
       await deviceService.connectCamera(cameraId);
 
       // Verify heartbeat was started
-      verify(() => mockBackend.startDeviceHeartbeat(
-        deviceType: DeviceType.camera,
-        deviceId: cameraId,
-        intervalMs: 10000,
-      )).called(1);
+      verify(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: DeviceType.camera,
+          deviceId: cameraId,
+          intervalMs: 10000,
+        ),
+      ).called(1);
     });
 
     test('stopDeviceHeartbeat is called when camera disconnects', () async {
       // Configure mock
-      when(() => mockBackend.stopDeviceHeartbeat(any())).thenAnswer((_) async {});
-      when(() => mockBackend.disconnectDevice(any(), any())).thenAnswer((_) async {});
+      when(
+        () => mockBackend.stopDeviceHeartbeat(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.disconnectDevice(any(), any()),
+      ).thenAnswer((_) async {});
 
       // Setup camera state with device ID
       final cameraNotifier = container.read(cameraStateProvider.notifier);

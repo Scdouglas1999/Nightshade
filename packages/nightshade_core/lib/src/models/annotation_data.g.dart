@@ -10,11 +10,14 @@ _ImageAnnotation _$ImageAnnotationFromJson(Map<String, dynamic> json) =>
     _ImageAnnotation(
       imagePath: json['imagePath'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String),
-      plateSolve:
-          PlateSolveData.fromJson(json['plateSolve'] as Map<String, dynamic>),
+      plateSolve: PlateSolveData.fromJson(
+        json['plateSolve'] as Map<String, dynamic>,
+      ),
       objects: (json['objects'] as List<dynamic>)
-          .map((e) =>
-              CelestialObjectAnnotation.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) =>
+                CelestialObjectAnnotation.fromJson(e as Map<String, dynamic>),
+          )
           .toList(),
       visible: json['visible'] as bool? ?? true,
     );
@@ -53,42 +56,42 @@ Map<String, dynamic> _$PlateSolveDataToJson(_PlateSolveData instance) =>
     };
 
 _CelestialObjectAnnotation _$CelestialObjectAnnotationFromJson(
-        Map<String, dynamic> json) =>
-    _CelestialObjectAnnotation(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      type: $enumDecode(_$ObjectTypeEnumMap, json['type']),
-      ra: (json['ra'] as num).toDouble(),
-      dec: (json['dec'] as num).toDouble(),
-      x: (json['x'] as num).toDouble(),
-      y: (json['y'] as num).toDouble(),
-      catalogId: json['catalogId'] as String?,
-      commonName: json['commonName'] as String?,
-      magnitude: (json['magnitude'] as num?)?.toDouble(),
-      size: (json['size'] as num?)?.toDouble(),
-      detailedData: json['detailedData'] == null
-          ? null
-          : ObjectData.fromJson(json['detailedData'] as Map<String, dynamic>),
-      visible: json['visible'] as bool? ?? true,
-    );
+  Map<String, dynamic> json,
+) => _CelestialObjectAnnotation(
+  id: json['id'] as String,
+  name: json['name'] as String,
+  type: $enumDecode(_$ObjectTypeEnumMap, json['type']),
+  ra: (json['ra'] as num).toDouble(),
+  dec: (json['dec'] as num).toDouble(),
+  x: (json['x'] as num).toDouble(),
+  y: (json['y'] as num).toDouble(),
+  catalogId: json['catalogId'] as String?,
+  commonName: json['commonName'] as String?,
+  magnitude: (json['magnitude'] as num?)?.toDouble(),
+  size: (json['size'] as num?)?.toDouble(),
+  detailedData: json['detailedData'] == null
+      ? null
+      : ObjectData.fromJson(json['detailedData'] as Map<String, dynamic>),
+  visible: json['visible'] as bool? ?? true,
+);
 
 Map<String, dynamic> _$CelestialObjectAnnotationToJson(
-        _CelestialObjectAnnotation instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'name': instance.name,
-      'type': _$ObjectTypeEnumMap[instance.type]!,
-      'ra': instance.ra,
-      'dec': instance.dec,
-      'x': instance.x,
-      'y': instance.y,
-      'catalogId': instance.catalogId,
-      'commonName': instance.commonName,
-      'magnitude': instance.magnitude,
-      'size': instance.size,
-      'detailedData': instance.detailedData,
-      'visible': instance.visible,
-    };
+  _CelestialObjectAnnotation instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'type': _$ObjectTypeEnumMap[instance.type]!,
+  'ra': instance.ra,
+  'dec': instance.dec,
+  'x': instance.x,
+  'y': instance.y,
+  'catalogId': instance.catalogId,
+  'commonName': instance.commonName,
+  'magnitude': instance.magnitude,
+  'size': instance.size,
+  'detailedData': instance.detailedData,
+  'visible': instance.visible,
+};
 
 const _$ObjectTypeEnumMap = {
   ObjectType.galaxy: 'galaxy',
@@ -102,33 +105,35 @@ const _$ObjectTypeEnumMap = {
 };
 
 _ObjectData _$ObjectDataFromJson(Map<String, dynamic> json) => _ObjectData(
-      description: json['description'] as String?,
-      objectClass: json['objectClass'] as String?,
-      spectralType:
-          $enumDecodeNullable(_$SpectralClassEnumMap, json['spectralType']),
-      temperature: (json['temperature'] as num?)?.toDouble(),
-      mass: (json['mass'] as num?)?.toDouble(),
-      radius: (json['radius'] as num?)?.toDouble(),
-      luminosity: (json['luminosity'] as num?)?.toDouble(),
-      distance: (json['distance'] as num?)?.toDouble(),
-      parallax: (json['parallax'] as num?)?.toDouble(),
-      properMotion: json['properMotion'] as String?,
-      exoplanets: (json['exoplanets'] as List<dynamic>?)
-          ?.map((e) => ExoplanetData.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      surfaceBrightness: (json['surfaceBrightness'] as num?)?.toDouble(),
-      redshift: (json['redshift'] as num?)?.toDouble(),
-      morphology: json['morphology'] as String?,
-      simbadId: json['simbadId'] as String?,
-      wikipediaUrl: json['wikipediaUrl'] as String?,
-      catalogIds: (json['catalogIds'] as Map<String, dynamic>?)?.map(
-        (k, e) => MapEntry(k, e as String),
-      ),
-      lastUpdated: json['lastUpdated'] == null
-          ? null
-          : DateTime.parse(json['lastUpdated'] as String),
-      dataSource: json['dataSource'] as String?,
-    );
+  description: json['description'] as String?,
+  objectClass: json['objectClass'] as String?,
+  spectralType: $enumDecodeNullable(
+    _$SpectralClassEnumMap,
+    json['spectralType'],
+  ),
+  temperature: (json['temperature'] as num?)?.toDouble(),
+  mass: (json['mass'] as num?)?.toDouble(),
+  radius: (json['radius'] as num?)?.toDouble(),
+  luminosity: (json['luminosity'] as num?)?.toDouble(),
+  distance: (json['distance'] as num?)?.toDouble(),
+  parallax: (json['parallax'] as num?)?.toDouble(),
+  properMotion: json['properMotion'] as String?,
+  exoplanets: (json['exoplanets'] as List<dynamic>?)
+      ?.map((e) => ExoplanetData.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  surfaceBrightness: (json['surfaceBrightness'] as num?)?.toDouble(),
+  redshift: (json['redshift'] as num?)?.toDouble(),
+  morphology: json['morphology'] as String?,
+  simbadId: json['simbadId'] as String?,
+  wikipediaUrl: json['wikipediaUrl'] as String?,
+  catalogIds: (json['catalogIds'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  lastUpdated: json['lastUpdated'] == null
+      ? null
+      : DateTime.parse(json['lastUpdated'] as String),
+  dataSource: json['dataSource'] as String?,
+);
 
 Map<String, dynamic> _$ObjectDataToJson(_ObjectData instance) =>
     <String, dynamic>{

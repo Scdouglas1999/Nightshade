@@ -41,7 +41,9 @@ class AutofocusProgressData {
       totalPoints: json['total_points'] as int,
       hfr: (json['hfr'] as num).toDouble(),
       starCount: json['star_count'] as int,
-      focusRange: FocusRange.fromJson(json['focus_range'] as Map<String, dynamic>),
+      focusRange: FocusRange.fromJson(
+        json['focus_range'] as Map<String, dynamic>,
+      ),
       vcurvePoints: (json['vcurve_points'] as List<dynamic>)
           .map((e) => VCurvePoint.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -70,10 +72,7 @@ class FocusRange {
   const FocusRange({required this.min, required this.max});
 
   factory FocusRange.fromJson(Map<String, dynamic> json) {
-    return FocusRange(
-      min: json['min'] as int,
-      max: json['max'] as int,
-    );
+    return FocusRange(min: json['min'] as int, max: json['max'] as int);
   }
 }
 

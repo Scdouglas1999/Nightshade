@@ -1,11 +1,7 @@
 import '../models/sequence/sequence_models.dart';
 import 'sequence_time_estimator.dart';
 
-enum PreSessionSimulationSeverity {
-  info,
-  warning,
-  error,
-}
+enum PreSessionSimulationSeverity { info, warning, error }
 
 class PreSessionSimulationSegment {
   final String nodeId;
@@ -60,8 +56,9 @@ class PreSessionSimulationResult {
     required this.issues,
   });
 
-  bool get hasBlockingIssues => issues
-      .any((issue) => issue.severity == PreSessionSimulationSeverity.error);
+  bool get hasBlockingIssues => issues.any(
+    (issue) => issue.severity == PreSessionSimulationSeverity.error,
+  );
 }
 
 /// Wave 9 pure pre-session simulator.
@@ -115,13 +112,15 @@ class PreSessionSimulator {
       if (darkWindowStart != null && start.isBefore(darkWindowStart))
         PreSessionSimulationIssue(
           severity: PreSessionSimulationSeverity.warning,
-          message: 'Sequence is expected to start at ${_formatTime(start)}, '
+          message:
+              'Sequence is expected to start at ${_formatTime(start)}, '
               'before the dark window starts at ${_formatTime(darkWindowStart)}.',
         ),
       if (darkWindowEnd != null && end.isAfter(darkWindowEnd))
         PreSessionSimulationIssue(
           severity: PreSessionSimulationSeverity.warning,
-          message: 'Sequence is expected to end at ${_formatTime(end)}, '
+          message:
+              'Sequence is expected to end at ${_formatTime(end)}, '
               'after the dark window ends at ${_formatTime(darkWindowEnd)}.',
         ),
     ];
@@ -164,7 +163,8 @@ class PreSessionSimulator {
         yield PreSessionSimulationIssue(
           severity: PreSessionSimulationSeverity.error,
           targetHeaderId: window.targetId,
-          message: '${window.targetName} never rises above the simulation '
+          message:
+              '${window.targetName} never rises above the simulation '
               'altitude floor.',
         );
       } else if (!window.isCircumpolar && window.setTime == null) {

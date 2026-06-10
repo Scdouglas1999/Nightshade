@@ -26,19 +26,13 @@ import 'equipment_profiles.dart';
 /// in-session-only models (powered by the JSON-file [FocusModelService])
 /// continue to work without persistence.
 @DataClassName('FocusModelEntry')
-@TableIndex(
-  name: 'idx_focus_models_profile',
-  columns: {#equipmentProfileId},
-)
+@TableIndex(name: 'idx_focus_models_profile', columns: {#equipmentProfileId})
 @TableIndex(
   name: 'idx_focus_models_profile_filter',
   columns: {#equipmentProfileId, #filterName},
   unique: true,
 )
-@TableIndex(
-  name: 'idx_focus_models_last_used',
-  columns: {#lastUsedAt},
-)
+@TableIndex(name: 'idx_focus_models_last_used', columns: {#lastUsedAt})
 class FocusModels extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -48,9 +42,11 @@ class FocusModels extends Table {
   /// Reference to the equipment profile the model belongs to. SET NULL on
   /// profile delete so models survive a profile rename/replace and can be
   /// re-attached manually by the user.
-  IntColumn get equipmentProfileId => integer()
-      .nullable()
-      .references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
+  IntColumn get equipmentProfileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   /// Filter name as it appears on the filter wheel (e.g. "L", "R", "Ha").
   /// Case-sensitive — the filter wheel reports the canonical name so we
@@ -72,7 +68,8 @@ class FocusModels extends Table {
   /// Focus offset (steps) relative to the luminance / reference filter.
   /// Positive = move *out* relative to L. Recomputed on every sample
   /// insertion when the reference filter is set.
-  IntColumn get focusOffsetRelativeToLum => integer().withDefault(const Constant(0))();
+  IntColumn get focusOffsetRelativeToLum =>
+      integer().withDefault(const Constant(0))();
 
   /// Focuser position at the reference temperature ([referenceTempCelsius]).
   /// Together with [temperatureCompensationSlope] this lets the predictor
@@ -82,7 +79,8 @@ class FocusModels extends Table {
   /// Reference temperature used by the intercept. Defaults to 10 °C but is
   /// reset on each re-fit to the mean of the training samples to keep the
   /// regression numerically stable across wide temperature spans.
-  RealColumn get referenceTempCelsius => real().withDefault(const Constant(10.0))();
+  RealColumn get referenceTempCelsius =>
+      real().withDefault(const Constant(10.0))();
 
   /// When the regression was last re-fit. Distinct from [lastUsedAt]: the
   /// model may be queried (used) without being re-fit (trained).
@@ -132,7 +130,8 @@ class FocusModels extends Table {
   /// Maximum number of training samples retained in the JSON blob. User-
   /// configurable per filter (the Ha narrowband crowd might want more
   /// history because they only get a few AF runs per night).
-  IntColumn get maxTrainingSamples => integer().withDefault(const Constant(50))();
+  IntColumn get maxTrainingSamples =>
+      integer().withDefault(const Constant(50))();
 
   /// Number of consecutive AF runs where the model's prediction was off by
   /// more than the drift threshold. When this exceeds 5, the service emits
@@ -149,8 +148,6 @@ class FocusModels extends Table {
 
   /// Row created/updated timestamps so the UI can sort the model viewer by
   /// "most recently learned".
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }

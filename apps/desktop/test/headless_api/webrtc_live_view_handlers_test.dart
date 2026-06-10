@@ -89,26 +89,28 @@ void main() {
       );
     }
 
-    test('POST offer creates a session and returns sessionId + sdp answer',
-        () async {
-      final response = await postOffer();
-      expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
-      expect(body['sessionId'], isA<String>());
-      expect((body['sessionId'] as String).length, 32);
-      final answer = body['sdp'] as Map<String, dynamic>;
-      expect(answer['type'], 'answer');
-      expect(answer['sdp'], isA<String>());
-      expect(body['dataChannelLabel'], 'live-view-frames');
-      expect(handlers.sessionCount, 1);
-    });
+    test(
+      'POST offer creates a session and returns sessionId + sdp answer',
+      () async {
+        final response = await postOffer();
+        expect(response.statusCode, 200);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        expect(body['sessionId'], isA<String>());
+        expect((body['sessionId'] as String).length, 32);
+        final answer = body['sdp'] as Map<String, dynamic>;
+        expect(answer['type'], 'answer');
+        expect(answer['sdp'], isA<String>());
+        expect(body['dataChannelLabel'], 'live-view-frames');
+        expect(handlers.sessionCount, 1);
+      },
+    );
 
     test('POST offer rejects empty deviceId', () async {
       final response = await postOffer(deviceId: '');
       expect(response.statusCode, 400);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['error'], 'bad_request');
       expect(handlers.sessionCount, 0);
     });
@@ -123,8 +125,8 @@ void main() {
         ),
       );
       expect(response.statusCode, 400);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['error'], 'bad_request');
     });
 
@@ -133,110 +135,121 @@ void main() {
         sdp: {'type': 'answer', 'sdp': 'v=0\r\nm=application'},
       );
       expect(response.statusCode, 400);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['error'], 'bad_sdp');
     });
 
-    test('session subscribes to hub and JPEG frames reach the datachannel',
-        () async {
-      final response = await postOffer(deviceId: 'test:cam:2');
-      expect(response.statusCode, 200);
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
-      final sessionId = body['sessionId'] as String;
-      final fake = fakes.single;
-      // Open the data channel so the session's sink starts forwarding
-      // frames. (The hub starts the producer loop the moment a
-      // subscription is registered, regardless of channel state, but
-      // pre-open writes are dropped by the session's sink adapter.)
-      fake.channel.openForTest();
+    test(
+      'session subscribes to hub and JPEG frames reach the datachannel',
+      () async {
+        final response = await postOffer(deviceId: 'test:cam:2');
+        expect(response.statusCode, 200);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final sessionId = body['sessionId'] as String;
+        final fake = fakes.single;
+        // Open the data channel so the session's sink starts forwarding
+        // frames. (The hub starts the producer loop the moment a
+        // subscription is registered, regardless of channel state, but
+        // pre-open writes are dropped by the session's sink adapter.)
+        fake.channel.openForTest();
 
-      // Wait for the hub to deliver at least one binary frame to our
-      // fake channel. The hub ticks at ~250 ms so a 5 s timeout is
-      // safely generous.
-      await _waitUntil(() => fake.channel.binaryWrites.isNotEmpty,
+        // Wait for the hub to deliver at least one binary frame to our
+        // fake channel. The hub ticks at ~250 ms so a 5 s timeout is
+        // safely generous.
+        await _waitUntil(
+          () => fake.channel.binaryWrites.isNotEmpty,
           timeout: const Duration(seconds: 5),
-          reason: 'no binary frame reached the datachannel');
-      // We expect at least one text message (the frame_meta envelope)
-      // immediately before the binary frame.
-      expect(fake.channel.textWrites, isNotEmpty);
-      final firstMeta = jsonDecode(fake.channel.textWrites.first)
-          as Map<String, dynamic>;
-      expect(firstMeta['type'], 'frame_meta');
-      expect(firstMeta['deviceId'], 'test:cam:2');
-      expect(fake.channel.binaryWrites.first, isNotEmpty);
-      // Hub should have one active subscriber from this session.
-      expect(hub.activeSubscriberCount, 1);
-      // sanity: session is still registered
-      expect(handlers.sessionCount, 1);
-      // Cleanup
-      final del = await handlers.handleDelete(
-        Request(
-          'DELETE',
-          Uri.parse('http://localhost/api/webrtc/live-view/$sessionId'),
-        ),
-        sessionId,
-      );
-      expect(del.statusCode, 204);
-      expect(handlers.sessionCount, 0);
-      // Hub should idle once the last subscriber is gone.
-      await _waitUntil(() => hub.activeSubscriberCount == 0,
+          reason: 'no binary frame reached the datachannel',
+        );
+        // We expect at least one text message (the frame_meta envelope)
+        // immediately before the binary frame.
+        expect(fake.channel.textWrites, isNotEmpty);
+        final firstMeta =
+            jsonDecode(fake.channel.textWrites.first) as Map<String, dynamic>;
+        expect(firstMeta['type'], 'frame_meta');
+        expect(firstMeta['deviceId'], 'test:cam:2');
+        expect(fake.channel.binaryWrites.first, isNotEmpty);
+        // Hub should have one active subscriber from this session.
+        expect(hub.activeSubscriberCount, 1);
+        // sanity: session is still registered
+        expect(handlers.sessionCount, 1);
+        // Cleanup
+        final del = await handlers.handleDelete(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/webrtc/live-view/$sessionId'),
+          ),
+          sessionId,
+        );
+        expect(del.statusCode, 204);
+        expect(handlers.sessionCount, 0);
+        // Hub should idle once the last subscriber is gone.
+        await _waitUntil(
+          () => hub.activeSubscriberCount == 0,
           timeout: const Duration(seconds: 2),
-          reason: 'hub did not unsubscribe after session DELETE');
-    });
+          reason: 'hub did not unsubscribe after session DELETE',
+        );
+      },
+    );
 
-    test('POST ICE candidate forwards to the underlying peer connection',
-        () async {
-      final response = await postOffer();
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
-      final sessionId = body['sessionId'] as String;
-      final fake = fakes.single;
-      expect(fake.addedCandidates, isEmpty);
+    test(
+      'POST ICE candidate forwards to the underlying peer connection',
+      () async {
+        final response = await postOffer();
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final sessionId = body['sessionId'] as String;
+        final fake = fakes.single;
+        expect(fake.addedCandidates, isEmpty);
 
-      final iceResp = await handlers.handleIce(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/webrtc/live-view/ice/$sessionId'),
-          body: jsonEncode({
-            'candidate': {
-              'candidate': 'candidate:1 1 UDP 2122252543 192.168.1.10 50000 typ host',
-              'sdpMid': '0',
-              'sdpMLineIndex': 0,
-            },
-          }),
-          headers: {'content-type': 'application/json'},
-        ),
-        sessionId,
-      );
-      expect(iceResp.statusCode, 204);
-      expect(fake.addedCandidates.length, 1);
-      expect(fake.addedCandidates.single.sdpMid, '0');
-      expect(fake.addedCandidates.single.sdpMLineIndex, 0);
-    });
+        final iceResp = await handlers.handleIce(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/webrtc/live-view/ice/$sessionId'),
+            body: jsonEncode({
+              'candidate': {
+                'candidate':
+                    'candidate:1 1 UDP 2122252543 192.168.1.10 50000 typ host',
+                'sdpMid': '0',
+                'sdpMLineIndex': 0,
+              },
+            }),
+            headers: {'content-type': 'application/json'},
+          ),
+          sessionId,
+        );
+        expect(iceResp.statusCode, 204);
+        expect(fake.addedCandidates.length, 1);
+        expect(fake.addedCandidates.single.sdpMid, '0');
+        expect(fake.addedCandidates.single.sdpMLineIndex, 0);
+      },
+    );
 
-    test('POST ICE with null candidate forwards end-of-candidates marker',
-        () async {
-      final response = await postOffer();
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
-      final sessionId = body['sessionId'] as String;
-      final fake = fakes.single;
-      final iceResp = await handlers.handleIce(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/webrtc/live-view/ice/$sessionId'),
-          body: jsonEncode({'candidate': null}),
-          headers: {'content-type': 'application/json'},
-        ),
-        sessionId,
-      );
-      expect(iceResp.statusCode, 204);
-      expect(fake.addedCandidates.length, 1);
-      // The EOC marker is encoded as an empty-string candidate.
-      expect(fake.addedCandidates.single.candidate, '');
-    });
+    test(
+      'POST ICE with null candidate forwards end-of-candidates marker',
+      () async {
+        final response = await postOffer();
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        final sessionId = body['sessionId'] as String;
+        final fake = fakes.single;
+        final iceResp = await handlers.handleIce(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/webrtc/live-view/ice/$sessionId'),
+            body: jsonEncode({'candidate': null}),
+            headers: {'content-type': 'application/json'},
+          ),
+          sessionId,
+        );
+        expect(iceResp.statusCode, 204);
+        expect(fake.addedCandidates.length, 1);
+        // The EOC marker is encoded as an empty-string candidate.
+        expect(fake.addedCandidates.single.candidate, '');
+      },
+    );
 
     test('POST ICE for unknown session returns 404', () async {
       final iceResp = await handlers.handleIce(
@@ -266,18 +279,14 @@ void main() {
 
     test('SSE replay surfaces locally-gathered ICE candidates', () async {
       final response = await postOffer();
-      final body = jsonDecode(await response.readAsString())
-          as Map<String, dynamic>;
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       final sessionId = body['sessionId'] as String;
       final fake = fakes.single;
       // Pretend libwebrtc gathered two candidates before the client
       // subscribed to the SSE endpoint — these must be replayed.
-      fake.emitCandidate(
-        RTCIceCandidate('candidate:1 1 UDP ...', '0', 0),
-      );
-      fake.emitCandidate(
-        RTCIceCandidate('candidate:2 1 TCP ...', '0', 0),
-      );
+      fake.emitCandidate(RTCIceCandidate('candidate:1 1 UDP ...', '0', 0));
+      fake.emitCandidate(RTCIceCandidate('candidate:2 1 TCP ...', '0', 0));
       final sse = handlers.handleIceEvents(
         Request(
           'GET',
@@ -295,19 +304,17 @@ void main() {
       final completer = Completer<String>();
       final buf = StringBuffer();
       late StreamSubscription<List<int>> sub;
-      sub = sse.read().listen(
-        (bytes) {
-          buf.write(utf8.decode(bytes));
-          if (buf.toString().contains('candidate:2')) {
-            if (!completer.isCompleted) {
-              completer.complete(buf.toString());
-            }
+      sub = sse.read().listen((bytes) {
+        buf.write(utf8.decode(bytes));
+        if (buf.toString().contains('candidate:2')) {
+          if (!completer.isCompleted) {
+            completer.complete(buf.toString());
           }
-        },
-        cancelOnError: true,
+        }
+      }, cancelOnError: true);
+      final received = await completer.future.timeout(
+        const Duration(seconds: 3),
       );
-      final received = await completer.future
-          .timeout(const Duration(seconds: 3));
       await sub.cancel();
       expect(received, contains('candidate:1'));
       expect(received, contains('candidate:2'));
@@ -339,7 +346,9 @@ Future<void> _waitUntil(
   final deadline = DateTime.now().add(timeout);
   while (!predicate()) {
     if (DateTime.now().isAfter(deadline)) {
-      fail(reason ?? 'predicate never became true within ${timeout.inSeconds}s');
+      fail(
+        reason ?? 'predicate never became true within ${timeout.inSeconds}s',
+      );
     }
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }

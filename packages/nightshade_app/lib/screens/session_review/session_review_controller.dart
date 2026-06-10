@@ -9,8 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide BestNight;
 // The controller exposes its own UI-facing [BestNight] (hours-based) to the
 // panels; reach the core service type — also named `BestNight` — under a prefix
 // so the two never collide.
-import 'package:nightshade_core/nightshade_core.dart' as core
-    show BestNight;
+import 'package:nightshade_core/nightshade_core.dart' as core show BestNight;
 import 'package:path/path.dart' as p;
 
 /// The core multi-night service's best-night value type, aliased so the
@@ -405,8 +404,9 @@ class SessionReviewState {
       masters: masters ?? this.masters,
       loading: loading ?? this.loading,
       integrating: integrating ?? this.integrating,
-      integrationProgress:
-          clearProgress ? null : (integrationProgress ?? this.integrationProgress),
+      integrationProgress: clearProgress
+          ? null
+          : (integrationProgress ?? this.integrationProgress),
       lastOutcome: lastOutcome ?? this.lastOutcome,
       error: clearError ? null : (error ?? this.error),
       nightReport: clearNightReport ? null : (nightReport ?? this.nightReport),
@@ -535,12 +535,14 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
 
   Future<(int?, String?)> _resolveTarget(List<DbCapturedImage> subs) async {
     if (_scope.targetId != null) {
-      final t = await _ref.read(targetsDaoProvider).getTargetById(_scope.targetId!);
+      final t =
+          await _ref.read(targetsDaoProvider).getTargetById(_scope.targetId!);
       return (_scope.targetId, t?.name);
     }
     // Session scope: derive the dominant target from the subs.
-    final targetId =
-        subs.map((s) => s.targetId).firstWhere((id) => id != null, orElse: () => null);
+    final targetId = subs
+        .map((s) => s.targetId)
+        .firstWhere((id) => id != null, orElse: () => null);
     if (targetId == null) return (null, null);
     final t = await _ref.read(targetsDaoProvider).getTargetById(targetId);
     return (targetId, t?.name);
@@ -558,10 +560,12 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   }
 
   Future<String> _resolveTitle(String? targetName) async {
-    if (targetName != null && targetName.trim().isNotEmpty) return targetName.trim();
+    if (targetName != null && targetName.trim().isNotEmpty)
+      return targetName.trim();
     if (_scope.isSession) {
-      final session =
-          await _ref.read(sessionsDaoProvider).getSessionById(_scope.sessionId!);
+      final session = await _ref
+          .read(sessionsDaoProvider)
+          .getSessionById(_scope.sessionId!);
       if (session != null) {
         final d = session.startTime.toLocal();
         return 'Night of ${d.year}-${_two(d.month)}-${_two(d.day)}';
@@ -615,9 +619,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   }) async {
     var rejected = 0;
     for (final sub in state.acceptedLights) {
-      final failHfr = hfrThreshold != null &&
-          sub.hfr != null &&
-          sub.hfr! > hfrThreshold;
+      final failHfr =
+          hfrThreshold != null && sub.hfr != null && sub.hfr! > hfrThreshold;
       final failQuality = qualityThreshold != null &&
           sub.qualityScore != null &&
           sub.qualityScore! < qualityThreshold;
@@ -673,10 +676,10 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         outputFitsPathBuilder: (filterBucket) {
           final stamp = DateTime.now().millisecondsSinceEpoch;
           final base = _safeName(state.title);
-          final filterTag = filterBucket == PostSessionIntegrationService
-                  .noFilterBucket
-              ? ''
-              : '_${_safeName(filterBucket)}';
+          final filterTag =
+              filterBucket == PostSessionIntegrationService.noFilterBucket
+                  ? ''
+                  : '_${_safeName(filterBucket)}';
           return p.join(outDir, '$base${filterTag}_master_$stamp.fits');
         },
       );
@@ -727,8 +730,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     final (curve, population) = master != null
         ? await _loadImprovementCurve(master.id)
         : (null, const <String>[]);
-    final (growth, best) =
-        master != null ? await _loadGrowthAndBestNight(master.id) : (const <GrowthPoint>[], null);
+    final (growth, best) = master != null
+        ? await _loadGrowthAndBestNight(master.id)
+        : (const <GrowthPoint>[], null);
     final annotations =
         master != null ? await _loadAnnotationLayer(master) : null;
 
@@ -991,8 +995,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       final previewPng =
           SessionReviewController._swapExtension(result.outputPath, '.png');
       try {
-        await _ref
-            .read(finishingPreviewRendererProvider)(result.outputPath, previewPng);
+        await _ref.read(finishingPreviewRendererProvider)(
+            result.outputPath, previewPng);
       } catch (_) {
         // Leave the FITS path persisted; the overlay simply shows no preview.
       }
@@ -1005,7 +1009,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       state = state.copyWith(masters: masters);
       return result.outputPath;
     } catch (e) {
-      if (mounted) state = state.copyWith(error: 'Color calibration failed: $e');
+      if (mounted)
+        state = state.copyWith(error: 'Color calibration failed: $e');
       return null;
     } finally {
       if (mounted) state = state.copyWith(calibrating: false);
@@ -1026,7 +1031,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       busy: (v) => state.copyWith(extractingBackground: v),
       suffix: '_bgx',
       label: 'Background extraction',
-      invoke: (seam, master, output) => seam.extractBackground(<String, dynamic>{
+      invoke: (seam, master, output) =>
+          seam.extractBackground(<String, dynamic>{
         'inputFits': master.masterFitsPath,
         'outputFits': output,
         'config': <String, dynamic>{
@@ -1054,7 +1060,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       busy: (v) => state.copyWith(deconvolving: v),
       suffix: '_decon',
       label: 'Deconvolution',
-      invoke: (seam, master, output) => seam.deconvolvePreview(<String, dynamic>{
+      invoke: (seam, master, output) =>
+          seam.deconvolvePreview(<String, dynamic>{
         'inputFits': master.masterFitsPath,
         'outputFits': output,
         'config': <String, dynamic>{
@@ -1192,8 +1199,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       final seam = _ref.read(postSessionSeamProvider);
       final outDir = await _outputDir();
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final output =
-          p.join(outDir, '${_safeName(state.title)}_${_safeName(palette)}_$stamp.fits');
+      final output = p.join(outDir,
+          '${_safeName(state.title)}_${_safeName(palette)}_$stamp.fits');
       final isCustom = palette.toLowerCase() == 'custom';
       final outputPath = await seam.combineChannels(<String, dynamic>{
         'inputs': inputs,
@@ -1234,7 +1241,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       }
       return outputPath;
     } catch (e) {
-      if (mounted) state = state.copyWith(error: 'Narrowband combine failed: $e');
+      if (mounted)
+        state = state.copyWith(error: 'Narrowband combine failed: $e');
       return null;
     } finally {
       if (mounted) state = state.copyWith(combiningNarrowband: false);
@@ -1252,8 +1260,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     if (!mounted) return;
     state = state.copyWith(
       narrowbandComposites: composites,
-      narrowbandComposite:
-          state.narrowbandComposite ?? (composites.isNotEmpty ? composites.first : null),
+      narrowbandComposite: state.narrowbandComposite ??
+          (composites.isNotEmpty ? composites.first : null),
     );
   }
 
@@ -1478,7 +1486,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       if (sq != null && (bq == null || sq > bq)) {
         best = s;
       } else if (sq != null && bq != null && sq == bq) {
-        if ((s.hfr ?? double.infinity) < (best.hfr ?? double.infinity)) best = s;
+        if ((s.hfr ?? double.infinity) < (best.hfr ?? double.infinity))
+          best = s;
       }
     }
     return best;
@@ -1490,8 +1499,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   }
 
   Future<String> _outputDir() async {
-    final configured =
-        await _ref.read(settingsDaoProvider).getSetting('default_image_directory');
+    final configured = await _ref
+        .read(settingsDaoProvider)
+        .getSetting('default_image_directory');
     if (configured != null && configured.trim().isNotEmpty) {
       return p.join(configured.trim(), 'masters');
     }
@@ -1558,7 +1568,8 @@ final finishingPreviewRendererProvider =
   return (String inputFits, String outputPng) async {
     final dims = await bridge.apiReadFitsLinearData(filePath: inputFits);
     final params = await bridge.apiCalculateAutoStretch(filePath: inputFits);
-    final rgba = await bridge.apiApplyStretch(filePath: inputFits, params: params);
+    final rgba =
+        await bridge.apiApplyStretch(filePath: inputFits, params: params);
     await bridge.apiSaveRgbaPngFile(
       filePath: outputPng,
       width: dims.width,

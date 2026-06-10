@@ -33,7 +33,9 @@ Future<void> extractZipSafely(File zipFile, Directory destination) async {
 }
 
 Future<void> extractArchiveSafely(
-    Archive archive, Directory destination) async {
+  Archive archive,
+  Directory destination,
+) async {
   await destination.create(recursive: true);
   final destinationRoot = await destination.resolveSymbolicLinks();
 
@@ -107,8 +109,9 @@ Future<void> _assertInsideDestination(
 
 bool _isWithinDirectory(String root, String candidate) {
   final normalizedRoot = _normalizeForComparison(path.normalize(root));
-  final normalizedCandidate =
-      _normalizeForComparison(path.normalize(candidate));
+  final normalizedCandidate = _normalizeForComparison(
+    path.normalize(candidate),
+  );
   if (normalizedCandidate == normalizedRoot) {
     return true;
   }

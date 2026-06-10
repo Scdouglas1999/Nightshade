@@ -77,16 +77,19 @@ class NotificationRouter {
   /// global matrix for that category.
   String? _activeSequenceId;
   final Map<String, Map<NotificationCategory, NotificationRoutingRule>>
-      _sequenceOverrides = {};
+  _sequenceOverrides = {};
 
   NotificationRouter({
     required List<NotificationTransport> transports,
-    NotificationRoutingMatrix matrix =
-        const NotificationRoutingMatrix(enabled: true),
-  })  : _transports = {for (final t in transports) t.kind: t},
-        _matrix = matrix.rules.isEmpty
-            ? NotificationRoutingMatrix.defaults().copyWith(enabled: matrix.enabled)
-            : matrix;
+    NotificationRoutingMatrix matrix = const NotificationRoutingMatrix(
+      enabled: true,
+    ),
+  }) : _transports = {for (final t in transports) t.kind: t},
+       _matrix = matrix.rules.isEmpty
+           ? NotificationRoutingMatrix.defaults().copyWith(
+               enabled: matrix.enabled,
+             )
+           : matrix;
 
   // ----- Public surface ----------------------------------------------------
 
@@ -128,8 +131,12 @@ class NotificationRouter {
     _subscription = events.listen(
       _onEvent,
       onError: (e) {
-        developer.log('[NotificationRouter] Event stream error: $e',
-            name: 'NotificationRouter', level: 1000, error: e);
+        developer.log(
+          '[NotificationRouter] Event stream error: $e',
+          name: 'NotificationRouter',
+          level: 1000,
+          error: e,
+        );
       },
     );
   }
@@ -264,8 +271,11 @@ class NotificationRouter {
     if (!transport.isConfigured) {
       return NotificationResult.fail('${transport.name} is not configured');
     }
-    final result =
-        await transport.send(category: category, title: title, body: body);
+    final result = await transport.send(
+      category: category,
+      title: title,
+      body: body,
+    );
     _lastResults[kind] = result;
     return result;
   }
@@ -336,7 +346,8 @@ class NotificationRouter {
   /// payload. Returns null if the field is missing or empty (which means
   /// "inherit the matrix's `custom` rule transports").
   List<NotificationTransportKind>? _parseExplicitTransportsFromEvent(
-      Map<String, dynamic> data) {
+    Map<String, dynamic> data,
+  ) {
     final raw = data['explicit_transports'];
     if (raw is! List) return null;
     final out = <NotificationTransportKind>[];
@@ -350,7 +361,9 @@ class NotificationRouter {
   }
 
   Map<String, String> _buildContext(
-      NightshadeEvent event, Map<String, String> overrides) {
+    NightshadeEvent event,
+    Map<String, String> overrides,
+  ) {
     final ctx = <String, String>{};
     // Pull common scalar fields from the event's data map. We never
     // override a value the classifier set (those are more specific).
@@ -378,7 +391,9 @@ class NotificationRouter {
   }
 
   bool _isDebounced(
-      NotificationCategory category, NotificationRoutingRule rule) {
+    NotificationCategory category,
+    NotificationRoutingRule rule,
+  ) {
     if (rule.debounceSeconds <= 0) return false;
     final last = _lastFireTime[category];
     if (last == null) return false;
@@ -387,17 +402,23 @@ class NotificationRouter {
   }
 
   bool _isRateLimited(
-      NotificationCategory category, NotificationRoutingRule rule) {
+    NotificationCategory category,
+    NotificationRoutingRule rule,
+  ) {
     if (rule.maxPerHour <= 0) return false;
-    final window =
-        _rateWindows.putIfAbsent(category, () => _RateWindow(maxAge: const Duration(hours: 1)));
+    final window = _rateWindows.putIfAbsent(
+      category,
+      () => _RateWindow(maxAge: const Duration(hours: 1)),
+    );
     window.prune();
     return window.count >= rule.maxPerHour;
   }
 
   void _recordRateHit(NotificationCategory category) {
     final window = _rateWindows.putIfAbsent(
-        category, () => _RateWindow(maxAge: const Duration(hours: 1)));
+      category,
+      () => _RateWindow(maxAge: const Duration(hours: 1)),
+    );
     window.record(DateTime.now());
   }
 
@@ -445,8 +466,9 @@ class NotificationRouter {
   /// keyed on the copy the operator actually sees.
   bool _isDuplicatePush(String title, String body) {
     final now = DateTime.now();
-    _recentPushSignatures
-        .removeWhere((_, when) => now.difference(when) > _pushDedupeWindow);
+    _recentPushSignatures.removeWhere(
+      (_, when) => now.difference(when) > _pushDedupeWindow,
+    );
     final signature = '$title|$body';
     final last = _recentPushSignatures[signature];
     if (last != null && now.difference(last) < _pushDedupeWindow) return true;

@@ -34,9 +34,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
     void Function(DownloadProgress)? onProgress,
   }) async {
     developer.log(
-        '[Catalog] Starting download of ${source.name} from ${source.downloadUrl}',
-        name: 'CatalogManager',
-        level: 800);
+      '[Catalog] Starting download of ${source.name} from ${source.downloadUrl}',
+      name: 'CatalogManager',
+      level: 800,
+    );
 
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -58,17 +59,19 @@ extension CatalogManagerLegacyIo on CatalogManager {
 
       try {
         developer.log(
-            '[Catalog] Sending HTTP GET request to ${source.downloadUrl}',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Sending HTTP GET request to ${source.downloadUrl}',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         final request = http.Request('GET', Uri.parse(source.downloadUrl));
         final streamedResponse = await client.send(request);
 
         developer.log(
-            '[Catalog] Response status: ${streamedResponse.statusCode}',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Response status: ${streamedResponse.statusCode}',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         if (streamedResponse.statusCode != 200) {
           final errorMsg =
@@ -86,9 +89,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
         final sink = file.openWrite();
 
         developer.log(
-            '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         // Check if the download is gzip compressed
         final isGzipped = source.downloadUrl.endsWith('.gz');
@@ -115,17 +119,24 @@ extension CatalogManagerLegacyIo on CatalogManager {
         // Decompress if needed
         Uint8List finalBytes;
         if (isGzipped) {
-          developer.log('[Catalog] Decompressing gzip data...',
-              name: 'CatalogManager', level: 800);
+          developer.log(
+            '[Catalog] Decompressing gzip data...',
+            name: 'CatalogManager',
+            level: 800,
+          );
           try {
             finalBytes = Uint8List.fromList(gzip.decode(downloadedBytes));
             developer.log(
-                '[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes',
-                name: 'CatalogManager',
-                level: 800);
+              '[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes',
+              name: 'CatalogManager',
+              level: 800,
+            );
           } catch (e) {
-            developer.log('[Catalog] Gzip decompression failed: $e',
-                name: 'CatalogManager', level: 900);
+            developer.log(
+              '[Catalog] Gzip decompression failed: $e',
+              name: 'CatalogManager',
+              level: 900,
+            );
             // Try to use the data as-is (maybe it wasn't actually gzipped)
             finalBytes = Uint8List.fromList(downloadedBytes);
           }
@@ -138,9 +149,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
         await sink.close();
 
         developer.log(
-            '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
-            name: 'CatalogManager',
-            level: 800);
+          '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         // Verify file was written
         if (!await file.exists()) {
@@ -152,8 +164,11 @@ extension CatalogManagerLegacyIo on CatalogManager {
           throw Exception('Downloaded file is empty');
         }
 
-        developer.log('[Catalog] File verified: $fileSize bytes',
-            name: 'CatalogManager', level: 800);
+        developer.log(
+          '[Catalog] File verified: $fileSize bytes',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         // Count objects and save metadata
         final objectCount = await _countObjects(filePath);
@@ -163,8 +178,11 @@ extension CatalogManagerLegacyIo on CatalogManager {
           dsos: type == 'dso',
         );
 
-        developer.log('[Catalog] Catalog saved with $objectCount objects',
-            name: 'CatalogManager', level: 800);
+        developer.log(
+          '[Catalog] Catalog saved with $objectCount objects',
+          name: 'CatalogManager',
+          level: 800,
+        );
 
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -176,11 +194,13 @@ extension CatalogManagerLegacyIo on CatalogManager {
       }
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
-      developer.log(errorMsg,
-          name: 'CatalogManager',
-          level: 1000,
-          error: e,
-          stackTrace: stackTrace);
+      developer.log(
+        errorMsg,
+        name: 'CatalogManager',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
 
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
@@ -196,8 +216,11 @@ extension CatalogManagerLegacyIo on CatalogManager {
       // Subtract 1 for header row
       return lines.length - 1;
     } catch (e) {
-      developer.log('[Catalog] Error counting objects: $e',
-          name: 'CatalogManager', level: 900);
+      developer.log(
+        '[Catalog] Error counting objects: $e',
+        name: 'CatalogManager',
+        level: 900,
+      );
       return 0;
     }
   }
@@ -233,8 +256,9 @@ extension CatalogManagerLegacyIo on CatalogManager {
         return false;
       }
 
-      final fileName =
-          type == 'stars' ? hygStarCatalog.fileName : openNgcCatalog.fileName;
+      final fileName = type == 'stars'
+          ? hygStarCatalog.fileName
+          : openNgcCatalog.fileName;
       final destPath = path.join(catalogDirectory, fileName);
 
       await sourceFile.copy(destPath);
@@ -249,8 +273,11 @@ extension CatalogManagerLegacyIo on CatalogManager {
 
       return true;
     } catch (e) {
-      developer.log('[Catalog] Import error: $e',
-          name: 'CatalogManager', level: 1000);
+      developer.log(
+        '[Catalog] Import error: $e',
+        name: 'CatalogManager',
+        level: 1000,
+      );
       return false;
     }
   }

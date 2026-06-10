@@ -6,8 +6,8 @@ import 'dart:math' as math;
 /// given instant. Used by [AstronomyCalculations.calculateObjectVisibility] to
 /// track moving bodies (Sun/Moon/planets) across the night. Fixed catalog
 /// objects simply omit this callback and their J2000 RA/Dec is used directly.
-typedef EquatorialPositionAt = (double raDeg, double decDeg) Function(
-    DateTime dt);
+typedef EquatorialPositionAt =
+    (double raDeg, double decDeg) Function(DateTime dt);
 
 /// Comprehensive astronomy calculations for astrophotography planning
 class AstronomyCalculations {
@@ -34,7 +34,8 @@ class AstronomyCalculations {
     final utc = dt.toUtc();
     final y = utc.year;
     final m = utc.month;
-    final d = utc.day +
+    final d =
+        utc.day +
         utc.hour / 24 +
         utc.minute / 1440 +
         utc.second / 86400 +
@@ -99,7 +100,8 @@ class AstronomyCalculations {
     final jd = julianDate(dt);
     final t = (jd - _j2000) / 36525;
 
-    var gmst = 280.46061837 +
+    var gmst =
+        280.46061837 +
         360.98564736629 * (jd - _j2000) +
         0.000387933 * t * t -
         t * t * t / 38710000;
@@ -187,14 +189,16 @@ class AstronomyCalculations {
     final lat = latitudeDeg * _deg2rad;
 
     // Calculate altitude
-    final sinAlt = math.sin(dec) * math.sin(lat) +
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
         math.cos(dec) * math.cos(lat) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
     // Calculate azimuth with atan2 to stay finite at zenith/nadir and
     // near the poles, where acos-based forms divide by cos(alt) * cos(lat).
     final y = -math.sin(ha) * math.cos(dec);
-    final x = math.sin(dec) * math.cos(lat) -
+    final x =
+        math.sin(dec) * math.cos(lat) -
         math.cos(dec) * math.sin(lat) * math.cos(ha);
     var az = math.atan2(y, x);
     if (az < 0) az += 2 * math.pi;
@@ -215,14 +219,16 @@ class AstronomyCalculations {
     final lat = latitudeDeg * _deg2rad;
 
     // Calculate declination
-    final sinDec = math.sin(alt) * math.sin(lat) +
+    final sinDec =
+        math.sin(alt) * math.sin(lat) +
         math.cos(alt) * math.cos(lat) * math.cos(az);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
     // Calculate hour angle with atan2 so azimuths near zenith/nadir do not
     // produce NaN from tiny denominators.
     final y = -math.sin(az) * math.cos(alt);
-    final x = math.sin(alt) * math.cos(lat) -
+    final x =
+        math.sin(alt) * math.cos(lat) -
         math.cos(alt) * math.sin(lat) * math.cos(az);
     final ha = math.atan2(y, x);
 
@@ -245,7 +251,8 @@ class AstronomyCalculations {
     final lat = latDeg * _deg2rad;
     final eps = obliquityDeg * _deg2rad;
 
-    final sinDec = math.sin(lat) * math.cos(eps) +
+    final sinDec =
+        math.sin(lat) * math.cos(eps) +
         math.cos(lat) * math.sin(eps) * math.sin(lon);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
@@ -279,13 +286,15 @@ class AstronomyCalculations {
     final lO = lOmega * _deg2rad;
 
     // Declination
-    final sinDec = math.sin(b) * math.sin(dGP) +
+    final sinDec =
+        math.sin(b) * math.sin(dGP) +
         math.cos(b) * math.cos(dGP) * math.sin(l - lO);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
     // Right ascension
     final y = math.cos(b) * math.cos(l - lO);
-    final x = math.sin(b) * math.cos(dGP) -
+    final x =
+        math.sin(b) * math.cos(dGP) -
         math.cos(b) * math.sin(dGP) * math.sin(l - lO);
     var ra = math.atan2(y, x) * _rad2deg + alphaGP;
     ra = ra % 360;
@@ -314,13 +323,15 @@ class AstronomyCalculations {
     final lMoon = (218.3165 + 481267.8813 * t) * _deg2rad;
 
     // Nutation in longitude (arcseconds).
-    final dPsiArcsec = -17.20 * math.sin(omega) -
+    final dPsiArcsec =
+        -17.20 * math.sin(omega) -
         1.32 * math.sin(2 * lSun) -
         0.23 * math.sin(2 * lMoon) +
         0.21 * math.sin(2 * omega);
 
     // Nutation in obliquity (arcseconds).
-    final dEpsArcsec = 9.20 * math.cos(omega) +
+    final dEpsArcsec =
+        9.20 * math.cos(omega) +
         0.57 * math.cos(2 * lSun) +
         0.10 * math.cos(2 * lMoon) -
         0.09 * math.cos(2 * omega);
@@ -356,23 +367,28 @@ class AstronomyCalculations {
 
     // IAU 1976 precession angles (arcseconds), accumulated since J2000.
     final zeta =
-        (2306.2181 * t + 0.30188 * t * t + 0.017998 * t * t * t) / 3600.0 *
-            _deg2rad;
+        (2306.2181 * t + 0.30188 * t * t + 0.017998 * t * t * t) /
+        3600.0 *
+        _deg2rad;
     final z =
-        (2306.2181 * t + 1.09468 * t * t + 0.018203 * t * t * t) / 3600.0 *
-            _deg2rad;
+        (2306.2181 * t + 1.09468 * t * t + 0.018203 * t * t * t) /
+        3600.0 *
+        _deg2rad;
     final theta =
-        (2004.3109 * t - 0.42665 * t * t - 0.041833 * t * t * t) / 3600.0 *
-            _deg2rad;
+        (2004.3109 * t - 0.42665 * t * t - 0.041833 * t * t * t) /
+        3600.0 *
+        _deg2rad;
 
     final ra0 = raDeg * _deg2rad;
     final dec0 = decDeg * _deg2rad;
 
     // Precession rotation (Meeus eq. 21.4).
     final a = math.cos(dec0) * math.sin(ra0 + zeta);
-    final b = math.cos(theta) * math.cos(dec0) * math.cos(ra0 + zeta) -
+    final b =
+        math.cos(theta) * math.cos(dec0) * math.cos(ra0 + zeta) -
         math.sin(theta) * math.sin(dec0);
-    final c = math.sin(theta) * math.cos(dec0) * math.cos(ra0 + zeta) +
+    final c =
+        math.sin(theta) * math.cos(dec0) * math.cos(ra0 + zeta) +
         math.cos(theta) * math.sin(dec0);
 
     var raDate = math.atan2(a, b) + z;
@@ -385,10 +401,12 @@ class AstronomyCalculations {
     final dPsiRad = dPsi * _deg2rad;
     final dEpsRad = dEps * _deg2rad;
 
-    final dRa = (math.cos(eps) + math.sin(eps) * math.sin(raDate) * math.tan(decDate)) *
+    final dRa =
+        (math.cos(eps) + math.sin(eps) * math.sin(raDate) * math.tan(decDate)) *
             dPsiRad -
         (math.cos(raDate) * math.tan(decDate)) * dEpsRad;
-    final dDec = (math.sin(eps) * math.cos(raDate)) * dPsiRad +
+    final dDec =
+        (math.sin(eps) * math.cos(raDate)) * dPsiRad +
         math.sin(raDate) * dEpsRad;
 
     raDate += dRa;
@@ -419,7 +437,8 @@ class AstronomyCalculations {
     final mRad = m * _deg2rad;
 
     // Equation of center
-    final c = (1.914602 - 0.004817 * t - 0.000014 * t * t) * math.sin(mRad) +
+    final c =
+        (1.914602 - 0.004817 * t - 0.000014 * t * t) * math.sin(mRad) +
         (0.019993 - 0.000101 * t) * math.sin(2 * mRad) +
         0.000289 * math.sin(3 * mRad);
 
@@ -493,10 +512,10 @@ class AstronomyCalculations {
   }) {
     const step = Duration(minutes: 10);
     double altAt(DateTime t) => sunAltitude(
-          dt: t,
-          latitudeDeg: latitudeDeg,
-          longitudeDeg: longitudeDeg,
-        );
+      dt: t,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
 
     var t = startTime;
     var delta = altAt(t) - targetAlt;
@@ -529,8 +548,9 @@ class AstronomyCalculations {
     var t1 = bracketLo;
     var t2 = bracketHi;
     for (var i = 0; i < 50; i++) {
-      final tMid =
-          t1.add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+      final tMid = t1.add(
+        Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+      );
       final alt = altAt(tMid);
 
       if ((alt - targetAlt).abs() < 0.001) {
@@ -552,8 +572,9 @@ class AstronomyCalculations {
       }
     }
 
-    return t1
-        .add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+    return t1.add(
+      Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+    );
   }
 
   /// Calculate twilight times for a given date and location
@@ -573,8 +594,9 @@ class AstronomyCalculations {
     // machine-TZ/site combination.
     final localNoon = DateTime(date.year, date.month, date.day, 12);
     final tzOffsetHours = localNoon.timeZoneOffset.inMinutes / 60.0;
-    final siteSolarNoon = localNoon.add(Duration(
-        minutes: ((tzOffsetHours - longitudeDeg / 15.0) * 60).round()));
+    final siteSolarNoon = localNoon.add(
+      Duration(minutes: ((tzOffsetHours - longitudeDeg / 15.0) * 60).round()),
+    );
 
     // Evening events: first DESCENDING crossing after the site's solar
     // noon. Morning events: first RISING crossing after the site's solar
@@ -727,8 +749,11 @@ class AstronomyCalculations {
     final eps = _obliquityJ2000 - 0.0130042 * t;
 
     // Convert to equatorial
-    final (ra, dec) =
-        eclipticToEquatorial(lonDeg: lon, latDeg: lat, obliquityDeg: eps);
+    final (ra, dec) = eclipticToEquatorial(
+      lonDeg: lon,
+      latDeg: lat,
+      obliquityDeg: eps,
+    );
 
     return (ra, dec, r);
   }
@@ -744,7 +769,8 @@ class AstronomyCalculations {
     final sunRaRad = sunRa * _deg2rad;
     final sunDecRad = sunDec * _deg2rad;
 
-    final cosE = math.sin(sunDecRad) * math.sin(moonDecRad) +
+    final cosE =
+        math.sin(sunDecRad) * math.sin(moonDecRad) +
         math.cos(sunDecRad) *
             math.cos(moonDecRad) *
             math.cos(sunRaRad - moonRaRad);
@@ -819,13 +845,21 @@ class AstronomyCalculations {
 
     // Step through time in 30-minute increments
     var prevAlt = moonAltitude(
-        dt: searchStart, latitudeDeg: latitudeDeg, longitudeDeg: longitudeDeg);
+      dt: searchStart,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
 
-    for (var t = searchStart;
-        t.isBefore(searchEnd);
-        t = t.add(const Duration(minutes: 30))) {
+    for (
+      var t = searchStart;
+      t.isBefore(searchEnd);
+      t = t.add(const Duration(minutes: 30))
+    ) {
       final alt = moonAltitude(
-          dt: t, latitudeDeg: latitudeDeg, longitudeDeg: longitudeDeg);
+        dt: t,
+        latitudeDeg: latitudeDeg,
+        longitudeDeg: longitudeDeg,
+      );
 
       if (prevAlt < 0 && alt >= 0 && moonrise == null) {
         // Moon is rising - refine with binary search
@@ -868,8 +902,9 @@ class AstronomyCalculations {
     bool rising,
   ) {
     for (var i = 0; i < 20; i++) {
-      final tMid =
-          t1.add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+      final tMid = t1.add(
+        Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+      );
       final alt = moonAltitude(dt: tMid, latitudeDeg: lat, longitudeDeg: lon);
 
       if (alt.abs() < 0.01) return tMid;
@@ -888,8 +923,9 @@ class AstronomyCalculations {
         }
       }
     }
-    return t1
-        .add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+    return t1.add(
+      Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+    );
   }
 
   // ============================================================================
@@ -933,19 +969,21 @@ class AstronomyCalculations {
   }) {
     var t1 = start;
     var t2 = end;
-    var d1 = _apparentAltitudeOf(t1, positionAt, latitudeDeg, longitudeDeg) -
+    var d1 =
+        _apparentAltitudeOf(t1, positionAt, latitudeDeg, longitudeDeg) -
         targetAlt;
     final d2 =
         _apparentAltitudeOf(t2, positionAt, latitudeDeg, longitudeDeg) -
-            targetAlt;
+        targetAlt;
     if (d1.sign == d2.sign) return null;
 
     while (t2.difference(t1).inSeconds.abs() > 1) {
       final tMid = t1.add(
-          Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+        Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+      );
       final dMid =
           _apparentAltitudeOf(tMid, positionAt, latitudeDeg, longitudeDeg) -
-              targetAlt;
+          targetAlt;
       if (dMid == 0) return tMid;
       if (dMid.sign == d1.sign) {
         t1 = tMid;
@@ -954,7 +992,9 @@ class AstronomyCalculations {
         t2 = tMid;
       }
     }
-    return t1.add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+    return t1.add(
+      Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2),
+    );
   }
 
   /// Calculate rise, transit, and set times for an object.
@@ -993,11 +1033,11 @@ class AstronomyCalculations {
     // skip a crossing, while keeping the loop cheap.
     const step = Duration(minutes: 5);
     final samples = <(DateTime, double)>[];
-    for (var t = localNoon;
-        !t.isAfter(windowEnd);
-        t = t.add(step)) {
-      samples.add(
-          (t, _apparentAltitudeOf(t, posAt, latitudeDeg, longitudeDeg)));
+    for (var t = localNoon; !t.isAfter(windowEnd); t = t.add(step)) {
+      samples.add((
+        t,
+        _apparentAltitudeOf(t, posAt, latitudeDeg, longitudeDeg),
+      ));
     }
 
     DateTime? riseTime;
@@ -1063,8 +1103,7 @@ class AstronomyCalculations {
     // Transit altitude from the precessed/peak position (not the lat/dec
     // shortcut, which ignores both refraction and the body's motion).
     final transitAltitude = transitTime != null
-        ? _apparentAltitudeOf(
-            transitTime, posAt, latitudeDeg, longitudeDeg)
+        ? _apparentAltitudeOf(transitTime, posAt, latitudeDeg, longitudeDeg)
         : maxAlt;
 
     final isCircumpolar =
@@ -1111,7 +1150,9 @@ class AstronomyCalculations {
         hi = m2;
       }
     }
-    return lo.add(Duration(milliseconds: hi.difference(lo).inMilliseconds ~/ 2));
+    return lo.add(
+      Duration(milliseconds: hi.difference(lo).inMilliseconds ~/ 2),
+    );
   }
 
   /// Sun rise/transit/set for the local day of [date], tracking the Sun's
@@ -1225,8 +1266,7 @@ class AstronomyCalculations {
     if (transit == null) return null;
     return MeridianFlipWindow(
       transitTime: transit,
-      flipDeadline:
-          transit.add(Duration(minutes: pastMeridianMinutes.round())),
+      flipDeadline: transit.add(Duration(minutes: pastMeridianMinutes.round())),
       transitAltitude: visibility.transitAltitude,
     );
   }
@@ -1261,7 +1301,8 @@ class AstronomyCalculations {
     final ra2 = ra2Deg * _deg2rad;
     final dec2 = dec2Deg * _deg2rad;
 
-    final cosSep = math.sin(dec1) * math.sin(dec2) +
+    final cosSep =
+        math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * _rad2deg;
@@ -1288,7 +1329,8 @@ class AstronomyCalculations {
     final deltaRa = (ra2Deg - ra1Deg) * _deg2rad;
 
     final y = math.sin(deltaRa) * math.cos(dec2);
-    final x = math.cos(dec1) * math.sin(dec2) -
+    final x =
+        math.cos(dec1) * math.sin(dec2) -
         math.sin(dec1) * math.cos(dec2) * math.cos(deltaRa);
 
     if (x.abs() < _epsilon && y.abs() < _epsilon) return 0;

@@ -78,7 +78,8 @@ void main() {
           reason: 'A wider-than-tall viewport is landscape.');
     });
 
-    test('portrait -> landscape rotate keeps overlays in bounds and '
+    test(
+        'portrait -> landscape rotate keeps overlays in bounds and '
         'collision-free (the regression this fix targets)', () {
       // Same logical device, rotated: 390x844 -> 844x390 with the notch moving
       // from the top to the side.
@@ -122,8 +123,8 @@ void main() {
 
     test('degenerate tiny viewport does not throw or invert rects', () {
       // Below any supported size; the clamp helper must keep rects well-formed.
-      final slots = _resolve(const Size(200, 200),
-          safeArea: const EdgeInsets.all(0));
+      final slots =
+          _resolve(const Size(200, 200), safeArea: const EdgeInsets.all(0));
       for (final r in <Rect>[
         slots.leftRail,
         slots.compass,

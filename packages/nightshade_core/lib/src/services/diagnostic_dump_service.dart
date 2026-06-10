@@ -48,12 +48,12 @@ class DumpDeviceEntry {
   });
 
   Map<String, Object?> toJson() => {
-        'role': role,
-        'connection_state': connectionState,
-        'device_id': deviceId,
-        'device_name': deviceName,
-        'last_error': lastError,
-      };
+    'role': role,
+    'connection_state': connectionState,
+    'device_id': deviceId,
+    'device_name': deviceName,
+    'last_error': lastError,
+  };
 }
 
 /// Tagged outcome for one gather step. The dump always emits the file even
@@ -67,9 +67,9 @@ class _GatherOutcome {
   const _GatherOutcome.failure(this.error) : data = null;
 
   Map<String, Object?> toErrorJson() => {
-        'error': error ?? 'unknown',
-        'collected_at': DateTime.now().toUtc().toIso8601String(),
-      };
+    'error': error ?? 'unknown',
+    'collected_at': DateTime.now().toUtc().toIso8601String(),
+  };
 }
 
 /// Bundles app state into a single zip suitable for attaching to bug reports.
@@ -107,12 +107,12 @@ class DiagnosticDumpService {
     required List<DumpDeviceEntry> Function() gatherDevices,
     required Future<Map<String, Object?>> Function() gatherSystemInfo,
     Future<Directory> Function()? tempDirProvider,
-  })  : _logging = logging,
-        _gatherProfile = gatherProfile,
-        _gatherSequence = gatherSequence,
-        _gatherDevices = gatherDevices,
-        _gatherSystemInfo = gatherSystemInfo,
-        _tempDirProvider = tempDirProvider ?? getTemporaryDirectory;
+  }) : _logging = logging,
+       _gatherProfile = gatherProfile,
+       _gatherSequence = gatherSequence,
+       _gatherDevices = gatherDevices,
+       _gatherSystemInfo = gatherSystemInfo,
+       _tempDirProvider = tempDirProvider ?? getTemporaryDirectory;
 
   /// Build the zip and write it to [outputPath] (or a generated path under
   /// the documents directory if null). Returns the resulting File.
@@ -151,11 +151,13 @@ class DiagnosticDumpService {
           // present in the dump (so triage scripts can rely on the path);
           // when no active profile exists we record that explicitly rather
           // than producing an empty file that could be misread as corruption.
-          return _GatherOutcome.success(profile ??
-              <String, Object?>{
-                'active_profile': null,
-                'note': 'No active equipment profile is set.',
-              });
+          return _GatherOutcome.success(
+            profile ??
+                <String, Object?>{
+                  'active_profile': null,
+                  'note': 'No active equipment profile is set.',
+                },
+          );
         } catch (e, st) {
           _logging.error(
             'DiagnosticDump: profile gather failed: $e',
@@ -225,17 +227,16 @@ class DiagnosticDumpService {
     // we then immediately read back. That gives us the same concatenated
     // export the existing settings → log-viewer flow produces, without
     // duplicating the rotation/concatenation logic.
-    await _addLogsEntry(
-      archive: archive,
-      entries: entries,
-    );
+    await _addLogsEntry(archive: archive, entries: entries);
 
     // --- manifest.json ------------------------------------------------------
     // Written last so it reflects the final entries list.
-    archive.addFile(_textFile(
-      'manifest.json',
-      const JsonEncoder.withIndent('  ').convert(manifest),
-    ));
+    archive.addFile(
+      _textFile(
+        'manifest.json',
+        const JsonEncoder.withIndent('  ').convert(manifest),
+      ),
+    );
 
     // Encode to disk
     final outFile = File(outputPath);
@@ -248,7 +249,9 @@ class DiagnosticDumpService {
       // ZipEncoder.encode currently never returns null in practice, but the
       // signature is nullable; surface that loudly instead of writing a
       // zero-byte file the user would attach without realizing it's empty.
-      throw StateError('ZipEncoder produced no bytes; diagnostic dump aborted.');
+      throw StateError(
+        'ZipEncoder produced no bytes; diagnostic dump aborted.',
+      );
     }
     await outFile.writeAsBytes(bytes, flush: true);
 
@@ -304,7 +307,9 @@ class DiagnosticDumpService {
       );
       await _logging.exportLogs(scratch.path);
       final bytes = await scratch.readAsBytes();
-      archive.addFile(ArchiveFile('logs/exported_logs.txt', bytes.length, bytes));
+      archive.addFile(
+        ArchiveFile('logs/exported_logs.txt', bytes.length, bytes),
+      );
       try {
         await scratch.delete();
       } on FileSystemException catch (e) {
@@ -389,8 +394,7 @@ Map<String, Object?> _sequenceToJson(Sequence sequence) {
 /// need to inject anything beyond the Riverpod ref. Tests construct
 /// `DiagnosticDumpService` directly with stubbed closures (see
 /// `diagnostic_dump_service_test.dart`).
-final diagnosticDumpServiceProvider =
-    Provider<DiagnosticDumpService>((ref) {
+final diagnosticDumpServiceProvider = Provider<DiagnosticDumpService>((ref) {
   final logging = ref.read(loggingServiceProvider);
 
   return DiagnosticDumpService(
@@ -404,8 +408,7 @@ final diagnosticDumpServiceProvider =
 
 Future<Map<String, Object?>?> _gatherActiveProfileJson(Ref ref) async {
   final dao = ref.read(equipmentProfilesDaoProvider);
-  final profile =
-      await dao.getDefaultProfile() ?? await dao.getActiveProfile();
+  final profile = await dao.getDefaultProfile() ?? await dao.getActiveProfile();
   if (profile == null) return null;
   return _profileToJson(profile);
 }
@@ -454,17 +457,19 @@ List<DumpDeviceEntry> _gatherDeviceEntries(Ref ref) {
     String? name,
     DeviceError? error,
   }) {
-    entries.add(DumpDeviceEntry(
-      role: role,
-      connectionState: state.name,
-      deviceId: id,
-      deviceName: name,
-      lastError: error == null
-          ? null
-          : (error.code != null
-              ? '${error.code}: ${error.message}'
-              : error.message),
-    ));
+    entries.add(
+      DumpDeviceEntry(
+        role: role,
+        connectionState: state.name,
+        deviceId: id,
+        deviceName: name,
+        lastError: error == null
+            ? null
+            : (error.code != null
+                  ? '${error.code}: ${error.message}'
+                  : error.message),
+      ),
+    );
   }
 
   final camera = ref.read(cameraStateProvider);

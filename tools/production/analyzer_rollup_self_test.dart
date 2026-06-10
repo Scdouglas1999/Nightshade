@@ -71,16 +71,8 @@ Future<void> main() async {
 
 Future<void> _writePassingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writePackage(
-    root,
-    'apps/good_app',
-    'void main() {}\n',
-  );
-  await _writePackage(
-    root,
-    'packages/good_pkg',
-    'int answer() => 42;\n',
-  );
+  await _writePackage(root, 'apps/good_app', 'void main() {}\n');
+  await _writePackage(root, 'packages/good_pkg', 'int answer() => 42;\n');
 }
 
 Future<void> _writeExcludedErrorFixture(Directory root) async {
@@ -99,11 +91,7 @@ Future<void> _writeFailingProductionFixture(Directory root) async {
     'apps/bad_app',
     'void main() { missingProductionSymbol; }\n',
   );
-  await _writePackage(
-    root,
-    'packages/good_pkg',
-    'int answer() => 42;\n',
-  );
+  await _writePackage(root, 'packages/good_pkg', 'int answer() => 42;\n');
 }
 
 Future<void> _writePackage(
@@ -112,15 +100,11 @@ Future<void> _writePackage(
   String dartContent,
 ) async {
   final packageName = packagePath.split('/').last;
-  await _writeFile(
-    root,
-    '$packagePath/pubspec.yaml',
-    '''
+  await _writeFile(root, '$packagePath/pubspec.yaml', '''
 name: $packageName
 environment:
   sdk: '>=3.0.0 <4.0.0'
-''',
-  );
+''');
   await _writeFile(root, '$packagePath/lib/main.dart', dartContent);
 }
 
@@ -142,11 +126,7 @@ Future<ProcessResult> _runRollup(
 }) async {
   final result = await Process.run(
     'dart',
-    [
-      script.path,
-      '--report',
-      'reports/analyzer-rollup.json',
-    ],
+    [script.path, '--report', 'reports/analyzer-rollup.json'],
     workingDirectory: root.path,
     runInShell: Platform.isWindows,
   );

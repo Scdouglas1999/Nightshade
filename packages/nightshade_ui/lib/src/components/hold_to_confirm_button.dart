@@ -88,10 +88,8 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-    )..addStatusListener(_onStatus);
+    _controller = AnimationController(vsync: this, duration: widget.duration)
+      ..addStatusListener(_onStatus);
   }
 
   @override
@@ -218,10 +216,13 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surface
-                              .withValues(alpha: 0.85),
+                          color: theme.colorScheme.surface.withValues(
+                            alpha: 0.85,
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(

@@ -23,9 +23,11 @@ void main() {
     });
 
     test('radar data missing lat/lon returns JSON bad request', () async {
-      final response = await translateHandlerErrors(handlers.handleGetRadarData(
-        Request('GET', Uri.parse('http://localhost/api/weather/radar')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetRadarData(
+          Request('GET', Uri.parse('http://localhost/api/weather/radar')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -34,10 +36,11 @@ void main() {
     });
 
     test('cloud cover missing lat/lon returns JSON bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetCloudCover(
-        Request('GET', Uri.parse('http://localhost/api/weather/cloud-cover')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetCloudCover(
+          Request('GET', Uri.parse('http://localhost/api/weather/cloud-cover')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -46,9 +49,11 @@ void main() {
     });
 
     test('current weather returns JSON with safe-imaging fields', () async {
-      final response = await translateHandlerErrors(handlers.handleGetCurrent(
-        Request('GET', Uri.parse('http://localhost/api/weather/current')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetCurrent(
+          Request('GET', Uri.parse('http://localhost/api/weather/current')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
@@ -59,17 +64,20 @@ void main() {
     });
 
     test('malformed settings payload returns JSON internal error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleUpdateSettings(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/weather/settings'),
-          body: '{',
+      final response = await translateHandlerErrors(
+        handlers.handleUpdateSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/weather/settings'),
+            body: '{',
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

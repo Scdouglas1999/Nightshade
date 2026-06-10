@@ -80,11 +80,13 @@ CapturedImageResult makeCapturedImageResult({
 void main() {
   setUpAll(() {
     registerMocktailFallbackValues();
-    registerFallbackValue(const FitsWriteHeader(
-      exposureTime: 1.0,
-      captureTimestamp: '2025-01-01T00:00:00Z',
-      frameType: 'Light',
-    ));
+    registerFallbackValue(
+      const FitsWriteHeader(
+        exposureTime: 1.0,
+        captureTimestamp: '2025-01-01T00:00:00Z',
+        frameType: 'Light',
+      ),
+    );
   });
 
   group('ImagingService Quality Score Tests', () {
@@ -103,10 +105,10 @@ void main() {
         final hfrScore = hfr < 2.0
             ? 100.0
             : hfr < 3.0
-                ? 100.0 - (hfr - 2.0) * 25.0
-                : hfr < 5.0
-                    ? 75.0 - (hfr - 3.0) * 25.0
-                    : math.max(0.0, 25.0 - math.min(5.0, hfr - 5.0) * 5.0);
+            ? 100.0 - (hfr - 2.0) * 25.0
+            : hfr < 5.0
+            ? 75.0 - (hfr - 3.0) * 25.0
+            : math.max(0.0, 25.0 - math.min(5.0, hfr - 5.0) * 5.0);
         score += hfrScore * 0.4;
         weightSum += 0.4;
       }
@@ -116,10 +118,10 @@ void main() {
         final starScore = starCount >= 100
             ? 100.0
             : starCount >= 50
-                ? 66.0 + (starCount - 50) / 50.0 * 34.0
-                : starCount >= 20
-                    ? 33.0 + (starCount - 20) / 30.0 * 33.0
-                    : math.max(0.0, starCount / 20.0 * 33.0);
+            ? 66.0 + (starCount - 50) / 50.0 * 34.0
+            : starCount >= 20
+            ? 33.0 + (starCount - 20) / 30.0 * 33.0
+            : math.max(0.0, starCount / 20.0 * 33.0);
         score += starScore * 0.3;
         weightSum += 0.3;
       }
@@ -130,8 +132,8 @@ void main() {
         final uniformityScore = cv < 0.1
             ? 100.0
             : cv < 0.3
-                ? 100.0 - (cv - 0.1) * 333.0
-                : math.max(0.0, 33.0 - math.min(0.33, cv - 0.3) * 100.0);
+            ? 100.0 - (cv - 0.1) * 333.0
+            : math.max(0.0, 33.0 - math.min(0.33, cv - 0.3) * 100.0);
         score += uniformityScore * 0.3;
         weightSum += 0.3;
       }
@@ -158,9 +160,12 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0, // CV = 0.1
       );
-      expect(score, greaterThan(85.0),
-          reason:
-              'Excellent image (HFR=1.8, stars=150, CV=0.1) should score > 85');
+      expect(
+        score,
+        greaterThan(85.0),
+        reason:
+            'Excellent image (HFR=1.8, stars=150, CV=0.1) should score > 85',
+      );
     });
 
     test('Quality score for good image', () {
@@ -170,8 +175,7 @@ void main() {
         mean: 5000.0,
         stdDev: 800.0, // CV = 0.16
       );
-      expect(score, greaterThan(70.0),
-          reason: 'Good image should score > 70');
+      expect(score, greaterThan(70.0), reason: 'Good image should score > 70');
       expect(score, lessThan(85.0), reason: 'Good image should score < 85');
     });
 
@@ -182,9 +186,11 @@ void main() {
         mean: 5000.0,
         stdDev: 2000.0, // CV = 0.4
       );
-      expect(score, lessThan(40.0),
-          reason:
-              'Poor image (HFR=6.0, stars=15, CV=0.4) should score < 40');
+      expect(
+        score,
+        lessThan(40.0),
+        reason: 'Poor image (HFR=6.0, stars=15, CV=0.4) should score < 40',
+      );
     });
 
     test('Quality score with no HFR/star data', () {
@@ -195,9 +201,11 @@ void main() {
         stdDev: 800.0,
       );
       expect(score, greaterThanOrEqualTo(0.0));
-      expect(score, lessThanOrEqualTo(100.0),
-          reason:
-              'Score should be in valid range even with no HFR/star data');
+      expect(
+        score,
+        lessThanOrEqualTo(100.0),
+        reason: 'Score should be in valid range even with no HFR/star data',
+      );
     });
 
     test('Quality score with zero values', () {
@@ -208,8 +216,11 @@ void main() {
         stdDev: 0.0,
       );
       expect(score, greaterThanOrEqualTo(0.0));
-      expect(score, lessThanOrEqualTo(100.0),
-          reason: 'Score should be valid even with zeros');
+      expect(
+        score,
+        lessThanOrEqualTo(100.0),
+        reason: 'Score should be valid even with zeros',
+      );
     });
 
     test('Quality score with very high HFR', () {
@@ -219,8 +230,11 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0,
       );
-      expect(score, lessThan(50.0),
-          reason: 'Very high HFR should lower score significantly');
+      expect(
+        score,
+        lessThan(50.0),
+        reason: 'Very high HFR should lower score significantly',
+      );
     });
 
     test('Quality score for perfect image', () {
@@ -230,9 +244,11 @@ void main() {
         mean: 10000.0,
         stdDev: 500.0, // CV = 0.05
       );
-      expect(score, greaterThan(90.0),
-          reason:
-              'Perfect image (HFR=1.5, stars=200, CV=0.05) should score > 90');
+      expect(
+        score,
+        greaterThan(90.0),
+        reason: 'Perfect image (HFR=1.5, stars=200, CV=0.05) should score > 90',
+      );
     });
 
     test('Quality score HFR thresholds', () {
@@ -249,8 +265,11 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0,
       );
-      expect(score1, greaterThan(score2),
-          reason: 'HFR 1.9 should score higher than 2.1');
+      expect(
+        score1,
+        greaterThan(score2),
+        reason: 'HFR 1.9 should score higher than 2.1',
+      );
 
       final score3 = calculateQualityScore(
         hfr: 2.9,
@@ -264,8 +283,11 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0,
       );
-      expect(score3, greaterThan(score4),
-          reason: 'HFR 2.9 should score higher than 3.1');
+      expect(
+        score3,
+        greaterThan(score4),
+        reason: 'HFR 2.9 should score higher than 3.1',
+      );
     });
 
     test('Quality score star count thresholds', () {
@@ -282,8 +304,11 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0,
       );
-      expect(score2, greaterThan(score1),
-          reason: '21 stars should score higher than 19 stars');
+      expect(
+        score2,
+        greaterThan(score1),
+        reason: '21 stars should score higher than 19 stars',
+      );
 
       final score3 = calculateQualityScore(
         hfr: 2.5,
@@ -297,8 +322,11 @@ void main() {
         mean: 5000.0,
         stdDev: 500.0,
       );
-      expect(score4, greaterThan(score3),
-          reason: '51 stars should score higher than 49 stars');
+      expect(
+        score4,
+        greaterThan(score3),
+        reason: '51 stars should score higher than 49 stars',
+      );
     });
 
     test('Quality score uniformity component', () {
@@ -321,12 +349,17 @@ void main() {
         mean: 5000.0,
         stdDev: 2000.0, // CV = 0.4 (poor)
       );
-      expect(score1, greaterThan(score2),
-          reason:
-              'Better uniformity (CV=0.08) should score higher');
-      expect(score2, greaterThan(score3),
-          reason:
-              'Good uniformity (CV=0.2) should score higher than poor (CV=0.4)');
+      expect(
+        score1,
+        greaterThan(score2),
+        reason: 'Better uniformity (CV=0.08) should score higher',
+      );
+      expect(
+        score2,
+        greaterThan(score3),
+        reason:
+            'Good uniformity (CV=0.2) should score higher than poor (CV=0.4)',
+      );
     });
 
     test('Quality score is in valid range', () {
@@ -347,8 +380,11 @@ void main() {
           stdDev: testCase['std'] as double,
         );
         expect(score, greaterThanOrEqualTo(0.0));
-        expect(score, lessThanOrEqualTo(100.0),
-            reason: 'Score must be in 0-100 range for: $testCase');
+        expect(
+          score,
+          lessThanOrEqualTo(100.0),
+          reason: 'Score must be in 0-100 range for: $testCase',
+        );
       }
     });
   });
@@ -362,17 +398,21 @@ void main() {
       mockBackend = MockBackend();
       eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-      when(() => mockBackend.eventStream)
-          .thenAnswer((_) => eventStreamController.stream);
-      when(() => mockBackend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.eventStream,
+      ).thenAnswer((_) => eventStreamController.stream);
+      when(
+        () => mockBackend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
       // Default: camera reports no readout modes, so the capture path skips
       // the explicit readout-mode set. Individual tests override this when
       // they need to assert readout-mode selection.
-      when(() => mockBackend.getCameraCapabilities(any()))
-          .thenAnswer((_) async => null);
-      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.getCameraCapabilities(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockBackend.cameraSetReadoutMode(any(), any()),
+      ).thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
@@ -425,25 +465,29 @@ void main() {
 
       expect(
         () => service.captureImage(settings: settings),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('Camera not connected'),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Camera not connected'),
+          ),
+        ),
       );
     });
 
     test('captureImage throws when already capturing', () async {
       // Set up a long-running capture by never completing the exposure event
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
         // Never complete - simulates a long exposure
         await Future.delayed(const Duration(seconds: 60));
       });
@@ -459,7 +503,9 @@ void main() {
       );
 
       // Start first capture (don't await - it will hang)
-      unawaited(service.captureImage(settings: settings).catchError((_) => null));
+      unawaited(
+        service.captureImage(settings: settings).catchError((_) => null),
+      );
 
       // Wait briefly so the first capture enters the capturing state
       await Future.delayed(const Duration(milliseconds: 50));
@@ -467,11 +513,13 @@ void main() {
       // Second capture should throw
       expect(
         () => service.captureImage(settings: settings),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('Already capturing'),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Already capturing'),
+          ),
+        ),
       );
     });
 
@@ -486,51 +534,55 @@ void main() {
         filter: 'Ha',
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
         // Emit ExposureComplete event immediately
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult(
-                exposureTime: 10.0,
-              ));
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult(exposureTime: 10.0));
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(imagingServiceProvider);
-      await service.captureImage(
-        settings: settings,
-        targetName: 'M31',
-      );
+      await service.captureImage(settings: settings, targetName: 'M31');
 
-      verify(() => mockBackend.cameraStartExposure(
-            deviceId: 'test-camera-1',
-            exposureTime: 10.0,
-            frameType: FrameType.dark,
-            gain: 200,
-            offset: 30,
-            binX: 2,
-            binY: 2,
-          )).called(1);
+      verify(
+        () => mockBackend.cameraStartExposure(
+          deviceId: 'test-camera-1',
+          exposureTime: 10.0,
+          frameType: FrameType.dark,
+          gain: 200,
+          offset: 30,
+          binX: 2,
+          binY: 2,
+        ),
+      ).called(1);
     });
 
     test('captureImage returns CapturedImageData on success', () async {
@@ -543,22 +595,26 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
       final expectedImage = makeCapturedImageResult(
@@ -569,14 +625,17 @@ void main() {
         starCount: 120,
       );
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => expectedImage);
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => expectedImage);
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(imagingServiceProvider);
       final result = await service.captureImage(
@@ -603,32 +662,39 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       // Verify currentImageProvider is null initially
       expect(container.read(currentImageProvider), isNull);
@@ -653,23 +719,27 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
         // Emit ExposureCancelled event
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureCancelled',
-          data: {},
-        ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureCancelled',
+            data: {},
+          ),
+        );
       });
 
       final service = container.read(imagingServiceProvider);
@@ -688,33 +758,39 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.error,
-          category: EventCategory.imaging,
-          eventType: 'ExposureFailed',
-          data: {'error': 'Sensor readout error'},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.error,
+            category: EventCategory.imaging,
+            eventType: 'ExposureFailed',
+            data: {'error': 'Sensor readout error'},
+          ),
+        );
       });
 
       final service = container.read(imagingServiceProvider);
 
       expect(
         () => service.captureImage(settings: settings),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('Sensor readout error'),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Sensor readout error'),
+          ),
+        ),
       );
     });
 
@@ -728,51 +804,60 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => null);
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => null);
 
       final service = container.read(imagingServiceProvider);
 
       expect(
         () => service.captureImage(settings: settings),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('Failed to retrieve captured image'),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Failed to retrieve captured image'),
+          ),
+        ),
       );
     });
 
-    test('captureImage resets isCapturing state after successful capture',
-        () async {
-      const settings = ExposureSettings(
-        exposureTime: 5.0,
-        gain: 100,
-        offset: 50,
-        binningX: 1,
-        binningY: 1,
-        frameType: FrameType.light,
-      );
+    test(
+      'captureImage resets isCapturing state after successful capture',
+      () async {
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          binningX: 1,
+          binningY: 1,
+          frameType: FrameType.light,
+        );
 
-      when(() => mockBackend.cameraStartExposure(
+        when(
+          () => mockBackend.cameraStartExposure(
             deviceId: any(named: 'deviceId'),
             exposureTime: any(named: 'exposureTime'),
             frameType: any(named: 'frameType'),
@@ -780,31 +865,38 @@ void main() {
             offset: any(named: 'offset'),
             binX: any(named: 'binX'),
             binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
-      });
+          ),
+        ).thenAnswer((_) async {
+          eventStreamController.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.info,
+              category: EventCategory.imaging,
+              eventType: 'ExposureComplete',
+              data: {},
+            ),
+          );
+        });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
+        when(
+          () => mockBackend.cameraGetLastImage(any()),
+        ).thenAnswer((_) async => makeCapturedImageResult());
 
-      when(() => mockBackend.saveFitsFromLastCapture(
+        when(
+          () => mockBackend.saveFitsFromLastCapture(
             deviceId: any(named: 'deviceId'),
             filePath: any(named: 'filePath'),
             headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+          ),
+        ).thenAnswer((_) async {});
 
-      final service = container.read(imagingServiceProvider);
+        final service = container.read(imagingServiceProvider);
 
-      expect(service.isCapturing, isFalse);
-      await service.captureImage(settings: settings);
-      expect(service.isCapturing, isFalse);
-    });
+        expect(service.isCapturing, isFalse);
+        await service.captureImage(settings: settings);
+        expect(service.isCapturing, isFalse);
+      },
+    );
 
     test('captureImage resets isCapturing state after failure', () async {
       const settings = ExposureSettings(
@@ -816,22 +908,26 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.error,
-          category: EventCategory.imaging,
-          eventType: 'ExposureFailed',
-          data: {'error': 'Camera disconnected'},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.error,
+            category: EventCategory.imaging,
+            eventType: 'ExposureFailed',
+            data: {'error': 'Camera disconnected'},
+          ),
+        );
       });
 
       final service = container.read(imagingServiceProvider);
@@ -856,32 +952,39 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult(isColor: true));
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult(isColor: true));
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final service = container.read(imagingServiceProvider);
       final result = await service.captureImage(settings: settings);
@@ -913,42 +1016,52 @@ void main() {
           readoutModes: readoutModes,
         ),
       );
-      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
-          .thenAnswer((_) async {});
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraSetReadoutMode(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
     }
 
     setUp(() {
       mockBackend = MockBackend();
       eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-      when(() => mockBackend.eventStream)
-          .thenAnswer((_) => eventStreamController.stream);
-      when(() => mockBackend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.eventStream,
+      ).thenAnswer((_) => eventStreamController.stream);
+      when(
+        () => mockBackend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
 
       container = ProviderContainer(
         overrides: [
@@ -975,8 +1088,7 @@ void main() {
       container.dispose();
     });
 
-    test(
-        'explicit readoutModeIndex=2 on a 4-mode camera applies index 2 '
+    test('explicit readoutModeIndex=2 on a 4-mode camera applies index 2 '
         '(not collapsed to 0/1)', () async {
       stubCapture(readoutModes: const ['Mode0', 'Mode1', 'Mode2', 'Mode3']);
 
@@ -991,55 +1103,62 @@ void main() {
         fastReadout: false,
       );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+      await container
+          .read(imagingServiceProvider)
+          .captureImage(settings: settings);
 
-      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
-          .called(1);
+      verify(
+        () => mockBackend.cameraSetReadoutMode('test-camera-1', 2),
+      ).called(1);
     });
 
-    test('explicit readoutModeIndex=1 on a 3-mode camera applies index 1',
-        () async {
-      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+    test(
+      'explicit readoutModeIndex=1 on a 3-mode camera applies index 1',
+      () async {
+        stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
 
-      const settings = ExposureSettings(
-        exposureTime: 5.0,
-        gain: 100,
-        offset: 50,
-        frameType: FrameType.light,
-        readoutModeIndex: 1,
-      );
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          frameType: FrameType.light,
+          readoutModeIndex: 1,
+        );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+        await container
+            .read(imagingServiceProvider)
+            .captureImage(settings: settings);
 
-      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 1))
-          .called(1);
-    });
+        verify(
+          () => mockBackend.cameraSetReadoutMode('test-camera-1', 1),
+        ).called(1);
+      },
+    );
 
-    test('legacy fastReadout=true maps to the LAST mode on a 3-mode camera',
-        () async {
-      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+    test(
+      'legacy fastReadout=true maps to the LAST mode on a 3-mode camera',
+      () async {
+        stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
 
-      const settings = ExposureSettings(
-        exposureTime: 5.0,
-        gain: 100,
-        offset: 50,
-        frameType: FrameType.light,
-        // No explicit index: the legacy boolean is authoritative. Fast should
-        // map to the last mode (index 2), NOT the hardcoded 1.
-        fastReadout: true,
-      );
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          frameType: FrameType.light,
+          // No explicit index: the legacy boolean is authoritative. Fast should
+          // map to the last mode (index 2), NOT the hardcoded 1.
+          fastReadout: true,
+        );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+        await container
+            .read(imagingServiceProvider)
+            .captureImage(settings: settings);
 
-      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
-          .called(1);
-    });
+        verify(
+          () => mockBackend.cameraSetReadoutMode('test-camera-1', 2),
+        ).called(1);
+      },
+    );
 
     test('legacy fastReadout=false maps to the first mode', () async {
       stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
@@ -1052,89 +1171,104 @@ void main() {
         fastReadout: false,
       );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+      await container
+          .read(imagingServiceProvider)
+          .captureImage(settings: settings);
 
-      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 0))
-          .called(1);
+      verify(
+        () => mockBackend.cameraSetReadoutMode('test-camera-1', 0),
+      ).called(1);
     });
 
-    test('a stale index past the mode list is clamped to the last mode',
-        () async {
-      // A profile saved against a 5-mode camera, now used with a 3-mode
-      // camera, must not request a non-existent index 4.
-      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+    test(
+      'a stale index past the mode list is clamped to the last mode',
+      () async {
+        // A profile saved against a 5-mode camera, now used with a 3-mode
+        // camera, must not request a non-existent index 4.
+        stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
 
-      const settings = ExposureSettings(
-        exposureTime: 5.0,
-        gain: 100,
-        offset: 50,
-        frameType: FrameType.light,
-        readoutModeIndex: 4,
-      );
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          frameType: FrameType.light,
+          readoutModeIndex: 4,
+        );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+        await container
+            .read(imagingServiceProvider)
+            .captureImage(settings: settings);
 
-      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
-          .called(1);
-    });
+        verify(
+          () => mockBackend.cameraSetReadoutMode('test-camera-1', 2),
+        ).called(1);
+      },
+    );
 
-    test('camera reporting no readout modes skips the explicit set entirely',
-        () async {
-      // Honest no-op: nothing to select against. The pre-fix code forced
-      // index 0, which could differ from the driver's own default.
-      stubCapture(readoutModes: const []);
+    test(
+      'camera reporting no readout modes skips the explicit set entirely',
+      () async {
+        // Honest no-op: nothing to select against. The pre-fix code forced
+        // index 0, which could differ from the driver's own default.
+        stubCapture(readoutModes: const []);
 
-      const settings = ExposureSettings(
-        exposureTime: 5.0,
-        gain: 100,
-        offset: 50,
-        frameType: FrameType.light,
-        readoutModeIndex: 1,
-      );
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          frameType: FrameType.light,
+          readoutModeIndex: 1,
+        );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+        await container
+            .read(imagingServiceProvider)
+            .captureImage(settings: settings);
 
-      verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
-    });
+        verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
+      },
+    );
 
     test('a failed capability query skips the explicit set rather than '
         'forcing an index', () async {
       // The capability query throwing must be treated as "unknown", not as a
       // two-mode camera — no silent fallback to index 0/1.
-      when(() => mockBackend.getCameraCapabilities(any()))
-          .thenThrow(Exception('bridge crash'));
-      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
-          .thenAnswer((_) async {});
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.getCameraCapabilities(any()),
+      ).thenThrow(Exception('bridge crash'));
+      when(
+        () => mockBackend.cameraSetReadoutMode(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       const settings = ExposureSettings(
         exposureTime: 5.0,
@@ -1144,9 +1278,9 @@ void main() {
         readoutModeIndex: 1,
       );
 
-      await container.read(imagingServiceProvider).captureImage(
-            settings: settings,
-          );
+      await container
+          .read(imagingServiceProvider)
+          .captureImage(settings: settings);
 
       verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
     });
@@ -1161,14 +1295,18 @@ void main() {
       mockBackend = MockBackend();
       eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-      when(() => mockBackend.eventStream)
-          .thenAnswer((_) => eventStreamController.stream);
-      when(() => mockBackend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
-      when(() => mockBackend.getCameraCapabilities(any()))
-          .thenAnswer((_) async => null);
-      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.eventStream,
+      ).thenAnswer((_) => eventStreamController.stream);
+      when(
+        () => mockBackend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.getCameraCapabilities(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockBackend.cameraSetReadoutMode(any(), any()),
+      ).thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
@@ -1207,30 +1345,35 @@ void main() {
 
       final startedCompleter = Completer<void>();
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
         startedCompleter.complete();
         // Wait a bit then emit ExposureComplete (the cancelExposure call will
         // set _cancelRequested before this completes)
         await Future.delayed(const Duration(milliseconds: 200));
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraAbortExposure(any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.cameraAbortExposure(any()),
+      ).thenAnswer((_) async {});
 
       final service = container.read(imagingServiceProvider);
 
@@ -1242,8 +1385,7 @@ void main() {
       service.cancelExposure();
 
       final result = await captureFuture;
-      expect(result, isNull,
-          reason: 'Cancelled capture should return null');
+      expect(result, isNull, reason: 'Cancelled capture should return null');
 
       verify(() => mockBackend.cameraAbortExposure('test-camera-1')).called(1);
     });
@@ -1271,14 +1413,18 @@ void main() {
       mockBackend = MockBackend();
       eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-      when(() => mockBackend.eventStream)
-          .thenAnswer((_) => eventStreamController.stream);
-      when(() => mockBackend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
-      when(() => mockBackend.getCameraCapabilities(any()))
-          .thenAnswer((_) async => null);
-      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockBackend.eventStream,
+      ).thenAnswer((_) => eventStreamController.stream);
+      when(
+        () => mockBackend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
+      when(
+        () => mockBackend.getCameraCapabilities(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockBackend.cameraSetReadoutMode(any(), any()),
+      ).thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
@@ -1315,32 +1461,39 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final capturedImages = <CapturedImageData>[];
       final service = container.read(imagingServiceProvider);
@@ -1365,45 +1518,54 @@ void main() {
       );
 
       int callCount = 0;
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
         callCount++;
         if (callCount == 2) {
           // Second frame fails
-          eventStreamController.add(NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.error,
-            category: EventCategory.imaging,
-            eventType: 'ExposureFailed',
-            data: {'error': 'Temporary sensor error'},
-          ));
+          eventStreamController.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.error,
+              category: EventCategory.imaging,
+              eventType: 'ExposureFailed',
+              data: {'error': 'Temporary sensor error'},
+            ),
+          );
         } else {
           // Other frames succeed
-          eventStreamController.add(NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.info,
-            category: EventCategory.imaging,
-            eventType: 'ExposureComplete',
-            data: {},
-          ));
+          eventStreamController.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.info,
+              category: EventCategory.imaging,
+              eventType: 'ExposureComplete',
+              data: {},
+            ),
+          );
         }
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final capturedImages = <CapturedImageData>[];
       final errors = <String>[];
@@ -1432,32 +1594,39 @@ void main() {
         frameType: FrameType.light,
       );
 
-      when(() => mockBackend.cameraStartExposure(
-            deviceId: any(named: 'deviceId'),
-            exposureTime: any(named: 'exposureTime'),
-            frameType: any(named: 'frameType'),
-            gain: any(named: 'gain'),
-            offset: any(named: 'offset'),
-            binX: any(named: 'binX'),
-            binY: any(named: 'binY'),
-          )).thenAnswer((_) async {
-        eventStreamController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ExposureComplete',
-          data: {},
-        ));
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
       });
 
-      when(() => mockBackend.cameraGetLastImage(any()))
-          .thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
 
-      when(() => mockBackend.saveFitsFromLastCapture(
-            deviceId: any(named: 'deviceId'),
-            filePath: any(named: 'filePath'),
-            headerData: any(named: 'headerData'),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
 
       final capturedImages = <CapturedImageData>[];
       final service = container.read(imagingServiceProvider);
@@ -1603,11 +1772,7 @@ void main() {
         histogram: List<int>.filled(256, 0),
         stats: const ImageStats(mean: 0, stdDev: 0),
         capturedAt: DateTime.utc(2026, 1, 1),
-        settings: const ExposureSettings(
-          exposureTime: 1.0,
-          gain: 0,
-          offset: 0,
-        ),
+        settings: const ExposureSettings(exposureTime: 1.0, gain: 0, offset: 0),
         filePath: filePath,
       );
     }
@@ -1622,48 +1787,53 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath(null);
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        null,
+      );
       expect(container.read(currentImageIsCalibratedProvider), isFalse);
 
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath('');
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        '',
+      );
       expect(container.read(currentImageIsCalibratedProvider), isFalse);
     });
 
     test('returns false for a raw .fits frame', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath('/captures/2026-01-01/light_001.fits');
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        '/captures/2026-01-01/light_001.fits',
+      );
       expect(container.read(currentImageIsCalibratedProvider), isFalse);
     });
 
     test('returns true for a `_cal.fits` suffixed frame', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath('/captures/2026-01-01/light_001_cal.fits');
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        '/captures/2026-01-01/light_001_cal.fits',
+      );
       expect(container.read(currentImageIsCalibratedProvider), isTrue);
     });
 
     test('returns true for a `_cal.fit` suffix on Windows-style path', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath(r'C:\captures\2026-01-01\m31_002_cal.fit');
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        r'C:\captures\2026-01-01\m31_002_cal.fit',
+      );
       expect(container.read(currentImageIsCalibratedProvider), isTrue);
     });
 
-    test(
-        'returns false for paths whose directory contains "cal" but file does '
+    test('returns false for paths whose directory contains "cal" but file does '
         'not end in _cal.fits', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       // A "calibration" folder used to hold master darks/flats shouldn't
       // make a raw light frame inside it look calibrated.
-      container.read(currentImageProvider.notifier).state =
-          makeImageWithPath('/library/calibration/master_dark.fits');
+      container.read(currentImageProvider.notifier).state = makeImageWithPath(
+        '/library/calibration/master_dark.fits',
+      );
       expect(container.read(currentImageIsCalibratedProvider), isFalse);
     });
   });
@@ -1709,8 +1879,7 @@ void main() {
       expect(fullPath, endsWith('2026-05-23.fits'));
     });
 
-    test('full pattern with filename segment honours the filename portion',
-        () {
+    test('full pattern with filename segment honours the filename portion', () {
       // The user's pattern ends in `$TARGET_$FILTER_$FRAMENUM`. Pre-fix the
       // service would have ignored the trailing segment and hard-coded
       // ${target}_${filter}_${frameNumber}; post-fix it must use what the
@@ -1729,10 +1898,16 @@ void main() {
         substitutions: subs,
       );
 
-      expect(fullPath, endsWith('M31_L_0001.fits'),
-          reason: 'Filename portion of pattern must be honoured');
-      expect(fullPath, contains('2026-05-23'),
-          reason: 'Subdirectory hierarchy still applies');
+      expect(
+        fullPath,
+        endsWith('M31_L_0001.fits'),
+        reason: 'Filename portion of pattern must be honoured',
+      );
+      expect(
+        fullPath,
+        contains('2026-05-23'),
+        reason: 'Subdirectory hierarchy still applies',
+      );
     });
 
     test('unknown variable in pattern throws with descriptive error', () {
@@ -1753,17 +1928,19 @@ void main() {
           extension: 'fits',
           substitutions: subs,
         ),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          allOf(
-            contains(r'$BANANA'),
-            contains('Unknown naming-pattern variable'),
-            // The error must enumerate the supported set so the user can
-            // fix the typo without grepping the codebase.
-            contains(r'$TARGET'),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            allOf(
+              contains(r'$BANANA'),
+              contains('Unknown naming-pattern variable'),
+              // The error must enumerate the supported set so the user can
+              // fix the typo without grepping the codebase.
+              contains(r'$TARGET'),
+            ),
           ),
-        )),
+        ),
       );
     });
 
@@ -1782,11 +1959,13 @@ void main() {
           extension: 'fits',
           substitutions: subs,
         ),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          allOf(contains(r'$FOO'), contains(r'$BAR'), contains(r'$BAZ')),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            allOf(contains(r'$FOO'), contains(r'$BAR'), contains(r'$BAZ')),
+          ),
+        ),
       );
     });
 
@@ -1881,8 +2060,14 @@ void main() {
       // Force the test to behave the same on any host TZ: construct an
       // explicit offset relative to UTC by using a known UTC moment and
       // re-deriving a local DateTime from it.
-      final utcEquivalent =
-          DateTime.utc(2026, 1, 16, 3, 0, 0); // 19:00 PST → 03:00 UTC
+      final utcEquivalent = DateTime.utc(
+        2026,
+        1,
+        16,
+        3,
+        0,
+        0,
+      ); // 19:00 PST → 03:00 UTC
       // Either ctor must give a UTC date of 2026-01-16 after `.toUtc()`.
       final subs1 = ImagingService.buildTimestampSubstitutions(
         exposureSettings: settings,

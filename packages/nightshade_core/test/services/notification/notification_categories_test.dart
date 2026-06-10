@@ -34,8 +34,9 @@ void main() {
     });
 
     test('falls back to inApp if transports missing', () {
-      final decoded =
-          NotificationRoutingRule.fromJson(const {'transports': <String>[]});
+      final decoded = NotificationRoutingRule.fromJson(const {
+        'transports': <String>[],
+      });
       expect(decoded.transports, const [NotificationTransportKind.inApp]);
     });
 

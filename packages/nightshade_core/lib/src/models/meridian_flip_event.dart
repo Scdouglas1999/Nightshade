@@ -98,9 +98,8 @@ sealed class MeridianFlipEvent with _$MeridianFlipEvent {
   }) = MeridianFlipStepFailed;
 
   /// Overall progress update
-  const factory MeridianFlipEvent.progress({
-    required int percent,
-  }) = MeridianFlipProgress;
+  const factory MeridianFlipEvent.progress({required int percent}) =
+      MeridianFlipProgress;
 
   /// Retry scheduled after failure
   const factory MeridianFlipEvent.retryScheduled({
@@ -122,9 +121,8 @@ sealed class MeridianFlipEvent with _$MeridianFlipEvent {
   }) = MeridianFlipFailed;
 
   /// Flip was aborted by user
-  const factory MeridianFlipEvent.aborted({
-    required String reason,
-  }) = MeridianFlipAborted;
+  const factory MeridianFlipEvent.aborted({required String reason}) =
+      MeridianFlipAborted;
 
   factory MeridianFlipEvent.fromJson(Map<String, dynamic> json) =>
       _$MeridianFlipEventFromJson(json);

@@ -108,8 +108,13 @@ void main() {
           longitude: -75.0,
           targets: targets,
           sessions: [],
-          observationTime:
-              DateTime(2024, 7, 15, 22, 0), // Summer evening when Vega is high
+          observationTime: DateTime(
+            2024,
+            7,
+            15,
+            22,
+            0,
+          ), // Summer evening when Vega is high
         );
 
         // Should return at least one suggestion if target is above horizon
@@ -147,10 +152,7 @@ void main() {
         ];
 
         final suggestions = await service.getSuggestionsForTonight(
-          config: const TargetSuggestionConfig(
-            minAltitude: 0.0,
-            minScore: 0.0,
-          ),
+          config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),
           latitude: 40.0,
           longitude: -75.0,
           targets: targets,
@@ -176,10 +178,7 @@ void main() {
         ];
 
         final suggestions = await service.getSuggestionsForTonight(
-          config: const TargetSuggestionConfig(
-            minAltitude: 0.0,
-            minScore: 0.0,
-          ),
+          config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),
           latitude: 40.0,
           longitude: -75.0,
           targets: targets,
@@ -223,12 +222,7 @@ void main() {
 
       test('filters targets below minimum score', () async {
         final targets = [
-          createTarget(
-            id: 1,
-            name: 'Test Target',
-            ra: 12.0,
-            dec: 45.0,
-          ),
+          createTarget(id: 1, name: 'Test Target', ra: 12.0, dec: 45.0),
         ];
 
         final suggestions = await service.getSuggestionsForTonight(
@@ -303,9 +297,11 @@ void main() {
         if (suggestions.length >= 2) {
           // Verify sorted by peak altitude descending (night-aware)
           for (int i = 0; i < suggestions.length - 1; i++) {
-            final aAlt = suggestions[i].visibility.peakAltitude ??
+            final aAlt =
+                suggestions[i].visibility.peakAltitude ??
                 suggestions[i].visibility.currentAltitude;
-            final bAlt = suggestions[i + 1].visibility.peakAltitude ??
+            final bAlt =
+                suggestions[i + 1].visibility.peakAltitude ??
                 suggestions[i + 1].visibility.currentAltitude;
             expect(aAlt, greaterThanOrEqualTo(bAlt));
           }
@@ -481,19 +477,11 @@ void main() {
 
       test('includes visibility information in suggestions', () async {
         final targets = [
-          createTarget(
-            id: 1,
-            name: 'Test Target',
-            ra: 12.0,
-            dec: 45.0,
-          ),
+          createTarget(id: 1, name: 'Test Target', ra: 12.0, dec: 45.0),
         ];
 
         final suggestions = await service.getSuggestionsForTonight(
-          config: const TargetSuggestionConfig(
-            minAltitude: 0.0,
-            minScore: 0.0,
-          ),
+          config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),
           latitude: 40.0,
           longitude: -75.0,
           targets: targets,
@@ -523,10 +511,7 @@ void main() {
         ];
 
         final suggestions = await service.getSuggestionsForTonight(
-          config: const TargetSuggestionConfig(
-            minAltitude: 0.0,
-            minScore: 0.0,
-          ),
+          config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),
           latitude: 40.0,
           longitude: -75.0,
           targets: targets,
@@ -557,77 +542,81 @@ void main() {
           );
         }
 
-        test('suggestions without opticalConfig have no framingFit score',
-            () async {
-          final targets = [
-            createTarget(
-              id: 1,
-              name: 'Test Nebula',
-              ra: 12.0,
-              dec: 45.0,
-              sizeArcmin: 15.0,
-              objectType: 'Nebula',
-            ),
-          ];
+        test(
+          'suggestions without opticalConfig have no framingFit score',
+          () async {
+            final targets = [
+              createTarget(
+                id: 1,
+                name: 'Test Nebula',
+                ra: 12.0,
+                dec: 45.0,
+                sizeArcmin: 15.0,
+                objectType: 'Nebula',
+              ),
+            ];
 
-          final suggestions = await service.getSuggestionsForTonight(
-            config: const TargetSuggestionConfig(
-              minAltitude: 0.0,
-              minScore: 0.0,
-            ),
-            latitude: 40.0,
-            longitude: -75.0,
-            targets: targets,
-            sessions: [],
-            observationTime: DateTime(2024, 3, 21, 22, 0),
-          );
-
-          if (suggestions.isNotEmpty) {
-            expect(
-              suggestions.first.scoreBreakdown.containsKey('framingFit'),
-              isFalse,
+            final suggestions = await service.getSuggestionsForTonight(
+              config: const TargetSuggestionConfig(
+                minAltitude: 0.0,
+                minScore: 0.0,
+              ),
+              latitude: 40.0,
+              longitude: -75.0,
+              targets: targets,
+              sessions: [],
+              observationTime: DateTime(2024, 3, 21, 22, 0),
             );
-          }
-        });
 
-        test('suggestions with opticalConfig include framingFit score',
-            () async {
-          final opticalConfig = createTestOpticalConfig();
-          final targets = [
-            createTarget(
-              id: 1,
-              name: 'Test Nebula',
-              ra: 12.0,
-              dec: 45.0,
-              sizeArcmin: 15.0,
-              objectType: 'Nebula',
-            ),
-          ];
+            if (suggestions.isNotEmpty) {
+              expect(
+                suggestions.first.scoreBreakdown.containsKey('framingFit'),
+                isFalse,
+              );
+            }
+          },
+        );
 
-          final suggestions = await service.getSuggestionsForTonight(
-            config: const TargetSuggestionConfig(
-              minAltitude: 0.0,
-              minScore: 0.0,
-            ),
-            latitude: 40.0,
-            longitude: -75.0,
-            targets: targets,
-            sessions: [],
-            observationTime: DateTime(2024, 3, 21, 22, 0),
-            opticalConfig: opticalConfig,
-          );
+        test(
+          'suggestions with opticalConfig include framingFit score',
+          () async {
+            final opticalConfig = createTestOpticalConfig();
+            final targets = [
+              createTarget(
+                id: 1,
+                name: 'Test Nebula',
+                ra: 12.0,
+                dec: 45.0,
+                sizeArcmin: 15.0,
+                objectType: 'Nebula',
+              ),
+            ];
 
-          if (suggestions.isNotEmpty) {
-            expect(
-              suggestions.first.scoreBreakdown.containsKey('framingFit'),
-              isTrue,
+            final suggestions = await service.getSuggestionsForTonight(
+              config: const TargetSuggestionConfig(
+                minAltitude: 0.0,
+                minScore: 0.0,
+              ),
+              latitude: 40.0,
+              longitude: -75.0,
+              targets: targets,
+              sessions: [],
+              observationTime: DateTime(2024, 3, 21, 22, 0),
+              opticalConfig: opticalConfig,
             );
-            expect(
-              suggestions.first.scoreBreakdown['framingFit'],
-              greaterThan(0),
-            );
-          }
-        });
+
+            if (suggestions.isNotEmpty) {
+              expect(
+                suggestions.first.scoreBreakdown.containsKey('framingFit'),
+                isTrue,
+              );
+              expect(
+                suggestions.first.scoreBreakdown['framingFit'],
+                greaterThan(0),
+              );
+            }
+          },
+        );
 
         test('ideal fill ratio target gets high framing fit score', () async {
           final opticalConfig = createTestOpticalConfig();
@@ -701,40 +690,42 @@ void main() {
           }
         });
 
-        test('target with no size data gets neutral framing fit score',
-            () async {
-          final opticalConfig = createTestOpticalConfig();
-          final targets = [
-            createTarget(
-              id: 1,
-              name: 'Unknown Size Target',
-              ra: 12.0,
-              dec: 45.0,
-              sizeArcmin: null,
-              objectType: 'Galaxy',
-            ),
-          ];
+        test(
+          'target with no size data gets neutral framing fit score',
+          () async {
+            final opticalConfig = createTestOpticalConfig();
+            final targets = [
+              createTarget(
+                id: 1,
+                name: 'Unknown Size Target',
+                ra: 12.0,
+                dec: 45.0,
+                sizeArcmin: null,
+                objectType: 'Galaxy',
+              ),
+            ];
 
-          final suggestions = await service.getSuggestionsForTonight(
-            config: const TargetSuggestionConfig(
-              minAltitude: 0.0,
-              minScore: 0.0,
-            ),
-            latitude: 40.0,
-            longitude: -75.0,
-            targets: targets,
-            sessions: [],
-            observationTime: DateTime(2024, 3, 21, 22, 0),
-            opticalConfig: opticalConfig,
-          );
+            final suggestions = await service.getSuggestionsForTonight(
+              config: const TargetSuggestionConfig(
+                minAltitude: 0.0,
+                minScore: 0.0,
+              ),
+              latitude: 40.0,
+              longitude: -75.0,
+              targets: targets,
+              sessions: [],
+              observationTime: DateTime(2024, 3, 21, 22, 0),
+              opticalConfig: opticalConfig,
+            );
 
-          if (suggestions.isNotEmpty) {
-            final framingScore =
-                suggestions.first.scoreBreakdown['framingFit']!;
-            // No size data → neutral score of 50
-            expect(framingScore, equals(50.0));
-          }
-        });
+            if (suggestions.isNotEmpty) {
+              final framingScore =
+                  suggestions.first.scoreBreakdown['framingFit']!;
+              // No size data → neutral score of 50
+              expect(framingScore, equals(50.0));
+            }
+          },
+        );
 
         test('overflow target gets "Mosaic recommended" tag', () async {
           final opticalConfig = createTestOpticalConfig();

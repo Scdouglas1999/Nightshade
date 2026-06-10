@@ -27,36 +27,35 @@ void main() {
   });
 
   group('AutoSaveService replay retention', () {
-    test('prunes replay decisions once on startup using retention days',
-        () async {
-      final replayDebugService = _MockReplayDebugService();
-      when(() => replayDebugService.pruneOlderThan(any()))
-          .thenAnswer((_) async => 3);
+    test(
+      'prunes replay decisions once on startup using retention days',
+      () async {
+        final replayDebugService = _MockReplayDebugService();
+        when(
+          () => replayDebugService.pruneOlderThan(any()),
+        ).thenAnswer((_) async => 3);
 
-      final service = AutoSaveService(
-        sequenceRepository: _MockSequenceRepository(),
-        backupService: _MockBackupService(),
-        replayDebugService: replayDebugService,
-        replayRetentionDays: () async => 90,
-        clock: () => DateTime.utc(2026, 5, 21, 12),
-      );
+        final service = AutoSaveService(
+          sequenceRepository: _MockSequenceRepository(),
+          backupService: _MockBackupService(),
+          replayDebugService: replayDebugService,
+          replayRetentionDays: () async => 90,
+          clock: () => DateTime.utc(2026, 5, 21, 12),
+        );
 
-      service.start(
-        const AutoSaveConfig(
-          sequenceEnabled: false,
-          backupEnabled: false,
-        ),
-      );
-      await Future<void>.delayed(Duration.zero);
+        service.start(
+          const AutoSaveConfig(sequenceEnabled: false, backupEnabled: false),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      verify(
-        () => replayDebugService.pruneOlderThan(
-          DateTime.utc(2026, 2, 20, 12),
-        ),
-      ).called(1);
+        verify(
+          () =>
+              replayDebugService.pruneOlderThan(DateTime.utc(2026, 2, 20, 12)),
+        ).called(1);
 
-      await service.stop();
-      service.dispose();
-    });
+        await service.stop();
+        service.dispose();
+      },
+    );
   });
 }

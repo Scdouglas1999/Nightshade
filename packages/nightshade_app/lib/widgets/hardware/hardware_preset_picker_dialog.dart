@@ -37,8 +37,8 @@ class HardwarePresetPickerDialog extends ConsumerStatefulWidget {
   static Future<TelescopePreset?> showTelescope(BuildContext context) {
     return showDialog<TelescopePreset>(
       context: context,
-      builder: (_) =>
-          const HardwarePresetPickerDialog._(kind: HardwarePresetKind.telescope),
+      builder: (_) => const HardwarePresetPickerDialog._(
+          kind: HardwarePresetKind.telescope),
     );
   }
 
@@ -138,8 +138,7 @@ class _HardwarePresetPickerDialogState
           isBuiltIn: preset.isBuiltIn,
           onSelect: () => Navigator.of(context).pop(preset),
           onEdit: () => _editTelescope(preset),
-          onDelete:
-              preset.isBuiltIn ? null : () => _deleteTelescope(preset),
+          onDelete: preset.isBuiltIn ? null : () => _deleteTelescope(preset),
         );
       },
     );
@@ -181,9 +180,10 @@ class _HardwarePresetPickerDialogState
   /// shown when present, otherwise the derived ratio.
   static String _telescopeSpecLine(TelescopePreset preset) {
     final ratio = preset.nativeFocalRatio ?? preset.focalRatio;
-    final focalLength = preset.focalLengthMm == preset.focalLengthMm.roundToDouble()
-        ? preset.focalLengthMm.round().toString()
-        : preset.focalLengthMm.toString();
+    final focalLength =
+        preset.focalLengthMm == preset.focalLengthMm.roundToDouble()
+            ? preset.focalLengthMm.round().toString()
+            : preset.focalLengthMm.toString();
     final aperture = preset.apertureMm == preset.apertureMm.roundToDouble()
         ? preset.apertureMm.round().toString()
         : preset.apertureMm.toString();
@@ -193,9 +193,10 @@ class _HardwarePresetPickerDialogState
 
   /// e.g. `3.76µm · IMX571 mono · 6248×4176`.
   static String _cameraSpecLine(CameraDefaultsPreset preset) {
-    final pixel = preset.pixelSizeMicrons == preset.pixelSizeMicrons.roundToDouble()
-        ? preset.pixelSizeMicrons.round().toString()
-        : preset.pixelSizeMicrons.toString();
+    final pixel =
+        preset.pixelSizeMicrons == preset.pixelSizeMicrons.roundToDouble()
+            ? preset.pixelSizeMicrons.round().toString()
+            : preset.pixelSizeMicrons.toString();
     // Braces kept deliberately: the following 'µ' (micro sign) is a non-ASCII
     // glyph and brace-delimiting the identifier avoids any ambiguity for
     // readers, even though the analyzer parses the bare form unambiguously.
@@ -370,9 +371,7 @@ class _PresetRow extends StatelessWidget {
           AccessibleIconButton(
             icon: LucideIcons.pencil,
             label: isBuiltIn ? 'Copy and edit $title' : 'Edit $title',
-            tooltip: isBuiltIn
-                ? 'Create an editable copy'
-                : 'Edit this preset',
+            tooltip: isBuiltIn ? 'Create an editable copy' : 'Edit this preset',
             color: colors.textSecondary,
             size: NightshadeTokens.iconSm,
             onPressed: onEdit,

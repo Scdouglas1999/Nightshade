@@ -175,7 +175,9 @@ class _RmsStat extends StatelessWidget {
           value != null ? '${value!.toStringAsFixed(2)}"' : '—',
           style: NightshadeTypography.withTabular(
             TextStyle(
-              fontSize: isTotal ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+              fontSize: isTotal
+                  ? NightshadeTypography.fontSize14
+                  : NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w700,
               color: _color(),
             ),

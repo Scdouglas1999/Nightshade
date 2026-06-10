@@ -79,16 +79,16 @@ class ExposureSettings extends Equatable {
 
   @override
   List<Object?> get props => [
-        exposureTime,
-        gain,
-        offset,
-        binningX,
-        binningY,
-        filter,
-        frameType,
-        fastReadout,
-        readoutModeIndex,
-      ];
+    exposureTime,
+    gain,
+    offset,
+    binningX,
+    binningY,
+    filter,
+    frameType,
+    fastReadout,
+    readoutModeIndex,
+  ];
 }
 
 /// Cooling settings
@@ -156,8 +156,13 @@ class CoolingStatus extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [currentTemp, targetTemp, coolerPower, isAtTarget, isCooling];
+  List<Object?> get props => [
+    currentTemp,
+    targetTemp,
+    coolerPower,
+    isAtTarget,
+    isCooling,
+  ];
 }
 
 /// Focus/Autofocus settings (persists across navigation)
@@ -208,8 +213,14 @@ class FocusSettings extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [stepSize, method, afStepSize, stepsOut, exposuresPerPoint, exposureTime];
+  List<Object?> get props => [
+    stepSize,
+    method,
+    afStepSize,
+    stepsOut,
+    exposuresPerPoint,
+    exposureTime,
+  ];
 }
 
 /// Dither/Settle settings for guiding (persists across navigation)
@@ -248,8 +259,12 @@ class DitherSettings extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [ditherAmount, settlePixels, settleTime, settleAfterDither];
+  List<Object?> get props => [
+    ditherAmount,
+    settlePixels,
+    settleTime,
+    settleAfterDither,
+  ];
 }
 
 /// Slew coordinates for mount tab (persists across navigation)
@@ -260,15 +275,9 @@ class SlewCoordinates extends Equatable {
   /// Declination in degrees
   final String decText;
 
-  const SlewCoordinates({
-    this.raText = '',
-    this.decText = '',
-  });
+  const SlewCoordinates({this.raText = '', this.decText = ''});
 
-  SlewCoordinates copyWith({
-    String? raText,
-    String? decText,
-  }) {
+  SlewCoordinates copyWith({String? raText, String? decText}) {
     return SlewCoordinates(
       raText: raText ?? this.raText,
       decText: decText ?? this.decText,

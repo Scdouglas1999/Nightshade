@@ -15,8 +15,12 @@ class ObservingListsDaoManager {
   ObservingListsDaoManager(this._db);
   $$ObservingListsTableTableManager get observingLists =>
       $$ObservingListsTableTableManager(
-          _db.attachedDatabase, _db.observingLists);
+        _db.attachedDatabase,
+        _db.observingLists,
+      );
   $$ObservingListItemsTableTableManager get observingListItems =>
       $$ObservingListItemsTableTableManager(
-          _db.attachedDatabase, _db.observingListItems);
+        _db.attachedDatabase,
+        _db.observingListItems,
+      );
 }

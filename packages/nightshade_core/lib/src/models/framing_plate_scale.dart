@@ -156,14 +156,15 @@ class FramingPlateScale {
 
   @override
   int get hashCode => Object.hash(
-        surveyFovWidthDeg,
-        surveyFovHeightDeg,
-        imagePixelWidth,
-        imagePixelHeight,
-      );
+    surveyFovWidthDeg,
+    surveyFovHeightDeg,
+    imagePixelWidth,
+    imagePixelHeight,
+  );
 
   @override
-  String toString() => 'FramingPlateScale('
+  String toString() =>
+      'FramingPlateScale('
       'surveyFovWidthDeg: $surveyFovWidthDeg, '
       'surveyFovHeightDeg: $surveyFovHeightDeg, '
       'imagePixelWidth: $imagePixelWidth, '

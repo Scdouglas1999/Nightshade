@@ -29,9 +29,13 @@ Future<void> main() async {
       );
     }
 
-    final report = jsonDecode(File(
-      '${temp.path}/docs/production-readiness/public-release-owner-checklist.json',
-    ).readAsStringSync()) as Map<String, dynamic>;
+    final report =
+        jsonDecode(
+              File(
+                '${temp.path}/docs/production-readiness/public-release-owner-checklist.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
     final markdown = File(
       '${temp.path}/docs/production-readiness/public-release-owner-checklist.md',
     ).readAsStringSync();
@@ -50,8 +54,9 @@ Future<void> main() async {
       'owner checklist should summarize source artifact blocker counts',
     );
     _expect(
-      (report['goalSectionsObserved'] as List)
-          .contains('P0 Before Public Release'),
+      (report['goalSectionsObserved'] as List).contains(
+        'P0 Before Public Release',
+      ),
       'owner checklist should preserve observed goal sections',
     );
     _expect(
@@ -69,10 +74,12 @@ Future<void> main() async {
     );
     _expect(
       markdown.contains('## Source Artifacts') &&
-          markdown
-              .contains('docs/production-readiness/public-release-gate.json') &&
           markdown.contains(
-              '| `docs/production-readiness/public-release-gate.json` | `true` | `2026-05-05T00:00:00.000000Z` | `NOT_READY` | `1` | `3` |'),
+            'docs/production-readiness/public-release-gate.json',
+          ) &&
+          markdown.contains(
+            '| `docs/production-readiness/public-release-gate.json` | `true` | `2026-05-05T00:00:00.000000Z` | `NOT_READY` | `1` | `3` |',
+          ),
       'markdown should include source artifact table with blocker counts',
     );
     _expect(
@@ -91,51 +98,53 @@ Future<void> _writeFixtureAudit(Directory root) async {
     '${root.path}/docs/production-readiness/public-release-completion-audit.json',
   );
   await file.parent.create(recursive: true);
-  await file.writeAsString(const JsonEncoder.withIndent('  ').convert({
-    'generatedAt': '2026-05-05T00:00:00.000000Z',
-    'decision': 'NOT_ACHIEVED',
-    'gateDecision': 'NOT_READY',
-    'ready': false,
-    'completionDecision': 'NOT_ACHIEVED',
-    'completionDetail': 'fixture completion detail',
-    'goalSectionsObserved': ['P0 Before Public Release'],
-    'sourceArtifacts': [
-      {
-        'path': 'docs/production-readiness/public-release-gate.json',
-        'exists': true,
-        'generatedAt': '2026-05-05T00:00:00.000000Z',
-        'decision': 'NOT_READY',
-        'passedCount': 1,
-        'blockerCount': 3,
-      },
-    ],
-    'promptToArtifactChecklist': [
-      {
-        'id': 'complete_fixture',
-        'requirement': 'Complete fixture requirement',
-        'status': 'complete',
-        'evidence': ['fixture-evidence.json'],
-        'verification': 'fixture verification',
-        'requiredInput': '',
-        'rerunCommands': ['fixture command'],
-        'acceptanceCriteria': ['fixture criterion'],
-        'expectedEvidence': ['fixture expected evidence'],
-        'gap': '',
-      },
-      {
-        'id': 'blocked_fixture',
-        'requirement': 'Blocked fixture requirement',
-        'status': 'blocked',
-        'evidence': ['blocked-evidence.json'],
-        'verification': 'blocked verification',
-        'requiredInput': 'fixture input',
-        'rerunCommands': ['fixture command'],
-        'acceptanceCriteria': ['fixture criterion'],
-        'expectedEvidence': ['fixture expected evidence'],
-        'gap': 'Required input: fixture input',
-      },
-    ],
-  }));
+  await file.writeAsString(
+    const JsonEncoder.withIndent('  ').convert({
+      'generatedAt': '2026-05-05T00:00:00.000000Z',
+      'decision': 'NOT_ACHIEVED',
+      'gateDecision': 'NOT_READY',
+      'ready': false,
+      'completionDecision': 'NOT_ACHIEVED',
+      'completionDetail': 'fixture completion detail',
+      'goalSectionsObserved': ['P0 Before Public Release'],
+      'sourceArtifacts': [
+        {
+          'path': 'docs/production-readiness/public-release-gate.json',
+          'exists': true,
+          'generatedAt': '2026-05-05T00:00:00.000000Z',
+          'decision': 'NOT_READY',
+          'passedCount': 1,
+          'blockerCount': 3,
+        },
+      ],
+      'promptToArtifactChecklist': [
+        {
+          'id': 'complete_fixture',
+          'requirement': 'Complete fixture requirement',
+          'status': 'complete',
+          'evidence': ['fixture-evidence.json'],
+          'verification': 'fixture verification',
+          'requiredInput': '',
+          'rerunCommands': ['fixture command'],
+          'acceptanceCriteria': ['fixture criterion'],
+          'expectedEvidence': ['fixture expected evidence'],
+          'gap': '',
+        },
+        {
+          'id': 'blocked_fixture',
+          'requirement': 'Blocked fixture requirement',
+          'status': 'blocked',
+          'evidence': ['blocked-evidence.json'],
+          'verification': 'blocked verification',
+          'requiredInput': 'fixture input',
+          'rerunCommands': ['fixture command'],
+          'acceptanceCriteria': ['fixture criterion'],
+          'expectedEvidence': ['fixture expected evidence'],
+          'gap': 'Required input: fixture input',
+        },
+      ],
+    }),
+  );
 }
 
 void _expect(bool condition, String message) {

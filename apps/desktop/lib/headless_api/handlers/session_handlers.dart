@@ -129,10 +129,14 @@ class SessionHandlers {
     final solveTimeout = requireDouble(payload, 'solve_timeout');
     final binning = requireInt(payload, 'binning');
     final isNorth = requireBool(payload, 'is_north');
-    final acceptanceThresholdArcsec =
-        requireDouble(payload, 'acceptance_threshold_arcsec');
-    final iterationCadenceSecs =
-        requireDouble(payload, 'iteration_cadence_secs');
+    final acceptanceThresholdArcsec = requireDouble(
+      payload,
+      'acceptance_threshold_arcsec',
+    );
+    final iterationCadenceSecs = requireDouble(
+      payload,
+      'iteration_cadence_secs',
+    );
     final gain = optionalInt(payload, 'gain');
     final offset = optionalInt(payload, 'offset');
 
@@ -184,7 +188,9 @@ class SessionHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSessionImages(
-      Request request, String sessionId) async {
+    Request request,
+    String sessionId,
+  ) async {
     _logInfo('[API] GET /api/sessions/$sessionId/images');
     final sid = _parsePathId(sessionId, 'sessionId');
     final database = container.read(databaseProvider);
@@ -209,9 +215,7 @@ class SessionHandlers {
         producingRunId: producingRunId,
         limit: limit,
       );
-      return jsonOk({
-        'images': thumbs.map(_producingThumbnailToJson).toList(),
-      });
+      return jsonOk({'images': thumbs.map(_producingThumbnailToJson).toList()});
     }
 
     if (targetIdParam != null) {
@@ -439,8 +443,10 @@ class SessionHandlers {
           message: 'limit query parameter must be a positive integer',
         );
       }
-      final images = await database.imagesDao
-          .getAllImagesPaginated(limit: limit, offset: 0);
+      final images = await database.imagesDao.getAllImagesPaginated(
+        limit: limit,
+        offset: 0,
+      );
       final imagesJson = images.map((image) => image.toJson()).toList();
       return jsonOk({'images': imagesJson, 'count': imagesJson.length});
     }
@@ -456,8 +462,9 @@ class SessionHandlers {
     final standalone = images
         .where((image) => image.sessionId == null)
         .toList(growable: false);
-    return jsonOk(
-        {'images': standalone.map((image) => image.toJson()).toList()});
+    return jsonOk({
+      'images': standalone.map((image) => image.toJson()).toList(),
+    });
   }
 
   Future<Response> handleExportSessionJson(
@@ -542,8 +549,10 @@ class SessionHandlers {
     String sessionId, {
     required String fileType,
     required Future<String> Function(
-            SessionExportService service, int sessionId)
-        exportAction,
+      SessionExportService service,
+      int sessionId,
+    )
+    exportAction,
     required String contentType,
   }) async {
     _logInfo('[API] GET /api/sessions/$sessionId/export/$fileType');

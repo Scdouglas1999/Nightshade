@@ -31,8 +31,11 @@ void main() {
         sessionId: 1,
       );
 
-      expect(tracker.queueDepth, 0,
-          reason: 'queue depth drops when work starts');
+      expect(
+        tracker.queueDepth,
+        0,
+        reason: 'queue depth drops when work starts',
+      );
       expect(tracker.inflight, isNotNull);
       expect(tracker.inflight!.imagePath, '/tmp/img1.fits');
       expect(tracker.inflight!.capturedImageId, 42);
@@ -45,8 +48,12 @@ void main() {
       final sub = tracker.events.listen(events.add);
 
       final sw = tracker.beginStage(ScienceStage.frameQuality);
-      tracker.endStage(ScienceStage.frameQuality, ScienceStageOutcome.ok,
-          stopwatch: sw, note: 'fast lane');
+      tracker.endStage(
+        ScienceStage.frameQuality,
+        ScienceStageOutcome.ok,
+        stopwatch: sw,
+        note: 'fast lane',
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 5));
       await sub.cancel();
@@ -57,25 +64,29 @@ void main() {
       expect(events.last.stageResult.note, 'fast lane');
     });
 
-    test('endFrame moves inflight into history and synthesises summary event',
-        () async {
-      tracker.beginFrame(imagePath: '/tmp/img3.fits');
-      tracker.skipStage(ScienceStage.frameQuality,
-          note: 'feature disabled');
-      tracker.endFrame();
+    test(
+      'endFrame moves inflight into history and synthesises summary event',
+      () async {
+        tracker.beginFrame(imagePath: '/tmp/img3.fits');
+        tracker.skipStage(ScienceStage.frameQuality, note: 'feature disabled');
+        tracker.endFrame();
 
-      expect(tracker.inflight, isNull);
-      expect(tracker.lastCompleted, isNotNull);
-      expect(tracker.lastCompleted!.imagePath, '/tmp/img3.fits');
-      expect(tracker.lastCompleted!.isComplete, isTrue);
-      expect(tracker.lastCompleted!.hasFailure, isFalse);
-    });
+        expect(tracker.inflight, isNull);
+        expect(tracker.lastCompleted, isNotNull);
+        expect(tracker.lastCompleted!.imagePath, '/tmp/img3.fits');
+        expect(tracker.lastCompleted!.isComplete, isTrue);
+        expect(tracker.lastCompleted!.hasFailure, isFalse);
+      },
+    );
 
     test('lastFailure surfaces the most recent failed stage', () {
       tracker.beginFrame(imagePath: '/tmp/img4.fits');
       tracker.beginStage(ScienceStage.plateSolve);
-      tracker.endStage(ScienceStage.plateSolve, ScienceStageOutcome.failed,
-          note: 'no WCS available');
+      tracker.endStage(
+        ScienceStage.plateSolve,
+        ScienceStageOutcome.failed,
+        note: 'no WCS available',
+      );
       tracker.endFrame();
 
       expect(tracker.lastFailure, isNotNull);

@@ -23,9 +23,11 @@ void main() {
     });
 
     test('get settings returns JSON defaults', () async {
-      final response = await translateHandlerErrors(handlers.handleGetSettings(
-        Request('GET', Uri.parse('http://localhost/api/transients/settings')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetSettings(
+          Request('GET', Uri.parse('http://localhost/api/transients/settings')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -33,30 +35,39 @@ void main() {
       expect(body['settings'], isA<Map>());
     });
 
-    test('update settings malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleUpdateSettings(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/transients/settings'),
-          body: '{',
-        ),
-      ));
+    test(
+      'update settings malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleUpdateSettings(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/transients/settings'),
+              body: '{',
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
     test('queue transient returns JSON state', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleQueueTransient(
-        Request('POST', Uri.parse('http://localhost/api/transients/t-1/queue')),
-        't-1',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleQueueTransient(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/transients/t-1/queue'),
+          ),
+          't-1',
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');

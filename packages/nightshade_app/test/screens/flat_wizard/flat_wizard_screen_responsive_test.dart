@@ -36,7 +36,8 @@ Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
   expect(
     tester.takeException(),
     isNull,
-    reason: 'FlatWizardScreen must not overflow at ${size.width}x${size.height}',
+    reason:
+        'FlatWizardScreen must not overflow at ${size.width}x${size.height}',
   );
   expect(find.text('Flat Frame Wizard'), findsOneWidget,
       reason: 'Flat wizard header identity must be present at '

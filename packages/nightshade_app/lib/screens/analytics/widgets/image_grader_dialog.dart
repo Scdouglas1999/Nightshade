@@ -56,10 +56,12 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
         FrameGradeRules.suggestFrom(widget.frames);
   }
 
-  ({int rejected, int accepted, List<({DbCapturedImage frame, String reason})> rejections})
-      _preview() {
-    final rejections =
-        <({DbCapturedImage frame, String reason})>[];
+  ({
+    int rejected,
+    int accepted,
+    List<({DbCapturedImage frame, String reason})> rejections
+  }) _preview() {
+    final rejections = <({DbCapturedImage frame, String reason})>[];
     var rejected = 0;
     for (final f in widget.frames) {
       final reason = _rules.gradeFrame(f);
@@ -146,7 +148,9 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
                 const SizedBox(height: 8),
                 Text(
                   _applyError!,
-                  style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+                  style: TextStyle(
+                      color: colors.error,
+                      fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
               const SizedBox(height: 14),
@@ -227,7 +231,9 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize11),
               ),
             ],
           ),
@@ -257,10 +263,8 @@ class _ThresholdSliders extends StatelessWidget {
         .whereType<double>()
         .where((v) => v.isFinite)
         .toList(growable: false);
-    final stars = frames
-        .map((f) => f.starCount)
-        .whereType<int>()
-        .toList(growable: false);
+    final stars =
+        frames.map((f) => f.starCount).whereType<int>().toList(growable: false);
     final guiding = frames
         .map((f) => f.guidingRmsTotal)
         .whereType<double>()
@@ -286,8 +290,7 @@ class _ThresholdSliders extends StatelessWidget {
           value: rules.minStars,
           available: stars,
           rangeMin: stars.isEmpty ? 0 : stars.reduce((a, b) => a < b ? a : b),
-          rangeMax:
-              stars.isEmpty ? 200 : stars.reduce((a, b) => a > b ? a : b),
+          rangeMax: stars.isEmpty ? 200 : stars.reduce((a, b) => a > b ? a : b),
           onChanged: (v) => onChanged(rules.copyWith(minStars: v)),
           onCleared: () => onChanged(rules.copyWith(clearStars: true)),
         ),
@@ -298,9 +301,8 @@ class _ThresholdSliders extends StatelessWidget {
           value: rules.maxGuidingRmsTotalArcsec,
           available: guiding,
           rangeMin: 0,
-          rangeMax: guiding.isEmpty
-              ? 3.0
-              : guiding.reduce((a, b) => a > b ? a : b),
+          rangeMax:
+              guiding.isEmpty ? 3.0 : guiding.reduce((a, b) => a > b ? a : b),
           onChanged: (v) =>
               onChanged(rules.copyWith(maxGuidingRmsTotalArcsec: v)),
           onCleared: () => onChanged(rules.copyWith(clearGuiding: true)),
@@ -368,9 +370,7 @@ class _DoubleRow extends StatelessWidget {
           SizedBox(
             width: 86,
             child: Text(
-              value == null
-                  ? 'off'
-                  : '${value!.toStringAsFixed(2)} $unit',
+              value == null ? 'off' : '${value!.toStringAsFixed(2)} $unit',
               style: TextStyle(
                 color: value == null ? colors.textMuted : colors.textPrimary,
                 fontSize: NightshadeTypography.fontSize12,
@@ -432,7 +432,9 @@ class _IntRow extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ),
           Expanded(
@@ -446,9 +448,7 @@ class _IntRow extends StatelessWidget {
                 value: effective.toDouble(),
                 divisions:
                     (rangeMax - rangeMin) > 0 ? (rangeMax - rangeMin) : null,
-                onChanged: enabled
-                    ? (v) => onChanged(v.round())
-                    : null,
+                onChanged: enabled ? (v) => onChanged(v.round()) : null,
                 activeColor: colors.primary,
               ),
             ),
@@ -576,8 +576,7 @@ class _RejectionList extends StatelessWidget {
   final NightshadeColors colors;
   final List<({DbCapturedImage frame, String reason})> rejections;
 
-  const _RejectionList(
-      {required this.colors, required this.rejections});
+  const _RejectionList({required this.colors, required this.rejections});
 
   @override
   Widget build(BuildContext context) {
@@ -586,7 +585,9 @@ class _RejectionList extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Text(
           'No frames currently fail any rule.',
-          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize12),
         ),
       );
     }

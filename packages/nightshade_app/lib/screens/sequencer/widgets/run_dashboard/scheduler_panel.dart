@@ -20,13 +20,17 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// `SequencerEvent.schedulerDecision` variant; no string parsing involved.
 class SchedulerDecisionView {
   final DateTime time;
+
   /// 1-based decision counter for this scheduler instance.
   final int decisionCounter;
+
   /// `null` when no target cleared `min_score_to_run`.
   final String? pickedTargetId;
   final String? pickedTargetName;
+
   /// 0..=100. `null` when nothing was picked.
   final double? pickedScore;
+
   /// Flat score table (runnable first, then by descending total).
   final List<bridge_event.SchedulerScoreEntry> scores;
 
@@ -151,7 +155,9 @@ class RunDashboardSchedulerPanel extends ConsumerWidget {
               child: Text(
                 'No scheduler decisions yet. The panel populates as soon as '
                 'a TargetScheduler node makes its first pick.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted),
               ),
             )
           else
@@ -178,9 +184,8 @@ class _DecisionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = decision.picked ? colors.success : colors.warning;
-    final icon = decision.picked
-        ? LucideIcons.checkCircle2
-        : LucideIcons.alertTriangle;
+    final icon =
+        decision.picked ? LucideIcons.checkCircle2 : LucideIcons.alertTriangle;
     // Pack H: show the top three rows of the typed score table so the
     // user can see ranked candidates at a glance. The full list is in
     // `decision.scores`; this is a summary surface.
@@ -207,7 +212,9 @@ class _DecisionRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 _formatRelative(decision.time),
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
               if (topScores.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.spaceXs),
@@ -222,9 +229,8 @@ class _DecisionRow extends StatelessWidget {
                           margin: const EdgeInsets.only(
                               right: NightshadeTokens.spaceSm),
                           decoration: BoxDecoration(
-                            color: s.runnable
-                                ? colors.success
-                                : colors.textMuted,
+                            color:
+                                s.runnable ? colors.success : colors.textMuted,
                             shape: BoxShape.circle,
                           ),
                         ),

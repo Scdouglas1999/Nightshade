@@ -59,8 +59,12 @@ class DeepStarTileStore {
       _cache.clear();
       return true;
     } catch (e) {
-      developer.log('[DeepStar] Failed to read manifest: $e',
-          name: 'DeepStarTileStore', level: 900, error: e);
+      developer.log(
+        '[DeepStar] Failed to read manifest: $e',
+        name: 'DeepStarTileStore',
+        level: 900,
+        error: e,
+      );
       _manifest = null;
       _tilesByKey.clear();
       return false;
@@ -87,8 +91,12 @@ class DeepStarTileStore {
         final tile = DeepStarTile.decode(await file.readAsBytes());
         return tile.toStars();
       } catch (e) {
-        developer.log('[DeepStar] Failed to load tile ${entry.file}: $e',
-            name: 'DeepStarTileStore', level: 900, error: e);
+        developer.log(
+          '[DeepStar] Failed to load tile ${entry.file}: $e',
+          name: 'DeepStarTileStore',
+          level: 900,
+          error: e,
+        );
         return const <Star>[];
       }
     }();
@@ -120,10 +128,16 @@ class DeepStarTileStore {
       return const [];
     }
 
-    final region =
-        ViewportRegion.compute(centerRaHours, centerDecDeg, fovDegrees);
+    final region = ViewportRegion.compute(
+      centerRaHours,
+      centerDecDeg,
+      fovDegrees,
+    );
     final keys = DeepStarTileScheme.tilesForViewport(
-        centerRaHours, centerDecDeg, fovDegrees);
+      centerRaHours,
+      centerDecDeg,
+      fovDegrees,
+    );
 
     final lists = <List<Star>>[];
     for (final (ra, dec) in keys) {

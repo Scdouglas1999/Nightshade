@@ -29,7 +29,9 @@ class _SimulationMetric extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 2),
           Text(
@@ -140,7 +142,9 @@ class _SimulationIssueRow extends StatelessWidget {
           Expanded(
             child: Text(
               issue.message,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
           ),
         ],

@@ -85,7 +85,6 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             ],
           ),
         if (widget.showHeader) SizedBox(height: spacing + 4),
-
         _ControlRow(
           label: 'Exposure',
           compact: widget.compact,
@@ -114,9 +113,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             ],
           ),
         ),
-
         SizedBox(height: spacing),
-
         _ControlRow(
           label: 'Gain',
           compact: widget.compact,
@@ -131,9 +128,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             },
           ),
         ),
-
         SizedBox(height: spacing),
-
         _ControlRow(
           label: 'Offset',
           compact: widget.compact,
@@ -148,9 +143,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             },
           ),
         ),
-
         SizedBox(height: spacing),
-
         _ControlRow(
           label: 'Binning',
           compact: widget.compact,
@@ -173,9 +166,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             },
           ),
         ),
-
         SizedBox(height: spacing),
-
         _ControlRow(
           label: 'Frame',
           compact: widget.compact,
@@ -194,13 +185,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             },
           ),
         ),
-
         SizedBox(height: spacing),
-
         _buildFilterControl(colors, exposureSettings),
-
         SizedBox(height: widget.compact ? 16 : 24),
-
         Row(
           children: [
             Expanded(
@@ -217,9 +204,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             ),
           ],
         ),
-
         SizedBox(height: widget.compact ? 6 : 8),
-
         Row(
           children: [
             Expanded(
@@ -295,7 +280,8 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
           label: 'Filter',
           compact: widget.compact,
           child: NightshadeDropdown(
-            value: filterNames.contains(selected) ? selected : filterNames.first,
+            value:
+                filterNames.contains(selected) ? selected : filterNames.first,
             items: filterNames,
             onChanged: (value) {
               if (value == null) return;
@@ -350,7 +336,8 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
+                Icon(LucideIcons.alertTriangle,
+                    size: 12, color: colors.warning),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -371,7 +358,8 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
       await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Could not change the filter. Please try again.');
+        context.showErrorSnackBar(
+            'Could not change the filter. Please try again.');
       }
     }
   }

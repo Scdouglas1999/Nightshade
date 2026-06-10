@@ -16,15 +16,17 @@ class WaitTimePastRule implements SequenceValidator {
       final waitUntil = node.waitUntil;
       if (waitUntil == null) continue;
       if (!waitUntil.isBefore(now)) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.timing,
-        title: 'Wait Time Passed',
-        description:
-            'Wait node "${node.name}" is set for a time that has already passed.',
-        affectedNodeId: node.id,
-        resolutionHint: 'Update the wait time or remove the node.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.timing,
+          title: 'Wait Time Passed',
+          description:
+              'Wait node "${node.name}" is set for a time that has already passed.',
+          affectedNodeId: node.id,
+          resolutionHint: 'Update the wait time or remove the node.',
+        ),
+      );
     }
     return issues;
   }
@@ -45,14 +47,16 @@ class LoopEndTimePastRule implements SequenceValidator {
       final repeatUntil = node.repeatUntil;
       if (repeatUntil == null) continue;
       if (!repeatUntil.isBefore(now)) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.timing,
-        title: 'Loop End Time Passed',
-        description: 'Loop "${node.name}" end time has already passed.',
-        affectedNodeId: node.id,
-        resolutionHint: 'Update the end time or change loop condition.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.timing,
+          title: 'Loop End Time Passed',
+          description: 'Loop "${node.name}" end time has already passed.',
+          affectedNodeId: node.id,
+          resolutionHint: 'Update the end time or change loop condition.',
+        ),
+      );
     }
     return issues;
   }

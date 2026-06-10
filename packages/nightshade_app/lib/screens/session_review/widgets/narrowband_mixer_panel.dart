@@ -71,7 +71,8 @@ class NarrowbandMixerPanel extends StatefulWidget {
 
   /// Invoked on Apply with the active palette name (or `'custom'`) and the
   /// row-major `[channel][r, g, b]` weight matrix.
-  final void Function(String paletteOrCustom, List<List<double>> weights) onApply;
+  final void Function(String paletteOrCustom, List<List<double>> weights)
+      onApply;
 
   const NarrowbandMixerPanel({
     super.key,
@@ -123,9 +124,7 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
   void _applyPreset(_NarrowbandPreset preset, {bool notify = true}) {
     final next = List.generate(widget.channels.length, (i) {
       final mapped = preset.filterToRgb[widget.channels[i].filter];
-      return mapped != null
-          ? List<double>.from(mapped)
-          : <double>[0, 0, 0];
+      return mapped != null ? List<double>.from(mapped) : <double>[0, 0, 0];
     });
     void apply() {
       _weights = next;
@@ -196,8 +195,8 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
   Widget _header(NightshadeColors colors) {
     return Row(
       children: [
-        Icon(NightshadeIcons.palette, size: NightshadeTokens.iconSm,
-            color: colors.primary),
+        Icon(NightshadeIcons.palette,
+            size: NightshadeTokens.iconSm, color: colors.primary),
         const SizedBox(width: NightshadeTokens.spaceSm),
         Text(
           'Narrowband palette',
@@ -237,8 +236,8 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
       children: [
         Row(
           children: [
-            Icon(NightshadeIcons.filter, size: NightshadeTokens.iconXs,
-                color: colors.textSecondary),
+            Icon(NightshadeIcons.filter,
+                size: NightshadeTokens.iconXs, color: colors.textSecondary),
             const SizedBox(width: NightshadeTokens.spaceXs),
             Text(
               channel.displayLabel,
@@ -335,9 +334,7 @@ class _PresetChip extends StatelessWidget {
             color: bg,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
             border: Border.all(
-              color: selected
-                  ? accent
-                  : colors.border.withValues(alpha: 0.75),
+              color: selected ? accent : colors.border.withValues(alpha: 0.75),
             ),
           ),
           child: Text(
@@ -373,7 +370,8 @@ class _WeightSlider extends StatelessWidget {
           width: NightshadeTokens.space2xl,
           child: Text(
             channelLabel,
-            style: NightshadeTypography.labelStrong.copyWith(color: channelColor),
+            style:
+                NightshadeTypography.labelStrong.copyWith(color: channelColor),
           ),
         ),
         Expanded(

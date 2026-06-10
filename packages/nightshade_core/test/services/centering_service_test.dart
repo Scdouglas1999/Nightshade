@@ -57,11 +57,7 @@ class _TestBackendNotifier extends BackendNotifier {
 }
 
 // Generate mocks for these classes
-@GenerateMocks([
-  ImagingService,
-  PlateSolveService,
-  DeviceService,
-])
+@GenerateMocks([ImagingService, PlateSolveService, DeviceService])
 void main() {
   group('CenteringService', () {
     late ProviderContainer container;
@@ -79,7 +75,8 @@ void main() {
       // Default: post-slew polling sees a settled mount on the first tick.
       // Tests that need to exercise the failure-escalation path override
       // this in their own `when(...)` clause before invoking centering.
-      mt.when(() => pollBackend.getMountStatus(mt.any()))
+      mt
+          .when(() => pollBackend.getMountStatus(mt.any()))
           .thenAnswer((_) async => _settledMount());
 
       container = ProviderContainer(
@@ -87,8 +84,9 @@ void main() {
           imagingServiceProvider.overrideWithValue(mockImagingService),
           plateSolveServiceProvider.overrideWithValue(mockPlateSolveService),
           deviceServiceProvider.overrideWithValue(mockDeviceService),
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, pollBackend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, pollBackend),
+          ),
           // Override equipment states to simulate connected devices
           cameraStateProvider.overrideWith((ref) {
             final notifier = CameraStateNotifier(ref);
@@ -101,7 +99,11 @@ void main() {
             notifier.setConnecting('test_mount');
             notifier.setConnected();
             notifier.updatePosition(
-                10.0, 45.0, 30.0, 180.0); // ra, dec, alt, az
+              10.0,
+              45.0,
+              30.0,
+              180.0,
+            ); // ra, dec, alt, az
             return notifier;
           }),
         ],
@@ -159,13 +161,16 @@ void main() {
           solveTimeSecs: 0.0,
         );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any))
-            .thenAnswer((_) async => solveResult);
+        when(
+          mockPlateSolveService.solve(any, any),
+        ).thenAnswer((_) async => solveResult);
 
         // Act
         final service = container.read(centeringServiceProvider);
@@ -216,64 +221,68 @@ void main() {
         );
       }
 
-      test(
-        'RA unit: solver degrees on target converge on the first iteration '
-        '(no spurious 15x offset)',
-        () async {
-          // Target 10h / +45°. Solver reports the SAME point but in degrees:
-          // 10h == 150.0°. With the bug this looked like a ~2250° (mod) error
-          // in the offset math and never converged; corrected, the offset is
-          // ~0 and we succeed immediately.
-          const targetRaHours = 10.0;
-          const targetDecDeg = 45.0;
-          const solvedRaDeg = targetRaHours * 15.0; // 150.0°
+      test('RA unit: solver degrees on target converge on the first iteration '
+          '(no spurious 15x offset)', () async {
+        // Target 10h / +45°. Solver reports the SAME point but in degrees:
+        // 10h == 150.0°. With the bug this looked like a ~2250° (mod) error
+        // in the offset math and never converged; corrected, the offset is
+        // ~0 and we succeed immediately.
+        const targetRaHours = 10.0;
+        const targetDecDeg = 45.0;
+        const solvedRaDeg = targetRaHours * 15.0; // 150.0°
 
-          const solverConfig = PlateSolverConfig(
-            type: PlateSolverType.astap,
-            executablePath: '/usr/bin/astap',
-          );
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
 
-          when(mockImagingService.captureImage(
+        when(
+          mockImagingService.captureImage(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
-          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_on.fits'));
+          ),
+        ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_on.fits'));
 
-          when(mockPlateSolveService.solve(any, any)).thenAnswer(
-            (_) async => const PlateSolveResult(
-              success: true,
-              ra: solvedRaDeg, // DEGREES
-              dec: targetDecDeg,
-              rotation: 0.0,
-              pixelScale: 1.0,
-              fieldWidth: 2.0,
-              fieldHeight: 1.5,
-              solveTimeSecs: 0.0,
-            ),
-          );
+        when(mockPlateSolveService.solve(any, any)).thenAnswer(
+          (_) async => const PlateSolveResult(
+            success: true,
+            ra: solvedRaDeg, // DEGREES
+            dec: targetDecDeg,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
+          ),
+        );
 
-          final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
-            targetRa: targetRaHours,
-            targetDec: targetDecDeg,
-            solverConfig: solverConfig,
-            config: const CenteringConfig(
-              maxIterations: 5,
-              toleranceArcsec: 30.0,
-            ),
-          );
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: targetRaHours,
+          targetDec: targetDecDeg,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(
+            maxIterations: 5,
+            toleranceArcsec: 30.0,
+          ),
+        );
 
-          expect(result.success, isTrue,
-              reason: 'On-target solve (degrees) must converge immediately');
-          expect(result.iterations, equals(1));
-          // Offset must be a hair, not a 15x-inflated value.
-          expect(result.finalOffsetArcsec, isNotNull);
-          expect(result.finalOffsetArcsec!, lessThan(1.0));
-          // Solved RA is recorded back in HOURS (150° -> 10h).
-          expect(result.iterationHistory.first.solvedRa,
-              closeTo(targetRaHours, 1e-9));
-          verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
-        },
-      );
+        expect(
+          result.success,
+          isTrue,
+          reason: 'On-target solve (degrees) must converge immediately',
+        );
+        expect(result.iterations, equals(1));
+        // Offset must be a hair, not a 15x-inflated value.
+        expect(result.finalOffsetArcsec, isNotNull);
+        expect(result.finalOffsetArcsec!, lessThan(1.0));
+        // Solved RA is recorded back in HOURS (150° -> 10h).
+        expect(
+          result.iterationHistory.first.solvedRa,
+          closeTo(targetRaHours, 1e-9),
+        );
+        verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
+      });
 
       test(
         'RA unit: a known pure-RA offset produces the true angular separation '
@@ -297,10 +306,12 @@ void main() {
             executablePath: '/usr/bin/astap',
           );
 
-          when(mockImagingService.captureImage(
-            settings: anyNamed('settings'),
-            targetName: anyNamed('targetName'),
-          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_off.fits'));
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_off.fits'));
 
           when(mockPlateSolveService.solve(any, any)).thenAnswer(
             (_) async => const PlateSolveResult(
@@ -314,8 +325,9 @@ void main() {
               solveTimeSecs: 0.0,
             ),
           );
-          when(mockDeviceService.slewMountToCoordinates(any, any))
-              .thenAnswer((_) async => {});
+          when(
+            mockDeviceService.slewMountToCoordinates(any, any),
+          ).thenAnswer((_) async => {});
 
           final service = container.read(centeringServiceProvider);
           final result = await service.centerOnTarget(
@@ -337,10 +349,13 @@ void main() {
           final recordedOffset = result.iterationHistory.first.offsetArcsec;
           expect(recordedOffset, isNotNull);
           // 1 arcsec tolerance: a 15x-scaled bug could never land here.
-          expect(recordedOffset!, closeTo(expectedArcsec, 1.0),
-              reason:
-                  'Corrected math: cos(60°)*0.10°=0.05°=180". A 15x RA error '
-                  'would read thousands of arcsec.');
+          expect(
+            recordedOffset!,
+            closeTo(expectedArcsec, 1.0),
+            reason:
+                'Corrected math: cos(60°)*0.10°=0.05°=180". A 15x RA error '
+                'would read thousands of arcsec.',
+          );
         },
       );
 
@@ -363,10 +378,12 @@ void main() {
           );
 
           var iter = 0;
-          when(mockImagingService.captureImage(
-            settings: anyNamed('settings'),
-            targetName: anyNamed('targetName'),
-          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_sync.fits'));
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_sync.fits'));
           when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
             iter++;
             if (iter == 1) {
@@ -393,10 +410,12 @@ void main() {
               solveTimeSecs: 0.0,
             );
           });
-          when(mockDeviceService.syncMountToCoordinates(any, any))
-              .thenAnswer((_) async => {});
-          when(mockDeviceService.slewMountToCoordinates(any, any))
-              .thenAnswer((_) async => {});
+          when(
+            mockDeviceService.syncMountToCoordinates(any, any),
+          ).thenAnswer((_) async => {});
+          when(
+            mockDeviceService.slewMountToCoordinates(any, any),
+          ).thenAnswer((_) async => {});
 
           final service = container.read(centeringServiceProvider);
           final result = await service.centerOnTarget(
@@ -419,10 +438,13 @@ void main() {
           ).captured;
           // captured is a flat [ra, dec, ra, dec, ...]; first call's RA.
           final syncedRaHours = captured[0] as double;
-          expect(syncedRaHours, closeTo(expectedSyncRaHours, 1e-9),
-              reason:
-                  'sync RA must be the degrees solve normalised to hours, '
-                  'never the raw degrees (which would be 15x too large)');
+          expect(
+            syncedRaHours,
+            closeTo(expectedSyncRaHours, 1e-9),
+            reason:
+                'sync RA must be the degrees solve normalised to hours, '
+                'never the raw degrees (which would be 15x too large)',
+          );
         },
       );
 
@@ -461,10 +483,12 @@ void main() {
         // First iteration: 2 arcmin off
         // Second iteration: 30 arcsec off (within tolerance)
         var iterationCount = 0;
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
@@ -497,8 +521,9 @@ void main() {
           }
         });
 
-        when(mockDeviceService.slewMountToCoordinates(any, any))
-            .thenAnswer((_) async => {});
+        when(
+          mockDeviceService.slewMountToCoordinates(any, any),
+        ).thenAnswer((_) async => {});
 
         // Act
         final service = container.read(centeringServiceProvider);
@@ -516,8 +541,9 @@ void main() {
         expect(result.iterationHistory, hasLength(2));
 
         // Verify slew was called once (after first failed iteration)
-        verify(mockDeviceService.slewMountToCoordinates(targetRa, targetDec))
-            .called(1);
+        verify(
+          mockDeviceService.slewMountToCoordinates(targetRa, targetDec),
+        ).called(1);
       });
 
       test('fails when max iterations reached', () async {
@@ -554,10 +580,12 @@ void main() {
         );
 
         // All iterations return coordinates significantly off target
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target targetRa*15 plus 300 arcsec
@@ -574,8 +602,9 @@ void main() {
           );
         });
 
-        when(mockDeviceService.slewMountToCoordinates(any, any))
-            .thenAnswer((_) async => {});
+        when(
+          mockDeviceService.slewMountToCoordinates(any, any),
+        ).thenAnswer((_) async => {});
 
         // Act
         final service = container.read(centeringServiceProvider);
@@ -593,8 +622,9 @@ void main() {
         expect(result.iterationHistory, hasLength(maxIterations));
 
         // Verify slew was called for each iteration except the last
-        verify(mockDeviceService.slewMountToCoordinates(targetRa, targetDec))
-            .called(maxIterations);
+        verify(
+          mockDeviceService.slewMountToCoordinates(targetRa, targetDec),
+        ).called(maxIterations);
       });
 
       test('fails when camera not connected', () async {
@@ -634,31 +664,35 @@ void main() {
         disconnectedContainer.dispose();
       });
 
-      test('fails with an overall timeout instead of hanging indefinitely',
-          () async {
-        const solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
-          executablePath: '/usr/bin/astap',
-        );
+      test(
+        'fails with an overall timeout instead of hanging indefinitely',
+        () async {
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) => Completer<CapturedImageData?>().future);
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) => Completer<CapturedImageData?>().future);
 
-        final service = container.read(centeringServiceProvider);
-        final result = await service.centerOnTarget(
-          targetRa: 10.0,
-          targetDec: 45.0,
-          solverConfig: solverConfig,
-          config: const CenteringConfig(
-            overallTimeout: Duration(milliseconds: 10),
-          ),
-        );
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: 10.0,
+            targetDec: 45.0,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(
+              overallTimeout: Duration(milliseconds: 10),
+            ),
+          );
 
-        expect(result.success, isFalse);
-        expect(result.errorMessage, contains('timed out'));
-      });
+          expect(result.success, isFalse);
+          expect(result.errorMessage, contains('timed out'));
+        },
+      );
 
       test('fails when mount not connected', () async {
         // Arrange
@@ -719,10 +753,12 @@ void main() {
           filePath: '/tmp/test_image.fits',
         );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           return const PlateSolveResult(
@@ -781,10 +817,12 @@ void main() {
         );
 
         var iterationCount = 0;
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
@@ -814,8 +852,9 @@ void main() {
           }
         });
 
-        when(mockDeviceService.slewMountToCoordinates(any, any))
-            .thenAnswer((_) async => {});
+        when(
+          mockDeviceService.slewMountToCoordinates(any, any),
+        ).thenAnswer((_) async => {});
 
         final statusUpdates = <CenteringStatus>[];
 
@@ -885,10 +924,12 @@ void main() {
 
       void stubTwoIterationPlateSolve(double targetRa, double targetDec) {
         var iterationCount = 0;
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => buildPollFixtureImage());
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => buildPollFixtureImage());
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
           // First poll: 2 arcmin off (forces slew + post-slew poll path).
@@ -919,238 +960,251 @@ void main() {
             solveTimeSecs: 0.0,
           );
         });
-        when(mockDeviceService.slewMountToCoordinates(any, any))
-            .thenAnswer((_) async => {});
+        when(
+          mockDeviceService.slewMountToCoordinates(any, any),
+        ).thenAnswer((_) async => {});
       }
 
-      test(
-        'post-slew poll: mount answers every tick -> centering proceeds '
-        'normally (regression)',
-        () async {
-          const targetRa = 10.0;
-          const targetDec = 45.0;
-          const solverConfig = PlateSolverConfig(
-            type: PlateSolverType.astap,
-            executablePath: '/usr/bin/astap',
-          );
+      test('post-slew poll: mount answers every tick -> centering proceeds '
+          'normally (regression)', () async {
+        const targetRa = 10.0;
+        const targetDec = 45.0;
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
 
-          stubTwoIterationPlateSolve(targetRa, targetDec);
-          // Default setUp stub already returns a settled mount, but pin it
-          // explicitly so the contract is obvious from this test body.
-          mt.when(() => pollBackend.getMountStatus(mt.any()))
-              .thenAnswer((_) async => _settledMount());
+        stubTwoIterationPlateSolve(targetRa, targetDec);
+        // Default setUp stub already returns a settled mount, but pin it
+        // explicitly so the contract is obvious from this test body.
+        mt
+            .when(() => pollBackend.getMountStatus(mt.any()))
+            .thenAnswer((_) async => _settledMount());
 
-          final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
-            targetRa: targetRa,
-            targetDec: targetDec,
-            solverConfig: solverConfig,
-            config: const CenteringConfig(maxIterations: 2),
-          );
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: targetRa,
+          targetDec: targetDec,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(maxIterations: 2),
+        );
 
-          expect(result.success, isTrue,
-              reason: 'Healthy mount must complete centering normally');
-          expect(result.errorMessage, isNull);
-          expect(result.iterations, equals(2));
-        },
-      );
+        expect(
+          result.success,
+          isTrue,
+          reason: 'Healthy mount must complete centering normally',
+        );
+        expect(result.errorMessage, isNull);
+        expect(result.iterations, equals(2));
+      });
 
-      test(
-        'post-slew poll: single transient failure recovers, does not '
-        'escalate (regression — must not be over-aggressive)',
-        () async {
-          const targetRa = 10.0;
-          const targetDec = 45.0;
-          const solverConfig = PlateSolverConfig(
-            type: PlateSolverType.astap,
-            executablePath: '/usr/bin/astap',
-          );
+      test('post-slew poll: single transient failure recovers, does not '
+          'escalate (regression — must not be over-aggressive)', () async {
+        const targetRa = 10.0;
+        const targetDec = 45.0;
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
 
-          stubTwoIterationPlateSolve(targetRa, targetDec);
+        stubTwoIterationPlateSolve(targetRa, targetDec);
 
-          // Throw once, then return settled. The escalation threshold is 6
-          // CONSECUTIVE failures, so a single blip must NOT abort centering.
-          var calls = 0;
-          mt.when(() => pollBackend.getMountStatus(mt.any()))
-              .thenAnswer((_) async {
-            calls++;
-            if (calls == 1) {
-              throw Exception('transient I/O blip');
-            }
-            return _settledMount();
-          });
+        // Throw once, then return settled. The escalation threshold is 6
+        // CONSECUTIVE failures, so a single blip must NOT abort centering.
+        var calls = 0;
+        mt.when(() => pollBackend.getMountStatus(mt.any())).thenAnswer((
+          _,
+        ) async {
+          calls++;
+          if (calls == 1) {
+            throw Exception('transient I/O blip');
+          }
+          return _settledMount();
+        });
 
-          final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
-            targetRa: targetRa,
-            targetDec: targetDec,
-            solverConfig: solverConfig,
-            config: const CenteringConfig(maxIterations: 2),
-          );
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: targetRa,
+          targetDec: targetDec,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(maxIterations: 2),
+        );
 
-          expect(result.success, isTrue,
-              reason:
-                  'A single transient query failure must not escalate; the '
-                  'poll loop must ride it out and continue.');
-          expect(calls, greaterThanOrEqualTo(2),
-              reason: 'Loop must have polled at least twice (blip + recover)');
-        },
-      );
+        expect(
+          result.success,
+          isTrue,
+          reason:
+              'A single transient query failure must not escalate; the '
+              'poll loop must ride it out and continue.',
+        );
+        expect(
+          calls,
+          greaterThanOrEqualTo(2),
+          reason: 'Loop must have polled at least twice (blip + recover)',
+        );
+      });
 
-      test(
-        'post-slew poll: 6 consecutive failures -> centering aborts with '
-        'CenteringMountUnresponsiveException',
-        () async {
-          const targetRa = 10.0;
-          const targetDec = 45.0;
-          const solverConfig = PlateSolverConfig(
-            type: PlateSolverType.astap,
-            executablePath: '/usr/bin/astap',
-          );
+      test('post-slew poll: 6 consecutive failures -> centering aborts with '
+          'CenteringMountUnresponsiveException', () async {
+        const targetRa = 10.0;
+        const targetDec = 45.0;
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
 
-          // Only need the FIRST iteration to slew, then fail polling.
-          when(mockImagingService.captureImage(
+        // Only need the FIRST iteration to slew, then fail polling.
+        when(
+          mockImagingService.captureImage(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
-          )).thenAnswer((_) async => buildPollFixtureImage());
-          when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-            // Solver RA in DEGREES: 2 arcmin off = targetRa*15 + 120/3600.
-            return const PlateSolveResult(
-              success: true,
-              ra: targetRa * 15.0 + (120.0 / 3600.0),
-              dec: targetDec,
-              rotation: 0.0,
-              pixelScale: 1.0,
-              fieldWidth: 2.0,
-              fieldHeight: 1.5,
-              solveTimeSecs: 0.0,
-            );
-          });
-          when(mockDeviceService.slewMountToCoordinates(any, any))
-              .thenAnswer((_) async => {});
-
-          // Every poll throws — escalation must trip at 6 consecutive
-          // failures (3 seconds) instead of waiting the full 60s.
-          //
-          // NB: the live `MountStateNotifier` also polls `getMountStatus`
-          // on its own 2s timer once the mount is "connected", so the raw
-          // mock call count can drift above 6 by a tick or two. We assert
-          // on the failure message + wall-clock budget instead.
-          mt.when(() => pollBackend.getMountStatus(mt.any()))
-              .thenAnswer((_) async {
-            throw Exception('mount disconnected');
-          });
-
-          final stopwatch = Stopwatch()..start();
-          final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
-            targetRa: targetRa,
-            targetDec: targetDec,
-            solverConfig: solverConfig,
-            config: const CenteringConfig(maxIterations: 3),
+          ),
+        ).thenAnswer((_) async => buildPollFixtureImage());
+        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          // Solver RA in DEGREES: 2 arcmin off = targetRa*15 + 120/3600.
+          return const PlateSolveResult(
+            success: true,
+            ra: targetRa * 15.0 + (120.0 / 3600.0),
+            dec: targetDec,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
           );
-          stopwatch.stop();
+        });
+        when(
+          mockDeviceService.slewMountToCoordinates(any, any),
+        ).thenAnswer((_) async => {});
 
-          expect(result.success, isFalse);
-          expect(result.errorMessage, isNotNull);
-          expect(
-            result.errorMessage,
-            allOf(
-              contains('6 times consecutively'),
-              contains('aborting centering'),
-              contains('disconnected or unresponsive'),
-            ),
-            reason: 'Failure must carry the typed exception message',
-          );
-          // Fail-fast: 6 ticks × 500ms = 3s for the poll loop, plus the
-          // single exposure + slew of one iteration. Must come in well
-          // under the 60s wall-clock cap.
-          expect(
-            stopwatch.elapsed,
-            lessThan(const Duration(seconds: 15)),
-            reason:
-                'Must fail fast (~3s of poll ticks), not drag out the full '
-                '60s wall-clock cap',
-          );
-        },
-      );
+        // Every poll throws — escalation must trip at 6 consecutive
+        // failures (3 seconds) instead of waiting the full 60s.
+        //
+        // NB: the live `MountStateNotifier` also polls `getMountStatus`
+        // on its own 2s timer once the mount is "connected", so the raw
+        // mock call count can drift above 6 by a tick or two. We assert
+        // on the failure message + wall-clock budget instead.
+        mt.when(() => pollBackend.getMountStatus(mt.any())).thenAnswer((
+          _,
+        ) async {
+          throw Exception('mount disconnected');
+        });
 
-      test(
-        'post-slew poll: failure then success resets counter, polling '
-        'continues',
-        () async {
-          const targetRa = 10.0;
-          const targetDec = 45.0;
-          const solverConfig = PlateSolverConfig(
-            type: PlateSolverType.astap,
-            executablePath: '/usr/bin/astap',
-          );
+        final stopwatch = Stopwatch()..start();
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: targetRa,
+          targetDec: targetDec,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(maxIterations: 3),
+        );
+        stopwatch.stop();
 
-          stubTwoIterationPlateSolve(targetRa, targetDec);
+        expect(result.success, isFalse);
+        expect(result.errorMessage, isNotNull);
+        expect(
+          result.errorMessage,
+          allOf(
+            contains('6 times consecutively'),
+            contains('aborting centering'),
+            contains('disconnected or unresponsive'),
+          ),
+          reason: 'Failure must carry the typed exception message',
+        );
+        // Fail-fast: 6 ticks × 500ms = 3s for the poll loop, plus the
+        // single exposure + slew of one iteration. Must come in well
+        // under the 60s wall-clock cap.
+        expect(
+          stopwatch.elapsed,
+          lessThan(const Duration(seconds: 15)),
+          reason:
+              'Must fail fast (~3s of poll ticks), not drag out the full '
+              '60s wall-clock cap',
+        );
+      });
 
-          // Pattern (per-call sequence on the mock): fail 5×, then settled.
-          // If the consecutive-failure counter were NOT resetting, a
-          // subsequent failure would compound and trip the threshold at
-          // count=6. By following the 5 fails with a clean success we
-          // prove the counter resets (centering completes successfully
-          // instead of throwing CenteringMountUnresponsiveException).
-          //
-          // NB: `MountStateNotifier` also polls `getMountStatus` on its
-          // own 2s timer, so additional unrelated calls can hit the mock.
-          // We tolerate that by gating only the *first* 5 calls into the
-          // failure phase and answering everything after that as settled.
-          //
-          // The contract under test is the SERVICE behavior (does
-          // centering succeed?), not a precise mock call count.
-          var sequenceCall = 0;
-          mt.when(() => pollBackend.getMountStatus(mt.any()))
-              .thenAnswer((_) async {
-            sequenceCall++;
-            if (sequenceCall <= 5) {
-              throw Exception('transient blip $sequenceCall');
-            }
-            return _settledMount();
-          });
+      test('post-slew poll: failure then success resets counter, polling '
+          'continues', () async {
+        const targetRa = 10.0;
+        const targetDec = 45.0;
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
 
-          final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
-            targetRa: targetRa,
-            targetDec: targetDec,
-            solverConfig: solverConfig,
-            config: const CenteringConfig(maxIterations: 2),
-          );
+        stubTwoIterationPlateSolve(targetRa, targetDec);
 
-          expect(result.success, isTrue,
-              reason:
-                  'Counter must reset on a successful poll. After 5 fails '
-                  'followed by a success, the next poll starts fresh — '
-                  'centering must complete normally (no escalation).');
-          // Sanity: confirm we actually exercised the failure path.
-          expect(sequenceCall, greaterThanOrEqualTo(5),
-              reason:
-                  'Mock must have been hit at least through the 5 fail '
-                  'sequence — otherwise the test is not exercising the '
-                  'counter-reset branch.');
-        },
-      );
+        // Pattern (per-call sequence on the mock): fail 5×, then settled.
+        // If the consecutive-failure counter were NOT resetting, a
+        // subsequent failure would compound and trip the threshold at
+        // count=6. By following the 5 fails with a clean success we
+        // prove the counter resets (centering completes successfully
+        // instead of throwing CenteringMountUnresponsiveException).
+        //
+        // NB: `MountStateNotifier` also polls `getMountStatus` on its
+        // own 2s timer, so additional unrelated calls can hit the mock.
+        // We tolerate that by gating only the *first* 5 calls into the
+        // failure phase and answering everything after that as settled.
+        //
+        // The contract under test is the SERVICE behavior (does
+        // centering succeed?), not a precise mock call count.
+        var sequenceCall = 0;
+        mt.when(() => pollBackend.getMountStatus(mt.any())).thenAnswer((
+          _,
+        ) async {
+          sequenceCall++;
+          if (sequenceCall <= 5) {
+            throw Exception('transient blip $sequenceCall');
+          }
+          return _settledMount();
+        });
+
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: targetRa,
+          targetDec: targetDec,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(maxIterations: 2),
+        );
+
+        expect(
+          result.success,
+          isTrue,
+          reason:
+              'Counter must reset on a successful poll. After 5 fails '
+              'followed by a success, the next poll starts fresh — '
+              'centering must complete normally (no escalation).',
+        );
+        // Sanity: confirm we actually exercised the failure path.
+        expect(
+          sequenceCall,
+          greaterThanOrEqualTo(5),
+          reason:
+              'Mock must have been hit at least through the 5 fail '
+              'sequence — otherwise the test is not exercising the '
+              'counter-reset branch.',
+        );
+      });
 
       // Dedicated test for the bare exception type so the contract is
       // explicit and not just inferred from the failure message above.
-      test('CenteringMountUnresponsiveException carries diagnostic context',
-          () {
-        const e = CenteringMountUnresponsiveException(
-          consecutiveFailures: 6,
-          elapsed: Duration(seconds: 3),
-          cause: 'mount disconnected',
-        );
-        expect(e.consecutiveFailures, equals(6));
-        expect(e.elapsed, equals(const Duration(seconds: 3)));
-        expect(e.cause, equals('mount disconnected'));
-        final s = e.toString();
-        expect(s, contains('6 times consecutively'));
-        expect(s, contains('3.0s'));
-        expect(s, contains('mount disconnected'));
-      });
+      test(
+        'CenteringMountUnresponsiveException carries diagnostic context',
+        () {
+          const e = CenteringMountUnresponsiveException(
+            consecutiveFailures: 6,
+            elapsed: Duration(seconds: 3),
+            cause: 'mount disconnected',
+          );
+          expect(e.consecutiveFailures, equals(6));
+          expect(e.elapsed, equals(const Duration(seconds: 3)));
+          expect(e.cause, equals('mount disconnected'));
+          final s = e.toString();
+          expect(s, contains('6 times consecutively'));
+          expect(s, contains('3.0s'));
+          expect(s, contains('mount disconnected'));
+        },
+      );
     });
 
     group('verifyCenter', () {
@@ -1180,10 +1234,12 @@ void main() {
           filePath: '/tmp/test_image.fits',
         );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target is targetRa*15 (=150°).
@@ -1243,10 +1299,12 @@ void main() {
           filePath: '/tmp/test_image.fits',
         );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           // Solver RA in DEGREES: 5 arcmin off = targetRa*15 + 300/3600.
@@ -1304,10 +1362,12 @@ void main() {
           filePath: '/tmp/test_image.fits',
         );
 
-        when(mockImagingService.captureImage(
-          settings: anyNamed('settings'),
-          targetName: anyNamed('targetName'),
-        )).thenAnswer((_) async => capturedImage);
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target mount RA (10h) = 150°.
@@ -1325,9 +1385,7 @@ void main() {
 
         // Act
         final service = container.read(centeringServiceProvider);
-        final result = await service.plateAndCenter(
-          solverConfig: solverConfig,
-        );
+        final result = await service.plateAndCenter(solverConfig: solverConfig);
 
         // Assert
         expect(result.success, isTrue);

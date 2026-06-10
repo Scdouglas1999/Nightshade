@@ -33,10 +33,7 @@ _Phd2AlgoParam _$Phd2AlgoParamFromJson(Map<String, dynamic> json) =>
     );
 
 Map<String, dynamic> _$Phd2AlgoParamToJson(_Phd2AlgoParam instance) =>
-    <String, dynamic>{
-      'name': instance.name,
-      'value': instance.value,
-    };
+    <String, dynamic>{'name': instance.name, 'value': instance.value};
 
 _Phd2BrainParams _$Phd2BrainParamsFromJson(Map<String, dynamic> json) =>
     _Phd2BrainParams(
@@ -121,12 +118,12 @@ _Phd2CalibrationData _$Phd2CalibrationDataFromJson(Map<String, dynamic> json) =>
     );
 
 Map<String, dynamic> _$Phd2CalibrationDataToJson(
-        _Phd2CalibrationData instance) =>
-    <String, dynamic>{
-      'isCalibrated': instance.isCalibrated,
-      'calibratedAt': instance.calibratedAt?.toIso8601String(),
-      'raRate': instance.raRate,
-      'decRate': instance.decRate,
-      'rotationAngle': instance.rotationAngle,
-      'decGuideMode': instance.decGuideMode,
-    };
+  _Phd2CalibrationData instance,
+) => <String, dynamic>{
+  'isCalibrated': instance.isCalibrated,
+  'calibratedAt': instance.calibratedAt?.toIso8601String(),
+  'raRate': instance.raRate,
+  'decRate': instance.decRate,
+  'rotationAngle': instance.rotationAngle,
+  'decGuideMode': instance.decGuideMode,
+};

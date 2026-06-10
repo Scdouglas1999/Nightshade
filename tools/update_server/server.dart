@@ -190,10 +190,7 @@ Future<Response> _serveManifest(String version) async {
   }
 
   final content = await file.readAsString();
-  return Response.ok(
-    content,
-    headers: {'Content-Type': 'application/json'},
-  );
+  return Response.ok(content, headers: {'Content-Type': 'application/json'});
 }
 
 /// Handle /releases/<version>/<filename> endpoint

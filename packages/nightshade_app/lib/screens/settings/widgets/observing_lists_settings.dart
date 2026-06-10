@@ -39,7 +39,9 @@ class ObservingListsSettings extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Manage your curated target collections for observing sessions.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textSecondary),
           ),
           const SizedBox(height: 24),
 
@@ -90,14 +92,17 @@ class ObservingListsSettings extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No observing lists yet',
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Create observing lists to organize your targets.\n'
               'You can add objects from the planetarium view.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: colors.textMuted),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -169,7 +174,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
 
   const _ObservingListManagementCard({
     required this.list,
-    });
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -186,74 +191,74 @@ class _ObservingListManagementCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Row(
-            children: [
-              Icon(LucideIcons.list, size: 18, color: colors.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      list.name,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize15,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (list.description != null &&
-                        list.description!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          list.description!,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textMuted,
-                          ),
+            Row(
+              children: [
+                Icon(LucideIcons.list, size: 18, color: colors.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        list.name,
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                       ),
-                  ],
+                      if (list.description != null &&
+                          list.description!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            list.description!,
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                '$itemCount object${itemCount == 1 ? '' : 's'}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
+                Text(
+                  '$itemCount object${itemCount == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _ActionChip(
-                icon: LucideIcons.pencil,
-                label: 'Rename',
-                onTap: () => _showRenameDialog(context, ref),
-              ),
-              const SizedBox(width: 8),
-              _ActionChip(
-                icon: LucideIcons.copy,
-                label: 'Duplicate',
-                onTap: () async {
-                  await ref
-                      .read(observingListNotifierProvider.notifier)
-                      .duplicateList(list.id);
-                },
-              ),
-              const Spacer(),
-              _ActionChip(
-                icon: LucideIcons.trash2,
-                label: 'Delete',
-                isDestructive: true,
-                onTap: () => _showDeleteConfirmation(context, ref),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ActionChip(
+                  icon: LucideIcons.pencil,
+                  label: 'Rename',
+                  onTap: () => _showRenameDialog(context, ref),
+                ),
+                const SizedBox(width: 8),
+                _ActionChip(
+                  icon: LucideIcons.copy,
+                  label: 'Duplicate',
+                  onTap: () async {
+                    await ref
+                        .read(observingListNotifierProvider.notifier)
+                        .duplicateList(list.id);
+                  },
+                ),
+                const Spacer(),
+                _ActionChip(
+                  icon: LucideIcons.trash2,
+                  label: 'Delete',
+                  isDestructive: true,
+                  onTap: () => _showDeleteConfirmation(context, ref),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -20,8 +20,10 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
       params['temperatureC'] = temperatureCelsius;
     }
     if (limit != null) params['limit'] = limit;
-    final response =
-        await _get('calibration/darks', params.isEmpty ? null : params);
+    final response = await _get(
+      'calibration/darks',
+      params.isEmpty ? null : params,
+    );
     return _rowsFromJson(response['darks'], RemoteDarkLibraryEntry.fromJson);
   }
 
@@ -66,7 +68,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     };
     final response = await _post('calibration/darks', body);
     return RemoteDarkLibraryEntry.fromJson(
-        (response['dark'] as Map).cast<String, dynamic>());
+      (response['dark'] as Map).cast<String, dynamic>(),
+    );
   }
 
   /// POST /api/calibration/darks/upload — upload a FITS file with metadata.
@@ -89,7 +92,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
       contentType: 'application/octet-stream',
     );
     return RemoteDarkLibraryEntry.fromJson(
-        (response['dark'] as Map).cast<String, dynamic>());
+      (response['dark'] as Map).cast<String, dynamic>(),
+    );
   }
 
   /// POST /api/calibration/darks/find-match.
@@ -116,7 +120,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     try {
       final response = await _post('calibration/darks/find-match', body);
       return RemoteDarkLibraryEntry.fromJson(
-          (response['dark'] as Map).cast<String, dynamic>());
+        (response['dark'] as Map).cast<String, dynamic>(),
+      );
     } on ServerError catch (e) {
       // [Wave 6D error parsing] — handler returns 404 + the structured
       // envelope {code: 'no_matching_dark'} when no dark satisfies the
@@ -178,8 +183,10 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     if (gain != null) params['gain'] = gain;
     if (since != null) params['since'] = since.toUtc().toIso8601String();
     if (limit != null) params['limit'] = limit;
-    final response =
-        await _get('calibration/flats', params.isEmpty ? null : params);
+    final response = await _get(
+      'calibration/flats',
+      params.isEmpty ? null : params,
+    );
     return _rowsFromJson(response['flats'], RemoteFlatHistoryEntry.fromJson);
   }
 
@@ -187,7 +194,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   Future<RemoteFlatHistoryEntry> getFlat(int id) async {
     final response = await _get('calibration/flats/$id');
     return RemoteFlatHistoryEntry.fromJson(
-        (response['flat'] as Map).cast<String, dynamic>());
+      (response['flat'] as Map).cast<String, dynamic>(),
+    );
   }
 
   /// POST /api/calibration/flats — record a flat-history entry.
@@ -217,7 +225,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     };
     final response = await _post('calibration/flats', body);
     return RemoteFlatHistoryEntry.fromJson(
-        (response['flat'] as Map).cast<String, dynamic>());
+      (response['flat'] as Map).cast<String, dynamic>(),
+    );
   }
 
   /// DELETE /api/calibration/flats/{id}.
@@ -299,7 +308,8 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     };
     final response = await _post('calibration/defect-maps', body);
     return RemoteDefectMap.fromJson(
-        (response['defectMap'] as Map).cast<String, dynamic>());
+      (response['defectMap'] as Map).cast<String, dynamic>(),
+    );
   }
 
   /// DELETE /api/calibration/defect-maps/{id}?deleteFile=<bool>.
@@ -369,10 +379,12 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     final installed = response['installed'];
     if (installed is! Map) {
       throw StateError(
-          'Malformed /catalog/upload response: missing `installed` field');
+        'Malformed /catalog/upload response: missing `installed` field',
+      );
     }
     return RemoteCatalogInstallResult.fromJson(
-        installed.cast<String, dynamic>());
+      installed.cast<String, dynamic>(),
+    );
   }
 
   /// POST /api/catalog/verify. Recomputes SHA-256 over every (or one)
@@ -380,12 +392,15 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   Future<Map<String, RemoteCatalogVerifyResult>> verifyCatalog({
     String? name,
   }) async {
-    final response =
-        await _post('catalog/verify', name == null ? null : {'name': name});
+    final response = await _post(
+      'catalog/verify',
+      name == null ? null : {'name': name},
+    );
     final verified = response['verified'];
     if (verified is! Map) {
       throw StateError(
-          'Malformed /catalog/verify response: missing `verified` field');
+        'Malformed /catalog/verify response: missing `verified` field',
+      );
     }
     return verified.map((key, value) {
       if (value is! Map) {

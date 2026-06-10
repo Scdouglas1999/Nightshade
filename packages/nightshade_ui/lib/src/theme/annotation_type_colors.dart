@@ -44,8 +44,11 @@ abstract final class AnnotationStatusColors {
     final palette = colors ?? NightshadeColors.dark;
     final semantic = _semantic(status, palette);
     if (semantic == null) return Colors.transparent;
-    return Color.lerp(semantic, palette.background, 0.88)!
-        .withValues(alpha: 0.9);
+    return Color.lerp(
+      semantic,
+      palette.background,
+      0.88,
+    )!.withValues(alpha: 0.9);
   }
 
   static Color border(AnnotationStatus status, [NightshadeColors? colors]) {
@@ -66,11 +69,10 @@ abstract final class AnnotationStatusColors {
     return switch (status) {
       AnnotationStatus.checkingCatalogs ||
       AnnotationStatus.plateSolving ||
-      AnnotationStatus.searchingCatalogs =>
-        colors.info,
+      AnnotationStatus.searchingCatalogs => colors.info,
       AnnotationStatus.complete => colors.success,
-      AnnotationStatus.error || AnnotationStatus.plateSolveFailed =>
-        colors.error,
+      AnnotationStatus.error ||
+      AnnotationStatus.plateSolveFailed => colors.error,
       AnnotationStatus.catalogsNotInstalled => colors.warning,
       AnnotationStatus.idle => null,
     };

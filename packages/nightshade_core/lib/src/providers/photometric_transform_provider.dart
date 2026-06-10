@@ -12,23 +12,23 @@ import 'database_provider.dart';
 /// Watches all photometric transforms in the database.
 final allPhotometricTransformsProvider =
     StreamProvider<List<PhotometricTransformRow>>((ref) {
-  final backend = ref.watch(backendProvider);
-  if (backend is NetworkBackend) {
-    return _pollRemoteTransforms(backend);
-  }
-  return ref.watch(scienceDaoProvider).watchAllTransforms();
-});
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return _pollRemoteTransforms(backend);
+      }
+      return ref.watch(scienceDaoProvider).watchAllTransforms();
+    });
 
 /// Watches transforms relevant to the current equipment profile.
 final activeProfileTransformsProvider =
     StreamProvider<List<PhotometricTransformRow>>((ref) {
-  final backend = ref.watch(backendProvider);
-  final profileId = ref.watch(activeEquipmentProfileIdProvider);
-  if (backend is NetworkBackend) {
-    return _pollRemoteTransforms(backend, profileId: profileId);
-  }
-  return ref.watch(scienceDaoProvider).watchTransformsForProfile(profileId);
-});
+      final backend = ref.watch(backendProvider);
+      final profileId = ref.watch(activeEquipmentProfileIdProvider);
+      if (backend is NetworkBackend) {
+        return _pollRemoteTransforms(backend, profileId: profileId);
+      }
+      return ref.watch(scienceDaoProvider).watchTransformsForProfile(profileId);
+    });
 
 /// Reads the active equipment profile's ID (nullable).
 final activeEquipmentProfileIdProvider = Provider<int?>((ref) {
@@ -39,37 +39,40 @@ final activeEquipmentProfileIdProvider = Provider<int?>((ref) {
 /// Provides the transform coefficients for a given filter, considering the
 /// active equipment profile.
 final transformForFilterProvider =
-    FutureProvider.family<PhotometricTransformCoefficients?, String>(
-        (ref, filterName) async {
-  final backend = ref.watch(backendProvider);
-  final profileId = ref.watch(activeEquipmentProfileIdProvider);
-  if (backend is NetworkBackend) {
-    final transforms = await backend.getPhotometricTransforms(profileId: profileId);
-    final row = transforms
-        .where((transform) => transform.filterName == filterName)
-        .firstOrNull;
-    if (row == null) {
-      return null;
-    }
-    return PhotometricTransformCoefficients(
-      id: row.id,
-      equipmentProfileId: row.equipmentProfileId,
-      filterName: row.filterName,
-      colorTerm: row.colorTerm,
-      extinctionCoefficient: row.extinctionCoefficient,
-      zeroPoint: row.zeroPoint,
-      rmsResidual: row.rmsResidual,
-      matchedStarCount: row.matchedStarCount,
-      catalogSource: row.catalogSource,
-      fitData: _decodeTransformFitData(row.fitDataJson),
-      dateComputed: row.dateComputed,
-    );
-  }
-  return ref.read(photometricTransformServiceProvider).getTransformForFilter(
-        filterName,
-        equipmentProfileId: profileId,
-      );
-});
+    FutureProvider.family<PhotometricTransformCoefficients?, String>((
+      ref,
+      filterName,
+    ) async {
+      final backend = ref.watch(backendProvider);
+      final profileId = ref.watch(activeEquipmentProfileIdProvider);
+      if (backend is NetworkBackend) {
+        final transforms = await backend.getPhotometricTransforms(
+          profileId: profileId,
+        );
+        final row = transforms
+            .where((transform) => transform.filterName == filterName)
+            .firstOrNull;
+        if (row == null) {
+          return null;
+        }
+        return PhotometricTransformCoefficients(
+          id: row.id,
+          equipmentProfileId: row.equipmentProfileId,
+          filterName: row.filterName,
+          colorTerm: row.colorTerm,
+          extinctionCoefficient: row.extinctionCoefficient,
+          zeroPoint: row.zeroPoint,
+          rmsResidual: row.rmsResidual,
+          matchedStarCount: row.matchedStarCount,
+          catalogSource: row.catalogSource,
+          fitData: _decodeTransformFitData(row.fitDataJson),
+          dateComputed: row.dateComputed,
+        );
+      }
+      return ref
+          .read(photometricTransformServiceProvider)
+          .getTransformForFilter(filterName, equipmentProfileId: profileId);
+    });
 
 Stream<List<PhotometricTransformRow>> _pollRemoteTransforms(
   NetworkBackend backend, {

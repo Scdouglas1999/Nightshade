@@ -18,20 +18,10 @@ part of '../sky_renderer.dart';
 /// * [SkyRenderScope.full] — the complete scene in a single painter. Used when
 ///   the painter is driven standalone (tests, thumbnails, anywhere the
 ///   two-layer host isn't involved).
-enum SkyRenderScope {
-  base,
-  overlay,
-  full,
-}
+enum SkyRenderScope { base, overlay, full }
 
 /// Mount tracking status for rendering
-enum MountRenderStatus {
-  disconnected,
-  parked,
-  slewing,
-  tracking,
-  stopped,
-}
+enum MountRenderStatus { disconnected, parked, slewing, tracking, stopped }
 
 /// Configuration for sky rendering
 class SkyRenderConfig {
@@ -207,11 +197,7 @@ class SkyRenderConfig {
 }
 
 /// Sky view projection type
-enum SkyProjection {
-  stereographic,
-  orthographic,
-  azimuthalEquidistant,
-}
+enum SkyProjection { stereographic, orthographic, azimuthalEquidistant }
 
 /// The celestial frame the sky view is centered on and panned in.
 ///
@@ -223,10 +209,7 @@ enum SkyProjection {
 ///   and altitude increasing upward, exactly what an observer sees standing at
 ///   the eyepiece. Objects rise on the east side and set on the west; the
 ///   equatorial grid curves while the alt/az grid runs straight.
-enum SkyViewMode {
-  equatorial,
-  horizontal,
-}
+enum SkyViewMode { equatorial, horizontal }
 
 /// View state for sky rendering.
 ///
@@ -304,15 +287,15 @@ class SkyViewState {
 
   @override
   int get hashCode => Object.hash(
-        centerRA,
-        centerDec,
-        fieldOfView,
-        rotation,
-        projection,
-        viewMode,
-        centerAz,
-        centerAltitude,
-      );
+    centerRA,
+    centerDec,
+    fieldOfView,
+    rotation,
+    projection,
+    viewMode,
+    centerAz,
+    centerAltitude,
+  );
 }
 
 /// Precomputed atmospheric extinction lookup table.
@@ -360,10 +343,7 @@ class AtmosphericExtinctionLUT {
     final t = altitudeDeg - lower;
     final (bLow, rLow) = _lut[lower];
     final (bHigh, rHigh) = _lut[upper];
-    return (
-      bLow + (bHigh - bLow) * t,
-      rLow + (rHigh - rLow) * t,
-    );
+    return (bLow + (bHigh - bLow) * t, rLow + (rHigh - rLow) * t);
   }
 }
 
@@ -476,7 +456,11 @@ class LabelLayoutManager {
 
     for (final offset in offsets) {
       final rect = Rect.fromLTWH(
-          offset.dx, offset.dy, labelSize.width, labelSize.height);
+        offset.dx,
+        offset.dy,
+        labelSize.width,
+        labelSize.height,
+      );
       if (canPlace(rect) && _isInBounds(rect, canvasSize)) {
         _register(rect);
         return offset;

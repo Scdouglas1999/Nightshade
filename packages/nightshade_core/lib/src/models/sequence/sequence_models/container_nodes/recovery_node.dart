@@ -198,26 +198,26 @@ class RecoveryNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        recoveryAction,
-        maxRetries,
-        triggerType,
-        triggerThreshold,
-        hfrThresholdPercent,
-        hfrConsecutiveFrames,
-        triggerEveryNFrames,
-        focusDriftWindowSize,
-        focusDriftMinIncreasingCount,
-        focusDriftMinTotalIncrease,
-        guidingFailedDurationSecs,
-        cloudMinutesBefore,
-        cloudCoverageThresholdPercent,
-        cloudOpeningMinDurationSecs,
-        cloudCoverMaxPercent,
-        cloudCoverDurationSecs,
-        transparencyBelowThreshold,
-        transparencyDurationSecs,
-      ];
+    ...super.props,
+    recoveryAction,
+    maxRetries,
+    triggerType,
+    triggerThreshold,
+    hfrThresholdPercent,
+    hfrConsecutiveFrames,
+    triggerEveryNFrames,
+    focusDriftWindowSize,
+    focusDriftMinIncreasingCount,
+    focusDriftMinTotalIncrease,
+    guidingFailedDurationSecs,
+    cloudMinutesBefore,
+    cloudCoverageThresholdPercent,
+    cloudOpeningMinDurationSecs,
+    cloudCoverMaxPercent,
+    cloudCoverDurationSecs,
+    transparencyBelowThreshold,
+    transparencyDurationSecs,
+  ];
 
   /// Wave 1.5 Pack A: serialize the configured trigger into the Rust-side
   /// `TriggerType` JSON form. Mirrors the tagged-enum serde format used by
@@ -239,41 +239,41 @@ class RecoveryNode extends SequenceNode {
             'threshold_percent': hfrThresholdPercent,
             'absolute_threshold': triggerThreshold ?? 0.0,
             'consecutive_frames': hfrConsecutiveFrames,
-          }
+          },
         };
       case TriggerType.meridianFlip:
         // MeridianFlip carries a full MeridianFlipConfig payload. RecoveryNode
         // doesn't model that yet; default to the Rust-side serde defaults by
         // passing an empty object so the deserializer fills in the defaults.
         return {
-          'MeridianFlip': {'config': <String, dynamic>{}}
+          'MeridianFlip': {'config': <String, dynamic>{}},
         };
       case TriggerType.guidingFailed:
         return {
           'GuidingFailed': {
             'rms_threshold': triggerThreshold ?? 2.0,
             'duration_secs': guidingFailedDurationSecs,
-          }
+          },
         };
       case TriggerType.altitudeLimit:
         return {
-          'AltitudeLimit': {'min_altitude': triggerThreshold ?? 30.0}
+          'AltitudeLimit': {'min_altitude': triggerThreshold ?? 30.0},
         };
       case TriggerType.weatherUnsafe:
         return 'WeatherUnsafe';
       case TriggerType.temperatureShift:
         return {
-          'TemperatureShift': {'degrees': triggerThreshold ?? 2.0}
+          'TemperatureShift': {'degrees': triggerThreshold ?? 2.0},
         };
       case TriggerType.filterChange:
         return 'FilterChange';
       case TriggerType.dawnApproaching:
         return {
-          'DawnApproaching': {'minutes_before': triggerThreshold ?? 30.0}
+          'DawnApproaching': {'minutes_before': triggerThreshold ?? 30.0},
         };
       case TriggerType.humidityThreshold:
         return {
-          'HumidityThreshold': {'max_percent': triggerThreshold ?? 85.0}
+          'HumidityThreshold': {'max_percent': triggerThreshold ?? 85.0},
         };
       case TriggerType.focusDrift:
         return {
@@ -281,7 +281,7 @@ class RecoveryNode extends SequenceNode {
             'window_size': focusDriftWindowSize,
             'min_increasing_count': focusDriftMinIncreasingCount,
             'min_total_increase': focusDriftMinTotalIncrease,
-          }
+          },
         };
       case TriggerType.mountTrackingLost:
         return 'MountTrackingLost';
@@ -291,15 +291,15 @@ class RecoveryNode extends SequenceNode {
         return 'GuideStarLost';
       case TriggerType.autofocusInterval:
         return {
-          'AutofocusInterval': {'every_n_frames': triggerEveryNFrames}
+          'AutofocusInterval': {'every_n_frames': triggerEveryNFrames},
         };
       case TriggerType.ditherInterval:
         return {
-          'DitherInterval': {'every_n_frames': triggerEveryNFrames}
+          'DitherInterval': {'every_n_frames': triggerEveryNFrames},
         };
       case TriggerType.driftLimit:
         return {
-          'DriftLimit': {'max_pixels': triggerThreshold ?? 30.0}
+          'DriftLimit': {'max_pixels': triggerThreshold ?? 30.0},
         };
       // Wave 5 Agent 4 — cloud-motion-aware triggers. Field names match
       // the Rust serde-tagged enum form (`#[serde(...)]` external default).
@@ -308,21 +308,21 @@ class RecoveryNode extends SequenceNode {
           'CloudArrivingIn': {
             'minutes_before': cloudMinutesBefore,
             'coverage_threshold': cloudCoverageThresholdPercent,
-          }
+          },
         };
       case TriggerType.cloudOpeningIn:
         return {
           'CloudOpeningIn': {
             'minutes_before': cloudMinutesBefore,
             'minimum_duration_secs': cloudOpeningMinDurationSecs,
-          }
+          },
         };
       case TriggerType.cloudCoverThreshold:
         return {
           'CloudCoverThreshold': {
             'max_percent': cloudCoverMaxPercent,
             'duration_secs': cloudCoverDurationSecs,
-          }
+          },
         };
       // Wave 7 Science — transparency-adaptive trigger. Field names
       // match the Rust serde-tagged enum variant.
@@ -331,7 +331,7 @@ class RecoveryNode extends SequenceNode {
           'TransparencyDropped': {
             'below_threshold': transparencyBelowThreshold,
             'duration_secs': transparencyDurationSecs,
-          }
+          },
         };
     }
   }

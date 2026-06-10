@@ -47,7 +47,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'current_dec': pa.currentDec,
           'target_ra': pa.targetRa,
           'target_dec': pa.targetDec,
-        }
+        },
       );
     }
 
@@ -55,11 +55,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       final status = payload.field0;
       return (
         'PolarAlignmentStatus',
-        {
-          'status': status.status,
-          'phase': status.phase,
-          'point': status.point,
-        }
+        {'status': status.status, 'phase': status.phase, 'point': status.point},
       );
     }
 
@@ -75,7 +71,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'solved_dec': img.solvedDec,
           'point': img.point,
           'phase': img.phase,
-        }
+        },
       );
     }
 
@@ -121,7 +117,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'level': systemEvent.level,
           if (systemEvent.explicitTransports != null)
             'explicit_transports': systemEvent.explicitTransports,
-        }
+        },
       );
     } else if (systemEvent is bridge.SystemEvent_EventsDropped) {
       return (
@@ -129,7 +125,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'dropped_count': systemEvent.droppedCount,
           'total_dropped': systemEvent.totalDropped,
-        }
+        },
       );
     }
     return ('UnknownSystemEvent', {'event': systemEvent.toString()});
@@ -137,7 +133,8 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
 
   /// Extract event type and data from an EquipmentEvent
   (String, Map<String, dynamic>) _extractEquipmentEventInfo(
-      dynamic equipmentEvent) {
+    dynamic equipmentEvent,
+  ) {
     // Connection events
     if (equipmentEvent is bridge.EquipmentEvent_Connecting) {
       return (
@@ -145,7 +142,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_Connected) {
       return (
@@ -153,7 +150,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_Disconnected) {
       return (
@@ -161,7 +158,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_PropertyChanged) {
       return (
@@ -171,7 +168,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'device_id': equipmentEvent.deviceId,
           'property': equipmentEvent.property,
           'value': equipmentEvent.value,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_Error) {
       return (
@@ -180,19 +177,19 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
           'message': equipmentEvent.message,
-        }
+        },
       );
     }
     // Mount events
     else if (equipmentEvent is bridge.EquipmentEvent_MountSlewStarted) {
       return (
         'MountSlewStarted',
-        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_MountSlewCompleted) {
       return (
         'MountSlewCompleted',
-        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_MountTrackingStarted) {
       return ('MountTrackingStarted', {});
@@ -209,7 +206,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveStarted) {
       return (
         'FocuserMoveStarted',
-        {'target_position': equipmentEvent.targetPosition}
+        {'target_position': equipmentEvent.targetPosition},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveCompleted) {
       return ('FocuserMoveCompleted', {'position': equipmentEvent.position});
@@ -217,7 +214,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         is bridge.EquipmentEvent_FocuserTemperatureChanged) {
       return (
         'FocuserTemperatureChanged',
-        {'temperature': equipmentEvent.temperature}
+        {'temperature': equipmentEvent.temperature},
       );
     }
     // Filter wheel events
@@ -228,7 +225,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'from_position': equipmentEvent.fromPosition,
           'to_position': equipmentEvent.toPosition,
           'filter_name': equipmentEvent.filterName,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_FilterChanged) {
       return (
@@ -236,14 +233,14 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'position': equipmentEvent.position,
           'filter_name': equipmentEvent.filterName,
-        }
+        },
       );
     }
     // Rotator events
     else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveStarted) {
       return (
         'RotatorMoveStarted',
-        {'target_angle': equipmentEvent.targetAngle}
+        {'target_angle': equipmentEvent.targetAngle},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveCompleted) {
       return ('RotatorMoveCompleted', {'angle': equipmentEvent.angle});
@@ -252,12 +249,12 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingStarted) {
       return (
         'CameraCoolingStarted',
-        {'target_temp': equipmentEvent.targetTemp}
+        {'target_temp': equipmentEvent.targetTemp},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingReached) {
       return (
         'CameraCoolingReached',
-        {'temperature': equipmentEvent.temperature}
+        {'temperature': equipmentEvent.temperature},
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingStarted) {
       return ('CameraWarmingStarted', {});
@@ -277,7 +274,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
           'interval_secs': equipmentEvent.intervalSecs,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStopped) {
       return (
@@ -285,7 +282,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStatusChanged) {
       // `status` is the FRB-generated HeartbeatStatus enum; the handler
@@ -301,7 +298,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'consecutive_failures': equipmentEvent.consecutiveFailures,
           if (equipmentEvent.lastRttMs != null)
             'last_rtt_ms': equipmentEvent.lastRttMs,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnecting) {
       return (
@@ -311,7 +308,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'device_id': equipmentEvent.deviceId,
           'attempt': equipmentEvent.attempt,
           'max_attempts': equipmentEvent.maxAttempts,
-        }
+        },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnected) {
       return (
@@ -320,7 +317,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'device_type': equipmentEvent.deviceType,
           'device_id': equipmentEvent.deviceId,
           'after_attempts': equipmentEvent.afterAttempts,
-        }
+        },
       );
     }
     // Fallback
@@ -329,7 +326,8 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
 
   /// Extract event type and data from a GuidingEvent
   (String, Map<String, dynamic>) _extractGuidingEventInfo(
-      dynamic guidingEvent) {
+    dynamic guidingEvent,
+  ) {
     if (guidingEvent is bridge.GuidingEvent_Correction) {
       return (
         'GuideStep',
@@ -338,7 +336,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'DECDistanceRaw': guidingEvent.decRaw,
           'RADistance': guidingEvent.ra,
           'DECDistance': guidingEvent.dec,
-        }
+        },
       );
     } else if (guidingEvent is bridge.GuidingEvent_GuidingStarted) {
       return ('GuidingStarted', {});
@@ -369,27 +367,13 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     } else if (guidingEvent is bridge.GuidingEvent_CalibrationComplete) {
       return ('CalibrationComplete', {});
     } else if (guidingEvent is bridge.GuidingEvent_StarSelected) {
-      return (
-        'StarSelected',
-        {
-          'X': guidingEvent.x,
-          'Y': guidingEvent.y,
-        }
-      );
+      return ('StarSelected', {'X': guidingEvent.x, 'Y': guidingEvent.y});
     } else if (guidingEvent is bridge.GuidingEvent_AppState) {
-      return (
-        'AppState',
-        {
-          'State': guidingEvent.state,
-        }
-      );
+      return ('AppState', {'State': guidingEvent.state});
     } else if (guidingEvent is bridge.GuidingEvent_GuideStats) {
       return (
         'GuideStats',
-        {
-          'SNR': guidingEvent.snr,
-          'StarMass': guidingEvent.starMass,
-        }
+        {'SNR': guidingEvent.snr, 'StarMass': guidingEvent.starMass},
       );
     }
 
@@ -398,7 +382,8 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
 
   /// Extract event type and data from a SequencerEvent
   (String, Map<String, dynamic>) _extractSequencerEventInfo(
-      dynamic sequencerEvent) {
+    dynamic sequencerEvent,
+  ) {
     if (sequencerEvent is bridge.SequencerEvent_Started) {
       return ('Started', {'sequence_name': sequencerEvent.sequenceName});
     } else if (sequencerEvent is bridge.SequencerEvent_Paused) {
@@ -415,23 +400,17 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'node_id': sequencerEvent.nodeId,
           'node_type': sequencerEvent.nodeType,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_NodeCompleted) {
       return (
         'NodeCompleted',
-        {
-          'node_id': sequencerEvent.nodeId,
-          'status': sequencerEvent.status,
-        }
+        {'node_id': sequencerEvent.nodeId, 'status': sequencerEvent.status},
       );
     } else if (sequencerEvent is bridge.SequencerEvent_Progress) {
       return (
         'Progress',
-        {
-          'current': sequencerEvent.current,
-          'total': sequencerEvent.total,
-        }
+        {'current': sequencerEvent.current, 'total': sequencerEvent.total},
       );
     } else if (sequencerEvent is bridge.SequencerEvent_TargetChanged) {
       return (
@@ -440,7 +419,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'target_name': sequencerEvent.targetName,
           'ra': sequencerEvent.ra,
           'dec': sequencerEvent.dec,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_TargetCompleted) {
       return ('TargetCompleted', {'target_name': sequencerEvent.targetName});
@@ -452,7 +431,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'total': sequencerEvent.total,
           'filter': sequencerEvent.filter,
           'duration_secs': sequencerEvent.durationSecs,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_ExposureCompleted) {
       return (
@@ -461,7 +440,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'frame': sequencerEvent.frame,
           'total': sequencerEvent.total,
           'duration_secs': sequencerEvent.durationSecs,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_Error) {
       return ('Error', {'message': sequencerEvent.message});
@@ -472,7 +451,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'trigger_id': sequencerEvent.triggerId,
           'trigger_name': sequencerEvent.triggerName,
           'action': sequencerEvent.action,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_InstructionProgress) {
       return (
@@ -482,7 +461,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'instruction': sequencerEvent.instruction,
           'progress_percent': sequencerEvent.progressPercent,
           'detail': sequencerEvent.detail,
-        }
+        },
       );
     } else if (sequencerEvent
         is bridge.SequencerEvent_InstructionProgressStructured) {
@@ -494,7 +473,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'progress_percent': sequencerEvent.progressPercent,
           'detail_kind': sequencerEvent.detailKind,
           'detail_json': sequencerEvent.detailJson,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_FrameAccepted) {
       // Pack H — Wave 3 typed grading payload. Carries every metric the
@@ -517,7 +496,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'accepted_total': sequencerEvent.acceptedTotal,
           'rejected_total': sequencerEvent.rejectedTotal,
           'save_path': sequencerEvent.savePath,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_FrameRejected) {
       return (
@@ -534,7 +513,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'consecutive_rejects': sequencerEvent.consecutiveRejects,
           'accepted_total': sequencerEvent.acceptedTotal,
           'rejected_total': sequencerEvent.rejectedTotal,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_SchedulerDecision) {
       // Pack H — Wave 3 Agent 1 typed scheduler payload. The score table
@@ -549,15 +528,17 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'picked_target_name': sequencerEvent.pickedTargetName,
           'picked_score': sequencerEvent.pickedScore,
           'scores': sequencerEvent.scores
-              .map((s) => {
-                    'target_id': s.targetId,
-                    'target_name': s.targetName,
-                    'total_score': s.totalScore,
-                    'runnable': s.runnable,
-                    'reason': s.reason,
-                  })
+              .map(
+                (s) => {
+                  'target_id': s.targetId,
+                  'target_name': s.targetName,
+                  'total_score': s.totalScore,
+                  'runnable': s.runnable,
+                  'reason': s.reason,
+                },
+              )
               .toList(growable: false),
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_IntegrationBudget) {
       return (
@@ -569,7 +550,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'budget_secs': sequencerEvent.budgetSecs,
           'fraction': sequencerEvent.fraction,
           'budget_met': sequencerEvent.budgetMet,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeRequested) {
       // Wave 6 Pack P — surface the plugin-node dispatch request so the
@@ -584,7 +565,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'config_json': sequencerEvent.configJson,
           'display_name': sequencerEvent.displayName,
           'timeout_secs': sequencerEvent.timeoutSecs,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeProgress) {
       // Wave 6 Pack P — plugin-authored intermediate progress payload.
@@ -597,7 +578,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'plugin_id': sequencerEvent.pluginId,
           'node_type_id': sequencerEvent.nodeTypeId,
           'detail_json': sequencerEvent.detailJson,
-        }
+        },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_RecoveryStarted) {
       return (
@@ -692,7 +673,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
             'details_json': d.detailsJson as String,
             'node_id': d.nodeId as String?,
             'sequence_run_id': d.sequenceRunId as int?,
-          }
+          },
         );
       } catch (_) {
         // Fall through to the unknown-variant fallback below; the
@@ -706,14 +687,15 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
 
   /// Extract event type and data from an ImagingEvent
   (String, Map<String, dynamic>) _extractImagingEventInfo(
-      dynamic imagingEvent) {
+    dynamic imagingEvent,
+  ) {
     if (imagingEvent is bridge.ImagingEvent_ExposureStarted) {
       return (
         'ExposureStarted',
         {
           'duration_secs': imagingEvent.durationSecs,
           'frame_type': imagingEvent.frameType.toString(),
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureStartedWithFrame) {
       return (
@@ -723,7 +705,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'frame': imagingEvent.frameNumber,
           'total': imagingEvent.totalFrames,
           'frame_type': imagingEvent.frameType.toString(),
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureProgress) {
       return (
@@ -731,7 +713,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         {
           'progress': imagingEvent.progress,
           'remainingSecs': imagingEvent.remainingSecs,
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCompleted) {
       return (
@@ -740,7 +722,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'file_path': imagingEvent.filePath,
           'hfr': imagingEvent.hfr,
           'stars_detected': imagingEvent.starsDetected,
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCompletedWithFrame) {
       return (
@@ -750,15 +732,10 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'total': imagingEvent.totalFrames,
           'hfr': imagingEvent.hfr,
           'stars_detected': imagingEvent.starsDetected,
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureFailed) {
-      return (
-        'ExposureFailed',
-        {
-          'error': imagingEvent.error,
-        }
-      );
+      return ('ExposureFailed', {'error': imagingEvent.error});
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCancelled) {
       return ('ExposureCancelled', {});
     } else if (imagingEvent is bridge.ImagingEvent_DownloadStarted) {
@@ -768,41 +745,23 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     } else if (imagingEvent is bridge.ImagingEvent_ImageReady) {
       return (
         'ImageReady',
-        {
-          'width': imagingEvent.width,
-          'height': imagingEvent.height,
-        }
+        {'width': imagingEvent.width, 'height': imagingEvent.height},
       );
     } else if (imagingEvent is bridge.ImagingEvent_ImageSaved) {
-      return (
-        'ImageSaved',
-        {
-          'file_path': imagingEvent.filePath,
-        }
-      );
+      return ('ImageSaved', {'file_path': imagingEvent.filePath});
     } else if (imagingEvent is bridge.ImagingEvent_TemperatureChanged) {
       return (
         'TemperatureChanged',
         {
           'temp_celsius': imagingEvent.tempCelsius,
           'cooler_power': imagingEvent.coolerPower,
-        }
+        },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureComplete) {
       // Legacy event type - map to 'ExposureComplete' for compatibility with imaging_service.dart
-      return (
-        'ExposureComplete',
-        {
-          'success': imagingEvent.success,
-        }
-      );
+      return ('ExposureComplete', {'success': imagingEvent.success});
     } else if (imagingEvent is bridge.ImagingEvent_ExposureFailedOld) {
-      return (
-        'ExposureFailed',
-        {
-          'reason': imagingEvent.reason,
-        }
-      );
+      return ('ExposureFailed', {'reason': imagingEvent.reason});
     } else if (imagingEvent is bridge.ImagingEvent_IntegrationProgress) {
       // Post-session integration progress. The post-session seam filters these
       // by category == Imaging + eventType == 'IntegrationProgress' and reads
@@ -817,7 +776,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
             'frames_done': imagingEvent.framesDone,
           if (imagingEvent.framesTotal != null)
             'frames_total': imagingEvent.framesTotal,
-        }
+        },
       );
     }
     return ('UnknownImagingEvent', {'event': imagingEvent.toString()});

@@ -82,7 +82,20 @@ NightReport seededNightReport() {
             'check the all-sky forecast and pause acquisition when transparency '
             'drops below 70%.',
         evidenceSubIds: [41, 42, 43, 44, 45, 46],
-        metricSeries: [120, 118, 121, 119, 240, 280, 260, 255, 130, 122, 119, 120],
+        metricSeries: [
+          120,
+          118,
+          121,
+          119,
+          240,
+          280,
+          260,
+          255,
+          130,
+          122,
+          119,
+          120
+        ],
       ),
       NightFinding(
         id: 'focus_drift',
@@ -119,8 +132,8 @@ IntegrationCurve seededImprovementCurve() {
       IntegrationCurvePoint(
         n: n,
         // Square-root SNR growth with a gentle tail roll-off past the knee.
-        snr: 10.0 * _sqrt(n.toDouble()) -
-            (n > keepN ? (n - keepN) * 0.18 : 0.0),
+        snr:
+            10.0 * _sqrt(n.toDouble()) - (n > keepN ? (n - keepN) * 0.18 : 0.0),
         fwhm: 2.0 + (n / total) * 0.6,
         cumulativeIntegrationS: n * 120.0,
       ),

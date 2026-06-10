@@ -26,8 +26,9 @@ void main() {
     eventController =
         StreamController<backend_events.NightshadeEvent>.broadcast();
     when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
   });
 
@@ -40,30 +41,29 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         databaseProvider.overrideWithValue(db),
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
 
     final executor = container.read(sequenceExecutorProvider);
-    executor.handleSequencerEventForTest(backend_events.NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: backend_events.EventSeverity.info,
-      category: backend_events.EventCategory.sequencer,
-      eventType: 'InstructionProgressStructured',
-      data: const {
-        'node_id': 'exposure-1',
-        'instruction': 'TakeExposure',
-        'progress_percent': 42.0,
-        'detail_kind': 'Exposure',
-        'detail_json': {
-          'frame': 4,
-          'total': 10,
-          'duration_secs': 180,
+    executor.handleSequencerEventForTest(
+      backend_events.NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: backend_events.EventSeverity.info,
+        category: backend_events.EventCategory.sequencer,
+        eventType: 'InstructionProgressStructured',
+        data: const {
+          'node_id': 'exposure-1',
+          'instruction': 'TakeExposure',
+          'progress_percent': 42.0,
+          'detail_kind': 'Exposure',
+          'detail_json': {'frame': 4, 'total': 10, 'duration_secs': 180},
         },
-      },
-    ));
+      ),
+    );
 
     final progress = container.read(sequenceProgressProvider);
     expect(progress.nodeProgressPercent['exposure-1'], 42);

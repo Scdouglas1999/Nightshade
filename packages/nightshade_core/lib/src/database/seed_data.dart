@@ -50,7 +50,9 @@ class DatabaseSeeder {
         defaultBinY: const Value(1),
         defaultCoolingTemp: const Value(-10.0),
         filterNames: const Value('["L","R","G","B","Ha","OIII","SII"]'),
-        filterFocusOffsets: const Value('{"L":0,"R":10,"G":5,"B":-5,"Ha":15,"OIII":20,"SII":18}'),
+        filterFocusOffsets: const Value(
+          '{"L":0,"R":10,"G":5,"B":-5,"Ha":15,"OIII":20,"SII":18}',
+        ),
         isActive: const Value(true),
       ),
       EquipmentProfilesCompanion.insert(
@@ -96,14 +98,16 @@ class DatabaseSeeder {
   /// Seed sequences
   Future<void> seedSequences() async {
     // Create a template sequence
-    final templateId = await _db.into(_db.sequences).insert(
-      SequencesCompanion.insert(
-        name: 'LRGB Template',
-        description: const Value('Standard LRGB imaging sequence'),
-        isTemplate: const Value(true),
-        estimatedDurationMins: const Value(180),
-      ),
-    );
+    final templateId = await _db
+        .into(_db.sequences)
+        .insert(
+          SequencesCompanion.insert(
+            name: 'LRGB Template',
+            description: const Value('Standard LRGB imaging sequence'),
+            isTemplate: const Value(true),
+            estimatedDurationMins: const Value(180),
+          ),
+        );
 
     // Add nodes for the template
     final templateNodes = [
@@ -121,7 +125,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Luminance',
         orderIndex: 1,
-        properties: '{"filter":"L","exposureTime":300,"count":20,"gain":100,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"L","exposureTime":300,"count":20,"gain":100,"offset":50,"dither":true}',
       ),
       _createSequenceNode(
         sequenceId: templateId,
@@ -129,7 +134,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Red',
         orderIndex: 2,
-        properties: '{"filter":"R","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"R","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
       ),
       _createSequenceNode(
         sequenceId: templateId,
@@ -137,7 +143,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Green',
         orderIndex: 3,
-        properties: '{"filter":"G","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"G","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
       ),
       _createSequenceNode(
         sequenceId: templateId,
@@ -145,7 +152,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Blue',
         orderIndex: 4,
-        properties: '{"filter":"B","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"B","exposureTime":180,"count":15,"gain":100,"offset":50,"dither":true}',
       ),
     ];
 
@@ -154,14 +162,16 @@ class DatabaseSeeder {
     }
 
     // Create a narrowband template
-    final narrowbandId = await _db.into(_db.sequences).insert(
-      SequencesCompanion.insert(
-        name: 'SHO Narrowband Template',
-        description: const Value('Hubble Palette narrowband sequence'),
-        isTemplate: const Value(true),
-        estimatedDurationMins: const Value(360),
-      ),
-    );
+    final narrowbandId = await _db
+        .into(_db.sequences)
+        .insert(
+          SequencesCompanion.insert(
+            name: 'SHO Narrowband Template',
+            description: const Value('Hubble Palette narrowband sequence'),
+            isTemplate: const Value(true),
+            estimatedDurationMins: const Value(360),
+          ),
+        );
 
     final narrowbandNodes = [
       _createSequenceNode(
@@ -178,7 +188,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Sulfur II',
         orderIndex: 1,
-        properties: '{"filter":"SII","exposureTime":600,"count":20,"gain":200,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"SII","exposureTime":600,"count":20,"gain":200,"offset":50,"dither":true}',
       ),
       _createSequenceNode(
         sequenceId: narrowbandId,
@@ -186,7 +197,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Hydrogen Alpha',
         orderIndex: 2,
-        properties: '{"filter":"Ha","exposureTime":600,"count":30,"gain":200,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"Ha","exposureTime":600,"count":30,"gain":200,"offset":50,"dither":true}',
       ),
       _createSequenceNode(
         sequenceId: narrowbandId,
@@ -194,7 +206,8 @@ class DatabaseSeeder {
         specificType: 'capture',
         name: 'Oxygen III',
         orderIndex: 3,
-        properties: '{"filter":"OIII","exposureTime":600,"count":20,"gain":200,"offset":50,"dither":true}',
+        properties:
+            '{"filter":"OIII","exposureTime":600,"count":20,"gain":200,"offset":50,"dither":true}',
       ),
     ];
 
@@ -258,12 +271,11 @@ class DatabaseSeeder {
     };
 
     for (final entry in settings.entries) {
-      await _db.into(_db.appSettings).insertOnConflictUpdate(
-        AppSettingsCompanion.insert(
-          key: entry.key,
-          value: entry.value,
-        ),
-      );
+      await _db
+          .into(_db.appSettings)
+          .insertOnConflictUpdate(
+            AppSettingsCompanion.insert(key: entry.key, value: entry.value),
+          );
     }
   }
 }
@@ -272,10 +284,10 @@ class DatabaseSeeder {
 extension NightshadeDatabaseSeeding on NightshadeDatabase {
   /// Get a seeder instance
   DatabaseSeeder get seeder => DatabaseSeeder(this);
-  
+
   /// Seed the database with test data
   Future<void> seedTestData() => seeder.seedAll();
-  
+
   /// Clear all data from the database
   Future<void> clearAllData() => seeder.clearAll();
 }

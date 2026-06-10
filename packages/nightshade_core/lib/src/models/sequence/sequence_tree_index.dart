@@ -178,14 +178,16 @@ class SequenceTreeIndex {
           // It's legal to have an entry in _childrenByParent for a parent
           // that's no longer in nodes (orphaned bucket) only if the bucket
           // is empty; non-empty buckets pointing at missing nodes are bad.
-          issues
-              .add('child "$childId" of parent "$parent" not present in nodes');
+          issues.add(
+            'child "$childId" of parent "$parent" not present in nodes',
+          );
           continue;
         }
         final parentOfChild = _parentById[childId];
         if (parentOfChild != parent) {
-          issues
-              .add('child "$childId" of "$parent" has parentId=$parentOfChild');
+          issues.add(
+            'child "$childId" of "$parent" has parentId=$parentOfChild',
+          );
         }
       }
       // (5) cross-check childIds.
@@ -195,12 +197,14 @@ class SequenceTreeIndex {
           final declared = parentNode.childIds;
           if (declared.length != list.length) {
             issues.add(
-                'parent "$parent" childIds length ${declared.length} != index ${list.length}');
+              'parent "$parent" childIds length ${declared.length} != index ${list.length}',
+            );
           } else {
             for (var i = 0; i < declared.length; i++) {
               if (declared[i] != list[i]) {
                 issues.add(
-                    'parent "$parent" childIds[$i]=${declared[i]} != index[$i]=${list[i]}');
+                  'parent "$parent" childIds[$i]=${declared[i]} != index[$i]=${list[i]}',
+                );
                 break;
               }
             }

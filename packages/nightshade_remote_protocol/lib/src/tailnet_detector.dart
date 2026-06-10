@@ -205,10 +205,7 @@ class TailnetDetector {
     // Tailscale issues each tailnet a /48 inside fd7a:115c::/32. We classify
     // that as tailnet (not generic LAN ULA) so the reachability UI can label
     // it "via Tailscale". The /32 prefix is fd 7a 11 5c.
-    if (raw[0] == 0xFD &&
-        raw[1] == 0x7A &&
-        raw[2] == 0x11 &&
-        raw[3] == 0x5C) {
+    if (raw[0] == 0xFD && raw[1] == 0x7A && raw[2] == 0x11 && raw[3] == 0x5C) {
       return HostReachabilityTier.tailscale;
     }
 

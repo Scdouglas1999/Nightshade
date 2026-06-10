@@ -352,12 +352,14 @@ void main() {
         container.read(plannerFilteredSuggestionsProvider).valueOrNull ??
             const [];
     final names = filtered.map((s) => s.targetName).toSet();
-    expect(names, containsAll(<String>[
-      'M31 Andromeda',
-      'M81 Bode',
-      'M101 Pinwheel',
-      'M51 Whirlpool',
-    ]));
+    expect(
+        names,
+        containsAll(<String>[
+          'M31 Andromeda',
+          'M81 Bode',
+          'M101 Pinwheel',
+          'M51 Whirlpool',
+        ]));
     // Nebulae / clusters / SNRs must be excluded.
     expect(names, isNot(contains('NGC 7000')));
     expect(names, isNot(contains('M42 Orion')));
@@ -477,12 +479,14 @@ void main() {
     final names = sorted.map((s) => s.targetName).toList();
 
     // M31 (180') → M27 (30') → M13 (8') → M57 (0.5') → Mystery (null)
-    expect(names, equals(<String>[
-      'M31 Andromeda',
-      'M27 Dumbbell',
-      'M13',
-      'M57 Ring',
-      'Mystery target',
-    ]));
+    expect(
+        names,
+        equals(<String>[
+          'M31 Andromeda',
+          'M27 Dumbbell',
+          'M13',
+          'M57 Ring',
+          'Mystery target',
+        ]));
   });
 }

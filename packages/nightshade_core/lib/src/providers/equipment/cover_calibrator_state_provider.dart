@@ -9,10 +9,11 @@ import 'equipment_retry_defaults.dart';
 
 /// Cover calibrator state provider
 final coverCalibratorStateProvider =
-    StateNotifierProvider<CoverCalibratorStateNotifier, CoverCalibratorState>(
-        (ref) {
-  return CoverCalibratorStateNotifier(ref);
-});
+    StateNotifierProvider<CoverCalibratorStateNotifier, CoverCalibratorState>((
+      ref,
+    ) {
+      return CoverCalibratorStateNotifier(ref);
+    });
 
 class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
   final Ref _ref;
@@ -20,8 +21,10 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
 
   CoverCalibratorStateNotifier(this._ref) : super(const CoverCalibratorState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

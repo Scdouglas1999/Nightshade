@@ -4,27 +4,38 @@ import 'package:nightshade_core/src/utils/device_id.dart';
 void main() {
   group('DeviceId.parse — classification', () {
     test('classifies every known driver prefix', () {
-      expect(DeviceId.parse('ascom:ASCOM.Camera.Simulator').kind,
-          DeviceDriverKind.ascom);
       expect(
-          DeviceId.parse('alpaca:http://192.168.1.100:11111:camera:0').kind,
-          DeviceDriverKind.alpaca);
-      expect(DeviceId.parse('indi:localhost:7624:ZWO CCD').kind,
-          DeviceDriverKind.indi);
+        DeviceId.parse('ascom:ASCOM.Camera.Simulator').kind,
+        DeviceDriverKind.ascom,
+      );
+      expect(
+        DeviceId.parse('alpaca:http://192.168.1.100:11111:camera:0').kind,
+        DeviceDriverKind.alpaca,
+      );
+      expect(
+        DeviceId.parse('indi:localhost:7624:ZWO CCD').kind,
+        DeviceDriverKind.indi,
+      );
       expect(DeviceId.parse('native:zwo:0').kind, DeviceDriverKind.native);
-      expect(DeviceId.parse('simulator:fake-mount-1').kind,
-          DeviceDriverKind.simulator);
+      expect(
+        DeviceId.parse('simulator:fake-mount-1').kind,
+        DeviceDriverKind.simulator,
+      );
       expect(DeviceId.parse('sim:mount').kind, DeviceDriverKind.simulator);
-      expect(DeviceId.parse('builtin_guider').kind,
-          DeviceDriverKind.builtinGuider);
+      expect(
+        DeviceId.parse('builtin_guider').kind,
+        DeviceDriverKind.builtinGuider,
+      );
     });
 
     test('classifies all PHD2 representations as phd2', () {
       expect(DeviceId.parse('phd2').kind, DeviceDriverKind.phd2);
       expect(DeviceId.parse('phd2_guider').kind, DeviceDriverKind.phd2);
       expect(DeviceId.parse('phd2:localhost:4400').kind, DeviceDriverKind.phd2);
-      expect(DeviceId.parse('phd2://localhost:4400').kind,
-          DeviceDriverKind.phd2);
+      expect(
+        DeviceId.parse('phd2://localhost:4400').kind,
+        DeviceDriverKind.phd2,
+      );
       // Case / whitespace tolerant
       expect(DeviceId.parse('  PHD2_Guider  ').kind, DeviceDriverKind.phd2);
     });
@@ -37,27 +48,42 @@ void main() {
   });
 
   group('DeviceId — segments', () {
-    test('native multi-segment forms split into trimmed lowercase segments',
-        () {
-      expect(DeviceId.parse('native:touptek:Ogma:0').segments,
-          <String>['touptek', 'ogma', '0']);
-      expect(DeviceId.parse('native:zwo:eaf:0').segments,
-          <String>['zwo', 'eaf', '0']);
-      expect(DeviceId.parse('native:zwo_eaf:0').segments,
-          <String>['zwo_eaf', '0']);
-    });
+    test(
+      'native multi-segment forms split into trimmed lowercase segments',
+      () {
+        expect(DeviceId.parse('native:touptek:Ogma:0').segments, <String>[
+          'touptek',
+          'ogma',
+          '0',
+        ]);
+        expect(DeviceId.parse('native:zwo:eaf:0').segments, <String>[
+          'zwo',
+          'eaf',
+          '0',
+        ]);
+        expect(DeviceId.parse('native:zwo_eaf:0').segments, <String>[
+          'zwo_eaf',
+          '0',
+        ]);
+      },
+    );
 
     test('ascom progid is a single dot-delimited segment', () {
-      expect(DeviceId.parse('ascom:ASCOM.Camera.Simulator').segments,
-          <String>['ascom.camera.simulator']);
+      expect(DeviceId.parse('ascom:ASCOM.Camera.Simulator').segments, <String>[
+        'ascom.camera.simulator',
+      ]);
     });
 
     test('alpaca and indi keep their colon segments', () {
       expect(
-          DeviceId.parse('alpaca:http://host:11111:camera:0').segments,
-          <String>['http', '//host', '11111', 'camera', '0']);
-      expect(DeviceId.parse('indi:localhost:7624:ZWO CCD').segments,
-          <String>['localhost', '7624', 'zwo ccd']);
+        DeviceId.parse('alpaca:http://host:11111:camera:0').segments,
+        <String>['http', '//host', '11111', 'camera', '0'],
+      );
+      expect(DeviceId.parse('indi:localhost:7624:ZWO CCD').segments, <String>[
+        'localhost',
+        '7624',
+        'zwo ccd',
+      ]);
     });
 
     test('phd2 / builtin singletons carry no segments', () {
@@ -68,9 +94,14 @@ void main() {
 
   group('DeviceId.parseStrict', () {
     test('returns a DeviceId for valid ids', () {
-      expect(DeviceId.parseStrict('native:zwo:0').kind, DeviceDriverKind.native);
-      expect(DeviceId.parseStrict('phd2:localhost:4400').kind,
-          DeviceDriverKind.phd2);
+      expect(
+        DeviceId.parseStrict('native:zwo:0').kind,
+        DeviceDriverKind.native,
+      );
+      expect(
+        DeviceId.parseStrict('phd2:localhost:4400').kind,
+        DeviceDriverKind.phd2,
+      );
     });
 
     test('throws FormatException for malformed ids (errors are a feature)', () {
@@ -93,15 +124,20 @@ void main() {
         '  phd2  ',
       ];
       for (final v in variants) {
-        expect(DeviceId.parse(v).canonical, kPhd2CanonicalId,
-            reason: 'canonical of "$v"');
+        expect(
+          DeviceId.parse(v).canonical,
+          kPhd2CanonicalId,
+          reason: 'canonical of "$v"',
+        );
       }
     });
 
     test('non-phd2 canonical is trimmed + lowercased raw', () {
       expect(DeviceId.parse('  Native:ZWO:0 ').canonical, 'native:zwo:0');
-      expect(DeviceId.parse('ascom:ASCOM.Camera.Simulator').canonical,
-          'ascom:ascom.camera.simulator');
+      expect(
+        DeviceId.parse('ascom:ASCOM.Camera.Simulator').canonical,
+        'ascom:ascom.camera.simulator',
+      );
     });
   });
 
@@ -115,8 +151,11 @@ void main() {
       ];
       for (final a in variants) {
         for (final b in variants) {
-          expect(DeviceId.parse(a).matchesRaw(b), isTrue,
-              reason: '"$a" should match "$b"');
+          expect(
+            DeviceId.parse(a).matchesRaw(b),
+            isTrue,
+            reason: '"$a" should match "$b"',
+          );
         }
       }
     });
@@ -127,8 +166,10 @@ void main() {
       // 'ascom:ASCOM.Guider.X'). That over-match is preserved behavior and
       // is the whole reason PHD2 has a canonical short-circuit. Here we use
       // ids that share no tokens to assert non-PHD2 ids stay distinct.
-      expect(DeviceId.parse('phd2:localhost:4400').matchesRaw('native:zwo:0'),
-          isFalse);
+      expect(
+        DeviceId.parse('phd2:localhost:4400').matchesRaw('native:zwo:0'),
+        isFalse,
+      );
       expect(DeviceId.parse('phd2_guider').matchesRaw('native:qhy:5'), isFalse);
     });
   });
@@ -136,8 +177,10 @@ void main() {
   group('matches — canonical equality', () {
     test('identical ids match (case / whitespace insensitive)', () {
       expect(DeviceId.parse('native:zwo:0').matchesRaw('native:zwo:0'), isTrue);
-      expect(DeviceId.parse(' NATIVE:ZWO:0 ').matchesRaw('native:zwo:0'),
-          isTrue);
+      expect(
+        DeviceId.parse(' NATIVE:ZWO:0 ').matchesRaw('native:zwo:0'),
+        isTrue,
+      );
     });
   });
 
@@ -156,13 +199,17 @@ void main() {
     });
 
     test('normalized alphanumeric equality matches', () {
-      expect(deviceIdsMatch('ASCOM.EQMOD.Telescope', 'ascomeqmodtelescope'),
-          isTrue);
+      expect(
+        deviceIdsMatch('ASCOM.EQMOD.Telescope', 'ascomeqmodtelescope'),
+        isTrue,
+      );
     });
 
     test('completely unrelated ids do not match', () {
-      expect(deviceIdsMatch('native:qhy:0', 'ascom:Celestron.Focuser.X'),
-          isFalse);
+      expect(
+        deviceIdsMatch('native:qhy:0', 'ascom:Celestron.Focuser.X'),
+        isFalse,
+      );
     });
 
     test('token-based 50% threshold', () {
@@ -204,21 +251,29 @@ void main() {
       expect(friendlyNameFromDeviceId('native:zwo_efw:0'), 'ZWO EFW 0');
       expect(friendlyNameFromDeviceId('native:zwo_efw:3'), 'ZWO EFW 3');
       expect(
-          friendlyNameFromDeviceId('native:qhy_cfw:CAM_A'), 'QHY CFW (CAM_A)');
-      expect(friendlyNameFromDeviceId('native:fli_fw:anything'),
-          'FLI Filter Wheel');
+        friendlyNameFromDeviceId('native:qhy_cfw:CAM_A'),
+        'QHY CFW (CAM_A)',
+      );
+      expect(
+        friendlyNameFromDeviceId('native:fli_fw:anything'),
+        'FLI Filter Wheel',
+      );
     });
 
     test('ascom keeps last two progid segments', () {
-      expect(friendlyNameFromDeviceId('ascom:ASCOM.EFWmini.FilterWheel'),
-          'EFWmini FilterWheel');
+      expect(
+        friendlyNameFromDeviceId('ascom:ASCOM.EFWmini.FilterWheel'),
+        'EFWmini FilterWheel',
+      );
       // Single-segment progid falls back to the raw progid.
       expect(friendlyNameFromDeviceId('ascom:OnlyOne'), 'OnlyOne');
     });
 
     test('alpaca and unrecognized ids', () {
-      expect(friendlyNameFromDeviceId('alpaca:http://host:11111:filterwheel:0'),
-          'Alpaca Filter Wheel');
+      expect(
+        friendlyNameFromDeviceId('alpaca:http://host:11111:filterwheel:0'),
+        'Alpaca Filter Wheel',
+      );
       // Unknown id returns the id unchanged.
       expect(friendlyNameFromDeviceId('native:zwo:0'), 'native:zwo:0');
     });

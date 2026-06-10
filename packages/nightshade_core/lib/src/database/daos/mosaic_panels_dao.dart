@@ -74,11 +74,13 @@ class MosaicPanelsDao {
 
   /// All panels for a project, ordered by `panel_index`.
   Future<List<MosaicProjectPanel>> getForProject(int projectId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM mosaic_panels '
-      'WHERE project_id = ? ORDER BY panel_index ASC',
-      variables: [Variable<int>(projectId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_panels '
+          'WHERE project_id = ? ORDER BY panel_index ASC',
+          variables: [Variable<int>(projectId)],
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
@@ -90,10 +92,12 @@ class MosaicPanelsDao {
 
   /// Fetch a panel by its row id, or null when absent.
   Future<MosaicProjectPanel?> getById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM mosaic_panels WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_panels WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _map(rows.first);
   }
@@ -129,10 +133,7 @@ class MosaicPanelsDao {
   Future<int> updateStatus(int panelId, MosaicPanelStatus status) {
     return _db.customUpdate(
       'UPDATE mosaic_panels SET status = ? WHERE id = ?',
-      variables: [
-        Variable<String>(status.wire),
-        Variable<int>(panelId),
-      ],
+      variables: [Variable<String>(status.wire), Variable<int>(panelId)],
       updateKind: UpdateKind.update,
     );
   }
@@ -177,11 +178,13 @@ class MosaicPanelsDao {
   }
 
   Future<QueryRow?> _findRow(int projectId, int panelIndex) {
-    return _db.customSelect(
-      'SELECT $_columns FROM mosaic_panels '
-      'WHERE project_id = ? AND panel_index = ? LIMIT 1',
-      variables: [Variable<int>(projectId), Variable<int>(panelIndex)],
-    ).getSingleOrNull();
+    return _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_panels '
+          'WHERE project_id = ? AND panel_index = ? LIMIT 1',
+          variables: [Variable<int>(projectId), Variable<int>(panelIndex)],
+        )
+        .getSingleOrNull();
   }
 
   MosaicProjectPanel _map(QueryRow row) {

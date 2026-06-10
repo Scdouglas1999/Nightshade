@@ -179,11 +179,7 @@ class _PaintCache {
       _cachedDarkBackgroundShader = const RadialGradient(
         center: Alignment.center,
         radius: 1.5,
-        colors: [
-          Color(0xFF0A0A1A),
-          Color(0xFF050510),
-          Color(0xFF020208),
-        ],
+        colors: [Color(0xFF0A0A1A), Color(0xFF050510), Color(0xFF020208)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
       _lastBackgroundSize = size;
     }
@@ -278,9 +274,10 @@ class _ShaderCache {
       if (_radialShaders.length >= _maxCacheSize) {
         _radialShaders.clear(); // Simple eviction
       }
-      shader = RadialGradient(colors: colors, stops: stops).createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
+      shader = RadialGradient(
+        colors: colors,
+        stops: stops,
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
       _radialShaders[key] = shader;
     }
     return shader;
@@ -306,8 +303,13 @@ class _ConstellationLineCache {
   Size _cachedSize = Size.zero;
   int _cachedConstellationCount = 0;
 
-  bool isValid(double centerRA, double centerDec, double fov, Size size,
-      int constellationCount) {
+  bool isValid(
+    double centerRA,
+    double centerDec,
+    double fov,
+    Size size,
+    int constellationCount,
+  ) {
     if (_picture == null) return false;
     if (size != _cachedSize) return false;
     if (constellationCount != _cachedConstellationCount) return false;
@@ -323,8 +325,14 @@ class _ConstellationLineCache {
     return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
   }
 
-  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
-      Size size, int constellationCount) {
+  void store(
+    ui.Picture picture,
+    double centerRA,
+    double centerDec,
+    double fov,
+    Size size,
+    int constellationCount,
+  ) {
     _picture?.dispose();
     _picture = picture;
     _cachedCenterRA = centerRA;
@@ -364,8 +372,13 @@ class _MilkyWayCache {
     return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
   }
 
-  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
-      Size size) {
+  void store(
+    ui.Picture picture,
+    double centerRA,
+    double centerDec,
+    double fov,
+    Size size,
+  ) {
     _picture?.dispose();
     _picture = picture;
     _cachedCenterRA = centerRA;
@@ -451,8 +464,12 @@ class _CullContext {
   /// first converted back to equatorial via [lstHours]. Angular distance is
   /// frame-invariant, so this yields the same cull cone the horizontal
   /// projection actually shows. [lstHours] is required only in horizontal mode.
-  factory _CullContext.build(SkyViewState viewState, Size size,
-      {double? lstHours, double latitudeDeg = 0}) {
+  factory _CullContext.build(
+    SkyViewState viewState,
+    Size size, {
+    double? lstHours,
+    double latitudeDeg = 0,
+  }) {
     double centerRaDeg;
     double centerDecDeg;
     if (viewState.viewMode == SkyViewMode.horizontal) {

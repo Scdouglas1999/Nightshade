@@ -179,8 +179,8 @@ class EquipmentStatusIndicator extends ConsumerWidget {
                 activeProfile.cameraName,
                 'Camera',
               ),
-              isConnected:
-                  cameraState.connectionState == DeviceConnectionState.connected,
+              isConnected: cameraState.connectionState ==
+                  DeviceConnectionState.connected,
               status: _getCameraStatus(cameraState),
               colors: colors,
             ),
@@ -225,8 +225,8 @@ class EquipmentStatusIndicator extends ConsumerWidget {
                 activeProfile.focuserName,
                 'Focuser',
               ),
-              isConnected:
-                  focuserState.connectionState == DeviceConnectionState.connected,
+              isConnected: focuserState.connectionState ==
+                  DeviceConnectionState.connected,
               status: _getFocuserStatus(focuserState),
               colors: colors,
             ),
@@ -271,8 +271,8 @@ class EquipmentStatusIndicator extends ConsumerWidget {
                 activeProfile.guiderName,
                 'Guider',
               ),
-              isConnected:
-                  guiderState.connectionState == DeviceConnectionState.connected,
+              isConnected: guiderState.connectionState ==
+                  DeviceConnectionState.connected,
               status: _getGuiderStatus(guiderState),
               colors: colors,
             ),
@@ -294,8 +294,8 @@ class EquipmentStatusIndicator extends ConsumerWidget {
                 activeProfile.rotatorName,
                 'Rotator',
               ),
-              isConnected:
-                  rotatorState.connectionState == DeviceConnectionState.connected,
+              isConnected: rotatorState.connectionState ==
+                  DeviceConnectionState.connected,
               status: _getRotatorStatus(rotatorState),
               colors: colors,
             ),

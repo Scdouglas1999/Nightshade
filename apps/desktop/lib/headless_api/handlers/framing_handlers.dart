@@ -1,4 +1,4 @@
-﻿import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -50,11 +50,7 @@ class FramingHandlers {
 
     await backend.mountSlewToCoordinates(mount.id, ra, dec);
 
-    return jsonOk({
-      'status': 'slewing',
-      'targetRa': ra,
-      'targetDec': dec,
-    });
+    return jsonOk({'status': 'slewing', 'targetRa': ra, 'targetDec': dec});
   }
 
   // ===========================================================================
@@ -68,33 +64,34 @@ class FramingHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
     final maxIterations = optionalInt(payload, 'maxIterations') ?? 5;
-    final toleranceArcsec =
-        optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
+    final toleranceArcsec = optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
     final exposureTime = optionalDouble(payload, 'exposureTime') ?? 3.0;
     final binning = optionalInt(payload, 'binning') ?? 2;
     final gain = optionalInt(payload, 'gain') ?? 100;
     final syncMount = optionalBool(payload, 'syncMount') ?? false;
 
     Map<String, Object?> resultToJson(CenteringResult result) => {
-          'success': result.success,
-          'iterations': result.iterations,
-          'finalOffsetArcsec': result.finalOffsetArcsec,
-          'errorMessage': result.errorMessage,
-          'iterationHistory': result.iterationHistory
-              .map((i) => {
-                    'iterationNumber': i.iterationNumber,
-                    'solvedRa': i.solvedRa,
-                    'solvedDec': i.solvedDec,
-                    'targetRa': i.targetRa,
-                    'targetDec': i.targetDec,
-                    'offsetArcsec': i.offsetArcsec,
-                    'offsetArcmin': i.offsetArcmin,
-                    'plateSolveSuccess': i.plateSolveSuccess,
-                    'errorMessage': i.errorMessage,
-                    'timestamp': i.timestamp.millisecondsSinceEpoch,
-                  })
-              .toList(),
-        };
+      'success': result.success,
+      'iterations': result.iterations,
+      'finalOffsetArcsec': result.finalOffsetArcsec,
+      'errorMessage': result.errorMessage,
+      'iterationHistory': result.iterationHistory
+          .map(
+            (i) => {
+              'iterationNumber': i.iterationNumber,
+              'solvedRa': i.solvedRa,
+              'solvedDec': i.solvedDec,
+              'targetRa': i.targetRa,
+              'targetDec': i.targetDec,
+              'offsetArcsec': i.offsetArcsec,
+              'offsetArcmin': i.offsetArcmin,
+              'plateSolveSuccess': i.plateSolveSuccess,
+              'errorMessage': i.errorMessage,
+              'timestamp': i.timestamp.millisecondsSinceEpoch,
+            },
+          )
+          .toList(),
+    };
 
     Future<CenteringResult> runCentering() async {
       final centeringService = container.read(centeringServiceProvider);
@@ -109,7 +106,8 @@ class FramingHandlers {
 
       final database = container.read(databaseProvider);
       final solverName =
-          await database.settingsDao.getSetting('plate_solve_solver') ?? 'ASTAP';
+          await database.settingsDao.getSetting('plate_solve_solver') ??
+          'ASTAP';
       final solverPath =
           await database.settingsDao.getSetting('plate_solve_path') ?? '';
       final timeoutStr =
@@ -142,7 +140,9 @@ class FramingHandlers {
           final workFuture = runCentering();
           final raced = await Future.any<dynamic>([
             workFuture,
-            cancellation.whenCancelled.then((_) => _CenteringCancelled.instance),
+            cancellation.whenCancelled.then(
+              (_) => _CenteringCancelled.instance,
+            ),
           ]);
           if (raced is _CenteringCancelled) {
             throw const JobCancelledException(
@@ -189,11 +189,7 @@ class FramingHandlers {
 
     await backend.mountSync(mount.id, ra, dec);
 
-    return jsonOk({
-      'status': 'synced',
-      'ra': ra,
-      'dec': dec,
-    });
+    return jsonOk({'status': 'synced', 'ra': ra, 'dec': dec});
   }
 
   // ===========================================================================
@@ -254,10 +250,7 @@ class FramingHandlers {
 
     await backend.rotatorMoveTo(rotator.id, angle);
 
-    return jsonOk({
-      'status': 'rotating',
-      'targetAngle': angle,
-    });
+    return jsonOk({'status': 'rotating', 'targetAngle': angle});
   }
 
   // ===========================================================================
@@ -344,11 +337,9 @@ class FramingHandlers {
     final dec = requireDouble(payload, 'dec');
     final name = requireString(payload, 'name');
 
-    container.read(framingProvider.notifier).setTargetCoordinates(
-          ra,
-          dec,
-          name: name,
-        );
+    container
+        .read(framingProvider.notifier)
+        .setTargetCoordinates(ra, dec, name: name);
 
     publishHostMutationFromContainer(
       container,
@@ -356,12 +347,7 @@ class FramingHandlers {
       action: HostMutationAction.updated,
       extra: {'ra': ra, 'dec': dec, 'name': name},
     );
-    return jsonOk({
-      'status': 'ok',
-      'ra': ra,
-      'dec': dec,
-      'name': name,
-    });
+    return jsonOk({'status': 'ok', 'ra': ra, 'dec': dec, 'name': name});
   }
 
   // ===========================================================================

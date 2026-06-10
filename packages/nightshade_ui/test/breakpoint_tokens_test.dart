@@ -52,33 +52,37 @@ void main() {
       expect(BreakpointTokens.isAtLeastDesktop(2000), isTrue);
     });
 
-    test('exactly one band predicate is true for any width in (-inf, +inf)',
-        () {
-      for (final w in [
-        0.0,
-        300.0,
-        599.0,
-        600.0,
-        700.0,
-        767.0,
-        768.0,
-        900.0,
-        1024.0,
-        1100.0,
-        1280.0,
-        1920.0,
-      ]) {
-        final hits = [
-          BreakpointTokens.isPhone(w),
-          BreakpointTokens.isTablet(w),
-          BreakpointTokens.isDesktop(w),
-          BreakpointTokens.isDesktopWide(w),
-          BreakpointTokens.isUltraWide(w),
-        ].where((b) => b).length;
-        expect(hits, 1,
-            reason:
-                'width $w should land in exactly one band, got $hits hits');
-      }
-    });
+    test(
+      'exactly one band predicate is true for any width in (-inf, +inf)',
+      () {
+        for (final w in [
+          0.0,
+          300.0,
+          599.0,
+          600.0,
+          700.0,
+          767.0,
+          768.0,
+          900.0,
+          1024.0,
+          1100.0,
+          1280.0,
+          1920.0,
+        ]) {
+          final hits = [
+            BreakpointTokens.isPhone(w),
+            BreakpointTokens.isTablet(w),
+            BreakpointTokens.isDesktop(w),
+            BreakpointTokens.isDesktopWide(w),
+            BreakpointTokens.isUltraWide(w),
+          ].where((b) => b).length;
+          expect(
+            hits,
+            1,
+            reason: 'width $w should land in exactly one band, got $hits hits',
+          );
+        }
+      },
+    );
   });
 }

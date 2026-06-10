@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 const _jsonOutputPath = 'docs/production-readiness/release-staging-audit.json';
-const _markdownOutputPath = 'docs/production-readiness/release-staging-audit.md';
+const _markdownOutputPath =
+    'docs/production-readiness/release-staging-audit.md';
 
 const _generatedNames = {
   'frb_generated.dart',
@@ -11,10 +12,7 @@ const _generatedNames = {
   'bridge_generated.h',
 };
 
-const _generatedSuffixes = {
-  '.g.dart',
-  '.freezed.dart',
-};
+const _generatedSuffixes = {'.g.dart', '.freezed.dart'};
 
 const _binaryExtensions = {
   '.dll',
@@ -59,21 +57,22 @@ void main(List<String> args) async {
   final failOnDirty = args.contains('--fail-on-dirty');
   final failOnUntrackedCritical = args.contains('--fail-on-untracked-critical');
 
-  final result = await Process.run(
-    'git',
-    ['status', '--porcelain=v1', '-uall'],
-    runInShell: Platform.isWindows,
-  );
+  final result = await Process.run('git', [
+    'status',
+    '--porcelain=v1',
+    '-uall',
+  ], runInShell: Platform.isWindows);
   if (result.exitCode != 0) {
     stderr.writeln(result.stderr);
     exit(result.exitCode);
   }
 
-  final entries = LineSplitter.split(result.stdout as String)
-      .where((line) => line.trim().isNotEmpty)
-      .map(_StatusEntry.parse)
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final entries =
+      LineSplitter.split(result.stdout as String)
+          .where((line) => line.trim().isNotEmpty)
+          .map(_StatusEntry.parse)
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   final categories = <String, List<_StatusEntry>>{};
   for (final entry in entries) {
@@ -101,32 +100,37 @@ void main(List<String> args) async {
       for (final entry in categories.entries)
         entry.key: {
           'count': entry.value.length,
-          'untrackedCount':
-              entry.value.where((status) => status.isUntracked).length,
+          'untrackedCount': entry.value
+              .where((status) => status.isUntracked)
+              .length,
           'paths': entry.value.map((status) => status.toJson()).toList(),
         },
     },
     'untrackedReleaseCritical': untrackedCritical
         .map((entry) => entry.toJson(includeCategory: true))
         .toList(),
-    'binaryEntries':
-        binaryEntries.map((entry) => entry.toJson(includeCategory: true)).toList(),
+    'binaryEntries': binaryEntries
+        .map((entry) => entry.toJson(includeCategory: true))
+        .toList(),
     'generatedEntries': generatedEntries
         .map((entry) => entry.toJson(includeCategory: true))
         .toList(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    currentBranch: report['currentBranch'] as String,
-    head: report['head'] as String,
-    entries: entries,
-    categories: categories,
-    untrackedCritical: untrackedCritical,
-    binaryEntries: binaryEntries,
-    generatedEntries: generatedEntries,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(
+      currentBranch: report['currentBranch'] as String,
+      head: report['head'] as String,
+      entries: entries,
+      categories: categories,
+      untrackedCritical: untrackedCritical,
+      binaryEntries: binaryEntries,
+      generatedEntries: generatedEntries,
+    ),
+  );
 
   stdout.writeln('Release staging audit complete.');
   stdout.writeln('Entries: ${entries.length}');
@@ -143,11 +147,7 @@ void main(List<String> args) async {
 }
 
 Future<String> _gitSingleLine(List<String> args) async {
-  final result = await Process.run(
-    'git',
-    args,
-    runInShell: Platform.isWindows,
-  );
+  final result = await Process.run('git', args, runInShell: Platform.isWindows);
   if (result.exitCode != 0) {
     return 'unknown';
   }
@@ -177,7 +177,9 @@ String _renderMarkdown({
     ..writeln('- Untracked entries: `$untracked`')
     ..writeln('- Deleted entries: `$deleted`')
     ..writeln('- Generated entries: `${generatedEntries.length}`')
-    ..writeln('- Binary/evidence/native artifact entries: `${binaryEntries.length}`')
+    ..writeln(
+      '- Binary/evidence/native artifact entries: `${binaryEntries.length}`',
+    )
     ..writeln(
       '- Untracked release-critical entries: `${untrackedCritical.length}`',
     )
@@ -320,10 +322,12 @@ class _StatusEntry {
     if (path.startsWith('packages/nightshade_app/lib/')) return 'app-ui';
     if (path.startsWith('packages/nightshade_core/lib/')) return 'core';
     if (path.startsWith('packages/nightshade_bridge/')) return 'bridge';
-    if (path.startsWith('packages/nightshade_planetarium/')) return 'planetarium';
+    if (path.startsWith('packages/nightshade_planetarium/'))
+      return 'planetarium';
     if (path.startsWith('packages/nightshade_plugins/')) return 'plugins';
     if (path.startsWith('packages/nightshade_updater/')) return 'updater';
-    if (path.startsWith('packages/nightshade_remote_protocol/')) return 'remote-protocol';
+    if (path.startsWith('packages/nightshade_remote_protocol/'))
+      return 'remote-protocol';
     if (path.startsWith('packages/nightshade_ui/')) return 'ui-system';
     if (path.startsWith('tools/production/')) return 'release-tooling';
     if (path.startsWith('tools/') || path.startsWith('scripts/')) {
@@ -343,15 +347,15 @@ class _StatusEntry {
   }
 
   Map<String, Object?> toJson({bool includeCategory = false}) => {
-        'status': status,
-        'indexStatus': indexStatus,
-        'worktreeStatus': worktreeStatus,
-        'path': path,
-        if (includeCategory) 'category': category,
-        'untracked': isUntracked,
-        'deleted': isDeleted,
-        'generated': isGenerated,
-        'binary': isBinary,
-        'releaseCritical': isReleaseCritical,
-      };
+    'status': status,
+    'indexStatus': indexStatus,
+    'worktreeStatus': worktreeStatus,
+    'path': path,
+    if (includeCategory) 'category': category,
+    'untracked': isUntracked,
+    'deleted': isDeleted,
+    'generated': isGenerated,
+    'binary': isBinary,
+    'releaseCritical': isReleaseCritical,
+  };
 }

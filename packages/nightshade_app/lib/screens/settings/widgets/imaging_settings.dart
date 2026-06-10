@@ -8,8 +8,7 @@ import 'settings_widgets.dart';
 class ImagingSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const ImagingSettings(
-      {super.key, this.isMobile = false});
+  const ImagingSettings({super.key, this.isMobile = false});
 
   @override
   ConsumerState<ImagingSettings> createState() => _ImagingSettingsState();

@@ -152,7 +152,8 @@ class NodeTimingSection extends ConsumerWidget {
               ),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: Responsive.spacing(context, 8)),
+              padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.spacing(context, 8)),
               child: Text(
                 'Timing',
                 style: TextStyle(
@@ -179,7 +180,8 @@ class NodeTimingSection extends ConsumerWidget {
             padding: EdgeInsets.all(sectionPadding),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -187,7 +189,8 @@ class NodeTimingSection extends ConsumerWidget {
               children: [
                 for (final detail in durationDetails)
                   Padding(
-                    padding: EdgeInsets.only(bottom: Responsive.spacing(context, 4)),
+                    padding:
+                        EdgeInsets.only(bottom: Responsive.spacing(context, 4)),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -228,7 +231,8 @@ class NodeTimingSection extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.clock, size: sectionIconSize, color: colors.primary),
+                  Icon(LucideIcons.clock,
+                      size: sectionIconSize, color: colors.primary),
                   SizedBox(width: Responsive.spacing(context, 8)),
                   Text(
                     'Duration:',
@@ -339,8 +343,7 @@ class NodeTimingSection extends ConsumerWidget {
         ),
         _DurationDetail(
           label: 'Exposures/point',
-          value:
-              '$exposuresPerPoint x ${exposureDuration}s',
+          value: '$exposuresPerPoint x ${exposureDuration}s',
         ),
         _DurationDetail(
           label: 'Est. duration',
@@ -454,7 +457,8 @@ class NodeTimingSection extends ConsumerWidget {
 
     if (node is WarmCameraNode) {
       final warm = node as WarmCameraNode;
-      final mins = (warm.targetTemp - (-10.0)).clamp(0.0, 60.0) / warm.ratePerMin;
+      final mins =
+          (warm.targetTemp - (-10.0)).clamp(0.0, 60.0) / warm.ratePerMin;
       return [
         _DurationDetail(
           label: 'Warming rate',

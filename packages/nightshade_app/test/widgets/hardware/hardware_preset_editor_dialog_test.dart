@@ -77,8 +77,7 @@ void main() {
       await _pumpHost(
         tester,
         db: db,
-        open: (context) =>
-            HardwarePresetEditorDialog.editTelescope(context),
+        open: (context) => HardwarePresetEditorDialog.editTelescope(context),
         onResult: (r) => result = r,
       );
       await tester.tap(find.text('open'));
@@ -106,8 +105,7 @@ void main() {
       await _pumpHost(
         tester,
         db: db,
-        open: (context) =>
-            HardwarePresetEditorDialog.editTelescope(context),
+        open: (context) => HardwarePresetEditorDialog.editTelescope(context),
         onResult: (r) => result = r,
       );
       await tester.tap(find.text('open'));
@@ -119,8 +117,7 @@ void main() {
           find.widgetWithText(TextField, 'e.g. Esprit 100ED'), 'TenInch');
       await tester.enterText(
           find.widgetWithText(TextField, 'e.g. 550'), '1000');
-      await tester.enterText(
-          find.widgetWithText(TextField, 'e.g. 100'), '200');
+      await tester.enterText(find.widgetWithText(TextField, 'e.g. 100'), '200');
 
       await tester.tap(find.widgetWithText(NightshadeButton, 'Add'));
       await tester.pumpAndSettle();
@@ -193,7 +190,8 @@ void main() {
   });
 
   group('camera mode', () {
-    testWidgets('saves a valid camera with cooling toggled off', (tester) async {
+    testWidgets('saves a valid camera with cooling toggled off',
+        (tester) async {
       final db = _newDb();
       addTearDown(db.close);
       Object? result;
@@ -219,10 +217,8 @@ void main() {
           find.widgetWithText(TextField, 'e.g. 6248'), '6000');
       await tester.enterText(
           find.widgetWithText(TextField, 'e.g. 4176'), '4000');
-      await tester.enterText(
-          find.widgetWithText(TextField, 'e.g. 100'), '100');
-      await tester.enterText(
-          find.widgetWithText(TextField, 'e.g. 50'), '25');
+      await tester.enterText(find.widgetWithText(TextField, 'e.g. 100'), '100');
+      await tester.enterText(find.widgetWithText(TextField, 'e.g. 50'), '25');
 
       await tester.tap(find.widgetWithText(NightshadeButton, 'Add'));
       await tester.pumpAndSettle();

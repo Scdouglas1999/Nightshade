@@ -148,14 +148,15 @@ class RelayServer {
   final Random _random;
 
   HttpServer? _httpServer;
-  late final RelayApplianceRegistry registry =
-      RelayApplianceRegistry(path: config.stateFilePath);
+  late final RelayApplianceRegistry registry = RelayApplianceRegistry(
+    path: config.stateFilePath,
+  );
 
   final Map<String, _ApplianceSession> _online = {};
   final Map<String, List<DateTime>> _authFailuresByIp = {};
 
   RelayServer(this.config, {this.onLog, Random? random})
-      : _random = random ?? Random.secure();
+    : _random = random ?? Random.secure();
 
   /// Actual bound port (resolves port 0).
   int get port => _httpServer?.port ?? config.port;
@@ -176,11 +177,16 @@ class RelayServer {
     } else {
       _httpServer = await HttpServer.bind(address, config.port);
     }
-    _httpServer!.listen(_handleRequest, onError: (Object e) {
-      _log('http server error: $e');
-    });
-    _log('relay listening on ${address.address}:$port '
-        '(${registry.count} registered appliance(s))');
+    _httpServer!.listen(
+      _handleRequest,
+      onError: (Object e) {
+        _log('http server error: $e');
+      },
+    );
+    _log(
+      'relay listening on ${address.address}:$port '
+      '(${registry.count} registered appliance(s))',
+    );
   }
 
   Future<void> stop() async {
@@ -202,19 +208,24 @@ class RelayServer {
         request.response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'status': 'ok',
-            'appliancesRegistered': registry.count,
-            'appliancesOnline': onlineApplianceCount,
-            'clientsConnected': connectedClientCount,
-          }));
+          ..write(
+            jsonEncode({
+              'status': 'ok',
+              'appliancesRegistered': registry.count,
+              'appliancesOnline': onlineApplianceCount,
+              'clientsConnected': connectedClientCount,
+            }),
+          );
         await request.response.close();
         return;
       }
       if (path == '/uplink') {
         if (!WebSocketTransformer.isUpgradeRequest(request)) {
-          await _respond(request, HttpStatus.badRequest,
-              'expected WebSocket upgrade');
+          await _respond(
+            request,
+            HttpStatus.badRequest,
+            'expected WebSocket upgrade',
+          );
           return;
         }
         final remoteIp = _remoteIp(request);
@@ -225,8 +236,11 @@ class RelayServer {
       if (path.startsWith('/connect/')) {
         final applianceId = path.substring('/connect/'.length);
         if (!WebSocketTransformer.isUpgradeRequest(request)) {
-          await _respond(request, HttpStatus.badRequest,
-              'expected WebSocket upgrade');
+          await _respond(
+            request,
+            HttpStatus.badRequest,
+            'expected WebSocket upgrade',
+          );
           return;
         }
         final ws = await WebSocketTransformer.upgrade(request);
@@ -271,9 +285,10 @@ class RelayServer {
     final Map<String, dynamic> register;
     final queue = StreamIterator<dynamic>(ws);
     try {
-      final gotFirst = await queue
-          .moveNext()
-          .timeout(const Duration(seconds: 10), onTimeout: () => false);
+      final gotFirst = await queue.moveNext().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => false,
+      );
       if (!gotFirst) {
         await ws.close(WebSocketStatus.policyViolation, 'no registration');
         return;
@@ -377,8 +392,10 @@ class RelayServer {
     }
 
     if (!isValidApplianceId(applianceId)) {
-      await refuse('bad_appliance_id',
-          'appliance id must look like xxxx-xxxx-xxxx');
+      await refuse(
+        'bad_appliance_id',
+        'appliance id must look like xxxx-xxxx-xxxx',
+      );
       return;
     }
     final appliance = _online[applianceId];
@@ -392,16 +409,20 @@ class RelayServer {
       return;
     }
     if (appliance.clients.length >= config.maxClientsPerAppliance) {
-      await refuse('too_many_clients',
-          'appliance "$applianceId" already has the maximum number of clients');
+      await refuse(
+        'too_many_clients',
+        'appliance "$applianceId" already has the maximum number of clients',
+      );
       return;
     }
 
     final client = _ClientSession(ws, appliance);
     appliance.clients.add(client);
     _sendControl(ws, {'op': 'connected', 'applianceId': applianceId});
-    _log('client connected to $applianceId '
-        '(${appliance.clients.length} client(s))');
+    _log(
+      'client connected to $applianceId '
+      '(${appliance.clients.length} client(s))',
+    );
 
     try {
       await for (final message in ws) {
@@ -412,8 +433,10 @@ class RelayServer {
       _log('client tunnel for $applianceId failed: $e');
     } finally {
       appliance.dropClient(client);
-      _log('client disconnected from $applianceId '
-          '(${appliance.clients.length} client(s))');
+      _log(
+        'client disconnected from $applianceId '
+        '(${appliance.clients.length} client(s))',
+      );
     }
   }
 
@@ -424,16 +447,19 @@ class RelayServer {
       throw const MuxProtocolException('expected binary WebSocket message');
     }
     return MuxFrame.decodeExact(
-        message is Uint8List ? message : Uint8List.fromList(message));
+      message is Uint8List ? message : Uint8List.fromList(message),
+    );
   }
 
   void _sendControl(WebSocket ws, Map<String, dynamic> message) {
     try {
-      ws.add(MuxFrame(
-        kMuxControlStreamId,
-        MuxFrameType.control,
-        Uint8List.fromList(utf8.encode(jsonEncode(message))),
-      ).encode());
+      ws.add(
+        MuxFrame(
+          kMuxControlStreamId,
+          MuxFrameType.control,
+          Uint8List.fromList(utf8.encode(jsonEncode(message))),
+        ).encode(),
+      );
     } catch (_) {
       // Socket already gone — caller's close path handles it.
     }
@@ -490,7 +516,9 @@ class _ApplianceSession {
       case MuxFrameType.reset:
         final binding = client.byClientId[frame.streamId];
         if (binding == null) return; // raced with teardown — drop
-        _toAppliance(MuxFrame(binding.uplinkStreamId, frame.type, frame.payload));
+        _toAppliance(
+          MuxFrame(binding.uplinkStreamId, frame.type, frame.payload),
+        );
         if (frame.type == MuxFrameType.reset) {
           _unbind(binding);
         } else if (frame.type == MuxFrameType.finish) {
@@ -510,15 +538,25 @@ class _ApplianceSession {
     if (frame.type == MuxFrameType.open) {
       // v1: appliances never originate streams. Refuse politely so a
       // future appliance speaking a newer protocol degrades cleanly.
-      _toAppliance(MuxFrame(frame.streamId, MuxFrameType.reset,
-          Uint8List.fromList(utf8.encode('relay does not accept '
-              'appliance-initiated streams'))));
+      _toAppliance(
+        MuxFrame(
+          frame.streamId,
+          MuxFrameType.reset,
+          Uint8List.fromList(
+            utf8.encode(
+              'relay does not accept '
+              'appliance-initiated streams',
+            ),
+          ),
+        ),
+      );
       return;
     }
     final binding = _byUplinkId[frame.streamId];
     if (binding == null) return; // client already went away
     binding.client.send(
-        MuxFrame(binding.clientStreamId, frame.type, frame.payload));
+      MuxFrame(binding.clientStreamId, frame.type, frame.payload),
+    );
     if (frame.type == MuxFrameType.reset) {
       _unbind(binding);
     } else if (frame.type == MuxFrameType.finish) {
@@ -532,8 +570,13 @@ class _ApplianceSession {
     if (!clients.remove(client)) return;
     final bindings = List<_StreamBinding>.of(client.byClientId.values);
     for (final binding in bindings) {
-      _toAppliance(MuxFrame(binding.uplinkStreamId, MuxFrameType.reset,
-          Uint8List.fromList(utf8.encode('client disconnected'))));
+      _toAppliance(
+        MuxFrame(
+          binding.uplinkStreamId,
+          MuxFrameType.reset,
+          Uint8List.fromList(utf8.encode('client disconnected')),
+        ),
+      );
       _unbind(binding);
     }
   }

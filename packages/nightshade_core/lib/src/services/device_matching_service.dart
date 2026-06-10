@@ -62,7 +62,9 @@ class DeviceMatchingService {
   ];
 
   /// Patterns for device instance numbers (e.g., "#1", "(1)", " 1")
-  static final RegExp _instancePattern = RegExp(r'[#\(\)]\s*\d+\s*[#\(\)]?$|\s+\d+$');
+  static final RegExp _instancePattern = RegExp(
+    r'[#\(\)]\s*\d+\s*[#\(\)]?$|\s+\d+$',
+  );
 
   /// Group raw devices by physical identity
   List<UnifiedDevice> groupDevices(List<DeviceInfo> allDevices) {
@@ -91,9 +93,7 @@ class DeviceMatchingService {
         final primaryNormalized = normalizeName(primary.name);
 
         // Start a new group with this device
-        final backends = <DriverType, DeviceInfo>{
-          primary.driverType: primary,
-        };
+        final backends = <DriverType, DeviceInfo>{primary.driverType: primary};
 
         // Find all matching devices
         for (int j = i + 1; j < devices.length; j++) {
@@ -106,12 +106,16 @@ class DeviceMatchingService {
           if (primary.driverType == candidate.driverType) continue;
 
           // If names are identical but IDs differ, they're separate physical devices
-          if (primary.name == candidate.name && primary.id != candidate.id) continue;
+          if (primary.name == candidate.name && primary.id != candidate.id)
+            continue;
 
           final candidateNormalized = normalizeName(candidate.name);
 
           // Check similarity
-          final similarity = calculateSimilarity(primaryNormalized, candidateNormalized);
+          final similarity = calculateSimilarity(
+            primaryNormalized,
+            candidateNormalized,
+          );
 
           if (similarity >= _similarityThreshold) {
             // Same physical device, different backend
@@ -125,12 +129,14 @@ class DeviceMatchingService {
         grouped.add(i);
 
         // Create unified device
-        result.add(UnifiedDevice(
-          canonicalName: primaryNormalized,
-          displayName: _selectBestDisplayName(backends.values.toList()),
-          type: type,
-          availableBackends: backends,
-        ));
+        result.add(
+          UnifiedDevice(
+            canonicalName: primaryNormalized,
+            displayName: _selectBestDisplayName(backends.values.toList()),
+            type: type,
+            availableBackends: backends,
+          ),
+        );
       }
     }
 
@@ -152,8 +158,14 @@ class DeviceMatchingService {
     var normalized = name.trim();
 
     // Remove ASCOM. or INDI. prefix patterns
-    normalized = normalized.replaceAll(RegExp(r'^ASCOM\.\w+\.', caseSensitive: false), '');
-    normalized = normalized.replaceAll(RegExp(r'^INDI\.\w+\.', caseSensitive: false), '');
+    normalized = normalized.replaceAll(
+      RegExp(r'^ASCOM\.\w+\.', caseSensitive: false),
+      '',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(r'^INDI\.\w+\.', caseSensitive: false),
+      '',
+    );
 
     // Extract instance numbers (#1, (1), etc.) first to preserve them
     final instanceMatch = _instancePattern.firstMatch(normalized);
@@ -168,7 +180,9 @@ class DeviceMatchingService {
       if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
         normalized = normalized.substring(prefix.length).trim();
         // Handle cases like "ZWO " or "ZWO-"
-        if (normalized.startsWith(' ') || normalized.startsWith('-') || normalized.startsWith('_')) {
+        if (normalized.startsWith(' ') ||
+            normalized.startsWith('-') ||
+            normalized.startsWith('_')) {
           normalized = normalized.substring(1).trim();
         }
       }
@@ -177,7 +191,9 @@ class DeviceMatchingService {
     // Remove common suffixes
     for (final suffix in _commonSuffixes) {
       if (normalized.toLowerCase().endsWith(suffix.toLowerCase())) {
-        normalized = normalized.substring(0, normalized.length - suffix.length).trim();
+        normalized = normalized
+            .substring(0, normalized.length - suffix.length)
+            .trim();
       }
     }
 
@@ -264,10 +280,10 @@ class DeviceMatchingService {
         final cost = s1[i] == s2[j] ? 0 : 1;
         currentRow[j + 1] = math.min(
           math.min(
-            currentRow[j] + 1,      // insertion
+            currentRow[j] + 1, // insertion
             previousRow[j + 1] + 1, // deletion
           ),
-          previousRow[j] + cost,    // substitution
+          previousRow[j] + cost, // substitution
         );
       }
 

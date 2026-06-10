@@ -10,12 +10,16 @@ void main() {
   group('IcsCalendarImporter sniff', () {
     test('detects BEGIN:VCALENDAR', () {
       expect(
-          IcsCalendarImporter.sniff('BEGIN:VCALENDAR\nVERSION:2.0\n'), isTrue);
+        IcsCalendarImporter.sniff('BEGIN:VCALENDAR\nVERSION:2.0\n'),
+        isTrue,
+      );
     });
 
     test('case-insensitive sniff', () {
       expect(
-          IcsCalendarImporter.sniff('begin:vcalendar\nversion:2.0\n'), isTrue);
+        IcsCalendarImporter.sniff('begin:vcalendar\nversion:2.0\n'),
+        isTrue,
+      );
     });
 
     test('rejects non-ICS content', () {
@@ -26,9 +30,9 @@ void main() {
 
   group('IcsCalendarImporter parse', () {
     test('extracts targets from VEVENTs with RA/Dec', () async {
-      final content =
-          await File('test/services/import/fixtures/calendar_basic.ics')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/calendar_basic.ics',
+      ).readAsString();
       final result = IcsCalendarImporter().parse(content);
       expect(result.totalEvents, 3);
       // 2 resolved + 1 maintenance event with no RA/Dec
@@ -40,8 +44,9 @@ void main() {
         sequenceName: 'Calendar',
         forceUnsupported: false,
       );
-      final targets =
-          mapped.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = mapped.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(2));
       final names = targets.map((t) => t.targetName).toSet();
       expect(names, containsAll(['M42 Imaging', 'M31 Wide-field']));
@@ -60,7 +65,8 @@ void main() {
     });
 
     test('handles inline RA/Dec in SUMMARY field', () {
-      const ics = 'BEGIN:VCALENDAR\nVERSION:2.0\n'
+      const ics =
+          'BEGIN:VCALENDAR\nVERSION:2.0\n'
           'BEGIN:VEVENT\n'
           'UID:1\n'
           'SUMMARY:Imaging M42 - RA: 05h35m17s, Dec: -05°23\'28"\n'
@@ -73,12 +79,13 @@ void main() {
     });
 
     test('preserves LOCATION + DTSTART into notes / startAfter', () async {
-      final content =
-          await File('test/services/import/fixtures/calendar_basic.ics')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/calendar_basic.ics',
+      ).readAsString();
       final result = IcsCalendarImporter().parse(content);
       final m42 = result.root.children.firstWhere(
-          (c) => c.attributes['targetName'] == 'M42 Imaging');
+        (c) => c.attributes['targetName'] == 'M42 Imaging',
+      );
       expect(m42.attributes['notes'], contains('Backyard Observatory'));
       expect(m42.attributes['startAfter'], startsWith('2026-02-01'));
     });

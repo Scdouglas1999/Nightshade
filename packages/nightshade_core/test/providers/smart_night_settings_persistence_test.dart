@@ -27,8 +27,11 @@ void main() {
 
   test('Smart Night defaults have sensible initial values', () {
     const settings = AppSettingsState();
-    expect(settings.smartNightMaxSessionHours, isNull,
-        reason: 'null means "use full dark window"');
+    expect(
+      settings.smartNightMaxSessionHours,
+      isNull,
+      reason: 'null means "use full dark window"',
+    );
     expect(settings.smartNightDefaultAfCadenceFrames, 25);
     expect(settings.smartNightDefaultIntegrationBudgetMinsPerTarget, 240);
     expect(settings.smartNightIncludeFlatsAtEnd, isTrue);
@@ -89,9 +92,13 @@ void main() {
 
     // Then clear back to null using the explicit sentinel.
     final cleared = withCap.copyWith(smartNightMaxSessionHours: null);
-    expect(cleared.smartNightMaxSessionHours, isNull,
-        reason: 'A cleared cap must round-trip as null, not as a numeric '
-            'fallback — otherwise the wizard would silently re-cap.');
+    expect(
+      cleared.smartNightMaxSessionHours,
+      isNull,
+      reason:
+          'A cleared cap must round-trip as null, not as a numeric '
+          'fallback — otherwise the wizard would silently re-cap.',
+    );
   });
 
   test('copyWith preserves smartNightMaxSessionHours when omitted', () {
@@ -102,10 +109,14 @@ void main() {
     final withCap = initial.copyWith(smartNightMaxSessionHours: 6.0);
     // Mutate a different field; the cap should survive.
     final mutated = withCap.copyWith(theme: 'light');
-    expect(mutated.smartNightMaxSessionHours, 6.0,
-        reason: 'Omitting smartNightMaxSessionHours from copyWith must '
-            'leave it alone — otherwise downstream mutators would '
-            'unintentionally clear it on every change.');
+    expect(
+      mutated.smartNightMaxSessionHours,
+      6.0,
+      reason:
+          'Omitting smartNightMaxSessionHours from copyWith must '
+          'leave it alone — otherwise downstream mutators would '
+          'unintentionally clear it on every change.',
+    );
     expect(mutated.theme, 'light');
   });
 

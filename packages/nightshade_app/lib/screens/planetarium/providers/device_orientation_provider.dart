@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -94,8 +95,7 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
   Timer? _updateTimer;
   static const Duration _updateInterval = Duration(milliseconds: 33);
 
-  DeviceOrientationNotifier(this._ref)
-      : super(const DeviceOrientationState()) {
+  DeviceOrientationNotifier(this._ref) : super(const DeviceOrientationState()) {
     _ref.listen<bool>(gyroscopeAimingEnabledProvider, (previous, next) {
       if (next) {
         _startListening();
@@ -184,8 +184,8 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
     // The altitude of where the phone is "pointing" (top edge direction):
     // When phone is vertical (portrait, screen toward user), top points at horizon -> alt=0
     // When phone is tilted back 90deg (screen faces sky), top points at zenith -> alt=90
-    final accelMag = math.sqrt(
-        _accelX * _accelX + _accelY * _accelY + _accelZ * _accelZ);
+    final accelMag =
+        math.sqrt(_accelX * _accelX + _accelY * _accelY + _accelZ * _accelZ);
     if (accelMag < 0.1) return; // Free-fall, no valid data
 
     // Normalize accelerometer
@@ -251,8 +251,7 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
     // east_component = dot(device_-Z, east_in_device) = -ez
     //
     // azimuth = atan2(east_component, north_component)
-    var azimuth =
-        math.atan2(-ez, -nz) * 180.0 / math.pi;
+    var azimuth = math.atan2(-ez, -nz) * 180.0 / math.pi;
     if (azimuth < 0) azimuth += 360.0;
 
     // Assess compass accuracy from magnetic field magnitude
@@ -275,8 +274,7 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
       _smoothedAz = azimuth;
       _hasSmoothedValues = true;
     } else {
-      _smoothedAlt =
-          _smoothedAlt + _smoothingAlpha * (altitude - _smoothedAlt);
+      _smoothedAlt = _smoothedAlt + _smoothingAlpha * (altitude - _smoothedAlt);
 
       // Handle azimuth wraparound (0/360 boundary)
       var azDiff = azimuth - _smoothedAz;
@@ -316,8 +314,8 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
 }) {
   if (!orientation.isActive) return null;
 
-  final lst = AstronomyCalculations.localSiderealTime(
-      time.time, location.longitude);
+  final lst =
+      AstronomyCalculations.localSiderealTime(time.time, location.longitude);
 
   final (raDeg, dec) = AstronomyCalculations.horizontalToEquatorial(
     altDeg: orientation.altitude,

@@ -40,8 +40,14 @@ class RelayTunnelClient {
   final Completer<void> _done = Completer<void>();
   bool _closed = false;
 
-  RelayTunnelClient._(this.relayUrl, this.applianceId, this._ws,
-      this._listener, this._session, this._onLog);
+  RelayTunnelClient._(
+    this.relayUrl,
+    this.applianceId,
+    this._ws,
+    this._listener,
+    this._session,
+    this._onLog,
+  );
 
   /// Loopback port carrying the tunnelled appliance API.
   int get localPort => _listener.port;
@@ -63,16 +69,19 @@ class RelayTunnelClient {
     void Function(String message)? onLog,
   }) async {
     final normalized = RelayUplink.normalizeRelayUrl(relayUrl);
-    final uri =
-        normalized.replace(path: '${normalized.path}/connect/$applianceId');
+    final uri = normalized.replace(
+      path: '${normalized.path}/connect/$applianceId',
+    );
 
     HttpClient? client;
     if (allowBadTlsCertificate) {
       client = HttpClient()
         ..badCertificateCallback = (cert, host, port) => true;
     }
-    final ws = await WebSocket.connect(uri.toString(), customClient: client)
-        .timeout(timeout);
+    final ws = await WebSocket.connect(
+      uri.toString(),
+      customClient: client,
+    ).timeout(timeout);
     ws.pingInterval = const Duration(seconds: 20);
 
     final handshake = Completer<void>();
@@ -104,9 +113,11 @@ class RelayTunnelClient {
     ws.listen(
       (message) {
         try {
-          session.handleMessage(message is Uint8List
-              ? message
-              : Uint8List.fromList(message as List<int>));
+          session.handleMessage(
+            message is Uint8List
+                ? message
+                : Uint8List.fromList(message as List<int>),
+          );
         } catch (e) {
           onLog?.call('relay tunnel protocol error: $e');
           ws.close(WebSocketStatus.protocolError, 'bad frame');
@@ -118,8 +129,12 @@ class RelayTunnelClient {
       },
       onDone: () {
         if (!handshake.isCompleted) {
-          handshake.completeError(const RelayTunnelException(
-              'closed', 'relay closed the connection during handshake'));
+          handshake.completeError(
+            const RelayTunnelException(
+              'closed',
+              'relay closed the connection during handshake',
+            ),
+          );
         }
         tunnel?._teardown('relay connection closed');
       },
@@ -138,15 +153,22 @@ class RelayTunnelClient {
 
     final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     tunnel = RelayTunnelClient._(
-        normalized, applianceId, ws, listener, session, onLog);
+      normalized,
+      applianceId,
+      ws,
+      listener,
+      session,
+      onLog,
+    );
     listener.listen(
       tunnel._acceptLocalConnection,
       onError: (Object e) => onLog?.call('relay tunnel listener error: $e'),
       onDone: () => tunnel!._teardown('local listener closed'),
     );
     onLog?.call(
-        'relay tunnel open: 127.0.0.1:${listener.port} -> $applianceId via '
-        '$normalized');
+      'relay tunnel open: 127.0.0.1:${listener.port} -> $applianceId via '
+      '$normalized',
+    );
     return tunnel;
   }
 

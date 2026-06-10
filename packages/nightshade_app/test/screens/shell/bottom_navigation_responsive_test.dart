@@ -35,7 +35,8 @@ Future<void> _pumpNav(
       theme: NightshadeTheme.dark,
       home: MediaQuery(
         // Simulate a home-indicator inset so SafeArea handling is exercised.
-        data: MediaQueryData(size: size, viewPadding: viewPadding, padding: viewPadding),
+        data: MediaQueryData(
+            size: size, viewPadding: viewPadding, padding: viewPadding),
         child: Scaffold(
           bottomNavigationBar: NightshadeBottomNavigation(
             currentRoute: '/dashboard',

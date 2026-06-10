@@ -42,49 +42,58 @@ void main() {
     );
   }
 
-  test('overlay layer with planning overlays rasterises without throwing',
-      () async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final painter = buildPainter(
-      scope: SkyRenderScope.overlay,
-      showPlanningOverlays: true,
-    );
+  test(
+    'overlay layer with planning overlays rasterises without throwing',
+    () async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final painter = buildPainter(
+        scope: SkyRenderScope.overlay,
+        showPlanningOverlays: true,
+      );
 
-    painter.paint(canvas, canvasSize);
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(
-        canvasSize.width.toInt(), canvasSize.height.toInt());
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      painter.paint(canvas, canvasSize);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(
+        canvasSize.width.toInt(),
+        canvasSize.height.toInt(),
+      );
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
 
-    expect(bytes, isNotNull);
-    // The overlay layer is otherwise empty here (no stars/selection pulse), so
-    // any opaque pixels prove the planning overlays actually drew something.
-    var opaquePixels = 0;
-    for (var i = 3; i < bytes!.lengthInBytes; i += 4) {
-      if (bytes.getUint8(i) != 0) opaquePixels++;
-    }
-    expect(opaquePixels, greaterThan(0),
-        reason: 'planning overlays drew nothing');
+      expect(bytes, isNotNull);
+      // The overlay layer is otherwise empty here (no stars/selection pulse), so
+      // any opaque pixels prove the planning overlays actually drew something.
+      var opaquePixels = 0;
+      for (var i = 3; i < bytes!.lengthInBytes; i += 4) {
+        if (bytes.getUint8(i) != 0) opaquePixels++;
+      }
+      expect(
+        opaquePixels,
+        greaterThan(0),
+        reason: 'planning overlays drew nothing',
+      );
 
-    image.dispose();
-    picture.dispose();
-  });
+      image.dispose();
+      picture.dispose();
+    },
+  );
 
-  test('overlay repaints when the observation minute advances and overlays on',
-      () {
-    final old = buildPainter(
-      scope: SkyRenderScope.overlay,
-      showPlanningOverlays: true,
-      observationTime: DateTime(2026, 1, 1, 22, 0),
-    );
-    final next = buildPainter(
-      scope: SkyRenderScope.overlay,
-      showPlanningOverlays: true,
-      observationTime: DateTime(2026, 1, 1, 22, 1),
-    );
-    expect(next.shouldRepaint(old), isTrue);
-  });
+  test(
+    'overlay repaints when the observation minute advances and overlays on',
+    () {
+      final old = buildPainter(
+        scope: SkyRenderScope.overlay,
+        showPlanningOverlays: true,
+        observationTime: DateTime(2026, 1, 1, 22, 0),
+      );
+      final next = buildPainter(
+        scope: SkyRenderScope.overlay,
+        showPlanningOverlays: true,
+        observationTime: DateTime(2026, 1, 1, 22, 1),
+      );
+      expect(next.shouldRepaint(old), isTrue);
+    },
+  );
 
   test('overlay does NOT repaint on minute change when overlays are off', () {
     final old = buildPainter(

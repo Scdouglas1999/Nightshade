@@ -32,15 +32,14 @@ void main() {
 
     setUp(() async {
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      tempDir = await Directory.systemTemp
-          .createTemp('ns_calibration_handlers_test_');
+      tempDir = await Directory.systemTemp.createTemp(
+        'ns_calibration_handlers_test_',
+      );
       calibrationDir = Directory('${tempDir.path}/data');
       await calibrationDir.create(recursive: true);
 
       container = ProviderContainer(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-        ],
+        overrides: [databaseProvider.overrideWithValue(db)],
       );
       handlers = CalibrationHandlers(
         container,
@@ -92,9 +91,11 @@ void main() {
       await insertDark(f1, exposure: 60, gain: 100, temperature: -10);
       await insertDark(f2, exposure: 30, gain: 200, temperature: -15);
 
-      final response = await translateHandlerErrors(handlers.handleListDarks(
-        Request('GET', Uri.parse('http://localhost/api/calibration/darks')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleListDarks(
+          Request('GET', Uri.parse('http://localhost/api/calibration/darks')),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       final darks = body['darks'] as List;
@@ -115,10 +116,14 @@ void main() {
       await insertDark(f1, gain: 100);
       await insertDark(f2, gain: 200);
 
-      final response = await translateHandlerErrors(handlers.handleListDarks(
-        Request('GET',
-            Uri.parse('http://localhost/api/calibration/darks?gain=200')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleListDarks(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/calibration/darks?gain=200'),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       final darks = body['darks'] as List;
@@ -133,8 +138,10 @@ void main() {
 
       final response = await translateHandlerErrors(
         handlers.handleGetDark(
-          Request('GET',
-              Uri.parse('http://localhost/api/calibration/darks/$id')),
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/calibration/darks/$id'),
+          ),
           id.toString(),
         ),
       );
@@ -159,11 +166,15 @@ void main() {
         'binY': 1,
         'sensorTempC': -20.0,
       });
-      final response = await translateHandlerErrors(handlers.handleRegisterDark(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleRegisterDark(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/darks'),
-            body: body),
-      ));
+            body: body,
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.created);
       final responseBody = jsonDecode(await response.readAsString()) as Map;
       final dark = responseBody['dark'] as Map;
@@ -177,11 +188,15 @@ void main() {
         'filePath': '${tempDir.path}/nonexistent.fits',
         'exposureDuration': 60.0,
       });
-      final response = await translateHandlerErrors(handlers.handleRegisterDark(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleRegisterDark(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/darks'),
-            body: body),
-      ));
+            body: body,
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.badRequest);
       final responseBody = jsonDecode(await response.readAsString()) as Map;
       expect(responseBody['error'], 'dark_file_not_found');
@@ -203,14 +218,17 @@ void main() {
         'frameType': 'dark',
       });
 
-      final response = await translateHandlerErrors(handlers.handleUploadDark(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/calibration/darks/upload?meta=${Uri.encodeQueryComponent(meta)}&fileName=upload.fits'),
-          body: payload,
+      final response = await translateHandlerErrors(
+        handlers.handleUploadDark(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/calibration/darks/upload?meta=${Uri.encodeQueryComponent(meta)}&fileName=upload.fits',
+            ),
+            body: payload,
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, HttpStatus.created);
       final responseBody = jsonDecode(await response.readAsString()) as Map;
       expect(responseBody['bytesWritten'], payload.length);
@@ -223,17 +241,20 @@ void main() {
 
     test('POST upload over content-length cap returns 413', () async {
       final meta = jsonEncode({'exposureDuration': 60.0});
-      final response = await translateHandlerErrors(handlers.handleUploadDark(
-        Request(
-          'POST',
-          Uri.parse(
-              'http://localhost/api/calibration/darks/upload?meta=${Uri.encodeQueryComponent(meta)}'),
-          headers: {
-            'content-length':
-                (backupUploadMaxRequestBodyBytes + 1).toString(),
-          },
+      final response = await translateHandlerErrors(
+        handlers.handleUploadDark(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/calibration/darks/upload?meta=${Uri.encodeQueryComponent(meta)}',
+            ),
+            headers: {
+              'content-length': (backupUploadMaxRequestBodyBytes + 1)
+                  .toString(),
+            },
+          ),
         ),
-      ));
+      );
       expect(response.statusCode, HttpStatus.requestEntityTooLarge);
       final responseBody = jsonDecode(await response.readAsString()) as Map;
       expect(responseBody['maxBytes'], backupUploadMaxRequestBodyBytes);
@@ -247,11 +268,15 @@ void main() {
       final f = await writeDarkFile('keep.fits');
       final id = await insertDark(f);
 
-      final response = await translateHandlerErrors(handlers.handleDeleteDark(
-        Request('DELETE',
-            Uri.parse('http://localhost/api/calibration/darks/$id')),
-        id.toString(),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDeleteDark(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/calibration/darks/$id'),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['deleted'], isTrue);
@@ -264,13 +289,17 @@ void main() {
       final f = await writeDarkFile('wipe.fits');
       final id = await insertDark(f);
 
-      final response = await translateHandlerErrors(handlers.handleDeleteDark(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleDeleteDark(
+          Request(
             'DELETE',
             Uri.parse(
-                'http://localhost/api/calibration/darks/$id?deleteFile=true')),
-        id.toString(),
-      ));
+              'http://localhost/api/calibration/darks/$id?deleteFile=true',
+            ),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['deleted'], isTrue);
@@ -279,11 +308,15 @@ void main() {
     });
 
     test('DELETE unknown id returns 404', () async {
-      final response = await translateHandlerErrors(handlers.handleDeleteDark(
-        Request('DELETE',
-            Uri.parse('http://localhost/api/calibration/darks/99999')),
-        '99999',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDeleteDark(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/calibration/darks/99999'),
+          ),
+          '99999',
+        ),
+      );
       expect(response.statusCode, HttpStatus.notFound);
     });
 
@@ -294,14 +327,25 @@ void main() {
     test('POST find-match returns closest matching dark', () async {
       final f1 = await writeDarkFile('m1.fits');
       final f2 = await writeDarkFile('m2.fits');
-      await insertDark(f1,
-          exposure: 60.0, gain: 100, offset: 10, temperature: -10);
-      final wantedId = await insertDark(f2,
-          exposure: 60.0, gain: 100, offset: 10, temperature: -19.5);
+      await insertDark(
+        f1,
+        exposure: 60.0,
+        gain: 100,
+        offset: 10,
+        temperature: -10,
+      );
+      final wantedId = await insertDark(
+        f2,
+        exposure: 60.0,
+        gain: 100,
+        offset: 10,
+        temperature: -19.5,
+      );
 
-      final response =
-          await translateHandlerErrors(handlers.handleFindMatchingDark(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleFindMatchingDark(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/darks/find-match'),
             body: jsonEncode({
               'exposureDuration': 60.0,
@@ -310,17 +354,20 @@ void main() {
               'binX': 1,
               'binY': 1,
               'sensorTempC': -20.0,
-            })),
-      ));
+            }),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect((body['dark'] as Map)['id'], wantedId);
     });
 
     test('POST find-match returns 404 when nothing matches', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleFindMatchingDark(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleFindMatchingDark(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/darks/find-match'),
             body: jsonEncode({
               'exposureDuration': 30.0,
@@ -328,8 +375,10 @@ void main() {
               'offset': 0,
               'binX': 1,
               'binY': 1,
-            })),
-      ));
+            }),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.notFound);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'no_matching_dark');
@@ -346,13 +395,14 @@ void main() {
       await insertDark(f2);
       await f2.delete();
 
-      final response =
-          await translateHandlerErrors(handlers.handleVerifyDarkSizes(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleVerifyDarkSizes(
+          Request(
             'POST',
-            Uri.parse(
-                'http://localhost/api/calibration/darks/backfill-sizes')),
-      ));
+            Uri.parse('http://localhost/api/calibration/darks/backfill-sizes'),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['verified'], 2);
@@ -367,8 +417,10 @@ void main() {
     // =====================================================================
 
     test('POST flats then GET returns the row', () async {
-      final response = await translateHandlerErrors(handlers.handleRecordFlat(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleRecordFlat(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/flats'),
             body: jsonEncode({
               'filter': 'Ha',
@@ -377,19 +429,24 @@ void main() {
               'histogramTarget': 50.0,
               'gain': 120,
               'binning': 1,
-            })),
-      ));
+            }),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.created);
       final body = jsonDecode(await response.readAsString()) as Map;
       final flat = body['flat'] as Map;
       expect(flat['filter'], 'Ha');
       expect(flat['exposureDuration'], 7.5);
 
-      final listResponse =
-          await translateHandlerErrors(handlers.handleListFlats(
-        Request('GET',
-            Uri.parse('http://localhost/api/calibration/flats?filter=Ha')),
-      ));
+      final listResponse = await translateHandlerErrors(
+        handlers.handleListFlats(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/calibration/flats?filter=Ha'),
+          ),
+        ),
+      );
       expect(listResponse.statusCode, HttpStatus.ok);
       final listBody = jsonDecode(await listResponse.readAsString()) as Map;
       expect((listBody['flats'] as List), hasLength(1));
@@ -402,11 +459,15 @@ void main() {
         histogramTarget: 50.0,
         actualAdu: 25000,
       );
-      final response = await translateHandlerErrors(handlers.handleDeleteFlat(
-        Request('DELETE',
-            Uri.parse('http://localhost/api/calibration/flats/$id')),
-        id.toString(),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDeleteFlat(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/calibration/flats/$id'),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       expect(await db.flatHistoryDao.getById(id), isNull);
     });
@@ -420,13 +481,16 @@ void main() {
         gain: 120,
       );
 
-      final response =
-          await translateHandlerErrors(handlers.handleFlatRecommendation(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleFlatRecommendation(
+          Request(
             'GET',
             Uri.parse(
-                'http://localhost/api/calibration/flats/recommendation?filter=Ha&gain=120')),
-      ));
+              'http://localhost/api/calibration/flats/recommendation?filter=Ha&gain=120',
+            ),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       final recommended = body['recommended'] as Map;
@@ -436,13 +500,16 @@ void main() {
     });
 
     test('GET flat recommendation returns null when no history', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleFlatRecommendation(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleFlatRecommendation(
+          Request(
             'GET',
             Uri.parse(
-                'http://localhost/api/calibration/flats/recommendation?filter=Ha')),
-      ));
+              'http://localhost/api/calibration/flats/recommendation?filter=Ha',
+            ),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['recommended'], isNull);
@@ -455,11 +522,11 @@ void main() {
 
     test('POST defect-map then GET list excludes bitmap', () async {
       // Bitmap for 16x16 sensor = 16*16/8 = 32 bytes
-      final bitmap =
-          Uint8List.fromList(List<int>.generate(32, (i) => i % 256));
-      final response =
-          await translateHandlerErrors(handlers.handleRegisterDefectMap(
-        Request('POST',
+      final bitmap = Uint8List.fromList(List<int>.generate(32, (i) => i % 256));
+      final response = await translateHandlerErrors(
+        handlers.handleRegisterDefectMap(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/defect-maps'),
             body: jsonEncode({
               'cameraId': 'native:zwo:test',
@@ -468,15 +535,20 @@ void main() {
               'temperatureBucketDecicelsius': -200,
               'bitmap': base64Encode(bitmap),
               'defectCount': 4,
-            })),
-      ));
+            }),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.created);
 
-      final listResponse =
-          await translateHandlerErrors(handlers.handleListDefectMaps(
-        Request('GET',
-            Uri.parse('http://localhost/api/calibration/defect-maps')),
-      ));
+      final listResponse = await translateHandlerErrors(
+        handlers.handleListDefectMaps(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/calibration/defect-maps'),
+          ),
+        ),
+      );
       expect(listResponse.statusCode, HttpStatus.ok);
       final body = jsonDecode(await listResponse.readAsString()) as Map;
       final maps = body['defectMaps'] as List;
@@ -488,9 +560,10 @@ void main() {
     });
 
     test('POST defect-map rejects mismatched bitmap length', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleRegisterDefectMap(
-        Request('POST',
+      final response = await translateHandlerErrors(
+        handlers.handleRegisterDefectMap(
+          Request(
+            'POST',
             Uri.parse('http://localhost/api/calibration/defect-maps'),
             body: jsonEncode({
               'cameraId': 'native:zwo:test',
@@ -499,46 +572,56 @@ void main() {
               'temperatureBucketDecicelsius': -200,
               'bitmap': base64Encode(Uint8List.fromList([1, 2, 3])),
               'defectCount': 1,
-            })),
-      ));
+            }),
+          ),
+        ),
+      );
       expect(response.statusCode, HttpStatus.badRequest);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['field'], 'bitmap');
     });
 
-    test('GET defect-map binary returns octet-stream with metadata headers',
-        () async {
-      final bitmap =
-          Uint8List.fromList(List<int>.generate(32, (i) => 0xA5));
-      final id = await db.into(db.defectMaps).insert(
-            DefectMapsCompanion.insert(
-              cameraId: 'native:test:1',
-              width: 16,
-              height: 16,
-              temperatureBucketDecicelsius: -200,
-              bitmap: bitmap,
-              defectivePixelCount: 8,
-            ),
-          );
+    test(
+      'GET defect-map binary returns octet-stream with metadata headers',
+      () async {
+        final bitmap = Uint8List.fromList(List<int>.generate(32, (i) => 0xA5));
+        final id = await db
+            .into(db.defectMaps)
+            .insert(
+              DefectMapsCompanion.insert(
+                cameraId: 'native:test:1',
+                width: 16,
+                height: 16,
+                temperatureBucketDecicelsius: -200,
+                bitmap: bitmap,
+                defectivePixelCount: 8,
+              ),
+            );
 
-      final response = await translateHandlerErrors(handlers.handleGetDefectMap(
-        Request('GET',
-            Uri.parse('http://localhost/api/calibration/defect-maps/$id')),
-        id.toString(),
-      ));
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.headers['content-type'], 'application/octet-stream');
-      expect(response.headers['x-defect-map-camera-id'], 'native:test:1');
-      expect(response.headers['x-defect-map-width'], '16');
-      expect(response.headers['x-defect-map-defective-pixel-count'], '8');
-      final body = await response.read().expand((c) => c).toList();
-      expect(body, bitmap);
-    });
+        final response = await translateHandlerErrors(
+          handlers.handleGetDefectMap(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/calibration/defect-maps/$id'),
+            ),
+            id.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.headers['content-type'], 'application/octet-stream');
+        expect(response.headers['x-defect-map-camera-id'], 'native:test:1');
+        expect(response.headers['x-defect-map-width'], '16');
+        expect(response.headers['x-defect-map-defective-pixel-count'], '8');
+        final body = await response.read().expand((c) => c).toList();
+        expect(body, bitmap);
+      },
+    );
 
     test('GET defect-map json returns base64 in JSON wrapper', () async {
-      final bitmap =
-          Uint8List.fromList(List<int>.generate(32, (i) => 0x42));
-      final id = await db.into(db.defectMaps).insert(
+      final bitmap = Uint8List.fromList(List<int>.generate(32, (i) => 0x42));
+      final id = await db
+          .into(db.defectMaps)
+          .insert(
             DefectMapsCompanion.insert(
               cameraId: 'native:test:2',
               width: 16,
@@ -549,16 +632,22 @@ void main() {
             ),
           );
 
-      final response = await translateHandlerErrors(handlers.handleGetDefectMap(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleGetDefectMap(
+          Request(
             'GET',
             Uri.parse(
-                'http://localhost/api/calibration/defect-maps/$id?format=json')),
-        id.toString(),
-      ));
+              'http://localhost/api/calibration/defect-maps/$id?format=json',
+            ),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
-      expect(response.headers['content-type']?.toLowerCase(),
-          contains('application/json'));
+      expect(
+        response.headers['content-type']?.toLowerCase(),
+        contains('application/json'),
+      );
       final body = jsonDecode(await response.readAsString()) as Map;
       final m = body['defectMap'] as Map;
       expect(m['cameraId'], 'native:test:2');
@@ -566,9 +655,10 @@ void main() {
     });
 
     test('DELETE defect-map removes the row', () async {
-      final bitmap =
-          Uint8List.fromList(List<int>.generate(32, (i) => 0));
-      final id = await db.into(db.defectMaps).insert(
+      final bitmap = Uint8List.fromList(List<int>.generate(32, (i) => 0));
+      final id = await db
+          .into(db.defectMaps)
+          .insert(
             DefectMapsCompanion.insert(
               cameraId: 'native:test:3',
               width: 16,
@@ -578,19 +668,24 @@ void main() {
               defectivePixelCount: 0,
             ),
           );
-      final response =
-          await translateHandlerErrors(handlers.handleDeleteDefectMap(
-        Request('DELETE',
-            Uri.parse('http://localhost/api/calibration/defect-maps/$id')),
-        id.toString(),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleDeleteDefectMap(
+          Request(
+            'DELETE',
+            Uri.parse('http://localhost/api/calibration/defect-maps/$id'),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['deleted'], isTrue);
     });
 
     test('POST regenerate without sourceFilePath returns 409', () async {
-      final id = await db.into(db.defectMaps).insert(
+      final id = await db
+          .into(db.defectMaps)
+          .insert(
             DefectMapsCompanion.insert(
               cameraId: 'native:test:4',
               width: 16,
@@ -600,21 +695,26 @@ void main() {
               defectivePixelCount: 0,
             ),
           );
-      final response =
-          await translateHandlerErrors(handlers.handleRegenerateDefectMap(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleRegenerateDefectMap(
+          Request(
             'POST',
             Uri.parse(
-                'http://localhost/api/calibration/defect-maps/$id/regenerate')),
-        id.toString(),
-      ));
+              'http://localhost/api/calibration/defect-maps/$id/regenerate',
+            ),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.conflict);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'defect_map_no_source');
     });
 
     test('POST regenerate with missing source file returns 409', () async {
-      final id = await db.into(db.defectMaps).insert(
+      final id = await db
+          .into(db.defectMaps)
+          .insert(
             DefectMapsCompanion.insert(
               cameraId: 'native:test:5',
               width: 16,
@@ -625,14 +725,17 @@ void main() {
               filePath: Value('${tempDir.path}/missing.fits'),
             ),
           );
-      final response =
-          await translateHandlerErrors(handlers.handleRegenerateDefectMap(
-        Request(
+      final response = await translateHandlerErrors(
+        handlers.handleRegenerateDefectMap(
+          Request(
             'POST',
             Uri.parse(
-                'http://localhost/api/calibration/defect-maps/$id/regenerate')),
-        id.toString(),
-      ));
+              'http://localhost/api/calibration/defect-maps/$id/regenerate',
+            ),
+          ),
+          id.toString(),
+        ),
+      );
       expect(response.statusCode, HttpStatus.conflict);
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'defect_map_source_missing');
@@ -691,24 +794,30 @@ void main() {
     test('Upload and backfill are admin scope and high-risk', () {
       expect(
         requiredAuthScopeNameForEndpoint(
-            method: 'POST', path: '/api/calibration/darks/upload'),
+          method: 'POST',
+          path: '/api/calibration/darks/upload',
+        ),
         'admin',
       );
       expect(
         requiredAuthScopeNameForEndpoint(
-            method: 'POST',
-            path: '/api/calibration/darks/backfill-sizes'),
+          method: 'POST',
+          path: '/api/calibration/darks/backfill-sizes',
+        ),
         'admin',
       );
       expect(
         highRiskAuditActionFor(
-            method: 'POST', path: '/api/calibration/darks/upload'),
+          method: 'POST',
+          path: '/api/calibration/darks/upload',
+        ),
         'calibration_dark_upload',
       );
       expect(
         highRiskAuditActionFor(
-            method: 'POST',
-            path: '/api/calibration/darks/backfill-sizes'),
+          method: 'POST',
+          path: '/api/calibration/darks/backfill-sizes',
+        ),
         'calibration_backfill',
       );
     });
@@ -727,18 +836,23 @@ void main() {
       }
       expect(
         highRiskAuditActionFor(
-            method: 'DELETE', path: '/api/calibration/darks/<id>'),
+          method: 'DELETE',
+          path: '/api/calibration/darks/<id>',
+        ),
         'calibration_dark_delete',
       );
       expect(
         highRiskAuditActionFor(
-            method: 'DELETE', path: '/api/calibration/flats/<id>'),
+          method: 'DELETE',
+          path: '/api/calibration/flats/<id>',
+        ),
         'calibration_flat_delete',
       );
       expect(
         highRiskAuditActionFor(
-            method: 'DELETE',
-            path: '/api/calibration/defect-maps/<id>'),
+          method: 'DELETE',
+          path: '/api/calibration/defect-maps/<id>',
+        ),
         'calibration_defect_map_delete',
       );
     });

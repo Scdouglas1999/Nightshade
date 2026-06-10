@@ -112,9 +112,11 @@ class _SeverityStyle {
   ) {
     switch (severity) {
       case NightFindingSeverity.critical:
-        return _SeverityStyle(colors.error, NightshadeIcons.critical, 'Critical');
+        return _SeverityStyle(
+            colors.error, NightshadeIcons.critical, 'Critical');
       case NightFindingSeverity.warn:
-        return _SeverityStyle(colors.warning, NightshadeIcons.warning, 'Warning');
+        return _SeverityStyle(
+            colors.warning, NightshadeIcons.warning, 'Warning');
       case NightFindingSeverity.info:
         return _SeverityStyle(colors.info, NightshadeIcons.info, 'Info');
     }
@@ -355,8 +357,8 @@ class _FindingCard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(style.icon, size: NightshadeTokens.iconSm,
-                            color: style.color),
+                        Icon(style.icon,
+                            size: NightshadeTokens.iconSm, color: style.color),
                         const SizedBox(width: NightshadeTokens.spaceSm),
                         Expanded(
                           child: Text(
@@ -450,8 +452,8 @@ class _AdviceRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(NightshadeIcons.idea, size: NightshadeTokens.iconSm,
-              color: colors.accent),
+          Icon(NightshadeIcons.idea,
+              size: NightshadeTokens.iconSm, color: colors.accent),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: RichText(
@@ -533,8 +535,8 @@ class _EvidenceChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(NightshadeIcons.frame, size: NightshadeTokens.iconXs,
-              color: colors.textMuted),
+          Icon(NightshadeIcons.frame,
+              size: NightshadeTokens.iconXs, color: colors.textMuted),
           const SizedBox(width: NightshadeTokens.spaceXs),
           Text(
             label,
@@ -656,8 +658,8 @@ class _NoFindings extends StatelessWidget {
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Row(
         children: [
-          Icon(NightshadeIcons.success, size: NightshadeTokens.iconMd,
-              color: colors.success),
+          Icon(NightshadeIcons.success,
+              size: NightshadeTokens.iconMd, color: colors.success),
           const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Text(

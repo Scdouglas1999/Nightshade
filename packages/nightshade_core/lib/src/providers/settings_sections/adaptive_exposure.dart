@@ -41,10 +41,7 @@ extension AdaptiveExposureSettingsSection on AppSettingsNotifier {
     // Sky brightness physically lives in [14, 23] mag/arcsec²; clamp
     // defensively but allow the user to type anything in that band.
     final clamped = value.clamp(14.0, 24.0);
-    await _saveSetting(
-      'adaptive_exposure_reference_mag',
-      clamped.toString(),
-    );
+    await _saveSetting('adaptive_exposure_reference_mag', clamped.toString());
     _patchState((s) => s.copyWith(adaptiveExposureReferenceMag: clamped));
   }
 
@@ -64,17 +61,16 @@ extension AdaptiveExposureSettingsSection on AppSettingsNotifier {
 
   /// Per-filter enable map. JSON-serialised for storage.
   Future<void> setAdaptiveExposurePerFilterEnabled(
-      Map<String, bool> map) async {
-    await _saveSetting(
-      'adaptive_exposure_per_filter_enabled',
-      jsonEncode(map),
-    );
+    Map<String, bool> map,
+  ) async {
+    await _saveSetting('adaptive_exposure_per_filter_enabled', jsonEncode(map));
     _patchState((s) => s.copyWith(adaptiveExposurePerFilterEnabled: map));
   }
 
   /// Per-filter minimum exposure clamp map (seconds).
   Future<void> setAdaptiveExposurePerFilterMinSecs(
-      Map<String, double> map) async {
+    Map<String, double> map,
+  ) async {
     await _saveSetting(
       'adaptive_exposure_per_filter_min_secs',
       jsonEncode(map),
@@ -84,7 +80,8 @@ extension AdaptiveExposureSettingsSection on AppSettingsNotifier {
 
   /// Per-filter maximum exposure clamp map (seconds).
   Future<void> setAdaptiveExposurePerFilterMaxSecs(
-      Map<String, double> map) async {
+    Map<String, double> map,
+  ) async {
     await _saveSetting(
       'adaptive_exposure_per_filter_max_secs',
       jsonEncode(map),

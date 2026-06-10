@@ -7,10 +7,7 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
 
   @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
-    await _post('phd2/connect', {
-      'host': host,
-      'port': port,
-    });
+    await _post('phd2/connect', {'host': host, 'port': port});
   }
 
   @override
@@ -99,8 +96,10 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     required String axis,
     required String name,
   }) async {
-    final response =
-        await _get('phd2/algo-param', {'axis': axis, 'name': name});
+    final response = await _get('phd2/algo-param', {
+      'axis': axis,
+      'name': name,
+    });
     return (response['value'] as num).toDouble();
   }
 
@@ -110,8 +109,11 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     required String name,
     required double value,
   }) async {
-    await _post(
-        'phd2/algo-param', {'axis': axis, 'name': name, 'value': value});
+    await _post('phd2/algo-param', {
+      'axis': axis,
+      'name': name,
+      'value': value,
+    });
   }
 
   @override
@@ -252,10 +254,12 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<(double, double)> guiderGetLockPosition(
-      {required String deviceId}) async {
+  Future<(double, double)> guiderGetLockPosition({
+    required String deviceId,
+  }) async {
     final response = await _get(
-        'guider/lock-position?deviceId=${Uri.encodeQueryComponent(deviceId)}');
+      'guider/lock-position?deviceId=${Uri.encodeQueryComponent(deviceId)}',
+    );
     return (
       (response['x'] as num).toDouble(),
       (response['y'] as num).toDouble(),

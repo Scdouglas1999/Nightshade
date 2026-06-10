@@ -23,34 +23,36 @@ void main() {
     await db.close();
   });
 
-  test('createMasterFlat invokes the native build and registers a row',
-      () async {
-    final id = await service.createMasterFlat(
-      flatPaths: ['/flats/a.fits', '/flats/b.fits', '/flats/c.fits'],
-      outputPath: '/cal/master_flat_L.fits',
-      biasOrDarkFlatPath: '/cal/master_bias.fits',
-      filter: 'L',
-      gain: 100,
-      binX: 1,
-      binY: 1,
-      temperature: -10.0,
-    );
+  test(
+    'createMasterFlat invokes the native build and registers a row',
+    () async {
+      final id = await service.createMasterFlat(
+        flatPaths: ['/flats/a.fits', '/flats/b.fits', '/flats/c.fits'],
+        outputPath: '/cal/master_flat_L.fits',
+        biasOrDarkFlatPath: '/cal/master_bias.fits',
+        filter: 'L',
+        gain: 100,
+        binX: 1,
+        binY: 1,
+        temperature: -10.0,
+      );
 
-    // Native build received the right args.
-    expect(seam.flatCalls, hasLength(1));
-    final call = seam.flatCalls.single;
-    expect((call['flatPaths'] as List), hasLength(3));
-    expect(call['biasOrDarkFlat'], '/cal/master_bias.fits');
-    expect(call['method'], 'sigmaClip');
-    expect(call['outputBitDepth'], 'f32');
+      // Native build received the right args.
+      expect(seam.flatCalls, hasLength(1));
+      final call = seam.flatCalls.single;
+      expect((call['flatPaths'] as List), hasLength(3));
+      expect(call['biasOrDarkFlat'], '/cal/master_bias.fits');
+      expect(call['method'], 'sigmaClip');
+      expect(call['outputBitDepth'], 'f32');
 
-    // Row registered with the master flat metadata.
-    final entry = await dao.getEntryById(id);
-    expect(entry, isNotNull);
-    expect(entry!.filePath, '/cal/master_flat_L.fits');
-    expect(entry.filter, 'L');
-    expect(entry.masterFrameCount, 3);
-  });
+      // Row registered with the master flat metadata.
+      final entry = await dao.getEntryById(id);
+      expect(entry, isNotNull);
+      expect(entry!.filePath, '/cal/master_flat_L.fits');
+      expect(entry.filter, 'L');
+      expect(entry.masterFrameCount, 3);
+    },
+  );
 
   test('empty flat list is a hard error', () async {
     expect(
@@ -62,8 +64,7 @@ void main() {
     );
   });
 
-  test('findBestMatch honors filter + binning + temperature tolerance',
-      () async {
+  test('findBestMatch honors filter + binning + temperature tolerance', () async {
     await dao.addEntry(
       filePath: '/cal/flat_L_cold.fits',
       filter: 'L',

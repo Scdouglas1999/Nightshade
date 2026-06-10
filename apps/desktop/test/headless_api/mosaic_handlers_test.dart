@@ -24,24 +24,25 @@ void main() {
     });
 
     Map<String, Object?> config() => {
-          'centerRa': 12.0,
-          'centerDec': 30.0,
-          'panelWidthArcmin': 60.0,
-          'panelHeightArcmin': 40.0,
-          'overlapPercent': 10.0,
-          'panelsHorizontal': 2,
-          'panelsVertical': 2,
-        };
+      'centerRa': 12.0,
+      'centerDec': 30.0,
+      'panelWidthArcmin': 60.0,
+      'panelHeightArcmin': 40.0,
+      'overlapPercent': 10.0,
+      'panelsHorizontal': 2,
+      'panelsVertical': 2,
+    };
 
     test('generate panels returns JSON helper response', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGeneratePanels(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/mosaic/generate-panels'),
-          body: jsonEncode({'config': config()}),
+      final response = await translateHandlerErrors(
+        handlers.handleGeneratePanels(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/mosaic/generate-panels'),
+            body: jsonEncode({'config': config()}),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -52,14 +53,15 @@ void main() {
     });
 
     test('calculate area returns total panel metadata as JSON', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCalculateArea(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/mosaic/calculate-area'),
-          body: jsonEncode({'config': config()}),
+      final response = await translateHandlerErrors(
+        handlers.handleCalculateArea(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/mosaic/calculate-area'),
+            body: jsonEncode({'config': config()}),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -69,17 +71,20 @@ void main() {
     });
 
     test('invalid payload returns JSON internal server error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleValidateMosaic(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/mosaic/validate'),
-          body: jsonEncode({'config': {}}),
+      final response = await translateHandlerErrors(
+        handlers.handleValidateMosaic(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/mosaic/validate'),
+            body: jsonEncode({'config': {}}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -109,13 +114,14 @@ void main() {
       addTearDown(scoped.dispose);
 
       final scopedHandlers = MosaicHandlers(scoped);
-      final response =
-          await translateHandlerErrors(scopedHandlers.handleRecommendExposure(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/mosaic/recommended-exposure'),
+      final response = await translateHandlerErrors(
+        scopedHandlers.handleRecommendExposure(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/mosaic/recommended-exposure'),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;

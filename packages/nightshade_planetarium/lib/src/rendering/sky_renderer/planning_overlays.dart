@@ -57,9 +57,7 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
     final altitudes = <double>[];
     var maxAlt = -90.0;
     for (var i = 0; i <= samples; i++) {
-      final t = localNoon.add(
-        Duration(minutes: (24 * 60 * i ~/ samples)),
-      );
+      final t = localNoon.add(Duration(minutes: (24 * 60 * i ~/ samples)));
       final lst = AstronomyCalculations.localSiderealTime(t, longitude);
       final (alt, _) = AstronomyCalculations.equatorialToHorizontal(
         raDeg: raDeg,
@@ -92,10 +90,7 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
 
     // Panel background for readability over a busy star field.
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        panel.shift(shift),
-        const Radius.circular(4),
-      ),
+      RRect.fromRectAndRadius(panel.shift(shift), const Radius.circular(4)),
       Paint()..color = const Color(0xCC0A0A12),
     );
 
@@ -145,8 +140,7 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
     );
 
     // "Now" marker on the curve.
-    final nowFrac =
-        observationTime.difference(localNoon).inMinutes / (24 * 60);
+    final nowFrac = observationTime.difference(localNoon).inMinutes / (24 * 60);
     if (nowFrac >= 0 && nowFrac <= 1) {
       final nowX = o.dx + nowFrac * trackWidth;
       canvas.drawLine(
@@ -282,10 +276,7 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
         fontWeight: FontWeight.w500,
       ),
     );
-    dawnTp.paint(
-      canvas,
-      Offset(left + width - dawnTp.width, top + height + 4),
-    );
+    dawnTp.paint(canvas, Offset(left + width - dawnTp.width, top + height + 4));
   }
 
   /// Format a [DateTime] as zero-padded local HH:MM.

@@ -161,7 +161,8 @@ class _CalibratedAnnotatedRow extends StatelessWidget {
     final busy = state.busy;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stacked = constraints.maxWidth < NightshadeTokens.breakpointTablet;
+        final stacked =
+            constraints.maxWidth < NightshadeTokens.breakpointTablet;
         final cards = [
           _ActionCard(
             icon: NightshadeIcons.star,

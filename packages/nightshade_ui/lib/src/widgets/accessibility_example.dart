@@ -159,10 +159,7 @@ class _AccessibilityExampleScreenState
               Text(
                 'This screen demonstrates accessibility features including '
                 'keyboard navigation, screen reader support, and user-friendly error handling.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: colors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 14, color: colors.textSecondary),
               ),
 
               const SizedBox(height: 32),
@@ -242,8 +239,9 @@ class _AccessibilityExampleScreenState
                       labelText: 'Name',
                       labelStyle: TextStyle(color: colors.textMuted),
                       hintText: 'Enter your name',
-                      hintStyle:
-                          TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                      hintStyle: TextStyle(
+                        color: colors.textMuted.withValues(alpha: 0.5),
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -324,15 +322,20 @@ class _AccessibilityExampleScreenState
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: colors.primary.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.accessibility_new,
-                            color: colors.primary, size: 20),
+                        Icon(
+                          Icons.accessibility_new,
+                          color: colors.primary,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Accessibility Features',
@@ -386,10 +389,7 @@ class _AccessibilityExampleScreenState
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
         ],

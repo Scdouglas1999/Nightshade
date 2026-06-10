@@ -160,7 +160,9 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
                 const SizedBox(height: 8),
                 Text(
                   'Add targets and capture images to track multi-night progress.',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize13,
+                      color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -339,7 +341,8 @@ class _CleanupHeaderRow extends ConsumerWidget {
           icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
           label: Text(
             'Remove untracked targets ($count)',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12, color: colors.error),
           ),
         ),
       ),
@@ -473,7 +476,9 @@ class _SummaryStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted),
           textAlign: TextAlign.center,
         ),
       ],
@@ -504,7 +509,9 @@ class _SortBar extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           'Sort by:',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary),
         ),
         const SizedBox(width: 8),
         _sortChip('Completion', ProjectSortMode.completion),
@@ -527,10 +534,12 @@ class _SortBar extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
@@ -585,15 +594,16 @@ class _EnhancedProjectCard extends ConsumerWidget {
               designMaxWidth: 420,
             ),
             child: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: l10n.text('analyticsGoalHours'),
-              hintText: 'e.g. 10.0',
-              suffixText: 'hours',
+              controller: controller,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: l10n.text('analyticsGoalHours'),
+                hintText: 'e.g. 10.0',
+                suffixText: 'hours',
+              ),
             ),
-          ),
           ),
           actions: [
             TextButton(
@@ -712,7 +722,8 @@ class _EnhancedProjectCard extends ConsumerWidget {
                     progress.isTracked
                         ? l10n.text('analyticsEditGoal')
                         : l10n.text('analyticsSetGoal'),
-                    style: const TextStyle(fontSize: NightshadeTypography.fontSize12),
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize12),
                   ),
                 ),
               ],
@@ -726,7 +737,8 @@ class _EnhancedProjectCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusSm),
                       child: LinearProgressIndicator(
                         value: progress.completionFraction,
                         minHeight: 10,
@@ -811,7 +823,9 @@ class _EnhancedProjectCard extends ConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 'Last imaged: ${DateFormat('MMM d, yyyy HH:mm').format(progress.lastSessionAt!)}',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ],
           ],
@@ -850,7 +864,9 @@ class _MetricChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textMuted),
             ),
             Text(
               value,

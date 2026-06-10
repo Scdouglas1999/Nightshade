@@ -110,11 +110,10 @@ class ConversationalHistoryService {
   final Uuid _uuid;
   bool _schemaEnsured = false;
 
-  final StreamController<void> _mutations =
-      StreamController<void>.broadcast();
+  final StreamController<void> _mutations = StreamController<void>.broadcast();
 
   ConversationalHistoryService(this._db, {Uuid? uuid})
-      : _uuid = uuid ?? const Uuid();
+    : _uuid = uuid ?? const Uuid();
 
   Stream<void> get mutationStream => _mutations.stream;
 
@@ -203,11 +202,13 @@ class ConversationalHistoryService {
   /// Fetch the most recent N entries, newest first.
   Future<List<ConversationalHistoryEntry>> recent({int limit = 50}) async {
     await _ensureSchema();
-    final rows = await _db.customSelect(
-      'SELECT * FROM conversational_builds '
-      'ORDER BY created_at DESC LIMIT ?',
-      variables: [Variable.withInt(limit)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM conversational_builds '
+          'ORDER BY created_at DESC LIMIT ?',
+          variables: [Variable.withInt(limit)],
+        )
+        .get();
     return rows.map(_rowToEntry).toList();
   }
 
@@ -244,7 +245,8 @@ class ConversationalHistoryService {
     return ConversationalHistoryEntry(
       id: row.read<String>('id'),
       createdAt: DateTime.fromMillisecondsSinceEpoch(
-          row.read<int>('created_at')),
+        row.read<int>('created_at'),
+      ),
       userPrompt: row.read<String>('user_prompt'),
       providerName: row.read<String>('provider_name'),
       providerKind: row.read<String>('provider_kind'),

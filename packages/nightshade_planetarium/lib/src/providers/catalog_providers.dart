@@ -12,7 +12,7 @@ class CatalogState {
   final bool isDownloading;
   final double downloadProgress;
   final String? downloadError;
-  
+
   const CatalogState({
     this.starCatalogStatus = const CatalogStatus(isInstalled: false),
     this.dsoCatalogStatus = const CatalogStatus(isInstalled: false),
@@ -21,16 +21,16 @@ class CatalogState {
     this.downloadProgress = 0,
     this.downloadError,
   });
-  
-  bool get catalogsInstalled => 
-    starCatalogStatus.isInstalled && dsoCatalogStatus.isInstalled;
-  
-  bool get anyCatalogInstalled => 
-    starCatalogStatus.isInstalled || dsoCatalogStatus.isInstalled;
-  
+
+  bool get catalogsInstalled =>
+      starCatalogStatus.isInstalled && dsoCatalogStatus.isInstalled;
+
+  bool get anyCatalogInstalled =>
+      starCatalogStatus.isInstalled || dsoCatalogStatus.isInstalled;
+
   int get totalStarCount => starCatalogStatus.objectCount ?? 0;
   int get totalDsoCount => dsoCatalogStatus.objectCount ?? 0;
-  
+
   CatalogState copyWith({
     CatalogStatus? starCatalogStatus,
     CatalogStatus? dsoCatalogStatus,
@@ -53,7 +53,7 @@ class CatalogState {
 /// Notifier for managing catalog state
 class CatalogStateNotifier extends StateNotifier<CatalogState> {
   CatalogStateNotifier() : super(const CatalogState());
-  
+
   /// Initialize the catalog manager and check status
   Future<void> initialize(String catalogDirectory) async {
     try {
@@ -67,13 +67,13 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
       );
     }
   }
-  
+
   /// Refresh catalog status
   Future<void> refreshStatus() async {
     try {
       final starStatus = await CatalogManager.instance.getStarCatalogStatus();
       final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
-      
+
       state = state.copyWith(
         starCatalogStatus: starStatus,
         dsoCatalogStatus: dsoStatus,
@@ -83,7 +83,7 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
       state = state.copyWith(downloadError: 'Failed to check status: $e');
     }
   }
-  
+
   /// Download catalogs with the specified package
   Future<bool> downloadCatalogs(CatalogPackage package) async {
     state = state.copyWith(
@@ -91,22 +91,20 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
       downloadProgress: 0,
       downloadError: null,
     );
-    
+
     try {
       // Download star catalog
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
         package: package,
         onProgress: (progress) {
-          state = state.copyWith(
-            downloadProgress: progress.progress * 0.5,
-          );
+          state = state.copyWith(downloadProgress: progress.progress * 0.5);
         },
       );
-      
+
       if (!starSuccess) {
         throw Exception('Star catalog download failed');
       }
-      
+
       // Download DSO catalog
       final dsoSuccess = await CatalogManager.instance.downloadDsoCatalog(
         package: package,
@@ -116,27 +114,21 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
           );
         },
       );
-      
+
       if (!dsoSuccess) {
         throw Exception('DSO catalog download failed');
       }
-      
+
       await refreshStatus();
-      state = state.copyWith(
-        isDownloading: false,
-        downloadProgress: 1.0,
-      );
-      
+      state = state.copyWith(isDownloading: false, downloadProgress: 1.0);
+
       return true;
     } catch (e) {
-      state = state.copyWith(
-        isDownloading: false,
-        downloadError: e.toString(),
-      );
+      state = state.copyWith(isDownloading: false, downloadError: e.toString());
       return false;
     }
   }
-  
+
   /// Delete all catalogs
   Future<void> deleteCatalogs() async {
     await CatalogManager.instance.deleteCatalogs();
@@ -145,9 +137,10 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
 }
 
 /// Provider for catalog state
-final catalogStateProvider = StateNotifierProvider<CatalogStateNotifier, CatalogState>(
-  (ref) => CatalogStateNotifier(),
-);
+final catalogStateProvider =
+    StateNotifierProvider<CatalogStateNotifier, CatalogState>(
+      (ref) => CatalogStateNotifier(),
+    );
 
 /// Provider for whether catalogs need to be downloaded
 final catalogsNeedDownloadProvider = Provider<bool>((ref) {
@@ -190,14 +183,20 @@ final dsoCountProvider = FutureProvider<int>((ref) async {
 });
 
 /// Provider for searching stars
-final starSearchProvider = FutureProvider.family<List<Star>, String>((ref, query) async {
+final starSearchProvider = FutureProvider.family<List<Star>, String>((
+  ref,
+  query,
+) async {
   if (query.isEmpty) return [];
   final catalog = ref.watch(starCatalogProvider);
   return catalog.search(query);
 });
 
 /// Provider for searching DSOs
-final dsoSearchProvider = FutureProvider.family<List<DeepSkyObject>, String>((ref, query) async {
+final dsoSearchProvider = FutureProvider.family<List<DeepSkyObject>, String>((
+  ref,
+  query,
+) async {
   if (query.isEmpty) return [];
   final catalog = ref.watch(dsoCatalogProvider);
   return catalog.search(query);
@@ -220,8 +219,3 @@ final visibleDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
   final catalog = ref.watch(dsoCatalogProvider);
   return catalog.getByMagnitude(10.0);
 });
-
-
-
-
-

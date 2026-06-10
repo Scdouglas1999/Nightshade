@@ -31,9 +31,9 @@ void main() {
 
     setUp(() {
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      container = ProviderContainer(overrides: [
-        databaseProvider.overrideWithValue(db),
-      ]);
+      container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
     });
 
     tearDown(() async {
@@ -49,11 +49,15 @@ void main() {
       final defaults = container.read(sequencerDefaultsProvider);
       expect(defaults.livestackingDefaultPort, 8081);
       expect(defaults.livestackingPublicByDefault, isFalse);
-      expect(defaults.livestackingDefaultStackMethod,
-          LiveStackingMethod.average);
+      expect(
+        defaults.livestackingDefaultStackMethod,
+        LiveStackingMethod.average,
+      );
       expect(defaults.livestackingDefaultWatermark, isNull);
-      expect(defaults.livestackingDefaultThumbnailSize,
-          LiveStackingThumbnailSize.medium);
+      expect(
+        defaults.livestackingDefaultThumbnailSize,
+        LiveStackingThumbnailSize.medium,
+      );
       expect(defaults.livestackingDisableEverywhere, isFalse);
     });
 
@@ -73,29 +77,34 @@ void main() {
       final after = container.read(sequencerDefaultsProvider);
       expect(after.livestackingDefaultPort, 9090);
       expect(after.livestackingPublicByDefault, isTrue);
-      expect(after.livestackingDefaultStackMethod,
-          LiveStackingMethod.medianRej);
-      expect(after.livestackingDefaultWatermark,
-          r'M31 — L ${integration.hms}');
-      expect(after.livestackingDefaultThumbnailSize,
-          LiveStackingThumbnailSize.large);
+      expect(
+        after.livestackingDefaultStackMethod,
+        LiveStackingMethod.medianRej,
+      );
+      expect(after.livestackingDefaultWatermark, r'M31 — L ${integration.hms}');
+      expect(
+        after.livestackingDefaultThumbnailSize,
+        LiveStackingThumbnailSize.large,
+      );
       expect(after.livestackingDisableEverywhere, isTrue);
 
       // Verify the SettingsDao persisted everything verbatim.
       final dao = container.read(settingsDaoProvider);
       expect(await dao.getSetting('livestacking_default_port'), '9090');
+      expect(await dao.getSetting('livestacking_public_by_default'), 'true');
       expect(
-          await dao.getSetting('livestacking_public_by_default'), 'true');
-      expect(await dao.getSetting('livestacking_default_stack_method'),
-          'median_rej');
+        await dao.getSetting('livestacking_default_stack_method'),
+        'median_rej',
+      );
       expect(
         await dao.getSetting('livestacking_default_watermark'),
         r'M31 — L ${integration.hms}',
       );
-      expect(await dao.getSetting('livestacking_default_thumbnail_size'),
-          'large');
-      expect(await dao.getSetting('livestacking_disable_everywhere'),
-          'true');
+      expect(
+        await dao.getSetting('livestacking_default_thumbnail_size'),
+        'large',
+      );
+      expect(await dao.getSetting('livestacking_disable_everywhere'), 'true');
     });
 
     test('clearing watermark to null persists as empty string', () async {
@@ -103,14 +112,14 @@ void main() {
       final notifier = container.read(sequencerDefaultsProvider.notifier);
       await notifier.updateLiveStackingDefaults(defaultWatermark: 'hello');
       expect(
-          container.read(sequencerDefaultsProvider)
-              .livestackingDefaultWatermark,
-          'hello');
+        container.read(sequencerDefaultsProvider).livestackingDefaultWatermark,
+        'hello',
+      );
       await notifier.updateLiveStackingDefaults(defaultWatermark: null);
       expect(
-          container.read(sequencerDefaultsProvider)
-              .livestackingDefaultWatermark,
-          isNull);
+        container.read(sequencerDefaultsProvider).livestackingDefaultWatermark,
+        isNull,
+      );
       // Persisted empty-string sentinel for "cleared".
       final dao = container.read(settingsDaoProvider);
       expect(await dao.getSetting('livestacking_default_watermark'), '');
@@ -120,14 +129,17 @@ void main() {
   group('LiveStackingThumbnailSize', () {
     test('storageKey round-trips through fromStorageKey', () {
       for (final size in LiveStackingThumbnailSize.values) {
-        expect(LiveStackingThumbnailSize.fromStorageKey(size.storageKey),
-            size);
+        expect(LiveStackingThumbnailSize.fromStorageKey(size.storageKey), size);
       }
       // Unknown key falls back to medium (defence-in-depth).
-      expect(LiveStackingThumbnailSize.fromStorageKey('hd-bogus'),
-          LiveStackingThumbnailSize.medium);
-      expect(LiveStackingThumbnailSize.fromStorageKey(null),
-          LiveStackingThumbnailSize.medium);
+      expect(
+        LiveStackingThumbnailSize.fromStorageKey('hd-bogus'),
+        LiveStackingThumbnailSize.medium,
+      );
+      expect(
+        LiveStackingThumbnailSize.fromStorageKey(null),
+        LiveStackingThumbnailSize.medium,
+      );
     });
 
     test('label includes the pixel dimensions', () {

@@ -243,13 +243,11 @@ void main() {
       expect(
         find.textContaining('No defect map for $cameraName at -10.0C'),
         findsOneWidget,
-        reason:
-            'Empty-state copy should name the connected camera and the '
+        reason: 'Empty-state copy should name the connected camera and the '
             'current temperature bucket.',
       );
       expect(
-        find.textContaining(
-            'Capture 20+ dark frames at this temperature'),
+        find.textContaining('Capture 20+ dark frames at this temperature'),
         findsOneWidget,
         reason: 'Build-from-darks hint must be visible.',
       );

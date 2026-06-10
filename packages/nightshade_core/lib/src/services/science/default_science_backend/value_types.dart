@@ -44,10 +44,7 @@ class _QualityResult {
   final ScienceFrameQualityMetrics frame;
   final List<ScienceTileMetric> tiles;
 
-  const _QualityResult({
-    required this.frame,
-    required this.tiles,
-  });
+  const _QualityResult({required this.frame, required this.tiles});
 }
 
 final scienceBackendProvider = Provider<ScienceBackend>((ref) {
@@ -110,10 +107,7 @@ class ScienceCalibrationError implements Exception {
 /// Error codes emitted by line-ratio computation when the inputs cannot
 /// produce a meaningful ratio. The UI must render an explicit error tile;
 /// fake-zero ratios must never be persisted.
-enum LineRatioErrorCode {
-  dimensionMismatch,
-  emptyPixelData,
-}
+enum LineRatioErrorCode { dimensionMismatch, emptyPixelData }
 
 class LineRatioError implements Exception {
   final LineRatioErrorCode code;

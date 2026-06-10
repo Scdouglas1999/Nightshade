@@ -257,31 +257,33 @@ void main() {
   });
 
   group('computeMeridianCountdown — tracking-limit methods are Rust-owned', () {
-    test('(e) minutesBeforeLimit -> timeToFlip null + sequencer-owned reason',
-        () {
-      final result = computeMeridianCountdown(
-        mount: _mountAtHourAngle(-1.0),
-        longitude: _longitude,
-        latitude: _latitude,
-        settings: const MeridianFlipSettings(
-          triggerMethod: MeridianTriggerMethod.minutesBeforeLimit,
-        ),
-        execState: SequenceExecutionState.idle,
-        enabled: true,
-        nowUtc: _fixedNowUtc,
-      );
+    test(
+      '(e) minutesBeforeLimit -> timeToFlip null + sequencer-owned reason',
+      () {
+        final result = computeMeridianCountdown(
+          mount: _mountAtHourAngle(-1.0),
+          longitude: _longitude,
+          latitude: _latitude,
+          settings: const MeridianFlipSettings(
+            triggerMethod: MeridianTriggerMethod.minutesBeforeLimit,
+          ),
+          execState: SequenceExecutionState.idle,
+          enabled: true,
+          nowUtc: _fixedNowUtc,
+        );
 
-      // Armed (preconditions met) but no Dart-computable countdown.
-      expect(result.isArmed, isTrue);
-      expect(result.timeToFlip, isNull);
-      expect(result.isSequencerOwned, isTrue);
-      expect(
-        result.disabledReason,
-        'Monitored by sequencer (tracking-limit method)',
-      );
-      // HA is still computed for display.
-      expect(result.hourAngleHours, closeTo(-1.0, 1e-6));
-    });
+        // Armed (preconditions met) but no Dart-computable countdown.
+        expect(result.isArmed, isTrue);
+        expect(result.timeToFlip, isNull);
+        expect(result.isSequencerOwned, isTrue);
+        expect(
+          result.disabledReason,
+          'Monitored by sequencer (tracking-limit method)',
+        );
+        // HA is still computed for display.
+        expect(result.hourAngleHours, closeTo(-1.0, 1e-6));
+      },
+    );
 
     test('onTrackingLimitHit -> timeToFlip null + sequencer-owned', () {
       final result = computeMeridianCountdown(
@@ -308,27 +310,28 @@ void main() {
 
   group('computeMeridianCountdown — sequence ownership', () {
     test(
-        '(f) sequence running -> isSequencerOwned true but countdown still shown',
-        () {
-      final result = computeMeridianCountdown(
-        mount: _mountAtHourAngle(-0.1),
-        longitude: _longitude,
-        latitude: _latitude,
-        settings: const MeridianFlipSettings(
-          triggerMethod: MeridianTriggerMethod.minutesPastMeridian,
-          minutesPastMeridian: 5.0,
-        ),
-        execState: SequenceExecutionState.running,
-        enabled: true,
-        nowUtc: _fixedNowUtc,
-      );
+      '(f) sequence running -> isSequencerOwned true but countdown still shown',
+      () {
+        final result = computeMeridianCountdown(
+          mount: _mountAtHourAngle(-0.1),
+          longitude: _longitude,
+          latitude: _latitude,
+          settings: const MeridianFlipSettings(
+            triggerMethod: MeridianTriggerMethod.minutesPastMeridian,
+            minutesPastMeridian: 5.0,
+          ),
+          execState: SequenceExecutionState.running,
+          enabled: true,
+          nowUtc: _fixedNowUtc,
+        );
 
-      expect(result.isArmed, isTrue);
-      expect(result.isSequencerOwned, isTrue);
-      // Numeric countdown is STILL computed so the banner can show the timer.
-      expect(result.timeToFlip, isNotNull);
-      expect(result.disabledReason, isNull);
-    });
+        expect(result.isArmed, isTrue);
+        expect(result.isSequencerOwned, isTrue);
+        // Numeric countdown is STILL computed so the banner can show the timer.
+        expect(result.timeToFlip, isNotNull);
+        expect(result.disabledReason, isNull);
+      },
+    );
 
     test('paused sequence is also sequencer-owned', () {
       final result = computeMeridianCountdown(
@@ -471,18 +474,20 @@ void main() {
       expect(state.method, MeridianTriggerMethod.minutesPastMeridian);
     });
 
-    test('disconnected mount surfaces the disabled reason through the stream',
-        () async {
-      container = makeContainer(
-        mount: const MountState(
-          connectionState: DeviceConnectionState.disconnected,
-        ),
-      );
+    test(
+      'disconnected mount surfaces the disabled reason through the stream',
+      () async {
+        container = makeContainer(
+          mount: const MountState(
+            connectionState: DeviceConnectionState.disconnected,
+          ),
+        );
 
-      final state = await latestAfterSettingsLoad();
-      expect(state.isArmed, isFalse);
-      expect(state.disabledReason, 'Mount not connected');
-    });
+        final state = await latestAfterSettingsLoad();
+        expect(state.isArmed, isFalse);
+        expect(state.disabledReason, 'Mount not connected');
+      },
+    );
   });
 }
 

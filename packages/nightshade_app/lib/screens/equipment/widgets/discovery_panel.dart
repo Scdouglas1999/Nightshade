@@ -339,7 +339,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
                   final expandControl = InkWell(
                     onTap: _toggleExpanded,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                     child: Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: compact ? 8 : 10,
@@ -347,7 +348,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                       ),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         border: Border.all(color: colors.border),
                       ),
                       child: Row(
@@ -356,7 +358,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                           if (!compact) ...[
                             Text(
                               _isExpanded ? 'Collapse' : 'Expand',
-                              style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
+                              style: NightshadeTypography.labelQuiet
+                                  .copyWith(color: colors.textSecondary),
                             ),
                             const SizedBox(width: 4),
                           ],

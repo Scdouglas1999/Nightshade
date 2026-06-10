@@ -800,8 +800,7 @@ class IntegrationSettings {
       reject: RejectAlgorithm.auto,
       rejectLow: wantsPercentile ? 0.2 : base.rejectLow,
       rejectHigh: wantsPercentile ? 0.1 : base.rejectHigh,
-      normalization:
-          longNight ? NormalizationMode.local : base.normalization,
+      normalization: longNight ? NormalizationMode.local : base.normalization,
       // Pristine-master-by-default: NO destructive post-stacking processing is
       // enabled here (background extraction, colour calibration, deconvolution,
       // star reduction, drizzle, narrowband all stay OFF). They are opt-in and
@@ -893,8 +892,9 @@ class IntegrationSettings {
       outputBitDepth: outputBitDepth ?? this.outputBitDepth,
       autoCull: autoCull ?? this.autoCull,
       cullPercentile: cullPercentile ?? this.cullPercentile,
-      sourcePreset:
-          clearSourcePreset ? null : (sourcePreset ?? this.sourcePreset),
+      sourcePreset: clearSourcePreset
+          ? null
+          : (sourcePreset ?? this.sourcePreset),
       drizzle: drizzle ?? this.drizzle,
       drizzleScale: drizzleScale ?? this.drizzleScale,
       drizzlePixfrac: drizzlePixfrac ?? this.drizzlePixfrac,
@@ -915,8 +915,9 @@ class IntegrationSettings {
       colorCalibrate: colorCalibrate ?? this.colorCalibrate,
       whiteRefBv: whiteRefBv ?? this.whiteRefBv,
       narrowbandPalette: narrowbandPalette ?? this.narrowbandPalette,
-      customWeights:
-          clearCustomWeights ? null : (customWeights ?? this.customWeights),
+      customWeights: clearCustomWeights
+          ? null
+          : (customWeights ?? this.customWeights),
     );
   }
 
@@ -983,9 +984,7 @@ class IntegrationSettings {
         'deconvolution': {
           'enabled': deconvolve,
           'estimatePsf': psfKind == PsfKind.empirical,
-          'psf': {
-            'kind': psfKind.wire,
-          },
+          'psf': {'kind': psfKind.wire},
           'config': {
             'iterations': deconIterations,
             'regularization': deconRegularization,
@@ -1108,8 +1107,10 @@ class IntegrationSettings {
       snrPow: pickNum('snrPow', d.snrPow),
       fwhmPow: pickNum('fwhmPow', d.fwhmPow),
       eccPow: pickNum('eccPow', d.eccPow),
-      normalizationEnabled:
-          pick<bool>('normalizationEnabled', d.normalizationEnabled),
+      normalizationEnabled: pick<bool>(
+        'normalizationEnabled',
+        d.normalizationEnabled,
+      ),
       normalization: json.containsKey('normalization')
           ? NormalizationMode.fromWire(json['normalization'] as String)
           : d.normalization,
@@ -1125,17 +1126,22 @@ class IntegrationSettings {
       rejectHigh: pickNum('rejectHigh', d.rejectHigh),
       minMaxLow: pick<int>('minMaxLow', d.minMaxLow),
       minMaxHigh: pick<int>('minMaxHigh', d.minMaxHigh),
-      generateRejectionMap:
-          pick<bool>('generateRejectionMap', d.generateRejectionMap),
-      cosmeticCorrection:
-          pick<bool>('cosmeticCorrection', d.cosmeticCorrection),
+      generateRejectionMap: pick<bool>(
+        'generateRejectionMap',
+        d.generateRejectionMap,
+      ),
+      cosmeticCorrection: pick<bool>(
+        'cosmeticCorrection',
+        d.cosmeticCorrection,
+      ),
       outputBitDepth: json.containsKey('outputBitDepth')
           ? OutputBitDepth.fromWire(json['outputBitDepth'] as String)
           : d.outputBitDepth,
       autoCull: pick<bool>('autoCull', d.autoCull),
       cullPercentile: pickNum('cullPercentile', d.cullPercentile),
-      sourcePreset:
-          presetWire is String ? IntegrationPreset.fromWire(presetWire) : null,
+      sourcePreset: presetWire is String
+          ? IntegrationPreset.fromWire(presetWire)
+          : null,
       drizzle: pick<bool>('drizzle', d.drizzle),
       drizzleScale: pickNum('drizzleScale', d.drizzleScale),
       drizzlePixfrac: pickNum('drizzlePixfrac', d.drizzlePixfrac),
@@ -1145,22 +1151,30 @@ class IntegrationSettings {
       bayerDrizzle: pick<bool>('bayerDrizzle', d.bayerDrizzle),
       deconvolve: pick<bool>('deconvolve', d.deconvolve),
       deconIterations: pick<int>('deconIterations', d.deconIterations),
-      deconRegularization:
-          pickNum('deconRegularization', d.deconRegularization),
+      deconRegularization: pickNum(
+        'deconRegularization',
+        d.deconRegularization,
+      ),
       psfKind: json.containsKey('psfKind')
           ? PsfKind.fromWire(json['psfKind'] as String)
           : d.psfKind,
       reduceStars: pick<bool>('reduceStars', d.reduceStars),
-      starReductionStrength:
-          pickNum('starReductionStrength', d.starReductionStrength),
+      starReductionStrength: pickNum(
+        'starReductionStrength',
+        d.starReductionStrength,
+      ),
       starReduceMethod: json.containsKey('starReduceMethod')
           ? StarReduceMethod.fromWire(json['starReduceMethod'] as String)
           : d.starReduceMethod,
       extractBackground: pick<bool>('extractBackground', d.extractBackground),
-      backgroundPolyDegree:
-          pick<int>('backgroundPolyDegree', d.backgroundPolyDegree),
-      backgroundPreserveMean:
-          pick<bool>('backgroundPreserveMean', d.backgroundPreserveMean),
+      backgroundPolyDegree: pick<int>(
+        'backgroundPolyDegree',
+        d.backgroundPolyDegree,
+      ),
+      backgroundPreserveMean: pick<bool>(
+        'backgroundPreserveMean',
+        d.backgroundPreserveMean,
+      ),
       colorCalibrate: pick<bool>('colorCalibrate', d.colorCalibrate),
       whiteRefBv: pickNum('whiteRefBv', d.whiteRefBv),
       narrowbandPalette: json.containsKey('narrowbandPalette')
@@ -1257,55 +1271,57 @@ class IntegrationSettings {
 
   @override
   int get hashCode => Object.hashAll([
-        model,
-        resampler,
-        ransacThresholdPx,
-        maxRefStars,
-        weightingEnabled,
-        weighting,
-        snrPow,
-        fwhmPow,
-        eccPow,
-        normalizationEnabled,
-        normalization,
-        localRows,
-        localCols,
-        combine,
-        reject,
-        rejectLow,
-        rejectHigh,
-        minMaxLow,
-        minMaxHigh,
-        generateRejectionMap,
-        cosmeticCorrection,
-        outputBitDepth,
-        autoCull,
-        cullPercentile,
-        sourcePreset,
-        drizzle,
-        drizzleScale,
-        drizzlePixfrac,
-        drizzleKernel,
-        bayerDrizzle,
-        deconvolve,
-        deconIterations,
-        deconRegularization,
-        psfKind,
-        reduceStars,
-        starReductionStrength,
-        starReduceMethod,
-        extractBackground,
-        backgroundPolyDegree,
-        backgroundPreserveMean,
-        colorCalibrate,
-        whiteRefBv,
-        narrowbandPalette,
-        _customWeightsHash(customWeights),
-      ]);
+    model,
+    resampler,
+    ransacThresholdPx,
+    maxRefStars,
+    weightingEnabled,
+    weighting,
+    snrPow,
+    fwhmPow,
+    eccPow,
+    normalizationEnabled,
+    normalization,
+    localRows,
+    localCols,
+    combine,
+    reject,
+    rejectLow,
+    rejectHigh,
+    minMaxLow,
+    minMaxHigh,
+    generateRejectionMap,
+    cosmeticCorrection,
+    outputBitDepth,
+    autoCull,
+    cullPercentile,
+    sourcePreset,
+    drizzle,
+    drizzleScale,
+    drizzlePixfrac,
+    drizzleKernel,
+    bayerDrizzle,
+    deconvolve,
+    deconIterations,
+    deconRegularization,
+    psfKind,
+    reduceStars,
+    starReductionStrength,
+    starReduceMethod,
+    extractBackground,
+    backgroundPolyDegree,
+    backgroundPreserveMean,
+    colorCalibrate,
+    whiteRefBv,
+    narrowbandPalette,
+    _customWeightsHash(customWeights),
+  ]);
 
   /// Order-sensitive deep equality for the optional custom-weight table.
   static bool _customWeightsEqual(
-      List<List<double>>? a, List<List<double>>? b) {
+    List<List<double>>? a,
+    List<List<double>>? b,
+  ) {
     if (identical(a, b)) return true;
     if (a == null || b == null || a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {

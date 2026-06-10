@@ -165,9 +165,7 @@ class SequenceManagementHandlers {
     final database = container.read(databaseProvider);
     final nodes = await database.sequencesDao.getNodesForSequence(sequenceId);
 
-    return jsonOk({
-      'nodes': nodes.map((n) => _nodeToJson(n)).toList(),
-    });
+    return jsonOk({'nodes': nodes.map((n) => _nodeToJson(n)).toList()});
   }
 
   // ===========================================================================
@@ -219,10 +217,12 @@ class SequenceManagementHandlers {
     // update semantics.
     final updated = existing.copyWith(
       name: optionalString(payload, 'name') ?? existing.name,
-      description:
-          Value(optionalString(payload, 'description') ?? existing.description),
-      rootNodeId:
-          Value(optionalString(payload, 'rootNodeId') ?? existing.rootNodeId),
+      description: Value(
+        optionalString(payload, 'description') ?? existing.description,
+      ),
+      rootNodeId: Value(
+        optionalString(payload, 'rootNodeId') ?? existing.rootNodeId,
+      ),
       isTemplate: optionalBool(payload, 'isTemplate') ?? existing.isTemplate,
       updatedAt: DateTime.now(),
     );
@@ -268,11 +268,15 @@ class SequenceManagementHandlers {
     final sequenceId = _parsePathId(id, 'id');
     final payload = await readJsonObject(request);
     final newName =
-        optionalString(payload, 'newName') ?? optionalString(payload, 'name') ?? 'Copy';
+        optionalString(payload, 'newName') ??
+        optionalString(payload, 'name') ??
+        'Copy';
     final database = container.read(databaseProvider);
 
-    final newId =
-        await database.sequencesDao.duplicateSequence(sequenceId, newName);
+    final newId = await database.sequencesDao.duplicateSequence(
+      sequenceId,
+      newName,
+    );
 
     notifySequenceCatalogChangedFromContainer(
       container,
@@ -346,9 +350,11 @@ class SequenceManagementHandlers {
           optionalString(payload, 'specificType') ?? existing.specificType,
       properties: updatedProperties,
       recoveryConfig: Value(
-          optionalString(payload, 'recoveryConfig') ?? existing.recoveryConfig),
+        optionalString(payload, 'recoveryConfig') ?? existing.recoveryConfig,
+      ),
       parentNodeId: Value(
-          optionalString(payload, 'parentNodeId') ?? existing.parentNodeId),
+        optionalString(payload, 'parentNodeId') ?? existing.parentNodeId,
+      ),
       orderIndex: optionalInt(payload, 'orderIndex') ?? existing.orderIndex,
       isEnabled: optionalBool(payload, 'isEnabled') ?? existing.isEnabled,
     );
@@ -393,7 +399,9 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleReorderNodes(
-      Request request, String sequenceId) async {
+    Request request,
+    String sequenceId,
+  ) async {
     _logInfo('[API] POST /api/sequence-management/$sequenceId/reorder');
     final seqId = _parsePathId(sequenceId, 'sequenceId');
     final payload = await readJsonObject(request);
@@ -439,17 +447,21 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleGetChildNodes(
-      Request request, String sequenceId, String parentNodeId) async {
+    Request request,
+    String sequenceId,
+    String parentNodeId,
+  ) async {
     _logInfo(
-        '[API] GET /api/sequence-management/$sequenceId/nodes/$parentNodeId/children');
+      '[API] GET /api/sequence-management/$sequenceId/nodes/$parentNodeId/children',
+    );
     final seqId = _parsePathId(sequenceId, 'sequenceId');
     final database = container.read(databaseProvider);
-    final nodes =
-        await database.sequencesDao.getChildNodes(seqId, parentNodeId);
+    final nodes = await database.sequencesDao.getChildNodes(
+      seqId,
+      parentNodeId,
+    );
 
-    return jsonOk({
-      'nodes': nodes.map((n) => _nodeToJson(n)).toList(),
-    });
+    return jsonOk({'nodes': nodes.map((n) => _nodeToJson(n)).toList()});
   }
 
   // ===========================================================================

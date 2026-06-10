@@ -1,7 +1,7 @@
 part of '../snippet_palette.dart';
 
 extension _SnippetPaletteActions on _SnippetPaletteState {
-void _showCreateSnippetDialog() {
+  void _showCreateSnippetDialog() {
     final selectedNodeId = ref.read(selectedNodeIdProvider);
     final sequence = ref.read(currentSequenceProvider);
 
@@ -73,7 +73,8 @@ void _showCreateSnippetDialog() {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -170,7 +171,8 @@ void _showCreateSnippetDialog() {
   Widget _buildDialogLabel(String text) {
     return Text(
       text,
-      style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary),
+      style: NightshadeTypography.labelSm
+          .copyWith(color: widget.colors.textSecondary),
     );
   }
 
@@ -249,12 +251,14 @@ void _showCreateSnippetDialog() {
             decoration: isSelected
                 ? NightshadeDecorations.selectedSurface(
                     widget.colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     fillAlpha: 0.2,
                   )
                 : BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: widget.colors.border),
                   ),
             child: Icon(
@@ -429,8 +433,7 @@ void _showCreateSnippetDialog() {
       if (!mounted) return;
       _showImportErrorDialog(
         title: 'Snippet file is invalid',
-        body:
-            'The snippet file could not be imported. Fix the following issue'
+        body: 'The snippet file could not be imported. Fix the following issue'
             '${e.issues.length == 1 ? '' : 's'} and try again:',
         issues: e.issues,
       );
@@ -499,8 +502,7 @@ void _showCreateSnippetDialog() {
       await Share.shareXFiles(
         [XFile(tmpPath, mimeType: 'application/json')],
         subject: snippet.name,
-        text:
-            'Nightshade snippet: ${snippet.name}\n\n${snippet.description}',
+        text: 'Nightshade snippet: ${snippet.name}\n\n${snippet.description}',
       );
     } catch (e) {
       if (!mounted) return;
@@ -568,7 +570,8 @@ void _showCreateSnippetDialog() {
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
                     border: Border.all(color: widget.colors.border),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(12),

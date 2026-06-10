@@ -19,7 +19,8 @@ extension _DeviceServiceAutofocusControls on DeviceService {
   }) async {
     if (_isAutofocusRunning) {
       throw Exception(
-          'Autofocus is already running. Wait for it to complete before starting another.');
+        'Autofocus is already running. Wait for it to complete before starting another.',
+      );
     }
     _isAutofocusRunning = true;
 
@@ -59,8 +60,9 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       // Settings not yet loaded from DB — don't silently fall back to hardcoded
       // defaults because the user's persisted configuration would be ignored.
       throw Exception(
-          'Cannot run autofocus with settings defaults: AppSettings not yet loaded. '
-          'Wait for the app to finish initializing before running autofocus.');
+        'Cannot run autofocus with settings defaults: AppSettings not yet loaded. '
+        'Wait for the app to finish initializing before running autofocus.',
+      );
     }
 
     if (useSettingsDefaults && appSettings != null) {
@@ -169,12 +171,14 @@ extension _DeviceServiceAutofocusControls on DeviceService {
 
       // Smart notification for autofocus completion
       final hfrText = result.bestHfr.toStringAsFixed(2);
-      _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+      _ref
+          .read(smartNotificationServiceProvider)
+          .showSuccessIfNotOnScreens(
             message: 'Autofocus complete (HFR: $hfrText)',
             relevantScreens: [
               AppScreen.imaging,
               AppScreen.equipment,
-              AppScreen.sequencer
+              AppScreen.sequencer,
             ],
             title: 'Autofocus',
           );
@@ -270,8 +274,9 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       );
       // Surface the consultation for the focus UI — the model used to
       // train and predict entirely silently.
-      _ref.read(lastPredictiveAfStatusProvider.notifier).state =
-          PredictiveAfStatus(
+      _ref
+          .read(lastPredictiveAfStatusProvider.notifier)
+          .state = PredictiveAfStatus(
         at: DateTime.now(),
         filterName: filterName,
         decision: decision,
@@ -283,7 +288,9 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       );
     } catch (e) {
       // Advisory-only: a model read failure must not block the real sweep.
-      _ref.read(loggingServiceProvider).warning(
+      _ref
+          .read(loggingServiceProvider)
+          .warning(
             'Predictive-AF consultation failed (continuing with real sweep): $e',
             source: 'DeviceService',
           );
@@ -350,8 +357,8 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       if (lastStatus != null &&
           lastStatus.filterName == context.filterName &&
           lastStatus.actualPosition == null) {
-        _ref.read(lastPredictiveAfStatusProvider.notifier).state =
-            lastStatus.withActual(result.bestPosition);
+        _ref.read(lastPredictiveAfStatusProvider.notifier).state = lastStatus
+            .withActual(result.bestPosition);
       }
 
       final predicted = context.predictedPosition;

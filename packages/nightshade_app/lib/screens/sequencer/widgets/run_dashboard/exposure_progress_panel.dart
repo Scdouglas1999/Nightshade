@@ -114,8 +114,7 @@ class RunDashboardExposureProgress extends ConsumerWidget {
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
                   borderRadius:
@@ -143,8 +142,7 @@ class RunDashboardExposureProgress extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceSm),
             Row(
               children: [
-                Icon(LucideIcons.hourglass,
-                    size: 11, color: colors.textMuted),
+                Icon(LucideIcons.hourglass, size: 11, color: colors.textMuted),
                 const SizedBox(width: 4),
                 Text(
                   '~${formatSeconds(seq.estimatedRemainingSecs!)} remaining',

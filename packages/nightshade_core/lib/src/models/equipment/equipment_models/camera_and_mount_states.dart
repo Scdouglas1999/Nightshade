@@ -101,23 +101,23 @@ class CameraStateSnapshot extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        temperature,
-        coolerPower,
-        targetTemp,
-        gain,
-        offset,
-        binning,
-        isCooling,
-        isWarming,
-        isExposing,
-        exposureProgress,
-        lastError,
-        lastSuccessfulCommunication,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    temperature,
+    coolerPower,
+    targetTemp,
+    gain,
+    offset,
+    binning,
+    isCooling,
+    isWarming,
+    isExposing,
+    exposureProgress,
+    lastError,
+    lastSuccessfulCommunication,
+    autoReconnectEnabled,
+  ];
 }
 
 /// Mount state
@@ -207,21 +207,21 @@ class MountState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        ra,
-        dec,
-        altitude,
-        azimuth,
-        isTracking,
-        isSlewing,
-        isParked,
-        sideOfPier,
-        trackingRate,
-        canSetTrackingRate,
-        canPark,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    ra,
+    dec,
+    altitude,
+    azimuth,
+    isTracking,
+    isSlewing,
+    isParked,
+    sideOfPier,
+    trackingRate,
+    canSetTrackingRate,
+    canPark,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }

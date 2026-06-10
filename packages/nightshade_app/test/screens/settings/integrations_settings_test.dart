@@ -316,7 +316,8 @@ void main() {
     expect(setCalls.first.$2, isFalse);
   });
 
-  testWidgets('toggling a switch transitions the LIVE PluginHost', (tester) async {
+  testWidgets('toggling a switch transitions the LIVE PluginHost',
+      (tester) async {
     // Real notifier + real DB (no fake): the switch must drive the host's
     // enabled state, not merely persist a bit. This is the regression the
     // review flagged — a disabled plugin used to keep running this session.
@@ -420,8 +421,8 @@ void main() {
     expect(pushoverConfigure, findsOneWidget);
 
     await tester.tap(pushoverConfigure);
-    await _pumpUntil(tester,
-        find.widgetWithText(NightshadeTextField, 'Application token'));
+    await _pumpUntil(
+        tester, find.widgetWithText(NightshadeTextField, 'Application token'));
 
     expect(find.text('Configure Pushover'), findsOneWidget);
     expect(find.widgetWithText(NightshadeTextField, 'Application token'),
@@ -449,8 +450,8 @@ void main() {
       matching: find.widgetWithText(NightshadeButton, 'Configure'),
     );
     await tester.tap(pushoverConfigure);
-    await _pumpUntil(tester,
-        find.widgetWithText(NightshadeTextField, 'Application token'));
+    await _pumpUntil(
+        tester, find.widgetWithText(NightshadeTextField, 'Application token'));
 
     await tester.enterText(
       find.widgetWithText(NightshadeTextField, 'Application token'),

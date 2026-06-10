@@ -139,7 +139,7 @@ class FakeNetworkClient implements http.Client {
     String endpoint, {
     String method = 'GET',
     required List<({int status, String body, Map<String, String>? headers})>
-        responses,
+    responses,
   }) {
     if (responses.isEmpty) {
       throw ArgumentError.value(responses, 'responses', 'must not be empty');
@@ -206,21 +206,23 @@ class FakeNetworkClient implements http.Client {
       bodyAsString = null;
     }
 
-    requests.add(RecordedRequest(
-      method: request.method.toUpperCase(),
-      url: request.url,
-      headers: Map<String, String>.from(request.headers),
-      body: bodyAsString,
-      bodyBytes: Uint8List.fromList(request.bodyBytes),
-    ));
+    requests.add(
+      RecordedRequest(
+        method: request.method.toUpperCase(),
+        url: request.url,
+        headers: Map<String, String>.from(request.headers),
+        body: bodyAsString,
+        bodyBytes: Uint8List.fromList(request.bodyBytes),
+      ),
+    );
 
     final key = _RouteKey(request.method.toUpperCase(), request.url.path);
     final sequence = _responseSequences[key];
     final canned = sequence == null
         ? _routes[key] ?? _defaultResponse
         : sequence.length > 1
-            ? sequence.removeAt(0)
-            : sequence.single;
+        ? sequence.removeAt(0)
+        : sequence.single;
     if (canned == null) {
       throw StateError(
         'FakeNetworkClient: no canned response for '
@@ -260,8 +262,7 @@ class FakeNetworkClient implements http.Client {
     Map<String, String>? headers,
     Object? body,
     Encoding? encoding,
-  }) =>
-      _inner.post(url, headers: headers, body: body, encoding: encoding);
+  }) => _inner.post(url, headers: headers, body: body, encoding: encoding);
 
   @override
   Future<http.Response> put(
@@ -269,8 +270,7 @@ class FakeNetworkClient implements http.Client {
     Map<String, String>? headers,
     Object? body,
     Encoding? encoding,
-  }) =>
-      _inner.put(url, headers: headers, body: body, encoding: encoding);
+  }) => _inner.put(url, headers: headers, body: body, encoding: encoding);
 
   @override
   Future<http.Response> patch(
@@ -278,8 +278,7 @@ class FakeNetworkClient implements http.Client {
     Map<String, String>? headers,
     Object? body,
     Encoding? encoding,
-  }) =>
-      _inner.patch(url, headers: headers, body: body, encoding: encoding);
+  }) => _inner.patch(url, headers: headers, body: body, encoding: encoding);
 
   @override
   Future<http.Response> delete(
@@ -287,8 +286,7 @@ class FakeNetworkClient implements http.Client {
     Map<String, String>? headers,
     Object? body,
     Encoding? encoding,
-  }) =>
-      _inner.delete(url, headers: headers, body: body, encoding: encoding);
+  }) => _inner.delete(url, headers: headers, body: body, encoding: encoding);
 
   @override
   Future<http.Response> head(Uri url, {Map<String, String>? headers}) =>

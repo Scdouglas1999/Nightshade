@@ -74,7 +74,8 @@ class BuilderTab extends ConsumerWidget {
                   indicatorColor: colors.primary,
                   dividerColor: colors.border,
                   labelStyle: NightshadeTypography.h6,
-                  unselectedLabelStyle: const TextStyle(fontSize: NightshadeTypography.fontSize12),
+                  unselectedLabelStyle: const TextStyle(
+                      fontSize: NightshadeTypography.fontSize12),
                   tabs: const [
                     Tab(text: 'Palette'),
                     Tab(text: 'Sequence'),
@@ -116,7 +117,8 @@ class _InstructionPalette extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Instruction Palette',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
           ),
           Expanded(
@@ -126,8 +128,7 @@ class _InstructionPalette extends StatelessWidget {
                 _InstructionCategory(
                   title: 'Target',
                   instructions: [
-                    _Instruction(
-                        icon: LucideIcons.target, name: 'Set Target'),
+                    _Instruction(icon: LucideIcons.target, name: 'Set Target'),
                     _Instruction(
                         icon: LucideIcons.navigation,
                         name: 'Slew to Coordinates'),
@@ -138,8 +139,7 @@ class _InstructionPalette extends StatelessWidget {
                   title: 'Imaging',
                   instructions: [
                     _Instruction(
-                        icon: LucideIcons.camera,
-                        name: 'Capture Exposures'),
+                        icon: LucideIcons.camera, name: 'Capture Exposures'),
                     _Instruction(
                         icon: LucideIcons.sparkles, name: 'Smart Exposure'),
                   ],
@@ -151,8 +151,7 @@ class _InstructionPalette extends StatelessWidget {
                     _Instruction(
                         icon: LucideIcons.crosshair, name: 'Slew & Center'),
                     _Instruction(
-                        icon: LucideIcons.parkingCircle,
-                        name: 'Park Mount'),
+                        icon: LucideIcons.parkingCircle, name: 'Park Mount'),
                     _Instruction(
                         icon: LucideIcons.flipHorizontal,
                         name: 'Meridian Flip'),
@@ -162,10 +161,8 @@ class _InstructionPalette extends StatelessWidget {
                 _InstructionCategory(
                   title: 'Focus',
                   instructions: [
-                    _Instruction(
-                        icon: LucideIcons.focus, name: 'Autofocus'),
-                    _Instruction(
-                        icon: LucideIcons.move, name: 'Move Focuser'),
+                    _Instruction(icon: LucideIcons.focus, name: 'Autofocus'),
+                    _Instruction(icon: LucideIcons.move, name: 'Move Focuser'),
                   ],
                 ),
                 SizedBox(height: 16),
@@ -175,8 +172,7 @@ class _InstructionPalette extends StatelessWidget {
                     _Instruction(
                         icon: LucideIcons.clock, name: 'Wait for Time'),
                     _Instruction(
-                        icon: LucideIcons.mountain,
-                        name: 'Wait for Altitude'),
+                        icon: LucideIcons.mountain, name: 'Wait for Altitude'),
                     _Instruction(
                         icon: LucideIcons.cloudSun, name: 'Weather Check'),
                     _Instruction(
@@ -187,8 +183,7 @@ class _InstructionPalette extends StatelessWidget {
                 _InstructionCategory(
                   title: 'Utilities',
                   instructions: [
-                    _Instruction(
-                        icon: LucideIcons.code, name: 'Run Script'),
+                    _Instruction(icon: LucideIcons.code, name: 'Run Script'),
                     _Instruction(
                         icon: LucideIcons.bell, name: 'Send Notification'),
                     _Instruction(
@@ -345,7 +340,8 @@ class _InstructionCategoryState extends State<_InstructionCategory> {
               const SizedBox(width: 8),
               Text(
                 widget.title,
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -407,7 +403,8 @@ class _InstructionItemState extends State<_InstructionItem> {
                 const SizedBox(width: 8),
                 Text(
                   widget.instruction.name,
-                  style: NightshadeTypography.labelSm.copyWith(color: onPrimary),
+                  style:
+                      NightshadeTypography.labelSm.copyWith(color: onPrimary),
                 ),
               ],
             ),

@@ -31,9 +31,12 @@ void main() {
       final dbFile = File('${dir.path}/nightshade.db');
       final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
       try {
-        await setupDb
-            .customStatement('DROP TABLE IF EXISTS integrated_master_frames');
-        await setupDb.customStatement('DROP TABLE IF EXISTS integrated_masters');
+        await setupDb.customStatement(
+          'DROP TABLE IF EXISTS integrated_master_frames',
+        );
+        await setupDb.customStatement(
+          'DROP TABLE IF EXISTS integrated_masters',
+        );
         await setupDb.customStatement('DROP TABLE IF EXISTS flat_library');
         await setupDb.customStatement('PRAGMA user_version = 40');
       } finally {
@@ -50,8 +53,9 @@ void main() {
     }
 
     test('creates the three tables + indexes on upgrade', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v40_v41_create_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v40_v41_create_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -76,10 +80,10 @@ void main() {
       }
     });
 
-    test('a master + fold record + flat round-trips after the upgrade',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v40_v41_roundtrip_');
+    test('a master + fold record + flat round-trips after the upgrade', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v40_v41_roundtrip_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -101,7 +105,8 @@ void main() {
             Variable.withString('light'),
             Variable.withReal(120.0),
             Variable.withInt(
-                DateTime.utc(2026, 6, 7).millisecondsSinceEpoch ~/ 1000),
+              DateTime.utc(2026, 6, 7).millisecondsSinceEpoch ~/ 1000,
+            ),
           ],
         );
 
@@ -126,7 +131,10 @@ void main() {
 
         // The dedup UNIQUE(master_id, image_id) makes a re-fold a no-op upsert.
         await mastersDao.recordFoldedFrame(
-            masterId: masterId, imageId: imageId, weight: 0.5);
+          masterId: masterId,
+          imageId: imageId,
+          weight: 0.5,
+        );
         expect((await mastersDao.getFramesForMaster(masterId)), hasLength(1));
 
         final flatId = await flatDao.addEntry(
@@ -143,8 +151,9 @@ void main() {
     });
 
     test('re-running the v41 migration block is idempotent', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v40_v41_idem_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v40_v41_idem_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -194,7 +203,10 @@ void main() {
   //      NightReportsDao, and that re-running the v42 block is idempotent.
   group('migration onUpgrade v41 -> v42 (smart morning report)', () {
     Future<bool> columnExists(
-        NightshadeDatabase db, String table, String column) async {
+      NightshadeDatabase db,
+      String table,
+      String column,
+    ) async {
       final rows = await db.customSelect("PRAGMA table_info('$table')").get();
       return rows.any((r) => r.read<String>('name') == column);
     }
@@ -258,153 +270,190 @@ void main() {
       return dbFile;
     }
 
-    test('creates night_reports + the additive v42 columns on upgrade',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v41_v42_create_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV41Database(tempDir);
+    test(
+      'creates night_reports + the additive v42 columns on upgrade',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v41_v42_create_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV41Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final tables = await upgraded
-            .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
-            .get();
-        final tableNames =
-            tables.map((r) => r.read<String>('name')).toSet();
-        expect(tableNames, contains('night_reports'));
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final tables = await upgraded
+              .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
+              .get();
+          final tableNames = tables.map((r) => r.read<String>('name')).toSet();
+          expect(tableNames, contains('night_reports'));
 
-        final indexes = await upgraded
-            .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
-            .get();
-        final indexNames = indexes.map((r) => r.read<String>('name')).toSet();
-        expect(indexNames, contains('idx_night_reports_session'));
-        expect(indexNames, contains('idx_night_reports_target'));
-        expect(indexNames, contains('idx_night_reports_created'));
+          final indexes = await upgraded
+              .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
+              .get();
+          final indexNames = indexes.map((r) => r.read<String>('name')).toSet();
+          expect(indexNames, contains('idx_night_reports_session'));
+          expect(indexNames, contains('idx_night_reports_target'));
+          expect(indexNames, contains('idx_night_reports_created'));
 
-        // Additive integrated_masters columns.
-        expect(
+          // Additive integrated_masters columns.
+          expect(
             await columnExists(
-                upgraded, 'integrated_masters', 'color_calibrated_path'),
-            isTrue);
-        expect(
-            await columnExists(
-                upgraded, 'integrated_masters', 'annotated_preview_path'),
-            isTrue);
-        expect(
-            await columnExists(
-                upgraded, 'integrated_masters', 'background_extracted'),
-            isTrue);
-        expect(
-            await columnExists(upgraded, 'integrated_masters', 'target_snr'),
-            isTrue);
-        expect(
-            await columnExists(
-                upgraded, 'integrated_masters', 'target_integration_s'),
-            isTrue);
-        expect(
-            await columnExists(
-                upgraded, 'integrated_masters', 'improvement_curve_json'),
-            isTrue);
-
-        // Additive integrated_master_frames columns.
-        expect(
-            await columnExists(upgraded, 'integrated_master_frames', 'snr'),
-            isTrue);
-        expect(
-            await columnExists(upgraded, 'integrated_master_frames', 'fwhm'),
-            isTrue);
-        expect(
-            await columnExists(
-                upgraded, 'integrated_master_frames', 'eccentricity'),
-            isTrue);
-      } finally {
-        await upgraded.close();
-      }
-    });
-
-    test('a night report round-trips through NightReportsDao after the upgrade',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v41_v42_roundtrip_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV41Database(tempDir);
-
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final dao = NightReportsDao(upgraded);
-        final createdAt = DateTime.utc(2026, 6, 8, 6);
-        final reportId = await dao.insertReport(
-          score: 82,
-          headline: 'Solid night — one focus wobble near meridian',
-          findings: const [
-            NightFinding(
-              id: 'focus_drift',
-              severity: NightFindingSeverity.warn,
-              title: 'Focus drift',
-              explanation: 'HFR climbed through the second half.',
-              evidenceSubIds: [11, 12, 13],
-              advice: 'Enable temperature compensation.',
-              metricSeries: [2.1, 2.3, 2.6, 2.9],
+              upgraded,
+              'integrated_masters',
+              'color_calibrated_path',
             ),
-          ],
-          createdAt: createdAt,
-        );
-        expect(reportId, greaterThan(0));
+            isTrue,
+          );
+          expect(
+            await columnExists(
+              upgraded,
+              'integrated_masters',
+              'annotated_preview_path',
+            ),
+            isTrue,
+          );
+          expect(
+            await columnExists(
+              upgraded,
+              'integrated_masters',
+              'background_extracted',
+            ),
+            isTrue,
+          );
+          expect(
+            await columnExists(upgraded, 'integrated_masters', 'target_snr'),
+            isTrue,
+          );
+          expect(
+            await columnExists(
+              upgraded,
+              'integrated_masters',
+              'target_integration_s',
+            ),
+            isTrue,
+          );
+          expect(
+            await columnExists(
+              upgraded,
+              'integrated_masters',
+              'improvement_curve_json',
+            ),
+            isTrue,
+          );
 
-        final loaded = await dao.getById(reportId);
-        expect(loaded, isNotNull);
-        expect(loaded!.score, 82);
-        expect(loaded.headline,
-            'Solid night — one focus wobble near meridian');
-        expect(loaded.createdAt, createdAt);
-        expect(loaded.findings, hasLength(1));
-        final finding = loaded.findings.single;
-        expect(finding.id, 'focus_drift');
-        expect(finding.severity, NightFindingSeverity.warn);
-        expect(finding.evidenceSubIds, [11, 12, 13]);
-        expect(finding.metricSeries, [2.1, 2.3, 2.6, 2.9]);
+          // Additive integrated_master_frames columns.
+          expect(
+            await columnExists(upgraded, 'integrated_master_frames', 'snr'),
+            isTrue,
+          );
+          expect(
+            await columnExists(upgraded, 'integrated_master_frames', 'fwhm'),
+            isTrue,
+          );
+          expect(
+            await columnExists(
+              upgraded,
+              'integrated_master_frames',
+              'eccentricity',
+            ),
+            isTrue,
+          );
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
-        // The additive v42 master columns are writable post-upgrade: a smart
-        // update lands the finishing/curve fields without error.
-        final mastersDao = IntegratedMastersDao(upgraded);
-        final masterId = await mastersDao.insertMaster(
-          name: 'NGC 7000 · Ha',
-          status: IntegratedMasterStatus.finalized,
-          accumulationMode: AccumulationMode.batch,
+    test(
+      'a night report round-trips through NightReportsDao after the upgrade',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v41_v42_roundtrip_',
         );
-        final updated = await mastersDao.updateSmartFields(
-          masterId,
-          colorCalibratedPath: '/out/ngc7000_spcc.fits',
-          backgroundExtracted: true,
-          targetSnr: 40.0,
-          targetIntegrationS: 36000.0,
-          improvementCurveJson: '{"points":[],"recommendation":{}}',
-        );
-        expect(updated, 1);
-        final smartRow = await upgraded
-            .customSelect(
-              'SELECT color_calibrated_path, background_extracted, target_snr '
-              'FROM integrated_masters WHERE id = ?',
-              variables: [Variable<int>(masterId)],
-            )
-            .getSingle();
-        expect(smartRow.read<String>('color_calibrated_path'),
-            '/out/ngc7000_spcc.fits');
-        expect(smartRow.read<int>('background_extracted'), 1);
-        expect(smartRow.read<double>('target_snr'), 40.0);
-      } finally {
-        await upgraded.close();
-      }
-    });
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV41Database(tempDir);
+
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final dao = NightReportsDao(upgraded);
+          final createdAt = DateTime.utc(2026, 6, 8, 6);
+          final reportId = await dao.insertReport(
+            score: 82,
+            headline: 'Solid night — one focus wobble near meridian',
+            findings: const [
+              NightFinding(
+                id: 'focus_drift',
+                severity: NightFindingSeverity.warn,
+                title: 'Focus drift',
+                explanation: 'HFR climbed through the second half.',
+                evidenceSubIds: [11, 12, 13],
+                advice: 'Enable temperature compensation.',
+                metricSeries: [2.1, 2.3, 2.6, 2.9],
+              ),
+            ],
+            createdAt: createdAt,
+          );
+          expect(reportId, greaterThan(0));
+
+          final loaded = await dao.getById(reportId);
+          expect(loaded, isNotNull);
+          expect(loaded!.score, 82);
+          expect(
+            loaded.headline,
+            'Solid night — one focus wobble near meridian',
+          );
+          expect(loaded.createdAt, createdAt);
+          expect(loaded.findings, hasLength(1));
+          final finding = loaded.findings.single;
+          expect(finding.id, 'focus_drift');
+          expect(finding.severity, NightFindingSeverity.warn);
+          expect(finding.evidenceSubIds, [11, 12, 13]);
+          expect(finding.metricSeries, [2.1, 2.3, 2.6, 2.9]);
+
+          // The additive v42 master columns are writable post-upgrade: a smart
+          // update lands the finishing/curve fields without error.
+          final mastersDao = IntegratedMastersDao(upgraded);
+          final masterId = await mastersDao.insertMaster(
+            name: 'NGC 7000 · Ha',
+            status: IntegratedMasterStatus.finalized,
+            accumulationMode: AccumulationMode.batch,
+          );
+          final updated = await mastersDao.updateSmartFields(
+            masterId,
+            colorCalibratedPath: '/out/ngc7000_spcc.fits',
+            backgroundExtracted: true,
+            targetSnr: 40.0,
+            targetIntegrationS: 36000.0,
+            improvementCurveJson: '{"points":[],"recommendation":{}}',
+          );
+          expect(updated, 1);
+          final smartRow = await upgraded
+              .customSelect(
+                'SELECT color_calibrated_path, background_extracted, target_snr '
+                'FROM integrated_masters WHERE id = ?',
+                variables: [Variable<int>(masterId)],
+              )
+              .getSingle();
+          expect(
+            smartRow.read<String>('color_calibrated_path'),
+            '/out/ngc7000_spcc.fits',
+          );
+          expect(smartRow.read<int>('background_extracted'), 1);
+          expect(smartRow.read<double>('target_snr'), 40.0);
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test('re-running the v42 migration block is idempotent (no-op)', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v41_v42_idem_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v41_v42_idem_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -415,8 +464,9 @@ void main() {
       await first.customSelect('SELECT 1').get();
       // Seed a report so we can prove the second migration pass does not
       // recreate / clobber the existing table.
-      await NightReportsDao(first)
-          .insertReport(score: 50, headline: 'baseline');
+      await NightReportsDao(
+        first,
+      ).insertReport(score: 50, headline: 'baseline');
       await first.close();
 
       // Rewind to v41 again WITHOUT dropping night_reports or the v42 columns,
@@ -439,9 +489,13 @@ void main() {
         );
         // The v42 columns survive a second pass (no duplicate-column throw).
         expect(
-            await columnExists(
-                second, 'integrated_masters', 'color_calibrated_path'),
-            isTrue);
+          await columnExists(
+            second,
+            'integrated_masters',
+            'color_calibrated_path',
+          ),
+          isTrue,
+        );
         // The pre-existing report row is untouched — the table was NOT
         // recreated by the idempotent helper.
         final count = await second

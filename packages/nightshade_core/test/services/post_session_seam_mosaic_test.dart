@@ -37,7 +37,8 @@ class _FakeSeam implements PostSessionSeam {
     stitchCalls.add(args);
     return scripted ??
         MosaicStitchResult(
-          outputPath: (args['output'] as Map?)?['mosaicFitsPath'] as String? ?? '',
+          outputPath:
+              (args['output'] as Map?)?['mosaicFitsPath'] as String? ?? '',
           outWidth: 0,
           outHeight: 0,
           overlapPairs: 0,
@@ -67,7 +68,8 @@ void main() {
       }
       ''';
       final r = MosaicStitchResult.fromJson(
-          jsonDecode(nativeJson) as Map<String, dynamic>);
+        jsonDecode(nativeJson) as Map<String, dynamic>,
+      );
 
       expect(r.outputPath, '/out/mosaic.fits');
       expect(r.coveragePath, '/out/coverage.fits');
@@ -104,8 +106,9 @@ void main() {
         overlapPairs: 3,
         meanPanelGain: 0.97,
       );
-      final round =
-          MosaicStitchResult.fromJson(jsonDecode(jsonEncode(r.toJson())));
+      final round = MosaicStitchResult.fromJson(
+        jsonDecode(jsonEncode(r.toJson())),
+      );
       expect(round, r);
       expect(round.hashCode, r.hashCode);
       // toJson emits the native preview key so a re-encoded request is decodable
@@ -115,50 +118,51 @@ void main() {
   });
 
   group('BridgePostSessionSeam.stitchMosaic request envelope', () {
-    test('the documented StitchMosaicArgs shape round-trips through jsonEncode',
-        () {
-      // The production seam does `jsonEncode(args)` verbatim. Pin that the
-      // documented request envelope (panels[].fitsPath + optional wcs, config,
-      // output paths) survives encode unchanged — this is the shape the native
-      // `StitchMosaicArgs` deserializer consumes.
-      final args = <String, dynamic>{
-        'panels': [
-          {'fitsPath': '/panels/p0.fits'},
-          {
-            'fitsPath': '/panels/p1.fits',
-            'wcs': {
-              'crval1': 120.0,
-              'crval2': 10.0,
-              'crpix1': 48.5,
-              'crpix2': 48.5,
-              'cd1_1': -0.0011,
-              'cd1_2': 0.0,
-              'cd2_1': 0.0,
-              'cd2_2': 0.0011,
+    test(
+      'the documented StitchMosaicArgs shape round-trips through jsonEncode',
+      () {
+        // The production seam does `jsonEncode(args)` verbatim. Pin that the
+        // documented request envelope (panels[].fitsPath + optional wcs, config,
+        // output paths) survives encode unchanged — this is the shape the native
+        // `StitchMosaicArgs` deserializer consumes.
+        final args = <String, dynamic>{
+          'panels': [
+            {'fitsPath': '/panels/p0.fits'},
+            {
+              'fitsPath': '/panels/p1.fits',
+              'wcs': {
+                'crval1': 120.0,
+                'crval2': 10.0,
+                'crpix1': 48.5,
+                'crpix2': 48.5,
+                'cd1_1': -0.0011,
+                'cd1_2': 0.0,
+                'cd2_1': 0.0,
+                'cd2_2': 0.0011,
+              },
             },
+          ],
+          'config': {
+            'normalize': true,
+            'blend': 'feather',
+            'resampler': 'lanczos3',
           },
-        ],
-        'config': {
-          'normalize': true,
-          'blend': 'feather',
-          'resampler': 'lanczos3',
-        },
-        'output': {
-          'mosaicFitsPath': '/out/mosaic.fits',
-          'coverageFitsPath': '/out/coverage.fits',
-          'previewPngPath': '/out/mosaic.png',
-        },
-      };
+          'output': {
+            'mosaicFitsPath': '/out/mosaic.fits',
+            'coverageFitsPath': '/out/coverage.fits',
+            'previewPngPath': '/out/mosaic.png',
+          },
+        };
 
-      final decoded =
-          jsonDecode(jsonEncode(args)) as Map<String, dynamic>;
-      expect((decoded['panels'] as List), hasLength(2));
-      expect((decoded['panels'] as List)[0]['fitsPath'], '/panels/p0.fits');
-      expect((decoded['panels'] as List)[1]['wcs']['cd1_1'], -0.0011);
-      expect(decoded['config']['resampler'], 'lanczos3');
-      expect(decoded['output']['mosaicFitsPath'], '/out/mosaic.fits');
-      expect(decoded['output']['previewPngPath'], '/out/mosaic.png');
-    });
+        final decoded = jsonDecode(jsonEncode(args)) as Map<String, dynamic>;
+        expect((decoded['panels'] as List), hasLength(2));
+        expect((decoded['panels'] as List)[0]['fitsPath'], '/panels/p0.fits');
+        expect((decoded['panels'] as List)[1]['wcs']['cd1_1'], -0.0011);
+        expect(decoded['config']['resampler'], 'lanczos3');
+        expect(decoded['output']['mosaicFitsPath'], '/out/mosaic.fits');
+        expect(decoded['output']['previewPngPath'], '/out/mosaic.png');
+      },
+    );
   });
 
   group('Fake stitchMosaic seam (scriptable)', () {
@@ -193,7 +197,7 @@ void main() {
       final fake = _FakeSeam();
       final result = await fake.stitchMosaic(const {
         'panels': [
-          {'fitsPath': '/p0.fits'}
+          {'fitsPath': '/p0.fits'},
         ],
         'output': {'mosaicFitsPath': '/echo/mosaic.fits'},
       });

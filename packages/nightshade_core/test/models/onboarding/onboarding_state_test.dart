@@ -86,15 +86,23 @@ void main() {
     });
 
     test('fromJsonStringOrEmpty returns default on invalid input', () {
-      expect(OnboardingDraft.fromJsonStringOrEmpty(null),
-          const OnboardingDraft());
-      expect(OnboardingDraft.fromJsonStringOrEmpty(''),
-          const OnboardingDraft());
-      expect(OnboardingDraft.fromJsonStringOrEmpty('not json'),
-          const OnboardingDraft());
+      expect(
+        OnboardingDraft.fromJsonStringOrEmpty(null),
+        const OnboardingDraft(),
+      );
+      expect(
+        OnboardingDraft.fromJsonStringOrEmpty(''),
+        const OnboardingDraft(),
+      );
+      expect(
+        OnboardingDraft.fromJsonStringOrEmpty('not json'),
+        const OnboardingDraft(),
+      );
       // Wrong shape (array instead of object)
-      expect(OnboardingDraft.fromJsonStringOrEmpty('[1,2,3]'),
-          const OnboardingDraft());
+      expect(
+        OnboardingDraft.fromJsonStringOrEmpty('[1,2,3]'),
+        const OnboardingDraft(),
+      );
     });
 
     test('optional steps are flagged for skip-button rendering', () {
@@ -111,8 +119,7 @@ void main() {
       // The terminal step is now `nextSteps` (the post-creation "what's next"
       // screen), which sits after `summary`.
       expect(OnboardingStep.nextSteps.order, OnboardingStep.values.length - 1);
-      expect(OnboardingStep.summary.order,
-          OnboardingStep.nextSteps.order - 1);
+      expect(OnboardingStep.summary.order, OnboardingStep.nextSteps.order - 1);
       expect(OnboardingStepOrder.total, OnboardingStep.values.length);
     });
   });

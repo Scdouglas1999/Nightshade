@@ -32,12 +32,7 @@ class CatalogDescriptor {
 }
 
 /// Status of one catalog on disk.
-enum CatalogInstallStatus {
-  installed,
-  partial,
-  corrupted,
-  missing,
-}
+enum CatalogInstallStatus { installed, partial, corrupted, missing }
 
 /// Detailed on-disk status of one catalog.
 class InstalledCatalogStatus {
@@ -68,19 +63,18 @@ class InstalledCatalogStatus {
   });
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        if (version != null) 'version': version,
-        'sizeBytes': sizeBytes,
-        'fileCount': fileCount,
-        if (installedAt != null) 'installedAt': installedAt!.toIso8601String(),
-        if (lastVerified != null)
-          'lastVerified': lastVerified!.toIso8601String(),
-        if (expectedHash != null) 'expectedHash': expectedHash,
-        if (actualHash != null) 'actualHash': actualHash,
-        if (objectCount != null) 'objectCount': objectCount,
-        'status': status.name,
-        if (errors != null && errors!.isNotEmpty) 'errors': errors,
-      };
+    'name': name,
+    if (version != null) 'version': version,
+    'sizeBytes': sizeBytes,
+    'fileCount': fileCount,
+    if (installedAt != null) 'installedAt': installedAt!.toIso8601String(),
+    if (lastVerified != null) 'lastVerified': lastVerified!.toIso8601String(),
+    if (expectedHash != null) 'expectedHash': expectedHash,
+    if (actualHash != null) 'actualHash': actualHash,
+    if (objectCount != null) 'objectCount': objectCount,
+    'status': status.name,
+    if (errors != null && errors!.isNotEmpty) 'errors': errors,
+  };
 }
 
 /// Description of a catalog available for download.
@@ -106,15 +100,15 @@ class AvailableCatalog {
   });
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        'displayName': displayName,
-        'version': version,
-        'description': description,
-        if (downloadUrl != null) 'downloadUrl': downloadUrl,
-        'sizeBytes': sizeBytes,
-        if (sha256 != null) 'sha256': sha256,
-        'requiredForPlateSolve': requiredForPlateSolve,
-      };
+    'name': name,
+    'displayName': displayName,
+    'version': version,
+    'description': description,
+    if (downloadUrl != null) 'downloadUrl': downloadUrl,
+    'sizeBytes': sizeBytes,
+    if (sha256 != null) 'sha256': sha256,
+    'requiredForPlateSolve': requiredForPlateSolve,
+  };
 }
 
 /// Result of `downloadAndInstall` / `installFromFile`.
@@ -136,13 +130,13 @@ class CatalogInstallResult {
   });
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        'sha256': sha256,
-        'sizeBytes': sizeBytes,
-        'objectCount': objectCount,
-        'version': version,
-        'installedAt': installedAt.toIso8601String(),
-      };
+    'name': name,
+    'sha256': sha256,
+    'sizeBytes': sizeBytes,
+    'objectCount': objectCount,
+    'version': version,
+    'installedAt': installedAt.toIso8601String(),
+  };
 }
 
 /// Result of a single-catalog `verify` call.
@@ -160,11 +154,11 @@ class CatalogVerifyResult {
   });
 
   Map<String, Object?> toJson() => {
-        'ok': ok,
-        if (expectedHash != null) 'expectedHash': expectedHash,
-        if (actualHash != null) 'actualHash': actualHash,
-        if (errors.isNotEmpty) 'errors': errors,
-      };
+    'ok': ok,
+    if (expectedHash != null) 'expectedHash': expectedHash,
+    if (actualHash != null) 'actualHash': actualHash,
+    if (errors.isNotEmpty) 'errors': errors,
+  };
 }
 
 /// Structured lifecycle event emitted by [CatalogManager.events].
@@ -181,28 +175,25 @@ class CatalogEvent {
     required String name,
     required String downloadUrl,
     required int totalBytes,
-  }) =>
-      CatalogEvent._('CatalogDownloadStarted', {
-        if (jobId != null) 'jobId': jobId,
-        'name': name,
-        'downloadUrl': downloadUrl,
-        'totalBytes': totalBytes,
-      });
+  }) => CatalogEvent._('CatalogDownloadStarted', {
+    if (jobId != null) 'jobId': jobId,
+    'name': name,
+    'downloadUrl': downloadUrl,
+    'totalBytes': totalBytes,
+  });
 
   factory CatalogEvent.downloadProgress({
     String? jobId,
     required String name,
     required int downloadedBytes,
     required int totalBytes,
-  }) =>
-      CatalogEvent._('CatalogDownloadProgress', {
-        if (jobId != null) 'jobId': jobId,
-        'name': name,
-        'downloadedBytes': downloadedBytes,
-        'totalBytes': totalBytes,
-        if (totalBytes > 0)
-          'pct': (downloadedBytes / totalBytes).clamp(0.0, 1.0),
-      });
+  }) => CatalogEvent._('CatalogDownloadProgress', {
+    if (jobId != null) 'jobId': jobId,
+    'name': name,
+    'downloadedBytes': downloadedBytes,
+    'totalBytes': totalBytes,
+    if (totalBytes > 0) 'pct': (downloadedBytes / totalBytes).clamp(0.0, 1.0),
+  });
 
   factory CatalogEvent.downloadComplete({
     String? jobId,
@@ -210,45 +201,42 @@ class CatalogEvent {
     required String version,
     required int sizeBytes,
     required String sha256,
-  }) =>
-      CatalogEvent._('CatalogDownloadComplete', {
-        if (jobId != null) 'jobId': jobId,
-        'name': name,
-        'version': version,
-        'sizeBytes': sizeBytes,
-        'sha256': sha256,
-      });
+  }) => CatalogEvent._('CatalogDownloadComplete', {
+    if (jobId != null) 'jobId': jobId,
+    'name': name,
+    'version': version,
+    'sizeBytes': sizeBytes,
+    'sha256': sha256,
+  });
 
   factory CatalogEvent.downloadFailed({
     String? jobId,
     required String name,
     required String error,
     required String phase,
-  }) =>
-      CatalogEvent._('CatalogDownloadFailed', {
-        if (jobId != null) 'jobId': jobId,
-        'name': name,
-        'error': error,
-        'phase': phase,
-      });
+  }) => CatalogEvent._('CatalogDownloadFailed', {
+    if (jobId != null) 'jobId': jobId,
+    'name': name,
+    'error': error,
+    'phase': phase,
+  });
 
   factory CatalogEvent.verified({
     required String name,
     required bool ok,
     List<String>? errors,
-  }) =>
-      CatalogEvent._('CatalogVerified', {
-        'name': name,
-        'ok': ok,
-        if (errors != null && errors.isNotEmpty) 'errors': errors,
-      });
+  }) => CatalogEvent._('CatalogVerified', {
+    'name': name,
+    'ok': ok,
+    if (errors != null && errors.isNotEmpty) 'errors': errors,
+  });
 
   factory CatalogEvent.uninstalled({required String name}) =>
       CatalogEvent._('CatalogUninstalled', {'name': name});
 
   const CatalogEvent.reloaded()
-      : eventType = 'CatalogReloaded',
-        data = const {};
+    : eventType = 'CatalogReloaded',
+      data = const {};
 }
 
 /// Exception thrown by [CatalogManager.downloadAndInstall] when a
@@ -278,10 +266,7 @@ class CatalogHashMismatchException implements Exception {
 class CatalogDownloadException implements Exception {
   final String phase;
   final String message;
-  const CatalogDownloadException({
-    required this.phase,
-    required this.message,
-  });
+  const CatalogDownloadException({required this.phase, required this.message});
   @override
   String toString() => 'CatalogDownloadException($phase): $message';
 }

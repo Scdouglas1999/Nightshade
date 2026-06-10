@@ -29,24 +29,26 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     double? latitude,
     double? longitude,
   }) {
-    return into(observationLogs).insert(ObservationLogsCompanion.insert(
-      timestamp: timestamp,
-      objectName: objectName,
-      ra: ra,
-      dec: dec,
-      objectType: Value(objectType),
-      catalogId: Value(catalogId),
-      altitude: Value(altitude),
-      azimuth: Value(azimuth),
-      notes: Value(notes),
-      rating: Value(rating),
-      equipmentProfileId: Value(equipmentProfileId),
-      seeingConditions: Value(seeingConditions),
-      transparency: Value(transparency),
-      locationName: Value(locationName),
-      latitude: Value(latitude),
-      longitude: Value(longitude),
-    ));
+    return into(observationLogs).insert(
+      ObservationLogsCompanion.insert(
+        timestamp: timestamp,
+        objectName: objectName,
+        ra: ra,
+        dec: dec,
+        objectType: Value(objectType),
+        catalogId: Value(catalogId),
+        altitude: Value(altitude),
+        azimuth: Value(azimuth),
+        notes: Value(notes),
+        rating: Value(rating),
+        equipmentProfileId: Value(equipmentProfileId),
+        seeingConditions: Value(seeingConditions),
+        transparency: Value(transparency),
+        locationName: Value(locationName),
+        latitude: Value(latitude),
+        longitude: Value(longitude),
+      ),
+    );
   }
 
   /// Update an existing observation log entry.
@@ -92,9 +94,11 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     required DateTime end,
   }) {
     final query = select(observationLogs)
-      ..where((t) =>
-          t.timestamp.isBiggerOrEqualValue(start) &
-          t.timestamp.isSmallerOrEqualValue(end))
+      ..where(
+        (t) =>
+            t.timestamp.isBiggerOrEqualValue(start) &
+            t.timestamp.isSmallerOrEqualValue(end),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]);
     return query.get();
   }
@@ -102,9 +106,11 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get observation logs for a specific object (by catalog ID or name).
   Future<List<ObservationLogEntry>> getLogsByObject(String objectQuery) {
     final query = select(observationLogs)
-      ..where((t) =>
-          t.objectName.like('%$objectQuery%') |
-          t.catalogId.like('%$objectQuery%'))
+      ..where(
+        (t) =>
+            t.objectName.like('%$objectQuery%') |
+            t.catalogId.like('%$objectQuery%'),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]);
     return query.get();
   }
@@ -162,24 +168,28 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Export all observation logs as a list of maps suitable for CSV generation.
   Future<List<Map<String, dynamic>>> exportAllLogs() async {
     final logs = await getAllLogs();
-    return logs.map((log) => {
-      'id': log.id,
-      'timestamp': log.timestamp.toIso8601String(),
-      'object_name': log.objectName,
-      'object_type': log.objectType ?? '',
-      'catalog_id': log.catalogId ?? '',
-      'ra': log.ra,
-      'dec': log.dec,
-      'altitude': log.altitude ?? '',
-      'azimuth': log.azimuth ?? '',
-      'notes': log.notes ?? '',
-      'rating': log.rating ?? '',
-      'seeing_conditions': log.seeingConditions ?? '',
-      'transparency': log.transparency ?? '',
-      'location_name': log.locationName ?? '',
-      'latitude': log.latitude ?? '',
-      'longitude': log.longitude ?? '',
-    }).toList();
+    return logs
+        .map(
+          (log) => {
+            'id': log.id,
+            'timestamp': log.timestamp.toIso8601String(),
+            'object_name': log.objectName,
+            'object_type': log.objectType ?? '',
+            'catalog_id': log.catalogId ?? '',
+            'ra': log.ra,
+            'dec': log.dec,
+            'altitude': log.altitude ?? '',
+            'azimuth': log.azimuth ?? '',
+            'notes': log.notes ?? '',
+            'rating': log.rating ?? '',
+            'seeing_conditions': log.seeingConditions ?? '',
+            'transparency': log.transparency ?? '',
+            'location_name': log.locationName ?? '',
+            'latitude': log.latitude ?? '',
+            'longitude': log.longitude ?? '',
+          },
+        )
+        .toList();
   }
 
   /// Generate CSV string of all observation logs.
@@ -189,14 +199,16 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
 
     final headers = rows.first.keys.join(',');
     final dataRows = rows.map((row) {
-      return row.values.map((v) {
-        final str = v.toString();
-        // Escape values that contain commas, quotes, or newlines
-        if (str.contains(',') || str.contains('"') || str.contains('\n')) {
-          return '"${str.replaceAll('"', '""')}"';
-        }
-        return str;
-      }).join(',');
+      return row.values
+          .map((v) {
+            final str = v.toString();
+            // Escape values that contain commas, quotes, or newlines
+            if (str.contains(',') || str.contains('"') || str.contains('\n')) {
+              return '"${str.replaceAll('"', '""')}"';
+            }
+            return str;
+          })
+          .join(',');
     });
 
     return [headers, ...dataRows].join('\n');
@@ -232,7 +244,9 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     final countExpr = observationLogs.id.count();
     final query = selectOnly(observationLogs)..addColumns([countExpr]);
     if (equipmentProfileId != null) {
-      query.where(observationLogs.equipmentProfileId.equals(equipmentProfileId));
+      query.where(
+        observationLogs.equipmentProfileId.equals(equipmentProfileId),
+      );
     }
     final row = await query.getSingle();
     return row.read(countExpr) ?? 0;
@@ -274,9 +288,9 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Delete all observation logs for a specific equipment profile.
   Future<int> deleteLogsForProfile(int profileId) {
-    return (delete(observationLogs)
-          ..where((t) => t.equipmentProfileId.equals(profileId)))
-        .go();
+    return (delete(
+      observationLogs,
+    )..where((t) => t.equipmentProfileId.equals(profileId))).go();
   }
 
   /// Delete all observation logs.

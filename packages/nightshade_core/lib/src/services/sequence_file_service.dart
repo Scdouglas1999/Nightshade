@@ -26,8 +26,8 @@ typedef SequenceImportValidator = void Function(Sequence sequence);
 /// validator. The provider wiring at the bottom of this file binds this
 /// to [validateSequence] (the pure structural pass). Tests can inject
 /// a stub.
-typedef ExportValidatorStrategy = List<ValidationIssue> Function(
-    Sequence sequence);
+typedef ExportValidatorStrategy =
+    List<ValidationIssue> Function(Sequence sequence);
 
 class SequenceFileService {
   final SequenceImportValidator? _importValidator;
@@ -49,10 +49,10 @@ class SequenceFileService {
     ExportValidatorStrategy? exportValidator,
     void Function(Sequence sequence)? onExportSaved,
     String defaultDirectory = '',
-  })  : _importValidator = importValidator,
-        _exportValidator = exportValidator ?? validateSequence,
-        _onExportSaved = onExportSaved,
-        _defaultDirectory = defaultDirectory;
+  }) : _importValidator = importValidator,
+       _exportValidator = exportValidator ?? validateSequence,
+       _onExportSaved = onExportSaved,
+       _defaultDirectory = defaultDirectory;
 
   String? get _initialDirectoryOrNull =>
       _defaultDirectory.isEmpty ? null : _defaultDirectory;

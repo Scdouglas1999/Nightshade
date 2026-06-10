@@ -1,8 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart'
-    show PlateSolveResult;
+import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
 import 'plate_solve_service.dart';
 import 'imaging_service.dart';
 import 'device_service.dart';
@@ -372,14 +371,16 @@ class CenteringService {
       if (_abortRequested) return _abortedResult(iteration - 1, iterations);
 
       // Update status
-      onStatusUpdate?.call(CenteringStatus(
-        state: CenteringState.exposing,
-        currentIteration: iteration,
-        maxIterations: config.maxIterations,
-        message:
-            'Taking centering image (iteration $iteration/${config.maxIterations})...',
-        iterationHistory: iterations,
-      ));
+      onStatusUpdate?.call(
+        CenteringStatus(
+          state: CenteringState.exposing,
+          currentIteration: iteration,
+          maxIterations: config.maxIterations,
+          message:
+              'Taking centering image (iteration $iteration/${config.maxIterations})...',
+          iterationHistory: iterations,
+        ),
+      );
 
       // Step 1: Take short exposure
       final exposureSettings = ExposureSettings(
@@ -441,14 +442,16 @@ class CenteringService {
       if (_abortRequested) return _abortedResult(iteration, iterations);
 
       // Step 2: Plate solve the image
-      onStatusUpdate?.call(CenteringStatus(
-        state: CenteringState.solving,
-        currentIteration: iteration,
-        maxIterations: config.maxIterations,
-        message: 'Plate solving image...',
-        iterationHistory: iterations,
-        lastImagePath: capturedImage.filePath,
-      ));
+      onStatusUpdate?.call(
+        CenteringStatus(
+          state: CenteringState.solving,
+          currentIteration: iteration,
+          maxIterations: config.maxIterations,
+          message: 'Plate solving image...',
+          iterationHistory: iterations,
+          lastImagePath: capturedImage.filePath,
+        ),
+      );
 
       PlateSolveResult? solveResult;
       if (capturedImage.filePath != null) {
@@ -485,14 +488,16 @@ class CenteringService {
         // instead of immediately aborting. Transient solve failures (e.g.
         // clouds, tracking hiccup) often succeed on the next attempt.
         if (iteration < config.maxIterations) {
-          onStatusUpdate?.call(CenteringStatus(
-            state: CenteringState.solving,
-            currentIteration: iteration,
-            maxIterations: config.maxIterations,
-            message: 'Plate solve failed, retrying in 500ms...',
-            iterationHistory: iterations,
-            lastImagePath: capturedImage.filePath,
-          ));
+          onStatusUpdate?.call(
+            CenteringStatus(
+              state: CenteringState.solving,
+              currentIteration: iteration,
+              maxIterations: config.maxIterations,
+              message: 'Plate solve failed, retrying in 500ms...',
+              iterationHistory: iterations,
+              lastImagePath: capturedImage.filePath,
+            ),
+          );
           await Future.delayed(const Duration(milliseconds: 500));
           if (_abortRequested) return _abortedResult(iteration, iterations);
           continue;
@@ -515,12 +520,7 @@ class CenteringService {
       // that `targetRa`, the mount and `CenteringStatus.solvedRa` all use.
       final solvedRa = _solvedRaHours(solveResult.ra);
       final solvedDec = solveResult.dec;
-      final offset = _calculateOffset(
-        targetRa,
-        targetDec,
-        solvedRa,
-        solvedDec,
-      );
+      final offset = _calculateOffset(targetRa, targetDec, solvedRa, solvedDec);
 
       final iter = CenteringIteration(
         iterationNumber: iteration,
@@ -535,37 +535,43 @@ class CenteringService {
       );
       iterations.add(iter);
 
-      onStatusUpdate?.call(CenteringStatus(
-        state: CenteringState.verifying,
-        currentIteration: iteration,
-        maxIterations: config.maxIterations,
-        currentOffsetArcsec: offset,
-        currentOffsetArcmin: offset / 60.0,
-        message: 'Offset: ${(offset / 60.0).toStringAsFixed(2)} arcmin',
-        iterationHistory: iterations,
-        lastImagePath: capturedImage.filePath,
-        solvedRa: solvedRa,
-        solvedDec: solvedDec,
-      ));
-
-      // Step 4: Check if within tolerance
-      if (offset <= config.toleranceArcsec) {
-        onStatusUpdate?.call(CenteringStatus(
-          state: CenteringState.completed,
+      onStatusUpdate?.call(
+        CenteringStatus(
+          state: CenteringState.verifying,
           currentIteration: iteration,
           maxIterations: config.maxIterations,
           currentOffsetArcsec: offset,
           currentOffsetArcmin: offset / 60.0,
-          message: 'Target centered successfully!',
+          message: 'Offset: ${(offset / 60.0).toStringAsFixed(2)} arcmin',
           iterationHistory: iterations,
           lastImagePath: capturedImage.filePath,
           solvedRa: solvedRa,
           solvedDec: solvedDec,
-        ));
+        ),
+      );
+
+      // Step 4: Check if within tolerance
+      if (offset <= config.toleranceArcsec) {
+        onStatusUpdate?.call(
+          CenteringStatus(
+            state: CenteringState.completed,
+            currentIteration: iteration,
+            maxIterations: config.maxIterations,
+            currentOffsetArcsec: offset,
+            currentOffsetArcmin: offset / 60.0,
+            message: 'Target centered successfully!',
+            iterationHistory: iterations,
+            lastImagePath: capturedImage.filePath,
+            solvedRa: solvedRa,
+            solvedDec: solvedDec,
+          ),
+        );
 
         // Smart notification for centering completion
         final offsetArcmin = offset / 60.0;
-        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+        _ref
+            .read(smartNotificationServiceProvider)
+            .showSuccessIfNotOnScreens(
               message:
                   'Target centered (offset: ${offsetArcmin.toStringAsFixed(2)} arcmin)',
               relevantScreens: [AppScreen.imaging, AppScreen.sequencer],
@@ -580,18 +586,20 @@ class CenteringService {
       }
 
       // Step 5: Slew to correct position
-      onStatusUpdate?.call(CenteringStatus(
-        state: CenteringState.slewing,
-        currentIteration: iteration,
-        maxIterations: config.maxIterations,
-        currentOffsetArcsec: offset,
-        currentOffsetArcmin: offset / 60.0,
-        message: 'Slewing to target...',
-        iterationHistory: iterations,
-        lastImagePath: capturedImage.filePath,
-        solvedRa: solvedRa,
-        solvedDec: solvedDec,
-      ));
+      onStatusUpdate?.call(
+        CenteringStatus(
+          state: CenteringState.slewing,
+          currentIteration: iteration,
+          maxIterations: config.maxIterations,
+          currentOffsetArcsec: offset,
+          currentOffsetArcmin: offset / 60.0,
+          message: 'Slewing to target...',
+          iterationHistory: iterations,
+          lastImagePath: capturedImage.filePath,
+          solvedRa: solvedRa,
+          solvedDec: solvedDec,
+        ),
+      );
 
       try {
         if (config.syncMount) {
@@ -639,8 +647,9 @@ class CenteringService {
     }
 
     // Max iterations reached without achieving tolerance
-    final lastOffset =
-        iterations.isNotEmpty ? iterations.last.offsetArcsec : null;
+    final lastOffset = iterations.isNotEmpty
+        ? iterations.last.offsetArcsec
+        : null;
     return CenteringResult.failure(
       errorMessage:
           'Maximum iterations (${config.maxIterations}) reached. Final offset: ${lastOffset != null ? (lastOffset / 60.0).toStringAsFixed(2) : 'unknown'} arcmin',
@@ -829,8 +838,10 @@ class CenteringService {
         consecutiveQueryFailures++;
         lastQueryError = e;
         // ignore: avoid_print
-        print('CenteringService: post-slew status poll failed '
-            '($consecutiveQueryFailures/$_maxConsecutiveQueryFailures): $e');
+        print(
+          'CenteringService: post-slew status poll failed '
+          '($consecutiveQueryFailures/$_maxConsecutiveQueryFailures): $e',
+        );
 
         if (consecutiveQueryFailures >= _maxConsecutiveQueryFailures) {
           // Errors are a feature: escalate the sustained outage as a
@@ -893,7 +904,8 @@ class CenteringService {
     final deltaRa = ra2 - ra1;
     final deltaDec = dec2 - dec1;
 
-    final a = math.pow(math.sin(deltaDec / 2), 2) +
+    final a =
+        math.pow(math.sin(deltaDec / 2), 2) +
         math.cos(dec1) * math.cos(dec2) * math.pow(math.sin(deltaRa / 2), 2);
     final c = 2 * math.asin(math.sqrt(a));
 
@@ -917,5 +929,6 @@ final centeringStatusProvider = StateProvider<CenteringStatus>((ref) {
 });
 
 /// Provider for last centering result
-final lastCenteringResultProvider =
-    StateProvider<CenteringResult?>((ref) => null);
+final lastCenteringResultProvider = StateProvider<CenteringResult?>(
+  (ref) => null,
+);

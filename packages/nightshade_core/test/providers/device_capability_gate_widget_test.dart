@@ -20,12 +20,8 @@ class _CapabilityGatedButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final caps =
-        ref.watch(equipmentMountCapabilitiesProvider(deviceId));
-    final canPark = gateCapability<MountCapabilities>(
-      caps,
-      (c) => c.canPark,
-    );
+    final caps = ref.watch(equipmentMountCapabilitiesProvider(deviceId));
+    final canPark = gateCapability<MountCapabilities>(caps, (c) => c.canPark);
     return Column(
       children: [
         if (canPark)
@@ -45,85 +41,79 @@ Widget _wrap(ProviderContainer container, Widget child) {
 }
 
 void main() {
-  testWidgets(
-    'gated control renders when capability flag is TRUE',
-    (tester) async {
-      // Stub the FutureProvider.family by overriding it directly with a
-      // resolved value. This decouples the test from the backend layer.
-      final container = ProviderContainer(
-        overrides: [
-          equipmentMountCapabilitiesProvider('mount:supports-park').overrideWith(
-            (_) async => const MountCapabilities(canPark: true, canUnpark: true),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+  testWidgets('gated control renders when capability flag is TRUE', (
+    tester,
+  ) async {
+    // Stub the FutureProvider.family by overriding it directly with a
+    // resolved value. This decouples the test from the backend layer.
+    final container = ProviderContainer(
+      overrides: [
+        equipmentMountCapabilitiesProvider('mount:supports-park').overrideWith(
+          (_) async => const MountCapabilities(canPark: true, canUnpark: true),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      await tester.pumpWidget(_wrap(
+    await tester.pumpWidget(
+      _wrap(
         container,
         const _CapabilityGatedButton(deviceId: 'mount:supports-park'),
-      ));
-      // Let the FutureProvider resolve.
-      await tester.pumpAndSettle();
+      ),
+    );
+    // Let the FutureProvider resolve.
+    await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(ElevatedButton, 'Park'), findsOneWidget);
-      expect(find.text('Park button hidden'), findsNothing);
-    },
-  );
+    expect(find.widgetWithText(ElevatedButton, 'Park'), findsOneWidget);
+    expect(find.text('Park button hidden'), findsNothing);
+  });
 
-  testWidgets(
-    'gated control is hidden when capability flag is FALSE',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: [
-          equipmentMountCapabilitiesProvider('mount:no-park').overrideWith(
-            (_) async => const MountCapabilities(canPark: false),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+  testWidgets('gated control is hidden when capability flag is FALSE', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        equipmentMountCapabilitiesProvider(
+          'mount:no-park',
+        ).overrideWith((_) async => const MountCapabilities(canPark: false)),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      await tester.pumpWidget(_wrap(
-        container,
-        const _CapabilityGatedButton(deviceId: 'mount:no-park'),
-      ));
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _wrap(container, const _CapabilityGatedButton(deviceId: 'mount:no-park')),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(ElevatedButton, 'Park'), findsNothing);
-      expect(find.text('Park button hidden'), findsOneWidget);
-    },
-  );
+    expect(find.widgetWithText(ElevatedButton, 'Park'), findsNothing);
+    expect(find.text('Park button hidden'), findsOneWidget);
+  });
 
-  testWidgets(
-    'gated control is hidden when the capability query errors '
-    '(fail-closed)',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: [
-          equipmentMountCapabilitiesProvider('mount:broken').overrideWith(
-            (_) => Future<MountCapabilities?>.error(
-                StateError('driver crashed')),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+  testWidgets('gated control is hidden when the capability query errors '
+      '(fail-closed)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        equipmentMountCapabilitiesProvider('mount:broken').overrideWith(
+          (_) => Future<MountCapabilities?>.error(StateError('driver crashed')),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      await tester.pumpWidget(_wrap(
-        container,
-        const _CapabilityGatedButton(deviceId: 'mount:broken'),
-      ));
-      // Let the error propagate.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpWidget(
+      _wrap(container, const _CapabilityGatedButton(deviceId: 'mount:broken')),
+    );
+    // Let the error propagate.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
-      expect(
-        find.widgetWithText(ElevatedButton, 'Park'),
-        findsNothing,
-        reason:
-            'A driver that throws on capability query must fall back to the '
-            'safest possible UI: the button is hidden.',
-      );
-      expect(find.text('Park button hidden'), findsOneWidget);
-    },
-  );
+    expect(
+      find.widgetWithText(ElevatedButton, 'Park'),
+      findsNothing,
+      reason:
+          'A driver that throws on capability query must fall back to the '
+          'safest possible UI: the button is hidden.',
+    );
+    expect(find.text('Park button hidden'), findsOneWidget);
+  });
 }

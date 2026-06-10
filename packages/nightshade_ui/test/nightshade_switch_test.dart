@@ -4,9 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
-      theme: NightshadeTheme.dark,
-      home: Scaffold(body: Center(child: child)),
-    );
+  theme: NightshadeTheme.dark,
+  home: Scaffold(body: Center(child: child)),
+);
 
 AnimatedContainer _trackOf(WidgetTester tester) {
   return tester.widget<AnimatedContainer>(
@@ -21,10 +21,9 @@ void main() {
   group('NightshadeSwitch', () {
     testWidgets('toggles on tap', (tester) async {
       var value = false;
-      await tester.pumpWidget(_wrap(NightshadeSwitch(
-        value: value,
-        onChanged: (v) => value = v,
-      )));
+      await tester.pumpWidget(
+        _wrap(NightshadeSwitch(value: value, onChanged: (v) => value = v)),
+      );
       await tester.tap(find.byType(NightshadeSwitch));
       await tester.pumpAndSettle();
       expect(value, isTrue);
@@ -32,21 +31,20 @@ void main() {
 
     testWidgets('disabled switch ignores taps', (tester) async {
       var value = false;
-      await tester.pumpWidget(_wrap(NightshadeSwitch(
-        value: value,
-        onChanged: null,
-      )));
+      await tester.pumpWidget(
+        _wrap(NightshadeSwitch(value: value, onChanged: null)),
+      );
       await tester.tap(find.byType(NightshadeSwitch));
       await tester.pumpAndSettle();
       expect(value, isFalse);
     });
 
     testWidgets('enabled false applies disabled opacity', (tester) async {
-      await tester.pumpWidget(_wrap(NightshadeSwitch(
-        value: false,
-        enabled: false,
-        onChanged: (_) {},
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          NightshadeSwitch(value: false, enabled: false, onChanged: (_) {}),
+        ),
+      );
       await tester.pump();
 
       final opacity = tester.widget<Opacity>(
@@ -59,27 +57,26 @@ void main() {
     });
 
     testWidgets('on track uses primary fill', (tester) async {
-      await tester.pumpWidget(_wrap(const NightshadeSwitch(
-        value: true,
-        onChanged: _noop,
-      )));
+      await tester.pumpWidget(
+        _wrap(const NightshadeSwitch(value: true, onChanged: _noop)),
+      );
       await tester.pump();
 
       final track = _trackOf(tester);
       final decoration = track.decoration! as BoxDecoration;
       final colors = NightshadeColors.dark;
-      expect(decoration.color, NightshadeSwitchStyle.trackColor(
-        colors,
-        selected: true,
-      ));
+      expect(
+        decoration.color,
+        NightshadeSwitchStyle.trackColor(colors, selected: true),
+      );
     });
 
     testWidgets('compact variant uses smaller track', (tester) async {
-      await tester.pumpWidget(_wrap(const NightshadeSwitch(
-        value: false,
-        onChanged: _noop,
-        compact: true,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          const NightshadeSwitch(value: false, onChanged: _noop, compact: true),
+        ),
+      );
       await tester.pump();
 
       final size = tester.getSize(find.byType(NightshadeSwitch));
@@ -87,10 +84,9 @@ void main() {
     });
 
     testWidgets('hover darkens selected track', (tester) async {
-      await tester.pumpWidget(_wrap(const NightshadeSwitch(
-        value: true,
-        onChanged: _noop,
-      )));
+      await tester.pumpWidget(
+        _wrap(const NightshadeSwitch(value: true, onChanged: _noop)),
+      );
       await tester.pump();
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -107,32 +103,44 @@ void main() {
 
   group('NightshadeSwitchRow', () {
     testWidgets('renders label and switch', (tester) async {
-      await tester.pumpWidget(_wrap(const NightshadeSwitchRow(
-        label: 'Cooling',
-        value: true,
-        onChanged: _noop,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          const NightshadeSwitchRow(
+            label: 'Cooling',
+            value: true,
+            onChanged: _noop,
+          ),
+        ),
+      );
       expect(find.text('Cooling'), findsOneWidget);
       expect(find.byType(NightshadeSwitch), findsOneWidget);
     });
 
     testWidgets('renders subtitle when provided', (tester) async {
-      await tester.pumpWidget(_wrap(const NightshadeSwitchRow(
-        label: 'Cooling',
-        subtitle: 'Enable camera cooling',
-        value: false,
-        onChanged: _noop,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          const NightshadeSwitchRow(
+            label: 'Cooling',
+            subtitle: 'Enable camera cooling',
+            value: false,
+            onChanged: _noop,
+          ),
+        ),
+      );
       expect(find.text('Enable camera cooling'), findsOneWidget);
     });
 
     testWidgets('forwards toggle to onChanged', (tester) async {
       var value = false;
-      await tester.pumpWidget(_wrap(NightshadeSwitchRow(
-        label: 'Cooling',
-        value: value,
-        onChanged: (v) => value = v,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          NightshadeSwitchRow(
+            label: 'Cooling',
+            value: value,
+            onChanged: (v) => value = v,
+          ),
+        ),
+      );
       await tester.tap(find.byType(NightshadeSwitch));
       await tester.pumpAndSettle();
       expect(value, isTrue);

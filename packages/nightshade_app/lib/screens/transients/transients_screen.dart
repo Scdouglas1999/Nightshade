@@ -41,34 +41,34 @@ class TransientsScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: Column(
-        children: [
-          // Header with title and actions
-          _TransientsHeader(
-            colors: colors,
-            onRefresh: () => refreshTransientAlerts(ref),
-            onSettingsTap: () => _showSettingsDialog(context, ref),
-          ),
-
-          // Filter tabs
-          _FilterTabBar(
-            colors: colors,
-            currentFilter: currentFilter,
-            onFilterChanged: (filter) {
-              ref.read(_transientFilterProvider.notifier).state = filter;
-            },
-          ),
-
-          // Main content area
-          Expanded(
-            child: alertsAsync.when(
-              data: (alerts) =>
-                  _buildDataState(context, ref, colors, alerts, currentFilter),
-              loading: () => _buildLoadingState(),
-              error: (error, stackTrace) =>
-                  _buildErrorState(context, ref, colors, error),
+          children: [
+            // Header with title and actions
+            _TransientsHeader(
+              colors: colors,
+              onRefresh: () => refreshTransientAlerts(ref),
+              onSettingsTap: () => _showSettingsDialog(context, ref),
             ),
-          ),
-        ],
+
+            // Filter tabs
+            _FilterTabBar(
+              colors: colors,
+              currentFilter: currentFilter,
+              onFilterChanged: (filter) {
+                ref.read(_transientFilterProvider.notifier).state = filter;
+              },
+            ),
+
+            // Main content area
+            Expanded(
+              child: alertsAsync.when(
+                data: (alerts) => _buildDataState(
+                    context, ref, colors, alerts, currentFilter),
+                loading: () => _buildLoadingState(),
+                error: (error, stackTrace) =>
+                    _buildErrorState(context, ref, colors, error),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -191,7 +191,8 @@ class TransientsScreen extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               message,
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
@@ -230,7 +231,8 @@ class TransientsScreen extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'Failed to load transient alerts',
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
@@ -341,8 +343,8 @@ class _TransientsHeader extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           IconButton(
-            icon:
-                const Icon(NightshadeIcons.settings, size: NightshadeTokens.iconMd),
+            icon: const Icon(NightshadeIcons.settings,
+                size: NightshadeTokens.iconMd),
             onPressed: onSettingsTap,
             tooltip: 'Alert settings',
             color: colors.textSecondary,
@@ -428,7 +430,8 @@ class _FilterChip extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: NightshadeTypography.label.copyWith(color: isSelected ? onPrimary : colors.textSecondary),
+            style: NightshadeTypography.label
+                .copyWith(color: isSelected ? onPrimary : colors.textSecondary),
           ),
         ),
       ),
@@ -524,181 +527,185 @@ class _TransientSettingsDialog extends ConsumerWidget {
           designMaxWidth: 400,
         ),
         child: Padding(
-        padding: NightshadeTokens.dialogPadding,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                const Icon(
-                  NightshadeIcons.settings,
-                  size: NightshadeTokens.iconMd,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceMd),
-                Text(
-                  'Alert Settings',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize18,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+          padding: NightshadeTokens.dialogPadding,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(
+                    NightshadeIcons.settings,
+                    size: NightshadeTokens.iconMd,
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon:
-                      const Icon(NightshadeIcons.close, size: NightshadeTokens.iconMd),
-                  onPressed: () => Navigator.of(context).pop(),
-                  color: colors.textSecondary,
-                ),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Sources section
-            Text(
-              'Alert Sources',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Wrap(
-              spacing: NightshadeTokens.spaceSm,
-              runSpacing: NightshadeTokens.spaceSm,
-              children: TransientSource.values.map((source) {
-                final isEnabled = settings.enabledSources.contains(source);
-                return FilterChip(
-                  label: Text(_getSourceLabel(source)),
-                  selected: isEnabled,
-                  onSelected: (_) => notifier.toggleSource(source),
-                  selectedColor: colors.primary.withValues(alpha: 0.2),
-                  checkmarkColor: colors.primary,
-                  labelStyle: TextStyle(
-                    color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Types section
-            Text(
-              'Transient Types',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Wrap(
-              spacing: NightshadeTokens.spaceSm,
-              runSpacing: NightshadeTokens.spaceSm,
-              children: TransientType.values.map((type) {
-                final isEnabled = settings.typesToMonitor.contains(type);
-                return FilterChip(
-                  label: Text(_getTypeLabel(type)),
-                  selected: isEnabled,
-                  onSelected: (_) => notifier.toggleType(type),
-                  selectedColor: colors.primary.withValues(alpha: 0.2),
-                  checkmarkColor: colors.primary,
-                  labelStyle: TextStyle(
-                    color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12,
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Magnitude threshold
-            Text(
-              'Magnitude Threshold',
-              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Row(
-              children: [
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      activeTrackColor: colors.primary,
-                      inactiveTrackColor: colors.surfaceAlt,
-                      thumbColor: colors.primary,
-                      overlayColor: colors.primary.withValues(alpha: 0.2),
-                    ),
-                    child: Slider(
-                      value: settings.magnitudeThreshold,
-                      min: 5.0,
-                      max: 20.0,
-                      divisions: 30,
-                      onChanged: (value) =>
-                          notifier.setMagnitudeThreshold(value),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceMd),
-                SizedBox(
-                  width: 50,
-                  child: Text(
-                    'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Text(
+                    'Alert Settings',
                     style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize18,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
                     ),
                   ),
-                ),
-              ],
-            ),
-            Text(
-              'Only show alerts brighter than this magnitude',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textMuted,
-              ),
-            ),
-
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Notifications toggle
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Notifications',
-                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-                      ),
-                      Text(
-                        'Show notifications for new alerts',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    ],
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(NightshadeIcons.close,
+                        size: NightshadeTokens.iconMd),
+                    onPressed: () => Navigator.of(context).pop(),
+                    color: colors.textSecondary,
                   ),
-                ),
-                NightshadeSwitch(
-                  value: settings.notifyOnNew,
-                  onChanged: (value) => notifier.setNotifyOnNew(value),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Close button
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                label: 'Done',
-                onPressed: () => Navigator.of(context).pop(),
+                ],
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: NightshadeTokens.spaceLg),
+
+              // Sources section
+              Text(
+                'Alert Sources',
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Wrap(
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceSm,
+                children: TransientSource.values.map((source) {
+                  final isEnabled = settings.enabledSources.contains(source);
+                  return FilterChip(
+                    label: Text(_getSourceLabel(source)),
+                    selected: isEnabled,
+                    onSelected: (_) => notifier.toggleSource(source),
+                    selectedColor: colors.primary.withValues(alpha: 0.2),
+                    checkmarkColor: colors.primary,
+                    labelStyle: TextStyle(
+                      color: isEnabled ? colors.primary : colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: NightshadeTokens.spaceLg),
+
+              // Types section
+              Text(
+                'Transient Types',
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Wrap(
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceSm,
+                children: TransientType.values.map((type) {
+                  final isEnabled = settings.typesToMonitor.contains(type);
+                  return FilterChip(
+                    label: Text(_getTypeLabel(type)),
+                    selected: isEnabled,
+                    onSelected: (_) => notifier.toggleType(type),
+                    selectedColor: colors.primary.withValues(alpha: 0.2),
+                    checkmarkColor: colors.primary,
+                    labelStyle: TextStyle(
+                      color: isEnabled ? colors.primary : colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12,
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: NightshadeTokens.spaceLg),
+
+              // Magnitude threshold
+              Text(
+                'Magnitude Threshold',
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Row(
+                children: [
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: colors.primary,
+                        inactiveTrackColor: colors.surfaceAlt,
+                        thumbColor: colors.primary,
+                        overlayColor: colors.primary.withValues(alpha: 0.2),
+                      ),
+                      child: Slider(
+                        value: settings.magnitudeThreshold,
+                        min: 5.0,
+                        max: 20.0,
+                        divisions: 30,
+                        onChanged: (value) =>
+                            notifier.setMagnitudeThreshold(value),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  SizedBox(
+                    width: 50,
+                    child: Text(
+                      'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Only show alerts brighter than this magnitude',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
+              ),
+
+              const SizedBox(height: NightshadeTokens.spaceLg),
+
+              // Notifications toggle
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notifications',
+                          style: NightshadeTypography.h5
+                              .copyWith(color: colors.textPrimary),
+                        ),
+                        Text(
+                          'Show notifications for new alerts',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  NightshadeSwitch(
+                    value: settings.notifyOnNew,
+                    onChanged: (value) => notifier.setNotifyOnNew(value),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: NightshadeTokens.spaceLg),
+
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                child: NightshadeButton(
+                  label: 'Done',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

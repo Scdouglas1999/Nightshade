@@ -335,7 +335,9 @@ const _lineFigureSet04 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 13.3152, dec: -23.1716), // Pi Hya
         end: CelestialCoordinate(
-            ra: 14.1062, dec: -26.6822), // Gamma1 Hya (tail end)
+          ra: 14.1062,
+          dec: -26.6822,
+        ), // Gamma1 Hya (tail end)
       ),
     ],
   ),
@@ -398,8 +400,10 @@ const _lineFigureSet04 = <ConstellationData>[
     center: CelestialCoordinate(ra: 7.3, dec: -32),
     lines: [
       ConstellationLine(
-        start:
-            CelestialCoordinate(ra: 8.0594, dec: -40.0036), // Zeta Pup (Naos)
+        start: CelestialCoordinate(
+          ra: 8.0594,
+          dec: -40.0036,
+        ), // Zeta Pup (Naos)
         end: CelestialCoordinate(ra: 7.8218, dec: -24.8597), // Pi Pup
         startStarName: 'Naos',
       ),
@@ -426,20 +430,26 @@ const _lineFigureSet04 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 8.1586, dec: -47.3367), // Gamma2 Vel (Regor)
+          ra: 8.1586,
+          dec: -47.3367,
+        ), // Gamma2 Vel (Regor)
         end: CelestialCoordinate(ra: 8.7452, dec: -54.7087), // Delta Vel
         startStarName: 'Regor',
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 8.7452, dec: -54.7087), // Delta Vel
         end: CelestialCoordinate(
-            ra: 9.5115, dec: -40.4668), // Kappa Vel (Markeb)
+          ra: 9.5115,
+          dec: -40.4668,
+        ), // Kappa Vel (Markeb)
         endStarName: 'Markeb',
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 9.5115, dec: -40.4668), // Markeb
         end: CelestialCoordinate(
-            ra: 9.1330, dec: -43.4326), // Lambda Vel (Suhail)
+          ra: 9.1330,
+          dec: -43.4326,
+        ), // Lambda Vel (Suhail)
         endStarName: 'Suhail',
       ),
       ConstellationLine(
@@ -477,7 +487,9 @@ const _lineFigureSet04 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 6.3992, dec: -52.6956), // Canopus
         end: CelestialCoordinate(
-            ra: 8.3752, dec: -59.5096), // Iota Car (Aspidiske)
+          ra: 8.3752,
+          dec: -59.5096,
+        ), // Iota Car (Aspidiske)
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 8.3752, dec: -59.5096), // Aspidiske
@@ -645,7 +657,9 @@ const _lineFigureSet04 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 10.4644, dec: 36.7074), // 46 LMi (Praecipua)
+          ra: 10.4644,
+          dec: 36.7074,
+        ), // 46 LMi (Praecipua)
         end: CelestialCoordinate(ra: 10.8889, dec: 34.2148), // Beta LMi
         startStarName: 'Praecipua',
       ),

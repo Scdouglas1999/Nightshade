@@ -53,7 +53,7 @@ class EquipmentFovState {
 
 class EquipmentFovNotifier extends StateNotifier<EquipmentFovState> {
   EquipmentFovNotifier(this._ref, {bool bindSources = true})
-      : super(const EquipmentFovState()) {
+    : super(const EquipmentFovState()) {
     if (!bindSources) {
       return;
     }
@@ -73,16 +73,10 @@ class EquipmentFovNotifier extends StateNotifier<EquipmentFovState> {
   void _applyOpticalConfig(OpticalConfig? config) {
     final fov = config?.fieldOfView;
     if (fov == null) {
-      state = state.copyWith(
-        widthDegrees: null,
-        heightDegrees: null,
-      );
+      state = state.copyWith(widthDegrees: null, heightDegrees: null);
       return;
     }
-    state = state.copyWith(
-      widthDegrees: fov.$1,
-      heightDegrees: fov.$2,
-    );
+    state = state.copyWith(widthDegrees: fov.$1, heightDegrees: fov.$2);
   }
 
   /// Override rotation (for example framing assistant slider).
@@ -94,5 +88,5 @@ class EquipmentFovNotifier extends StateNotifier<EquipmentFovState> {
 /// Active equipment FOV dimensions and rotation for planetarium overlays.
 final equipmentFovProvider =
     StateNotifierProvider<EquipmentFovNotifier, EquipmentFovState>((ref) {
-  return EquipmentFovNotifier(ref);
-});
+      return EquipmentFovNotifier(ref);
+    });

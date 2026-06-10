@@ -99,8 +99,9 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         _controllers['ra_${param.name}']?.text = param.value.toStringAsFixed(2);
       }
       for (final param in widget.decParams) {
-        _controllers['dec_${param.name}']?.text =
-            param.value.toStringAsFixed(2);
+        _controllers['dec_${param.name}']?.text = param.value.toStringAsFixed(
+          2,
+        );
       }
     }
   }
@@ -160,8 +161,10 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         final horizontalPadding = isCompact ? 10.0 : 16.0;
 
         return Container(
-          padding:
-              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -174,8 +177,11 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   color: colors.warning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(LucideIcons.brain,
-                    color: colors.warning, size: iconSize),
+                child: Icon(
+                  LucideIcons.brain,
+                  color: colors.warning,
+                  size: iconSize,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -206,8 +212,12 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
     );
   }
 
-  Widget _buildAxisSection(String label, List<BrainParam> params, String axis,
-      NightshadeColors colors) {
+  Widget _buildAxisSection(
+    String label,
+    List<BrainParam> params,
+    String axis,
+    NightshadeColors colors,
+  ) {
     final axisColor = axis == 'ra' ? Colors.redAccent : colors.info;
 
     return Column(
@@ -253,7 +263,10 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
   }
 
   Widget _buildParamRow(
-      BrainParam param, String axis, NightshadeColors colors) {
+    BrainParam param,
+    String axis,
+    NightshadeColors colors,
+  ) {
     final controller = _controllers['${axis}_${param.name}']!;
 
     return Padding(
@@ -266,10 +279,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
               message: param.description ?? param.name,
               child: Text(
                 _formatParamName(param.name),
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ),
           ),
@@ -286,11 +296,14 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: InputDecoration(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide(color: colors.border),
@@ -328,7 +341,8 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         color: colors.surfaceAlt,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
         border: Border(
-            top: BorderSide(color: colors.border.withValues(alpha: 0.5))),
+          top: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,

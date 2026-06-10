@@ -122,4 +122,3 @@ class AutofocusMergedSettings extends StatelessWidget {
     );
   }
 }
-

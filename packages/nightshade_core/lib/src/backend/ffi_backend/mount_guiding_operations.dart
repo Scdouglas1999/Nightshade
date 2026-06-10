@@ -1,13 +1,16 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiMountGuidingOperations on _FfiBackendBase {
-// =========================================================================
-// Mount Control
-// =========================================================================
+  // =========================================================================
+  // Mount Control
+  // =========================================================================
 
   @override
   Future<void> mountSlewToCoordinates(
-      String deviceId, double ra, double dec) async {
+    String deviceId,
+    double ra,
+    double dec,
+  ) async {
     await bridge.NativeBridge.mountSlewToCoordinates(deviceId, ra, dec);
   }
 
@@ -43,9 +46,15 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
 
   @override
   Future<void> mountSlewAltAz(
-      String deviceId, double altitude, double azimuth) async {
+    String deviceId,
+    double altitude,
+    double azimuth,
+  ) async {
     await bridge_api.mountSlewAltAz(
-        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+      deviceId: deviceId,
+      altitude: altitude,
+      azimuth: azimuth,
+    );
   }
 
   @override
@@ -72,9 +81,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     return await bridge_api.apiGetMountStatus(deviceId: deviceId);
   }
 
-// =========================================================================
-// Focuser Control
-// =========================================================================
+  // =========================================================================
+  // Focuser Control
+  // =========================================================================
 
   @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
@@ -132,14 +141,16 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge_api.apiCancelAutofocus();
   }
 
-// =========================================================================
-// Filter Wheel Control
-// =========================================================================
+  // =========================================================================
+  // Filter Wheel Control
+  // =========================================================================
 
   @override
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
     await bridge.NativeBridge.apiFilterwheelSetPosition(
-        deviceId: deviceId, position: position);
+      deviceId: deviceId,
+      position: position,
+    );
   }
 
   @override
@@ -158,23 +169,29 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   @override
   Future<void> filterWheelSetByName(String deviceId, String name) async {
     await bridge.NativeBridge.apiFilterwheelSetByName(
-        deviceId: deviceId, name: name);
+      deviceId: deviceId,
+      name: name,
+    );
   }
 
-// =========================================================================
-// Rotator Control
-// =========================================================================
+  // =========================================================================
+  // Rotator Control
+  // =========================================================================
 
   @override
   Future<void> rotatorMoveTo(String deviceId, double angle) async {
     await bridge.NativeBridge.apiRotatorMoveTo(
-        deviceId: deviceId, angle: angle);
+      deviceId: deviceId,
+      angle: angle,
+    );
   }
 
   @override
   Future<void> rotatorMoveRelative(String deviceId, double delta) async {
     await bridge.NativeBridge.apiRotatorMoveRelative(
-        deviceId: deviceId, delta: delta);
+      deviceId: deviceId,
+      delta: delta,
+    );
   }
 
   @override
@@ -185,8 +202,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     // But I implemented api_rotator_get_angle in real_device_ops.rs.
     // In api.rs, I implemented api_get_rotator_status which calls real_device_ops.rotator_get_angle.
     // I should probably use apiGetRotatorStatus and extract position.
-    final status =
-        await bridge.NativeBridge.apiGetRotatorStatus(deviceId: deviceId);
+    final status = await bridge.NativeBridge.apiGetRotatorStatus(
+      deviceId: deviceId,
+    );
     return status.position;
   }
 
@@ -200,9 +218,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge.NativeBridge.apiRotatorSyncToPa(deviceId: deviceId, pa: pa);
   }
 
-// =========================================================================
-// PHD2 Guiding
-// =========================================================================
+  // =========================================================================
+  // PHD2 Guiding
+  // =========================================================================
 
   @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
@@ -380,9 +398,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     await bridge.NativeBridge.phd2DeselectStar();
   }
 
-// =========================================================================
-// Generic Guiding (driver-agnostic abstraction)
-// =========================================================================
+  // =========================================================================
+  // Generic Guiding (driver-agnostic abstraction)
+  // =========================================================================
 
   @override
   Future<void> guiderStartGuiding({
@@ -450,10 +468,12 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   }
 
   @override
-  Future<(double, double)> guiderGetLockPosition(
-      {required String deviceId}) async {
-    final result =
-        await bridge.NativeBridge.guiderGetLockPosition(deviceId: deviceId);
+  Future<(double, double)> guiderGetLockPosition({
+    required String deviceId,
+  }) async {
+    final result = await bridge.NativeBridge.guiderGetLockPosition(
+      deviceId: deviceId,
+    );
     return (result.$1, result.$2);
   }
 
@@ -501,9 +521,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     );
   }
 
-// =========================================================================
-// Plate Solving
-// =========================================================================
+  // =========================================================================
+  // Plate Solving
+  // =========================================================================
 
   @override
   Future<PlateSolveResult> plateSolve({
@@ -543,9 +563,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
 
   @override
   Future<PlateSolverInfo> verifyPlateSolver(String executablePath) async {
-    final info = bridge_api.apiPlatesolveVerify(
-      executablePath: executablePath,
-    );
+    final info = bridge_api.apiPlatesolveVerify(executablePath: executablePath);
     return PlateSolverInfo(
       path: info.path,
       flavour: info.flavour,

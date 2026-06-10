@@ -26,13 +26,17 @@ void main() {
     // test` workers), and we don't need persistence within a single test
     // anyway — every assertion completes before tear-down.
     database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
-    await database.into(database.equipmentProfiles).insert(
+    await database
+        .into(database.equipmentProfiles)
+        .insert(
           db.EquipmentProfilesCompanion.insert(
             id: const Value(1),
             name: 'Test Profile 1',
           ),
         );
-    await database.into(database.equipmentProfiles).insert(
+    await database
+        .into(database.equipmentProfiles)
+        .insert(
           db.EquipmentProfilesCompanion.insert(
             id: const Value(2),
             name: 'Test Profile 2',
@@ -47,31 +51,33 @@ void main() {
   });
 
   group('PredictiveAfService - regression math', () {
-    test('recovers known slope and high R² from clean linear samples',
-        () async {
-      // 47 steps/°C, baseline 28000 at 10°C — simulating an Ha filter
-      // with a moderately fast thermal response on a small refractor.
-      FilterFocusModel? model;
-      for (int i = 0; i < 12; i++) {
-        final temp = 0.0 + i.toDouble();
-        final position = 28000 + i * 47;
-        model = await service.recordAutofocusOutcome(
-          equipmentProfileId: 1,
-          filterName: 'Ha',
-          temperatureCelsius: temp,
-          focusPosition: position,
-          hfr: 1.8,
-        );
-      }
-      expect(model, isNotNull);
-      expect(model!.slopeStepsPerC, closeTo(47.0, 0.5));
-      expect(model.confidenceScore, greaterThan(0.99));
-      expect(model.samples.length, 12);
+    test(
+      'recovers known slope and high R² from clean linear samples',
+      () async {
+        // 47 steps/°C, baseline 28000 at 10°C — simulating an Ha filter
+        // with a moderately fast thermal response on a small refractor.
+        FilterFocusModel? model;
+        for (int i = 0; i < 12; i++) {
+          final temp = 0.0 + i.toDouble();
+          final position = 28000 + i * 47;
+          model = await service.recordAutofocusOutcome(
+            equipmentProfileId: 1,
+            filterName: 'Ha',
+            temperatureCelsius: temp,
+            focusPosition: position,
+            hfr: 1.8,
+          );
+        }
+        expect(model, isNotNull);
+        expect(model!.slopeStepsPerC, closeTo(47.0, 0.5));
+        expect(model.confidenceScore, greaterThan(0.99));
+        expect(model.samples.length, 12);
 
-      // Predict at 6°C → should land within a few steps of 28000 + 6*47.
-      final predicted = model.predictPosition(6.0);
-      expect((predicted - (28000 + 6 * 47)).abs(), lessThanOrEqualTo(5));
-    });
+        // Predict at 6°C → should land within a few steps of 28000 + 6*47.
+        final predicted = model.predictPosition(6.0);
+        expect((predicted - (28000 + 6 * 47)).abs(), lessThanOrEqualTo(5));
+      },
+    );
 
     test('does not fit when samples lack temperature variance', () async {
       for (int i = 0; i < 6; i++) {
@@ -117,8 +123,10 @@ void main() {
       expect(decision, isA<ApplyDirect>());
       final apply = decision as ApplyDirect;
       expect(apply.confidence, greaterThanOrEqualTo(0.8));
-      expect((apply.predictedPosition - (15000 + 6 * 30)).abs(),
-          lessThanOrEqualTo(5));
+      expect(
+        (apply.predictedPosition - (15000 + 6 * 30)).abs(),
+        lessThanOrEqualTo(5),
+      );
     });
 
     test('ForceAutofocus when too few samples', () async {
@@ -161,51 +169,53 @@ void main() {
   });
 
   group('PredictiveAfService - drift detection', () {
-    test('5 consecutive bad runs trigger ShouldWarn; reset on a good run',
-        () async {
-      // Seed a model so the row exists.
-      for (int i = 0; i < 10; i++) {
-        await service.recordAutofocusOutcome(
-          equipmentProfileId: 1,
-          filterName: 'Ha',
-          temperatureCelsius: i.toDouble(),
-          focusPosition: 28000 + i * 47,
-          hfr: 2.0,
-        );
-      }
-      // Simulate 5 consecutive predictions that are off by 800 steps each.
-      DriftStatus? last;
-      for (int i = 0; i < 5; i++) {
-        last = await service.recordPredictionVsActual(
+    test(
+      '5 consecutive bad runs trigger ShouldWarn; reset on a good run',
+      () async {
+        // Seed a model so the row exists.
+        for (int i = 0; i < 10; i++) {
+          await service.recordAutofocusOutcome(
+            equipmentProfileId: 1,
+            filterName: 'Ha',
+            temperatureCelsius: i.toDouble(),
+            focusPosition: 28000 + i * 47,
+            hfr: 2.0,
+          );
+        }
+        // Simulate 5 consecutive predictions that are off by 800 steps each.
+        DriftStatus? last;
+        for (int i = 0; i < 5; i++) {
+          last = await service.recordPredictionVsActual(
+            equipmentProfileId: 1,
+            filterName: 'Ha',
+            predictedPosition: 28000,
+            actualPosition: 28800,
+          );
+        }
+        expect(last, isA<ShouldWarn>());
+        final warn = last! as ShouldWarn;
+        expect(warn.consecutiveBadRuns, 5);
+        expect(warn.accumulatedDriftSteps, 4000);
+        expect(warn.message, contains('Ha'));
+        expect(warn.message, contains('drifted'));
+
+        // Now a good run should reset both counters and emit
+        // WithinTolerance.
+        final good = await service.recordPredictionVsActual(
           equipmentProfileId: 1,
           filterName: 'Ha',
           predictedPosition: 28000,
-          actualPosition: 28800,
+          actualPosition: 28050,
         );
-      }
-      expect(last, isA<ShouldWarn>());
-      final warn = last! as ShouldWarn;
-      expect(warn.consecutiveBadRuns, 5);
-      expect(warn.accumulatedDriftSteps, 4000);
-      expect(warn.message, contains('Ha'));
-      expect(warn.message, contains('drifted'));
-
-      // Now a good run should reset both counters and emit
-      // WithinTolerance.
-      final good = await service.recordPredictionVsActual(
-        equipmentProfileId: 1,
-        filterName: 'Ha',
-        predictedPosition: 28000,
-        actualPosition: 28050,
-      );
-      expect(good, isA<WithinTolerance>());
-      final reloaded = await service.getModel(
-        equipmentProfileId: 1,
-        filterName: 'Ha',
-      );
-      expect(reloaded!.consecutiveBadPredictions, 0);
-      expect(reloaded.accumulatedDriftSteps, 0);
-    });
+        expect(good, isA<WithinTolerance>());
+        final reloaded = await service.getModel(
+          equipmentProfileId: 1,
+          filterName: 'Ha',
+        );
+        expect(reloaded!.consecutiveBadPredictions, 0);
+        expect(reloaded.accumulatedDriftSteps, 0);
+      },
+    );
 
     test('drift events stream emits the matching status', () async {
       for (int i = 0; i < 6; i++) {
@@ -234,44 +244,46 @@ void main() {
   });
 
   group('PredictiveAfService - per-profile isolation', () {
-    test('two profiles with the same filter name do not cross-contaminate',
-        () async {
-      // Profile 1 — Ha filter: slope 30
-      for (int i = 0; i < 10; i++) {
-        await service.recordAutofocusOutcome(
+    test(
+      'two profiles with the same filter name do not cross-contaminate',
+      () async {
+        // Profile 1 — Ha filter: slope 30
+        for (int i = 0; i < 10; i++) {
+          await service.recordAutofocusOutcome(
+            equipmentProfileId: 1,
+            filterName: 'Ha',
+            temperatureCelsius: i.toDouble(),
+            focusPosition: 10000 + i * 30,
+            hfr: 2.0,
+          );
+        }
+        // Profile 2 — Ha filter: slope 60 (very different rig)
+        for (int i = 0; i < 10; i++) {
+          await service.recordAutofocusOutcome(
+            equipmentProfileId: 2,
+            filterName: 'Ha',
+            temperatureCelsius: i.toDouble(),
+            focusPosition: 50000 + i * 60,
+            hfr: 2.0,
+          );
+        }
+
+        final m1 = await service.getModel(
           equipmentProfileId: 1,
           filterName: 'Ha',
-          temperatureCelsius: i.toDouble(),
-          focusPosition: 10000 + i * 30,
-          hfr: 2.0,
         );
-      }
-      // Profile 2 — Ha filter: slope 60 (very different rig)
-      for (int i = 0; i < 10; i++) {
-        await service.recordAutofocusOutcome(
+        final m2 = await service.getModel(
           equipmentProfileId: 2,
           filterName: 'Ha',
-          temperatureCelsius: i.toDouble(),
-          focusPosition: 50000 + i * 60,
-          hfr: 2.0,
         );
-      }
-
-      final m1 = await service.getModel(
-        equipmentProfileId: 1,
-        filterName: 'Ha',
-      );
-      final m2 = await service.getModel(
-        equipmentProfileId: 2,
-        filterName: 'Ha',
-      );
-      expect(m1, isNotNull);
-      expect(m2, isNotNull);
-      expect(m1!.slopeStepsPerC, closeTo(30.0, 0.5));
-      expect(m2!.slopeStepsPerC, closeTo(60.0, 0.5));
-      expect(m1.samples.length, 10);
-      expect(m2.samples.length, 10);
-    });
+        expect(m1, isNotNull);
+        expect(m2, isNotNull);
+        expect(m1!.slopeStepsPerC, closeTo(30.0, 0.5));
+        expect(m2!.slopeStepsPerC, closeTo(60.0, 0.5));
+        expect(m1.samples.length, 10);
+        expect(m2.samples.length, 10);
+      },
+    );
   });
 
   group('PredictiveAfService - export/import', () {
@@ -294,10 +306,7 @@ void main() {
       expect(json, contains('nightshade.focus_model.v1'));
 
       // Wipe the existing row then re-import.
-      await service.deleteModel(
-        equipmentProfileId: 1,
-        filterName: 'Ha',
-      );
+      await service.deleteModel(equipmentProfileId: 1, filterName: 'Ha');
       expect(
         await service.getModel(equipmentProfileId: 1, filterName: 'Ha'),
         isNull,
@@ -314,48 +323,44 @@ void main() {
     test('importModel rejects an unknown schema', () async {
       const bogusJson = '{"schema": "other.format.v999"}';
       expect(
-        () => service.importModel(
-          equipmentProfileId: 1,
-          jsonBlob: bogusJson,
-        ),
+        () => service.importModel(equipmentProfileId: 1, jsonBlob: bogusJson),
         throwsA(isA<FormatException>()),
       );
     });
   });
 
   group('PredictiveAfService - sample retention', () {
-    test('clearSamples wipes samples but preserves training_run_count',
-        () async {
-      for (int i = 0; i < 8; i++) {
-        await service.recordAutofocusOutcome(
+    test(
+      'clearSamples wipes samples but preserves training_run_count',
+      () async {
+        for (int i = 0; i < 8; i++) {
+          await service.recordAutofocusOutcome(
+            equipmentProfileId: 1,
+            filterName: 'L',
+            temperatureCelsius: i.toDouble(),
+            focusPosition: 10000 + i * 30,
+            hfr: 2.0,
+          );
+        }
+        final before = await service.getModel(
           equipmentProfileId: 1,
           filterName: 'L',
-          temperatureCelsius: i.toDouble(),
-          focusPosition: 10000 + i * 30,
-          hfr: 2.0,
         );
-      }
-      final before = await service.getModel(
-        equipmentProfileId: 1,
-        filterName: 'L',
-      );
-      expect(before!.trainingRunCount, 8);
-      expect(before.samples, hasLength(8));
+        expect(before!.trainingRunCount, 8);
+        expect(before.samples, hasLength(8));
 
-      await service.clearSamples(
-        equipmentProfileId: 1,
-        filterName: 'L',
-      );
-      final after = await service.getModel(
-        equipmentProfileId: 1,
-        filterName: 'L',
-      );
-      expect(after!.samples, isEmpty);
-      expect(after.slopeStepsPerC, 0.0);
-      expect(after.confidenceScore, 0.0);
-      // Lifetime counter is preserved.
-      expect(after.trainingRunCount, 8);
-    });
+        await service.clearSamples(equipmentProfileId: 1, filterName: 'L');
+        final after = await service.getModel(
+          equipmentProfileId: 1,
+          filterName: 'L',
+        );
+        expect(after!.samples, isEmpty);
+        expect(after.slopeStepsPerC, 0.0);
+        expect(after.confidenceScore, 0.0);
+        // Lifetime counter is preserved.
+        expect(after.trainingRunCount, 8);
+      },
+    );
 
     test('window respects max_training_samples cap', () async {
       // Default cap is 50; lower it for the test.

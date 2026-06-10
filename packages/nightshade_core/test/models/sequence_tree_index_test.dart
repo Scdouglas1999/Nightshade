@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,10 +59,11 @@ void main() {
   group('Sequence.childrenOf', () {
     test('returns children in canonical order', () {
       final s = _smallTree();
-      expect(s.childrenOf('root').map((n) => n.id).toList(),
-          equals(['A', 'B']));
-      expect(s.childrenOf('A').map((n) => n.id).toList(),
-          equals(['A1', 'A2']));
+      expect(
+        s.childrenOf('root').map((n) => n.id).toList(),
+        equals(['A', 'B']),
+      );
+      expect(s.childrenOf('A').map((n) => n.id).toList(), equals(['A1', 'A2']));
     });
 
     test('returns const empty list for a leaf', () {
@@ -79,8 +80,10 @@ void main() {
     test('matches legacy getChildren result exactly', () {
       final s = _smallTree();
       for (final parentId in ['root', 'A', 'B']) {
-        expect(s.childrenOf(parentId).map((n) => n.id).toList(),
-            equals(s.getChildren(parentId).map((n) => n.id).toList()));
+        expect(
+          s.childrenOf(parentId).map((n) => n.id).toList(),
+          equals(s.getChildren(parentId).map((n) => n.id).toList()),
+        );
       }
     });
   });
@@ -106,8 +109,11 @@ void main() {
     test('agrees with node.parentId on every node', () {
       final s = _smallTree();
       for (final node in s.nodes.values) {
-        expect(s.parentOf(node.id), node.parentId,
-            reason: 'parentOf(${node.id}) must equal node.parentId');
+        expect(
+          s.parentOf(node.id),
+          node.parentId,
+          reason: 'parentOf(${node.id}) must equal node.parentId',
+        );
       }
     });
   });
@@ -149,8 +155,7 @@ void main() {
       expect(s.invariants(), isEmpty);
     });
 
-    test('catches a child whose parentId does not match its parent bucket',
-        () {
+    test('catches a child whose parentId does not match its parent bucket', () {
       // Hand-craft a corrupt sequence: B's parentId is A, but root claims B
       // as a child. This would never happen via the editor (mutators keep
       // both in sync), but a corrupt JSON import could produce it.
@@ -166,16 +171,27 @@ void main() {
       );
       final issues = corrupted.invariants();
       expect(issues, isNotEmpty);
-      expect(issues.any((m) => m.contains('parentId')), isTrue,
-          reason: 'should flag the parentId mismatch');
+      expect(
+        issues.any((m) => m.contains('parentId')),
+        isTrue,
+        reason: 'should flag the parentId mismatch',
+      );
     });
 
     test('catches a cycle', () {
       // A -> B -> A
       final a = InstructionSetNode(
-          id: 'A', name: 'A', parentId: 'B', childIds: const ['B']);
+        id: 'A',
+        name: 'A',
+        parentId: 'B',
+        childIds: const ['B'],
+      );
       final b = InstructionSetNode(
-          id: 'B', name: 'B', parentId: 'A', childIds: const ['A']);
+        id: 'B',
+        name: 'B',
+        parentId: 'A',
+        childIds: const ['A'],
+      );
       final corrupted = Sequence.create(
         name: 'cycle',
         rootNodeId: 'A',
@@ -187,7 +203,10 @@ void main() {
 
     test('catches a child id that does not resolve in nodes map', () {
       final root = InstructionSetNode(
-          id: 'root', name: 'R', childIds: const ['missing']);
+        id: 'root',
+        name: 'R',
+        childIds: const ['missing'],
+      );
       final corrupted = Sequence.create(
         name: 'dangling',
         rootNodeId: 'root',
@@ -200,75 +219,83 @@ void main() {
 
   group('Reorder within a long sibling list (proxy for O(1) cost)', () {
     test(
-        'reorderNodes only renumbers the affected parent; other subtrees are untouched',
-        () {
-      // Build a sequence with >20 siblings under a single container plus a
-      // *separate* subtree under a different parent. After reordering one of
-      // the >20 siblings, every node OUTSIDE the parent's child list must be
-      // the SAME instance — no gratuitous copyWith calls across the tree.
-      final c = _newContainer();
-      _notifier(c).createSequence();
+      'reorderNodes only renumbers the affected parent; other subtrees are untouched',
+      () {
+        // Build a sequence with >20 siblings under a single container plus a
+        // *separate* subtree under a different parent. After reordering one of
+        // the >20 siblings, every node OUTSIDE the parent's child list must be
+        // the SAME instance — no gratuitous copyWith calls across the tree.
+        final c = _newContainer();
+        _notifier(c).createSequence();
 
-      final rootId = c.read(currentSequenceProvider)!.rootNodeId!;
+        final rootId = c.read(currentSequenceProvider)!.rootNodeId!;
 
-      // Add an unrelated subtree under a separate container.
-      _notifier(c).addNode(
-        InstructionSetNode(id: 'other', name: 'Other'),
-        parentId: rootId,
-      );
-      _notifier(c).addNode(
-        DelayNode(id: 'unrelated-1', seconds: 1),
-        parentId: 'other',
-      );
-      _notifier(c).addNode(
-        DelayNode(id: 'unrelated-2', seconds: 2),
-        parentId: 'other',
-      );
+        // Add an unrelated subtree under a separate container.
+        _notifier(c).addNode(
+          InstructionSetNode(id: 'other', name: 'Other'),
+          parentId: rootId,
+        );
+        _notifier(
+          c,
+        ).addNode(DelayNode(id: 'unrelated-1', seconds: 1), parentId: 'other');
+        _notifier(
+          c,
+        ).addNode(DelayNode(id: 'unrelated-2', seconds: 2), parentId: 'other');
 
-      // Now add the container that will hold the reordered siblings, then
-      // populate it with 25 exposures.
-      _notifier(c).addNode(
-        InstructionSetNode(id: 'container', name: 'C'),
-        parentId: rootId,
-      );
-      _notifier(c).withUndoGroup(() {
-        for (var i = 0; i < 25; i++) {
-          _notifier(c).addNode(
-            ExposureNode(
-              id: 'exp-$i',
-              durationSecs: 60,
-              count: 1,
-              name: 'E$i',
-            ),
-            parentId: 'container',
-          );
-        }
-      });
+        // Now add the container that will hold the reordered siblings, then
+        // populate it with 25 exposures.
+        _notifier(c).addNode(
+          InstructionSetNode(id: 'container', name: 'C'),
+          parentId: rootId,
+        );
+        _notifier(c).withUndoGroup(() {
+          for (var i = 0; i < 25; i++) {
+            _notifier(c).addNode(
+              ExposureNode(
+                id: 'exp-$i',
+                durationSecs: 60,
+                count: 1,
+                name: 'E$i',
+              ),
+              parentId: 'container',
+            );
+          }
+        });
 
-      final before = c.read(currentSequenceProvider)!;
-      final unrelatedBefore = before.nodes['unrelated-1']!;
-      final unrelatedBefore2 = before.nodes['unrelated-2']!;
-      final otherBefore = before.nodes['other']!;
+        final before = c.read(currentSequenceProvider)!;
+        final unrelatedBefore = before.nodes['unrelated-1']!;
+        final unrelatedBefore2 = before.nodes['unrelated-2']!;
+        final otherBefore = before.nodes['other']!;
 
-      // Swap the first two exposures inside the container.
-      _notifier(c).reorderNodes('container', 0, 1);
+        // Swap the first two exposures inside the container.
+        _notifier(c).reorderNodes('container', 0, 1);
 
-      final after = c.read(currentSequenceProvider)!;
-      // Nodes outside the affected parent are identical instances — proxy
-      // for "the reorder didn't sweep the whole tree", which is the
-      // performance contract the W1.7 refactor pins.
-      expect(identical(after.nodes['unrelated-1'], unrelatedBefore), isTrue,
-          reason: 'sibling in another subtree must not be rebuilt');
-      expect(identical(after.nodes['unrelated-2'], unrelatedBefore2), isTrue,
-          reason: 'sibling in another subtree must not be rebuilt');
-      expect(identical(after.nodes['other'], otherBefore), isTrue,
-          reason: 'the unrelated parent must not be rebuilt');
+        final after = c.read(currentSequenceProvider)!;
+        // Nodes outside the affected parent are identical instances — proxy
+        // for "the reorder didn't sweep the whole tree", which is the
+        // performance contract the W1.7 refactor pins.
+        expect(
+          identical(after.nodes['unrelated-1'], unrelatedBefore),
+          isTrue,
+          reason: 'sibling in another subtree must not be rebuilt',
+        );
+        expect(
+          identical(after.nodes['unrelated-2'], unrelatedBefore2),
+          isTrue,
+          reason: 'sibling in another subtree must not be rebuilt',
+        );
+        expect(
+          identical(after.nodes['other'], otherBefore),
+          isTrue,
+          reason: 'the unrelated parent must not be rebuilt',
+        );
 
-      // Verify the swap actually happened.
-      final containerChildIds = after.nodes['container']!.childIds;
-      expect(containerChildIds.first, 'exp-1');
-      expect(containerChildIds[1], 'exp-0');
-    });
+        // Verify the swap actually happened.
+        final containerChildIds = after.nodes['container']!.childIds;
+        expect(containerChildIds.first, 'exp-1');
+        expect(containerChildIds[1], 'exp-0');
+      },
+    );
 
     test('cross-parent move keeps invariants', () {
       final c = _newContainer();

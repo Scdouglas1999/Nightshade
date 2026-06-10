@@ -75,7 +75,9 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'No timeline data available',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -156,7 +158,9 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'No timeline data available',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -178,7 +182,9 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'Sequence has no estimated duration',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -211,7 +217,9 @@ class VisualTimeline extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Text(
                   _formatTotalDuration(totalDuration),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 const Spacer(),
                 // Close button
@@ -256,30 +264,40 @@ class VisualTimeline extends ConsumerWidget {
               children: [
                 Text(
                   DateFormat('HH:mm').format(firstStart),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart.add(Duration(seconds: (totalSecs / 4).round())),
                   ),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart.add(Duration(seconds: (totalSecs / 2).round())),
                   ),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart
                         .add(Duration(seconds: (totalSecs * 3 / 4).round())),
                   ),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(lastEnd),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted),
                 ),
               ],
             ),

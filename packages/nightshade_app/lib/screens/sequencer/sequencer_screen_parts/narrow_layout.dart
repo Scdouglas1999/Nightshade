@@ -70,8 +70,8 @@ class _NarrowDesktopLayout extends ConsumerWidget {
               onShowFullPalette: () => _showNodePaletteSheet(context),
             ),
             Expanded(
-              child:
-                  SequenceTree(key: SequencerTutorialKeys.canvas, colors: colors),
+              child: SequenceTree(
+                  key: SequencerTutorialKeys.canvas, colors: colors),
             ),
           ],
         ),
@@ -299,8 +299,7 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
       data: widget.item,
       onDragStarted: () =>
           ref.read(isDraggingNodeProvider.notifier).state = true,
-      onDragEnd: (_) =>
-          ref.read(isDraggingNodeProvider.notifier).state = false,
+      onDragEnd: (_) => ref.read(isDraggingNodeProvider.notifier).state = false,
       onDraggableCanceled: (_, __) =>
           ref.read(isDraggingNodeProvider.notifier).state = false,
       feedback: Material(
@@ -319,7 +318,8 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
               const SizedBox(width: 6),
               Text(
                 widget.item.name,
-                style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textPrimary),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: widget.colors.textPrimary),
               ),
             ],
           ),
@@ -341,7 +341,8 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
                 color: _hovered
                     ? NightshadeDecorations.tintedBadge(
                         widget.tint,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                       ).color
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),

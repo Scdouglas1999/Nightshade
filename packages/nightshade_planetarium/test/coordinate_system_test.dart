@@ -129,8 +129,7 @@ void main() {
         expect(result.isAboveHorizon, isTrue);
       });
 
-      test('object at celestial equator transit has altitude = 90 - latitude',
-          () {
+      test('object at celestial equator transit has altitude = 90 - latitude', () {
         // An object at Dec = 0 at transit (hour angle = 0) has altitude = 90 - |lat|
         // For this test, we need to pick a time when RA equals LST (transit)
         final latitude = 40.0;
@@ -343,7 +342,8 @@ double _computeJulianDate(DateTime dt) {
 /// Replicates CelestialCoordinate._localSiderealTime for testing
 double _computeLst(double jd, double longitude) {
   final t = (jd - 2451545.0) / 36525;
-  var lst = 280.46061837 +
+  var lst =
+      280.46061837 +
       360.98564736629 * (jd - 2451545.0) +
       0.000387933 * t * t -
       t * t * t / 38710000;

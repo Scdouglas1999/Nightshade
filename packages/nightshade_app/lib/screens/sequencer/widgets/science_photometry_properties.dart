@@ -65,8 +65,7 @@ class _SciencePhotometryPropertiesState
     _maxAirmassCtl = TextEditingController(
       text: widget.node.quality.maxAirmass.toString(),
     );
-    _gainCtl =
-        TextEditingController(text: widget.node.gain?.toString() ?? '');
+    _gainCtl = TextEditingController(text: widget.node.gain?.toString() ?? '');
     _offsetCtl =
         TextEditingController(text: widget.node.offset?.toString() ?? '');
   }
@@ -137,8 +136,9 @@ class _SciencePhotometryPropertiesState
   }
 
   void _removeReferenceStar(String id) {
-    final filtered =
-        widget.node.referenceStars.where((e) => e != id).toList(growable: false);
+    final filtered = widget.node.referenceStars
+        .where((e) => e != id)
+        .toList(growable: false);
     _update((n) => n.copyWith(referenceStars: filtered));
   }
 
@@ -170,7 +170,9 @@ class _SciencePhotometryPropertiesState
         Text(
           'Comparison stars for differential photometry. Order does not '
           'matter; the runtime extracts each independently.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textSecondary),
         ),
         const SizedBox(height: 8),
         if (node.referenceStars.isEmpty)
@@ -190,7 +192,9 @@ class _SciencePhotometryPropertiesState
                   child: Text(
                     'No reference stars configured. Differential '
                     'photometry will fall back to instrumental magnitude only.',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
               ],
@@ -295,8 +299,7 @@ class _SciencePhotometryPropertiesState
         const SizedBox(height: 12),
         TextField(
           controller: _maxCadenceCtl,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             labelText: 'Max cadence gap (s)',
             helperText:
@@ -411,8 +414,7 @@ class _SciencePhotometryPropertiesState
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            onTap: () =>
-                setState(() => _qualityExpanded = !_qualityExpanded),
+            onTap: () => setState(() => _qualityExpanded = !_qualityExpanded),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
@@ -439,7 +441,9 @@ class _SciencePhotometryPropertiesState
                     '(SNR ≥ ${node.quality.minSnr.toStringAsFixed(0)}, '
                     'FWHM ≤ ${node.quality.maxFwhmArcsec.toStringAsFixed(1)}", '
                     'airmass ≤ ${node.quality.maxAirmass.toStringAsFixed(2)})',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ],
               ),
@@ -485,8 +489,7 @@ class _SciencePhotometryPropertiesState
                     final parsed = double.tryParse(v);
                     if (parsed == null || parsed <= 0) return;
                     _update((n) => n.copyWith(
-                          quality:
-                              n.quality.copyWith(maxFwhmArcsec: parsed),
+                          quality: n.quality.copyWith(maxFwhmArcsec: parsed),
                         ));
                   },
                 ),
@@ -496,8 +499,7 @@ class _SciencePhotometryPropertiesState
           const SizedBox(height: 12),
           TextField(
             controller: _maxAirmassCtl,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Max airmass',
               helperText: 'AAVSO BSM cutoff ≈ 2.5',
@@ -533,11 +535,11 @@ class _SciencePhotometryPropertiesState
         if (node.hasImpossibleCadence)
           Container(
             margin: const EdgeInsets.only(top: 8),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -548,7 +550,8 @@ class _SciencePhotometryPropertiesState
                   child: Text(
                     'Negative cadence gap is impossible — the executor '
                     'will reject this node at validation.',
-                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning),
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: colors.warning),
                   ),
                 ),
               ],

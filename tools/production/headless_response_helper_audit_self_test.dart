@@ -8,7 +8,8 @@ Future<void> main() async {
   );
   if (!script.existsSync()) {
     throw StateError(
-        'Headless response helper audit not found: ${script.path}');
+      'Headless response helper audit not found: ${script.path}',
+    );
   }
 
   final temp = await Directory.systemTemp.createTemp(
@@ -80,8 +81,9 @@ Future<void> main() async {
       temp,
       'docs/production-readiness/headless-response-helper-audit.json',
     );
-    final rawHandlerIssues =
-        (rawHandler['issues'] as List? ?? const []).join('\n');
+    final rawHandlerIssues = (rawHandler['issues'] as List? ?? const []).join(
+      '\n',
+    );
     _expect(
       rawHandlerIssues.contains('Headless handler raw Response calls'),
       'raw handler fixture should fail on handler-level raw Response usage',
@@ -133,18 +135,14 @@ void main() {
 }
 ''',
   );
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', '''
 import 'headless_api/response_helpers.dart';
 void routes() {
   Response.ok(file.openRead(), headers: {'content-type': _getMimeType(filePath)});
   Response.ok('', headers: corsHeaders);
   jsonOk({'ok': true});
 }
-''',
-  );
+''');
   await _writeFile(
     root,
     'apps/desktop/lib/headless_api/handlers/status_handlers.dart',

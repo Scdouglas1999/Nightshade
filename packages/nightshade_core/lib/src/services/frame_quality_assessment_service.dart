@@ -5,17 +5,9 @@ import '../database/database.dart' show CapturedImage;
 /// Advisory quality level for a captured frame.
 ///
 /// This is informational only. It does not delete files or modify the capture.
-enum FrameQualityLevel {
-  good,
-  needsReview,
-  poor,
-}
+enum FrameQualityLevel { good, needsReview, poor }
 
-enum FrameQualityDisposition {
-  keep,
-  review,
-  autoReject,
-}
+enum FrameQualityDisposition { keep, review, autoReject }
 
 /// How the assessor should treat its own "auto-reject" recommendation.
 ///
@@ -39,11 +31,7 @@ enum FrameQualityDisposition {
 ///              plus a very low advisory score) flips the disposition to
 ///              `autoReject`. Existing users that opted into this behaviour
 ///              keep it; new installs default to [advisory].
-enum FrameGradingMode {
-  off,
-  advisory,
-  auto,
-}
+enum FrameGradingMode { off, advisory, auto }
 
 /// Result of quality assessment for a single frame.
 class FrameQualityAssessment {
@@ -69,7 +57,8 @@ class FrameQualityAssessment {
   });
 
   bool get needsReview => level != FrameQualityLevel.good;
-  bool get autoRejectCandidate => disposition == FrameQualityDisposition.autoReject;
+  bool get autoRejectCandidate =>
+      disposition == FrameQualityDisposition.autoReject;
 
   String get label {
     switch (level) {
@@ -209,9 +198,11 @@ class FrameQualityAssessmentService {
 
     final level = severeIssue || advisoryScore < 45 || heuristicScore >= 0.82
         ? FrameQualityLevel.poor
-        : (advisoryScore < 70 || moderateIssueCount >= 2 || heuristicScore >= 0.58)
-            ? FrameQualityLevel.needsReview
-            : FrameQualityLevel.good;
+        : (advisoryScore < 70 ||
+              moderateIssueCount >= 2 ||
+              heuristicScore >= 0.58)
+        ? FrameQualityLevel.needsReview
+        : FrameQualityLevel.good;
 
     final wouldAutoReject =
         heuristicScore >= 0.88 || (severeIssue && advisoryScore < 35);
@@ -225,19 +216,21 @@ class FrameQualityAssessmentService {
         disposition = wouldAutoReject
             ? FrameQualityDisposition.autoReject
             : level == FrameQualityLevel.needsReview ||
-                    level == FrameQualityLevel.poor
-                ? FrameQualityDisposition.review
-                : FrameQualityDisposition.keep;
+                  level == FrameQualityLevel.poor
+            ? FrameQualityDisposition.review
+            : FrameQualityDisposition.keep;
         break;
       case FrameGradingMode.advisory:
-        disposition = wouldAutoReject ||
+        disposition =
+            wouldAutoReject ||
                 level == FrameQualityLevel.needsReview ||
                 level == FrameQualityLevel.poor
             ? FrameQualityDisposition.review
             : FrameQualityDisposition.keep;
         break;
       case FrameGradingMode.off:
-        disposition = level == FrameQualityLevel.poor ||
+        disposition =
+            level == FrameQualityLevel.poor ||
                 level == FrameQualityLevel.needsReview
             ? FrameQualityDisposition.review
             : FrameQualityDisposition.keep;
@@ -371,7 +364,8 @@ class FrameQualityAssessmentService {
     final starPenalty = 1.0 - (starCount.clamp(20.0, 160.0) - 20.0) / 140.0;
     final qualityPenalty = 1.0 - (qualityScore.clamp(0.0, 100.0) / 100.0);
 
-    final logit = -2.9 +
+    final logit =
+        -2.9 +
         (hfrRatio - 1.0) * 2.2 +
         (guidingRatio - 1.0) * 1.6 +
         starPenalty * 1.8 +
@@ -392,6 +386,7 @@ class FrameQualityAssessmentService {
 enum FrameGradeDecision {
   /// Frame passed all configured thresholds.
   accepted,
+
   /// Frame failed at least one threshold and was routed to the reject folder.
   rejected,
 }
@@ -410,27 +405,36 @@ class FrameGradeEvent {
   final int frame;
   final int total;
   final FrameGradeDecision decision;
+
   /// Reject reason text from the Rust side. Empty for accepted frames.
   final String reason;
+
   /// Path the FITS landed at (accepted = save_path, rejected = Reject/).
   ///
   /// Wave 6 Pack P — the bridge now ships the save path on accepted
   /// frames too (it always did for rejected frames). `null` only for
   /// legacy emit sites that didn't thread the path through.
   final String? path;
+
   /// HFR (pixels) when the grader computed star metrics; `null` when star
   /// detection failed or wasn't run. Plumbed end-to-end (Pack H).
   final double? hfr;
+
   /// Median eccentricity (0.0 = perfectly round). `null` when not computed.
   final double? eccentricity;
+
   /// Number of detected stars. `null` when detection didn't run.
   final int? starCount;
+
   /// Cumulative accepted-frames counter for the run.
   final int acceptedTotal;
+
   /// Cumulative rejected-frames counter for the run.
   final int rejectedTotal;
+
   /// Running consecutive-rejects count. 0 after every accepted frame.
   final int consecutiveRejects;
+
   /// Capture timestamp.
   final DateTime timestamp;
 
@@ -509,14 +513,17 @@ class FrameGradeEvent {
 class FrameGradeRunSummary {
   final int accepted;
   final int rejected;
+
   /// Most-recent N decisions (chronological order, oldest first). The
   /// dashboard renders this as a scrollable list.
   final List<FrameGradeEvent> recent;
+
   /// HFR samples from ALL graded frames in chronological order; used for
   /// the HFR sparkline on the dashboard. Rejected frames are included —
   /// a focus-drift episode that causes rejections must remain visible in
   /// the trend, not silently vanish from it.
   final List<double> hfrSparkline;
+
   /// Parallel to [hfrSparkline]: true when the sample came from an
   /// accepted frame, false for a rejected one (rendered distinctly).
   final List<bool> hfrSparklineAccepted;

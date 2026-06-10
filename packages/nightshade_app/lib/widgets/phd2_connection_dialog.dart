@@ -37,7 +37,8 @@ class Phd2ConnectionDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<Phd2ConnectionDialog> createState() => _Phd2ConnectionDialogState();
+  ConsumerState<Phd2ConnectionDialog> createState() =>
+      _Phd2ConnectionDialogState();
 }
 
 class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
@@ -48,7 +49,8 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
   void initState() {
     super.initState();
     _hostController = TextEditingController(text: widget.initialHost);
-    _portController = TextEditingController(text: widget.initialPort.toString());
+    _portController =
+        TextEditingController(text: widget.initialPort.toString());
   }
 
   @override

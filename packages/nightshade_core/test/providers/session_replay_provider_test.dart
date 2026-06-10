@@ -78,8 +78,7 @@ void main() {
           frameAt(3, 360, filter: 'R', hfr: 2.6),
         ],
       );
-      final notifier =
-          SessionReplayNotifier(runId: runId, dataSource: source);
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
       // Bootstrap is async; wait for the state to land.
       await source.completed;
 
@@ -99,74 +98,75 @@ void main() {
       notifier.dispose();
     });
 
-    test('computeSnapshotAt(t) projects only markers with offset <= t',
-        () async {
-      final source = _StubSource(
-        run: RemoteSequenceRunDetail(
-          id: runId,
-          startedAt: runStartedAt,
-          endedAt: runEndedAt,
-          status: 'completed',
-          frameCount: 3,
-          sequenceName: 'Test sequence',
-          targetName: 'M31',
-        ),
-        eventsPage: RemoteReplayEventsPage(
-          items: [
-            eventAt(0, 'info', 'Sequence started'),
-            eventAt(60, 'info', 'Slewed to target'),
-            eventAt(180, 'warning', 'HFR climbing'),
-            eventAt(360, 'info', 'recovery.entered: autofocus drift'),
+    test(
+      'computeSnapshotAt(t) projects only markers with offset <= t',
+      () async {
+        final source = _StubSource(
+          run: RemoteSequenceRunDetail(
+            id: runId,
+            startedAt: runStartedAt,
+            endedAt: runEndedAt,
+            status: 'completed',
+            frameCount: 3,
+            sequenceName: 'Test sequence',
+            targetName: 'M31',
+          ),
+          eventsPage: RemoteReplayEventsPage(
+            items: [
+              eventAt(0, 'info', 'Sequence started'),
+              eventAt(60, 'info', 'Slewed to target'),
+              eventAt(180, 'warning', 'HFR climbing'),
+              eventAt(360, 'info', 'recovery.entered: autofocus drift'),
+            ],
+            total: 4,
+            isPartial: false,
+            source: 'logging_service_ring_buffer',
+          ),
+          frames: [
+            frameAt(1, 30, filter: 'L', hfr: 2.4),
+            frameAt(2, 90, filter: 'L', hfr: 2.5),
+            frameAt(3, 240, filter: 'R', hfr: 2.6),
           ],
-          total: 4,
-          isPartial: false,
-          source: 'logging_service_ring_buffer',
-        ),
-        frames: [
-          frameAt(1, 30, filter: 'L', hfr: 2.4),
-          frameAt(2, 90, filter: 'L', hfr: 2.5),
-          frameAt(3, 240, filter: 'R', hfr: 2.6),
-        ],
-      );
-      final notifier =
-          SessionReplayNotifier(runId: runId, dataSource: source);
-      await source.completed;
+        );
+        final notifier = SessionReplayNotifier(
+          runId: runId,
+          dataSource: source,
+        );
+        await source.completed;
 
-      // Playhead at t=120s.
-      const playheadMs = 120 * 1000;
-      final snap = notifier.computeSnapshotAt(playheadMs);
+        // Playhead at t=120s.
+        const playheadMs = 120 * 1000;
+        final snap = notifier.computeSnapshotAt(playheadMs);
 
-      // Markers BEFORE 120s: events at 0, 60; frames at 30, 90 → 4.
-      // Markers AFTER 120s (180, 240, 360) must be excluded.
-      expect(snap.markersUpToPlayhead, hasLength(4));
-      for (final m in snap.markersUpToPlayhead) {
-        expect(m.offsetMs, lessThanOrEqualTo(playheadMs));
-      }
-      // Frame count reflects the two frames at t<=120 only.
-      expect(snap.frameCount, 2);
-      // Most-recent filter at the playhead is L (frame at t=90s).
-      expect(snap.currentFilter, 'L');
-      // HFR follows the latest frame at or before the playhead → 2.5.
-      expect(snap.lastHfr, 2.5);
-      // Target falls back to the run header value because no event
-      // payload sets a fresh target before t=120s.
-      expect(snap.currentTarget, 'M31');
-      // Recovery state has not been touched at this playhead.
-      expect(snap.recoveryState, isNull);
-      // Wall-clock at playhead = runStartedAt + 120s.
-      expect(
-        snap.playheadWallClock.difference(runStartedAt).inSeconds,
-        120,
-      );
+        // Markers BEFORE 120s: events at 0, 60; frames at 30, 90 → 4.
+        // Markers AFTER 120s (180, 240, 360) must be excluded.
+        expect(snap.markersUpToPlayhead, hasLength(4));
+        for (final m in snap.markersUpToPlayhead) {
+          expect(m.offsetMs, lessThanOrEqualTo(playheadMs));
+        }
+        // Frame count reflects the two frames at t<=120 only.
+        expect(snap.frameCount, 2);
+        // Most-recent filter at the playhead is L (frame at t=90s).
+        expect(snap.currentFilter, 'L');
+        // HFR follows the latest frame at or before the playhead → 2.5.
+        expect(snap.lastHfr, 2.5);
+        // Target falls back to the run header value because no event
+        // payload sets a fresh target before t=120s.
+        expect(snap.currentTarget, 'M31');
+        // Recovery state has not been touched at this playhead.
+        expect(snap.recoveryState, isNull);
+        // Wall-clock at playhead = runStartedAt + 120s.
+        expect(snap.playheadWallClock.difference(runStartedAt).inSeconds, 120);
 
-      // Advance the playhead past the recovery event and verify the
-      // recoveryState lights up.
-      final lateSnap = notifier.computeSnapshotAt(400 * 1000);
-      expect(lateSnap.recoveryState, 'entered');
-      expect(lateSnap.frameCount, 3);
+        // Advance the playhead past the recovery event and verify the
+        // recoveryState lights up.
+        final lateSnap = notifier.computeSnapshotAt(400 * 1000);
+        expect(lateSnap.recoveryState, 'entered');
+        expect(lateSnap.frameCount, 3);
 
-      notifier.dispose();
-    });
+        notifier.dispose();
+      },
+    );
 
     test('seekTo clamps playhead to [0, durationMs]', () async {
       final source = _StubSource(
@@ -187,8 +187,7 @@ void main() {
         ),
         frames: const [],
       );
-      final notifier =
-          SessionReplayNotifier(runId: runId, dataSource: source);
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
       await source.completed;
 
       notifier.seekTo(-1000);
@@ -208,8 +207,7 @@ void main() {
       final source = _StubSource.failing(
         error: Exception('connection refused'),
       );
-      final notifier =
-          SessionReplayNotifier(runId: runId, dataSource: source);
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
       // Drain pending microtasks so the bootstrap can run + the
       // notifier can settle into the error state.
       await Future<void>.delayed(Duration.zero);
@@ -241,8 +239,7 @@ void main() {
         ),
         frames: const [],
       );
-      final notifier =
-          SessionReplayNotifier(runId: runId, dataSource: source);
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
       await source.completed;
 
       final emitted = <int>[];
@@ -285,10 +282,10 @@ class _StubSource implements SessionReplayDataSource {
   }) : failure = null;
 
   _StubSource.failing({required Object error})
-      : run = null,
-        eventsPage = null,
-        frames = null,
-        failure = error;
+    : run = null,
+      eventsPage = null,
+      frames = null,
+      failure = error;
 
   @override
   Future<RemoteSequenceRunDetail> fetchRun(int runId) async {

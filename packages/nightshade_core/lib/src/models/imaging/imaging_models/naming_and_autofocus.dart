@@ -71,13 +71,13 @@ class StarDetectionConfig extends Equatable {
 
   @override
   List<Object?> get props => [
-        detectionSigma,
-        minArea,
-        maxArea,
-        maxEccentricity,
-        saturationLimit,
-        hfrRadius
-      ];
+    detectionSigma,
+    minArea,
+    maxArea,
+    maxEccentricity,
+    saturationLimit,
+    hfrRadius,
+  ];
 }
 
 /// Per-filter autofocus configuration
@@ -128,10 +128,12 @@ class FilterAutofocusConfig extends Equatable {
   }) {
     return FilterAutofocusConfig(
       focusOffset: focusOffset ?? this.focusOffset,
-      afExposureTime:
-          clearAfExposureTime ? null : (afExposureTime ?? this.afExposureTime),
-      afFilterName:
-          clearAfFilterName ? null : (afFilterName ?? this.afFilterName),
+      afExposureTime: clearAfExposureTime
+          ? null
+          : (afExposureTime ?? this.afExposureTime),
+      afFilterName: clearAfFilterName
+          ? null
+          : (afFilterName ?? this.afFilterName),
       binning: binning ?? this.binning,
       gain: clearGain ? null : (gain ?? this.gain),
       offset: clearOffset ? null : (offset ?? this.offset),
@@ -139,13 +141,13 @@ class FilterAutofocusConfig extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'focusOffset': focusOffset,
-        'afExposureTime': afExposureTime,
-        'afFilterName': afFilterName,
-        'binning': binning,
-        'gain': gain,
-        'offset': offset,
-      };
+    'focusOffset': focusOffset,
+    'afExposureTime': afExposureTime,
+    'afFilterName': afFilterName,
+    'binning': binning,
+    'gain': gain,
+    'offset': offset,
+  };
 
   factory FilterAutofocusConfig.fromJson(Map<String, dynamic> json) =>
       FilterAutofocusConfig(
@@ -158,8 +160,14 @@ class FilterAutofocusConfig extends Equatable {
       );
 
   @override
-  List<Object?> get props =>
-      [focusOffset, afExposureTime, afFilterName, binning, gain, offset];
+  List<Object?> get props => [
+    focusOffset,
+    afExposureTime,
+    afFilterName,
+    binning,
+    gain,
+    offset,
+  ];
 }
 
 /// Comprehensive autofocus settings grouped into a single typed object.
@@ -264,7 +272,8 @@ class AutofocusSettings extends Equatable {
   /// Returns an empty map if the JSON is malformed rather than crashing,
   /// but logs a warning so the corruption is visible.
   static Map<String, FilterAutofocusConfig> parseFilterSettingsJson(
-      String jsonStr) {
+    String jsonStr,
+  ) {
     if (jsonStr.isEmpty || jsonStr == '{}') return {};
     try {
       final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
@@ -272,7 +281,8 @@ class AutofocusSettings extends Equatable {
       for (final entry in decoded.entries) {
         try {
           result[entry.key] = FilterAutofocusConfig.fromJson(
-              entry.value as Map<String, dynamic>);
+            entry.value as Map<String, dynamic>,
+          );
         } catch (e) {
           // Skip malformed individual filter entries rather than losing all data
           assert(() {
@@ -303,7 +313,8 @@ class AutofocusSettings extends Equatable {
 
   /// Serialize filter settings to a JSON string for database storage.
   static String encodeFilterSettingsJson(
-      Map<String, FilterAutofocusConfig> settings) {
+    Map<String, FilterAutofocusConfig> settings,
+  ) {
     if (settings.isEmpty) return '{}';
     final map = settings.map((key, value) => MapEntry(key, value.toJson()));
     return jsonEncode(map);
@@ -311,24 +322,24 @@ class AutofocusSettings extends Equatable {
 
   @override
   List<Object?> get props => [
-        method,
-        curveFitting,
-        stepSize,
-        exposureTime,
-        initialOffsetSteps,
-        numberOfAttempts,
-        useBrightestNStars,
-        outerCropRatio,
-        innerCropRatio,
-        binning,
-        rSquaredThreshold,
-        disableGuidingDuringAf,
-        focuserSettleTimeMs,
-        exposuresPerPoint,
-        backlashCompMethod,
-        backlashIn,
-        backlashOut,
-        autofocusFilterName,
-        filterSettings,
-      ];
+    method,
+    curveFitting,
+    stepSize,
+    exposureTime,
+    initialOffsetSteps,
+    numberOfAttempts,
+    useBrightestNStars,
+    outerCropRatio,
+    innerCropRatio,
+    binning,
+    rSquaredThreshold,
+    disableGuidingDuringAf,
+    focuserSettleTimeMs,
+    exposuresPerPoint,
+    backlashCompMethod,
+    backlashIn,
+    backlashOut,
+    autofocusFilterName,
+    filterSettings,
+  ];
 }

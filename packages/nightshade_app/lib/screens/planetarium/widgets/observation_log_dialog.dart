@@ -156,7 +156,8 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Rating
               Text(
                 'Rating',
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Row(
@@ -185,7 +186,8 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Seeing conditions
               Text(
                 'Seeing',
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -200,7 +202,8 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Transparency
               Text(
                 'Transparency',
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -215,7 +218,8 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Notes
               Text(
                 'Notes',
-                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -227,20 +231,25 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                   filled: true,
                   fillColor: colors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   contentPadding: const EdgeInsets.all(12),
                 ),
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize14),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize14),
               ),
             ],
           ),
@@ -297,7 +306,8 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
+            style:
+                NightshadeTypography.label.copyWith(color: colors.textPrimary),
           ),
         ),
       ],
@@ -334,9 +344,7 @@ class _ConditionSelector extends StatelessWidget {
                   : colors.background,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
-                color: isSelected
-                    ? colors.primary
-                    : colors.border,
+                color: isSelected ? colors.primary : colors.border,
               ),
             ),
             child: Text(

@@ -47,10 +47,10 @@ void main() {
     });
 
     BackupService serviceFor(NightshadeDatabase d) => BackupService(
-          database: d,
-          sequenceRepository: SequenceRepository(d.sequencesDao),
-          logger: logger,
-        );
+      database: d,
+      sequenceRepository: SequenceRepository(d.sequencesDao),
+      logger: logger,
+    );
 
     /// Seed one profile and one target so we can prove they survive an
     /// aborted restore.
@@ -63,11 +63,7 @@ void main() {
         ),
       );
       await db.targetsDao.createTarget(
-        TargetsCompanion.insert(
-          name: 'M31',
-          ra: 0.7,
-          dec: 41.3,
-        ),
+        TargetsCompanion.insert(name: 'M31', ra: 0.7, dec: 41.3),
       );
     }
 
@@ -82,16 +78,17 @@ void main() {
 
       // replaceExisting:true would normally wipe the DB. A version-less
       // payload must abort BEFORE that.
-      final backupFile = await writeBackup(jsonEncode({
-        'equipmentProfiles': [
-          {'name': 'Restored Rig'}
-        ],
-      }));
-
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
+      final backupFile = await writeBackup(
+        jsonEncode({
+          'equipmentProfiles': [
+            {'name': 'Restored Rig'},
+          ],
+        }),
       );
+
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
 
       expect(result.success, isFalse);
       expect(result.errorMessage, contains('version'));
@@ -105,43 +102,47 @@ void main() {
       expect(targets.single.name, 'M31');
     });
 
-    test('wrong-shaped section (targets is an object) aborts without wiping',
-        () async {
-      await seedLiveData();
+    test(
+      'wrong-shaped section (targets is an object) aborts without wiping',
+      () async {
+        await seedLiveData();
 
-      final backupFile = await writeBackup(jsonEncode({
-        'version': '2.1',
-        'targets': {'not': 'a list'},
-      }));
+        final backupFile = await writeBackup(
+          jsonEncode({
+            'version': '2.1',
+            'targets': {'not': 'a list'},
+          }),
+        );
 
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
-      );
+        final result = await serviceFor(
+          db,
+        ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
 
-      expect(result.success, isFalse);
-      expect(result.errorMessage, contains('targets'));
+        expect(result.success, isFalse);
+        expect(result.errorMessage, contains('targets'));
 
-      final profiles = await db.equipmentProfilesDao.getAllProfiles();
-      expect(profiles, hasLength(1), reason: 'live data must survive abort');
-      final targets = await db.targetsDao.getAllTargets();
-      expect(targets, hasLength(1));
-    });
+        final profiles = await db.equipmentProfilesDao.getAllProfiles();
+        expect(profiles, hasLength(1), reason: 'live data must survive abort');
+        final targets = await db.targetsDao.getAllTargets();
+        expect(targets, hasLength(1));
+      },
+    );
 
     test('profile row missing name aborts without wiping', () async {
       await seedLiveData();
 
-      final backupFile = await writeBackup(jsonEncode({
-        'version': '2.1',
-        'equipmentProfiles': [
-          {'description': 'no name here'}
-        ],
-      }));
-
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
+      final backupFile = await writeBackup(
+        jsonEncode({
+          'version': '2.1',
+          'equipmentProfiles': [
+            {'description': 'no name here'},
+          ],
+        }),
       );
+
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
 
       expect(result.success, isFalse);
       expect(result.errorMessage, contains('name'));
@@ -157,17 +158,18 @@ void main() {
       // A sequence entry missing the required rootNodeId / nodes map fails
       // to decode. That must abort the whole restore rather than silently
       // dropping the sequence into a freshly-wiped database.
-      final backupFile = await writeBackup(jsonEncode({
-        'version': '2.1',
-        'sequences': [
-          {'name': 'Broken Seq'} // no rootNodeId, no nodes
-        ],
-      }));
-
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
+      final backupFile = await writeBackup(
+        jsonEncode({
+          'version': '2.1',
+          'sequences': [
+            {'name': 'Broken Seq'}, // no rootNodeId, no nodes
+          ],
+        }),
       );
+
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
 
       expect(result.success, isFalse);
       expect(result.errorMessage, contains('sequences'));
@@ -181,10 +183,9 @@ void main() {
 
       final backupFile = await writeBackup('{ this is not valid json');
 
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
-      );
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
 
       expect(result.success, isFalse);
       expect(result.errorMessage, contains('JSON'));
@@ -210,22 +211,24 @@ void main() {
       );
 
       final backupFile = File(p.join(tempDir.path, 'good.nsbackup'));
-      final backupResult = await serviceFor(srcDb).createBackup(
-        customPath: backupFile.path,
-      );
+      final backupResult = await serviceFor(
+        srcDb,
+      ).createBackup(customPath: backupFile.path);
       expect(backupResult.success, isTrue, reason: backupResult.errorMessage);
 
-      final result = await serviceFor(db).restoreBackup(
-        filePath: backupFile.path,
-        replaceExisting: true,
-      );
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
       expect(result.success, isTrue, reason: result.errorMessage);
 
       final profiles = await db.equipmentProfilesDao.getAllProfiles();
       final names = profiles.map((e) => e.name).toSet();
       expect(names, contains('Restored Rig'));
-      expect(names, isNot(contains('Live Rig')),
-          reason: 'replaceExisting wiped the old profile after validation');
+      expect(
+        names,
+        isNot(contains('Live Rig')),
+        reason: 'replaceExisting wiped the old profile after validation',
+      );
 
       final targets = await db.targetsDao.getAllTargets();
       final tNames = targets.map((t) => t.name).toSet();

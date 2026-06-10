@@ -69,8 +69,7 @@ TransparencySampleRow _trans({double pct = 95}) {
 void main() {
   const engine = ScienceInsightsEngine();
 
-  test('drift row factories produce valid models',
-      () {
+  test('drift row factories produce valid models', () {
     expect(_fq().snr, 30);
     expect(_cal().matchedStarCount, 30);
     expect(_trans(pct: 80).qualityBucket, 'Thin Cloud');
@@ -84,14 +83,16 @@ void main() {
   });
 
   test('surfaces a failed stage as an error insight', () {
-    final result = engine.evaluate(ScienceInsightsInputs(
-      lastFailure: ScienceStageResult(
-        stage: ScienceStage.plateSolve,
-        outcome: ScienceStageOutcome.failed,
-        timestamp: DateTime.now(),
-        note: 'no WCS available',
+    final result = engine.evaluate(
+      ScienceInsightsInputs(
+        lastFailure: ScienceStageResult(
+          stage: ScienceStage.plateSolve,
+          outcome: ScienceStageOutcome.failed,
+          timestamp: DateTime.now(),
+          note: 'no WCS available',
+        ),
       ),
-    ));
+    );
     expect(result, isNotEmpty);
     expect(result.first.severity, ScienceInsightSeverity.error);
     expect(result.first.headline, contains('Plate solve'));
@@ -99,32 +100,26 @@ void main() {
   });
 
   test('warns when no frames have plate-solved', () {
-    final result = engine.evaluate(const ScienceInsightsInputs(
-      processedFrameCount: 5,
-      solvedFrameCount: 0,
-    ));
-    expect(
-      result.any((i) => i.id == 'solve.none'),
-      isTrue,
+    final result = engine.evaluate(
+      const ScienceInsightsInputs(processedFrameCount: 5, solvedFrameCount: 0),
     );
+    expect(result.any((i) => i.id == 'solve.none'), isTrue);
   });
 
   test('warns when solve rate is under 50%', () {
-    final result = engine.evaluate(const ScienceInsightsInputs(
-      processedFrameCount: 10,
-      solvedFrameCount: 3,
-    ));
-    expect(
-      result.any((i) => i.id == 'solve.low_rate'),
-      isTrue,
+    final result = engine.evaluate(
+      const ScienceInsightsInputs(processedFrameCount: 10, solvedFrameCount: 3),
     );
+    expect(result.any((i) => i.id == 'solve.low_rate'), isTrue);
   });
 
   test('reports transparency warm-up remainder once a session is going', () {
-    final result = engine.evaluate(const ScienceInsightsInputs(
-      processedFrameCount: 2,
-      calibratedFrameCount: 2,
-    ));
+    final result = engine.evaluate(
+      const ScienceInsightsInputs(
+        processedFrameCount: 2,
+        calibratedFrameCount: 2,
+      ),
+    );
     final warmup = result.firstWhere((i) => i.id == 'transparency.warming_up');
     expect(warmup.headline, contains('3 more'));
   });
@@ -135,43 +130,47 @@ void main() {
   });
 
   test('flags high clipping with concrete action', () {
-    final result = engine.evaluate(ScienceInsightsInputs(
-      latestFrameQuality: _fq(highClipPercent: 2.0),
-    ));
+    final result = engine.evaluate(
+      ScienceInsightsInputs(latestFrameQuality: _fq(highClipPercent: 2.0)),
+    );
     expect(result.any((i) => i.id == 'frame.high_clip'), isTrue);
   });
 
   test('flags transparency below 75%', () {
-    final result = engine.evaluate(ScienceInsightsInputs(
-      latestTransparency: _trans(pct: 60),
-    ));
+    final result = engine.evaluate(
+      ScienceInsightsInputs(latestTransparency: _trans(pct: 60)),
+    );
     expect(result.any((i) => i.id == 'transparency.below_threshold'), isTrue);
   });
 
   test('flags few-match calibration', () {
-    final result = engine.evaluate(ScienceInsightsInputs(
-      latestCalibration: _cal(matched: 5),
-    ));
+    final result = engine.evaluate(
+      ScienceInsightsInputs(latestCalibration: _cal(matched: 5)),
+    );
     expect(result.any((i) => i.id == 'calibration.few_matches'), isTrue);
   });
 
   test('errors sort before warnings sort before info', () {
-    final result = engine.evaluate(ScienceInsightsInputs(
-      lastFailure: ScienceStageResult(
-        stage: ScienceStage.calibration,
-        outcome: ScienceStageOutcome.failed,
-        timestamp: DateTime.now(),
-        note: 'boom',
+    final result = engine.evaluate(
+      ScienceInsightsInputs(
+        lastFailure: ScienceStageResult(
+          stage: ScienceStage.calibration,
+          outcome: ScienceStageOutcome.failed,
+          timestamp: DateTime.now(),
+          note: 'boom',
+        ),
+        processedFrameCount: 10,
+        solvedFrameCount: 3,
+        latestFrameQuality: _fq(highClipPercent: 2.0, snr: 8),
       ),
-      processedFrameCount: 10,
-      solvedFrameCount: 3,
-      latestFrameQuality: _fq(highClipPercent: 2.0, snr: 8),
-    ));
+    );
     expect(result.first.severity, ScienceInsightSeverity.error);
-    final firstWarning =
-        result.indexWhere((i) => i.severity == ScienceInsightSeverity.warning);
-    final firstInfo =
-        result.indexWhere((i) => i.severity == ScienceInsightSeverity.info);
+    final firstWarning = result.indexWhere(
+      (i) => i.severity == ScienceInsightSeverity.warning,
+    );
+    final firstInfo = result.indexWhere(
+      (i) => i.severity == ScienceInsightSeverity.info,
+    );
     expect(firstWarning < firstInfo || firstInfo == -1, isTrue);
   });
 }

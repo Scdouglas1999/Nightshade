@@ -27,9 +27,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(db),
-          backendProvider.overrideWith(
-            (ref) => _TestBackendNotifier(ref),
-          ),
+          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref)),
         ],
       );
       handlers = SafetyMonitorHandlers(container);
@@ -42,10 +40,11 @@ void main() {
     });
 
     test('get safety settings returns persisted defaults', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetSafetySettings(
-        Request('GET', Uri.parse('http://localhost/api/safety/settings')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetSafetySettings(
+          Request('GET', Uri.parse('http://localhost/api/safety/settings')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -56,75 +55,85 @@ void main() {
     });
 
     test('invalid fail mode returns JSON bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleUpdateSafetySettings(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/safety/settings'),
-          body: jsonEncode({'failMode': 'ignore'}),
+      final response = await translateHandlerErrors(
+        handlers.handleUpdateSafetySettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/safety/settings'),
+            body: jsonEncode({'failMode': 'ignore'}),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'],
-          contains('Must be one of: fail_open, fail_closed, warn_only'));
+      expect(
+        body['error'],
+        contains('Must be one of: fail_open, fail_closed, warn_only'),
+      );
     });
 
-    test('valid safety settings payload persists and returns updated settings',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleUpdateSafetySettings(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/safety/settings'),
-          body: jsonEncode({
-            'checkIntervalSeconds': 45,
-            'autoStopOnUnsafe': false,
-            'warningDelaySeconds': 90,
-          }),
-        ),
-      ));
+    test(
+      'valid safety settings payload persists and returns updated settings',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleUpdateSafetySettings(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/safety/settings'),
+              body: jsonEncode({
+                'checkIntervalSeconds': 45,
+                'autoStopOnUnsafe': false,
+                'warningDelaySeconds': 90,
+              }),
+            ),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['status'], 'updated');
-      final settings = body['settings'] as Map;
-      expect(settings['checkIntervalSeconds'], 45);
-      expect(settings['autoStopOnUnsafe'], isFalse);
-      expect(settings['warningDelaySeconds'], 90);
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['status'], 'updated');
+        final settings = body['settings'] as Map;
+        expect(settings['checkIntervalSeconds'], 45);
+        expect(settings['autoStopOnUnsafe'], isFalse);
+        expect(settings['warningDelaySeconds'], 90);
+      },
+    );
 
-    test('acknowledge unsafe missing reason returns JSON bad request',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleAcknowledgeUnsafe(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/safety/acknowledge'),
-          body: jsonEncode({}),
-        ),
-      ));
+    test(
+      'acknowledge unsafe missing reason returns JSON bad request',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleAcknowledgeUnsafe(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/safety/acknowledge'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.badRequest);
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'reason is required');
-    });
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'reason is required');
+      },
+    );
 
     test('acknowledge unsafe with reason returns snooze metadata', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleAcknowledgeUnsafe(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/safety/acknowledge'),
-          body: jsonEncode({
-            'reason': 'Operator verified sky is clear',
-            'durationMinutes': 30,
-          }),
+      final response = await translateHandlerErrors(
+        handlers.handleAcknowledgeUnsafe(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/safety/acknowledge'),
+            body: jsonEncode({
+              'reason': 'Operator verified sky is clear',
+              'durationMinutes': 30,
+            }),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       final body = jsonDecode(await response.readAsString()) as Map;

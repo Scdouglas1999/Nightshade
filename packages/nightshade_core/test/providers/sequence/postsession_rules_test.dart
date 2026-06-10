@@ -79,9 +79,13 @@ void main() {
       );
       expect(issues, hasLength(5));
       expect(
-          issues.any((i) => i.title == 'USB Disconnects During Session'), isTrue);
-      expect(issues.any((i) => i.title == 'Cooler Out of Setpoint Band'),
-          isTrue);
+        issues.any((i) => i.title == 'USB Disconnects During Session'),
+        isTrue,
+      );
+      expect(
+        issues.any((i) => i.title == 'Cooler Out of Setpoint Band'),
+        isTrue,
+      );
       expect(issues.any((i) => i.title == 'Focuser Activity'), isTrue);
       expect(issues.any((i) => i.title == 'Sky Brightness Range'), isTrue);
       expect(issues.any((i) => i.title == 'Noticed but Did Not Fire'), isTrue);

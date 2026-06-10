@@ -21,8 +21,8 @@ class _ChannelPair {
   final StreamController<dynamic> clientToServer;
   final StreamController<dynamic> serverToClient;
   _ChannelPair()
-      : clientToServer = StreamController<dynamic>.broadcast(),
-        serverToClient = StreamController<dynamic>.broadcast();
+    : clientToServer = StreamController<dynamic>.broadcast(),
+      serverToClient = StreamController<dynamic>.broadcast();
 
   Future<void> dispose() async {
     await clientToServer.close();
@@ -100,13 +100,15 @@ void main() {
         if (binaryCount >= 1 && !done.isCompleted) done.complete();
       });
 
-      pair.clientToServer.add(jsonEncode({
-        'type': 'subscribe',
-        'deviceId': 'test:cam:1',
-        'maxDim': 32,
-        'maxFps': 8.0,
-        'jpegQuality': 60,
-      }));
+      pair.clientToServer.add(
+        jsonEncode({
+          'type': 'subscribe',
+          'deviceId': 'test:cam:1',
+          'maxDim': 32,
+          'maxFps': 8.0,
+          'jpegQuality': 60,
+        }),
+      );
 
       await done.future.timeout(const Duration(seconds: 5));
       expect(hub.activeSubscriberCount, 1);
@@ -137,38 +139,42 @@ void main() {
       expect((binary as List<int>).length, greaterThan(0));
     });
 
-    test('unsubscribe stops the producer once last subscriber leaves',
-        () async {
-      final socketKey = Object();
-      final pair = attachClient(socketKey);
+    test(
+      'unsubscribe stops the producer once last subscriber leaves',
+      () async {
+        final socketKey = Object();
+        final pair = attachClient(socketKey);
 
-      final ready = Completer<void>();
-      late StreamSubscription clientSub;
-      clientSub = pair.serverToClient.stream.listen((msg) {
-        if (msg is String) {
-          final m = jsonDecode(msg);
-          if (m is Map && m['type'] == 'ready' && !ready.isCompleted) {
-            ready.complete();
+        final ready = Completer<void>();
+        late StreamSubscription clientSub;
+        clientSub = pair.serverToClient.stream.listen((msg) {
+          if (msg is String) {
+            final m = jsonDecode(msg);
+            if (m is Map && m['type'] == 'ready' && !ready.isCompleted) {
+              ready.complete();
+            }
           }
-        }
-      });
+        });
 
-      pair.clientToServer.add(jsonEncode({
-        'type': 'subscribe',
-        'deviceId': 'test:cam:1',
-        'maxDim': 32,
-        'maxFps': 8.0,
-      }));
-      await ready.future.timeout(const Duration(seconds: 3));
-      expect(hub.activeSubscriberCount, 1);
+        pair.clientToServer.add(
+          jsonEncode({
+            'type': 'subscribe',
+            'deviceId': 'test:cam:1',
+            'maxDim': 32,
+            'maxFps': 8.0,
+          }),
+        );
+        await ready.future.timeout(const Duration(seconds: 3));
+        expect(hub.activeSubscriberCount, 1);
 
-      pair.clientToServer.add(jsonEncode({'type': 'unsubscribe'}));
-      // Give the hub a moment to process and stop the producer.
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      expect(hub.activeSubscriberCount, 0);
+        pair.clientToServer.add(jsonEncode({'type': 'unsubscribe'}));
+        // Give the hub a moment to process and stop the producer.
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(hub.activeSubscriberCount, 0);
 
-      await clientSub.cancel();
-    });
+        await clientSub.cancel();
+      },
+    );
 
     test('bad subscribe payload returns an error frame', () async {
       final socketKey = Object();
@@ -184,14 +190,17 @@ void main() {
         }
       });
 
-      pair.clientToServer.add(jsonEncode({
-        'type': 'subscribe',
-        // missing deviceId
-        'maxDim': 32,
-      }));
+      pair.clientToServer.add(
+        jsonEncode({
+          'type': 'subscribe',
+          // missing deviceId
+          'maxDim': 32,
+        }),
+      );
 
-      final err = await errorReceived.future
-          .timeout(const Duration(seconds: 2));
+      final err = await errorReceived.future.timeout(
+        const Duration(seconds: 2),
+      );
       expect(err['code'], 'bad_subscribe');
       expect(hub.activeSubscriberCount, 0);
     });

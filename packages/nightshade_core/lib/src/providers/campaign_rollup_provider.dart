@@ -22,8 +22,8 @@ final campaignRollupServiceProvider = Provider<CampaignRollupService>((ref) {
 /// providers change.
 final campaignRollupProvider = FutureProvider.autoDispose
     .family<CampaignRollup, int>((ref, targetId) async {
-  return ref.watch(campaignRollupServiceProvider).buildForTarget(targetId);
-});
+      return ref.watch(campaignRollupServiceProvider).buildForTarget(targetId);
+    });
 
 /// Wave 7 — Bulk campaign rollups for the entire target catalog.
 ///
@@ -36,8 +36,8 @@ final campaignRollupProvider = FutureProvider.autoDispose
 /// can render "no captures yet" tiles.
 final campaignRollupAllTargetsProvider =
     FutureProvider.autoDispose<Map<int, CampaignRollup>>((ref) async {
-  return ref.watch(campaignRollupServiceProvider).buildForAllTargets();
-});
+      return ref.watch(campaignRollupServiceProvider).buildForAllTargets();
+    });
 
 /// Wave 7 — Resolve a campaign rollup by **target name** (case-insensitive).
 ///
@@ -57,26 +57,27 @@ final campaignRollupAllTargetsProvider =
 ///     as a synonym for `by_target_name` because the targets table does
 ///     not yet have a tags column. The branch is kept so the setting has
 ///     a real switch point.
-final campaignRollupByNameProvider =
-    FutureProvider.autoDispose.family<CampaignRollup?, String>(
-  (ref, targetName) async {
-    final lookup = targetName.trim().toLowerCase();
-    if (lookup.isEmpty) return null;
-    final mode = ref.watch(appSettingsProvider).valueOrNull
-            ?.campaignRollupGroupingMode ??
-        'by_target_name';
-    final all = await ref.watch(campaignRollupAllTargetsProvider.future);
-    for (final rollup in all.values) {
-      switch (mode) {
-        case 'by_target_id':
-          if (rollup.targetId.toString() == lookup) return rollup;
-          break;
-        case 'by_user_tag':
-        case 'by_target_name':
-        default:
-          if (rollup.targetName.toLowerCase() == lookup) return rollup;
+final campaignRollupByNameProvider = FutureProvider.autoDispose
+    .family<CampaignRollup?, String>((ref, targetName) async {
+      final lookup = targetName.trim().toLowerCase();
+      if (lookup.isEmpty) return null;
+      final mode =
+          ref
+              .watch(appSettingsProvider)
+              .valueOrNull
+              ?.campaignRollupGroupingMode ??
+          'by_target_name';
+      final all = await ref.watch(campaignRollupAllTargetsProvider.future);
+      for (final rollup in all.values) {
+        switch (mode) {
+          case 'by_target_id':
+            if (rollup.targetId.toString() == lookup) return rollup;
+            break;
+          case 'by_user_tag':
+          case 'by_target_name':
+          default:
+            if (rollup.targetName.toLowerCase() == lookup) return rollup;
+        }
       }
-    }
-    return null;
-  },
-);
+      return null;
+    });

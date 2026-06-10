@@ -70,7 +70,8 @@ void main() {
     expect(find.text('6. Accept'), findsOneWidget);
   });
 
-  testWidgets('SmartNightDialog shows "Missing observer location" '
+  testWidgets(
+      'SmartNightDialog shows "Missing observer location" '
       'when no lat/lon configured', (tester) async {
     await _pumpDialog(tester);
     // Default AppSettings has lat=lon=0.0 → appObserverLocationProvider

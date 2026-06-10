@@ -57,14 +57,14 @@ class IntegrationGoal extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        targetId,
-        filter,
-        exposureSeconds,
-        frameCount,
-        priority,
-        createdAt,
-      ];
+    id,
+    targetId,
+    filter,
+    exposureSeconds,
+    frameCount,
+    priority,
+    createdAt,
+  ];
 }
 
 /// Pairing of a goal with the count already captured for target+filter.

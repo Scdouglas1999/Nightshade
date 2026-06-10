@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
 /// Dialog to prompt user to resume from a checkpoint
 class CheckpointResumeDialog extends StatelessWidget {
   final CheckpointInfo checkpointInfo;
@@ -86,11 +87,7 @@ class CheckpointResumeDialog extends StatelessWidget {
           // Sequence name
           Row(
             children: [
-              Icon(
-                Icons.science,
-                size: 18,
-                color: colors.primary,
-              ),
+              Icon(Icons.science, size: 18, color: colors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -142,11 +139,7 @@ class CheckpointResumeDialog extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: colors.textSecondary,
-        ),
+        Icon(icon, size: 16, color: colors.textSecondary),
         const SizedBox(width: 8),
         Text(
           '$label:',

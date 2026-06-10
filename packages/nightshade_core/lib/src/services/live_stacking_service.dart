@@ -101,16 +101,16 @@ class LiveStackingConfig {
 
   @override
   int get hashCode => Object.hash(
-        sigmaClipEnabled,
-        sigmaClipThreshold,
-        maxMatchStars,
-        matchRadiusPx,
-        matchFluxTolerance,
-        minMatchedPairs,
-        sensorMode,
-        bayerPattern,
-        demosaicQuality,
-      );
+    sigmaClipEnabled,
+    sigmaClipThreshold,
+    maxMatchStars,
+    matchRadiusPx,
+    matchFluxTolerance,
+    minMatchedPairs,
+    sensorMode,
+    bayerPattern,
+    demosaicQuality,
+  );
 }
 
 /// Statistics about the current stacking session.
@@ -172,8 +172,10 @@ class LiveStackingService {
     required String referenceImagePath,
     LiveStackingConfig config = const LiveStackingConfig(),
   }) async {
-    _logger.info('Starting live stacking from file: $referenceImagePath',
-        source: 'LiveStackingService');
+    _logger.info(
+      'Starting live stacking from file: $referenceImagePath',
+      source: 'LiveStackingService',
+    );
 
     final bridgeConfig = bridge.ApiLiveStackingConfig(
       sigmaClipEnabled: config.sigmaClipEnabled,
@@ -204,8 +206,10 @@ class LiveStackingService {
     required List<int> data,
     LiveStackingConfig config = const LiveStackingConfig(),
   }) async {
-    _logger.info('Starting live stacking from data: ${width}x$height',
-        source: 'LiveStackingService');
+    _logger.info(
+      'Starting live stacking from data: ${width}x$height',
+      source: 'LiveStackingService',
+    );
 
     final bridgeConfig = bridge.ApiLiveStackingConfig(
       sigmaClipEnabled: config.sigmaClipEnabled,
@@ -233,8 +237,10 @@ class LiveStackingService {
   ///
   /// Returns the current stacked result (can be displayed as a preview).
   Future<LiveStackingResult> addFrameFromFile(String imagePath) async {
-    _logger.info('Adding frame to stack: $imagePath',
-        source: 'LiveStackingService');
+    _logger.info(
+      'Adding frame to stack: $imagePath',
+      source: 'LiveStackingService',
+    );
 
     final result = await bridge.apiStackingAddFrame(imagePath: imagePath);
     return _convertResult(result);

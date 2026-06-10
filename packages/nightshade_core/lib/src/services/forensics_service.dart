@@ -126,26 +126,28 @@ class ForensicsService {
     String sessionId, {
     int limit = 50,
   }) async {
-    final rows = await _db.customSelect(
-      'SELECT * FROM frame_forensics WHERE session_id = ? '
-      'ORDER BY created_at DESC LIMIT ?',
-      variables: [
-        Variable<String>(sessionId),
-        Variable<int>(limit),
-      ],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM frame_forensics WHERE session_id = ? '
+          'ORDER BY created_at DESC LIMIT ?',
+          variables: [Variable<String>(sessionId), Variable<int>(limit)],
+        )
+        .get();
     return rows.map((r) => FrameForensicsRecord.fromRow(r.data)).toList();
   }
 
   /// Fetch every record for a given `sequence_runs.id`. Used by the
   /// post-session report.
   Future<List<FrameForensicsRecord>> loadForSequenceRun(
-      int sequenceRunId) async {
-    final rows = await _db.customSelect(
-      'SELECT * FROM frame_forensics WHERE sequence_run_id = ? '
-      'ORDER BY created_at ASC',
-      variables: [Variable<int>(sequenceRunId)],
-    ).get();
+    int sequenceRunId,
+  ) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM frame_forensics WHERE sequence_run_id = ? '
+          'ORDER BY created_at ASC',
+          variables: [Variable<int>(sequenceRunId)],
+        )
+        .get();
     return rows.map((r) => FrameForensicsRecord.fromRow(r.data)).toList();
   }
 
@@ -153,12 +155,15 @@ class ForensicsService {
   /// Used by Replay Debug rows to jump straight from a FrameRejected
   /// decision to the Frame Detail dialog.
   Future<FrameForensicsRecord?> loadForCapturedImage(
-      int capturedImageId) async {
-    final rows = await _db.customSelect(
-      'SELECT * FROM frame_forensics WHERE captured_image_id = ? '
-      'ORDER BY created_at DESC LIMIT 1',
-      variables: [Variable<int>(capturedImageId)],
-    ).get();
+    int capturedImageId,
+  ) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM frame_forensics WHERE captured_image_id = ? '
+          'ORDER BY created_at DESC LIMIT 1',
+          variables: [Variable<int>(capturedImageId)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return FrameForensicsRecord.fromRow(rows.first.data);
   }

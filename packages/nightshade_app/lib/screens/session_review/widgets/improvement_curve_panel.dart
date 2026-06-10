@@ -179,8 +179,7 @@ class ImprovementCurvePanel extends StatelessWidget {
                       dotData: FlDotData(
                         show: true,
                         checkToShowDot: (spot, _) => spot.x == keepN.toDouble(),
-                        getDotPainter: (spot, _, __, ___) =>
-                            FlDotCirclePainter(
+                        getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
                           radius: 4,
                           color: colors.primary,
                           strokeColor: colors.surface,

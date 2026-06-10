@@ -217,7 +217,8 @@ class _CompactStatusIndicator extends StatelessWidget {
           color: isConnected
               ? NightshadeDecorations.statusChip(
                   colors.success,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ).color
               : colors.surfaceAlt,
@@ -341,7 +342,9 @@ DriverType? _deriveDriverType(String deviceId) {
     return DriverType.native;
   }
   // PHD2 guider
-  if (lower.startsWith('phd2:') || lower.contains('phd2') || lower.contains('phd 2')) {
+  if (lower.startsWith('phd2:') ||
+      lower.contains('phd2') ||
+      lower.contains('phd 2')) {
     return DriverType.native;
   }
 
@@ -387,8 +390,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       cameraState.deviceId != null) {
     devices.add(DeviceInfo(
       id: cameraState.deviceId!,
-      name:
-          _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
+      name: _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
       deviceType: DeviceType.camera,
       driverType: _deriveDriverType(cameraState.deviceId!) ?? DriverType.native,
       description: '',
@@ -414,10 +416,11 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       focuserState.deviceId != null) {
     devices.add(DeviceInfo(
       id: focuserState.deviceId!,
-      name: _getDeviceDisplayName(
-          focuserState.deviceName, focuserState.deviceId),
+      name:
+          _getDeviceDisplayName(focuserState.deviceName, focuserState.deviceId),
       deviceType: DeviceType.focuser,
-      driverType: _deriveDriverType(focuserState.deviceId!) ?? DriverType.native,
+      driverType:
+          _deriveDriverType(focuserState.deviceId!) ?? DriverType.native,
       description: '',
       driverVersion: '',
     ));
@@ -431,7 +434,8 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       name: _getDeviceDisplayName(
           filterWheelState.deviceName, filterWheelState.deviceId),
       deviceType: DeviceType.filterWheel,
-      driverType: _deriveDriverType(filterWheelState.deviceId!) ?? DriverType.native,
+      driverType:
+          _deriveDriverType(filterWheelState.deviceId!) ?? DriverType.native,
       description: '',
       driverVersion: '',
     ));
@@ -442,8 +446,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       guiderState.deviceId != null) {
     devices.add(DeviceInfo(
       id: guiderState.deviceId!,
-      name:
-          _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
+      name: _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
       deviceType: DeviceType.guider,
       driverType: _deriveDriverType(guiderState.deviceId!) ?? DriverType.native,
       description: '',

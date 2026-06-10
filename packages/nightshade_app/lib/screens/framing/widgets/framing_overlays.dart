@@ -29,7 +29,8 @@ class FramingTargetInfoOverlay extends StatelessWidget {
         children: [
           Text(
             target.name,
-            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.textPrimary),
           ),
           if (target.catalogId != null && target.catalogId != target.name)
             Text(
@@ -116,7 +117,8 @@ class FramingEquipmentWarningCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: NightshadeTypography.h6.copyWith(color: colors.warning),
+                  style:
+                      NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
               ),
             ],
@@ -146,7 +148,8 @@ class FramingEquipmentWarningCard extends StatelessWidget {
                   children: [
                     Text(
                       actionLabel!,
-                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.warning),
+                      style: NightshadeTypography.labelQuiet
+                          .copyWith(color: colors.warning),
                     ),
                     const SizedBox(width: 4),
                     Icon(NightshadeIcons.arrowRight,

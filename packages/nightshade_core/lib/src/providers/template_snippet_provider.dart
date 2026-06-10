@@ -24,8 +24,8 @@ final builtInSnippetsProvider = Provider<List<TemplateSnippet>>((ref) {
 /// Provider for managing user-created custom snippets
 final customSnippetsProvider =
     StateNotifierProvider<CustomSnippetsNotifier, List<TemplateSnippet>>((ref) {
-  return CustomSnippetsNotifier();
-});
+      return CustomSnippetsNotifier();
+    });
 
 /// Notifier for managing custom template snippets with file persistence.
 ///
@@ -75,8 +75,11 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
       state = snippets;
       _loaded = true;
     } catch (e) {
-      developer.log('Error loading custom snippets: $e',
-          name: 'TemplateSnippet', level: 1000);
+      developer.log(
+        'Error loading custom snippets: $e',
+        name: 'TemplateSnippet',
+        level: 1000,
+      );
       state = [];
       _loaded = true;
     }
@@ -107,8 +110,9 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
     await _ensureLoaded();
 
     // Ensure the snippet is not marked as built-in
-    final snippetToAdd =
-        snippet.isBuiltIn ? snippet.copyWith(isBuiltIn: false) : snippet;
+    final snippetToAdd = snippet.isBuiltIn
+        ? snippet.copyWith(isBuiltIn: false)
+        : snippet;
 
     state = [...state, snippetToAdd];
 
@@ -160,25 +164,25 @@ final allSnippetsProvider = Provider<List<TemplateSnippet>>((ref) {
 /// Provider that groups all snippets by category
 final snippetsByCategoryProvider =
     Provider<Map<SnippetCategory, List<TemplateSnippet>>>((ref) {
-  final all = ref.watch(allSnippetsProvider);
+      final all = ref.watch(allSnippetsProvider);
 
-  final grouped = <SnippetCategory, List<TemplateSnippet>>{};
+      final grouped = <SnippetCategory, List<TemplateSnippet>>{};
 
-  for (final snippet in all) {
-    final category = snippet.category;
-    if (!grouped.containsKey(category)) {
-      grouped[category] = [];
-    }
-    grouped[category]!.add(snippet);
-  }
+      for (final snippet in all) {
+        final category = snippet.category;
+        if (!grouped.containsKey(category)) {
+          grouped[category] = [];
+        }
+        grouped[category]!.add(snippet);
+      }
 
-  // Sort snippets within each category by name
-  for (final category in grouped.keys) {
-    grouped[category]!.sort((a, b) => a.name.compareTo(b.name));
-  }
+      // Sort snippets within each category by name
+      for (final category in grouped.keys) {
+        grouped[category]!.sort((a, b) => a.name.compareTo(b.name));
+      }
 
-  return grouped;
-});
+      return grouped;
+    });
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -268,9 +272,7 @@ Map<String, dynamic> _serializeNode(
       'maxSafetyIterations': node.maxSafetyIterations,
     });
   } else if (node is ParallelNode) {
-    base.addAll({
-      'requiredSuccesses': node.requiredSuccesses,
-    });
+    base.addAll({'requiredSuccesses': node.requiredSuccesses});
   } else if (node is TargetSchedulerNode) {
     base.addAll({
       'altitudeWeight': node.altitudeWeight,
@@ -373,23 +375,16 @@ Map<String, dynamic> _serializeNode(
       'durationMins': node.durationMins,
     });
   } else if (node is WarmCameraNode) {
-    base.addAll({
-      'ratePerMin': node.ratePerMin,
-    });
+    base.addAll({'ratePerMin': node.ratePerMin});
   } else if (node is RotatorNode) {
-    base.addAll({
-      'targetAngle': node.targetAngle,
-      'relative': node.relative,
-    });
+    base.addAll({'targetAngle': node.targetAngle, 'relative': node.relative});
   } else if (node is WaitTimeNode) {
     base.addAll({
       'waitUntil': node.waitUntil?.toIso8601String(),
       'waitForTwilight': node.waitForTwilight?.name,
     });
   } else if (node is DelayNode) {
-    base.addAll({
-      'seconds': node.seconds,
-    });
+    base.addAll({'seconds': node.seconds});
   } else if (node is NotificationNode) {
     base.addAll({
       'title': node.title,
@@ -417,17 +412,11 @@ Map<String, dynamic> _serializeNode(
       'failureAction': node.failureAction.name,
     });
   } else if (node is OpenDomeNode) {
-    base.addAll({
-      'shutterOnly': node.shutterOnly,
-    });
+    base.addAll({'shutterOnly': node.shutterOnly});
   } else if (node is CloseDomeNode) {
-    base.addAll({
-      'shutterOnly': node.shutterOnly,
-    });
+    base.addAll({'shutterOnly': node.shutterOnly});
   } else if (node is ParkDomeNode) {
-    base.addAll({
-      'shutterOnly': node.shutterOnly,
-    });
+    base.addAll({'shutterOnly': node.shutterOnly});
   } else if (node is PolarAlignmentNode) {
     base.addAll({
       'exposureDuration': node.exposureDuration,

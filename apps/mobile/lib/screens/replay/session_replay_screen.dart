@@ -97,14 +97,14 @@ class _SessionReplayScreenState extends ConsumerState<SessionReplayScreen> {
         ),
       ),
       body: switch (state) {
-        SessionReplayLoading() =>
-          const Center(child: CircularProgressIndicator()),
+        SessionReplayLoading() => const Center(
+          child: CircularProgressIndicator(),
+        ),
         SessionReplayError(:final message) => _ReplayErrorView(
-            message: message,
-            onRetry: () => ref
-                .read(sessionReplayNotifierProvider(key).notifier)
-                .reload(),
-          ),
+          message: message,
+          onRetry: () =>
+              ref.read(sessionReplayNotifierProvider(key).notifier).reload(),
+        ),
         SessionReplayReady() => _ReplayReadyBody(stateKey: key, ready: state),
       },
     );
@@ -162,7 +162,8 @@ class _ReplayReadyBody extends ConsumerWidget {
     return Column(
       children: [
         _RunHeader(ready: ready),
-        if (ready.eventsPartial) _PartialBanner(reason: ready.eventsPartialReason),
+        if (ready.eventsPartial)
+          _PartialBanner(reason: ready.eventsPartialReason),
         _TimelineBar(
           ready: ready,
           onSeek: notifier.seekTo,
@@ -202,7 +203,8 @@ class _RunHeader extends StatelessWidget {
     final duration = ready.run.duration;
     final start = ready.run.startedAt.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
-    final startStr = '${start.year}-${two(start.month)}-${two(start.day)} '
+    final startStr =
+        '${start.year}-${two(start.month)}-${two(start.day)} '
         '${two(start.hour)}:${two(start.minute)}';
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -316,10 +318,7 @@ class _PartialBanner extends StatelessWidget {
           Expanded(
             child: Text(
               body,
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 11, color: colors.textPrimary),
             ),
           ),
         ],
@@ -355,7 +354,8 @@ class _TimelineBar extends StatelessWidget {
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
                 final dur = ready.durationMs.toDouble().clamp(1.0, 1 << 30);
-                double offsetToX(int ms) => width * (ms.clamp(0, ready.durationMs) / dur);
+                double offsetToX(int ms) =>
+                    width * (ms.clamp(0, ready.durationMs) / dur);
 
                 int xToOffset(double x) =>
                     (x.clamp(0.0, width) / width * dur).round();
@@ -475,11 +475,7 @@ class _TimelinePainter extends CustomPainter {
     final passedPaint = Paint()
       ..color = colors.primary
       ..strokeWidth = 2;
-    canvas.drawLine(
-      Offset(0, trackY),
-      Offset(playheadX, trackY),
-      passedPaint,
-    );
+    canvas.drawLine(Offset(0, trackY), Offset(playheadX, trackY), passedPaint);
 
     // Ticks (events) above the track; diamonds (frames) below.
     for (final m in ready.markers) {
@@ -488,15 +484,10 @@ class _TimelinePainter extends CustomPainter {
         case ReplayEventMarker event:
           final color = _severityColor(event.severity);
           final paint = Paint()..color = color;
-          canvas.drawRect(
-            Rect.fromLTWH(x - 1, trackY - 14, 2, 12),
-            paint,
-          );
+          canvas.drawRect(Rect.fromLTWH(x - 1, trackY - 14, 2, 12), paint);
         case ReplayFrameMarker frame:
           final paint = Paint()
-            ..color = frame.isAccepted
-                ? colors.success
-                : colors.error;
+            ..color = frame.isAccepted ? colors.success : colors.error;
           final path = Path()
             ..moveTo(x, trackY + 4)
             ..lineTo(x + 4, trackY + 8)
@@ -610,9 +601,7 @@ class _SpeedChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? colors.primary : colors.background,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: active ? colors.primary : colors.border,
-          ),
+          border: Border.all(color: active ? colors.primary : colors.border),
         ),
         child: Text(
           label,
@@ -638,7 +627,8 @@ class _SnapshotPanel extends StatelessWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final wallClock = snapshot.playheadWallClock.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
-    final timeStr = '${two(wallClock.hour)}:${two(wallClock.minute)}:'
+    final timeStr =
+        '${two(wallClock.hour)}:${two(wallClock.minute)}:'
         '${two(wallClock.second)}';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -694,7 +684,8 @@ class _SnapshotPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _SnapshotCard(
-            title: 'Events up to playhead '
+            title:
+                'Events up to playhead '
                 '(${snapshot.markersUpToPlayhead.length})',
             colors: colors,
             child: _EventLogList(
@@ -744,10 +735,7 @@ class _SnapshotCard extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: colors.border),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: child,
-          ),
+          Padding(padding: const EdgeInsets.all(12), child: child),
         ],
       ),
     );
@@ -775,10 +763,7 @@ class _SnapshotRow extends StatelessWidget {
             width: 130,
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -842,17 +827,17 @@ class _MarkerRow extends StatelessWidget {
     final timeStr = '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
     final (label, color, source) = switch (m) {
       ReplayEventMarker e => (
-          e.message,
-          _severityColor(e.severity, colors),
-          e.source ?? e.severity,
-        ),
+        e.message,
+        _severityColor(e.severity, colors),
+        e.source ?? e.severity,
+      ),
       ReplayFrameMarker f => (
-          'Frame #${f.frameId}'
-              '${f.filter != null ? ' · ${f.filter}' : ''}'
-              '${f.hfr != null ? ' · HFR ${f.hfr!.toStringAsFixed(2)}' : ''}',
-          f.isAccepted ? colors.success : colors.error,
-          'imaging',
-        ),
+        'Frame #${f.frameId}'
+            '${f.filter != null ? ' · ${f.filter}' : ''}'
+            '${f.hfr != null ? ' · HFR ${f.hfr!.toStringAsFixed(2)}' : ''}',
+        f.isAccepted ? colors.success : colors.error,
+        'imaging',
+      ),
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -863,10 +848,7 @@ class _MarkerRow extends StatelessWidget {
             margin: const EdgeInsets.only(top: 4),
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -875,17 +857,11 @@ class _MarkerRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textPrimary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textPrimary),
                 ),
                 Text(
                   '$timeStr · $source',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
                 ),
               ],
             ),

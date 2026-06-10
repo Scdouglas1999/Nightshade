@@ -68,7 +68,6 @@ class TargetSchedulerProperties extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           const SectionHeader(title: 'Scoring weights'),
           const SizedBox(height: 8),
           _WeightSlider(
@@ -106,7 +105,6 @@ class TargetSchedulerProperties extends ConsumerWidget {
           const SizedBox(height: 8),
           _WeightSumIndicator(colors: colors, node: node, ref: ref),
           const SizedBox(height: 16),
-
           const SectionHeader(title: 'Decision policy'),
           const SizedBox(height: 8),
           NodePropertyField(
@@ -118,8 +116,7 @@ class TargetSchedulerProperties extends ConsumerWidget {
               min: 0,
               max: 100,
               decimals: 1,
-              onChanged: (v) =>
-                  _update(ref, node.copyWith(minScoreToRun: v)),
+              onChanged: (v) => _update(ref, node.copyWith(minScoreToRun: v)),
             ),
           ),
           NodePropertyField(
@@ -164,8 +161,8 @@ class TargetSchedulerProperties extends ConsumerWidget {
                   onChanged: canEdit
                       ? (v) {
                           if (v) {
-                            _update(ref,
-                                node.copyWith(minMoonSeparationDeg: 30.0));
+                            _update(
+                                ref, node.copyWith(minMoonSeparationDeg: 30.0));
                           } else {
                             // copyWith is keep-or-replace, so clearing to null
                             // needs a fresh node. Carry every field through —
@@ -226,7 +223,6 @@ class TargetSchedulerProperties extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 16),
-
           _AdaptiveSwapSection(
             colors: colors,
             node: node,
@@ -234,7 +230,6 @@ class TargetSchedulerProperties extends ConsumerWidget {
             onUpdate: (updated) => _update(ref, updated),
           ),
           const SizedBox(height: 16),
-
           const SectionHeader(title: 'Live ranking preview'),
           const SizedBox(height: 8),
           if (sequence == null)
@@ -441,8 +436,7 @@ class _AdaptiveSwapSection extends StatelessWidget {
       children: [
         const SectionHeader(
           title: 'Adaptive swap',
-          subtitle:
-              'When live sky-conditions deteriorate, swap from the faint '
+          subtitle: 'When live sky-conditions deteriorate, swap from the faint '
               'target to a brighter backup that still accepts the score.',
         ),
         const SizedBox(height: 8),
@@ -558,11 +552,10 @@ class _AdaptiveSwapSection extends StatelessWidget {
               max: 86400,
               decimals: 0,
               suffix: 's',
-              onChanged: (v) => onUpdate(
-                  node.copyWith(maxConditionsScoreAgeSecs: v.toInt())),
+              onChanged: (v) =>
+                  onUpdate(node.copyWith(maxConditionsScoreAgeSecs: v.toInt())),
             ),
           ),
-
           const SizedBox(height: 12),
           Text(
             'Per-tier acceptance floors',
@@ -593,8 +586,7 @@ class _AdaptiveSwapSection extends StatelessWidget {
               max: 100,
               decimals: 1,
               onChanged: (v) => onUpdate(node.copyWith(
-                brightnessTierPreferences:
-                    prefs.copyWith(faintMinScore: v),
+                brightnessTierPreferences: prefs.copyWith(faintMinScore: v),
               )),
             ),
           ),
@@ -608,8 +600,7 @@ class _AdaptiveSwapSection extends StatelessWidget {
               max: 100,
               decimals: 1,
               onChanged: (v) => onUpdate(node.copyWith(
-                brightnessTierPreferences:
-                    prefs.copyWith(mediumMinScore: v),
+                brightnessTierPreferences: prefs.copyWith(mediumMinScore: v),
               )),
             ),
           ),
@@ -623,8 +614,7 @@ class _AdaptiveSwapSection extends StatelessWidget {
               max: 100,
               decimals: 1,
               onChanged: (v) => onUpdate(node.copyWith(
-                brightnessTierPreferences:
-                    prefs.copyWith(brightMinScore: v),
+                brightnessTierPreferences: prefs.copyWith(brightMinScore: v),
               )),
             ),
           ),
@@ -648,9 +638,8 @@ class _TierOrderIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ordered =
-        prefs.faintMinScore >= prefs.mediumMinScore &&
-            prefs.mediumMinScore >= prefs.brightMinScore;
+    final ordered = prefs.faintMinScore >= prefs.mediumMinScore &&
+        prefs.mediumMinScore >= prefs.brightMinScore;
     if (ordered) return const SizedBox.shrink();
 
     return Container(

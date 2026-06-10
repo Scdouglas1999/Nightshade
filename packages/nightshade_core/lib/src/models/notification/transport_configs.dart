@@ -52,9 +52,7 @@ class EmailTransportConfig extends Equatable
 
   @override
   bool get isConfigured =>
-      smtpHost.isNotEmpty &&
-      fromAddress.isNotEmpty &&
-      toAddress.isNotEmpty;
+      smtpHost.isNotEmpty && fromAddress.isNotEmpty && toAddress.isNotEmpty;
 
   EmailTransportConfig copyWith({
     String? smtpHost,
@@ -64,27 +62,26 @@ class EmailTransportConfig extends Equatable
     bool? useTls,
     String? fromAddress,
     String? toAddress,
-  }) =>
-      EmailTransportConfig(
-        smtpHost: smtpHost ?? this.smtpHost,
-        smtpPort: smtpPort ?? this.smtpPort,
-        username: username ?? this.username,
-        password: password ?? this.password,
-        useTls: useTls ?? this.useTls,
-        fromAddress: fromAddress ?? this.fromAddress,
-        toAddress: toAddress ?? this.toAddress,
-      );
+  }) => EmailTransportConfig(
+    smtpHost: smtpHost ?? this.smtpHost,
+    smtpPort: smtpPort ?? this.smtpPort,
+    username: username ?? this.username,
+    password: password ?? this.password,
+    useTls: useTls ?? this.useTls,
+    fromAddress: fromAddress ?? this.fromAddress,
+    toAddress: toAddress ?? this.toAddress,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'smtpHost': smtpHost,
-        'smtpPort': smtpPort,
-        'username': username,
-        'password': password,
-        'useTls': useTls,
-        'fromAddress': fromAddress,
-        'toAddress': toAddress,
-      };
+    'smtpHost': smtpHost,
+    'smtpPort': smtpPort,
+    'username': username,
+    'password': password,
+    'useTls': useTls,
+    'fromAddress': fromAddress,
+    'toAddress': toAddress,
+  };
 
   factory EmailTransportConfig.fromJson(Map<String, dynamic> json) =>
       EmailTransportConfig(
@@ -98,8 +95,15 @@ class EmailTransportConfig extends Equatable
       );
 
   @override
-  List<Object?> get props =>
-      [smtpHost, smtpPort, username, password, useTls, fromAddress, toAddress];
+  List<Object?> get props => [
+    smtpHost,
+    smtpPort,
+    username,
+    password,
+    useTls,
+    fromAddress,
+    toAddress,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,20 +130,20 @@ class WebhookTransportConfig extends Equatable
     Map<String, String>? headers,
     String? bodyTemplate,
     bool clearBodyTemplate = false,
-  }) =>
-      WebhookTransportConfig(
-        url: url ?? this.url,
-        headers: headers ?? this.headers,
-        bodyTemplate:
-            clearBodyTemplate ? null : (bodyTemplate ?? this.bodyTemplate),
-      );
+  }) => WebhookTransportConfig(
+    url: url ?? this.url,
+    headers: headers ?? this.headers,
+    bodyTemplate: clearBodyTemplate
+        ? null
+        : (bodyTemplate ?? this.bodyTemplate),
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'url': url,
-        'headers': headers,
-        'bodyTemplate': bodyTemplate,
-      };
+    'url': url,
+    'headers': headers,
+    'bodyTemplate': bodyTemplate,
+  };
 
   factory WebhookTransportConfig.fromJson(Map<String, dynamic> json) {
     final headersRaw = json['headers'];
@@ -187,21 +191,20 @@ class PushoverTransportConfig extends Equatable
     String? device,
     int? priority,
     bool clearDevice = false,
-  }) =>
-      PushoverTransportConfig(
-        apiToken: apiToken ?? this.apiToken,
-        userKey: userKey ?? this.userKey,
-        device: clearDevice ? null : (device ?? this.device),
-        priority: priority ?? this.priority,
-      );
+  }) => PushoverTransportConfig(
+    apiToken: apiToken ?? this.apiToken,
+    userKey: userKey ?? this.userKey,
+    device: clearDevice ? null : (device ?? this.device),
+    priority: priority ?? this.priority,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'apiToken': apiToken,
-        'userKey': userKey,
-        'device': device,
-        'priority': priority,
-      };
+    'apiToken': apiToken,
+    'userKey': userKey,
+    'device': device,
+    'priority': priority,
+  };
 
   factory PushoverTransportConfig.fromJson(Map<String, dynamic> json) =>
       PushoverTransportConfig(
@@ -238,19 +241,18 @@ class TelegramTransportConfig extends Equatable
     String? botToken,
     String? chatId,
     bool? disableNotification,
-  }) =>
-      TelegramTransportConfig(
-        botToken: botToken ?? this.botToken,
-        chatId: chatId ?? this.chatId,
-        disableNotification: disableNotification ?? this.disableNotification,
-      );
+  }) => TelegramTransportConfig(
+    botToken: botToken ?? this.botToken,
+    chatId: chatId ?? this.chatId,
+    disableNotification: disableNotification ?? this.disableNotification,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'botToken': botToken,
-        'chatId': chatId,
-        'disableNotification': disableNotification,
-      };
+    'botToken': botToken,
+    'chatId': chatId,
+    'disableNotification': disableNotification,
+  };
 
   factory TelegramTransportConfig.fromJson(Map<String, dynamic> json) =>
       TelegramTransportConfig(
@@ -288,19 +290,18 @@ class DiscordTransportConfig extends Equatable
     String? avatarUrl,
     bool clearUsername = false,
     bool clearAvatarUrl = false,
-  }) =>
-      DiscordTransportConfig(
-        webhookUrl: webhookUrl ?? this.webhookUrl,
-        username: clearUsername ? null : (username ?? this.username),
-        avatarUrl: clearAvatarUrl ? null : (avatarUrl ?? this.avatarUrl),
-      );
+  }) => DiscordTransportConfig(
+    webhookUrl: webhookUrl ?? this.webhookUrl,
+    username: clearUsername ? null : (username ?? this.username),
+    avatarUrl: clearAvatarUrl ? null : (avatarUrl ?? this.avatarUrl),
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'webhookUrl': webhookUrl,
-        'username': username,
-        'avatarUrl': avatarUrl,
-      };
+    'webhookUrl': webhookUrl,
+    'username': username,
+    'avatarUrl': avatarUrl,
+  };
 
   factory DiscordTransportConfig.fromJson(Map<String, dynamic> json) =>
       DiscordTransportConfig(
@@ -356,31 +357,30 @@ class MqttTransportConfig extends Equatable
     String? clientId,
     bool clearUsername = false,
     bool clearPassword = false,
-  }) =>
-      MqttTransportConfig(
-        host: host ?? this.host,
-        port: port ?? this.port,
-        username: clearUsername ? null : (username ?? this.username),
-        password: clearPassword ? null : (password ?? this.password),
-        topic: topic ?? this.topic,
-        qos: qos ?? this.qos,
-        retain: retain ?? this.retain,
-        useTls: useTls ?? this.useTls,
-        clientId: clientId ?? this.clientId,
-      );
+  }) => MqttTransportConfig(
+    host: host ?? this.host,
+    port: port ?? this.port,
+    username: clearUsername ? null : (username ?? this.username),
+    password: clearPassword ? null : (password ?? this.password),
+    topic: topic ?? this.topic,
+    qos: qos ?? this.qos,
+    retain: retain ?? this.retain,
+    useTls: useTls ?? this.useTls,
+    clientId: clientId ?? this.clientId,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
-        'host': host,
-        'port': port,
-        'username': username,
-        'password': password,
-        'topic': topic,
-        'qos': qos,
-        'retain': retain,
-        'useTls': useTls,
-        'clientId': clientId,
-      };
+    'host': host,
+    'port': port,
+    'username': username,
+    'password': password,
+    'topic': topic,
+    'qos': qos,
+    'retain': retain,
+    'useTls': useTls,
+    'clientId': clientId,
+  };
 
   factory MqttTransportConfig.fromJson(Map<String, dynamic> json) =>
       MqttTransportConfig(
@@ -397,14 +397,14 @@ class MqttTransportConfig extends Equatable
 
   @override
   List<Object?> get props => [
-        host,
-        port,
-        username,
-        password,
-        topic,
-        qos,
-        retain,
-        useTls,
-        clientId,
-      ];
+    host,
+    port,
+    username,
+    password,
+    topic,
+    qos,
+    retain,
+    useTls,
+    clientId,
+  ];
 }

@@ -34,10 +34,14 @@ class DarkLibraryMatchTolerances {
   const DarkLibraryMatchTolerances({
     this.exposureSecs = 0.5,
     this.temperatureC = 1.0,
-  })  : assert(exposureSecs >= 0,
-            'exposureSecs tolerance must be >= 0, got $exposureSecs'),
-        assert(temperatureC >= 0,
-            'temperatureC tolerance must be >= 0, got $temperatureC');
+  }) : assert(
+         exposureSecs >= 0,
+         'exposureSecs tolerance must be >= 0, got $exposureSecs',
+       ),
+       assert(
+         temperatureC >= 0,
+         'temperatureC tolerance must be >= 0, got $temperatureC',
+       );
 
   /// Construct from arbitrary user input (e.g. settings DAO values).
   ///

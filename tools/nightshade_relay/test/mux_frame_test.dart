@@ -18,7 +18,8 @@ void main() {
 
     test('round-trips an empty payload', () {
       final decoded = MuxFrame.decodeExact(
-          MuxFrame(7, MuxFrameType.finish).encode());
+        MuxFrame(7, MuxFrameType.finish).encode(),
+      );
       expect(decoded.streamId, 7);
       expect(decoded.type, MuxFrameType.finish);
       expect(decoded.payload, isEmpty);
@@ -26,19 +27,24 @@ void main() {
 
     test('round-trips the max uint32 stream id', () {
       final decoded = MuxFrame.decodeExact(
-          MuxFrame(0xFFFFFFFF, MuxFrameType.data).encode());
+        MuxFrame(0xFFFFFFFF, MuxFrameType.data).encode(),
+      );
       expect(decoded.streamId, 0xFFFFFFFF);
     });
 
     test('rejects truncated buffers', () {
-      expect(() => MuxFrame.decodeExact(Uint8List(4)),
-          throwsA(isA<MuxProtocolException>()));
+      expect(
+        () => MuxFrame.decodeExact(Uint8List(4)),
+        throwsA(isA<MuxProtocolException>()),
+      );
     });
 
     test('rejects declared-length mismatch', () {
       final bytes = MuxFrame(1, MuxFrameType.data, Uint8List(10)).encode();
       expect(
-        () => MuxFrame.decodeExact(Uint8List.sublistView(bytes, 0, bytes.length - 1)),
+        () => MuxFrame.decodeExact(
+          Uint8List.sublistView(bytes, 0, bytes.length - 1),
+        ),
         throwsA(isA<MuxProtocolException>()),
       );
     });
@@ -46,20 +52,25 @@ void main() {
     test('rejects unknown frame types', () {
       final bytes = MuxFrame(1, MuxFrameType.data).encode();
       bytes[4] = 99;
-      expect(() => MuxFrame.decodeExact(bytes),
-          throwsA(isA<MuxProtocolException>()));
+      expect(
+        () => MuxFrame.decodeExact(bytes),
+        throwsA(isA<MuxProtocolException>()),
+      );
     });
 
     test('rejects oversize declared payloads', () {
       final bytes = MuxFrame(1, MuxFrameType.data).encode();
       ByteData.view(bytes.buffer).setUint32(5, kMuxMaxPayloadLength + 1);
-      expect(() => MuxFrame.decodeExact(bytes),
-          throwsA(isA<MuxProtocolException>()));
+      expect(
+        () => MuxFrame.decodeExact(bytes),
+        throwsA(isA<MuxProtocolException>()),
+      );
     });
 
     test('constructor rejects oversized payloads', () {
       expect(
-        () => MuxFrame(1, MuxFrameType.data, Uint8List(kMuxMaxPayloadLength + 1)),
+        () =>
+            MuxFrame(1, MuxFrameType.data, Uint8List(kMuxMaxPayloadLength + 1)),
         throwsA(isA<MuxProtocolException>()),
       );
     });
@@ -69,8 +80,11 @@ void main() {
     test('reassembles frames from arbitrarily misaligned chunks', () {
       final frames = <MuxFrame>[
         MuxFrame(1, MuxFrameType.open),
-        MuxFrame(1, MuxFrameType.data,
-            Uint8List.fromList(List.generate(1000, (i) => i % 251))),
+        MuxFrame(
+          1,
+          MuxFrameType.data,
+          Uint8List.fromList(List.generate(1000, (i) => i % 251)),
+        ),
         MuxFrame(2, MuxFrameType.open),
         MuxFrame(1, MuxFrameType.finish),
         MuxFrame(2, MuxFrameType.reset, Uint8List.fromList('bye'.codeUnits)),

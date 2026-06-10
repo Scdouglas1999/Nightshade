@@ -16,11 +16,17 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1', timestamp: now.subtract(const Duration(hours: 1)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 1)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1', timestamp: now.subtract(const Duration(hours: 6)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 6)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1', timestamp: now.subtract(const Duration(hours: 23)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 23)),
+      );
 
       expect(log.totalLast24h(now: now), 3);
       expect(log.countForDevice('cam-1', now: now), 3);
@@ -30,13 +36,17 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1', timestamp: now.subtract(const Duration(hours: 1)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 1)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 25)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 25)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 48)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 48)),
+      );
 
       // Only the most recent entry survives the cutoff.
       expect(log.totalLast24h(now: now), 1);
@@ -47,11 +57,13 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 24)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 24)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 23, minutes: 59)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 23, minutes: 59)),
+      );
 
       // The 24h-old entry is at the cutoff boundary. Per
       // [UsbDisconnectLog.prune] semantics it's pruned because
@@ -60,8 +72,11 @@ void main() {
       // (UsbDisconnectLog.prune uses `isBefore` so cutoff entries that
       // match exactly are retained. Newer ones survive in either case.)
       final total = log.totalLast24h(now: now);
-      expect(total >= 1, isTrue,
-          reason: 'at least the < 24h-old entry must survive');
+      expect(
+        total >= 1,
+        isTrue,
+        reason: 'at least the < 24h-old entry must survive',
+      );
       expect(total <= 2, isTrue);
     });
   });
@@ -71,20 +86,22 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(minutes: 10)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(minutes: 10)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(minutes: 30)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(minutes: 30)),
+      );
       log.recordDisconnect(
-          deviceId: 'mount-1',
-          timestamp: now.subtract(const Duration(minutes: 5)));
+        deviceId: 'mount-1',
+        timestamp: now.subtract(const Duration(minutes: 5)),
+      );
 
       expect(log.countForDevice('cam-1', now: now), 2);
       expect(log.countForDevice('mount-1', now: now), 1);
       expect(log.countForDevice('focuser-1', now: now), 0);
-      expect(
-          log.perDeviceCounts(now: now), {'cam-1': 2, 'mount-1': 1});
+      expect(log.perDeviceCounts(now: now), {'cam-1': 2, 'mount-1': 1});
     });
 
     test('disconnects with empty device id are bucketed under "<unknown>"', () {
@@ -92,8 +109,9 @@ void main() {
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(deviceId: '', timestamp: now);
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(minutes: 1)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(minutes: 1)),
+      );
 
       expect(log.totalLast24h(now: now), 2);
       expect(log.countForDevice('<unknown>', now: now), 1);
@@ -106,14 +124,17 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 25)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 25)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 48)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 48)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 1)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 1)),
+      );
 
       final pruned = log.prune(now: now);
       expect(pruned, 2);
@@ -124,11 +145,13 @@ void main() {
       final now = DateTime.utc(2026, 5, 18, 22, 0);
       final log = UsbDisconnectLog(now: () => now);
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 30)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 30)),
+      );
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 1)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 1)),
+      );
 
       expect(log.prune(now: now), 1);
       expect(log.prune(now: now), 0);
@@ -156,14 +179,16 @@ void main() {
 
       // Before session starts: should NOT count.
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 3)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 3)),
+      );
       // Exactly at session start: SHOULD count (inclusive lower bound).
       log.recordDisconnect(deviceId: 'cam-1', timestamp: sessionStart);
       // During session: SHOULD count.
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(minutes: 30)));
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(minutes: 30)),
+      );
 
       expect(log.countSince(sessionStart, now: now), 2);
     });
@@ -174,19 +199,22 @@ void main() {
       final log = UsbDisconnectLog(now: () => now);
 
       log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(hours: 3)));
-      log.recordDisconnect(
-          deviceId: 'cam-1',
-          timestamp: now.subtract(const Duration(minutes: 5)));
-      log.recordDisconnect(
-          deviceId: 'mount-1',
-          timestamp: now.subtract(const Duration(minutes: 10)));
-
-      expect(
-        log.perDeviceCountsSince(sessionStart, now: now),
-        {'cam-1': 1, 'mount-1': 1},
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(hours: 3)),
       );
+      log.recordDisconnect(
+        deviceId: 'cam-1',
+        timestamp: now.subtract(const Duration(minutes: 5)),
+      );
+      log.recordDisconnect(
+        deviceId: 'mount-1',
+        timestamp: now.subtract(const Duration(minutes: 10)),
+      );
+
+      expect(log.perDeviceCountsSince(sessionStart, now: now), {
+        'cam-1': 1,
+        'mount-1': 1,
+      });
     });
   });
 
@@ -194,18 +222,28 @@ void main() {
     test('two entries with identical fields compare equal', () {
       final timestamp = DateTime.utc(2026, 5, 18);
       final a = UsbDisconnectEntry(
-          deviceId: 'cam-1', timestamp: timestamp, reason: 'usb_error');
+        deviceId: 'cam-1',
+        timestamp: timestamp,
+        reason: 'usb_error',
+      );
       final b = UsbDisconnectEntry(
-          deviceId: 'cam-1', timestamp: timestamp, reason: 'usb_error');
+        deviceId: 'cam-1',
+        timestamp: timestamp,
+        reason: 'usb_error',
+      );
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
     });
 
     test('entries with different timestamps are not equal', () {
       final a = UsbDisconnectEntry(
-          deviceId: 'cam-1', timestamp: DateTime.utc(2026, 5, 18));
+        deviceId: 'cam-1',
+        timestamp: DateTime.utc(2026, 5, 18),
+      );
       final b = UsbDisconnectEntry(
-          deviceId: 'cam-1', timestamp: DateTime.utc(2026, 5, 19));
+        deviceId: 'cam-1',
+        timestamp: DateTime.utc(2026, 5, 19),
+      );
       expect(a, isNot(equals(b)));
     });
   });

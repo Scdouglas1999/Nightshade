@@ -14,5 +14,7 @@ class TutorialProgressDaoManager {
   TutorialProgressDaoManager(this._db);
   $$TutorialProgressTableTableManager get tutorialProgress =>
       $$TutorialProgressTableTableManager(
-          _db.attachedDatabase, _db.tutorialProgress);
+        _db.attachedDatabase,
+        _db.tutorialProgress,
+      );
 }

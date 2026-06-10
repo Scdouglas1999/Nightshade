@@ -110,9 +110,9 @@ class StackLightSelector {
     required ImagesDao imagesDao,
     required SessionsDao sessionsDao,
     required TargetsDao targetsDao,
-  })  : _imagesDao = imagesDao,
-        _sessionsDao = sessionsDao,
-        _targetsDao = targetsDao;
+  }) : _imagesDao = imagesDao,
+       _sessionsDao = sessionsDao,
+       _targetsDao = targetsDao;
 
   /// Filter-bucket name used for frames captured without a filter recorded.
   static const String noFilterBucket = '(none)';
@@ -207,8 +207,7 @@ class StackLightSelector {
 
       // Survivor.
       selected.add(_toSelection(frame, isReference: false));
-      perFilterCounts[filterBucket] =
-          (perFilterCounts[filterBucket] ?? 0) + 1;
+      perFilterCounts[filterBucket] = (perFilterCounts[filterBucket] ?? 0) + 1;
       totalIntegrationSecs += frame.exposureDuration;
 
       if (referenceRow == null ||
@@ -280,8 +279,10 @@ class StackLightSelector {
     required CapturedImage candidate,
     required CapturedImage current,
   }) {
-    final cmpQuality =
-        _compareNullableDesc(candidate.qualityScore, current.qualityScore);
+    final cmpQuality = _compareNullableDesc(
+      candidate.qualityScore,
+      current.qualityScore,
+    );
     if (cmpQuality != 0) return cmpQuality > 0;
 
     // Lower HFR is better → invert the ascending comparison.

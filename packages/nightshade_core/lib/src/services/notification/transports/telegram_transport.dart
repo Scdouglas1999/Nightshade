@@ -27,9 +27,9 @@ class TelegramTransport extends NotificationTransport {
     required TelegramTransportConfig config,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 15),
-  })  : _config = config,
-        _client = httpClient ?? http.Client(),
-        _timeout = timeout;
+  }) : _config = config,
+       _client = httpClient ?? http.Client(),
+       _timeout = timeout;
 
   @override
   NotificationTransportKind get kind => NotificationTransportKind.telegram;
@@ -58,15 +58,17 @@ class TelegramTransport extends NotificationTransport {
     try {
       final url = '$_telegramApiBase/bot${_config.botToken}/sendMessage';
       final text = title.isEmpty ? body : '*$title*\n$body';
-      final response = await _client.post(
-        Uri.parse(url),
-        body: {
-          'chat_id': _config.chatId,
-          'text': text,
-          'parse_mode': 'Markdown',
-          'disable_notification': _config.disableNotification.toString(),
-        },
-      ).timeout(_timeout);
+      final response = await _client
+          .post(
+            Uri.parse(url),
+            body: {
+              'chat_id': _config.chatId,
+              'text': text,
+              'parse_mode': 'Markdown',
+              'disable_notification': _config.disableNotification.toString(),
+            },
+          )
+          .timeout(_timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded =
@@ -90,10 +92,15 @@ class TelegramTransport extends NotificationTransport {
       );
     } on TimeoutException {
       return NotificationResult.fail(
-          'Telegram request timed out after ${_timeout.inSeconds}s');
+        'Telegram request timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/Telegram] Send failed: $e',
-          name: 'TelegramTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/Telegram] Send failed: $e',
+        name: 'TelegramTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }

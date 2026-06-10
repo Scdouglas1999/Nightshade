@@ -32,10 +32,7 @@ class LoadedPlugin {
   }) : loadedAt = loadedAt ?? DateTime.now();
 
   /// Create a copy with updated fields
-  LoadedPlugin copyWith({
-    bool? enabled,
-    String? error,
-  }) {
+  LoadedPlugin copyWith({bool? enabled, String? error}) {
     return LoadedPlugin(
       plugin: plugin,
       context: context,
@@ -111,9 +108,9 @@ class PluginHost {
     PluginContextFactory? contextFactory,
     Duration lifecycleTimeout = const Duration(seconds: 5),
     PluginNodeRegistry? nodeRegistry,
-  })  : _contextFactory = contextFactory ?? PluginContextFactory(),
-        _lifecycleTimeout = lifecycleTimeout,
-        nodeRegistry = nodeRegistry ?? PluginNodeRegistry();
+  }) : _contextFactory = contextFactory ?? PluginContextFactory(),
+       _lifecycleTimeout = lifecycleTimeout,
+       nodeRegistry = nodeRegistry ?? PluginNodeRegistry();
 
   /// Get all loaded plugins
   List<NightshadePlugin> get plugins =>
@@ -180,16 +177,19 @@ class PluginHost {
     bool enabled = true,
   }) async {
     if (_plugins.containsKey(plugin.id)) {
-      throw PluginException(
-        'Plugin ${plugin.id} is already registered',
-      );
+      throw PluginException('Plugin ${plugin.id} is already registered');
     }
 
     final context = _contextFactory.createContext(plugin.id);
 
     try {
       // Call onLoad lifecycle method
-      await _runLifecycle(plugin, context, 'onLoad', () => plugin.onLoad(context));
+      await _runLifecycle(
+        plugin,
+        context,
+        'onLoad',
+        () => plugin.onLoad(context),
+      );
 
       // Store loaded plugin
       _plugins[plugin.id] = LoadedPlugin(
@@ -346,7 +346,11 @@ class PluginHost {
         await unregisterPlugin(pluginId);
       } catch (e) {
         // Log but continue disposing other plugins
-        developer.log('Error disposing plugin $pluginId: $e', name: 'PluginHost', level: 1000);
+        developer.log(
+          'Error disposing plugin $pluginId: $e',
+          name: 'PluginHost',
+          level: 1000,
+        );
       }
     }
 
@@ -363,30 +367,30 @@ class PluginHost {
   ) async {
     final completer = Completer<void>();
 
-    runZonedGuarded(() async {
-      try {
-        await action();
-        if (!completer.isCompleted) {
-          completer.complete();
+    runZonedGuarded(
+      () async {
+        try {
+          await action();
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        } catch (error, stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
         }
-      } catch (error, stackTrace) {
+      },
+      (error, stackTrace) {
         if (!completer.isCompleted) {
           completer.completeError(error, stackTrace);
         }
-      }
-    }, (error, stackTrace) {
-      if (!completer.isCompleted) {
-        completer.completeError(error, stackTrace);
-      }
-    });
+      },
+    );
 
     try {
       await completer.future.timeout(_lifecycleTimeout);
     } on TimeoutException catch (error) {
-      context.logger.error(
-        'Plugin lifecycle timed out during $phase',
-        error,
-      );
+      context.logger.error('Plugin lifecycle timed out during $phase', error);
       throw PluginException(
         'Plugin ${plugin.id} timed out during $phase after '
         '${_lifecycleTimeout.inSeconds}s',
@@ -406,9 +410,7 @@ final pluginHostProvider = Provider<PluginHost>((ref) {
 /// UI extension points provider
 final uiExtensionPointsProvider = Provider<List<UiExtensionPoint>>((ref) {
   final host = ref.watch(pluginHostProvider);
-  return host.getPlugins<UiPlugin>()
-      .expand((p) => p.extensionPoints)
-      .toList();
+  return host.getPlugins<UiPlugin>().expand((p) => p.extensionPoints).toList();
 });
 
 /// Plugin sequence-node registry provider. Exposed at the package level so
@@ -424,17 +426,13 @@ final pluginNodeRegistryProvider = Provider<PluginNodeRegistry>((ref) {
 /// enables / disables plugins.
 final pluginNodeRegistrationsStreamProvider =
     StreamProvider<List<PluginNodeRegistration>>((ref) {
-  final registry = ref.watch(pluginNodeRegistryProvider);
-  // Seed the stream with the current snapshot so a subscriber attached
-  // after registration still observes the existing entries on first build.
-  return Stream<List<PluginNodeRegistration>>.value(registry.registrations)
-      .asyncExpand((seed) async* {
-    yield seed;
-    yield* registry.changes;
-  });
-});
-
-
-
-
-
+      final registry = ref.watch(pluginNodeRegistryProvider);
+      // Seed the stream with the current snapshot so a subscriber attached
+      // after registration still observes the existing entries on first build.
+      return Stream<List<PluginNodeRegistration>>.value(
+        registry.registrations,
+      ).asyncExpand((seed) async* {
+        yield seed;
+        yield* registry.changes;
+      });
+    });

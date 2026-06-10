@@ -444,7 +444,9 @@ class _NoSolverQuickStart extends StatelessWidget {
             'Nightshade needs a plate solver to centre targets, verify '
             'framing, and run polar alignment. Follow these steps, then '
             'click Re-scan to detect the install.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
           const SizedBox(height: 14),
           _QuickStartStep(
@@ -562,7 +564,8 @@ class _QuickStartStep extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.labelStrong
+                            .copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],

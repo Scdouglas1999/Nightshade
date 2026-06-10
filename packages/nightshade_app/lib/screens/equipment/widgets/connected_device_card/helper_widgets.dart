@@ -73,7 +73,9 @@ class _FilterDropdown extends StatelessWidget {
           value: currentPosition,
           isDense: true,
           dropdownColor: colors.surface,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           items: filterNames.asMap().entries.map((entry) {

@@ -24,10 +24,12 @@ void main() {
   out.writeAsStringSync('${encoder.convert(json)}\n');
 
   stdout.writeln('Wrote ${out.path}');
-  stdout.writeln('  stars=${fixture.stars.length} '
-      'dsos=${fixture.dsos.length} '
-      'constellations=${fixture.constellations.length} '
-      'milkyWay=${fixture.milkyWayPoints.length} '
-      'planets=${fixture.planets.length}');
+  stdout.writeln(
+    '  stars=${fixture.stars.length} '
+    'dsos=${fixture.dsos.length} '
+    'constellations=${fixture.constellations.length} '
+    'milkyWay=${fixture.milkyWayPoints.length} '
+    'planets=${fixture.planets.length}',
+  );
   stdout.writeln('  size=${out.lengthSync()} bytes');
 }

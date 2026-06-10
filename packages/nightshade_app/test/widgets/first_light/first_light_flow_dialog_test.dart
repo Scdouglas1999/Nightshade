@@ -129,7 +129,8 @@ void main() {
         state: const FirstLightState(),
         overrides: [
           firstLightControllerProvider.overrideWith((ref) {
-            controller = _FakeFirstLightController(ref, const FirstLightState());
+            controller =
+                _FakeFirstLightController(ref, const FirstLightState());
             return controller;
           }),
         ],
@@ -150,7 +151,8 @@ void main() {
         state: const FirstLightState(),
         overrides: [
           firstLightControllerProvider.overrideWith((ref) {
-            controller = _FakeFirstLightController(ref, const FirstLightState());
+            controller =
+                _FakeFirstLightController(ref, const FirstLightState());
             return controller;
           }),
         ],
@@ -303,8 +305,7 @@ void main() {
       expect(find.text('Try these steps'), findsOneWidget);
     });
 
-    testWidgets(
-        'Troubleshoot -> Retry connection re-runs the first-light flow',
+    testWidgets('Troubleshoot -> Retry connection re-runs the first-light flow',
         (tester) async {
       late _FakeFirstLightController controller;
       await _pumpDialog(
@@ -331,8 +332,8 @@ void main() {
         ],
       );
 
-      await tester
-          .tap(find.widgetWithText(NightshadeButton, 'Troubleshoot connection'));
+      await tester.tap(
+          find.widgetWithText(NightshadeButton, 'Troubleshoot connection'));
       await tester.pumpAndSettle();
 
       await tester
@@ -357,7 +358,8 @@ void main() {
         find.widgetWithText(NightshadeButton, 'Troubleshoot connection'),
         findsNothing,
       );
-      expect(find.widgetWithText(NightshadeButton, 'Try again'), findsOneWidget);
+      expect(
+          find.widgetWithText(NightshadeButton, 'Try again'), findsOneWidget);
     });
 
     testWidgets('Try again resets the controller back to the intro panel',

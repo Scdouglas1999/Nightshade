@@ -34,8 +34,9 @@ final diskSpaceGuardProvider = Provider<DiskSpaceGuardService>((ref) {
 /// Used by the dashboard Storage tile. Returns null if the user has not
 /// configured a capture directory yet; propagates [DiskSpaceException]
 /// otherwise (we want errors visible in the AsyncValue, not silently swallowed).
-final captureDirDiskSpaceProvider =
-    StreamProvider.autoDispose<DiskSpaceInfo?>((ref) async* {
+final captureDirDiskSpaceProvider = StreamProvider.autoDispose<DiskSpaceInfo?>((
+  ref,
+) async* {
   final settings = await ref.watch(appSettingsProvider.future);
   final path = settings.imageOutputPath;
   if (path.isEmpty) {
@@ -73,44 +74,45 @@ class SequenceDiskProjectionSnapshot {
 /// usual `watch`. Recomputation is async because the disk query is async.
 final sequenceDiskProjectionProvider =
     FutureProvider.autoDispose<SequenceDiskProjectionSnapshot>((ref) async {
-  final sequence = ref.watch(currentSequenceProvider);
-  final settings = await ref.watch(appSettingsProvider.future);
-  final path = settings.imageOutputPath;
-  if (path.isEmpty) {
-    return const SequenceDiskProjectionSnapshot(
-      projection: null,
-      capturePathConfigured: false,
-    );
-  }
-  if (sequence == null) {
-    return const SequenceDiskProjectionSnapshot(
-      projection: null,
-      capturePathConfigured: true,
-    );
-  }
+      final sequence = ref.watch(currentSequenceProvider);
+      final settings = await ref.watch(appSettingsProvider.future);
+      final path = settings.imageOutputPath;
+      if (path.isEmpty) {
+        return const SequenceDiskProjectionSnapshot(
+          projection: null,
+          capturePathConfigured: false,
+        );
+      }
+      if (sequence == null) {
+        return const SequenceDiskProjectionSnapshot(
+          projection: null,
+          capturePathConfigured: true,
+        );
+      }
 
-  // Look up camera capabilities from the connected camera (if any). Without
-  // capabilities the projection still runs but the severity is "info"
-  // (size unknown). The guard takes a nullable.
-  final cameraState = ref.watch(cameraStateProvider);
-  final cameraId = cameraState.deviceId ?? '';
-  CameraCapabilities? capabilities;
-  if (cameraId.isNotEmpty) {
-    capabilities =
-        await ref.watch(cameraCapabilitiesProvider(cameraId).future);
-  }
+      // Look up camera capabilities from the connected camera (if any). Without
+      // capabilities the projection still runs but the severity is "info"
+      // (size unknown). The guard takes a nullable.
+      final cameraState = ref.watch(cameraStateProvider);
+      final cameraId = cameraState.deviceId ?? '';
+      CameraCapabilities? capabilities;
+      if (cameraId.isNotEmpty) {
+        capabilities = await ref.watch(
+          cameraCapabilitiesProvider(cameraId).future,
+        );
+      }
 
-  final guard = ref.watch(diskSpaceGuardProvider);
-  final projection = await guard.projectSequence(
-    capturePath: path,
-    sequence: sequence,
-    capabilities: capabilities,
-  );
-  return SequenceDiskProjectionSnapshot(
-    projection: projection,
-    capturePathConfigured: true,
-  );
-});
+      final guard = ref.watch(diskSpaceGuardProvider);
+      final projection = await guard.projectSequence(
+        capturePath: path,
+        sequence: sequence,
+        capabilities: capabilities,
+      );
+      return SequenceDiskProjectionSnapshot(
+        projection: projection,
+        capturePathConfigured: true,
+      );
+    });
 
 /// Synchronous helper that callers can use to obtain a projection on demand
 /// from inside a non-Riverpod context (e.g. the pre-flight dialog's
@@ -128,8 +130,7 @@ Future<DiskSpaceProjection?> projectCurrentSequence(Ref ref) async {
   final cameraId = cameraState.deviceId ?? '';
   CameraCapabilities? capabilities;
   if (cameraId.isNotEmpty) {
-    capabilities =
-        await ref.read(cameraCapabilitiesProvider(cameraId).future);
+    capabilities = await ref.read(cameraCapabilitiesProvider(cameraId).future);
   }
   final guard = ref.read(diskSpaceGuardProvider);
   return guard.projectSequence(

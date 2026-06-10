@@ -98,7 +98,9 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
     super.didUpdateWidget(oldWidget);
     _syncKeys();
     if (oldWidget.selectedIndex != widget.selectedIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureSelectedVisible());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureSelectedVisible(),
+      );
     }
   }
 
@@ -194,20 +196,20 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
             colors.surfaceAlt,
           )
         : _isHovered
-            ? colors.surfaceHover
-            : Colors.transparent;
+        ? colors.surfaceHover
+        : Colors.transparent;
 
     final borderColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.45)
         : _isHovered
-            ? colors.borderHighlight.withValues(alpha: 0.85)
-            : Colors.transparent;
+        ? colors.borderHighlight.withValues(alpha: 0.85)
+        : Colors.transparent;
 
     final foreground = widget.isSelected
         ? colors.primary
         : _isHovered
-            ? colors.textPrimary
-            : colors.textSecondary;
+        ? colors.textPrimary
+        : colors.textSecondary;
 
     final showLabel = !widget.hideLabel;
 
@@ -222,16 +224,16 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (tab.icon != null)
-              Icon(tab.icon, size: 16, color: foreground),
+            if (tab.icon != null) Icon(tab.icon, size: 16, color: foreground),
             if (tab.icon != null && showLabel)
               const SizedBox(width: NightshadeTokens.spaceSm),
             if (showLabel)
               Text(
                 tab.label,
                 style: NightshadeTypography.labelSm.copyWith(
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: widget.isSelected
+                      ? FontWeight.w600
+                      : FontWeight.w500,
                   color: foreground,
                 ),
               ),

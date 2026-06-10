@@ -9,7 +9,8 @@ class CompassCalibrationDialog extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return AlertDialog(
       backgroundColor: colors.surfaceOverlay,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       title: Row(
         children: [
           Icon(NightshadeIcons.compass, color: colors.info, size: 24),
@@ -115,7 +116,8 @@ class _CalibrationTip extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: NightshadeTypography.fontSize12, height: 1.3),
+              style: const TextStyle(
+                  fontSize: NightshadeTypography.fontSize12, height: 1.3),
             ),
           ),
         ],

@@ -54,21 +54,21 @@ class FilterProgress extends Equatable {
       Duration(milliseconds: (goalFrames * exposureSeconds * 1000).round());
 
   Map<String, dynamic> toJson() => {
-        'filter': filter,
-        'exposureSeconds': exposureSeconds,
-        'goalFrames': goalFrames,
-        'capturedFrames': capturedFrames,
-        'remainingFrames': remainingFrames,
-        'percentComplete': percentComplete,
-      };
+    'filter': filter,
+    'exposureSeconds': exposureSeconds,
+    'goalFrames': goalFrames,
+    'capturedFrames': capturedFrames,
+    'remainingFrames': remainingFrames,
+    'percentComplete': percentComplete,
+  };
 
   @override
   List<Object?> get props => [
-        filter,
-        exposureSeconds,
-        goalFrames,
-        capturedFrames,
-      ];
+    filter,
+    exposureSeconds,
+    goalFrames,
+    capturedFrames,
+  ];
 }
 
 /// Aggregate imaging progress + ETA for a single target.
@@ -151,32 +151,32 @@ class TargetProgress extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'perFilter': perFilter.map((f) => f.toJson()).toList(),
-        'totalGoalFrames': totalGoalFrames,
-        'totalCapturedFrames': totalCapturedFrames,
-        'totalRemainingFrames': totalRemainingFrames,
-        'totalIntegrationGoalSeconds': totalIntegrationGoal.inSeconds,
-        'totalIntegrationCapturedSeconds': totalIntegrationCaptured.inSeconds,
-        'percentComplete': percentComplete,
-        'avgFramesPerNight': avgFramesPerNight,
-        'estimatedNightsRemaining': estimatedNightsRemaining,
-        'lastImagedAt': lastImagedAt?.toUtc().toIso8601String(),
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'perFilter': perFilter.map((f) => f.toJson()).toList(),
+    'totalGoalFrames': totalGoalFrames,
+    'totalCapturedFrames': totalCapturedFrames,
+    'totalRemainingFrames': totalRemainingFrames,
+    'totalIntegrationGoalSeconds': totalIntegrationGoal.inSeconds,
+    'totalIntegrationCapturedSeconds': totalIntegrationCaptured.inSeconds,
+    'percentComplete': percentComplete,
+    'avgFramesPerNight': avgFramesPerNight,
+    'estimatedNightsRemaining': estimatedNightsRemaining,
+    'lastImagedAt': lastImagedAt?.toUtc().toIso8601String(),
+  };
 
   @override
   List<Object?> get props => [
-        targetId,
-        targetName,
-        perFilter,
-        totalGoalFrames,
-        totalCapturedFrames,
-        totalIntegrationGoal,
-        totalIntegrationCaptured,
-        percentComplete,
-        avgFramesPerNight,
-        estimatedNightsRemaining,
-        lastImagedAt,
-      ];
+    targetId,
+    targetName,
+    perFilter,
+    totalGoalFrames,
+    totalCapturedFrames,
+    totalIntegrationGoal,
+    totalIntegrationCaptured,
+    percentComplete,
+    avgFramesPerNight,
+    estimatedNightsRemaining,
+    lastImagedAt,
+  ];
 }

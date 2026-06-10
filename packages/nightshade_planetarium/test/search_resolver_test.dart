@@ -40,32 +40,38 @@ void main() {
   );
 
   ProviderContainer makeContainer() {
-    final container = ProviderContainer(overrides: [
-      loadedStarsProvider.overrideWith((ref) async => [sirius]),
-      loadedDsosProvider.overrideWith((ref) async => [andromeda, orion]),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        loadedStarsProvider.overrideWith((ref) async => [sirius]),
+        loadedDsosProvider.overrideWith((ref) async => [andromeda, orion]),
+      ],
+    );
     addTearDown(container.dispose);
     return container;
   }
 
   Future<CelestialObject?> resolve(
-      ProviderContainer container, String query) async {
+    ProviderContainer container,
+    String query,
+  ) async {
     return container.read(objectSearchProvider.notifier).resolveBest(query);
   }
 
-  test('"m31", "andromeda galaxy", and "NGC224" resolve to the same object',
-      () async {
-    final container = makeContainer();
+  test(
+    '"m31", "andromeda galaxy", and "NGC224" resolve to the same object',
+    () async {
+      final container = makeContainer();
 
-    final byMessier = await resolve(container, 'm31');
-    final byCommonName = await resolve(container, 'andromeda galaxy');
-    final byNgc = await resolve(container, 'NGC224');
+      final byMessier = await resolve(container, 'm31');
+      final byCommonName = await resolve(container, 'andromeda galaxy');
+      final byNgc = await resolve(container, 'NGC224');
 
-    expect(byMessier, isNotNull);
-    expect(byMessier!.id, 'NGC224');
-    expect(byCommonName?.id, byMessier.id);
-    expect(byNgc?.id, byMessier.id);
-  });
+      expect(byMessier, isNotNull);
+      expect(byMessier!.id, 'NGC224');
+      expect(byCommonName?.id, byMessier.id);
+      expect(byNgc?.id, byMessier.id);
+    },
+  );
 
   test('fuzzy common-name typo still resolves Andromeda', () async {
     final container = makeContainer();

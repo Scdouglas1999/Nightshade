@@ -7,10 +7,7 @@ import 'package:nightshade_plugins/src/plugin_registration.dart';
 /// arbitrary event through the host event bus on demand, so tests can drive
 /// [PluginActivityTracker] without standing up a real HTTP integration.
 class _FakeSequencePlugin extends SequencePlugin {
-  _FakeSequencePlugin({
-    required this.id,
-    this.onEnableCalls,
-  });
+  _FakeSequencePlugin({required this.id, this.onEnableCalls});
 
   @override
   final String id;
@@ -163,32 +160,34 @@ void main() {
       expect(tracker.snapshot, isEmpty);
     });
 
-    test('stops recording after dispose (no update from late events)',
-        () async {
-      const pluginId = 'com.test.dispose';
-      const sentEvent = 'plugin.fake.sent';
-      final plugin = _FakeSequencePlugin(id: pluginId);
-      await host.registerPlugin(plugin);
+    test(
+      'stops recording after dispose (no update from late events)',
+      () async {
+        const pluginId = 'com.test.dispose';
+        const sentEvent = 'plugin.fake.sent';
+        final plugin = _FakeSequencePlugin(id: pluginId);
+        await host.registerPlugin(plugin);
 
-      final tracker = PluginActivityTracker(
-        host: host,
-        descriptors: const [
-          ExamplePluginDescriptor(
-            id: pluginId,
-            create: _unusedCreate,
-            firedEvent: sentEvent,
-          ),
-        ],
-      );
+        final tracker = PluginActivityTracker(
+          host: host,
+          descriptors: const [
+            ExamplePluginDescriptor(
+              id: pluginId,
+              create: _unusedCreate,
+              firedEvent: sentEvent,
+            ),
+          ],
+        );
 
-      await tracker.dispose();
+        await tracker.dispose();
 
-      // Firing after dispose must not mutate the (now-final) snapshot.
-      plugin.fire(sentEvent);
-      // Give any in-flight microtasks a chance to run.
-      await Future<void>.delayed(Duration.zero);
-      expect(tracker.snapshot, isEmpty);
-    });
+        // Firing after dispose must not mutate the (now-final) snapshot.
+        plugin.fire(sentEvent);
+        // Give any in-flight microtasks a chance to run.
+        await Future<void>.delayed(Duration.zero);
+        expect(tracker.snapshot, isEmpty);
+      },
+    );
   });
 
   group('pluginLastFiredProvider', () {
@@ -228,8 +227,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(container.read(pluginLastFiredProvider).containsKey(pluginId),
-          isTrue);
+      expect(
+        container.read(pluginLastFiredProvider).containsKey(pluginId),
+        isTrue,
+      );
     });
   });
 
@@ -254,33 +255,41 @@ void main() {
       expect(host.pluginInfo.length, 4);
     });
 
-    test('honours an injected disabled-set (registers disabled, no onEnable)',
-        () async {
-      final host = PluginHost();
-      final container = ProviderContainer(
-        overrides: [
-          pluginHostProvider.overrideWithValue(host),
-          pluginEnablementStoreProvider.overrideWithValue(
-            _FakeEnablementStore(
-              disabled: {'com.nightshade.examples.pushover'},
+    test(
+      'honours an injected disabled-set (registers disabled, no onEnable)',
+      () async {
+        final host = PluginHost();
+        final container = ProviderContainer(
+          overrides: [
+            pluginHostProvider.overrideWithValue(host),
+            pluginEnablementStoreProvider.overrideWithValue(
+              _FakeEnablementStore(
+                disabled: {'com.nightshade.examples.pushover'},
+              ),
             ),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      addTearDown(host.dispose);
+          ],
+        );
+        addTearDown(container.dispose);
+        addTearDown(host.dispose);
 
-      await container.read(pluginRegistrationProvider.future);
+        await container.read(pluginRegistrationProvider.future);
 
-      // Disabled plugin is loaded but not enabled.
-      expect(host.isLoaded('com.nightshade.examples.pushover'), isTrue);
-      expect(host.isEnabled('com.nightshade.examples.pushover'), isFalse);
+        // Disabled plugin is loaded but not enabled.
+        expect(host.isLoaded('com.nightshade.examples.pushover'), isTrue);
+        expect(host.isEnabled('com.nightshade.examples.pushover'), isFalse);
 
-      // Others remain enabled.
-      expect(host.isEnabled('com.nightshade.examples.discord_webhook'), isTrue);
-      expect(host.isEnabled('com.nightshade.examples.home_assistant'), isTrue);
-      expect(host.isEnabled('com.nightshade.weatherlogger'), isTrue);
-    });
+        // Others remain enabled.
+        expect(
+          host.isEnabled('com.nightshade.examples.discord_webhook'),
+          isTrue,
+        );
+        expect(
+          host.isEnabled('com.nightshade.examples.home_assistant'),
+          isTrue,
+        );
+        expect(host.isEnabled('com.nightshade.weatherlogger'), isTrue);
+      },
+    );
 
     test('disabled plugin does not run onEnable', () async {
       // Use a fresh host with a fake plugin substituted via custom descriptor
@@ -303,23 +312,25 @@ void main() {
       expect(onEnableCalls, isEmpty);
     });
 
-    test('is idempotent — safe to re-read without double-registering',
-        () async {
-      final host = PluginHost();
-      final container = ProviderContainer(
-        overrides: [pluginHostProvider.overrideWithValue(host)],
-      );
-      addTearDown(container.dispose);
-      addTearDown(host.dispose);
+    test(
+      'is idempotent — safe to re-read without double-registering',
+      () async {
+        final host = PluginHost();
+        final container = ProviderContainer(
+          overrides: [pluginHostProvider.overrideWithValue(host)],
+        );
+        addTearDown(container.dispose);
+        addTearDown(host.dispose);
 
-      await container.read(pluginRegistrationProvider.future);
-      // Invalidate and re-read: the already-registered ids are skipped, so
-      // this must not throw the "already registered" PluginException.
-      container.invalidate(pluginRegistrationProvider);
-      await container.read(pluginRegistrationProvider.future);
+        await container.read(pluginRegistrationProvider.future);
+        // Invalidate and re-read: the already-registered ids are skipped, so
+        // this must not throw the "already registered" PluginException.
+        container.invalidate(pluginRegistrationProvider);
+        await container.read(pluginRegistrationProvider.future);
 
-      expect(host.pluginInfo.length, 4);
-    });
+        expect(host.pluginInfo.length, 4);
+      },
+    );
 
     test('default enablement store enables every plugin', () async {
       const store = AllEnabledPluginEnablementStore();

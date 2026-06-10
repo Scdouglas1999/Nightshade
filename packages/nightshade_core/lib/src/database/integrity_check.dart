@@ -54,24 +54,23 @@ class IntegrityRecoveryReport {
       );
 
   factory IntegrityRecoveryReport.healthy() => const IntegrityRecoveryReport._(
-        recovered: false,
-        freshInstall: false,
-        wasHealthy: true,
-      );
+    recovered: false,
+    freshInstall: false,
+    wasHealthy: true,
+  );
 
   factory IntegrityRecoveryReport.recovered({
     required String backupPath,
     required String markerPath,
     required String failureReason,
-  }) =>
-      IntegrityRecoveryReport._(
-        recovered: true,
-        freshInstall: false,
-        wasHealthy: false,
-        backupPath: backupPath,
-        markerPath: markerPath,
-        failureReason: failureReason,
-      );
+  }) => IntegrityRecoveryReport._(
+    recovered: true,
+    freshInstall: false,
+    wasHealthy: false,
+    backupPath: backupPath,
+    markerPath: markerPath,
+    failureReason: failureReason,
+  );
 }
 
 /// Filename prefix for the forensic backup of a corrupt database file.
@@ -230,17 +229,20 @@ class DatabaseRecoveryMarker {
 /// truly one-shot. Older markers are deleted too because they describe past
 /// recoveries the user has already been notified about.
 Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
-    Directory dbDirectory) async {
+  Directory dbDirectory,
+) async {
   if (!await dbDirectory.exists()) {
     return null;
   }
 
   final entries = await dbDirectory
       .list()
-      .where((e) =>
-          e is File &&
-          p.basename(e.path).startsWith(_recoveryMarkerPrefix) &&
-          p.basename(e.path).endsWith('.txt'))
+      .where(
+        (e) =>
+            e is File &&
+            p.basename(e.path).startsWith(_recoveryMarkerPrefix) &&
+            p.basename(e.path).endsWith('.txt'),
+      )
       .cast<File>()
       .toList();
 
@@ -250,8 +252,9 @@ Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
 
   // Newest by mtime wins because the filename timestamp could collide if
   // two recoveries happened in the same millisecond.
-  entries.sort((a, b) =>
-      b.statSync().modified.compareTo(a.statSync().modified));
+  entries.sort(
+    (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+  );
   final newest = entries.first;
   final raw = await newest.readAsString();
 
@@ -281,7 +284,8 @@ Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
     }
   }
 
-  final recoveredAt = DateTime.tryParse(fields['recovered_at_utc'] ?? '') ??
+  final recoveredAt =
+      DateTime.tryParse(fields['recovered_at_utc'] ?? '') ??
       newest.statSync().modified.toUtc();
 
   return DatabaseRecoveryMarker(
@@ -295,14 +299,16 @@ Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
 Future<String?> _findMostRecentBackup(Directory dbDirectory) async {
   final backups = await dbDirectory
       .list()
-      .where((e) =>
-          e is File && p.basename(e.path).startsWith(_corruptBackupPrefix))
+      .where(
+        (e) => e is File && p.basename(e.path).startsWith(_corruptBackupPrefix),
+      )
       .cast<File>()
       .toList();
   if (backups.isEmpty) {
     return null;
   }
-  backups.sort((a, b) =>
-      b.statSync().modified.compareTo(a.statSync().modified));
+  backups.sort(
+    (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+  );
   return backups.first.path;
 }

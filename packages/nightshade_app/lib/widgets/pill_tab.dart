@@ -111,9 +111,8 @@ class _PillTabState extends State<PillTab> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: widget.dense ? 9 : 10,
-                      fontWeight: widget.isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w500,
+                      fontWeight:
+                          widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                       color: widget.isSelected
                           ? widget.colors.primary
                           : _isHovered

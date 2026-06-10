@@ -65,7 +65,8 @@ class _SolveOutcome {
     this.solverMissing = false,
   });
 
-  factory _SolveOutcome.solved(PlateSolveResult result, FramingTarget against) =>
+  factory _SolveOutcome.solved(
+          PlateSolveResult result, FramingTarget against) =>
       _SolveOutcome._(result: result, against: against);
 
   factory _SolveOutcome.failed(String error) => _SolveOutcome._(error: error);
@@ -158,18 +159,14 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                 NightshadeDropdown(
                   isExpanded: true,
                   value: framingState.surveySource.name,
-                  items:
-                      SurveySource.values.map((s) => s.name).toList(),
-                  itemLabels: SurveySource.values
-                      .map((s) => s.displayName)
-                      .toList(),
+                  items: SurveySource.values.map((s) => s.name).toList(),
+                  itemLabels:
+                      SurveySource.values.map((s) => s.displayName).toList(),
                   onChanged: (name) {
                     if (name == null) return;
-                    final source = SurveySource.values
-                        .firstWhere((s) => s.name == name);
-                    ref
-                        .read(framingProvider.notifier)
-                        .setSurveySource(source);
+                    final source =
+                        SurveySource.values.firstWhere((s) => s.name == name);
+                    ref.read(framingProvider.notifier).setSurveySource(source);
                   },
                 ),
                 const SizedBox(height: NightshadeTokens.spaceMd),
@@ -201,12 +198,12 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
             title: 'Solve current frame',
             status: (_lastSolve?.result?.success ?? false)
                 ? StatusPillStatus.success
-                : (_lastSolve?.error != null || _lastSolve?.solverMissing == true
+                : (_lastSolve?.error != null ||
+                        _lastSolve?.solverMissing == true
                     ? StatusPillStatus.error
                     : StatusPillStatus.inactive),
-            statusValue: (_lastSolve?.result?.success ?? false)
-                ? 'Solved'
-                : 'Ready',
+            statusValue:
+                (_lastSolve?.result?.success ?? false) ? 'Solved' : 'Ready',
             colors: colors,
             child: _SolveStep(
               colors: colors,
@@ -226,9 +223,8 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           _StepRow(
             number: 4,
             title: 'GoTo & Frame',
-            status: hasTarget
-                ? StatusPillStatus.active
-                : StatusPillStatus.inactive,
+            status:
+                hasTarget ? StatusPillStatus.active : StatusPillStatus.inactive,
             statusValue: hasTarget ? 'Ready' : 'No target',
             colors: colors,
             child: hasTarget
@@ -259,8 +255,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
   }
 
   Widget _stepDivider(NightshadeColors colors) => Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceMd),
+        padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceMd),
         child: Divider(height: 1, color: colors.border),
       );
 
@@ -437,7 +432,8 @@ class _StepBadge extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: isDone
-          ? Icon(NightshadeIcons.check, size: NightshadeTokens.iconXs, color: fg)
+          ? Icon(NightshadeIcons.check,
+              size: NightshadeTokens.iconXs, color: fg)
           : Text(
               '$number',
               style: NightshadeTypography.labelSm.copyWith(color: fg),

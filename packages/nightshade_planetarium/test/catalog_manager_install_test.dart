@@ -75,8 +75,7 @@ void main() {
       expect(dso.expectedHash, expectedSha);
 
       // Verify finds OK.
-      final verifyResult =
-          await CatalogManager.instance.verify(name: 'dso');
+      final verifyResult = await CatalogManager.instance.verify(name: 'dso');
       expect(verifyResult['dso']!.ok, isTrue);
       expect(verifyResult['dso']!.actualHash, expectedSha);
 
@@ -90,8 +89,7 @@ void main() {
       expect(dsoAfter.status, CatalogInstallStatus.missing);
 
       // Verify on uninstalled reports not_installed.
-      final verifyAfter =
-          await CatalogManager.instance.verify(name: 'dso');
+      final verifyAfter = await CatalogManager.instance.verify(name: 'dso');
       expect(verifyAfter['dso']!.ok, isFalse);
       expect(verifyAfter['dso']!.errors, contains('not_installed'));
 

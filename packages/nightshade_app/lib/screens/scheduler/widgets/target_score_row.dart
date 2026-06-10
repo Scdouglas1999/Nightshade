@@ -152,7 +152,8 @@ class TargetScoreRow extends StatelessWidget {
                       LucideIcons.x,
                       size: NightshadeTokens.iconSm,
                       color: colors.textSecondary,
-                      semanticLabel: 'Remove ${score.targetName} from scheduler',
+                      semanticLabel:
+                          'Remove ${score.targetName} from scheduler',
                     ),
                     splashRadius: 16,
                     constraints: const BoxConstraints(
@@ -239,7 +240,8 @@ class _GoalSummary extends StatelessWidget {
     if (progress.isEmpty) {
       return Text(
         'No integration goals',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     return Wrap(
@@ -253,7 +255,8 @@ class _GoalSummary extends StatelessWidget {
               color: p.isComplete
                   ? colors.success.withValues(alpha: 0.12)
                   : colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(
                 color: p.isComplete
                     ? colors.success.withValues(alpha: 0.4)

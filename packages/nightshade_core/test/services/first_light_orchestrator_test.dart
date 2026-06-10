@@ -25,11 +25,7 @@ import 'package:nightshade_core/src/services/plate_solve_service.dart';
 /// Imaging service whose [captureImage] returns a caller-supplied frame, or
 /// throws a caller-supplied error, so each test can drive the exposure stage.
 class _FakeImagingService extends ImagingService {
-  _FakeImagingService(
-    super.ref, {
-    this.result,
-    this.error,
-  });
+  _FakeImagingService(super.ref, {this.result, this.error});
 
   final CapturedImageData? result;
   final Object? error;
@@ -217,8 +213,7 @@ Future<FirstLightState> _waitForPhase(
 
 void main() {
   group('FirstLightOrchestrator', () {
-    test(
-        'happy path: idle -> exposing -> stretching -> solving -> annotating '
+    test('happy path: idle -> exposing -> stretching -> solving -> annotating '
         '-> success with a solve result', () async {
       final phases = <FirstLightPhase>[];
 
@@ -232,11 +227,11 @@ void main() {
         ),
         annotator: ({required imagePath, required plateSolve}) async =>
             ImageAnnotation(
-          imagePath: imagePath,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(1700000001000),
-          plateSolve: plateSolve,
-          objects: const [],
-        ),
+              imagePath: imagePath,
+              timestamp: DateTime.fromMillisecondsSinceEpoch(1700000001000),
+              plateSolve: plateSolve,
+              objects: const [],
+            ),
       );
 
       // Record the ordered phase transitions to prove the full progression.
@@ -255,10 +250,7 @@ void main() {
       final controller = container.read(firstLightControllerProvider.notifier);
       final runFuture = controller.run(exposureSeconds: 12);
 
-      final terminal = await _waitForPhase(
-        container,
-        (s) => s.isTerminal,
-      );
+      final terminal = await _waitForPhase(container, (s) => s.isTerminal);
       await runFuture;
 
       expect(terminal.phase, FirstLightPhase.success);
@@ -322,8 +314,7 @@ void main() {
       expect(state.annotated, isFalse);
     });
 
-    test(
-        'plate solver not ready -> success with null solveResult and the '
+    test('plate solver not ready -> success with null solveResult and the '
         'explanatory note (NOT failed)', () async {
       late final _FakePlateSolveService fakeSolver;
       final container = _container(
@@ -347,16 +338,12 @@ void main() {
       expect(state.solveResult, isNull);
       expect(state.annotated, isFalse);
       expect(state.stretched, isTrue);
-      expect(
-        state.note,
-        FirstLightOrchestrator.solverNotConfiguredNote,
-      );
+      expect(state.note, FirstLightOrchestrator.solverNotConfiguredNote);
       // The solver must NOT have been invoked when it isn't ready.
       expect(fakeSolver.solveCalled, isFalse);
     });
 
-    test(
-        'astrometry.net-only setup (no ASTAP) still solves via fallback '
+    test('astrometry.net-only setup (no ASTAP) still solves via fallback '
         '(gated on hasAnySolver, not astapReady)', () async {
       late final _FakePlateSolveService fakeSolver;
       final container = _container(
@@ -373,11 +360,11 @@ void main() {
         },
         annotator: ({required imagePath, required plateSolve}) async =>
             ImageAnnotation(
-          imagePath: imagePath,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(1700000002000),
-          plateSolve: plateSolve,
-          objects: const [],
-        ),
+              imagePath: imagePath,
+              timestamp: DateTime.fromMillisecondsSinceEpoch(1700000002000),
+              plateSolve: plateSolve,
+              objects: const [],
+            ),
       );
 
       final controller = container.read(firstLightControllerProvider.notifier);
@@ -394,8 +381,7 @@ void main() {
       expect(state.note, isNull);
     });
 
-    test(
-        'cameraDriverType is derived from the connected camera device id so '
+    test('cameraDriverType is derived from the connected camera device id so '
         'the troubleshooter gets the right protocol', () async {
       final container = _container(
         cameraConnected: false,
@@ -430,10 +416,7 @@ void main() {
         DriverType.indi,
       );
       expect(driverTypeFromDeviceId('native:zwo:0'), DriverType.native);
-      expect(
-        driverTypeFromDeviceId('simulator:cam'),
-        DriverType.simulator,
-      );
+      expect(driverTypeFromDeviceId('simulator:cam'), DriverType.simulator);
       // Unknown / empty / null collapse to null (protocol unknown).
       expect(driverTypeFromDeviceId('mystery:thing'), isNull);
       expect(driverTypeFromDeviceId(''), isNull);
@@ -464,47 +447,55 @@ void main() {
       expect(state.solveResult, isNull);
     });
 
-    test('a thrown solver error surfaces as failed carrying the raw message',
-        () async {
-      final container = _container(
-        cameraConnected: true,
-        imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
-        plateSolve: (ref) => _FakePlateSolveService(
-          ref,
-          detection: _readyDetection,
-          solveError: Exception('ASTAP crashed: segfault'),
-        ),
-      );
+    test(
+      'a thrown solver error surfaces as failed carrying the raw message',
+      () async {
+        final container = _container(
+          cameraConnected: true,
+          imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
+          plateSolve: (ref) => _FakePlateSolveService(
+            ref,
+            detection: _readyDetection,
+            solveError: Exception('ASTAP crashed: segfault'),
+          ),
+        );
 
-      final controller = container.read(firstLightControllerProvider.notifier);
-      await controller.run(exposureSeconds: 7);
+        final controller = container.read(
+          firstLightControllerProvider.notifier,
+        );
+        await controller.run(exposureSeconds: 7);
 
-      final state = container.read(firstLightControllerProvider);
-      expect(state.phase, FirstLightPhase.failed);
-      expect(state.errorMessage, contains('ASTAP crashed: segfault'));
-      expect(state.annotated, isFalse);
-    });
+        final state = container.read(firstLightControllerProvider);
+        expect(state.phase, FirstLightPhase.failed);
+        expect(state.errorMessage, contains('ASTAP crashed: segfault'));
+        expect(state.annotated, isFalse);
+      },
+    );
 
-    test('a failed solve (success=false) surfaces as failed, not faked success',
-        () async {
-      final container = _container(
-        cameraConnected: true,
-        imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
-        plateSolve: (ref) => _FakePlateSolveService(
-          ref,
-          detection: _readyDetection,
-          solveResult: _makeSolve(success: false, error: 'no stars matched'),
-        ),
-      );
+    test(
+      'a failed solve (success=false) surfaces as failed, not faked success',
+      () async {
+        final container = _container(
+          cameraConnected: true,
+          imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
+          plateSolve: (ref) => _FakePlateSolveService(
+            ref,
+            detection: _readyDetection,
+            solveResult: _makeSolve(success: false, error: 'no stars matched'),
+          ),
+        );
 
-      final controller = container.read(firstLightControllerProvider.notifier);
-      await controller.run(exposureSeconds: 9);
+        final controller = container.read(
+          firstLightControllerProvider.notifier,
+        );
+        await controller.run(exposureSeconds: 9);
 
-      final state = container.read(firstLightControllerProvider);
-      expect(state.phase, FirstLightPhase.failed);
-      expect(state.errorMessage, contains('no stars matched'));
-      expect(state.annotated, isFalse);
-    });
+        final state = container.read(firstLightControllerProvider);
+        expect(state.phase, FirstLightPhase.failed);
+        expect(state.errorMessage, contains('no stars matched'));
+        expect(state.annotated, isFalse);
+      },
+    );
 
     test('reset returns the controller to idle', () async {
       final container = _container(
@@ -531,20 +522,24 @@ void main() {
       );
     });
 
-    test('a non-positive exposure length is rejected as a programmer error',
-        () async {
-      final container = _container(
-        cameraConnected: true,
-        imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
-        plateSolve: (ref) =>
-            _FakePlateSolveService(ref, detection: _readyDetection),
-      );
+    test(
+      'a non-positive exposure length is rejected as a programmer error',
+      () async {
+        final container = _container(
+          cameraConnected: true,
+          imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
+          plateSolve: (ref) =>
+              _FakePlateSolveService(ref, detection: _readyDetection),
+        );
 
-      final controller = container.read(firstLightControllerProvider.notifier);
-      expect(
-        () => controller.run(exposureSeconds: 0),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
+        final controller = container.read(
+          firstLightControllerProvider.notifier,
+        );
+        expect(
+          () => controller.run(exposureSeconds: 0),
+          throwsA(isA<ArgumentError>()),
+        );
+      },
+    );
   });
 }

@@ -63,11 +63,11 @@ class SessionOwner {
   /// Wire-format JSON used by REST responses + WS events. The token
   /// digest is NOT serialised — clients only need name/id/timestamps.
   Map<String, Object?> toJson() => {
-        if (clientId != null) 'clientId': clientId,
-        if (clientName != null) 'clientName': clientName,
-        'claimedAt': claimedAt.toUtc().toIso8601String(),
-        'lastSeenAt': lastSeenAt.toUtc().toIso8601String(),
-      };
+    if (clientId != null) 'clientId': clientId,
+    if (clientName != null) 'clientName': clientName,
+    'claimedAt': claimedAt.toUtc().toIso8601String(),
+    'lastSeenAt': lastSeenAt.toUtc().toIso8601String(),
+  };
 }
 
 /// Reasons a take-over / release happened, used in the broadcast event
@@ -109,8 +109,8 @@ class SessionOwnershipManager {
   /// How often we sweep for an idle owner. Faster than the timeout to
   /// keep the auto-release latency bounded.
   Duration get sweepInterval => Duration(
-        milliseconds: (heartbeatTimeout.inMilliseconds ~/ 5).clamp(1000, 60000),
-      );
+    milliseconds: (heartbeatTimeout.inMilliseconds ~/ 5).clamp(1000, 60000),
+  );
 
   final StreamController<SessionOwner?> _changes =
       StreamController<SessionOwner?>.broadcast(sync: true);
@@ -120,9 +120,9 @@ class SessionOwnershipManager {
     required String Function(String token) digestToken,
     this.heartbeatTimeout = const Duration(minutes: 5),
     DateTime Function()? now,
-  })  : _emitEvent = emitEvent,
-        _digestToken = digestToken,
-        _now = now ?? DateTime.now;
+  }) : _emitEvent = emitEvent,
+       _digestToken = digestToken,
+       _now = now ?? DateTime.now;
 
   /// Current operator snapshot, or null when the slot is open.
   SessionOwner? get current => _current;

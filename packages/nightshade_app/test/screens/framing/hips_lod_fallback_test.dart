@@ -179,7 +179,8 @@ void main() {
         reason: 'The coarse fallback / Allsky must paint coverage under the '
             'streaming sharp layer, so the painter draws >= 1 mesh.');
     expect(recorder.rects, 0,
-        reason: 'The layer composites imagery only; it must never paint a solid '
+        reason:
+            'The layer composites imagery only; it must never paint a solid '
             'fill to hide a gap.');
 
     final versionWhileStreaming = streaming.version;
@@ -241,7 +242,8 @@ void main() {
         maxX = math.max(maxX, v.screen.dx);
         maxY = math.max(maxY, v.screen.dy);
       }
-      final overlap = Rect.fromLTRB(minX, minY, maxX, maxY).intersect(canvasRect);
+      final overlap =
+          Rect.fromLTRB(minX, minY, maxX, maxY).intersect(canvasRect);
       if (overlap.width <= 0 || overlap.height <= 0) return 0;
       return overlap.width * overlap.height;
     }
@@ -410,7 +412,8 @@ void main() {
 
     final snapshot = loader.snapshot;
     expect(snapshot.allsky, isNotNull,
-        reason: 'The Allsky base (committed at the survey min order) is fetched '
+        reason:
+            'The Allsky base (committed at the survey min order) is fetched '
             'first and must be resident as the coarsest never-blank base.');
     expect(snapshot.hasAnyImagery, isTrue);
 
@@ -421,7 +424,8 @@ void main() {
     final recorder = _MeshCountCanvas();
     painter.paint(recorder, _canvasSize);
     expect(recorder.meshes, greaterThan(0),
-        reason: 'The Allsky base must paint one warped cell per visible tile, so '
+        reason:
+            'The Allsky base must paint one warped cell per visible tile, so '
             'a freshly-targeted view is covered immediately — never blank.');
 
     // Release the held fetches and let them drain so no work outlives the test.

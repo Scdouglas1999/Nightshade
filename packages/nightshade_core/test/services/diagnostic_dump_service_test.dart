@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -20,8 +20,7 @@ LoggingService _testLogging({required Directory tempDir}) {
 }
 
 void main() {
-  test(
-      'createDump produces a zip with logs/, profile.json, sequence.json, '
+  test('createDump produces a zip with logs/, profile.json, sequence.json, '
       'system_info.json, devices.json, and manifest.json', () async {
     final tempDir = await Directory.systemTemp.createTemp('diag_dump_ok_');
     addTearDown(() async {
@@ -53,10 +52,7 @@ void main() {
           deviceId: 'native:zwo:0',
           deviceName: 'ASI2600MC',
         ),
-        DumpDeviceEntry(
-          role: 'mount',
-          connectionState: 'disconnected',
-        ),
+        DumpDeviceEntry(role: 'mount', connectionState: 'disconnected'),
       ],
       gatherSystemInfo: () async => {
         'app_version': '2.5.0',
@@ -69,8 +65,11 @@ void main() {
         '${tempDir.path}${Platform.pathSeparator}diagnostic_test.zip';
     final file = await service.createDump(outputPath: outPath);
 
-    expect(await file.exists(), isTrue,
-        reason: 'The dump file should be written to disk.');
+    expect(
+      await file.exists(),
+      isTrue,
+      reason: 'The dump file should be written to disk.',
+    );
 
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
@@ -96,14 +95,17 @@ void main() {
     }
 
     final manifest = readJson('manifest.json');
-    expect(manifest['bundle_version'],
-        DiagnosticDumpService.bundleVersion);
+    expect(manifest['bundle_version'], DiagnosticDumpService.bundleVersion);
     final entries = manifest['entries'] as List<dynamic>;
     expect(entries.length, greaterThanOrEqualTo(5));
     for (final e in entries) {
-      expect((e as Map<String, dynamic>)['status'], 'ok',
-          reason: 'No gather step should have failed in the happy path. '
-              'Entry: $e');
+      expect(
+        (e as Map<String, dynamic>)['status'],
+        'ok',
+        reason:
+            'No gather step should have failed in the happy path. '
+            'Entry: $e',
+      );
     }
 
     final profile = readJson('profile.json');
@@ -122,8 +124,7 @@ void main() {
     expect((deviceList.first as Map)['connection_state'], 'connected');
   });
 
-  test(
-      'createDump still emits files when individual gather steps fail; '
+  test('createDump still emits files when individual gather steps fail; '
       'manifest records the failure', () async {
     final tempDir = await Directory.systemTemp.createTemp('diag_dump_fail_');
     addTearDown(() async {
@@ -156,13 +157,13 @@ void main() {
     expect(names, contains('sequence.json'));
     expect(names, contains('devices.json'));
 
-    final manifestRaw = archive.files
-        .firstWhere((f) => f.name == 'manifest.json')
-        .content as List<int>;
+    final manifestRaw =
+        archive.files.firstWhere((f) => f.name == 'manifest.json').content
+            as List<int>;
     final manifest =
         jsonDecode(utf8.decode(manifestRaw)) as Map<String, dynamic>;
-    final entries =
-        (manifest['entries'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final entries = (manifest['entries'] as List<dynamic>)
+        .cast<Map<String, dynamic>>();
     final byName = {for (final e in entries) e['name']: e};
 
     expect(byName['profile']!['status'], 'failed');
@@ -174,9 +175,9 @@ void main() {
     // succeeds with a `current_sequence: null` body. The dump consumer
     // can tell "missing data" from "load failure" by the manifest status.
     expect(byName['sequence']!['status'], 'ok');
-    final seqRaw = archive.files
-        .firstWhere((f) => f.name == 'sequence.json')
-        .content as List<int>;
+    final seqRaw =
+        archive.files.firstWhere((f) => f.name == 'sequence.json').content
+            as List<int>;
     final seq = jsonDecode(utf8.decode(seqRaw)) as Map<String, dynamic>;
     expect(seq['current_sequence'], isNull);
   });

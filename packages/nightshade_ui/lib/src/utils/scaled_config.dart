@@ -20,10 +20,7 @@ import 'responsive_utils.dart';
 class ScaledConfigProvider extends StatelessWidget {
   final Widget child;
 
-  const ScaledConfigProvider({
-    super.key,
-    required this.child,
-  });
+  const ScaledConfigProvider({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -53,11 +50,11 @@ class ScaledConfigProvider extends StatelessWidget {
 class ScaledConfig extends InheritedWidget {
   /// The universal UI scale factor (0.85 to 1.25)
   final double scaleFactor;
-  
+
   /// Screen dimensions
   final double screenWidth;
   final double screenHeight;
-  
+
   /// Cached breakpoint checks
   final bool isMobile;
   final bool isTablet;
@@ -91,8 +88,11 @@ class ScaledConfig extends InheritedWidget {
   /// Throws an error if no [ScaledConfigProvider] is found.
   static ScaledConfig of(BuildContext context) {
     final config = maybeOf(context);
-    assert(config != null, 'No ScaledConfig found in widget tree. '
-        'Wrap your app with ScaledConfigProvider.');
+    assert(
+      config != null,
+      'No ScaledConfig found in widget tree. '
+      'Wrap your app with ScaledConfigProvider.',
+    );
     return config!;
   }
 
@@ -125,7 +125,7 @@ class ScaledConfig extends InheritedWidget {
     if (all != null) {
       return EdgeInsets.all(all * scaleFactor);
     }
-    
+
     return EdgeInsets.only(
       left: (left ?? horizontal ?? 0) * scaleFactor,
       top: (top ?? vertical ?? 0) * scaleFactor,

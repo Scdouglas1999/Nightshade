@@ -28,15 +28,16 @@ void main() {
     });
 
     test('unsupported export format returns JSON bad request', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleExportSession(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/sessions/1/export/pdf'),
+      final response = await translateHandlerErrors(
+        handlers.handleExportSession(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/sessions/1/export/pdf'),
+          ),
+          '1',
+          'pdf',
         ),
-        '1',
-        'pdf',
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -45,33 +46,44 @@ void main() {
       expect(body['supportedFormats'], ['json', 'csv', 'html']);
     });
 
-    test('start polar alignment malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleStartPolarAlignment(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/polar-alignment/start'),
-          body: jsonEncode({}),
-        ),
-      ));
+    test(
+      'start polar alignment malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleStartPolarAlignment(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/polar-alignment/start'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
     test('thumbnail invalid image ID returns JSON internal error', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleGetImageThumbnail(
-        Request('GET', Uri.parse('http://localhost/api/images/nope/thumbnail')),
-        'nope',
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleGetImageThumbnail(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/images/nope/thumbnail'),
+          ),
+          'nope',
+        ),
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -170,8 +182,10 @@ void main() {
       final response = await hitDownload(headers: {'range': 'bytes=50-'});
 
       expect(response.statusCode, HttpStatus.partialContent);
-      expect(response.headers['content-range'],
-          'bytes 50-${fileLength - 1}/$fileLength');
+      expect(
+        response.headers['content-range'],
+        'bytes 50-${fileLength - 1}/$fileLength',
+      );
       expect(response.headers['content-length'], (fileLength - 50).toString());
       final body = await response.read().expand((c) => c).toList();
       expect(body, payload.sublist(50));
@@ -181,16 +195,19 @@ void main() {
       final response = await hitDownload(headers: {'range': 'bytes=-25'});
 
       expect(response.statusCode, HttpStatus.partialContent);
-      expect(response.headers['content-range'],
-          'bytes ${fileLength - 25}-${fileLength - 1}/$fileLength');
+      expect(
+        response.headers['content-range'],
+        'bytes ${fileLength - 25}-${fileLength - 1}/$fileLength',
+      );
       expect(response.headers['content-length'], '25');
       final body = await response.read().expand((c) => c).toList();
       expect(body, payload.sublist(fileLength - 25));
     });
 
     test('416 when range start exceeds file size', () async {
-      final response =
-          await hitDownload(headers: {'range': 'bytes=10000-20000'});
+      final response = await hitDownload(
+        headers: {'range': 'bytes=10000-20000'},
+      );
 
       expect(response.statusCode, HttpStatus.requestedRangeNotSatisfiable);
       expect(response.headers['content-range'], 'bytes */$fileLength');
@@ -209,8 +226,7 @@ void main() {
     });
 
     test('416 for multi-range request', () async {
-      final response =
-          await hitDownload(headers: {'range': 'bytes=0-9,20-29'});
+      final response = await hitDownload(headers: {'range': 'bytes=0-9,20-29'});
 
       expect(response.statusCode, HttpStatus.requestedRangeNotSatisfiable);
     });
@@ -224,10 +240,9 @@ void main() {
       expect(fakeEtag, isNot(realEtag));
       await probe.read().drain();
 
-      final response = await hitDownload(headers: {
-        'range': 'bytes=10-19',
-        'if-range': fakeEtag,
-      });
+      final response = await hitDownload(
+        headers: {'range': 'bytes=10-19', 'if-range': fakeEtag},
+      );
 
       // Mismatched If-Range → server MUST return the full 200 body.
       expect(response.statusCode, HttpStatus.ok);
@@ -242,10 +257,9 @@ void main() {
       final realEtag = probe.headers['etag']!;
       await probe.read().drain();
 
-      final response = await hitDownload(headers: {
-        'range': 'bytes=0-9',
-        'if-range': realEtag,
-      });
+      final response = await hitDownload(
+        headers: {'range': 'bytes=0-9', 'if-range': realEtag},
+      );
 
       expect(response.statusCode, HttpStatus.partialContent);
       expect(response.headers['content-range'], 'bytes 0-9/$fileLength');
@@ -256,8 +270,10 @@ void main() {
     test('404 when DB row missing', () async {
       final response = await translateHandlerErrors(
         handlers.handleDownloadImage(
-          Request('GET',
-              Uri.parse('http://localhost/api/images/999999/download')),
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/images/999999/download'),
+          ),
           '999999',
         ),
       );

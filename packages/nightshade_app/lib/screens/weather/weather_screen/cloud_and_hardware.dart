@@ -121,7 +121,8 @@ class _CloudCoverCard extends StatelessWidget {
                 ),
                 Text(
                   cloudCoverPercent != null ? '${percent.toInt()}' : '--',
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -183,7 +184,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Hardware Sensors',
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                     Text(
                       'Live readings from connected devices',
@@ -360,7 +362,8 @@ class _SensorRow extends StatelessWidget {
         ),
         Text(
           value,
-          style: NightshadeTypography.labelStrong.copyWith(color: valueColor ?? colors.textPrimary),
+          style: NightshadeTypography.labelStrong
+              .copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );

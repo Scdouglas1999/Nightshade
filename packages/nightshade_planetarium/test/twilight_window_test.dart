@@ -23,7 +23,8 @@ void main() {
     required bool rising,
   }) {
     var t = start;
-    var prev = AstronomyCalculations.sunAltitude(
+    var prev =
+        AstronomyCalculations.sunAltitude(
           dt: t,
           latitudeDeg: lat,
           longitudeDeg: lon,
@@ -31,7 +32,8 @@ void main() {
         targetAlt;
     while (t.isBefore(end)) {
       final next = t.add(const Duration(minutes: 1));
-      final cur = AstronomyCalculations.sunAltitude(
+      final cur =
+          AstronomyCalculations.sunAltitude(
             dt: next,
             latitudeDeg: lat,
             longitudeDeg: lon,
@@ -77,8 +79,9 @@ void main() {
           // expressed in machine civil time.
           final machineNoon = DateTime(date.year, date.month, date.day, 12);
           final tzOffsetHours = machineNoon.timeZoneOffset.inMinutes / 60.0;
-          final noon = machineNoon.add(Duration(
-              minutes: ((tzOffsetHours - lon / 15.0) * 60).round()));
+          final noon = machineNoon.add(
+            Duration(minutes: ((tzOffsetHours - lon / 15.0) * 60).round()),
+          );
           final expectedSunset = bruteForceCrossing(
             start: noon,
             end: noon.add(const Duration(hours: 24)),
@@ -97,14 +100,22 @@ void main() {
           );
 
           if (expectedSunset == null) {
-            expect(twilight.sunset, isNull,
-                reason: 'no sunset exists (polar day/night) but one was '
-                    'reported');
+            expect(
+              twilight.sunset,
+              isNull,
+              reason:
+                  'no sunset exists (polar day/night) but one was '
+                  'reported',
+            );
           } else {
-            expect(twilight.sunset, isNotNull,
-                reason: 'sunset exists at '
-                    '${expectedSunset.toIso8601String()} but the finder '
-                    'returned null — window/bracketing regression');
+            expect(
+              twilight.sunset,
+              isNotNull,
+              reason:
+                  'sunset exists at '
+                  '${expectedSunset.toIso8601String()} but the finder '
+                  'returned null — window/bracketing regression',
+            );
             expect(
               twilight.sunset!.difference(expectedSunset).inMinutes.abs(),
               lessThanOrEqualTo(2),
@@ -112,14 +123,22 @@ void main() {
           }
 
           if (expectedSunrise == null) {
-            expect(twilight.sunrise, isNull,
-                reason: 'no sunrise exists (polar day/night) but one was '
-                    'reported');
+            expect(
+              twilight.sunrise,
+              isNull,
+              reason:
+                  'no sunrise exists (polar day/night) but one was '
+                  'reported',
+            );
           } else {
-            expect(twilight.sunrise, isNotNull,
-                reason: 'sunrise exists at '
-                    '${expectedSunrise.toIso8601String()} but the finder '
-                    'returned null — window/bracketing regression');
+            expect(
+              twilight.sunrise,
+              isNotNull,
+              reason:
+                  'sunrise exists at '
+                  '${expectedSunrise.toIso8601String()} but the finder '
+                  'returned null — window/bracketing regression',
+            );
             expect(
               twilight.sunrise!.difference(expectedSunrise).inMinutes.abs(),
               lessThanOrEqualTo(2),
@@ -129,12 +148,16 @@ void main() {
           // Dusk/dawn ordering sanity whenever both exist: astronomical
           // dusk must come after sunset, dawn before sunrise.
           if (twilight.sunset != null && twilight.astronomicalDusk != null) {
-            expect(twilight.astronomicalDusk!.isAfter(twilight.sunset!),
-                isTrue);
+            expect(
+              twilight.astronomicalDusk!.isAfter(twilight.sunset!),
+              isTrue,
+            );
           }
           if (twilight.sunrise != null && twilight.astronomicalDawn != null) {
-            expect(twilight.astronomicalDawn!.isBefore(twilight.sunrise!),
-                isTrue);
+            expect(
+              twilight.astronomicalDawn!.isBefore(twilight.sunrise!),
+              isTrue,
+            );
           }
         });
       }

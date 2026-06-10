@@ -85,7 +85,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
@@ -104,7 +105,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                     height: 40,
                     decoration: NightshadeDecorations.tintedBadge(
                       widget.colors.primary,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusLg),
                     ),
                     child: Icon(
                       LucideIcons.save,
@@ -141,14 +143,16 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               // Name field
               Text(
                 'Sequence Name',
-                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
@@ -171,14 +175,16 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               // Description field
               Text(
                 'Description (optional)',
-                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
+                style: NightshadeTypography.h6
+                    .copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
@@ -204,7 +210,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Row(
                   children: [

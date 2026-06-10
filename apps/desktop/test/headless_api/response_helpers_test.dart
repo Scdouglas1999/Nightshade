@@ -66,10 +66,9 @@ void main() {
       expect(response.headers['content-type'], 'application/octet-stream');
       expect(response.headers['content-length'], '3');
       expect(
-          await response
-              .read()
-              .fold<int>(0, (sum, chunk) => sum + chunk.length),
-          3);
+        await response.read().fold<int>(0, (sum, chunk) => sum + chunk.length),
+        3,
+      );
     });
 
     test('streamResponse preserves streaming context', () {

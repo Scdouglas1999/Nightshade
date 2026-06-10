@@ -129,10 +129,11 @@ class PlanetariumHandlers {
     final pixelSize = profile?.pixelSize ?? cameraCapabilities?.pixelSizeX;
 
     if (focalLength > 0 && cameraCapabilities != null) {
-      final sensorWidthMm = (cameraCapabilities.maxWidth *
-              (cameraCapabilities.pixelSizeX ?? 0)) /
+      final sensorWidthMm =
+          (cameraCapabilities.maxWidth * (cameraCapabilities.pixelSizeX ?? 0)) /
           1000.0;
-      final sensorHeightMm = (cameraCapabilities.maxHeight *
+      final sensorHeightMm =
+          (cameraCapabilities.maxHeight *
               (cameraCapabilities.pixelSizeY ??
                   cameraCapabilities.pixelSizeX ??
                   0)) /
@@ -166,8 +167,8 @@ class PlanetariumHandlers {
           : null,
       'sensorHeightMm': cameraCapabilities != null && pixelSize != null
           ? (cameraCapabilities.maxHeight *
-                  (cameraCapabilities.pixelSizeY ?? pixelSize)) /
-              1000.0
+                    (cameraCapabilities.pixelSizeY ?? pixelSize)) /
+                1000.0
           : null,
       'fovWidthDegrees': fovWidthDegrees,
       'fovHeightDegrees': fovHeightDegrees,
@@ -203,11 +204,7 @@ class PlanetariumHandlers {
 
     await backend.mountSlewToCoordinates(mount.id, ra, dec);
 
-    return jsonOk({
-      'status': 'slewing',
-      'targetRa': ra,
-      'targetDec': dec,
-    });
+    return jsonOk({'status': 'slewing', 'targetRa': ra, 'targetDec': dec});
   }
 
   /// POST /api/planetarium/center-on
@@ -218,8 +215,7 @@ class PlanetariumHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
     final maxIterations = optionalInt(payload, 'maxIterations') ?? 5;
-    final toleranceArcsec =
-        optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
+    final toleranceArcsec = optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
     final exposureTime = optionalDouble(payload, 'exposureTime') ?? 3.0;
     final binning = optionalInt(payload, 'binning') ?? 2;
     final gain = optionalInt(payload, 'gain') ?? 100;
@@ -269,18 +265,20 @@ class PlanetariumHandlers {
       'finalOffsetArcsec': result.finalOffsetArcsec,
       'errorMessage': result.errorMessage,
       'iterationHistory': result.iterationHistory
-          .map((i) => {
-                'iterationNumber': i.iterationNumber,
-                'solvedRa': i.solvedRa,
-                'solvedDec': i.solvedDec,
-                'targetRa': i.targetRa,
-                'targetDec': i.targetDec,
-                'offsetArcsec': i.offsetArcsec,
-                'offsetArcmin': i.offsetArcmin,
-                'plateSolveSuccess': i.plateSolveSuccess,
-                'errorMessage': i.errorMessage,
-                'timestamp': i.timestamp.millisecondsSinceEpoch,
-              })
+          .map(
+            (i) => {
+              'iterationNumber': i.iterationNumber,
+              'solvedRa': i.solvedRa,
+              'solvedDec': i.solvedDec,
+              'targetRa': i.targetRa,
+              'targetDec': i.targetDec,
+              'offsetArcsec': i.offsetArcsec,
+              'offsetArcmin': i.offsetArcmin,
+              'plateSolveSuccess': i.plateSolveSuccess,
+              'errorMessage': i.errorMessage,
+              'timestamp': i.timestamp.millisecondsSinceEpoch,
+            },
+          )
           .toList(),
     });
   }
@@ -307,11 +305,7 @@ class PlanetariumHandlers {
 
     await backend.mountSync(mount.id, ra, dec);
 
-    return jsonOk({
-      'status': 'synced',
-      'ra': ra,
-      'dec': dec,
-    });
+    return jsonOk({'status': 'synced', 'ra': ra, 'dec': dec});
   }
 
   // ===========================================================================
@@ -336,16 +330,18 @@ class PlanetariumHandlers {
     // Convert to response format
     final responseResults = results
         .take(limit)
-        .map((r) => {
-              'name': r.name,
-              'catalogId': r.catalogId,
-              'ra': r.ra,
-              'dec': r.dec,
-              'type': r.type,
-              'magnitude': r.magnitude,
-              'constellation': r.constellation,
-              'size': r.size,
-            })
+        .map(
+          (r) => {
+            'name': r.name,
+            'catalogId': r.catalogId,
+            'ra': r.ra,
+            'dec': r.dec,
+            'type': r.type,
+            'magnitude': r.magnitude,
+            'constellation': r.constellation,
+            'size': r.size,
+          },
+        )
         .toList();
 
     return jsonOk({'results': responseResults});
@@ -363,7 +359,7 @@ class PlanetariumHandlers {
 
     if (raStr == null || decStr == null || radiusStr == null) {
       return jsonBadRequest({
-        'error': 'Missing required parameters: ra, dec, radius (in degrees)'
+        'error': 'Missing required parameters: ra, dec, radius (in degrees)',
       });
     }
 
@@ -428,8 +424,11 @@ class PlanetariumHandlers {
 
     // Sort by magnitude (brightest first). These casts are over typed data
     // we just constructed above, not over caller-supplied payload.
-    results.sort((a, b) => ((a['magnitude'] as num?) ?? 99)
-        .compareTo((b['magnitude'] as num?) ?? 99));
+    results.sort(
+      (a, b) => ((a['magnitude'] as num?) ?? 99).compareTo(
+        (b['magnitude'] as num?) ?? 99,
+      ),
+    );
 
     return jsonOk({
       'centerRa': ra,
@@ -443,16 +442,20 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/catalog/object/:id
   /// Get detailed object info by catalog ID.
   Future<Response> handleGetCatalogObject(
-      Request request, String objectId) async {
+    Request request,
+    String objectId,
+  ) async {
     _logInfo('[API] GET /api/planetarium/catalog/object/$objectId');
     // Search for the object by ID
     final results = await CatalogManager.instance.search(objectId);
 
     // Find exact match
     final exactMatch = results
-        .where((r) =>
-            r.catalogId.toLowerCase() == objectId.toLowerCase() ||
-            r.name.toLowerCase() == objectId.toLowerCase())
+        .where(
+          (r) =>
+              r.catalogId.toLowerCase() == objectId.toLowerCase() ||
+              r.name.toLowerCase() == objectId.toLowerCase(),
+        )
         .firstOrNull;
 
     if (exactMatch == null) {
@@ -471,7 +474,11 @@ class PlanetariumHandlers {
       final lst = _localSiderealTime(now, location.longitude);
       final hourAngle = lst - (exactMatch.ra / 15.0); // RA in hours
       final (alt, az) = _equatorialToHorizontal(
-          exactMatch.ra, exactMatch.dec, location.latitude, hourAngle * 15);
+        exactMatch.ra,
+        exactMatch.dec,
+        location.latitude,
+        hourAngle * 15,
+      );
 
       visibility = {
         'altitude': alt,
@@ -531,8 +538,8 @@ class PlanetariumHandlers {
           'type': 'event',
           'category': 'equipment',
           'event': 'mount_position',
-          'data': {'ra': 12.5, 'dec': 45.0, 'tracking': true}
-        }
+          'data': {'ra': 12.5, 'dec': 45.0, 'tracking': true},
+        },
       },
       'pingPongSupport': true,
       'pingFormat': {'type': 'ping'},
@@ -595,7 +602,8 @@ class PlanetariumHandlers {
     final y2 = y + 4800 - a;
     final m2 = m + 12 * a - 3;
 
-    final jd = d +
+    final jd =
+        d +
         ((153 * m2 + 2) / 5).floor() +
         365 * y2 +
         (y2 / 4).floor() -
@@ -604,7 +612,8 @@ class PlanetariumHandlers {
         32045;
 
     final t = (jd - 2451545.0) / 36525;
-    var lst = 280.46061837 +
+    var lst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000;
@@ -630,7 +639,8 @@ class PlanetariumHandlers {
         _sin(decRad) * _sin(latRad) + _cos(decRad) * _cos(latRad) * _cos(haRad);
     final alt = _asin(sinAlt) * 180 / pi;
 
-    final cosAz = (_sin(decRad) - _sin(alt * pi / 180) * _sin(latRad)) /
+    final cosAz =
+        (_sin(decRad) - _sin(alt * pi / 180) * _sin(latRad)) /
         (_cos(alt * pi / 180) * _cos(latRad));
     var az = _acos(cosAz.clamp(-1.0, 1.0)) * 180 / pi;
 

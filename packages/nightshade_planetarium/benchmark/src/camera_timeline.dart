@@ -29,10 +29,10 @@ class CameraFrame {
   });
 
   SkyViewState toViewState() => SkyViewState(
-        centerRA: centerRaHours,
-        centerDec: centerDecDeg,
-        fieldOfView: fieldOfViewDeg,
-      );
+    centerRA: centerRaHours,
+    centerDec: centerDecDeg,
+    fieldOfView: fieldOfViewDeg,
+  );
 }
 
 /// A keyframe on the scripted path. Frames are interpolated between adjacent
@@ -42,7 +42,12 @@ class _Keyframe {
   final double decDeg;
   final double fovDeg;
   final int timeOffsetSeconds;
-  const _Keyframe(this.raHours, this.decDeg, this.fovDeg, this.timeOffsetSeconds);
+  const _Keyframe(
+    this.raHours,
+    this.decDeg,
+    this.fovDeg,
+    this.timeOffsetSeconds,
+  );
 }
 
 /// Builds the canonical benchmark timeline around [anchorRaHours]/[anchorDecDeg]
@@ -79,18 +84,21 @@ List<CameraFrame> buildBenchmarkTimeline({
     final a = keys[seg];
     final b = keys[seg + 1];
 
-    frames.add(CameraFrame(
-      index: i,
-      centerRaHours: _lerp(a.raHours, b.raHours, local),
-      centerDecDeg: _lerp(a.decDeg, b.decDeg, local),
-      // Interpolate FOV geometrically so the zoom feels linear in perceived
-      // magnification rather than in raw degrees.
-      fieldOfViewDeg: _geomLerp(a.fovDeg, b.fovDeg, local),
-      timeOffsetSeconds:
-          _lerp(a.timeOffsetSeconds.toDouble(), b.timeOffsetSeconds.toDouble(),
-                  local)
-              .round(),
-    ));
+    frames.add(
+      CameraFrame(
+        index: i,
+        centerRaHours: _lerp(a.raHours, b.raHours, local),
+        centerDecDeg: _lerp(a.decDeg, b.decDeg, local),
+        // Interpolate FOV geometrically so the zoom feels linear in perceived
+        // magnification rather than in raw degrees.
+        fieldOfViewDeg: _geomLerp(a.fovDeg, b.fovDeg, local),
+        timeOffsetSeconds: _lerp(
+          a.timeOffsetSeconds.toDouble(),
+          b.timeOffsetSeconds.toDouble(),
+          local,
+        ).round(),
+      ),
+    );
   }
   return frames;
 }

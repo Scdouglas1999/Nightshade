@@ -358,8 +358,9 @@ class UpdateReadyDialog extends StatelessWidget {
           label: isSessionActive ? 'Restart Anyway' : 'Restart Now',
           icon: LucideIcons.refreshCw,
           onPressed: onRestartNow,
-          variant:
-              isSessionActive ? ButtonVariant.outline : ButtonVariant.primary,
+          variant: isSessionActive
+              ? ButtonVariant.outline
+              : ButtonVariant.primary,
           size: ButtonSize.medium,
         ),
       ],
@@ -380,8 +381,9 @@ class UpdateReadyDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.warning.withValues(alpha: 0.1),
                 borderRadius: NightshadeTokens.borderRadiusMd,
-                border:
-                    Border.all(color: colors.warning.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: colors.warning.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [

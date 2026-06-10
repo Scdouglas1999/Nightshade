@@ -69,15 +69,15 @@ class CampaignFilterRollup {
   }
 
   Map<String, dynamic> toJson() => {
-        'filter': filter,
-        'capturedFrames': capturedFrames,
-        'capturedIntegrationSecs': capturedIntegrationSecs,
-        'goalExposureSecs': goalExposureSecs,
-        'goalFrames': goalFrames,
-        'goalIntegrationSecs': goalIntegrationSecs,
-        'remainingFrames': remainingFrames,
-        'percentComplete': percentComplete,
-      };
+    'filter': filter,
+    'capturedFrames': capturedFrames,
+    'capturedIntegrationSecs': capturedIntegrationSecs,
+    'goalExposureSecs': goalExposureSecs,
+    'goalFrames': goalFrames,
+    'goalIntegrationSecs': goalIntegrationSecs,
+    'remainingFrames': remainingFrames,
+    'percentComplete': percentComplete,
+  };
 }
 
 /// Brief reference to one of the target's sessions; used to surface a
@@ -120,16 +120,16 @@ class CampaignSessionRef {
       endTime == null ? Duration.zero : endTime!.difference(startTime);
 
   Map<String, dynamic> toJson() => {
-        'sessionId': sessionId,
-        'sessionName': sessionName,
-        'startTime': startTime.toIso8601String(),
-        'endTime': endTime?.toIso8601String(),
-        'status': status,
-        'sessionIntegrationSecs': sessionIntegrationSecs,
-        'avgHfr': avgHfr,
-        'avgGuidingRms': avgGuidingRms,
-        'avgSeeing': avgSeeing,
-      };
+    'sessionId': sessionId,
+    'sessionName': sessionName,
+    'startTime': startTime.toIso8601String(),
+    'endTime': endTime?.toIso8601String(),
+    'status': status,
+    'sessionIntegrationSecs': sessionIntegrationSecs,
+    'avgHfr': avgHfr,
+    'avgGuidingRms': avgGuidingRms,
+    'avgSeeing': avgSeeing,
+  };
 }
 
 /// Multi-night campaign rollup for a single target.
@@ -232,19 +232,19 @@ class CampaignRollup {
   }
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'sessionCount': sessionCount,
-        'sessions': sessions.map((s) => s.toJson()).toList(),
-        'filters': filters.map((f) => f.toJson()).toList(),
-        'firstSessionAt': firstSessionAt?.toIso8601String(),
-        'lastSessionAt': lastSessionAt?.toIso8601String(),
-        'totalCapturedIntegrationSecs': totalCapturedIntegrationSecs,
-        'totalGoalIntegrationSecs': totalGoalIntegrationSecs,
-        'totalPercentComplete': totalPercentComplete,
-        'meanSessionHfr': meanSessionHfr,
-        'meanSessionSeeing': meanSessionSeeing,
-        'meanEffectiveImagingFraction': meanEffectiveImagingFraction,
-        'generatedAt': generatedAt.toIso8601String(),
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'sessionCount': sessionCount,
+    'sessions': sessions.map((s) => s.toJson()).toList(),
+    'filters': filters.map((f) => f.toJson()).toList(),
+    'firstSessionAt': firstSessionAt?.toIso8601String(),
+    'lastSessionAt': lastSessionAt?.toIso8601String(),
+    'totalCapturedIntegrationSecs': totalCapturedIntegrationSecs,
+    'totalGoalIntegrationSecs': totalGoalIntegrationSecs,
+    'totalPercentComplete': totalPercentComplete,
+    'meanSessionHfr': meanSessionHfr,
+    'meanSessionSeeing': meanSessionSeeing,
+    'meanEffectiveImagingFraction': meanEffectiveImagingFraction,
+    'generatedAt': generatedAt.toIso8601String(),
+  };
 }

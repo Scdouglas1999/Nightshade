@@ -49,13 +49,12 @@ void main(List<String> args) async {
     'checks': checks.map((check) => check.toJson()).toList(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    ready: ready,
-    checks: checks,
-    blockers: blockers,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(ready: ready, checks: checks, blockers: blockers),
+  );
 
   stdout.writeln('Public release gate complete.');
   stdout.writeln('Decision: ${ready ? 'READY' : 'NOT_READY'}');
@@ -73,7 +72,9 @@ _GateCheck _checkAnalyzer() {
   final data = _readJson('docs/production-readiness/analyzer-rollup.json');
   if (data == null) {
     return _missing(
-        'production_analyzer', 'Analyzer rollup artifact is missing.');
+      'production_analyzer',
+      'Analyzer rollup artifact is missing.',
+    );
   }
   final summary = data['summary'] as Map<String, dynamic>? ?? const {};
   final production = summary['production'] as Map<String, dynamic>? ?? const {};
@@ -101,8 +102,9 @@ _GateCheck _checkPlaceholderAudit() {
       .map((line) => line.trim())
       .where((line) => line.isNotEmpty)
       .toSet();
-  final highRiskSignatures =
-      highRiskLines.map(_highRiskBaselineSignature).toSet();
+  final highRiskSignatures = highRiskLines
+      .map(_highRiskBaselineSignature)
+      .toSet();
   final baseline = _readLineSet(
     'docs/production-readiness/highrisk-baseline.txt',
   );
@@ -122,7 +124,7 @@ _GateCheck _checkPlaceholderAudit() {
     detail: baseline == null
         ? 'High-risk baseline is missing; hits=${highRiskLines.length}.'
         : 'High-risk marker hits=${highRiskLines.length}; acceptedBaseline=${baseline.length}; '
-            'newHighRisk=${newHighRisk.length}; removedBaseline=${removedBaseline.length}.',
+              'newHighRisk=${newHighRisk.length}; removedBaseline=${removedBaseline.length}.',
   );
 }
 
@@ -165,7 +167,9 @@ _GateCheck _checkUiConsistency() {
   final data = _readJson('docs/production-readiness/ui-consistency-audit.json');
   if (data == null) {
     return _missing(
-        'ui_consistency', 'UI consistency audit artifact is missing.');
+      'ui_consistency',
+      'UI consistency audit artifact is missing.',
+    );
   }
   final findingCount = (data['findingCount'] as num?)?.toInt();
   final blockingFindingCount = (data['blockingFindingCount'] as num?)?.toInt();
@@ -187,8 +191,9 @@ _GateCheck _checkUiConsistency() {
 }
 
 _GateCheck _checkDeveloperQuality() {
-  final data =
-      _readJson('docs/production-readiness/developer-quality-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/developer-quality-audit.json',
+  );
   if (data == null) {
     return _missing(
       'developer_quality',
@@ -256,8 +261,9 @@ _GateCheck _checkDependencyHygiene() {
 }
 
 _GateCheck _checkHeadlessApiContract() {
-  final data =
-      _readJson('docs/production-readiness/headless-api-contract-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/headless-api-contract-audit.json',
+  );
   if (data == null) {
     return _missing(
       'headless_api_contract',
@@ -269,39 +275,43 @@ _GateCheck _checkHeadlessApiContract() {
   final httpRoutes = (data['advertisedHttpRouteCount'] as num?)?.toInt();
   final openApiPaths = (data['openApiPathCount'] as num?)?.toInt();
   final networkBackend = (data['networkBackendRouteCount'] as num?)?.toInt();
-  final registeredNotAdvertised =
-      (data['registeredNotAdvertisedCount'] as num?)?.toInt();
-  final advertisedNotRegistered =
-      (data['advertisedNotRegisteredCount'] as num?)?.toInt();
-  final networkMissing =
-      (data['networkBackendMissingOnServerCount'] as num?)?.toInt();
-  final openApiMissing =
-      (data['advertisedHttpMissingOpenApiCount'] as num?)?.toInt();
+  final registeredNotAdvertised = (data['registeredNotAdvertisedCount'] as num?)
+      ?.toInt();
+  final advertisedNotRegistered = (data['advertisedNotRegisteredCount'] as num?)
+      ?.toInt();
+  final networkMissing = (data['networkBackendMissingOnServerCount'] as num?)
+      ?.toInt();
+  final openApiMissing = (data['advertisedHttpMissingOpenApiCount'] as num?)
+      ?.toInt();
   final openApiMetadata =
       data['openApiMetadataCoverage'] as Map<String, dynamic>? ?? const {};
-  final openApiMetadataReady = openApiMetadata.isNotEmpty &&
+  final openApiMetadataReady =
+      openApiMetadata.isNotEmpty &&
       openApiMetadata.values.every((v) => v == true);
   final openApiMetadataCount =
       (data['openApiMetadataCoverageCount'] as num?)?.toInt() ??
-          openApiMetadata.values.where((v) => v == true).length;
+      openApiMetadata.values.where((v) => v == true).length;
   final webSocketContract =
       data['webSocketContractCoverage'] as Map<String, dynamic>? ?? const {};
-  final webSocketContractReady = webSocketContract.isNotEmpty &&
+  final webSocketContractReady =
+      webSocketContract.isNotEmpty &&
       webSocketContract.values.every((v) => v == true);
   final webSocketContractCount =
       (data['webSocketContractCoverageCount'] as num?)?.toInt() ??
-          webSocketContract.values.where((v) => v == true).length;
+      webSocketContract.values.where((v) => v == true).length;
   final versionNegotiation =
       data['versionNegotiationCoverage'] as Map<String, dynamic>? ?? const {};
-  final versionNegotiationReady = versionNegotiation.isNotEmpty &&
+  final versionNegotiationReady =
+      versionNegotiation.isNotEmpty &&
       versionNegotiation.values.every((v) => v == true);
   final versionNegotiationCount =
       (data['versionNegotiationCoverageCount'] as num?)?.toInt() ??
-          versionNegotiation.values.where((v) => v == true).length;
+      versionNegotiation.values.where((v) => v == true).length;
   return _GateCheck(
     id: 'headless_api_contract',
     label: 'Headless API contract',
-    passed: data['passed'] == true &&
+    passed:
+        data['passed'] == true &&
         openApiMetadataReady &&
         webSocketContractReady &&
         versionNegotiationReady,
@@ -312,8 +322,9 @@ _GateCheck _checkHeadlessApiContract() {
 }
 
 _GateCheck _checkHeadlessRoutePolicy() {
-  final data =
-      _readJson('docs/production-readiness/headless-route-policy-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/headless-route-policy-audit.json',
+  );
   if (data == null) {
     return _missing(
       'headless_route_policy',
@@ -328,10 +339,11 @@ _GateCheck _checkHeadlessRoutePolicy() {
   final serverMiddlewareTests =
       data['serverMiddlewareTests'] as Map<String, dynamic>? ?? const {};
   final bodyLimits = data['bodyLimits'] as Map<String, dynamic>? ?? const {};
-  final serverMiddlewareTestCount = (data['serverMiddlewareTestCount'] as num?)
-          ?.toInt() ??
+  final serverMiddlewareTestCount =
+      (data['serverMiddlewareTestCount'] as num?)?.toInt() ??
       serverMiddlewareTests.values.where((present) => present == true).length;
-  final serverMiddlewareTestsPassed = serverMiddlewareTests.isNotEmpty &&
+  final serverMiddlewareTestsPassed =
+      serverMiddlewareTests.isNotEmpty &&
       serverMiddlewareTests.values.every((present) => present == true);
   return _GateCheck(
     id: 'headless_route_policy',
@@ -346,7 +358,8 @@ _GateCheck _checkHeadlessRoutePolicy() {
 
 _GateCheck _checkHeadlessResponseHelpers() {
   final data = _readJson(
-      'docs/production-readiness/headless-response-helper-audit.json');
+    'docs/production-readiness/headless-response-helper-audit.json',
+  );
   if (data == null) {
     return _missing(
       'headless_response_helpers',
@@ -390,8 +403,9 @@ _GateCheck _checkDocsLinks() {
 }
 
 _GateCheck _checkPublicReleaseSelfTests() {
-  final data =
-      _readJson('docs/production-readiness/public-release-self-tests.json');
+  final data = _readJson(
+    'docs/production-readiness/public-release-self-tests.json',
+  );
   if (data == null) {
     return _missing(
       'public_release_self_tests',
@@ -401,8 +415,8 @@ _GateCheck _checkPublicReleaseSelfTests() {
 
   final passed = data['passed'] == true;
   final selfTestCount = (data['selfTestCount'] as num?)?.toInt();
-  final expectedSelfTestCount =
-      (data['expectedSelfTestCount'] as num?)?.toInt();
+  final expectedSelfTestCount = (data['expectedSelfTestCount'] as num?)
+      ?.toInt();
   final passedCount = (data['passedCount'] as num?)?.toInt();
   final failedCount = (data['failedCount'] as num?)?.toInt();
   final results = (data['results'] as List? ?? const [])
@@ -410,20 +424,24 @@ _GateCheck _checkPublicReleaseSelfTests() {
       .map((result) => result.cast<String, dynamic>())
       .toList();
   final failedScripts = results
-      .where((result) =>
-          result['passed'] != true ||
-          ((result['exitCode'] as num?)?.toInt() ?? 1) != 0)
+      .where(
+        (result) =>
+            result['passed'] != true ||
+            ((result['exitCode'] as num?)?.toInt() ?? 1) != 0,
+      )
       .map((result) => result['script']?.toString() ?? 'unknown')
       .toList();
   const expectedVerifierSelfTestCount = 25;
-  final hasExpectedResults = selfTestCount == expectedSelfTestCount &&
+  final hasExpectedResults =
+      selfTestCount == expectedSelfTestCount &&
       expectedSelfTestCount == expectedVerifierSelfTestCount &&
       results.length == selfTestCount;
 
   return _GateCheck(
     id: 'public_release_self_tests',
     label: 'Public release verifier self-tests',
-    passed: passed &&
+    passed:
+        passed &&
         hasExpectedResults &&
         passedCount == expectedSelfTestCount &&
         failedCount == 0 &&
@@ -437,10 +455,7 @@ _GateCheck _checkPublicReleaseSelfTests() {
 _GateCheck _checkReleaseDocs() {
   final data = _readJson('docs/production-readiness/release-docs-audit.json');
   if (data == null) {
-    return _missing(
-      'release_docs',
-      'Release docs audit artifact is missing.',
-    );
+    return _missing('release_docs', 'Release docs audit artifact is missing.');
   }
   final documentCount = (data['documentCount'] as num?)?.toInt();
   final issueCount = (data['issueCount'] as num?)?.toInt();
@@ -454,8 +469,9 @@ _GateCheck _checkReleaseDocs() {
 }
 
 _GateCheck _checkPlatformCapabilities() {
-  final data =
-      _readJson('docs/production-readiness/platform-capability-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/platform-capability-audit.json',
+  );
   if (data == null) {
     return _missing(
       'platform_capabilities',
@@ -475,14 +491,18 @@ _GateCheck _checkPlatformCapabilities() {
 }
 
 _GateCheck _checkReleaseStaging() {
-  final data =
-      _readJson('docs/production-readiness/release-staging-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/release-staging-audit.json',
+  );
   if (data == null) {
     return _missing(
-        'release_staging', 'Release staging audit artifact is missing.');
+      'release_staging',
+      'Release staging audit artifact is missing.',
+    );
   }
-  final splitPlan =
-      _readJson('docs/production-readiness/release-pr-split-plan.json');
+  final splitPlan = _readJson(
+    'docs/production-readiness/release-pr-split-plan.json',
+  );
   final entryCount = (data['entryCount'] as num?)?.toInt() ?? -1;
   final untrackedCritical =
       (data['untrackedReleaseCriticalCount'] as num?)?.toInt() ?? -1;
@@ -526,19 +546,21 @@ _SplitPlanCoverage _checkSplitPlanCoverage({
   final plannedPaths = _splitPlanPaths(splitPlan);
   final pathspecFiles = Directory(pathspecDir).existsSync()
       ? Directory(pathspecDir)
-          .listSync()
-          .whereType<File>()
-          .where((file) => file.path.toLowerCase().endsWith('.txt'))
-          .toList()
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.toLowerCase().endsWith('.txt'))
+            .toList()
       : <File>[];
   pathspecFiles.sort((a, b) => a.path.compareTo(b.path));
 
   final pathspecLines = <String>[];
   for (final file in pathspecFiles) {
-    pathspecLines.addAll(file
-        .readAsLinesSync()
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty));
+    pathspecLines.addAll(
+      file
+          .readAsLinesSync()
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty),
+    );
   }
   final uniquePathspecLines = pathspecLines.toSet();
   final planEntryCount = (splitPlan['entryCount'] as num?)?.toInt() ?? -1;
@@ -625,8 +647,9 @@ Set<String> _splitPlanPaths(Map<String, dynamic> splitPlan) {
 }
 
 _GateCheck _checkLinuxReleaseWorkflow() {
-  final data =
-      _readJson('docs/production-readiness/linux-release-workflow-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/linux-release-workflow-audit.json',
+  );
   if (data == null) {
     return _missing(
       'linux_release_workflow',
@@ -655,11 +678,14 @@ _GateCheck _checkLinuxReleaseWorkflow() {
 }
 
 _GateCheck _checkLinuxEnvironment() {
-  final data =
-      _readJson('docs/production-readiness/linux-environment-probe.json');
+  final data = _readJson(
+    'docs/production-readiness/linux-environment-probe.json',
+  );
   if (data == null) {
     return _missing(
-        'linux_release_build', 'Linux environment probe artifact is missing.');
+      'linux_release_build',
+      'Linux environment probe artifact is missing.',
+    );
   }
   final external = _externalEvidenceCheck('linux_release_build');
   final available = data['linuxBuildEnvironmentAvailable'] == true;
@@ -672,14 +698,15 @@ _GateCheck _checkLinuxEnvironment() {
     detail: external.passed
         ? 'Validated Linux release build/package evidence is present.'
         : available
-            ? 'Linux-capable environment exists, but validated Linux release build/package evidence is missing. ${external.detail}'
-            : 'Linux build environment is unavailable on this host; validated Linux release build/package evidence is missing. ${external.detail}',
+        ? 'Linux-capable environment exists, but validated Linux release build/package evidence is missing. ${external.detail}'
+        : 'Linux build environment is unavailable on this host; validated Linux release build/package evidence is missing. ${external.detail}',
   );
 }
 
 _GateCheck _checkHardwareAvailability() {
-  final data =
-      _readJson('docs/production-readiness/hardware-availability-probe.json');
+  final data = _readJson(
+    'docs/production-readiness/hardware-availability-probe.json',
+  );
   if (data == null) {
     return _missing(
       'hardware_control_smoke',
@@ -688,13 +715,14 @@ _GateCheck _checkHardwareAvailability() {
   }
   final fullRealOrSimulatorCoverage =
       data['fullRealOrSimulatorCoverage'] == true ||
-          (data['fullRealOrSimulatorCoverage'] == null &&
-              data['fullCoverage'] == true);
-  final missingAny = (data['missingRealOrSimulatorDeviceTypes'] as List? ??
-          data['missingDeviceTypes'] as List? ??
-          const [])
-      .map((value) => value.toString())
-      .join(', ');
+      (data['fullRealOrSimulatorCoverage'] == null &&
+          data['fullCoverage'] == true);
+  final missingAny =
+      (data['missingRealOrSimulatorDeviceTypes'] as List? ??
+              data['missingDeviceTypes'] as List? ??
+              const [])
+          .map((value) => value.toString())
+          .join(', ');
   final missingNonSimulator =
       (data['missingNonSimulatorDeviceTypes'] as List? ?? const [])
           .map((value) => value.toString())
@@ -709,14 +737,15 @@ _GateCheck _checkHardwareAvailability() {
     detail: external.passed
         ? 'Validated full hardware/control smoke evidence is present.'
         : fullRealOrSimulatorCoverage
-            ? 'Required classes are discoverable with real or simulator-backed devices, but validated command/control smoke evidence is missing. Non-simulator gaps: $missingNonSimulator. ${external.detail}'
-            : 'Required real-or-simulator classes missing on this host: $missingAny. Non-simulator gaps: $missingNonSimulator. Command/control smoke remains unverified. ${external.detail}',
+        ? 'Required classes are discoverable with real or simulator-backed devices, but validated command/control smoke evidence is missing. Non-simulator gaps: $missingNonSimulator. ${external.detail}'
+        : 'Required real-or-simulator classes missing on this host: $missingAny. Non-simulator gaps: $missingNonSimulator. Command/control smoke remains unverified. ${external.detail}',
   );
 }
 
 _GateCheck _checkSyntheticMigrationRegression() {
-  final data =
-      _readJson('docs/production-readiness/migration-regression-audit.json');
+  final data = _readJson(
+    'docs/production-readiness/migration-regression-audit.json',
+  );
   if (data == null) {
     return _missing(
       'synthetic_migration_regression',
@@ -738,18 +767,22 @@ _GateCheck _checkSyntheticMigrationRegression() {
 }
 
 _GateCheck _checkManualMigration() {
-  final data =
-      _readJson('docs/production-readiness/manual-migration-probe.json');
+  final data = _readJson(
+    'docs/production-readiness/manual-migration-probe.json',
+  );
   if (data == null) {
     return _missing(
-        'manual_migration', 'Manual migration probe artifact is missing.');
+      'manual_migration',
+      'Manual migration probe artifact is missing.',
+    );
   }
   final verified = data['migrationVerified'] == true;
   final artifactProvided = data['artifactProvided'] == true;
   final sourceExists = data['sourceExists'] == true;
   final sourceSizeBytes = (data['sourceSizeBytes'] as num?)?.toInt() ?? 0;
   final sourceSha256 = data['sourceSha256']?.toString() ?? '';
-  final sourceIdentityValid = sourceSizeBytes > 0 &&
+  final sourceIdentityValid =
+      sourceSizeBytes > 0 &&
       RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(sourceSha256);
   final copiedSourceSha256Matches = data['copiedSourceSha256Matches'] == true;
   final qualifiesAsOlderProfile = data['qualifiesAsOlderProfile'] == true;
@@ -760,7 +793,8 @@ _GateCheck _checkManualMigration() {
   final missingTables = (data['missingTables'] as List? ?? const []).length;
   final missingSettings =
       (data['missingDefaultSettings'] as List? ?? const []).length;
-  final passed = verified &&
+  final passed =
+      verified &&
       artifactProvided &&
       sourceExists &&
       sourceIdentityValid &&
@@ -806,8 +840,8 @@ _GateCheck _checkMobileReconnectSmoke() {
   final text = exists ? File(path).readAsStringSync() : '';
   final hasReconnect =
       text.contains('Server-observed mobile WebSocket viewer:') &&
-          text.contains('"viewers": [') &&
-          text.contains('"viewerId":');
+      text.contains('"viewers": [') &&
+      text.contains('"viewerId":');
   return _GateCheck(
     id: 'mobile_reconnect_smoke',
     label: 'Android emulator reconnect smoke',
@@ -853,7 +887,9 @@ _GateCheck _checkFinalChecklist() {
   final checklist = File(checklistPath);
   if (!checklist.existsSync()) {
     return _missing(
-        'final_checklist', 'Public release master checklist is missing.');
+      'final_checklist',
+      'Public release master checklist is missing.',
+    );
   }
   final checklistAudit = _readJson(_checklistAuditPath);
   if (checklistAudit == null) {
@@ -879,7 +915,8 @@ _GateCheck _checkFinalChecklist() {
   final supportedHardwareReferenced =
       checklistAudit['supportedHardwareByPlatformReferenced'] == true;
   final external = _externalEvidenceCheck('final_release_signoff');
-  final checklistPassed = unchecked == 0 &&
+  final checklistPassed =
+      unchecked == 0 &&
       checkedWithoutEvidence == 0 &&
       knownLimitationsReferenced &&
       supportedHardwareReferenced;
@@ -897,7 +934,8 @@ _GateCheck _checkFinalChecklist() {
 
 _ExternalEvidenceResult _externalEvidenceCheck(String id) {
   final data = _readJson(
-      'docs/production-readiness/public-release-external-evidence.json');
+    'docs/production-readiness/public-release-external-evidence.json',
+  );
   if (data == null) {
     return const _ExternalEvidenceResult(
       passed: false,

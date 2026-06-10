@@ -267,30 +267,30 @@ class SmartNightSettings {
   }
 
   Map<String, dynamic> toJson() => {
-        'maxSessionHours': maxSessionHours,
-        'afCadence': afCadence.name,
-        'afEveryFrames': afEveryFrames,
-        'afEveryMinutes': afEveryMinutes,
-        'afTempDeltaC': afTempDeltaC,
-        'defaultIntegrationBudgetHours': defaultIntegrationBudgetHours,
-        'defaultFrameDurationSecs': defaultFrameDurationSecs,
-        'includeFlatsAtEnd': includeFlatsAtEnd,
-        'flatCountPerFilter': flatCountPerFilter,
-        'useSchedulerForMultiTarget': useSchedulerForMultiTarget,
-        'schedulerTargetThreshold': schedulerTargetThreshold,
-        'adaptiveTargetSwap': adaptiveTargetSwap,
-        'minAltitudeDeg': minAltitudeDeg,
-        'subExposureCeilingSecs': subExposureCeilingSecs,
-        'subExposureFloorSecs': subExposureFloorSecs,
-        'targetSnr': targetSnr,
-        'ditherEveryFrames': ditherEveryFrames,
-        'prependPolarAlignmentIfStale': prependPolarAlignmentIfStale,
-        'polarAlignmentStaleAfterDays': polarAlignmentStaleAfterDays,
-        'hasCoverCalibrator': hasCoverCalibrator,
-        'coolDownTargetC': coolDownTargetC,
-        'autoScheduleMissingDarks': autoScheduleMissingDarks,
-        'darkFramesPerRequirement': darkFramesPerRequirement,
-      };
+    'maxSessionHours': maxSessionHours,
+    'afCadence': afCadence.name,
+    'afEveryFrames': afEveryFrames,
+    'afEveryMinutes': afEveryMinutes,
+    'afTempDeltaC': afTempDeltaC,
+    'defaultIntegrationBudgetHours': defaultIntegrationBudgetHours,
+    'defaultFrameDurationSecs': defaultFrameDurationSecs,
+    'includeFlatsAtEnd': includeFlatsAtEnd,
+    'flatCountPerFilter': flatCountPerFilter,
+    'useSchedulerForMultiTarget': useSchedulerForMultiTarget,
+    'schedulerTargetThreshold': schedulerTargetThreshold,
+    'adaptiveTargetSwap': adaptiveTargetSwap,
+    'minAltitudeDeg': minAltitudeDeg,
+    'subExposureCeilingSecs': subExposureCeilingSecs,
+    'subExposureFloorSecs': subExposureFloorSecs,
+    'targetSnr': targetSnr,
+    'ditherEveryFrames': ditherEveryFrames,
+    'prependPolarAlignmentIfStale': prependPolarAlignmentIfStale,
+    'polarAlignmentStaleAfterDays': polarAlignmentStaleAfterDays,
+    'hasCoverCalibrator': hasCoverCalibrator,
+    'coolDownTargetC': coolDownTargetC,
+    'autoScheduleMissingDarks': autoScheduleMissingDarks,
+    'darkFramesPerRequirement': darkFramesPerRequirement,
+  };
 
   factory SmartNightSettings.fromJson(Map<String, dynamic> json) {
     return SmartNightSettings(
@@ -303,10 +303,13 @@ class SmartNightSettings {
       afEveryFrames: _jsonInt(json['afEveryFrames'], 25),
       afEveryMinutes: _jsonInt(json['afEveryMinutes'], 60),
       afTempDeltaC: _jsonDouble(json['afTempDeltaC'], 1.5),
-      defaultIntegrationBudgetHours:
-          _jsonDouble(json['defaultIntegrationBudgetHours'], 4.0),
-      defaultFrameDurationSecs:
-          _stringDoubleMap(json['defaultFrameDurationSecs']),
+      defaultIntegrationBudgetHours: _jsonDouble(
+        json['defaultIntegrationBudgetHours'],
+        4.0,
+      ),
+      defaultFrameDurationSecs: _stringDoubleMap(
+        json['defaultFrameDurationSecs'],
+      ),
       includeFlatsAtEnd: json['includeFlatsAtEnd'] as bool? ?? true,
       flatCountPerFilter: _jsonInt(json['flatCountPerFilter'], 20),
       useSchedulerForMultiTarget:
@@ -314,15 +317,19 @@ class SmartNightSettings {
       schedulerTargetThreshold: _jsonInt(json['schedulerTargetThreshold'], 3),
       adaptiveTargetSwap: json['adaptiveTargetSwap'] as bool? ?? true,
       minAltitudeDeg: _jsonDouble(json['minAltitudeDeg'], 30.0),
-      subExposureCeilingSecs:
-          _jsonDouble(json['subExposureCeilingSecs'], 300.0),
+      subExposureCeilingSecs: _jsonDouble(
+        json['subExposureCeilingSecs'],
+        300.0,
+      ),
       subExposureFloorSecs: _jsonDouble(json['subExposureFloorSecs'], 30.0),
       targetSnr: _jsonDouble(json['targetSnr'], 30.0),
       ditherEveryFrames: _jsonInt(json['ditherEveryFrames'], 3),
       prependPolarAlignmentIfStale:
           json['prependPolarAlignmentIfStale'] as bool? ?? true,
-      polarAlignmentStaleAfterDays:
-          _jsonInt(json['polarAlignmentStaleAfterDays'], 7),
+      polarAlignmentStaleAfterDays: _jsonInt(
+        json['polarAlignmentStaleAfterDays'],
+        7,
+      ),
       hasCoverCalibrator: json['hasCoverCalibrator'] as bool? ?? false,
       coolDownTargetC: _jsonDouble(json['coolDownTargetC'], -10.0),
       autoScheduleMissingDarks:

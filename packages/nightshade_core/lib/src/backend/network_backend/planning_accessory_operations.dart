@@ -7,10 +7,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
 
   /// Slew to target coordinates
   Future<void> slewToTarget(double ra, double dec) async {
-    await _post('framing/slew-to-target', {
-      'ra': ra,
-      'dec': dec,
-    });
+    await _post('framing/slew-to-target', {'ra': ra, 'dec': dec});
   }
 
   /// Center on target with plate solving
@@ -39,10 +36,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
 
   /// Sync mount to coordinates
   Future<void> syncMountToCoordinates(double ra, double dec) async {
-    await _post('framing/sync', {
-      'ra': ra,
-      'dec': dec,
-    });
+    await _post('framing/sync', {'ra': ra, 'dec': dec});
   }
 
   /// Get current mount position
@@ -77,11 +71,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     required double dec,
     required String name,
   }) async {
-    await _post('framing/set-target', {
-      'ra': ra,
-      'dec': dec,
-      'name': name,
-    });
+    await _post('framing/set-target', {'ra': ra, 'dec': dec, 'name': name});
   }
 
   // ===========================================================================
@@ -180,10 +170,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     required int switchId,
     required dynamic value,
   }) async {
-    await _post('switch/set', {
-      'switchId': switchId,
-      'value': value,
-    });
+    await _post('switch/set', {'switchId': switchId, 'value': value});
   }
 
   // ===========================================================================
@@ -406,8 +393,10 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     required String axis,
     required String name,
   }) async {
-    final response =
-        await _get('phd2/algo-param', {'axis': axis, 'name': name});
+    final response = await _get('phd2/algo-param', {
+      'axis': axis,
+      'name': name,
+    });
     return (response['value'] as num).toDouble();
   }
 
@@ -496,7 +485,8 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   /// Get detailed object info
   Future<Map<String, dynamic>> planetariumGetObject(String objectId) async {
     return await _get(
-        'planetarium/catalog/object/${Uri.encodeComponent(objectId)}');
+      'planetarium/catalog/object/${Uri.encodeComponent(objectId)}',
+    );
   }
 
   /// Get WebSocket subscription info for real-time updates

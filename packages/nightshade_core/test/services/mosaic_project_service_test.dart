@@ -65,7 +65,8 @@ class _FakeSeam implements PostSessionSeam {
 
   @override
   Future<IntegrateSessionResult> integrateSession(
-      Map<String, dynamic> args) async {
+    Map<String, dynamic> args,
+  ) async {
     integrateCalls.add(args);
     final lights = (args['lightPaths'] as List).cast<String>();
     final output = args['output'] as Map<String, dynamic>;
@@ -186,7 +187,9 @@ void main() {
     bool accepted = true,
     String filter = 'L',
   }) async {
-    await db.into(db.capturedImages).insert(
+    await db
+        .into(db.capturedImages)
+        .insert(
           CapturedImagesCompanion.insert(
             filePath: path,
             fileName: path.split('/').last,
@@ -208,8 +211,7 @@ void main() {
   }
 
   group('createProject', () {
-    test('persists the project + per-panel rows with generated centers',
-        () async {
+    test('persists the project + per-panel rows with generated centers', () async {
       final regionTarget = await seedTarget('Andromeda');
       final projectId = await service.createProject(
         name: 'M31 2x3',
@@ -243,18 +245,29 @@ void main() {
       // so a panel's subs isolate to that panel for per-panel integration.
       final panelTargets = panels.map((p) => p.targetId).toList();
       expect(panelTargets.every((t) => t != null), isTrue);
-      expect(panelTargets.toSet(), hasLength(6),
-          reason: 'every panel must resolve to a DISTINCT capture target');
-      expect(panelTargets.contains(regionTarget), isFalse,
-          reason: 'panels must not reuse the project-region target');
+      expect(
+        panelTargets.toSet(),
+        hasLength(6),
+        reason: 'every panel must resolve to a DISTINCT capture target',
+      );
+      expect(
+        panelTargets.contains(regionTarget),
+        isFalse,
+        reason: 'panels must not reuse the project-region target',
+      );
       // The per-panel target rows are centered on the panel (not the region).
       final byIndexEarly = {for (final p in panels) p.panelIndex: p};
-      final p1Target = await targetsDao.getTargetById(byIndexEarly[1]!.targetId!);
+      final p1Target = await targetsDao.getTargetById(
+        byIndexEarly[1]!.targetId!,
+      );
       expect(p1Target, isNotNull);
       expect(p1Target!.ra, closeTo(byIndexEarly[1]!.centerRa, 1e-6));
       expect(p1Target.dec, closeTo(byIndexEarly[1]!.centerDec, 1e-6));
       // All pending, zero captured at creation.
-      expect(panels.every((p) => p.status == MosaicPanelStatus.pending), isTrue);
+      expect(
+        panels.every((p) => p.status == MosaicPanelStatus.pending),
+        isTrue,
+      );
       expect(panels.every((p) => p.capturedCount == 0), isTrue);
 
       // The centers are the EXISTING geometry's output (cos(dec) RA compression
@@ -266,54 +279,57 @@ void main() {
       expect(byIndex[1]!.centerRa, closeTo(0.7, 1e-6));
       expect(byIndex[4]!.centerRa, closeTo(0.7, 1e-6));
       // Two rows split symmetrically in dec about 41.0.
-      expect(byIndex[1]!.centerDec + byIndex[4]!.centerDec,
-          closeTo(2 * 41.0, 1e-6));
+      expect(
+        byIndex[1]!.centerDec + byIndex[4]!.centerDec,
+        closeTo(2 * 41.0, 1e-6),
+      );
       // Columns within a row are ordered low->high RA and distinct.
       expect(byIndex[0]!.centerRa, lessThan(byIndex[1]!.centerRa));
       expect(byIndex[1]!.centerRa, lessThan(byIndex[2]!.centerRa));
     });
 
-    test('derives panel arcmin from explicit dims and rejects a bad grid',
-        () async {
-      final id = await service.createProject(
-        name: 'tiny',
-        rows: 1,
-        cols: 2,
-        centerRa: 12.0,
-        centerDec: 0.0,
-        panelWidthArcmin: 30.0,
-        panelHeightArcmin: 20.0,
-      );
-      expect(await panelsDao.getForProject(id), hasLength(2));
-
-      await expectLater(
-        service.createProject(
-          name: 'bad',
-          rows: 0,
-          cols: 2,
-          centerRa: 1,
-          centerDec: 1,
-          panelWidthArcmin: 30,
-          panelHeightArcmin: 20,
-        ),
-        throwsArgumentError,
-      );
-      await expectLater(
-        service.createProject(
-          name: 'no-dims',
+    test(
+      'derives panel arcmin from explicit dims and rejects a bad grid',
+      () async {
+        final id = await service.createProject(
+          name: 'tiny',
           rows: 1,
           cols: 2,
-          centerRa: 1,
-          centerDec: 1,
-        ),
-        throwsArgumentError,
-      );
-    });
+          centerRa: 12.0,
+          centerDec: 0.0,
+          panelWidthArcmin: 30.0,
+          panelHeightArcmin: 20.0,
+        );
+        expect(await panelsDao.getForProject(id), hasLength(2));
+
+        await expectLater(
+          service.createProject(
+            name: 'bad',
+            rows: 0,
+            cols: 2,
+            centerRa: 1,
+            centerDec: 1,
+            panelWidthArcmin: 30,
+            panelHeightArcmin: 20,
+          ),
+          throwsArgumentError,
+        );
+        await expectLater(
+          service.createProject(
+            name: 'no-dims',
+            rows: 1,
+            cols: 2,
+            centerRa: 1,
+            centerDec: 1,
+          ),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 
   group('integratePanels', () {
-    test('links a per-panel master for each panel that has accepted subs',
-        () async {
+    test('links a per-panel master for each panel that has accepted subs', () async {
       // Two panel targets, each with their own subs.
       final p0Target = await seedTarget('Mosaic Panel 1');
       final p1Target = await seedTarget('Mosaic Panel 2');
@@ -321,7 +337,11 @@ void main() {
       await seedSub(targetId: p0Target, path: '/p0/b.fits');
       await seedSub(targetId: p1Target, path: '/p1/a.fits');
       // A rejected sub on panel 1 must not be folded.
-      await seedSub(targetId: p1Target, path: '/p1/reject.fits', accepted: false);
+      await seedSub(
+        targetId: p1Target,
+        path: '/p1/reject.fits',
+        accepted: false,
+      );
 
       final projectId = await service.createProject(
         name: 'Pair',
@@ -338,8 +358,7 @@ void main() {
       final outcomes = await service.integratePanels(
         projectId,
         settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
+        outputFitsPathBuilder: (panel) => '/out/panel_${panel.panelIndex}.fits',
       );
 
       expect(outcomes, hasLength(2));
@@ -352,17 +371,20 @@ void main() {
       // panel's own output path.
       expect(seam.integrateCalls, hasLength(2));
       expect(
-          (seam.integrateCalls[0]['lightPaths'] as List).cast<String>(),
-          containsAll(['/p0/a.fits', '/p0/b.fits']));
-      expect(
-          (seam.integrateCalls[1]['lightPaths'] as List).cast<String>(),
-          ['/p1/a.fits']);
+        (seam.integrateCalls[0]['lightPaths'] as List).cast<String>(),
+        containsAll(['/p0/a.fits', '/p0/b.fits']),
+      );
+      expect((seam.integrateCalls[1]['lightPaths'] as List).cast<String>(), [
+        '/p1/a.fits',
+      ]);
 
       // Each panel row now carries its per-panel master + integrated status.
       final panels = await panelsDao.getForProject(projectId);
       expect(panels.every((p) => p.integratedMasterId != null), isTrue);
       expect(
-          panels.every((p) => p.status == MosaicPanelStatus.integrated), isTrue);
+        panels.every((p) => p.status == MosaicPanelStatus.integrated),
+        isTrue,
+      );
       // The master rows exist and point at the right FITS. Subs are filter 'L',
       // so the per-filter master gets the bucket-suffixed path (the bug was
       // every per-filter master sharing the bare base path and clobbering each
@@ -394,8 +416,7 @@ void main() {
       final outcomes = await service.integratePanels(
         projectId,
         settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
+        outputFitsPathBuilder: (panel) => '/out/panel_${panel.panelIndex}.fits',
       );
 
       // Panel 0 integrated; panel 1 (no subs) is left pending, not failed, and
@@ -413,87 +434,110 @@ void main() {
     });
 
     test(
-        'a multi-filter panel writes one distinct master FITS per filter '
-        '(no on-disk clobber) and links luminance as the representative',
-        () async {
-      // One panel captured in L + R + G + B. The bug: every per-filter master
-      // was handed the SAME base path, so each filter overwrote the previous
-      // filter's FITS/PNG/rejmap on disk, and the panel linked outcomes.first
-      // (iteration order), not a meaningful representative.
-      final panelTarget = await seedTarget('LRGB Panel');
-      // Give R two subs so it is the highest-frame-count group — proving the
-      // representative pick is NOT "most frames" when luminance is present.
-      await seedSub(targetId: panelTarget, path: '/lrgb/r1.fits', filter: 'R');
-      await seedSub(targetId: panelTarget, path: '/lrgb/r2.fits', filter: 'R');
-      await seedSub(targetId: panelTarget, path: '/lrgb/g1.fits', filter: 'G');
-      await seedSub(targetId: panelTarget, path: '/lrgb/b1.fits', filter: 'B');
-      await seedSub(targetId: panelTarget, path: '/lrgb/l1.fits', filter: 'L');
+      'a multi-filter panel writes one distinct master FITS per filter '
+      '(no on-disk clobber) and links luminance as the representative',
+      () async {
+        // One panel captured in L + R + G + B. The bug: every per-filter master
+        // was handed the SAME base path, so each filter overwrote the previous
+        // filter's FITS/PNG/rejmap on disk, and the panel linked outcomes.first
+        // (iteration order), not a meaningful representative.
+        final panelTarget = await seedTarget('LRGB Panel');
+        // Give R two subs so it is the highest-frame-count group — proving the
+        // representative pick is NOT "most frames" when luminance is present.
+        await seedSub(
+          targetId: panelTarget,
+          path: '/lrgb/r1.fits',
+          filter: 'R',
+        );
+        await seedSub(
+          targetId: panelTarget,
+          path: '/lrgb/r2.fits',
+          filter: 'R',
+        );
+        await seedSub(
+          targetId: panelTarget,
+          path: '/lrgb/g1.fits',
+          filter: 'G',
+        );
+        await seedSub(
+          targetId: panelTarget,
+          path: '/lrgb/b1.fits',
+          filter: 'B',
+        );
+        await seedSub(
+          targetId: panelTarget,
+          path: '/lrgb/l1.fits',
+          filter: 'L',
+        );
 
-      final projectId = await service.createProject(
-        name: 'LRGB',
-        rows: 1,
-        cols: 1,
-        centerRa: 0.7,
-        centerDec: 41.0,
-        panelWidthArcmin: 30,
-        panelHeightArcmin: 20,
-        panelTargetId: (_) => panelTarget,
-      );
+        final projectId = await service.createProject(
+          name: 'LRGB',
+          rows: 1,
+          cols: 1,
+          centerRa: 0.7,
+          centerDec: 41.0,
+          panelWidthArcmin: 30,
+          panelHeightArcmin: 20,
+          panelTargetId: (_) => panelTarget,
+        );
 
-      final outcomes = await service.integratePanels(
-        projectId,
-        settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
-      );
+        final outcomes = await service.integratePanels(
+          projectId,
+          settings: IntegrationSettings.defaults,
+          outputFitsPathBuilder: (panel) =>
+              '/out/panel_${panel.panelIndex}.fits',
+        );
 
-      // One panel outcome; it folded ALL five accepted subs across filters.
-      expect(outcomes, hasLength(1));
-      expect(outcomes.single.subCount, 5);
-      expect(outcomes.single.status, MosaicPanelStatus.integrated);
+        // One panel outcome; it folded ALL five accepted subs across filters.
+        expect(outcomes, hasLength(1));
+        expect(outcomes.single.subCount, 5);
+        expect(outcomes.single.status, MosaicPanelStatus.integrated);
 
-      // Four integrate calls (one per filter), each writing a DISTINCT master
-      // FITS path so no filter clobbers another's pixels on disk. The
-      // luminance group keeps deriving its preview/rejmap from its own base.
-      expect(seam.integrateCalls, hasLength(4));
-      final masterPaths = seam.integrateCalls
-          .map((c) => (c['output'] as Map)['masterFitsPath'] as String)
-          .toList();
-      expect(masterPaths.toSet(), hasLength(4),
-          reason: 'each per-filter master must get a distinct FITS path');
-      expect(
-        masterPaths.toSet(),
-        {
+        // Four integrate calls (one per filter), each writing a DISTINCT master
+        // FITS path so no filter clobbers another's pixels on disk. The
+        // luminance group keeps deriving its preview/rejmap from its own base.
+        expect(seam.integrateCalls, hasLength(4));
+        final masterPaths = seam.integrateCalls
+            .map((c) => (c['output'] as Map)['masterFitsPath'] as String)
+            .toList();
+        expect(
+          masterPaths.toSet(),
+          hasLength(4),
+          reason: 'each per-filter master must get a distinct FITS path',
+        );
+        expect(masterPaths.toSet(), {
           '/out/panel_0_R.fits',
           '/out/panel_0_G.fits',
           '/out/panel_0_B.fits',
           '/out/panel_0_L.fits',
-        },
-      );
+        });
 
-      // The persisted master rows are also distinct files (no duplicate rows
-      // all pointing at one path), one per filter.
-      final allMasters = await mastersDao.getAll();
-      final lrgbMasters = allMasters
-          .where((m) => m.masterFitsPath?.startsWith('/out/panel_0') ?? false)
-          .toList();
-      expect(lrgbMasters, hasLength(4));
-      expect(
-        lrgbMasters.map((m) => m.masterFitsPath).toSet(),
-        hasLength(4),
-        reason: 'four filters must yield four on-disk FITS, not one clobbered',
-      );
+        // The persisted master rows are also distinct files (no duplicate rows
+        // all pointing at one path), one per filter.
+        final allMasters = await mastersDao.getAll();
+        final lrgbMasters = allMasters
+            .where((m) => m.masterFitsPath?.startsWith('/out/panel_0') ?? false)
+            .toList();
+        expect(lrgbMasters, hasLength(4));
+        expect(
+          lrgbMasters.map((m) => m.masterFitsPath).toSet(),
+          hasLength(4),
+          reason:
+              'four filters must yield four on-disk FITS, not one clobbered',
+        );
 
-      // The panel links the LUMINANCE master as its representative — even
-      // though R has the most frames and L was not the first filter group.
-      final panels = await panelsDao.getForProject(projectId);
-      final linked = await mastersDao.getById(panels.single.integratedMasterId!);
-      expect(linked!.masterFitsPath, '/out/panel_0_L.fits');
-      expect(linked.filter, 'L');
-    });
+        // The panel links the LUMINANCE master as its representative — even
+        // though R has the most frames and L was not the first filter group.
+        final panels = await panelsDao.getForProject(projectId);
+        final linked = await mastersDao.getById(
+          panels.single.integratedMasterId!,
+        );
+        expect(linked!.masterFitsPath, '/out/panel_0_L.fits');
+        expect(linked.filter, 'L');
+      },
+    );
 
-    test(
-        'a multi-filter panel with no luminance links the highest-frame-count '
+    test('a multi-filter panel with no luminance links the highest-frame-count '
         'master as the representative', () async {
       // R(3) + G(1) + B(1), no L. The representative must be the deepest group
       // (R), not whichever filter happened to be the first sub captured.
@@ -518,55 +562,59 @@ void main() {
       await service.integratePanels(
         projectId,
         settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
+        outputFitsPathBuilder: (panel) => '/out/panel_${panel.panelIndex}.fits',
       );
 
       final panels = await panelsDao.getForProject(projectId);
-      final linked = await mastersDao.getById(panels.single.integratedMasterId!);
+      final linked = await mastersDao.getById(
+        panels.single.integratedMasterId!,
+      );
       // R has 3 frames vs 1 each for G/B, so R is the representative.
       expect(linked!.filter, 'R');
       expect(linked.masterFitsPath, '/out/panel_0_R.fits');
     });
 
     test(
-        'an unfiltered panel keeps the bare base FITS path (no bucket suffix)',
-        () async {
-      // Subs captured WITHOUT a filter recorded fall in the noFilterBucket and
-      // must keep the bare base path — there is nothing to disambiguate, and a
-      // `_(none)` suffix would be ugly noise. (A NAMED single filter like 'L'
-      // is still suffixed; that is covered by the LRGB/RGB tests above.)
-      final panelTarget = await seedTarget('Mono Panel');
-      await seedSub(targetId: panelTarget, path: '/mono/a.fits', filter: '');
-      await seedSub(targetId: panelTarget, path: '/mono/b.fits', filter: '');
+      'an unfiltered panel keeps the bare base FITS path (no bucket suffix)',
+      () async {
+        // Subs captured WITHOUT a filter recorded fall in the noFilterBucket and
+        // must keep the bare base path — there is nothing to disambiguate, and a
+        // `_(none)` suffix would be ugly noise. (A NAMED single filter like 'L'
+        // is still suffixed; that is covered by the LRGB/RGB tests above.)
+        final panelTarget = await seedTarget('Mono Panel');
+        await seedSub(targetId: panelTarget, path: '/mono/a.fits', filter: '');
+        await seedSub(targetId: panelTarget, path: '/mono/b.fits', filter: '');
 
-      final projectId = await service.createProject(
-        name: 'Mono',
-        rows: 1,
-        cols: 1,
-        centerRa: 0.7,
-        centerDec: 41.0,
-        panelWidthArcmin: 30,
-        panelHeightArcmin: 20,
-        panelTargetId: (_) => panelTarget,
-      );
+        final projectId = await service.createProject(
+          name: 'Mono',
+          rows: 1,
+          cols: 1,
+          centerRa: 0.7,
+          centerDec: 41.0,
+          panelWidthArcmin: 30,
+          panelHeightArcmin: 20,
+          panelTargetId: (_) => panelTarget,
+        );
 
-      await service.integratePanels(
-        projectId,
-        settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
-      );
+        await service.integratePanels(
+          projectId,
+          settings: IntegrationSettings.defaults,
+          outputFitsPathBuilder: (panel) =>
+              '/out/panel_${panel.panelIndex}.fits',
+        );
 
-      expect(seam.integrateCalls, hasLength(1));
-      expect(
-        (seam.integrateCalls.single['output'] as Map)['masterFitsPath'],
-        '/out/panel_0.fits',
-      );
-      final panels = await panelsDao.getForProject(projectId);
-      final linked = await mastersDao.getById(panels.single.integratedMasterId!);
-      expect(linked!.masterFitsPath, '/out/panel_0.fits');
-    });
+        expect(seam.integrateCalls, hasLength(1));
+        expect(
+          (seam.integrateCalls.single['output'] as Map)['masterFitsPath'],
+          '/out/panel_0.fits',
+        );
+        final panels = await panelsDao.getForProject(projectId);
+        final linked = await mastersDao.getById(
+          panels.single.integratedMasterId!,
+        );
+        expect(linked!.masterFitsPath, '/out/panel_0.fits');
+      },
+    );
   });
 
   group('stitchProject', () {
@@ -580,8 +628,9 @@ void main() {
     late String outRoot;
     setUp(() async {
       seam.writeMasterFiles = true;
-      stitchTmp =
-          await Directory.systemTemp.createTemp('nightshade_mosaic_stitch_');
+      stitchTmp = await Directory.systemTemp.createTemp(
+        'nightshade_mosaic_stitch_',
+      );
       outRoot = '${stitchTmp.path}/out';
     });
     tearDown(() async {
@@ -632,119 +681,125 @@ void main() {
       return projectId;
     }
 
-    test('stitches all panel masters and persists + links the mosaic master',
-        () async {
-      final projectId = await integratedPair();
+    test(
+      'stitches all panel masters and persists + links the mosaic master',
+      () async {
+        final projectId = await integratedPair();
 
-      final outcome = await service.stitchProject(
-        projectId,
-        outputDirectory: '/projects/veil',
-        stitchConfig: const {'normalize': true, 'blend': 'feather'},
-      );
+        final outcome = await service.stitchProject(
+          projectId,
+          outputDirectory: '/projects/veil',
+          stitchConfig: const {'normalize': true, 'blend': 'feather'},
+        );
 
-      // The seam received ONE stitch call carrying BOTH panel FITS paths.
-      expect(seam.stitchCalls, hasLength(1));
-      final call = seam.stitchCalls.single;
-      final panelPaths = (call['panels'] as List)
-          .map((p) => (p as Map)['fitsPath'] as String)
-          .toList();
-      // Panels were captured in 'L', so their representative masters carry the
-      // bucket-suffixed FITS paths.
-      expect(
+        // The seam received ONE stitch call carrying BOTH panel FITS paths.
+        expect(seam.stitchCalls, hasLength(1));
+        final call = seam.stitchCalls.single;
+        final panelPaths = (call['panels'] as List)
+            .map((p) => (p as Map)['fitsPath'] as String)
+            .toList();
+        // Panels were captured in 'L', so their representative masters carry the
+        // bucket-suffixed FITS paths.
+        expect(
           panelPaths,
-          containsAll(
-              ['$outRoot/panel_0_L.fits', '$outRoot/panel_1_L.fits']));
-      expect(call['config'], {'normalize': true, 'blend': 'feather'});
-      // Output paths land under the project folder, slugged from the name.
-      final output = call['output'] as Map;
-      expect(output['mosaicFitsPath'], '/projects/veil/Veil_1x2_mosaic.fits');
-      expect(output['coverageFitsPath'],
-          '/projects/veil/Veil_1x2_mosaic_coverage.fits');
-      expect(output['previewPngPath'], '/projects/veil/Veil_1x2_mosaic.png');
+          containsAll(['$outRoot/panel_0_L.fits', '$outRoot/panel_1_L.fits']),
+        );
+        expect(call['config'], {'normalize': true, 'blend': 'feather'});
+        // Output paths land under the project folder, slugged from the name.
+        final output = call['output'] as Map;
+        expect(output['mosaicFitsPath'], '/projects/veil/Veil_1x2_mosaic.fits');
+        expect(
+          output['coverageFitsPath'],
+          '/projects/veil/Veil_1x2_mosaic_coverage.fits',
+        );
+        expect(output['previewPngPath'], '/projects/veil/Veil_1x2_mosaic.png');
 
-      // The stitched master is a NEW integrated_masters row, finalized/batch.
-      expect(outcome.panelCount, 2);
-      final master = await mastersDao.getById(outcome.outputMasterId);
-      expect(master, isNotNull);
-      expect(master!.name, 'Veil 1x2 · Mosaic');
-      expect(master.masterFitsPath, '/projects/veil/Veil_1x2_mosaic.fits');
-      expect(master.previewPngPath, '/projects/veil/Veil_1x2_mosaic.png');
-      // Canvas geometry came from the stitch result (100 * 2 panels wide).
-      expect(master.width, 200);
-      expect(master.height, 80);
-      final stats = jsonDecode(master.statsJson) as Map<String, dynamic>;
-      expect(stats['panelCount'], 2);
-      expect(stats['overlapPairs'], 1);
+        // The stitched master is a NEW integrated_masters row, finalized/batch.
+        expect(outcome.panelCount, 2);
+        final master = await mastersDao.getById(outcome.outputMasterId);
+        expect(master, isNotNull);
+        expect(master!.name, 'Veil 1x2 · Mosaic');
+        expect(master.masterFitsPath, '/projects/veil/Veil_1x2_mosaic.fits');
+        expect(master.previewPngPath, '/projects/veil/Veil_1x2_mosaic.png');
+        // Canvas geometry came from the stitch result (100 * 2 panels wide).
+        expect(master.width, 200);
+        expect(master.height, 80);
+        final stats = jsonDecode(master.statsJson) as Map<String, dynamic>;
+        expect(stats['panelCount'], 2);
+        expect(stats['overlapPairs'], 1);
 
-      // The project is complete and linked to the mosaic master.
-      final project = await projectsDao.getById(projectId);
-      expect(project!.status, MosaicProjectStatus.complete);
-      expect(project.outputMasterId, outcome.outputMasterId);
-      expect(project.isComplete, isTrue);
-    });
+        // The project is complete and linked to the mosaic master.
+        final project = await projectsDao.getById(projectId);
+        expect(project!.status, MosaicProjectStatus.complete);
+        expect(project.outputMasterId, outcome.outputMasterId);
+        expect(project.isComplete, isTrue);
+      },
+    );
 
-    test('passes each panel master\'s persisted WCS into the stitch request',
-        () async {
-      // Build the pair WITHOUT the blanket-WCS stamp so we control each panel's
-      // WCS independently.
-      final p0Target = await seedTarget('WCS Panel 1');
-      final p1Target = await seedTarget('WCS Panel 2');
-      await seedSub(targetId: p0Target, path: '/p0/a.fits');
-      await seedSub(targetId: p1Target, path: '/p1/a.fits');
-      final projectId = await service.createProject(
-        name: 'Veil 1x2',
-        rows: 1,
-        cols: 2,
-        centerRa: 20.85,
-        centerDec: 30.7,
-        panelWidthArcmin: 30,
-        panelHeightArcmin: 20,
-        panelTargetId: (i) => i == 0 ? p0Target : p1Target,
-      );
-      await service.integratePanels(
-        projectId,
-        settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '$outRoot/panel_${panel.panelIndex}.fits',
-      );
+    test(
+      'passes each panel master\'s persisted WCS into the stitch request',
+      () async {
+        // Build the pair WITHOUT the blanket-WCS stamp so we control each panel's
+        // WCS independently.
+        final p0Target = await seedTarget('WCS Panel 1');
+        final p1Target = await seedTarget('WCS Panel 2');
+        await seedSub(targetId: p0Target, path: '/p0/a.fits');
+        await seedSub(targetId: p1Target, path: '/p1/a.fits');
+        final projectId = await service.createProject(
+          name: 'Veil 1x2',
+          rows: 1,
+          cols: 2,
+          centerRa: 20.85,
+          centerDec: 30.7,
+          panelWidthArcmin: 30,
+          panelHeightArcmin: 20,
+          panelTargetId: (i) => i == 0 ? p0Target : p1Target,
+        );
+        await service.integratePanels(
+          projectId,
+          settings: IntegrationSettings.defaults,
+          outputFitsPathBuilder: (panel) =>
+              '$outRoot/panel_${panel.panelIndex}.fits',
+        );
 
-      // Stamp a persisted WCS onto panel 0's master (the v44 columns the
-      // per-panel integration plate-solved). Leave panel 1 WITHOUT a persisted
-      // WCS — its FITS header carries the WCS, so the WCS gate admits it via the
-      // header probe and the native side parses the header itself.
-      final panels = await panelsDao.getForProject(projectId);
-      await mastersDao.updateWcs(
-        panels[0].integratedMasterId!,
-        crval1: 312.0,
-        crval2: 30.7,
-        crpix1: 50,
-        crpix2: 40,
-        cd1_1: -0.0011,
-        cd1_2: 0.0,
-        cd2_1: 0.0,
-        cd2_2: 0.0011,
-      );
+        // Stamp a persisted WCS onto panel 0's master (the v44 columns the
+        // per-panel integration plate-solved). Leave panel 1 WITHOUT a persisted
+        // WCS — its FITS header carries the WCS, so the WCS gate admits it via the
+        // header probe and the native side parses the header itself.
+        final panels = await panelsDao.getForProject(projectId);
+        await mastersDao.updateWcs(
+          panels[0].integratedMasterId!,
+          crval1: 312.0,
+          crval2: 30.7,
+          crpix1: 50,
+          crpix2: 40,
+          cd1_1: -0.0011,
+          cd1_2: 0.0,
+          cd2_1: 0.0,
+          cd2_2: 0.0011,
+        );
 
-      await service.stitchProject(
-        projectId,
-        outputDirectory: '$outRoot/veil',
-        // Panel 1's FITS header has a WCS even though no CD-matrix is persisted.
-        fitsHasWcs: (path) async => path == '$outRoot/panel_1_L.fits',
-      );
+        await service.stitchProject(
+          projectId,
+          outputDirectory: '$outRoot/veil',
+          // Panel 1's FITS header has a WCS even though no CD-matrix is persisted.
+          fitsHasWcs: (path) async => path == '$outRoot/panel_1_L.fits',
+        );
 
-      final call = seam.stitchCalls.single;
-      final p0 = (call['panels'] as List)
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .firstWhere((p) => p['fitsPath'] == '$outRoot/panel_0_L.fits');
-      final p1 = (call['panels'] as List)
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .firstWhere((p) => p['fitsPath'] == '$outRoot/panel_1_L.fits');
-      expect(p0['wcs'], isNotNull);
-      expect((p0['wcs'] as Map)['cd1_1'], -0.0011);
-      expect((p0['wcs'] as Map)['crval1'], 312.0);
-      // No persisted WCS -> no wcs block (native parses the header).
-      expect(p1.containsKey('wcs'), isFalse);
-    });
+        final call = seam.stitchCalls.single;
+        final p0 = (call['panels'] as List)
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .firstWhere((p) => p['fitsPath'] == '$outRoot/panel_0_L.fits');
+        final p1 = (call['panels'] as List)
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .firstWhere((p) => p['fitsPath'] == '$outRoot/panel_1_L.fits');
+        expect(p0['wcs'], isNotNull);
+        expect((p0['wcs'] as Map)['cd1_1'], -0.0011);
+        expect((p0['wcs'] as Map)['crval1'], 312.0);
+        // No persisted WCS -> no wcs block (native parses the header).
+        expect(p1.containsKey('wcs'), isFalse);
+      },
+    );
 
     test('requires >= 2 panels with masters else a clear error', () async {
       // Build a project but integrate only one panel (the other has no subs).
@@ -763,8 +818,7 @@ void main() {
       await service.integratePanels(
         projectId,
         settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '/out/panel_${panel.panelIndex}.fits',
+        outputFitsPathBuilder: (panel) => '/out/panel_${panel.panelIndex}.fits',
       );
 
       await expectLater(
@@ -779,76 +833,83 @@ void main() {
     });
 
     test(
-        'skips a panel master with NO WCS instead of aborting the whole mosaic',
-        () async {
-      // Three panels integrate; one (panel 1) has no persisted WCS and no
-      // header WCS. The WCS gate must SKIP it (report it) and stitch the other
-      // two — NOT hand the WCS-less panel to the stitcher (which would abort the
-      // whole mosaic).
-      final t0 = await seedTarget('WCS-skip P1');
-      final t1 = await seedTarget('WCS-skip P2');
-      final t2 = await seedTarget('WCS-skip P3');
-      await seedSub(targetId: t0, path: '/p0/a.fits');
-      await seedSub(targetId: t1, path: '/p1/a.fits');
-      await seedSub(targetId: t2, path: '/p2/a.fits');
-      final projectId = await service.createProject(
-        name: 'Trio 1x3',
-        rows: 1,
-        cols: 3,
-        centerRa: 20.85,
-        centerDec: 30.7,
-        panelWidthArcmin: 30,
-        panelHeightArcmin: 20,
-        panelTargetId: (i) => [t0, t1, t2][i],
-      );
-      await service.integratePanels(
-        projectId,
-        settings: IntegrationSettings.defaults,
-        outputFitsPathBuilder: (panel) =>
-            '$outRoot/panel_${panel.panelIndex}.fits',
-      );
-      // Stamp WCS on panels 0 and 2 only; panel 1 stays WCS-less.
-      final panels = await panelsDao.getForProject(projectId);
-      for (final idx in [0, 2]) {
-        await mastersDao.updateWcs(
-          panels[idx].integratedMasterId!,
-          crval1: 312.0,
-          crval2: 30.7,
-          crpix1: 50,
-          crpix2: 40,
-          cd1_1: -0.0011,
-          cd1_2: 0.0,
-          cd2_1: 0.0,
-          cd2_2: 0.0011,
+      'skips a panel master with NO WCS instead of aborting the whole mosaic',
+      () async {
+        // Three panels integrate; one (panel 1) has no persisted WCS and no
+        // header WCS. The WCS gate must SKIP it (report it) and stitch the other
+        // two — NOT hand the WCS-less panel to the stitcher (which would abort the
+        // whole mosaic).
+        final t0 = await seedTarget('WCS-skip P1');
+        final t1 = await seedTarget('WCS-skip P2');
+        final t2 = await seedTarget('WCS-skip P3');
+        await seedSub(targetId: t0, path: '/p0/a.fits');
+        await seedSub(targetId: t1, path: '/p1/a.fits');
+        await seedSub(targetId: t2, path: '/p2/a.fits');
+        final projectId = await service.createProject(
+          name: 'Trio 1x3',
+          rows: 1,
+          cols: 3,
+          centerRa: 20.85,
+          centerDec: 30.7,
+          panelWidthArcmin: 30,
+          panelHeightArcmin: 20,
+          panelTargetId: (i) => [t0, t1, t2][i],
         );
-      }
+        await service.integratePanels(
+          projectId,
+          settings: IntegrationSettings.defaults,
+          outputFitsPathBuilder: (panel) =>
+              '$outRoot/panel_${panel.panelIndex}.fits',
+        );
+        // Stamp WCS on panels 0 and 2 only; panel 1 stays WCS-less.
+        final panels = await panelsDao.getForProject(projectId);
+        for (final idx in [0, 2]) {
+          await mastersDao.updateWcs(
+            panels[idx].integratedMasterId!,
+            crval1: 312.0,
+            crval2: 30.7,
+            crpix1: 50,
+            crpix2: 40,
+            cd1_1: -0.0011,
+            cd1_2: 0.0,
+            cd2_1: 0.0,
+            cd2_2: 0.0011,
+          );
+        }
 
-      // No fitsHasWcs probe -> panel 1 cannot prove a header WCS -> skipped.
-      // (Its FITS file DOES exist — the seam wrote it — so the skip is the WCS
-      // gate, not the new file-existence gate.)
-      final outcome = await service.stitchProject(projectId,
-          outputDirectory: '$outRoot/trio');
+        // No fitsHasWcs probe -> panel 1 cannot prove a header WCS -> skipped.
+        // (Its FITS file DOES exist — the seam wrote it — so the skip is the WCS
+        // gate, not the new file-existence gate.)
+        final outcome = await service.stitchProject(
+          projectId,
+          outputDirectory: '$outRoot/trio',
+        );
 
-      // The stitch ran on the TWO WCS panels; panel 1 was skipped + reported.
-      expect(outcome.panelCount, 2);
-      expect(outcome.skips, hasLength(1));
-      expect(outcome.skips.single.panelIndex, 1);
-      expect(outcome.skips.single.reason, contains('WCS'));
-      final call = seam.stitchCalls.single;
-      final paths = (call['panels'] as List)
-          .map((p) => (p as Map)['fitsPath'] as String)
-          .toList();
-      expect(paths,
-          containsAll(['$outRoot/panel_0_L.fits', '$outRoot/panel_2_L.fits']));
-      expect(paths.contains('$outRoot/panel_1_L.fits'), isFalse,
-          reason: 'the WCS-less panel must NOT be handed to the stitcher');
-      // The project still completed (the WCS panels stitched fine).
-      final project = await projectsDao.getById(projectId);
-      expect(project!.status, MosaicProjectStatus.complete);
-    });
+        // The stitch ran on the TWO WCS panels; panel 1 was skipped + reported.
+        expect(outcome.panelCount, 2);
+        expect(outcome.skips, hasLength(1));
+        expect(outcome.skips.single.panelIndex, 1);
+        expect(outcome.skips.single.reason, contains('WCS'));
+        final call = seam.stitchCalls.single;
+        final paths = (call['panels'] as List)
+            .map((p) => (p as Map)['fitsPath'] as String)
+            .toList();
+        expect(
+          paths,
+          containsAll(['$outRoot/panel_0_L.fits', '$outRoot/panel_2_L.fits']),
+        );
+        expect(
+          paths.contains('$outRoot/panel_1_L.fits'),
+          isFalse,
+          reason: 'the WCS-less panel must NOT be handed to the stitcher',
+        );
+        // The project still completed (the WCS panels stitched fine).
+        final project = await projectsDao.getById(projectId);
+        expect(project!.status, MosaicProjectStatus.complete);
+      },
+    );
 
-    test(
-        'skips a panel whose master FITS is MISSING on disk instead of aborting '
+    test('skips a panel whose master FITS is MISSING on disk instead of aborting '
         'the whole mosaic', () async {
       // Finding #4 guard: a non-empty FITS path is NOT proof the file is on
       // disk. A master FITS removed by a temp sweep / manual cleanup / a
@@ -857,8 +918,9 @@ void main() {
       // mosaic). The seam writes real files, then we delete ONE panel's FITS to
       // simulate the missing-file case.
       seam.writeMasterFiles = true;
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_mosaic_missing_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_mosaic_missing_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -908,8 +970,10 @@ void main() {
       await File(missingPath).delete();
       expect(await File(missingPath).exists(), isFalse);
 
-      final outcome =
-          await service.stitchProject(projectId, outputDirectory: tempDir.path);
+      final outcome = await service.stitchProject(
+        projectId,
+        outputDirectory: tempDir.path,
+      );
 
       // The stitch ran on the TWO present panels; panel 1 was skipped + reported
       // for the missing file — the mosaic was NOT aborted.
@@ -920,35 +984,38 @@ void main() {
       final paths = (seam.stitchCalls.single['panels'] as List)
           .map((p) => (p as Map)['fitsPath'] as String)
           .toList();
-      expect(paths.contains(missingPath), isFalse,
-          reason: 'the missing-file panel must NOT be handed to the stitcher');
+      expect(
+        paths.contains(missingPath),
+        isFalse,
+        reason: 'the missing-file panel must NOT be handed to the stitcher',
+      );
       final project = await projectsDao.getById(projectId);
       expect(project!.status, MosaicProjectStatus.complete);
     });
 
     test(
-        'reverts project status off `stitching` when the native stitch throws',
-        () async {
-      final projectId = await integratedPair();
-      // Make the seam throw on stitch.
-      seam.throwOnStitch = true;
+      'reverts project status off `stitching` when the native stitch throws',
+      () async {
+        final projectId = await integratedPair();
+        // Make the seam throw on stitch.
+        seam.throwOnStitch = true;
 
-      await expectLater(
-        service.stitchProject(projectId, outputDirectory: '/p/veil'),
-        throwsA(isA<StateError>()),
-      );
+        await expectLater(
+          service.stitchProject(projectId, outputDirectory: '/p/veil'),
+          throwsA(isA<StateError>()),
+        );
 
-      // The project must NOT be left pinned in `stitching` — it reverted to
-      // `integrating` so the stitch can be retried, never stuck in a dead phase.
-      final project = await projectsDao.getById(projectId);
-      expect(project!.status, MosaicProjectStatus.integrating);
-      expect(project.outputMasterId, isNull);
-    });
+        // The project must NOT be left pinned in `stitching` — it reverted to
+        // `integrating` so the stitch can be retried, never stuck in a dead phase.
+        final project = await projectsDao.getById(projectId);
+        expect(project!.status, MosaicProjectStatus.integrating);
+        expect(project.outputMasterId, isNull);
+      },
+    );
   });
 
   group('re-integration idempotency', () {
-    test(
-        're-integrating a panel SETs captured_count (not +=), supersedes the '
+    test('re-integrating a panel SETs captured_count (not +=), supersedes the '
         'previous master ROW (no orphan), and PRESERVES the freshly-written '
         'master FITS on the durable deterministic path', () async {
       // PRODUCTION-FAITHFUL: the seam actually writes the master FITS at
@@ -964,8 +1031,9 @@ void main() {
       // asserting the live file is DELETED; the correct invariant is the new
       // file SURVIVES.
       seam.writeMasterFiles = true;
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_mosaic_reint_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_mosaic_reint_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -1016,17 +1084,27 @@ void main() {
         outputFitsPathBuilder: panelBase,
       );
       panels = await panelsDao.getForProject(projectId);
-      expect(panels.single.capturedCount, 2,
-          reason: 'captured_count must be SET to the accepted population, '
-              'not accumulated to 4 on a re-run');
+      expect(
+        panels.single.capturedCount,
+        2,
+        reason:
+            'captured_count must be SET to the accepted population, '
+            'not accumulated to 4 on a re-run',
+      );
 
       // The old master row is gone (superseded), not orphaned alongside a new
       // one. The total master count did not grow.
       final mastersAfter = await mastersDao.getAll();
-      expect(mastersAfter.length, mastersBefore.length,
-          reason: 're-integration must supersede the old master, not orphan it');
-      expect(await mastersDao.getById(firstMasterId), isNull,
-          reason: 'the previous master row must be deleted on re-integration');
+      expect(
+        mastersAfter.length,
+        mastersBefore.length,
+        reason: 're-integration must supersede the old master, not orphan it',
+      );
+      expect(
+        await mastersDao.getById(firstMasterId),
+        isNull,
+        reason: 'the previous master row must be deleted on re-integration',
+      );
 
       // The panel points at a fresh, live master.
       final newMasterId = panels.single.integratedMasterId!;
@@ -1038,16 +1116,23 @@ void main() {
       // deterministic path the prior master used — MUST still exist. The
       // previous id-only supersession deleted it; the path-aware fix preserves
       // it.
-      expect(newMaster!.masterFitsPath, deterministicPath,
-          reason: 'the re-integrated master uses the same durable '
-              'deterministic path as the prior master');
-      expect(await File(deterministicPath).exists(), isTrue,
-          reason: "the freshly-written master FITS on the shared path must "
-              "SURVIVE supersession — it is the live file, not an orphan");
+      expect(
+        newMaster!.masterFitsPath,
+        deterministicPath,
+        reason:
+            'the re-integrated master uses the same durable '
+            'deterministic path as the prior master',
+      );
+      expect(
+        await File(deterministicPath).exists(),
+        isTrue,
+        reason:
+            "the freshly-written master FITS on the shared path must "
+            "SURVIVE supersession — it is the live file, not an orphan",
+      );
     });
 
-    test(
-        'after a same-path re-integration the panel can still be stitched — the '
+    test('after a same-path re-integration the panel can still be stitched — the '
         'preserved master FITS is on disk, not a dead path', () async {
       // End-to-end guard (findings #1/#3/#4): the failure class the WCS gate was
       // added to prevent is "one panel hands the native stitcher a path to a
@@ -1055,8 +1140,9 @@ void main() {
       // mosaic still stitches: both panels' freshly-written masters survive on
       // their durable deterministic paths.
       seam.writeMasterFiles = true;
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_mosaic_reint2_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_mosaic_reint2_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -1096,9 +1182,13 @@ void main() {
       final panels = await panelsDao.getForProject(projectId);
       for (final panel in panels) {
         final master = await mastersDao.getById(panel.integratedMasterId!);
-        expect(await File(master!.masterFitsPath!).exists(), isTrue,
-            reason: 'panel ${panel.panelIndex} master FITS must survive '
-                're-integration so the stitch is not poisoned');
+        expect(
+          await File(master!.masterFitsPath!).exists(),
+          isTrue,
+          reason:
+              'panel ${panel.panelIndex} master FITS must survive '
+              're-integration so the stitch is not poisoned',
+        );
       }
 
       // The stitch goes through: both panels contribute (the file-existence
@@ -1110,9 +1200,13 @@ void main() {
         // file-existence gate (finding #4) is what we exercise here.
         fitsHasWcs: (_) async => true,
       );
-      expect(outcome.panelCount, 2,
-          reason: 'both re-integrated panels must contribute — neither was '
-              'skipped for a missing FITS');
+      expect(
+        outcome.panelCount,
+        2,
+        reason:
+            'both re-integrated panels must contribute — neither was '
+            'skipped for a missing FITS',
+      );
       expect(seam.stitchCalls, hasLength(1));
       expect((seam.stitchCalls.single['panels'] as List), hasLength(2));
     });
@@ -1148,39 +1242,43 @@ void main() {
   });
 
   group('startCapture', () {
-    test('launches the per-panel-target sequence and drives capturing state',
-        () async {
-      final t0 = await seedTarget('Cap P1');
-      final t1 = await seedTarget('Cap P2');
-      final projectId = await service.createProject(
-        name: 'Cap 1x2',
-        rows: 1,
-        cols: 2,
-        centerRa: 0.7,
-        centerDec: 41.0,
-        panelWidthArcmin: 30,
-        panelHeightArcmin: 20,
-        panelTargetId: (i) => i == 0 ? t0 : t1,
-      );
+    test(
+      'launches the per-panel-target sequence and drives capturing state',
+      () async {
+        final t0 = await seedTarget('Cap P1');
+        final t1 = await seedTarget('Cap P2');
+        final projectId = await service.createProject(
+          name: 'Cap 1x2',
+          rows: 1,
+          cols: 2,
+          centerRa: 0.7,
+          centerDec: 41.0,
+          panelWidthArcmin: 30,
+          panelHeightArcmin: 20,
+          panelTargetId: (i) => i == 0 ? t0 : t1,
+        );
 
-      MosaicCaptureRequest? captured;
-      final request = await service.startCapture(
-        projectId,
-        launcher: (req) async => captured = req,
-      );
+        MosaicCaptureRequest? captured;
+        final request = await service.startCapture(
+          projectId,
+          launcher: (req) async => captured = req,
+        );
 
-      // The launcher received a fully-populated, DISTINCT per-panel target map.
-      expect(captured, isNotNull);
-      expect(request.panelTargetIds, {0: t0, 1: t1});
-      expect(request.panelTargetIds.values.toSet(), hasLength(2));
+        // The launcher received a fully-populated, DISTINCT per-panel target map.
+        expect(captured, isNotNull);
+        expect(request.panelTargetIds, {0: t0, 1: t1});
+        expect(request.panelTargetIds.values.toSet(), hasLength(2));
 
-      // Project + non-integrated panels moved into capturing.
-      final project = await projectsDao.getById(projectId);
-      expect(project!.status, MosaicProjectStatus.capturing);
-      final panels = await panelsDao.getForProject(projectId);
-      expect(panels.every((p) => p.status == MosaicPanelStatus.capturing),
-          isTrue);
-    });
+        // Project + non-integrated panels moved into capturing.
+        final project = await projectsDao.getById(projectId);
+        expect(project!.status, MosaicProjectStatus.capturing);
+        final panels = await panelsDao.getForProject(projectId);
+        expect(
+          panels.every((p) => p.status == MosaicPanelStatus.capturing),
+          isTrue,
+        );
+      },
+    );
 
     test('refuses to launch when two panels share a capture target', () async {
       final shared = await seedTarget('Shared cap');
@@ -1197,10 +1295,7 @@ void main() {
 
       var launched = false;
       await expectLater(
-        service.startCapture(
-          projectId,
-          launcher: (_) async => launched = true,
-        ),
+        service.startCapture(projectId, launcher: (_) async => launched = true),
         throwsA(isA<StateError>()),
       );
       // The launcher was never invoked and the project was not flipped.

@@ -40,12 +40,14 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
       bestPosition: r.bestPosition,
       bestHfr: r.bestHfr,
       focusData: r.focusData
-          .map((dp) => FocusDataPoint(
-                position: dp.position,
-                hfr: dp.hfr,
-                fwhm: dp.fwhm,
-                starCount: dp.starCount,
-              ))
+          .map(
+            (dp) => FocusDataPoint(
+              position: dp.position,
+              hfr: dp.hfr,
+              fwhm: dp.fwhm,
+              starCount: dp.starCount,
+            ),
+          )
           .toList(),
       method: r.method,
       temperature: r.temperature,
@@ -57,7 +59,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
   /// Convert bridge CameraCapabilities to pure Dart CameraCapabilities
   CameraCapabilities _fromBridgeCameraCapabilities(
-      bridge_caps.CameraCapabilities c) {
+    bridge_caps.CameraCapabilities c,
+  ) {
     return CameraCapabilities(
       maxWidth: c.maxWidth,
       maxHeight: c.maxHeight,
@@ -99,7 +102,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
   /// Convert bridge MountCapabilities to pure Dart MountCapabilities
   MountCapabilities _fromBridgeMountCapabilities(
-      bridge_caps.MountCapabilities m) {
+    bridge_caps.MountCapabilities m,
+  ) {
     return MountCapabilities(
       canSlew: m.canSlew,
       canSlewAsync: m.canSlewAsync,
@@ -134,7 +138,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
   /// Convert bridge FocuserCapabilities to pure Dart FocuserCapabilities
   FocuserCapabilities _fromBridgeFocuserCapabilities(
-      bridge_caps.FocuserCapabilities f) {
+    bridge_caps.FocuserCapabilities f,
+  ) {
     return FocuserCapabilities(
       maxPosition: f.maxPosition,
       maxIncrement: f.maxIncrement,
@@ -153,7 +158,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
   /// Convert bridge FilterWheelCapabilities to pure Dart FilterWheelCapabilities
   FilterWheelCapabilities _fromBridgeFilterWheelCapabilities(
-      bridge_caps.FilterWheelCapabilities fw) {
+    bridge_caps.FilterWheelCapabilities fw,
+  ) {
     return FilterWheelCapabilities(
       positionCount: fw.positionCount,
       currentPosition: fw.currentPosition,
@@ -167,7 +173,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
   /// Convert bridge RotatorCapabilities to pure Dart RotatorCapabilities
   RotatorCapabilities _fromBridgeRotatorCapabilities(
-      bridge_caps.RotatorCapabilities r) {
+    bridge_caps.RotatorCapabilities r,
+  ) {
     return RotatorCapabilities(
       canReverse: r.canReverse,
       reverse: r.reverse,
@@ -193,8 +200,10 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
   /// - FRB-generated NightshadeError (from Rust)
   /// - AnyhowException (fallback from Rust)
   /// - Generic Dart exceptions
-  dart_error.NightshadeError _toNightshadeError(Object exception,
-      [String? context]) {
+  dart_error.NightshadeError _toNightshadeError(
+    Object exception, [
+    String? context,
+  ]) {
     // Handle FRB-generated NightshadeError from Rust
     if (exception is bridge_error.NightshadeError) {
       return _fromBridgeNightshadeError(exception);
@@ -212,7 +221,8 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
   ///
   /// This preserves all the structured error information from Rust.
   dart_error.NightshadeError _fromBridgeNightshadeError(
-      bridge_error.NightshadeError e) {
+    bridge_error.NightshadeError e,
+  ) {
     return e.when(
       // Connection errors
       deviceNotFound: (deviceId) =>
@@ -232,8 +242,11 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
 
       // Hardware errors
       hardwareError: (deviceId, message, errorCode) =>
-          dart_error.NightshadeError.hardwareError(deviceId, message,
-              errorCode: errorCode),
+          dart_error.NightshadeError.hardwareError(
+            deviceId,
+            message,
+            errorCode: errorCode,
+          ),
       communicationError: (deviceId, message) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.hardware,
         message: 'Communication error: $deviceId - $message',
@@ -246,8 +259,11 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
       // Timeout errors
       timeout: (message) => dart_error.NightshadeError.timeout(message),
       deviceTimeout: (deviceId, operation, timeoutSecs) =>
-          dart_error.NightshadeError.timeout(operation,
-              deviceId: deviceId, timeoutSecs: timeoutSecs),
+          dart_error.NightshadeError.timeout(
+            operation,
+            deviceId: deviceId,
+            timeoutSecs: timeoutSecs,
+          ),
       connectionTimeout: (deviceId, timeoutSecs) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.timeout,
         message:
@@ -275,11 +291,12 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
       ),
       parameterOutOfRange: (paramName, value, min, max) =>
           dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.validation,
-        message:
-            'Parameter out of range: $paramName = $value (valid: $min to $max)',
-        userMessage: '$paramName value $value is out of range ($min to $max)',
-      ),
+            category: dart_error.BackendErrorCategory.validation,
+            message:
+                'Parameter out of range: $paramName = $value (valid: $min to $max)',
+            userMessage:
+                '$paramName value $value is out of range ($min to $max)',
+          ),
 
       // Operation errors
       operationFailed: (message) => dart_error.NightshadeError(
@@ -346,16 +363,16 @@ extension _FfiBackendTypeMappers on _FfiBackendBase {
       ),
       alpacaError: (baseUrl, deviceNumber, message, errorCode) =>
           dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message:
-            'Alpaca error: $baseUrl device $deviceNumber - $message (code: $errorCode)',
-        errorCode: errorCode,
-      ),
+            category: dart_error.BackendErrorCategory.driver,
+            message:
+                'Alpaca error: $baseUrl device $deviceNumber - $message (code: $errorCode)',
+            errorCode: errorCode,
+          ),
       indiError: (server, port, deviceName, message) =>
           dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'INDI error: $server:$port device $deviceName - $message',
-      ),
+            category: dart_error.BackendErrorCategory.driver,
+            message: 'INDI error: $server:$port device $deviceName - $message',
+          ),
       nativeError: (vendor, message, errorCode) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.driver,
         message: 'Native SDK error: $vendor - $message (code: $errorCode)',

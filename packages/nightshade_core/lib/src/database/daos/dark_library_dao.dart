@@ -22,15 +22,13 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
         throw ArgumentError('Dark library entries require a filePath');
       }
 
-      final existing = await (select(darkLibrary)
-            ..where((t) => t.filePath.equals(filePath)))
-          .getSingleOrNull();
+      final existing = await (select(
+        darkLibrary,
+      )..where((t) => t.filePath.equals(filePath))).getSingleOrNull();
 
       if (existing != null) {
         await (update(darkLibrary)..where((t) => t.id.equals(existing.id)))
-            .write(
-          entry.copyWith(id: Value(existing.id)),
-        );
+            .write(entry.copyWith(id: Value(existing.id)));
         return existing.id;
       }
 
@@ -40,16 +38,16 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all entries, newest first.
   Future<List<DarkLibraryEntry>> getAllEntries() {
-    return (select(darkLibrary)
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-        .get();
+    return (select(
+      darkLibrary,
+    )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).get();
   }
 
   /// Watch all entries, newest first.
   Stream<List<DarkLibraryEntry>> watchAllEntries() {
-    return (select(darkLibrary)
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-        .watch();
+    return (select(
+      darkLibrary,
+    )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).watch();
   }
 
   /// Get entries by frame type ('dark' or 'bias').
@@ -88,21 +86,22 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     required int binX,
     required int binY,
     double? temperature,
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
     String frameType = 'dark',
   }) async {
     // Build query: tolerance match on exposure, exact on gain/offset/binning/frame type.
     final exposureTol = tolerances.exposureSecs;
     var query = select(darkLibrary)
-      ..where((t) =>
-          t.exposureTime.isBiggerOrEqualValue(exposureTime - exposureTol) &
-          t.exposureTime.isSmallerOrEqualValue(exposureTime + exposureTol) &
-          t.gain.equals(gain) &
-          t.offset.equals(offset) &
-          t.binX.equals(binX) &
-          t.binY.equals(binY) &
-          t.frameType.equals(frameType));
+      ..where(
+        (t) =>
+            t.exposureTime.isBiggerOrEqualValue(exposureTime - exposureTol) &
+            t.exposureTime.isSmallerOrEqualValue(exposureTime + exposureTol) &
+            t.gain.equals(gain) &
+            t.offset.equals(offset) &
+            t.binX.equals(binX) &
+            t.binY.equals(binY) &
+            t.frameType.equals(frameType),
+      );
 
     final candidates = await query.get();
     if (candidates.isEmpty) return null;
@@ -158,27 +157,33 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     required int binX,
     required int binY,
     String frameType = 'dark',
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
   }) {
     final exposureTol = tolerances.exposureSecs;
     return (select(darkLibrary)
-          ..where((t) =>
-              t.exposureTime.isBiggerOrEqualValue(exposureTime - exposureTol) &
-              t.exposureTime.isSmallerOrEqualValue(exposureTime + exposureTol) &
-              t.gain.equals(gain) &
-              t.binX.equals(binX) &
-              t.binY.equals(binY) &
-              t.frameType.equals(frameType) &
-              t.masterDarkPath.isNull()) // Only raw frames
+          ..where(
+            (t) =>
+                t.exposureTime.isBiggerOrEqualValue(
+                  exposureTime - exposureTol,
+                ) &
+                t.exposureTime.isSmallerOrEqualValue(
+                  exposureTime + exposureTol,
+                ) &
+                t.gain.equals(gain) &
+                t.binX.equals(binX) &
+                t.binY.equals(binY) &
+                t.frameType.equals(frameType) &
+                t.masterDarkPath.isNull(),
+          ) // Only raw frames
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
   }
 
   /// Get a single entry by ID.
   Future<DarkLibraryEntry?> getEntryById(int id) {
-    return (select(darkLibrary)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      darkLibrary,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
   /// Delete an entry by ID.
@@ -217,16 +222,20 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     // Count bias frames (non-master)
     final biasQuery = selectOnly(darkLibrary)
       ..addColumns([totalExp])
-      ..where(darkLibrary.frameType.equals('bias') &
-          darkLibrary.masterDarkPath.isNull());
+      ..where(
+        darkLibrary.frameType.equals('bias') &
+            darkLibrary.masterDarkPath.isNull(),
+      );
     final biasResult = await biasQuery.getSingle();
     final biasCount = biasResult.read(totalExp) ?? 0;
 
     // Count dark frames (non-master, non-bias)
     final darkQuery = selectOnly(darkLibrary)
       ..addColumns([totalExp])
-      ..where(darkLibrary.frameType.equals('dark') &
-          darkLibrary.masterDarkPath.isNull());
+      ..where(
+        darkLibrary.frameType.equals('dark') &
+            darkLibrary.masterDarkPath.isNull(),
+      );
     final darkResult = await darkQuery.getSingle();
     final darkCount = darkResult.read(totalExp) ?? 0;
 
@@ -272,17 +281,23 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     if (exposureSeconds != null) {
       final tol = exposureSeconds * exposureSecondsRatio;
       query = query
-        ..where((t) =>
-            t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
-            t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+        ..where(
+          (t) =>
+              t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
+              t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol),
+        );
     }
     if (temperatureCelsius != null) {
       query = query
-        ..where((t) =>
-            t.temperature.isBiggerOrEqualValue(
-                temperatureCelsius - temperatureWindow) &
-            t.temperature.isSmallerOrEqualValue(
-                temperatureCelsius + temperatureWindow));
+        ..where(
+          (t) =>
+              t.temperature.isBiggerOrEqualValue(
+                temperatureCelsius - temperatureWindow,
+              ) &
+              t.temperature.isSmallerOrEqualValue(
+                temperatureCelsius + temperatureWindow,
+              ),
+        );
     }
     return query.get();
   }
@@ -299,9 +314,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
   /// so the equivalent operator-facing endpoint becomes a real-time stat
   /// scan returning the counts that the file-size backfill on the image
   /// table provides.
-  Future<Map<String, int>> verifyOnDiskState({
-    LoggingService? logger,
-  }) async {
+  Future<Map<String, int>> verifyOnDiskState({LoggingService? logger}) async {
     final entries = await getAllEntries();
     int present = 0;
     int missing = 0;
@@ -368,17 +381,23 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     if (exposureSeconds != null) {
       final tol = exposureSeconds * exposureSecondsRatio;
       query = query
-        ..where((t) =>
-            t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
-            t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+        ..where(
+          (t) =>
+              t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
+              t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol),
+        );
     }
     if (temperatureCelsius != null) {
       query = query
-        ..where((t) =>
-            t.temperature.isBiggerOrEqualValue(
-                temperatureCelsius - temperatureWindow) &
-            t.temperature.isSmallerOrEqualValue(
-                temperatureCelsius + temperatureWindow));
+        ..where(
+          (t) =>
+              t.temperature.isBiggerOrEqualValue(
+                temperatureCelsius - temperatureWindow,
+              ) &
+              t.temperature.isSmallerOrEqualValue(
+                temperatureCelsius + temperatureWindow,
+              ),
+        );
     }
     return query.get();
   }
@@ -402,15 +421,22 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     }
     if (exposureSeconds != null) {
       final tol = exposureSeconds * exposureSecondsRatio;
-      query.where(darkLibrary.exposureTime
-              .isBiggerOrEqualValue(exposureSeconds - tol) &
-          darkLibrary.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+      query.where(
+        darkLibrary.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
+            darkLibrary.exposureTime.isSmallerOrEqualValue(
+              exposureSeconds + tol,
+            ),
+      );
     }
     if (temperatureCelsius != null) {
-      query.where(darkLibrary.temperature
-              .isBiggerOrEqualValue(temperatureCelsius - temperatureWindow) &
-          darkLibrary.temperature
-              .isSmallerOrEqualValue(temperatureCelsius + temperatureWindow));
+      query.where(
+        darkLibrary.temperature.isBiggerOrEqualValue(
+              temperatureCelsius - temperatureWindow,
+            ) &
+            darkLibrary.temperature.isSmallerOrEqualValue(
+              temperatureCelsius + temperatureWindow,
+            ),
+      );
     }
     final row = await query.getSingle();
     return row.read(countExpr) ?? 0;

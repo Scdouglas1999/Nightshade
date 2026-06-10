@@ -72,8 +72,9 @@ class OrphanedNodesRule implements SequenceValidator {
       referenced.addAll(node.childIds);
     }
 
-    final orphaned =
-        sequence.nodes.keys.where((id) => !referenced.contains(id)).toList();
+    final orphaned = sequence.nodes.keys
+        .where((id) => !referenced.contains(id))
+        .toList();
     if (orphaned.isEmpty) return const [];
 
     return [
@@ -104,14 +105,16 @@ class EmptyContainerRule implements SequenceValidator {
       // message), so let TargetEmptyRule own that one.
       if (node is TargetHeaderNode) continue;
       if (isContainerNode(node) && node.childIds.isEmpty) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.structure,
-          title: 'Empty Container',
-          description: '${node.name} is empty and will be skipped.',
-          affectedNodeId: node.id,
-          resolutionHint: 'Add child nodes or remove the empty container.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.structure,
+            title: 'Empty Container',
+            description: '${node.name} is empty and will be skipped.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Add child nodes or remove the empty container.',
+          ),
+        );
       }
     }
     return issues;
@@ -148,18 +151,20 @@ class UnboundedLoopRule implements SequenceValidator {
       final hasUntilAltitude = node.repeatUntilAltitude != null;
       if (hasSafetyCap || hasUntilTime || hasUntilAltitude) continue;
 
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.error,
-        category: ValidationCategory.structure,
-        title: 'Unbounded Loop',
-        description:
-            'Loop "${node.name}" has no terminating condition or safety cap '
-            'and will run indefinitely.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Set a maximum iteration count, an "until" time, an altitude limit, '
-            'or a safety iteration cap on the loop.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.structure,
+          title: 'Unbounded Loop',
+          description:
+              'Loop "${node.name}" has no terminating condition or safety cap '
+              'and will run indefinitely.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Set a maximum iteration count, an "until" time, an altitude limit, '
+              'or a safety iteration cap on the loop.',
+        ),
+      );
     }
     return issues;
   }

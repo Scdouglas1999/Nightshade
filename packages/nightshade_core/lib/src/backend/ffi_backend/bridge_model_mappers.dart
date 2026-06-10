@@ -2,7 +2,8 @@ part of '../ffi_backend.dart';
 
 extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
   dart_status.CameraStatus _fromBridgeCameraStatus(
-      bridge_device.CameraStatus s) {
+    bridge_device.CameraStatus s,
+  ) {
     return dart_status.CameraStatus(
       connected: s.connected,
       state: _fromBridgeCameraState(s.state),
@@ -98,7 +99,8 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
   }
 
   dart_status.FocuserStatus _fromBridgeFocuserStatus(
-      bridge_device.FocuserStatus s) {
+    bridge_device.FocuserStatus s,
+  ) {
     return dart_status.FocuserStatus(
       connected: s.connected,
       position: s.position,
@@ -112,7 +114,8 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
   }
 
   dart_status.FilterWheelStatus _fromBridgeFilterWheelStatus(
-      bridge_device.FilterWheelStatus s) {
+    bridge_device.FilterWheelStatus s,
+  ) {
     return dart_status.FilterWheelStatus(
       connected: s.connected,
       position: s.position,
@@ -123,7 +126,8 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
   }
 
   dart_status.RotatorStatus _fromBridgeRotatorStatus(
-      bridge_device.RotatorStatus s) {
+    bridge_device.RotatorStatus s,
+  ) {
     return dart_status.RotatorStatus(
       connected: s.connected,
       position: s.position,
@@ -134,9 +138,9 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
     );
   }
 
-// =========================================================================
-// Type Conversion Helpers
-// =========================================================================
+  // =========================================================================
+  // Type Conversion Helpers
+  // =========================================================================
 
   bridge.DeviceType _toBridgeDeviceType(DeviceType type) {
     switch (type) {
@@ -207,7 +211,7 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
     }
   }
 
-// Mappers
+  // Mappers
   models.AppSettings _fromBridgeSettings(bridge.AppSettings s) {
     final loc = s.location != null ? _fromBridgeLocation(s.location!) : null;
     return models.AppSettings(
@@ -234,7 +238,8 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
 
   bridge.AppSettings _toBridgeSettings(models.AppSettings s) {
     // Use location if available, otherwise create from direct fields
-    final loc = s.location ??
+    final loc =
+        s.location ??
         (s.latitude != 0.0 || s.longitude != 0.0
             ? models.ObserverLocation(
                 latitude: s.latitude,

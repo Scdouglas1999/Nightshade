@@ -32,7 +32,8 @@ class MobileTopOverlay extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: colors.surfaceOverlay.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Text(
                   DateFormat('HH:mm').format(time.time),
@@ -55,7 +56,8 @@ class MobileTopOverlay extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surfaceOverlay.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Text(
                     'LST ${_formatHours(lst)}',

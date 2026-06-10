@@ -9,9 +9,7 @@ void main() {
   group('readPhd2StatusOrDisconnected', () {
     test('returns disconnected status when host throws', () async {
       final backend = _MockBackend();
-      when(() => backend.phd2GetStatus()).thenThrow(
-        StateError('NotConnected'),
-      );
+      when(() => backend.phd2GetStatus()).thenThrow(StateError('NotConnected'));
 
       final status = await readPhd2StatusOrDisconnected(backend);
       expect(status.connected, isFalse);
@@ -32,9 +30,9 @@ void main() {
   group('pollPhd2Connected', () {
     test('throws when PHD2 never reports connected', () async {
       final backend = _MockBackend();
-      when(() => backend.phd2GetStatus()).thenAnswer(
-        (_) async => kPhd2DisconnectedStatus,
-      );
+      when(
+        () => backend.phd2GetStatus(),
+      ).thenAnswer((_) async => kPhd2DisconnectedStatus);
 
       await expectLater(
         pollPhd2Connected(

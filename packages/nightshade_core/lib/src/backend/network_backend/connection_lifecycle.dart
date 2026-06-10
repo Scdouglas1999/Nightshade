@@ -53,8 +53,11 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     if (_connectionState != newState) {
       _connectionState = newState;
       _connectionStateController.add(newState);
-      developer.log('[NetworkBackend] Connection state changed to: $newState',
-          name: 'NetworkBackend', level: 800);
+      developer.log(
+        '[NetworkBackend] Connection state changed to: $newState',
+        name: 'NetworkBackend',
+        level: 800,
+      );
     }
   }
 
@@ -63,15 +66,22 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     try {
       final compatibility = await _checkServerCompatibility();
       if (!compatibility.isCompatible) {
-        developer.log('Connection rejected: ${compatibility.message}',
-            name: 'NetworkBackend', level: 900);
+        developer.log(
+          'Connection rejected: ${compatibility.message}',
+          name: 'NetworkBackend',
+          level: 900,
+        );
         return false;
       }
 
       return true;
     } catch (e) {
-      developer.log('Connection test failed: $e',
-          name: 'NetworkBackend', level: 900, error: e);
+      developer.log(
+        'Connection test failed: $e',
+        name: 'NetworkBackend',
+        level: 900,
+        error: e,
+      );
       return false;
     }
   }
@@ -79,8 +89,9 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
   Future<RemoteApiCompatibilityResult> _checkServerCompatibility() async {
     final uri = _apiUri('info');
     final headers = <String, String>{
-      RemoteApiCompatibility.apiVersionHeader:
-          RemoteApiCompatibility.clientApiVersion.format(),
+      RemoteApiCompatibility.apiVersionHeader: RemoteApiCompatibility
+          .clientApiVersion
+          .format(),
       _NetworkBackendTransport._requestIdHeader: _nextRequestId('compat'),
     };
     // The handshake probe gets a fixed short ceiling regardless of the
@@ -89,10 +100,12 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     // unreachable rather than hang the connect UI. Remote tailnet paths get a
     // little more slack than the LAN 3 s since a cold DERP route can add a
     // round-trip or two before the first byte.
-    final probeTimeout =
-        isRemoteHost ? const Duration(seconds: 6) : const Duration(seconds: 3);
-    final response =
-        await _http.get(uri, headers: headers).timeout(probeTimeout);
+    final probeTimeout = isRemoteHost
+        ? const Duration(seconds: 6)
+        : const Duration(seconds: 3);
+    final response = await _http
+        .get(uri, headers: headers)
+        .timeout(probeTimeout);
     if (response.statusCode != 200) {
       throw HttpException(
         'GET /api/info failed with HTTP ${response.statusCode}',
@@ -184,17 +197,19 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       );
       _lastSeenEventSeq = null;
       if (!_eventController.isClosed) {
-        _eventController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          category: EventCategory.system,
-          eventType: 'BackendReconnected',
-          severity: EventSeverity.info,
-          data: {
-            'message': 'Server instance changed; cached state invalidated',
-            'previousInstance': previous,
-            'currentInstance': advertisedInstance,
-          },
-        ));
+        _eventController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            category: EventCategory.system,
+            eventType: 'BackendReconnected',
+            severity: EventSeverity.info,
+            data: {
+              'message': 'Server instance changed; cached state invalidated',
+              'previousInstance': previous,
+              'currentInstance': advertisedInstance,
+            },
+          ),
+        );
       }
     }
     _serverInstanceId = advertisedInstance;
@@ -217,14 +232,19 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       // and stays true for the lifetime of this backend instance — a
       // dispose+recreate (via BackendNotifier swap) starts the cycle
       // over, which is the intended UX for "I changed servers".
-      _updateConnectionState(_hasEverConnected
-          ? BackendConnectionState.reconnecting
-          : BackendConnectionState.connecting);
+      _updateConnectionState(
+        _hasEverConnected
+            ? BackendConnectionState.reconnecting
+            : BackendConnectionState.connecting,
+      );
 
       final compatibility = await _checkServerCompatibility();
       if (!compatibility.isCompatible) {
-        developer.log('Connection rejected: ${compatibility.message}',
-            name: 'NetworkBackend', level: 900);
+        developer.log(
+          'Connection rejected: ${compatibility.message}',
+          name: 'NetworkBackend',
+          level: 900,
+        );
         // Version mismatch is a terminal condition — the caller must
         // upgrade or downgrade one side before retrying. Emit `error`
         // rather than `disconnected` so the UI surfaces this as an
@@ -237,8 +257,8 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       if (authToken != null && authToken!.isNotEmpty) {
         queryParameters['token'] = authToken!;
       }
-      queryParameters['apiVersion'] =
-          RemoteApiCompatibility.clientApiVersion.format();
+      queryParameters['apiVersion'] = RemoteApiCompatibility.clientApiVersion
+          .format();
       // P1-1: if we've previously attached to this server instance and have
       // a seq cursor to ask replay from, include both. The server-side
       // /events handler treats omitting either parameter as "fresh
@@ -281,10 +301,12 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
             }
 
             if (type == 'ping') {
-              _wsChannel?.sink.add(jsonEncode({
-                'type': 'pong',
-                'timestamp': DateTime.now().toUtc().toIso8601String(),
-              }));
+              _wsChannel?.sink.add(
+                jsonEncode({
+                  'type': 'pong',
+                  'timestamp': DateTime.now().toUtc().toIso8601String(),
+                }),
+              );
               return;
             }
 
@@ -321,19 +343,21 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
                 _serverInstanceId = currentInstance;
                 _previousServerInstanceId = currentInstance;
               }
-              _eventController.add(NightshadeEvent(
-                timestamp: DateTime.now().millisecondsSinceEpoch,
-                category: EventCategory.system,
-                eventType: 'BackendReconnected',
-                severity: EventSeverity.info,
-                data: {
-                  'message': 'Server requested resync',
-                  'reason': reason,
-                  if (currentSeq != null) 'currentSeq': currentSeq,
-                  if (currentInstance != null)
-                    'currentInstance': currentInstance,
-                },
-              ));
+              _eventController.add(
+                NightshadeEvent(
+                  timestamp: DateTime.now().millisecondsSinceEpoch,
+                  category: EventCategory.system,
+                  eventType: 'BackendReconnected',
+                  severity: EventSeverity.info,
+                  data: {
+                    'message': 'Server requested resync',
+                    'reason': reason,
+                    if (currentSeq != null) 'currentSeq': currentSeq,
+                    if (currentInstance != null)
+                      'currentInstance': currentInstance,
+                  },
+                ),
+              );
               return;
             }
 
@@ -347,19 +371,30 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
               _polarAlignController.add(event.data);
             }
           } catch (e) {
-            developer.log('Error parsing WebSocket message: $e',
-                name: 'NetworkBackend', level: 900, error: e);
+            developer.log(
+              'Error parsing WebSocket message: $e',
+              name: 'NetworkBackend',
+              level: 900,
+              error: e,
+            );
           }
         },
         onError: (error) {
-          developer.log('WebSocket error: $error',
-              name: 'NetworkBackend', level: 1000, error: error);
+          developer.log(
+            'WebSocket error: $error',
+            name: 'NetworkBackend',
+            level: 1000,
+            error: error,
+          );
           _eventController.addError(error);
           _handleConnectionFailure();
         },
         onDone: () {
-          developer.log('WebSocket connection closed',
-              name: 'NetworkBackend', level: 900);
+          developer.log(
+            'WebSocket connection closed',
+            name: 'NetworkBackend',
+            level: 900,
+          );
           _handleConnectionFailure();
         },
       );
@@ -369,8 +404,11 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       _hasEverConnected = true;
       final wasReconnect = _reconnectAttempt > 0;
       _reconnectAttempt = 0; // Reset reconnect counter on success
-      developer.log('[NetworkBackend] WebSocket connected successfully',
-          name: 'NetworkBackend', level: 800);
+      developer.log(
+        '[NetworkBackend] WebSocket connected successfully',
+        name: 'NetworkBackend',
+        level: 800,
+      );
       _startWebSocketHeartbeat();
 
       // P2-2: identify ourselves as a collaboration viewer immediately
@@ -385,13 +423,15 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       // their cached state. Events that occurred while disconnected are lost,
       // so UI components watching this stream should re-fetch latest state.
       if (wasReconnect) {
-        _eventController.add(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          category: EventCategory.system,
-          eventType: 'BackendReconnected',
-          severity: EventSeverity.info,
-          data: const {'message': 'WebSocket reconnected'},
-        ));
+        _eventController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            category: EventCategory.system,
+            eventType: 'BackendReconnected',
+            severity: EventSeverity.info,
+            data: const {'message': 'WebSocket reconnected'},
+          ),
+        );
       }
     } on dart_error.ServerIdentityMismatchError catch (e) {
       // Fail-closed terminal error: the host advertised a fingerprint that does
@@ -413,8 +453,12 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       _updateConnectionState(BackendConnectionState.error);
       return;
     } catch (e) {
-      developer.log('Failed to connect WebSocket: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to connect WebSocket: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       _handleConnectionFailure();
     }
   }
@@ -439,23 +483,27 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
         4,
         8,
         16,
-        _NetworkBackendTransport._maxReconnectDelay
+        _NetworkBackendTransport._maxReconnectDelay,
       ][_reconnectAttempt.clamp(0, 5)],
     );
 
     _reconnectAttempt++;
     developer.log(
-        '[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)',
-        name: 'NetworkBackend',
-        level: 800);
+      '[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)',
+      name: 'NetworkBackend',
+      level: 800,
+    );
 
     _reconnectTimer = Timer(delay, () {
       if (_disposed || _disconnecting) {
         return;
       }
       if (_connectionState != BackendConnectionState.connected) {
-        developer.log('[NetworkBackend] Attempting reconnection...',
-            name: 'NetworkBackend', level: 800);
+        developer.log(
+          '[NetworkBackend] Attempting reconnection...',
+          name: 'NetworkBackend',
+          level: 800,
+        );
         connect();
       }
     });
@@ -475,8 +523,11 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       if (lastMessageAt != null &&
           DateTime.now().difference(lastMessageAt) >
               webSocketHeartbeatTimeout) {
-        developer.log('[NetworkBackend] WebSocket heartbeat timed out',
-            name: 'NetworkBackend', level: 900);
+        developer.log(
+          '[NetworkBackend] WebSocket heartbeat timed out',
+          name: 'NetworkBackend',
+          level: 900,
+        );
         _wsSubscription?.cancel();
         _wsSubscription = null;
         _wsChannel?.sink.close();
@@ -493,17 +544,23 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
         // still in flight, the older measurement is stale and the newer
         // one is what the operator cares about.
         _pendingPingSentAt = DateTime.now();
-        _wsChannel?.sink.add(jsonEncode({
-          'type': 'ping',
-          'timestamp': _pendingPingSentAt!.toUtc().toIso8601String(),
-        }));
+        _wsChannel?.sink.add(
+          jsonEncode({
+            'type': 'ping',
+            'timestamp': _pendingPingSentAt!.toUtc().toIso8601String(),
+          }),
+        );
       } catch (e) {
         // Don't leave a stale pending-ping timestamp behind on send failure;
         // a future successful ping would otherwise be computed against the
         // wrong sentAt and emit a wildly inflated latency.
         _pendingPingSentAt = null;
-        developer.log('[NetworkBackend] Failed to send WebSocket heartbeat: $e',
-            name: 'NetworkBackend', level: 900, error: e);
+        developer.log(
+          '[NetworkBackend] Failed to send WebSocket heartbeat: $e',
+          name: 'NetworkBackend',
+          level: 900,
+          error: e,
+        );
         _handleConnectionFailure();
       }
     });
@@ -612,13 +669,15 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       // disagrees. Sending the same value the auth path will derive is
       // therefore the correct behaviour even though the server's
       // override makes it functionally redundant.
-      channel.sink.add(jsonEncode({
-        'type': 'collaboration.join',
-        if (viewerId != null && viewerId.isNotEmpty) 'viewerId': viewerId,
-        if (deviceName != null && deviceName.isNotEmpty)
-          'deviceName': deviceName,
-        'name': displayName,
-      }));
+      channel.sink.add(
+        jsonEncode({
+          'type': 'collaboration.join',
+          if (viewerId != null && viewerId.isNotEmpty) 'viewerId': viewerId,
+          if (deviceName != null && deviceName.isNotEmpty)
+            'deviceName': deviceName,
+          'name': displayName,
+        }),
+      );
     } catch (e) {
       developer.log(
         '[NetworkBackend] Failed to send collaboration.join: $e',
@@ -639,10 +698,9 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       return;
     }
     try {
-      channel.sink.add(jsonEncode({
-        'type': 'collaboration.leave',
-        'viewerId': viewerId,
-      }));
+      channel.sink.add(
+        jsonEncode({'type': 'collaboration.leave', 'viewerId': viewerId}),
+      );
     } catch (e) {
       // Closing-time failure is expected on a dead socket; log at FINE.
       developer.log(

@@ -39,7 +39,9 @@ void main() {
   });
 
   Future<CapturedImage> insertSub(String path, {String filter = 'L'}) async {
-    final id = await db.into(db.capturedImages).insert(
+    final id = await db
+        .into(db.capturedImages)
+        .insert(
           CapturedImagesCompanion.insert(
             filePath: path,
             fileName: path.split('/').last,
@@ -56,47 +58,49 @@ void main() {
     return (await imagesDao.getImageById(id))!;
   }
 
-  test('createMaster inserts an accumulating, runningWeightedMean row',
-      () async {
-    final ref = await insertSub('/n1/ref.fits');
-    seam.scriptedAccumulate['create'] = [
-      const MasterAccumulateResult(
+  test(
+    'createMaster inserts an accumulating, runningWeightedMean row',
+    () async {
+      final ref = await insertSub('/n1/ref.fits');
+      seam.scriptedAccumulate['create'] = [
+        const MasterAccumulateResult(
+          sidecarPath: '/m/m51.nsmaster',
+          masterPath: null,
+          previewPath: null,
+          frameCount: 0,
+          totalIntegrationSec: 0.0,
+          width: 100,
+          height: 80,
+          channels: 1,
+          framesAdded: 0,
+          rejected: 0,
+        ),
+      ];
+
+      final id = await service.createMaster(
+        referenceSub: ref,
         sidecarPath: '/m/m51.nsmaster',
-        masterPath: null,
-        previewPath: null,
-        frameCount: 0,
-        totalIntegrationSec: 0.0,
-        width: 100,
-        height: 80,
-        channels: 1,
-        framesAdded: 0,
-        rejected: 0,
-      ),
-    ];
+        targetName: 'M51',
+        filter: 'L',
+      );
 
-    final id = await service.createMaster(
-      referenceSub: ref,
-      sidecarPath: '/m/m51.nsmaster',
-      targetName: 'M51',
-      filter: 'L',
-    );
+      final master = await mastersDao.getById(id);
+      expect(master, isNotNull);
+      expect(master!.status, IntegratedMasterStatus.accumulating);
+      expect(master.accumulationMode, AccumulationMode.runningWeightedMean);
+      expect(master.sidecarPath, '/m/m51.nsmaster');
+      expect(master.filter, 'L');
+      expect(master.name, 'M51 · L');
 
-    final master = await mastersDao.getById(id);
-    expect(master, isNotNull);
-    expect(master!.status, IntegratedMasterStatus.accumulating);
-    expect(master.accumulationMode, AccumulationMode.runningWeightedMean);
-    expect(master.sidecarPath, '/m/m51.nsmaster');
-    expect(master.filter, 'L');
-    expect(master.name, 'M51 · L');
-
-    // The create call carried the online clip + the reference path.
-    final call = seam.accumulateCalls.single;
-    expect(call['op'], 'create');
-    expect(call['referencePath'], '/n1/ref.fits');
-    final settings = call['settings'] as Map<String, dynamic>;
-    expect(settings['onlineClipLow'], 4.0);
-    expect(settings['onlineClipHigh'], 4.0);
-  });
+      // The create call carried the online clip + the reference path.
+      final call = seam.accumulateCalls.single;
+      expect(call['op'], 'create');
+      expect(call['referencePath'], '/n1/ref.fits');
+      final settings = call['settings'] as Map<String, dynamic>;
+      expect(settings['onlineClipLow'], 4.0);
+      expect(settings['onlineClipHigh'], 4.0);
+    },
+  );
 
   test('addNight folds subs, records them, and bumps running totals', () async {
     final ref = await insertSub('/n1/ref.fits');
@@ -142,8 +146,11 @@ void main() {
       ),
     ];
 
-    final result =
-        await service.addNight(masterId: masterId, subs: night1, label: '2026-06-07');
+    final result = await service.addNight(
+      masterId: masterId,
+      subs: night1,
+      label: '2026-06-07',
+    );
     expect(result.framesAdded, 2);
 
     final master = await mastersDao.getById(masterId);
@@ -161,10 +168,11 @@ void main() {
     expect(weightById[night1[1].id], 1.0);
 
     // The add call carried only the new lights + a label.
-    final addCall =
-        seam.accumulateCalls.firstWhere((c) => c['op'] == 'add');
-    expect((addCall['lightPaths'] as List).cast<String>(),
-        containsAll(['/n1/a.fits', '/n1/b.fits']));
+    final addCall = seam.accumulateCalls.firstWhere((c) => c['op'] == 'add');
+    expect(
+      (addCall['lightPaths'] as List).cast<String>(),
+      containsAll(['/n1/a.fits', '/n1/b.fits']),
+    );
     expect(addCall['label'], '2026-06-07');
   });
 
@@ -224,11 +232,16 @@ void main() {
         rejected: 0,
       ),
     ];
-    await service.addNight(masterId: masterId, subs: [a, b, c], label: 'night-2');
+    await service.addNight(
+      masterId: masterId,
+      subs: [a, b, c],
+      label: 'night-2',
+    );
 
     // Only the new sub went to the seam on the second add.
-    final addCalls =
-        seam.accumulateCalls.where((c) => c['op'] == 'add').toList();
+    final addCalls = seam.accumulateCalls
+        .where((c) => c['op'] == 'add')
+        .toList();
     expect(addCalls, hasLength(2));
     expect((addCalls[1]['lightPaths'] as List).cast<String>(), ['/n2/c.fits']);
 
@@ -237,102 +250,110 @@ void main() {
     expect(folded, {a.id, b.id, c.id});
   });
 
-  test('addNight with only already-folded subs touches the sidecar via info',
-      () async {
-    final ref = await insertSub('/n1/ref.fits');
-    seam.scriptedAccumulate['create'] = [
-      const MasterAccumulateResult(
+  test(
+    'addNight with only already-folded subs touches the sidecar via info',
+    () async {
+      final ref = await insertSub('/n1/ref.fits');
+      seam.scriptedAccumulate['create'] = [
+        const MasterAccumulateResult(
+          sidecarPath: '/m/m.nsmaster',
+          masterPath: null,
+          previewPath: null,
+          frameCount: 0,
+          totalIntegrationSec: 0.0,
+          width: 100,
+          height: 80,
+          channels: 1,
+          framesAdded: 0,
+          rejected: 0,
+        ),
+      ];
+      final masterId = await service.createMaster(
+        referenceSub: ref,
         sidecarPath: '/m/m.nsmaster',
-        masterPath: null,
-        previewPath: null,
-        frameCount: 0,
-        totalIntegrationSec: 0.0,
-        width: 100,
-        height: 80,
-        channels: 1,
-        framesAdded: 0,
-        rejected: 0,
-      ),
-    ];
-    final masterId = await service.createMaster(
-      referenceSub: ref,
-      sidecarPath: '/m/m.nsmaster',
-    );
-    final a = await insertSub('/n1/a.fits');
-    seam.scriptedAccumulate['add'] = [
-      const MasterAccumulateResult(
+      );
+      final a = await insertSub('/n1/a.fits');
+      seam.scriptedAccumulate['add'] = [
+        const MasterAccumulateResult(
+          sidecarPath: '/m/m.nsmaster',
+          masterPath: null,
+          previewPath: null,
+          frameCount: 1,
+          totalIntegrationSec: 180.0,
+          width: 100,
+          height: 80,
+          channels: 1,
+          framesAdded: 1,
+          rejected: 0,
+        ),
+      ];
+      await service.addNight(masterId: masterId, subs: [a], label: 'n1');
+
+      // Re-add the same sub — nothing new ⇒ an `info` op, no `add`.
+      final result = await service.addNight(
+        masterId: masterId,
+        subs: [a],
+        label: 'n1',
+      );
+      expect(result.framesAdded, 0);
+      final ops = seam.accumulateCalls.map((c) => c['op']).toList();
+      expect(ops.where((o) => o == 'add').length, 1);
+      expect(ops.contains('info'), isTrue);
+    },
+  );
+
+  test(
+    'finalizeMaster writes the FITS path and flips status to finalized',
+    () async {
+      final ref = await insertSub('/n1/ref.fits');
+      seam.scriptedAccumulate['create'] = [
+        const MasterAccumulateResult(
+          sidecarPath: '/m/m.nsmaster',
+          masterPath: null,
+          previewPath: null,
+          frameCount: 0,
+          totalIntegrationSec: 0.0,
+          width: 100,
+          height: 80,
+          channels: 1,
+          framesAdded: 0,
+          rejected: 0,
+        ),
+      ];
+      final masterId = await service.createMaster(
+        referenceSub: ref,
         sidecarPath: '/m/m.nsmaster',
-        masterPath: null,
-        previewPath: null,
-        frameCount: 1,
-        totalIntegrationSec: 180.0,
-        width: 100,
-        height: 80,
-        channels: 1,
-        framesAdded: 1,
-        rejected: 0,
-      ),
-    ];
-    await service.addNight(masterId: masterId, subs: [a], label: 'n1');
+      );
 
-    // Re-add the same sub — nothing new ⇒ an `info` op, no `add`.
-    final result = await service.addNight(masterId: masterId, subs: [a], label: 'n1');
-    expect(result.framesAdded, 0);
-    final ops = seam.accumulateCalls.map((c) => c['op']).toList();
-    expect(ops.where((o) => o == 'add').length, 1);
-    expect(ops.contains('info'), isTrue);
-  });
+      seam.scriptedAccumulate['finalize'] = [
+        const MasterAccumulateResult(
+          sidecarPath: '/m/m.nsmaster',
+          masterPath: '/m/m_master.fits',
+          previewPath: '/m/m_master.png',
+          frameCount: 12,
+          totalIntegrationSec: 2160.0,
+          width: 100,
+          height: 80,
+          channels: 1,
+          framesAdded: 0,
+          rejected: 0,
+        ),
+      ];
 
-  test('finalizeMaster writes the FITS path and flips status to finalized',
-      () async {
-    final ref = await insertSub('/n1/ref.fits');
-    seam.scriptedAccumulate['create'] = [
-      const MasterAccumulateResult(
-        sidecarPath: '/m/m.nsmaster',
-        masterPath: null,
-        previewPath: null,
-        frameCount: 0,
-        totalIntegrationSec: 0.0,
-        width: 100,
-        height: 80,
-        channels: 1,
-        framesAdded: 0,
-        rejected: 0,
-      ),
-    ];
-    final masterId = await service.createMaster(
-      referenceSub: ref,
-      sidecarPath: '/m/m.nsmaster',
-    );
+      await service.finalizeMaster(
+        masterId: masterId,
+        masterFitsPath: '/m/m_master.fits',
+        previewPngPath: '/m/m_master.png',
+      );
 
-    seam.scriptedAccumulate['finalize'] = [
-      const MasterAccumulateResult(
-        sidecarPath: '/m/m.nsmaster',
-        masterPath: '/m/m_master.fits',
-        previewPath: '/m/m_master.png',
-        frameCount: 12,
-        totalIntegrationSec: 2160.0,
-        width: 100,
-        height: 80,
-        channels: 1,
-        framesAdded: 0,
-        rejected: 0,
-      ),
-    ];
-
-    await service.finalizeMaster(
-      masterId: masterId,
-      masterFitsPath: '/m/m_master.fits',
-      previewPngPath: '/m/m_master.png',
-    );
-
-    final master = await mastersDao.getById(masterId);
-    expect(master!.status, IntegratedMasterStatus.finalized);
-    expect(master.masterFitsPath, '/m/m_master.fits');
-    expect(master.previewPngPath, '/m/m_master.png');
-    expect(master.frameCount, 12);
-    expect(master.totalIntegrationSeconds, 2160.0);
-  });
+      final master = await mastersDao.getById(masterId);
+      expect(master!.status, IntegratedMasterStatus.finalized);
+      expect(master.masterFitsPath, '/m/m_master.fits');
+      expect(master.previewPngPath, '/m/m_master.png');
+      expect(master.frameCount, 12);
+      expect(master.totalIntegrationSeconds, 2160.0);
+    },
+  );
 
   test('addNight on a missing master is a hard error', () async {
     final a = await insertSub('/n1/a.fits');

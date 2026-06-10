@@ -94,7 +94,8 @@ class _PluginInstructionPropertiesState
                   Expanded(
                     child: Text(
                       node.pluginName.isEmpty ? node.pluginId : node.pluginName,
-                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h6
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
@@ -102,7 +103,9 @@ class _PluginInstructionPropertiesState
               const SizedBox(height: 4),
               Text(
                 node.nodeTypeId,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -125,13 +128,14 @@ class _PluginInstructionPropertiesState
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(LucideIcons.alertTriangle,
-                    size: 14, color: colors.error),
+                Icon(LucideIcons.alertTriangle, size: 14, color: colors.error),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _jsonError!,
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.error),
                   ),
                 ),
               ],

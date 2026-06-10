@@ -1,4 +1,4 @@
-﻿// Part of ../templates_tab.dart -- extracted for maintainability.
+// Part of ../templates_tab.dart -- extracted for maintainability.
 //
 // Dialog used to save the current sequence as a template, including the target-selection option chips.
 part of '../templates_tab.dart';
@@ -92,7 +92,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
@@ -103,162 +104,170 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
           padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: SingleChildScrollView(
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: NightshadeDecorations.tintedBadge(
-                      widget.colors.primary,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: NightshadeDecorations.tintedBadge(
+                        widget.colors.primary,
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusLg),
+                      ),
+                      child: Icon(
+                        LucideIcons.save,
+                        size: 20,
+                        color: widget.colors.primary,
+                      ),
                     ),
-                    child: Icon(
-                      LucideIcons.save,
-                      size: 20,
-                      color: widget.colors.primary,
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Save as Template',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize18,
+                            fontWeight: FontWeight.w700,
+                            color: widget.colors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Save this sequence for later reuse',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Name field
+                Text(
+                  'Template Name',
+                  style: NightshadeTypography.h6
+                      .copyWith(color: widget.colors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
+                    border: Border.all(color: widget.colors.border),
+                  ),
+                  child: TextField(
+                    controller: _nameController,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize14,
+                      color: widget.colors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter template name',
+                      hintStyle: TextStyle(
+                        color: widget.colors.textMuted,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Save as Template',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize18,
-                          fontWeight: FontWeight.w700,
-                          color: widget.colors.textPrimary,
-                        ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Description field
+                Text(
+                  'Description',
+                  style: NightshadeTypography.h6
+                      .copyWith(color: widget.colors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
+                    border: Border.all(color: widget.colors.border),
+                  ),
+                  child: TextField(
+                    controller: _descriptionController,
+                    maxLines: 3,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize14,
+                      color: widget.colors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Describe what this template is for...',
+                      hintStyle: TextStyle(
+                        color: widget.colors.textMuted,
                       ),
-                      Text(
-                        'Save this sequence for later reuse',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: widget.colors.textMuted,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Info about current sequence
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.info,
+                          size: 16, color: widget.colors.info),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Name field
-              Text(
-                'Template Name',
-                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                  border: Border.all(color: widget.colors.border),
                 ),
-                child: TextField(
-                  controller: _nameController,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    color: widget.colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Enter template name',
-                    hintStyle: TextStyle(
-                      color: widget.colors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
-              // Description field
-              Text(
-                'Description',
-                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                  border: Border.all(color: widget.colors.border),
-                ),
-                child: TextField(
-                  controller: _descriptionController,
-                  maxLines: 3,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    color: widget.colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Describe what this template is for...',
-                    hintStyle: TextStyle(
-                      color: widget.colors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Info about current sequence
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                ),
-                child: Row(
+                // Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Icon(LucideIcons.info, size: 16, color: widget.colors.info),
+                    NightshadeButton(
+                      onPressed:
+                          _isSaving ? null : () => Navigator.pop(context),
+                      label: 'Cancel',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: widget.colors.textSecondary,
-                        ),
-                      ),
+                    NightshadeButton(
+                      label: _isSaving ? 'Saving...' : 'Save Template',
+                      icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
+                      onPressed: _isSaving ? null : _saveTemplate,
+                      size: ButtonSize.small,
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  NightshadeButton(
-                    onPressed: _isSaving ? null : () => Navigator.pop(context),
-                    label: 'Cancel',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                  const SizedBox(width: 12),
-                  NightshadeButton(
-                    label: _isSaving ? 'Saving...' : 'Save Template',
-                    icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
-                    onPressed: _isSaving ? null : _saveTemplate,
-                    size: ButtonSize.small,
-                  ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),
@@ -300,7 +309,8 @@ class _TargetOptionState extends State<_TargetOption> {
             color: _isHovered
                 ? NightshadeDecorations.tintedBadge(
                     widget.colors.warning,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                   ).color
                 : widget.colors.surfaceAlt,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
@@ -316,7 +326,8 @@ class _TargetOptionState extends State<_TargetOption> {
                 height: 32,
                 decoration: NightshadeDecorations.statusChip(
                   widget.colors.warning,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   bordered: false,
                 ),
                 child: Icon(
@@ -332,7 +343,8 @@ class _TargetOptionState extends State<_TargetOption> {
                   children: [
                     Text(
                       widget.target.targetName,
-                      style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: widget.colors.textPrimary),
                     ),
                     Text(
                       'RA: ${_formatRA(widget.target.raHours)} · Dec: ${_formatDec(widget.target.decDegrees)}',

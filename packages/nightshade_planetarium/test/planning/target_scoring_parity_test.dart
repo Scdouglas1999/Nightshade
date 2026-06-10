@@ -81,13 +81,17 @@ void main() {
 
     test('default weights sum to 1.0', () {
       const weights = ScoringWeights();
-      final sum = weights.altitudeWeight +
+      final sum =
+          weights.altitudeWeight +
           weights.moonDistanceWeight +
           weights.transitProximityWeight +
           weights.darknessWeight +
           weights.airmassWeight;
-      expect((sum - 1.0).abs() < 1e-9, isTrue,
-          reason: 'sum=$sum (must be 1.0)');
+      expect(
+        (sum - 1.0).abs() < 1e-9,
+        isTrue,
+        reason: 'sum=$sum (must be 1.0)',
+      );
     });
 
     test('altitude piecewise breakpoints', () {

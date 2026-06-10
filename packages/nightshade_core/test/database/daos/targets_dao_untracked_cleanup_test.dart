@@ -64,8 +64,10 @@ void main() {
     // Protected: has captured subs.
     final captured = await insertTarget(name: 'Captured', capturedSubs: 12);
     // Protected: has accumulated integration time.
-    final integrated =
-        await insertTarget(name: 'Integrated', totalIntegrationSecs: 1800.0);
+    final integrated = await insertTarget(
+      name: 'Integrated',
+      totalIntegrationSecs: 1800.0,
+    );
     // Protected: referenced by an imaging session (even with no other data).
     final sessioned = await insertTarget(name: 'Sessioned');
     await sessions.createSession(
@@ -75,8 +77,11 @@ void main() {
       ),
     );
 
-    expect(await targets.countUntrackedTargets(), 2,
-        reason: 'only the two phantom rows are untracked');
+    expect(
+      await targets.countUntrackedTargets(),
+      2,
+      reason: 'only the two phantom rows are untracked',
+    );
 
     final deleted = await targets.deleteUntrackedTargets();
     expect(deleted, 2, reason: 'deletes exactly the untracked phantom rows');

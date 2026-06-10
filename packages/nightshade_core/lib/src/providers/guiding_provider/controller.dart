@@ -88,7 +88,9 @@ class Phd2Controller {
       );
       if (_disposed) return;
       try {
-        ref.read(uiNotificationProvider.notifier).showError(
+        ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
               'PHD2 connection lost and automatic relaunch failed after '
               '${_relaunchDelays.length} attempts. Reconnect the guider '
               'manually.',
@@ -117,89 +119,100 @@ class Phd2Controller {
 
   void _init() {
     // Listen to backend events
-    _eventSub = backend.eventStream.listen((event) {
-      if (event.category != EventCategory.guiding) return;
-      if (_disposed) return;
+    _eventSub = backend.eventStream.listen(
+      (event) {
+        if (event.category != EventCategory.guiding) return;
+        if (_disposed) return;
 
-      _logger.debug('Received guiding event: ${event.eventType}',
-          source: 'Phd2Controller');
+        _logger.debug(
+          'Received guiding event: ${event.eventType}',
+          source: 'Phd2Controller',
+        );
 
-      // Update the main GuiderState used by the UI
-      final guiderNotifier = ref.read(guiderStateProvider.notifier);
+        // Update the main GuiderState used by the UI
+        final guiderNotifier = ref.read(guiderStateProvider.notifier);
 
-      switch (event.eventType) {
-        case 'Connected':
-          ref.read(guiderStateProvider.notifier).setConnected();
-          break;
-        case 'Disconnected':
-          _handlePhd2LinkLost();
-          return;
-        case 'AppState':
-          _updateStateFromString(event.data['State']);
-          break;
-        case 'GuideStep':
-          _logger.debug('Processing GuideStep event', source: 'Phd2Controller');
-          _handleGuideStep(event.data);
-          break;
-        case 'GuideStats':
-          _logger.debug('Processing GuideStats event',
-              source: 'Phd2Controller');
-          _handleGuideStats(event.data);
-          break;
-        case 'GuidingStarted':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
-          guiderNotifier.setGuiding(true);
-          break;
-        case 'GuidingStopped':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.stopped;
-          guiderNotifier.setGuiding(false);
-          break;
-        case 'Paused':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.paused;
-          break;
-        case 'Resumed':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
-          guiderNotifier.setGuiding(true);
-          break;
-        case 'StarLost':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.lostLock;
-          _handleStarLost();
-          break;
-        case 'Settling':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.settling;
-          break;
-        case 'SettleDone':
-          // Settle complete - return to guiding state
-          ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
-          _logger.info('Settle complete', source: 'PHD2');
-          break;
-        case 'LoopingExposures':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.looping;
-          break;
-        case 'Calibrating':
-          ref.read(phd2StateProvider.notifier).state = Phd2State.calibrating;
-          break;
-        case 'CalibrationComplete':
-          _logger.info('Calibration complete', source: 'PHD2');
-          final calibrationNotifier =
-              ref.read(calibrationStateProvider.notifier);
-          if (calibrationNotifier.mounted) {
-            unawaited(calibrationNotifier.refreshCalibrationData());
-          }
-          break;
-        // Note: StarSelected is handled by LockPositionNotifier's own event listener
-      }
+        switch (event.eventType) {
+          case 'Connected':
+            ref.read(guiderStateProvider.notifier).setConnected();
+            break;
+          case 'Disconnected':
+            _handlePhd2LinkLost();
+            return;
+          case 'AppState':
+            _updateStateFromString(event.data['State']);
+            break;
+          case 'GuideStep':
+            _logger.debug(
+              'Processing GuideStep event',
+              source: 'Phd2Controller',
+            );
+            _handleGuideStep(event.data);
+            break;
+          case 'GuideStats':
+            _logger.debug(
+              'Processing GuideStats event',
+              source: 'Phd2Controller',
+            );
+            _handleGuideStats(event.data);
+            break;
+          case 'GuidingStarted':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
+            guiderNotifier.setGuiding(true);
+            break;
+          case 'GuidingStopped':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.stopped;
+            guiderNotifier.setGuiding(false);
+            break;
+          case 'Paused':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.paused;
+            break;
+          case 'Resumed':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
+            guiderNotifier.setGuiding(true);
+            break;
+          case 'StarLost':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.lostLock;
+            _handleStarLost();
+            break;
+          case 'Settling':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.settling;
+            break;
+          case 'SettleDone':
+            // Settle complete - return to guiding state
+            ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
+            _logger.info('Settle complete', source: 'PHD2');
+            break;
+          case 'LoopingExposures':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.looping;
+            break;
+          case 'Calibrating':
+            ref.read(phd2StateProvider.notifier).state = Phd2State.calibrating;
+            break;
+          case 'CalibrationComplete':
+            _logger.info('Calibration complete', source: 'PHD2');
+            final calibrationNotifier = ref.read(
+              calibrationStateProvider.notifier,
+            );
+            if (calibrationNotifier.mounted) {
+              unawaited(calibrationNotifier.refreshCalibrationData());
+            }
+            break;
+          // Note: StarSelected is handled by LockPositionNotifier's own event listener
+        }
 
-      // Liveness traffic only — never promote back to connected after Disconnected.
-      if (isPhd2GuidingHeartbeatEvent(event.eventType) &&
-          ref.read(guiderStateProvider).connectionState !=
-              DeviceConnectionState.connected) {
-        guiderNotifier.setConnected();
-      }
-    }, onError: (err) {
-      _logger.error('Controller Event Error: $err', source: 'PHD2');
-      _handlePhd2LinkLost();
-    });
+        // Liveness traffic only — never promote back to connected after Disconnected.
+        if (isPhd2GuidingHeartbeatEvent(event.eventType) &&
+            ref.read(guiderStateProvider).connectionState !=
+                DeviceConnectionState.connected) {
+          guiderNotifier.setConnected();
+        }
+      },
+      onError: (err) {
+        _logger.error('Controller Event Error: $err', source: 'PHD2');
+        _handlePhd2LinkLost();
+      },
+    );
   }
 
   void _updateStateFromString(String? stateStr) {
@@ -244,11 +257,9 @@ class Phd2Controller {
     // Just update the UI state provider with the current stats
     final stats = ref.read(guideStatsProvider);
 
-    ref.read(guiderStateProvider.notifier).updateRms(
-          stats.rmsRa,
-          stats.rmsDec,
-          stats.rmsTotal,
-        );
+    ref
+        .read(guiderStateProvider.notifier)
+        .updateRms(stats.rmsRa, stats.rmsDec, stats.rmsTotal);
   }
 
   void _handleGuideStats(Map<String, dynamic> json) {
@@ -300,8 +311,10 @@ class Phd2Controller {
       }
       ref.read(guiderStateProvider.notifier).setConnected();
     } catch (e) {
-      _logger.error('Failed to connect to PHD2 at $host:$port: $e',
-          source: 'PHD2');
+      _logger.error(
+        'Failed to connect to PHD2 at $host:$port: $e',
+        source: 'PHD2',
+      );
       ref.read(guiderStateProvider.notifier).setDisconnected();
       rethrow;
     }

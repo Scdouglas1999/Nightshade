@@ -54,9 +54,11 @@ class PlanetariumObserverNotifier extends StateNotifier<PlanetariumObserver> {
 }
 
 final observerLocationProvider =
-    StateNotifierProvider<PlanetariumObserverNotifier, PlanetariumObserver>((ref) {
-  return PlanetariumObserverNotifier();
-});
+    StateNotifierProvider<PlanetariumObserverNotifier, PlanetariumObserver>((
+      ref,
+    ) {
+      return PlanetariumObserverNotifier();
+    });
 
 /// The user-configured effective horizon in degrees, as observed by the
 /// planetarium widgets.
@@ -79,8 +81,9 @@ final observerLocationProvider =
 /// Name distinct from core's `effectiveHorizonDegProvider` to avoid
 /// `ambiguous_import` at app-layer call sites that already pull in both
 /// packages via the umbrella exports.
-final planetariumEffectiveHorizonDegProvider =
-    StateProvider<double>((ref) => 0.0);
+final planetariumEffectiveHorizonDegProvider = StateProvider<double>(
+  (ref) => 0.0,
+);
 
 // ============================================================================
 // Observation Time Provider
@@ -115,7 +118,7 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
   Timer? _timer;
 
   ObservationTimeNotifier()
-      : super(ObservationTimeState(time: DateTime.now())) {
+    : super(ObservationTimeState(time: DateTime.now())) {
     _startTimer();
   }
 
@@ -147,10 +150,7 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
   }
 
   void fastForward(Duration duration) {
-    state = state.copyWith(
-      time: state.time.add(duration),
-      isRealTime: false,
-    );
+    state = state.copyWith(time: state.time.add(duration), isRealTime: false);
   }
 
   void rewind(Duration duration) {
@@ -169,5 +169,5 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
 
 final observationTimeProvider =
     StateNotifierProvider<ObservationTimeNotifier, ObservationTimeState>((ref) {
-  return ObservationTimeNotifier();
-});
+      return ObservationTimeNotifier();
+    });

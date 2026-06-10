@@ -95,7 +95,8 @@ void main() {
     expect(tooltip.message, contains('Healthy'));
   });
 
-  testWidgets('renders amber when device is degraded with reason', (tester) async {
+  testWidgets('renders amber when device is degraded with reason',
+      (tester) async {
     await pumpIndicator(
       tester,
       seed: (n) => n.applyStatusEvent(

@@ -56,11 +56,11 @@ void main() {
       );
     });
 
-    test('every DecisionCategory persists + reads back via wire_key',
-        () async {
+    test('every DecisionCategory persists + reads back via wire_key', () async {
       const runId = 99;
-      for (final cat in DecisionCategory.values
-          .where((c) => c != DecisionCategory.unknown)) {
+      for (final cat in DecisionCategory.values.where(
+        (c) => c != DecisionCategory.unknown,
+      )) {
         await service.persist(
           ReplayDecision(
             id: null,
@@ -76,56 +76,87 @@ void main() {
       final all = await service.listByRun(runId);
       final cats = all.map((d) => d.category).toSet();
       // Every variant except `unknown` must round-trip.
-      for (final cat in DecisionCategory.values
-          .where((c) => c != DecisionCategory.unknown)) {
+      for (final cat in DecisionCategory.values.where(
+        (c) => c != DecisionCategory.unknown,
+      )) {
         expect(cats.contains(cat), isTrue, reason: 'missing ${cat.wireKey}');
       }
     });
 
-    test('listByRun orders chronologically (ascending by timestamp)',
-        () async {
+    test('listByRun orders chronologically (ascending by timestamp)', () async {
       const runId = 7;
       final t0 = DateTime.utc(2026, 5, 17, 21, 0, 0);
-      await service.persist(_decision(runId, t0.add(const Duration(seconds: 30)),
-          summary: 'third'));
+      await service.persist(
+        _decision(runId, t0.add(const Duration(seconds: 30)), summary: 'third'),
+      );
       await service.persist(_decision(runId, t0, summary: 'first'));
-      await service.persist(_decision(runId, t0.add(const Duration(seconds: 10)),
-          summary: 'second'));
+      await service.persist(
+        _decision(
+          runId,
+          t0.add(const Duration(seconds: 10)),
+          summary: 'second',
+        ),
+      );
 
       final loaded = await service.listByRun(runId);
-      expect(loaded.map((d) => d.summary).toList(),
-          ['first', 'second', 'third']);
+      expect(loaded.map((d) => d.summary).toList(), [
+        'first',
+        'second',
+        'third',
+      ]);
     });
 
     test('listByRunAndCategory filters server-side', () async {
       const runId = 8;
       final t = DateTime.utc(2026, 5, 17, 21, 0, 0);
-      await service.persist(_decision(runId, t,
-          category: DecisionCategory.frameAccepted, summary: 'accept'));
-      await service.persist(_decision(runId, t.add(const Duration(seconds: 1)),
-          category: DecisionCategory.frameRejected, summary: 'reject1'));
-      await service.persist(_decision(runId, t.add(const Duration(seconds: 2)),
-          category: DecisionCategory.frameRejected, summary: 'reject2'));
-      await service.persist(_decision(runId, t.add(const Duration(seconds: 3)),
-          category: DecisionCategory.recoveryEntered, summary: 'recovery'));
+      await service.persist(
+        _decision(
+          runId,
+          t,
+          category: DecisionCategory.frameAccepted,
+          summary: 'accept',
+        ),
+      );
+      await service.persist(
+        _decision(
+          runId,
+          t.add(const Duration(seconds: 1)),
+          category: DecisionCategory.frameRejected,
+          summary: 'reject1',
+        ),
+      );
+      await service.persist(
+        _decision(
+          runId,
+          t.add(const Duration(seconds: 2)),
+          category: DecisionCategory.frameRejected,
+          summary: 'reject2',
+        ),
+      );
+      await service.persist(
+        _decision(
+          runId,
+          t.add(const Duration(seconds: 3)),
+          category: DecisionCategory.recoveryEntered,
+          summary: 'recovery',
+        ),
+      );
 
       final rejects = await service.listByRunAndCategory(
         runId,
         DecisionCategory.frameRejected,
       );
       expect(rejects, hasLength(2));
-      expect(
-        rejects.map((d) => d.summary).toList(),
-        ['reject1', 'reject2'],
-      );
+      expect(rejects.map((d) => d.summary).toList(), ['reject1', 'reject2']);
     });
 
     test('deleteForRun wipes only the targeted run', () async {
       final t = DateTime.utc(2026, 5, 17, 21, 0, 0);
       await service.persist(_decision(1, t, summary: 'run1-a'));
       await service.persist(_decision(2, t, summary: 'run2-a'));
-      await service.persist(_decision(1, t.add(const Duration(seconds: 1)),
-          summary: 'run1-b'));
+      await service.persist(
+        _decision(1, t.add(const Duration(seconds: 1)), summary: 'run1-b'),
+      );
 
       final removed = await service.deleteForRun(1);
       expect(removed, 2);
@@ -138,13 +169,21 @@ void main() {
       const runId = 5;
       final now = DateTime.utc(2026, 5, 17, 22, 0, 0);
       // 91 days ago — should be pruned at 90-day retention.
-      await service.persist(_decision(
-          runId, now.subtract(const Duration(days: 91)),
-          summary: 'old'));
+      await service.persist(
+        _decision(
+          runId,
+          now.subtract(const Duration(days: 91)),
+          summary: 'old',
+        ),
+      );
       // 1 day ago — should survive.
-      await service.persist(_decision(
-          runId, now.subtract(const Duration(days: 1)),
-          summary: 'recent'));
+      await service.persist(
+        _decision(
+          runId,
+          now.subtract(const Duration(days: 1)),
+          summary: 'recent',
+        ),
+      );
 
       final cutoff = now.subtract(const Duration(days: 90));
       final removed = await service.pruneOlderThan(cutoff);
@@ -175,9 +214,9 @@ void main() {
     test('countByRun returns the persisted count', () async {
       final t = DateTime.utc(2026, 5, 17, 21, 0, 0);
       for (var i = 0; i < 5; i++) {
-        await service.persist(_decision(
-            33, t.add(Duration(seconds: i)),
-            summary: 'd$i'));
+        await service.persist(
+          _decision(33, t.add(Duration(seconds: i)), summary: 'd$i'),
+        );
       }
       expect(await service.countByRun(33), 5);
       expect(await service.countByRun(34), 0);
@@ -193,17 +232,18 @@ void main() {
       expect(emissions, hasLength(1));
       expect(emissions.first, isEmpty);
 
-      await service.persist(_decision(runId, DateTime.utc(2026, 5, 17, 21),
-          summary: 'first'));
+      await service.persist(
+        _decision(runId, DateTime.utc(2026, 5, 17, 21), summary: 'first'),
+      );
 
       // Wait for the change-bus notification to bubble through.
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(emissions.length, greaterThanOrEqualTo(2),
-          reason: 'watchByRun must emit on mutation');
       expect(
-        emissions.last.map((d) => d.summary).toList(),
-        ['first'],
+        emissions.length,
+        greaterThanOrEqualTo(2),
+        reason: 'watchByRun must emit on mutation',
       );
+      expect(emissions.last.map((d) => d.summary).toList(), ['first']);
 
       await sub.cancel();
     });
@@ -253,13 +293,12 @@ ReplayDecision _decision(
   String summary = 'test',
   Map<String, dynamic> details = const {},
   String? nodeId,
-}) =>
-    ReplayDecision(
-      id: null,
-      sequenceRunId: runId,
-      timestamp: ts,
-      category: category,
-      summary: summary,
-      details: details,
-      nodeId: nodeId,
-    );
+}) => ReplayDecision(
+  id: null,
+  sequenceRunId: runId,
+  timestamp: ts,
+  category: category,
+  summary: summary,
+  details: details,
+  nodeId: nodeId,
+);

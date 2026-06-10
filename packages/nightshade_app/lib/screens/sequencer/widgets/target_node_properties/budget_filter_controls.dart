@@ -26,7 +26,8 @@ class _FilterRow extends StatelessWidget {
             width: 48,
             child: Text(
               filterName,
-              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ),
           const SizedBox(width: 8),
@@ -156,20 +157,25 @@ class _AddFilterRowState extends State<_AddFilterRow> {
           Expanded(
             child: TextField(
               controller: _ctl,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textPrimary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: widget.colors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Filter name (e.g. Ha)',
-                hintStyle:
-                    TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
+                hintStyle: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: widget.colors.textMuted),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: widget.colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: widget.colors.border),
                 ),
               ),
@@ -188,7 +194,9 @@ class _AddFilterRowState extends State<_AddFilterRow> {
                 Icon(LucideIcons.plus, size: 14, color: widget.colors.primary),
             label: Text(
               'Add',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.primary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: widget.colors.primary),
             ),
           ),
         ],

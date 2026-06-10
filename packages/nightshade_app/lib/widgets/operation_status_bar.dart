@@ -136,11 +136,14 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
     return SizeTransition(
       sizeFactor: _slideAnimation,
       axisAlignment: -1.0,
-      child: operation != null ? _buildOperationBar(operation, colors) : const SizedBox.shrink(),
+      child: operation != null
+          ? _buildOperationBar(operation, colors)
+          : const SizedBox.shrink(),
     );
   }
 
-  Widget _buildOperationBar(OperationProgress operation, NightshadeColors colors) {
+  Widget _buildOperationBar(
+      OperationProgress operation, NightshadeColors colors) {
     return Container(
       height: 28,
       margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -207,7 +210,9 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: () {
-                  ref.read(activeOperationsProvider.notifier).cancelOperation(operation.type);
+                  ref
+                      .read(activeOperationsProvider.notifier)
+                      .cancelOperation(operation.type);
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),

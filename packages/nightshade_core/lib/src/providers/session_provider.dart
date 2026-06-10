@@ -19,15 +19,15 @@ import '../database/daos/sequence_checkpoints_dao.dart';
 class SessionState extends Equatable {
   /// Whether a session is currently active
   final bool isActive;
-  
+
   /// Session start time (Unix timestamp ms)
   final DateTime? startTime;
-  
+
   /// Current target being imaged
   final String? targetName;
   final double? targetRa;
   final double? targetDec;
-  
+
   /// Exposure tracking
   final int totalExposures;
   final int completedExposures;
@@ -43,19 +43,19 @@ class SessionState extends Equatable {
   /// multi-night project integration budget never counts auto-rejected
   /// subs as completed sky time.
   final double totalIntegrationSecs;
-  
+
   /// Current state flags
   final String? currentFilter;
   final bool isGuiding;
   final bool isCapturing;
   final bool isDithering;
   final bool isAutofocusing;
-  
+
   /// Session quality metrics (running averages)
   final double? avgHfr;
   final double? avgGuidingRmsRa;
   final double? avgGuidingRmsDec;
-  
+
   /// Database session ID (for persisting statistics)
   final int? dbSessionId;
 
@@ -228,7 +228,8 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
   Future<void> recoverSession(SessionRecoveryInfo recoveryInfo) async {
     if (recoveryInfo.sessionId <= 0) {
       throw StateError(
-          'Cannot recover session with invalid id ${recoveryInfo.sessionId}');
+        'Cannot recover session with invalid id ${recoveryInfo.sessionId}',
+      );
     }
     final sessionService = _ref.read(sessionServiceProvider);
     await sessionService.recoverSession(recoveryInfo.sessionId);
@@ -249,16 +250,8 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
   }
 
   /// Set the current target
-  void setTarget({
-    required String name,
-    double? ra,
-    double? dec,
-  }) {
-    state = state.copyWith(
-      targetName: name,
-      targetRa: ra,
-      targetDec: dec,
-    );
+  void setTarget({required String name, double? ra, double? dec}) {
+    state = state.copyWith(targetName: name, targetRa: ra, targetDec: dec);
   }
 
   /// Record a completed exposure.
@@ -312,9 +305,7 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
   /// Record a failed exposure
   void recordExposureFailed() {
-    state = state.copyWith(
-      failedExposures: state.failedExposures + 1,
-    );
+    state = state.copyWith(failedExposures: state.failedExposures + 1);
 
     // Update session service (triggers checkpoint if needed)
     _updateSessionServiceStats();
@@ -367,10 +358,7 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
   /// Update guiding RMS values
   void updateGuidingRms(double rmsRa, double rmsDec) {
-    state = state.copyWith(
-      avgGuidingRmsRa: rmsRa,
-      avgGuidingRmsDec: rmsDec,
-    );
+    state = state.copyWith(avgGuidingRmsRa: rmsRa, avgGuidingRmsDec: rmsDec);
   }
 
   /// Helper to update session service with current stats
@@ -382,8 +370,7 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
     // Calculate combined guiding RMS (RMS of both axes)
     double? combinedGuidingRms;
-    if (snapshot.avgGuidingRmsRa != null &&
-        snapshot.avgGuidingRmsDec != null) {
+    if (snapshot.avgGuidingRmsRa != null && snapshot.avgGuidingRmsDec != null) {
       combinedGuidingRms = math.sqrt(
         snapshot.avgGuidingRmsRa! * snapshot.avgGuidingRmsRa! +
             snapshot.avgGuidingRmsDec! * snapshot.avgGuidingRmsDec!,
@@ -438,9 +425,10 @@ final sessionServiceStatusProvider = StreamProvider<String>((ref) {
 });
 
 /// Session state provider for tracking active imaging sessions
-final sessionStateProvider = StateNotifierProvider<SessionStateNotifier, SessionState>((ref) {
-  return SessionStateNotifier(ref);
-});
+final sessionStateProvider =
+    StateNotifierProvider<SessionStateNotifier, SessionState>((ref) {
+      return SessionStateNotifier(ref);
+    });
 
 /// Convenience provider for checking if a session is active
 final isSessionActiveProvider = Provider<bool>((ref) {
@@ -465,17 +453,14 @@ final sessionDurationProvider = Provider<String>((ref) {
   final seconds = duration.inSeconds.remainder(60);
 
   return '${hours.toString().padLeft(2, '0')}:'
-         '${minutes.toString().padLeft(2, '0')}:'
-         '${seconds.toString().padLeft(2, '0')}';
+      '${minutes.toString().padLeft(2, '0')}:'
+      '${seconds.toString().padLeft(2, '0')}';
 });
 
 /// Provider for incomplete sessions that can be recovered
-final incompleteSessionsProvider = FutureProvider<List<SessionRecoveryInfo>>((ref) async {
+final incompleteSessionsProvider = FutureProvider<List<SessionRecoveryInfo>>((
+  ref,
+) async {
   final sessionService = ref.watch(sessionServiceProvider);
   return await sessionService.findIncompleteSessionsForRecovery();
 });
-
-
-
-
-

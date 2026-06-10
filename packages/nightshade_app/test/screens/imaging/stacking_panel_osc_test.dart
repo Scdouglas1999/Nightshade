@@ -89,7 +89,8 @@ void main() {
       expect(find.text('Demosaic quality'), findsNothing);
     });
 
-    testWidgets('toggling the switch ON flips sensorMode off mono and reveals '
+    testWidgets(
+        'toggling the switch ON flips sensorMode off mono and reveals '
         'the Bayer + demosaic dropdowns', (tester) async {
       late ProviderContainer container;
       tester.view.devicePixelRatio = 1.0;
@@ -142,7 +143,8 @@ void main() {
       expect(find.text('Demosaic quality'), findsOneWidget);
     });
 
-    testWidgets('a connected colour camera defaults the switch ON and '
+    testWidgets(
+        'a connected colour camera defaults the switch ON and '
         'preselects the detected pattern', (tester) async {
       await _pumpPanel(
         tester,
@@ -156,7 +158,8 @@ void main() {
       expect(find.text('Auto (detected: RGGB)'), findsOneWidget);
     });
 
-    testWidgets('a connected mono camera leaves the switch OFF', (tester) async {
+    testWidgets('a connected mono camera leaves the switch OFF',
+        (tester) async {
       await _pumpPanel(
         tester,
         cameraId: 'native:zwo:0',

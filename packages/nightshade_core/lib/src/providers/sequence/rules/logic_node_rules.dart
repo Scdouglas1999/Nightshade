@@ -38,34 +38,38 @@ class RecoveryNodeConfigRule implements SequenceValidator {
       if (node is! RecoveryNode) continue;
 
       if (node.triggerType == null) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.structure,
-          title: 'Recovery Has No Trigger',
-          description:
-              'Recovery node "${node.name}" has no trigger configured. '
-              'It will never fire.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Set a trigger type (HFR degraded, guiding failed, meridian '
-              'flip, etc.) in the node properties.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Recovery Has No Trigger',
+            description:
+                'Recovery node "${node.name}" has no trigger configured. '
+                'It will never fire.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Set a trigger type (HFR degraded, guiding failed, meridian '
+                'flip, etc.) in the node properties.',
+          ),
+        );
       }
 
       if (node.recoveryAction == RecoveryActionType.customBranch &&
           node.childIds.isEmpty) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.structure,
-          title: 'Custom Branch Has No Children',
-          description:
-              'Recovery node "${node.name}" is set to "custom branch" but '
-              'has no child nodes to execute when the trigger fires.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Add child nodes describing the recovery sequence, or change '
-              'the recovery action to a built-in (Retry, Pause, etc.).',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Custom Branch Has No Children',
+            description:
+                'Recovery node "${node.name}" is set to "custom branch" but '
+                'has no child nodes to execute when the trigger fires.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Add child nodes describing the recovery sequence, or change '
+                'the recovery action to a built-in (Retry, Pause, etc.).',
+          ),
+        );
       }
     }
     return issues;
@@ -103,89 +107,103 @@ class CloudTriggerConfigRule implements SequenceValidator {
         case TriggerType.cloudCoverThreshold:
           if (node.cloudCoverMaxPercent < 0 ||
               node.cloudCoverMaxPercent > 100) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Invalid Cloud Cover Threshold',
-              description:
-                  'Recovery node "${node.name}" has a max cloud cover of '
-                  '${node.cloudCoverMaxPercent}%, which is outside the '
-                  'valid range [0, 100].',
-              affectedNodeId: node.id,
-              resolutionHint:
-                  'Set a Max Cloud Cover value between 0 and 100 percent.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Invalid Cloud Cover Threshold',
+                description:
+                    'Recovery node "${node.name}" has a max cloud cover of '
+                    '${node.cloudCoverMaxPercent}%, which is outside the '
+                    'valid range [0, 100].',
+                affectedNodeId: node.id,
+                resolutionHint:
+                    'Set a Max Cloud Cover value between 0 and 100 percent.',
+              ),
+            );
           }
           if (node.cloudCoverDurationSecs < 0) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Negative Cloud Cover Duration',
-              description:
-                  'Recovery node "${node.name}" has a negative cloud-cover '
-                  'duration (${node.cloudCoverDurationSecs}s). Use 0 to '
-                  'fire immediately.',
-              affectedNodeId: node.id,
-              resolutionHint: 'Set a non-negative duration in seconds.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Negative Cloud Cover Duration',
+                description:
+                    'Recovery node "${node.name}" has a negative cloud-cover '
+                    'duration (${node.cloudCoverDurationSecs}s). Use 0 to '
+                    'fire immediately.',
+                affectedNodeId: node.id,
+                resolutionHint: 'Set a non-negative duration in seconds.',
+              ),
+            );
           }
           break;
         case TriggerType.cloudOpeningIn:
           if (node.cloudOpeningMinDurationSecs <= 0) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Invalid Cloud Opening Duration',
-              description:
-                  'Recovery node "${node.name}" requires a positive minimum '
-                  'opening duration but is set to '
-                  '${node.cloudOpeningMinDurationSecs}s. The trigger would '
-                  'never fire (or fire on every tick).',
-              affectedNodeId: node.id,
-              resolutionHint:
-                  'Set Minimum Opening Duration to at least a few minutes '
-                  '(e.g. 300s) so the recovery has enough clear sky to '
-                  'image before the next cloud cell arrives.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Invalid Cloud Opening Duration',
+                description:
+                    'Recovery node "${node.name}" requires a positive minimum '
+                    'opening duration but is set to '
+                    '${node.cloudOpeningMinDurationSecs}s. The trigger would '
+                    'never fire (or fire on every tick).',
+                affectedNodeId: node.id,
+                resolutionHint:
+                    'Set Minimum Opening Duration to at least a few minutes '
+                    '(e.g. 300s) so the recovery has enough clear sky to '
+                    'image before the next cloud cell arrives.',
+              ),
+            );
           }
           if (node.cloudMinutesBefore <= 0) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Invalid Cloud Lead Time',
-              description: 'Recovery node "${node.name}" has a non-positive '
-                  'minutes-before value (${node.cloudMinutesBefore}).',
-              affectedNodeId: node.id,
-              resolutionHint: 'Set Minutes Before to a positive value.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Invalid Cloud Lead Time',
+                description:
+                    'Recovery node "${node.name}" has a non-positive '
+                    'minutes-before value (${node.cloudMinutesBefore}).',
+                affectedNodeId: node.id,
+                resolutionHint: 'Set Minutes Before to a positive value.',
+              ),
+            );
           }
           break;
         case TriggerType.cloudArrivingIn:
           if (node.cloudMinutesBefore <= 0) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Invalid Cloud Lead Time',
-              description: 'Recovery node "${node.name}" has a non-positive '
-                  'minutes-before value (${node.cloudMinutesBefore}).',
-              affectedNodeId: node.id,
-              resolutionHint: 'Set Minutes Before to a positive value.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Invalid Cloud Lead Time',
+                description:
+                    'Recovery node "${node.name}" has a non-positive '
+                    'minutes-before value (${node.cloudMinutesBefore}).',
+                affectedNodeId: node.id,
+                resolutionHint: 'Set Minutes Before to a positive value.',
+              ),
+            );
           }
           if (node.cloudCoverageThresholdPercent < 0 ||
               node.cloudCoverageThresholdPercent > 100) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.structure,
-              title: 'Invalid Cloud Coverage Threshold',
-              description:
-                  'Recovery node "${node.name}" has a coverage threshold of '
-                  '${node.cloudCoverageThresholdPercent}%, which is outside '
-                  'the valid range [0, 100].',
-              affectedNodeId: node.id,
-              resolutionHint:
-                  'Set Min Predicted Coverage between 0 and 100 percent.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.structure,
+                title: 'Invalid Cloud Coverage Threshold',
+                description:
+                    'Recovery node "${node.name}" has a coverage threshold of '
+                    '${node.cloudCoverageThresholdPercent}%, which is outside '
+                    'the valid range [0, 100].',
+                affectedNodeId: node.id,
+                resolutionHint:
+                    'Set Min Predicted Coverage between 0 and 100 percent.',
+              ),
+            );
           }
           break;
         default:
@@ -214,19 +232,21 @@ class ParallelNodeRequiredSuccessesRule implements SequenceValidator {
       final required = node.requiredSuccesses;
       if (required == null) continue;
       if (required > node.childIds.length) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.structure,
-          title: 'Parallel Requires Too Many Successes',
-          description:
-              'Parallel node "${node.name}" requires $required successful '
-              'branches but only has ${node.childIds.length}. It cannot '
-              'succeed.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Lower the required successes count or add more child '
-              'branches.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Parallel Requires Too Many Successes',
+            description:
+                'Parallel node "${node.name}" requires $required successful '
+                'branches but only has ${node.childIds.length}. It cannot '
+                'succeed.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Lower the required successes count or add more child '
+                'branches.',
+          ),
+        );
       }
     }
     return issues;
@@ -251,17 +271,20 @@ class ConditionalNodeEmptyBranchRule implements SequenceValidator {
     for (final node in sequence.nodes.values) {
       if (node is! ConditionalNode) continue;
       if (node.childIds.isNotEmpty) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.structure,
-        title: 'Conditional Has No Branch',
-        description: 'Conditional "${node.name}" has no child nodes. It will '
-            'evaluate its condition but never execute anything.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Add child nodes to the conditional, or remove the empty '
-            'node.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.structure,
+          title: 'Conditional Has No Branch',
+          description:
+              'Conditional "${node.name}" has no child nodes. It will '
+              'evaluate its condition but never execute anything.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Add child nodes to the conditional, or remove the empty '
+              'node.',
+        ),
+      );
     }
     return issues;
   }
@@ -320,37 +343,42 @@ class LoopUnreachableTerminationRule implements SequenceValidator {
       if (node.conditionType == LoopConditionType.whileDark &&
           node.repeatUntil != null &&
           node.repeatUntil!.isBefore(now)) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.structure,
-          title: 'WhileDark Loop With Past End Time',
-          description:
-              'Loop "${node.name}" runs while-dark but its end time has '
-              'already passed. The end-time guard fires first; the '
-              'while-dark check never gets to run.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Clear the end time or update it to a future moment, or '
-              'switch the loop condition to count-based.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.structure,
+            title: 'WhileDark Loop With Past End Time',
+            description:
+                'Loop "${node.name}" runs while-dark but its end time has '
+                'already passed. The end-time guard fires first; the '
+                'while-dark check never gets to run.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Clear the end time or update it to a future moment, or '
+                'switch the loop condition to count-based.',
+          ),
+        );
       }
 
       // Case 2: integration-time loop with non-positive target.
       if (node.conditionType == LoopConditionType.integrationTime) {
         final target = node.integrationTimeTarget;
         if (target == null || target <= 0) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.structure,
-            title: 'Integration-Time Loop Has No Target',
-            description:
-                'Loop "${node.name}" terminates on total integration time '
-                'but its target is ${target ?? "unset"}. The loop will '
-                'exit on the first accounting tick.',
-            affectedNodeId: node.id,
-            resolutionHint: 'Set integrationTimeTarget to a positive number of '
-                'seconds (or hours, depending on the UI).',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.structure,
+              title: 'Integration-Time Loop Has No Target',
+              description:
+                  'Loop "${node.name}" terminates on total integration time '
+                  'but its target is ${target ?? "unset"}. The loop will '
+                  'exit on the first accounting tick.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set integrationTimeTarget to a positive number of '
+                  'seconds (or hours, depending on the UI).',
+            ),
+          );
         }
       }
     }

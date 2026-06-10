@@ -33,7 +33,8 @@ class FilterBudgetEntry {
       return FilterBudgetEntry.ratio(value);
     } else {
       throw FormatException(
-          'Unknown FilterBudgetEntry kind "$kind"; expected Absolute or Ratio');
+        'Unknown FilterBudgetEntry kind "$kind"; expected Absolute or Ratio',
+      );
     }
   }
 
@@ -112,17 +113,18 @@ class IntegrationBudget {
   }
 
   Map<String, dynamic> toJson() => {
-        'total_secs': totalSecs,
-        'per_filter': perFilter.map((k, v) => MapEntry(k, v.toJson())),
-        'stop_on_budget_met': stopOnBudgetMet,
-      };
+    'total_secs': totalSecs,
+    'per_filter': perFilter.map((k, v) => MapEntry(k, v.toJson())),
+    'stop_on_budget_met': stopOnBudgetMet,
+  };
 
   factory IntegrationBudget.fromJson(Map<String, dynamic> json) {
     return IntegrationBudget(
       totalSecs: (json['total_secs'] as num?)?.toDouble() ?? 0.0,
       perFilter: (json['per_filter'] as Map<String, dynamic>? ?? const {}).map(
-          (k, v) => MapEntry(
-              k, FilterBudgetEntry.fromJson(v as Map<String, dynamic>))),
+        (k, v) =>
+            MapEntry(k, FilterBudgetEntry.fromJson(v as Map<String, dynamic>)),
+      ),
       stopOnBudgetMet: json['stop_on_budget_met'] as bool? ?? true,
     );
   }
@@ -141,11 +143,12 @@ class IntegrationBudget {
 
   @override
   int get hashCode => Object.hash(
-        totalSecs,
-        stopOnBudgetMet,
-        Object.hashAllUnordered(
-            perFilter.entries.map((e) => Object.hash(e.key, e.value))),
-      );
+    totalSecs,
+    stopOnBudgetMet,
+    Object.hashAllUnordered(
+      perFilter.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+  );
 }
 
 // ============================================================================
@@ -200,33 +203,33 @@ sealed class TargetTrigger with _$TargetTrigger {
   Map<String, dynamic> toJson() {
     return switch (this) {
       AltitudeAboveTrigger(altitudeDeg: final v) => {
-          'kind': 'AltitudeAbove',
-          'value': v,
-        },
+        'kind': 'AltitudeAbove',
+        'value': v,
+      },
       AltitudeBelowTrigger(altitudeDeg: final v) => {
-          'kind': 'AltitudeBelow',
-          'value': v,
-        },
+        'kind': 'AltitudeBelow',
+        'value': v,
+      },
       TimeAfterTrigger(unixSeconds: final v) => {
-          'kind': 'TimeAfter',
-          'value': v,
-        },
+        'kind': 'TimeAfter',
+        'value': v,
+      },
       TimeBeforeTrigger(unixSeconds: final v) => {
-          'kind': 'TimeBefore',
-          'value': v,
-        },
+        'kind': 'TimeBefore',
+        'value': v,
+      },
       AndTrigger(children: final cs) => {
-          'kind': 'And',
-          'value': cs.map((c) => c.toJson()).toList(),
-        },
+        'kind': 'And',
+        'value': cs.map((c) => c.toJson()).toList(),
+      },
       OrTrigger(children: final cs) => {
-          'kind': 'Or',
-          'value': cs.map((c) => c.toJson()).toList(),
-        },
+        'kind': 'Or',
+        'value': cs.map((c) => c.toJson()).toList(),
+      },
       HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi) => {
-          'kind': 'HourAngleBetween',
-          'value': {'minHa': lo, 'maxHa': hi},
-        },
+        'kind': 'HourAngleBetween',
+        'value': {'minHa': lo, 'maxHa': hi},
+      },
     };
   }
 
@@ -246,13 +249,17 @@ sealed class TargetTrigger with _$TargetTrigger {
       case 'TimeBefore':
         return TimeBeforeTrigger((raw as num).toInt());
       case 'And':
-        return AndTrigger((raw as List<dynamic>)
-            .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
-            .toList());
+        return AndTrigger(
+          (raw as List<dynamic>)
+              .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
+              .toList(),
+        );
       case 'Or':
-        return OrTrigger((raw as List<dynamic>)
-            .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
-            .toList());
+        return OrTrigger(
+          (raw as List<dynamic>)
+              .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
+              .toList(),
+        );
       case 'HourAngleBetween':
         final m = raw as Map<String, dynamic>;
         return HourAngleBetweenTrigger(
@@ -261,54 +268,50 @@ sealed class TargetTrigger with _$TargetTrigger {
         );
       default:
         throw FormatException(
-            'Unknown TargetTrigger kind "$kind" — expected AltitudeAbove, '
-            'AltitudeBelow, TimeAfter, TimeBefore, And, Or, or HourAngleBetween');
+          'Unknown TargetTrigger kind "$kind" — expected AltitudeAbove, '
+          'AltitudeBelow, TimeAfter, TimeBefore, And, Or, or HourAngleBetween',
+        );
     }
   }
 
   /// Human-readable label used by the dashboard / live preview.
   String get label => switch (this) {
-        AltitudeAboveTrigger(altitudeDeg: final v) =>
-          'altitude ≥ ${v.toStringAsFixed(1)}°',
-        AltitudeBelowTrigger(altitudeDeg: final v) =>
-          'altitude ≤ ${v.toStringAsFixed(1)}°',
-        TimeAfterTrigger(unixSeconds: final v) => 'time ≥ $v',
-        TimeBeforeTrigger(unixSeconds: final v) => 'time < $v',
-        AndTrigger(children: final cs) =>
-          '(${cs.map((c) => c.label).join(' AND ')})',
-        OrTrigger(children: final cs) =>
-          '(${cs.map((c) => c.label).join(' OR ')})',
-        HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi) =>
-          '${lo.toStringAsFixed(2)}h ≤ HA ≤ ${hi.toStringAsFixed(2)}h',
-      };
+    AltitudeAboveTrigger(altitudeDeg: final v) =>
+      'altitude ≥ ${v.toStringAsFixed(1)}°',
+    AltitudeBelowTrigger(altitudeDeg: final v) =>
+      'altitude ≤ ${v.toStringAsFixed(1)}°',
+    TimeAfterTrigger(unixSeconds: final v) => 'time ≥ $v',
+    TimeBeforeTrigger(unixSeconds: final v) => 'time < $v',
+    AndTrigger(children: final cs) =>
+      '(${cs.map((c) => c.label).join(' AND ')})',
+    OrTrigger(children: final cs) => '(${cs.map((c) => c.label).join(' OR ')})',
+    HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi) =>
+      '${lo.toStringAsFixed(2)}h ≤ HA ≤ ${hi.toStringAsFixed(2)}h',
+  };
 
   /// True iff this trigger (or any nested sub-trigger) references an
   /// altitude threshold. Used by the validator to surface "this target
   /// never reaches that altitude from your location" errors.
   bool get referencesAltitude => switch (this) {
-        AltitudeAboveTrigger() || AltitudeBelowTrigger() => true,
-        AndTrigger(children: final cs) ||
-        OrTrigger(children: final cs) =>
-          cs.any((c) => c.referencesAltitude),
-        TimeAfterTrigger() ||
-        TimeBeforeTrigger() ||
-        HourAngleBetweenTrigger() =>
-          false,
-      };
+    AltitudeAboveTrigger() || AltitudeBelowTrigger() => true,
+    AndTrigger(children: final cs) ||
+    OrTrigger(children: final cs) => cs.any((c) => c.referencesAltitude),
+    TimeAfterTrigger() ||
+    TimeBeforeTrigger() ||
+    HourAngleBetweenTrigger() => false,
+  };
 
   /// Recursively detect empty And / Or compounds. Used by
   /// [TargetTriggerEmptyCompoundRule].
   bool get hasEmptyCompound => switch (this) {
-        AndTrigger(children: final cs) ||
-        OrTrigger(children: final cs) =>
-          cs.isEmpty || cs.any((c) => c.hasEmptyCompound),
-        AltitudeAboveTrigger() ||
-        AltitudeBelowTrigger() ||
-        TimeAfterTrigger() ||
-        TimeBeforeTrigger() ||
-        HourAngleBetweenTrigger() =>
-          false,
-      };
+    AndTrigger(children: final cs) || OrTrigger(children: final cs) =>
+      cs.isEmpty || cs.any((c) => c.hasEmptyCompound),
+    AltitudeAboveTrigger() ||
+    AltitudeBelowTrigger() ||
+    TimeAfterTrigger() ||
+    TimeBeforeTrigger() ||
+    HourAngleBetweenTrigger() => false,
+  };
 }
 
 /// Evaluate a [TargetTrigger] against an observer / target / now snapshot.
@@ -332,16 +335,24 @@ bool evaluateTargetTrigger(
       return nowUnix < t;
     case AndTrigger(children: final cs):
       if (cs.isEmpty) return false;
-      return cs.every((c) => evaluateTargetTrigger(c,
+      return cs.every(
+        (c) => evaluateTargetTrigger(
+          c,
           altitudeDeg: altitudeDeg,
           hourAngleHours: hourAngleHours,
-          nowUnix: nowUnix));
+          nowUnix: nowUnix,
+        ),
+      );
     case OrTrigger(children: final cs):
       if (cs.isEmpty) return false;
-      return cs.any((c) => evaluateTargetTrigger(c,
+      return cs.any(
+        (c) => evaluateTargetTrigger(
+          c,
           altitudeDeg: altitudeDeg,
           hourAngleHours: hourAngleHours,
-          nowUnix: nowUnix));
+          nowUnix: nowUnix,
+        ),
+      );
     case HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi):
       return hourAngleHours >= lo && hourAngleHours <= hi;
   }

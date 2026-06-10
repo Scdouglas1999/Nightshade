@@ -405,7 +405,8 @@ mixin _GuidingMobileSections
                       const SizedBox(height: 12),
                       Text(
                         'PHD2 Brain Settings',
-                        style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.h4
+                            .copyWith(color: colors.textPrimary),
                       ),
                       const SizedBox(height: 8),
                       Text(

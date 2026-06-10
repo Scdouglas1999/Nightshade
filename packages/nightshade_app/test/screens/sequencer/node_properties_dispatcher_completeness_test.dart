@@ -82,8 +82,7 @@ void main() {
       expect(
         find.textContaining('No property editor'),
         findsNothing,
-        reason:
-            '${node.runtimeType} (${node.nodeType}) fell through to the '
+        reason: '${node.runtimeType} (${node.nodeType}) fell through to the '
             '"No property editor" fallback — it must have a real editor in '
             'the NodePropertiesPanel dispatcher.',
       );

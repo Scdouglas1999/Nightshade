@@ -55,8 +55,7 @@ class CampaignRollupDialog extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.alertTriangle,
-                    size: 32, color: colors.error),
+                Icon(LucideIcons.alertTriangle, size: 32, color: colors.error),
                 const SizedBox(height: 12),
                 Text(
                   'Could not build campaign rollup',
@@ -68,7 +67,9 @@ class CampaignRollupDialog extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '$err',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -135,8 +136,9 @@ class _Body extends StatelessWidget {
                       rollup.targetName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize13,
+                          color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -182,8 +184,7 @@ class _Body extends StatelessWidget {
                     ),
                     _SummaryTile(
                       label: 'Mean HFR',
-                      value:
-                          rollup.meanSessionHfr?.toStringAsFixed(2) ?? '-',
+                      value: rollup.meanSessionHfr?.toStringAsFixed(2) ?? '-',
                       colors: colors,
                     ),
                     _SummaryTile(
@@ -223,8 +224,9 @@ class _Body extends StatelessWidget {
                 if (rollup.filters.isEmpty)
                   Text(
                     'No frames captured for this target yet.',
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: colors.textMuted),
                   )
                 else
                   for (final f in rollup.filters)
@@ -239,8 +241,9 @@ class _Body extends StatelessWidget {
                 if (rollup.sessions.isEmpty)
                   Text(
                     'No sessions recorded for this target.',
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: colors.textMuted),
                   )
                 else
                   for (final s in rollup.sessions)
@@ -328,28 +331,31 @@ class _SummaryTile extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 140),
       child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize15,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted)),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize15,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -417,7 +423,9 @@ class _OverallProgress extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Captured ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
           ),
         ],
       ),
@@ -462,8 +470,9 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames}/${filter.goalFrames} frames',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textSecondary),
                   ),
                 )
               else
@@ -472,8 +481,9 @@ class _FilterRow extends StatelessWidget {
                     '${filter.capturedFrames} frames captured (no goal)',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textMuted),
                   ),
                 ),
               const Spacer(),
@@ -488,7 +498,8 @@ class _FilterRow extends StatelessWidget {
           if (pct != null) ...[
             const SizedBox(height: 6),
             ClipRRect(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 6,
@@ -501,7 +512,9 @@ class _FilterRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${(pct * 100).toStringAsFixed(0)}% complete | ${filter.remainingFrames} frames remaining',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textMuted),
             ),
           ],
         ],
@@ -587,8 +600,9 @@ class _SessionRow extends StatelessWidget {
                       '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h integration',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -607,8 +621,7 @@ class _SessionRow extends StatelessWidget {
                   colors: colors,
                 ),
               const SizedBox(width: 6),
-              Icon(LucideIcons.chevronRight,
-                  size: 16, color: colors.textMuted),
+              Icon(LucideIcons.chevronRight, size: 16, color: colors.textMuted),
             ],
           ),
         ),
@@ -641,7 +654,9 @@ class _Chip extends StatelessWidget {
         children: [
           Text(
             '$label ',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           Text(
             value,

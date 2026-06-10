@@ -54,91 +54,89 @@ void main() {
       backend.dispose();
     });
 
-    test('fetchRecentServerLogs decodes the /api/logs/recent envelope',
-        () async {
-      final now = DateTime.now().toUtc();
-      final earlier = now.subtract(const Duration(seconds: 5));
-      fake.setResponse(
-        '/api/logs/recent',
-        method: 'GET',
-        body: jsonEncode({
-          'entries': [
-            {
-              'timestamp': earlier.toIso8601String(),
-              'severity': 'info',
-              'source': 'TestSrc',
-              'message': 'first entry',
-            },
-            {
-              'timestamp': now.toIso8601String(),
-              'severity': 'warning',
-              'source': 'TestSrc',
-              'message': 'second entry',
-              'fields': {'k': 'v'},
-            },
-          ],
-          'count': 2,
-          'totalBuffered': 17,
-        }),
-      );
-      backend = _buildBackend(fake);
+    test(
+      'fetchRecentServerLogs decodes the /api/logs/recent envelope',
+      () async {
+        final now = DateTime.now().toUtc();
+        final earlier = now.subtract(const Duration(seconds: 5));
+        fake.setResponse(
+          '/api/logs/recent',
+          method: 'GET',
+          body: jsonEncode({
+            'entries': [
+              {
+                'timestamp': earlier.toIso8601String(),
+                'severity': 'info',
+                'source': 'TestSrc',
+                'message': 'first entry',
+              },
+              {
+                'timestamp': now.toIso8601String(),
+                'severity': 'warning',
+                'source': 'TestSrc',
+                'message': 'second entry',
+                'fields': {'k': 'v'},
+              },
+            ],
+            'count': 2,
+            'totalBuffered': 17,
+          }),
+        );
+        backend = _buildBackend(fake);
 
-      final entries = await backend.fetchRecentServerLogs(limit: 50);
-      expect(entries, hasLength(2));
-      expect(entries.first.message, 'first entry');
-      expect(entries.first.level, LogLevel.info);
-      expect(entries.last.level, LogLevel.warning);
-      expect(entries.last.fields['k'], 'v');
+        final entries = await backend.fetchRecentServerLogs(limit: 50);
+        expect(entries, hasLength(2));
+        expect(entries.first.message, 'first entry');
+        expect(entries.first.level, LogLevel.info);
+        expect(entries.last.level, LogLevel.warning);
+        expect(entries.last.fields['k'], 'v');
 
-      final req = fake.requestsFor('/api/logs/recent').single;
-      expect(req.method, 'GET');
-      expect(req.url.queryParameters['limit'], '50');
-      expect(_headerValue(req.headers, 'Authorization'), 'Bearer test-token');
-    });
+        final req = fake.requestsFor('/api/logs/recent').single;
+        expect(req.method, 'GET');
+        expect(req.url.queryParameters['limit'], '50');
+        expect(_headerValue(req.headers, 'Authorization'), 'Bearer test-token');
+      },
+    );
 
-    test('fetchRecentServerLogs passes severityMin + categoryFilter through',
-        () async {
-      fake.setResponse(
-        '/api/logs/recent',
-        method: 'GET',
-        body: jsonEncode({
-          'entries': [],
-          'count': 0,
-          'totalBuffered': 0,
-        }),
-      );
-      backend = _buildBackend(fake);
+    test(
+      'fetchRecentServerLogs passes severityMin + categoryFilter through',
+      () async {
+        fake.setResponse(
+          '/api/logs/recent',
+          method: 'GET',
+          body: jsonEncode({'entries': [], 'count': 0, 'totalBuffered': 0}),
+        );
+        backend = _buildBackend(fake);
 
-      await backend.fetchRecentServerLogs(
-        limit: 25,
-        severityMin: 'warning',
-        categoryFilter: 'DeviceService',
-      );
-      final req = fake.requestsFor('/api/logs/recent').single;
-      expect(req.url.queryParameters['minSeverity'], 'warning');
-      expect(req.url.queryParameters['source'], 'DeviceService');
-    });
+        await backend.fetchRecentServerLogs(
+          limit: 25,
+          severityMin: 'warning',
+          categoryFilter: 'DeviceService',
+        );
+        final req = fake.requestsFor('/api/logs/recent').single;
+        expect(req.url.queryParameters['minSeverity'], 'warning');
+        expect(req.url.queryParameters['source'], 'DeviceService');
+      },
+    );
 
-    test('fetchRecentServerLogs surfaces malformed bodies as an error',
-        () async {
-      fake.setResponse(
-        '/api/logs/recent',
-        method: 'GET',
-        // Server promised `entries:[...]`, returned a string — that is a
-        // wire-protocol bug we want to surface loudly, not silently
-        // smooth over.
-        body: '{"entries": "not a list"}',
-      );
-      backend = _buildBackend(fake);
+    test(
+      'fetchRecentServerLogs surfaces malformed bodies as an error',
+      () async {
+        fake.setResponse(
+          '/api/logs/recent',
+          method: 'GET',
+          // Server promised `entries:[...]`, returned a string — that is a
+          // wire-protocol bug we want to surface loudly, not silently
+          // smooth over.
+          body: '{"entries": "not a list"}',
+        );
+        backend = _buildBackend(fake);
 
-      expect(
-        backend.fetchRecentServerLogs(),
-        throwsA(isA<Object>()),
-      );
-    });
+        expect(backend.fetchRecentServerLogs(), throwsA(isA<Object>()));
+      },
+    );
 
-    test('fetchRecentServerLogs skips per-entry FormatExceptions',
-        () async {
+    test('fetchRecentServerLogs skips per-entry FormatExceptions', () async {
       final ts = DateTime.now().toUtc().toIso8601String();
       fake.setResponse(
         '/api/logs/recent',

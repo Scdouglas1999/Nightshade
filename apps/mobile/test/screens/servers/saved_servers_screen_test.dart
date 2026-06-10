@@ -215,58 +215,63 @@ void main() {
   });
 
   group('relay servers', () {
-    test('upsertRelay round-trips through persistence + secure storage',
-        () async {
-      final service = SavedServersService();
-      final added = await service.upsertRelay(
-        displayName: 'Remote rig',
-        relayUrl: 'wss://relay.example.com',
-        relayApplianceId: 'abcd-wxyz-2345',
-        relayAllowInsecureTls: true,
-        authToken: 'appliance-bearer',
-        lastConnectedAt: DateTime.now(),
-      );
-      expect(added.isRelay, isTrue);
-      expect(await service.tokenFor(added.id), 'appliance-bearer');
+    test(
+      'upsertRelay round-trips through persistence + secure storage',
+      () async {
+        final service = SavedServersService();
+        final added = await service.upsertRelay(
+          displayName: 'Remote rig',
+          relayUrl: 'wss://relay.example.com',
+          relayApplianceId: 'abcd-wxyz-2345',
+          relayAllowInsecureTls: true,
+          authToken: 'appliance-bearer',
+          lastConnectedAt: DateTime.now(),
+        );
+        expect(added.isRelay, isTrue);
+        expect(await service.tokenFor(added.id), 'appliance-bearer');
 
-      // Reload from disk (fresh service instance over the same mock prefs +
-      // secure storage) to prove the non-secret fields survive serialization
-      // and the token stays in secure storage, not the JSON blob.
-      final reloaded = (await SavedServersService().loadAll()).single;
-      expect(reloaded.id, added.id);
-      expect(reloaded.displayName, 'Remote rig');
-      expect(reloaded.relayUrl, 'wss://relay.example.com');
-      expect(reloaded.relayApplianceId, 'abcd-wxyz-2345');
-      expect(reloaded.relayAllowInsecureTls, isTrue);
-      expect(reloaded.isRelay, isTrue);
-      // The token lives only in secure storage — the round-tripped row must
-      // not carry it in the JSON-backed model.
-      expect(reloaded.authToken, isNull);
-      expect(await service.tokenFor(reloaded.id), 'appliance-bearer');
-    });
+        // Reload from disk (fresh service instance over the same mock prefs +
+        // secure storage) to prove the non-secret fields survive serialization
+        // and the token stays in secure storage, not the JSON blob.
+        final reloaded = (await SavedServersService().loadAll()).single;
+        expect(reloaded.id, added.id);
+        expect(reloaded.displayName, 'Remote rig');
+        expect(reloaded.relayUrl, 'wss://relay.example.com');
+        expect(reloaded.relayApplianceId, 'abcd-wxyz-2345');
+        expect(reloaded.relayAllowInsecureTls, isTrue);
+        expect(reloaded.isRelay, isTrue);
+        // The token lives only in secure storage — the round-tripped row must
+        // not carry it in the JSON-backed model.
+        expect(reloaded.authToken, isNull);
+        expect(await service.tokenFor(reloaded.id), 'appliance-bearer');
+      },
+    );
 
-    test('upsertRelay updates the existing row instead of duplicating',
-        () async {
-      final service = SavedServersService();
-      final first = await service.upsertRelay(
-        displayName: 'Remote rig',
-        relayUrl: 'wss://relay.example.com',
-        relayApplianceId: 'abcd-wxyz-2345',
-      );
-      final second = await service.upsertRelay(
-        displayName: 'Remote rig',
-        relayUrl: 'wss://relay.example.com',
-        relayApplianceId: 'abcd-wxyz-2345',
-        authToken: 'new-bearer',
-        lastConnectedAt: DateTime.now(),
-      );
-      expect(second.id, first.id, reason: 'matched on relay url + appliance');
-      expect((await service.loadAll()).length, 1);
-      expect(await service.tokenFor(first.id), 'new-bearer');
-    });
+    test(
+      'upsertRelay updates the existing row instead of duplicating',
+      () async {
+        final service = SavedServersService();
+        final first = await service.upsertRelay(
+          displayName: 'Remote rig',
+          relayUrl: 'wss://relay.example.com',
+          relayApplianceId: 'abcd-wxyz-2345',
+        );
+        final second = await service.upsertRelay(
+          displayName: 'Remote rig',
+          relayUrl: 'wss://relay.example.com',
+          relayApplianceId: 'abcd-wxyz-2345',
+          authToken: 'new-bearer',
+          lastConnectedAt: DateTime.now(),
+        );
+        expect(second.id, first.id, reason: 'matched on relay url + appliance');
+        expect((await service.loadAll()).length, 1);
+        expect(await service.tokenFor(first.id), 'new-bearer');
+      },
+    );
 
-    testWidgets('relay row renders a RELAY badge + relay endpoint line',
-        (tester) async {
+    testWidgets('relay row renders a RELAY badge + relay endpoint line', (
+      tester,
+    ) async {
       final service = SavedServersService();
       await service.upsertRelay(
         displayName: 'Remote rig',
@@ -293,7 +298,8 @@ void main() {
       // relay fields: no relayUrl/relayApplianceId keys at all.
       SharedPreferences.setMockInitialValues(<String, Object>{
         SavedServersStorageKeys.migrated: true,
-        SavedServersStorageKeys.list: '[{"id":"legacy1",'
+        SavedServersStorageKeys.list:
+            '[{"id":"legacy1",'
             '"displayName":"Old rig","host":"10.0.0.5","port":8080}]',
       });
       final service = SavedServersService();

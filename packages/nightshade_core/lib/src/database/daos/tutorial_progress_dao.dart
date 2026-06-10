@@ -15,9 +15,9 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get progress for a specific tutorial category.
   /// Returns null if no progress has been saved for this category.
   Future<TutorialProgressEntry?> getProgress(String category) {
-    return (select(tutorialProgress)
-          ..where((t) => t.category.equals(category)))
-        .getSingleOrNull();
+    return (select(
+      tutorialProgress,
+    )..where((t) => t.category.equals(category))).getSingleOrNull();
   }
 
   /// Save progress for a tutorial category.
@@ -29,16 +29,16 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
       // Update existing entry
       await (update(tutorialProgress)
             ..where((t) => t.category.equals(category)))
-          .write(TutorialProgressCompanion(
-        lastStepIndex: Value(stepIndex),
-      ));
+          .write(TutorialProgressCompanion(lastStepIndex: Value(stepIndex)));
     } else {
       // Create new entry
-      await into(tutorialProgress).insert(TutorialProgressCompanion.insert(
-        category: category,
-        lastStepIndex: Value(stepIndex),
-        startedAt: DateTime.now(),
-      ));
+      await into(tutorialProgress).insert(
+        TutorialProgressCompanion.insert(
+          category: category,
+          lastStepIndex: Value(stepIndex),
+          startedAt: DateTime.now(),
+        ),
+      );
     }
   }
 
@@ -48,21 +48,25 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
     final existing = await getProgress(category);
 
     if (existing != null) {
-      await (update(tutorialProgress)
-            ..where((t) => t.category.equals(category)))
-          .write(TutorialProgressCompanion(
-        completed: const Value(true),
-        completedAt: Value(DateTime.now()),
-        dismissed: const Value(false),
-      ));
+      await (update(
+        tutorialProgress,
+      )..where((t) => t.category.equals(category))).write(
+        TutorialProgressCompanion(
+          completed: const Value(true),
+          completedAt: Value(DateTime.now()),
+          dismissed: const Value(false),
+        ),
+      );
     } else {
       // Create entry if it doesn't exist (edge case: completing without starting)
-      await into(tutorialProgress).insert(TutorialProgressCompanion.insert(
-        category: category,
-        completed: const Value(true),
-        startedAt: DateTime.now(),
-        completedAt: Value(DateTime.now()),
-      ));
+      await into(tutorialProgress).insert(
+        TutorialProgressCompanion.insert(
+          category: category,
+          completed: const Value(true),
+          startedAt: DateTime.now(),
+          completedAt: Value(DateTime.now()),
+        ),
+      );
     }
   }
 
@@ -74,25 +78,25 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
     if (existing != null) {
       await (update(tutorialProgress)
             ..where((t) => t.category.equals(category)))
-          .write(const TutorialProgressCompanion(
-        dismissed: Value(true),
-      ));
+          .write(const TutorialProgressCompanion(dismissed: Value(true)));
     } else {
       // Create entry if it doesn't exist
-      await into(tutorialProgress).insert(TutorialProgressCompanion.insert(
-        category: category,
-        startedAt: DateTime.now(),
-        dismissed: const Value(true),
-      ));
+      await into(tutorialProgress).insert(
+        TutorialProgressCompanion.insert(
+          category: category,
+          startedAt: DateTime.now(),
+          dismissed: const Value(true),
+        ),
+      );
     }
   }
 
   /// Reset progress for a tutorial category.
   /// Deletes the progress entry so the tutorial can be restarted fresh.
   Future<void> resetProgress(String category) async {
-    await (delete(tutorialProgress)
-          ..where((t) => t.category.equals(category)))
-        .go();
+    await (delete(
+      tutorialProgress,
+    )..where((t) => t.category.equals(category))).go();
   }
 
   /// Get all tutorial progress entries.
@@ -120,9 +124,9 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all completed tutorial categories.
   Future<List<String>> getCompletedCategories() async {
-    final entries = await (select(tutorialProgress)
-          ..where((t) => t.completed.equals(true)))
-        .get();
+    final entries = await (select(
+      tutorialProgress,
+    )..where((t) => t.completed.equals(true))).get();
     return entries.map((e) => e.category).toList();
   }
 
@@ -135,9 +139,9 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get all dismissed screen IDs for contextual tour prompts.
   /// Returns a set of screen IDs that have been dismissed.
   Future<Set<String>> getDismissedPromptScreenIds() async {
-    final entries = await (select(tutorialProgress)
-          ..where((t) => t.dismissed.equals(true)))
-        .get();
+    final entries = await (select(
+      tutorialProgress,
+    )..where((t) => t.dismissed.equals(true))).get();
     return entries.map((e) => e.category).toSet();
   }
 
@@ -149,16 +153,16 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
     if (existing != null) {
       await (update(tutorialProgress)
             ..where((t) => t.category.equals(screenId)))
-          .write(const TutorialProgressCompanion(
-        dismissed: Value(true),
-      ));
+          .write(const TutorialProgressCompanion(dismissed: Value(true)));
     } else {
       // Create entry for the screen prompt dismissal
-      await into(tutorialProgress).insert(TutorialProgressCompanion.insert(
-        category: screenId,
-        startedAt: DateTime.now(),
-        dismissed: const Value(true),
-      ));
+      await into(tutorialProgress).insert(
+        TutorialProgressCompanion.insert(
+          category: screenId,
+          startedAt: DateTime.now(),
+          dismissed: const Value(true),
+        ),
+      );
     }
   }
 
@@ -170,8 +174,7 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Watch dismissed prompt screen IDs for reactive updates.
   Stream<Set<String>> watchDismissedPromptScreenIds() {
-    return (select(tutorialProgress)
-          ..where((t) => t.dismissed.equals(true)))
+    return (select(tutorialProgress)..where((t) => t.dismissed.equals(true)))
         .watch()
         .map((entries) => entries.map((e) => e.category).toSet());
   }

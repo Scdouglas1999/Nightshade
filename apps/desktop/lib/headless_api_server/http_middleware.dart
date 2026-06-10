@@ -8,14 +8,17 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
   Middleware _requestTrackingMiddleware() {
     return (innerHandler) {
       return (request) async {
-        final requestId = request.headers[HeadlessApiServer._requestIdHeader] ??
+        final requestId =
+            request.headers[HeadlessApiServer._requestIdHeader] ??
             _nextRequestId();
         final path = '/${request.url.path}';
         final startedAt = DateTime.now();
-        final scopedRequest = request.change(context: {
-          ...request.context,
-          HeadlessApiServer._requestIdContextKey: requestId,
-        });
+        final scopedRequest = request.change(
+          context: {
+            ...request.context,
+            HeadlessApiServer._requestIdContextKey: requestId,
+          },
+        );
 
         _logInfo(
           '[REQ][$requestId] ${request.method} $path started',
@@ -43,10 +46,12 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
           if (path == '/api/ws' || path == '/events') {
             return response;
           }
-          return response.change(headers: {
-            ...response.headers,
-            HeadlessApiServer._requestIdHeader: requestId,
-          });
+          return response.change(
+            headers: {
+              ...response.headers,
+              HeadlessApiServer._requestIdHeader: requestId,
+            },
+          );
         } catch (e, stackTrace) {
           final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
           _logError(
@@ -91,10 +96,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         if (corsHeaders.isEmpty) {
           return response;
         }
-        return response.change(headers: {
-          ...response.headers,
-          ...corsHeaders,
-        });
+        return response.change(headers: {...response.headers, ...corsHeaders});
       };
     };
   }
@@ -173,10 +175,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     if (exceededLimit) {
       return _RequestBodyLimitResult.rejected(receivedBytes);
     }
-    return _RequestBodyLimitResult.accepted(
-      bytes.takeBytes(),
-      receivedBytes,
-    );
+    return _RequestBodyLimitResult.accepted(bytes.takeBytes(), receivedBytes);
   }
 
   Middleware _apiVersionMiddleware() {
@@ -184,14 +183,15 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       return (request) async {
         final path = '/${request.url.path}';
         final isWebSocket = path == '/api/ws' || path == '/events';
-        final clientVersion = request
-                .headers[RemoteApiCompatibility.apiVersionHeader] ??
+        final clientVersion =
+            request.headers[RemoteApiCompatibility.apiVersionHeader] ??
             (isWebSocket ? request.url.queryParameters['apiVersion'] : null);
         if ((path.startsWith('/api/') || isWebSocket) &&
             clientVersion != null &&
             clientVersion.trim().isNotEmpty) {
-          final compatibility =
-              RemoteApiCompatibility.checkClient(clientVersion);
+          final compatibility = RemoteApiCompatibility.checkClient(
+            clientVersion,
+          );
           if (!compatibility.isCompatible) {
             final requestId = _requestIdFrom(request);
             _logWarning(
@@ -204,10 +204,11 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                 'message': compatibility.message,
                 'clientApiVersion':
                     compatibility.clientVersion ?? clientVersion,
-                'serverApiVersion':
-                    RemoteApiCompatibility.serverApiVersion.format(),
-                'minimumSupportedApiVersion':
-                    RemoteApiCompatibility.minimumSupportedVersion.format(),
+                'serverApiVersion': RemoteApiCompatibility.serverApiVersion
+                    .format(),
+                'minimumSupportedApiVersion': RemoteApiCompatibility
+                    .minimumSupportedVersion
+                    .format(),
                 'requestId': requestId,
               },
               headers: {
@@ -222,20 +223,21 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         if (isWebSocket) {
           return response;
         }
-        return response.change(headers: {
-          ...response.headers,
-          ..._apiCompatibilityHeaders(),
-        });
+        return response.change(
+          headers: {...response.headers, ..._apiCompatibilityHeaders()},
+        );
       };
     };
   }
 
   Map<String, String> _apiCompatibilityHeaders() {
     return {
-      RemoteApiCompatibility.apiVersionHeader:
-          RemoteApiCompatibility.serverApiVersion.format(),
-      'x-nightshade-minimum-api-version':
-          RemoteApiCompatibility.minimumSupportedVersion.format(),
+      RemoteApiCompatibility.apiVersionHeader: RemoteApiCompatibility
+          .serverApiVersion
+          .format(),
+      'x-nightshade-minimum-api-version': RemoteApiCompatibility
+          .minimumSupportedVersion
+          .format(),
     };
   }
 
@@ -315,8 +317,9 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     final principalLog = identity == null
         ? 'anonymous'
         : identity.substring(0, identity.length < 8 ? identity.length : 8);
-    final principalForBody =
-        identity == null ? 'anonymous' : 'token-$principalLog';
+    final principalForBody = identity == null
+        ? 'anonymous'
+        : 'token-$principalLog';
     final message = 'Token $principalForBody exceeded $bucketLabel bucket';
     _logWarning(
       '[RATE][$requestId] ${request.method} $path limited '
@@ -343,9 +346,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         'retryAfterSeconds': decision.retryAfterSeconds,
         'requestId': requestId,
       },
-      headers: {
-        'retry-after': decision.retryAfterSeconds.toString(),
-      },
+      headers: {'retry-after': decision.retryAfterSeconds.toString()},
     );
   }
 
@@ -427,7 +428,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       // long-form).
       'Access-Control-Allow-Headers':
           'Origin, Content-Type, X-Auth-Token, Authorization, '
-              'X-Nightshade-API-Version, X-Request-ID, X-Nightshade-CSRF',
+          'X-Nightshade-API-Version, X-Request-ID, X-Nightshade-CSRF',
       // Why expose Set-Cookie on the wire but not allow-credentials: the
       // cookie is HttpOnly so the browser stores it without JS seeing it;
       // `credentials: 'include'` on the SPA fetch is what makes the cookie
@@ -526,14 +527,16 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
             // id.
             final ticketIdentity = _wsTicketManager.consume(queryTicket);
             if (ticketIdentity != null) {
-              return innerHandler(_attachAuthIdentity(
-                request,
-                identity: ticketIdentity,
-                routeClass: route_metadata.tokenRouteClassFor(
-                  method: request.method,
-                  path: path,
+              return innerHandler(
+                _attachAuthIdentity(
+                  request,
+                  identity: ticketIdentity,
+                  routeClass: route_metadata.tokenRouteClassFor(
+                    method: request.method,
+                    path: path,
+                  ),
                 ),
-              ));
+              );
             }
             // Bad/expired ticket — do NOT fall through to legacy token to
             // avoid masking a stolen-ticket replay attempt with a successful
@@ -563,14 +566,16 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                 '[AUTH][$requestId] WS upgrade to $path used legacy ?token=. '
                 'Switch to POST /api/ws/ticket + ?ticket= (audit §2.28).',
               );
-              return innerHandler(_attachAuthIdentity(
-                request,
-                identity: computeServerFingerprint(queryToken),
-                routeClass: route_metadata.tokenRouteClassFor(
-                  method: request.method,
-                  path: path,
+              return innerHandler(
+                _attachAuthIdentity(
+                  request,
+                  identity: computeServerFingerprint(queryToken),
+                  routeClass: route_metadata.tokenRouteClassFor(
+                    method: request.method,
+                    path: path,
+                  ),
                 ),
-              ));
+              );
             }
           }
           // Fall through to check Authorization header below.
@@ -616,16 +621,15 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         if (token == null && authHeader != null) {
           if (!authHeader.startsWith('Bearer ')) {
             _logWarning(
-                '[AUTH][$requestId] Rejected request to $path - invalid auth format');
+              '[AUTH][$requestId] Rejected request to $path - invalid auth format',
+            );
             return jsonUnauthorized(
               {
                 'error': 'Authentication required',
                 'message':
                     'Invalid Authorization header format. Expected: Bearer <token>',
               },
-              headers: {
-                HeadlessApiServer._requestIdHeader: requestId,
-              },
+              headers: {HeadlessApiServer._requestIdHeader: requestId},
             );
           }
           token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -640,15 +644,14 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
 
         if (token == null) {
           _logWarning(
-              '[AUTH][$requestId] Rejected request to $path - no Authorization header or session cookie');
+            '[AUTH][$requestId] Rejected request to $path - no Authorization header or session cookie',
+          );
           return jsonUnauthorized(
             {
               'error': 'Authentication required',
               'message': 'Missing Authorization header or session cookie',
             },
-            headers: {
-              HeadlessApiServer._requestIdHeader: requestId,
-            },
+            headers: {HeadlessApiServer._requestIdHeader: requestId},
           );
         }
 
@@ -710,15 +713,14 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         if (tokenScope == null) {
           _tokenResolver.recordFailure(clientKey);
           _logWarning(
-              '[AUTH][$requestId] Rejected request to $path - invalid token');
+            '[AUTH][$requestId] Rejected request to $path - invalid token',
+          );
           return jsonForbidden(
             {
               'error': 'Access denied',
               'message': 'Invalid authentication token',
             },
-            headers: {
-              HeadlessApiServer._requestIdHeader: requestId,
-            },
+            headers: {HeadlessApiServer._requestIdHeader: requestId},
           );
         }
         // Token recognised — clear stale failures so a successful login
@@ -746,9 +748,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
               'requiredScope': headlessTokenScopeName(requiredScope),
               'tokenScope': headlessTokenScopeName(tokenScope),
             },
-            headers: {
-              HeadlessApiServer._requestIdHeader: requestId,
-            },
+            headers: {HeadlessApiServer._requestIdHeader: requestId},
           );
         }
 
@@ -757,14 +757,16 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         // middleware (and any handler that wants to log the principal
         // without a re-resolution) can read it back. We MUST NOT pass
         // the raw token through the context — see [_authIdentityContextKey].
-        return innerHandler(_attachAuthIdentity(
-          request,
-          identity: computeServerFingerprint(token),
-          routeClass: route_metadata.tokenRouteClassFor(
-            method: request.method,
-            path: path,
+        return innerHandler(
+          _attachAuthIdentity(
+            request,
+            identity: computeServerFingerprint(token),
+            routeClass: route_metadata.tokenRouteClassFor(
+              method: request.method,
+              path: path,
+            ),
           ),
-        ));
+        );
       };
     };
   }
@@ -782,10 +784,12 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     required String identity,
     required route_metadata.TokenRouteClass routeClass,
   }) {
-    return request.change(context: {
-      HeadlessApiServer._authIdentityContextKey: identity,
-      HeadlessApiServer._authRouteClassContextKey: routeClass,
-    });
+    return request.change(
+      context: {
+        HeadlessApiServer._authIdentityContextKey: identity,
+        HeadlessApiServer._authRouteClassContextKey: routeClass,
+      },
+    );
   }
 
   /// Read the authenticated principal digest off the request context.
@@ -864,7 +868,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
             'error': 'not_session_owner',
             'message':
                 'Another client is the operator. POST /api/session/take-over '
-                    'with a reason to displace them.',
+                'with a reason to displace them.',
             'currentOwner': owner.toJson(),
             'retryWithTakeOver': true,
           });

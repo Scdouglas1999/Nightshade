@@ -10,10 +10,7 @@ class AppVersionInfo {
   final String version;
   final int buildNumber;
 
-  const AppVersionInfo({
-    required this.version,
-    required this.buildNumber,
-  });
+  const AppVersionInfo({required this.version, required this.buildNumber});
 
   @override
   bool operator ==(Object other) =>

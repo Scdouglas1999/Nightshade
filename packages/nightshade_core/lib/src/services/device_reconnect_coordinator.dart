@@ -34,16 +34,13 @@ class DeviceReconnectCoordinator {
     required NightshadeBackend backend,
     required Future<void> Function() resumeSequence,
     required Future<void> Function() pauseSequence,
-    required void Function(
-      String deviceId, {
-      int attempt,
-      int maxAttempts,
-    }) surfaceReconnecting,
-  })  : _ref = ref,
-        _backend = backend,
-        _resumeSequence = resumeSequence,
-        _pauseSequence = pauseSequence,
-        _surfaceReconnecting = surfaceReconnecting;
+    required void Function(String deviceId, {int attempt, int maxAttempts})
+    surfaceReconnecting,
+  }) : _ref = ref,
+       _backend = backend,
+       _resumeSequence = resumeSequence,
+       _pauseSequence = pauseSequence,
+       _surfaceReconnecting = surfaceReconnecting;
 
   final Ref _ref;
   final NightshadeBackend _backend;
@@ -56,11 +53,8 @@ class DeviceReconnectCoordinator {
   /// provider/router coupling — it owns the reconnect *decision*, the
   /// router owns the health *surface*. See
   /// `DeviceHeartbeatRouter.surfaceReconnecting`.
-  final void Function(
-    String deviceId, {
-    int attempt,
-    int maxAttempts,
-  }) _surfaceReconnecting;
+  final void Function(String deviceId, {int attempt, int maxAttempts})
+  _surfaceReconnecting;
 
   /// Maximum number of reconnection attempts before surfacing the
   /// "couldn't reconnect" UI notification and giving up.
@@ -76,8 +70,7 @@ class DeviceReconnectCoordinator {
   /// How long after a user-initiated disconnect we ignore Disconnected
   /// events for that device id (so the connection-down event the user
   /// just triggered does not bounce back as a reconnect).
-  static const Duration userDisconnectSuppressDuration =
-      Duration(seconds: 10);
+  static const Duration userDisconnectSuppressDuration = Duration(seconds: 10);
 
   final Map<String, int> _reconnectionAttempts = {};
   final Map<String, Timer> _reconnectionTimers = {};
@@ -355,7 +348,9 @@ class DeviceReconnectCoordinator {
   /// The reconnect path will resume automatically via
   /// [_considerSequenceResume] once both critical devices are back.
   Future<void> handleCriticalDeviceDisconnect(
-      String deviceType, String deviceId) async {
+    String deviceType,
+    String deviceId,
+  ) async {
     final sequenceState = _ref.read(sequenceExecutionStateProvider);
     if (sequenceState != SequenceExecutionState.running &&
         sequenceState != SequenceExecutionState.paused) {
@@ -373,7 +368,9 @@ class DeviceReconnectCoordinator {
         ),
       );
       try {
-        _ref.read(uiNotificationProvider.notifier).showError(
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
               'Failed to save a sequence checkpoint after $deviceType '
               'disconnected.',
               title: 'Checkpoint Failed',
@@ -557,7 +554,9 @@ class DeviceReconnectCoordinator {
 
   void _showReconnectionFailedNotification(DeviceType type, String deviceId) {
     try {
-      _ref.read(uiNotificationProvider.notifier).showError(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showError(
             'Failed to reconnect ${type.displayName} after '
             '$maxReconnectAttempts attempts.\n\n'
             'Troubleshooting steps:\n'
@@ -580,9 +579,12 @@ class DeviceReconnectCoordinator {
     }
 
     try {
-      _ref.read(notificationServiceProvider).notifyError(
+      _ref
+          .read(notificationServiceProvider)
+          .notifyError(
             errorTitle: 'Device Reconnection Failed',
-            errorMessage: '${type.displayName} ($deviceId) could not be '
+            errorMessage:
+                '${type.displayName} ($deviceId) could not be '
                 'reconnected after $maxReconnectAttempts attempts.\n\n'
                 'Auto-reconnection has stopped. Manual intervention required.\n'
                 'Check device power, connections, and drivers.',
@@ -600,7 +602,9 @@ class DeviceReconnectCoordinator {
 
   void _showReconnectionSuccessNotification(DeviceType type, String deviceId) {
     try {
-      _ref.read(uiNotificationProvider.notifier).showSuccess(
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showSuccess(
             '${type.displayName} has been reconnected successfully.',
             title: 'Device Reconnected',
             duration: const Duration(seconds: 5),
@@ -616,9 +620,12 @@ class DeviceReconnectCoordinator {
 
     if (type == DeviceType.camera || type == DeviceType.mount) {
       try {
-        _ref.read(notificationServiceProvider).notifyCustom(
+        _ref
+            .read(notificationServiceProvider)
+            .notifyCustom(
               title: 'Device Reconnected',
-              message: '${type.displayName} ($deviceId) has been reconnected '
+              message:
+                  '${type.displayName} ($deviceId) has been reconnected '
                   'successfully and is back online.',
               priority: NotificationPriority.normal,
             );

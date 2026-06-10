@@ -111,16 +111,16 @@ class LlmUsage {
   });
 
   Map<String, dynamic> toJson() => {
-        'prompt_tokens': promptTokens,
-        'completion_tokens': completionTokens,
-        'total_tokens': totalTokens,
-      };
+    'prompt_tokens': promptTokens,
+    'completion_tokens': completionTokens,
+    'total_tokens': totalTokens,
+  };
 
   factory LlmUsage.fromJson(Map<String, dynamic> json) => LlmUsage(
-        promptTokens: (json['prompt_tokens'] as num?)?.toInt() ?? 0,
-        completionTokens: (json['completion_tokens'] as num?)?.toInt() ?? 0,
-        totalTokens: (json['total_tokens'] as num?)?.toInt() ?? 0,
-      );
+    promptTokens: (json['prompt_tokens'] as num?)?.toInt() ?? 0,
+    completionTokens: (json['completion_tokens'] as num?)?.toInt() ?? 0,
+    totalTokens: (json['total_tokens'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// Result of a single LLM round-trip. Holds the raw text the model
@@ -308,19 +308,25 @@ class LlmProviderFactory {
   final http.Client Function() httpClientFactory;
 
   LlmProviderFactory({http.Client Function()? httpClientFactory})
-      : httpClientFactory = httpClientFactory ?? (() => http.Client());
+    : httpClientFactory = httpClientFactory ?? (() => http.Client());
 
   LlmProvider create(LlmProviderKind kind, LlmProviderConfig config) {
     switch (kind) {
       case LlmProviderKind.openAiCompatible:
         return OpenAiCompatibleProvider(
-            config: config, httpClient: httpClientFactory());
+          config: config,
+          httpClient: httpClientFactory(),
+        );
       case LlmProviderKind.anthropic:
         return AnthropicProvider(
-            config: config, httpClient: httpClientFactory());
+          config: config,
+          httpClient: httpClientFactory(),
+        );
       case LlmProviderKind.ollama:
         return OllamaLocalProvider(
-            config: config, httpClient: httpClientFactory());
+          config: config,
+          httpClient: httpClientFactory(),
+        );
     }
   }
 }
@@ -349,10 +355,10 @@ class OpenAiCompatibleProvider implements LlmProvider {
   /// model name is the only universally-required field. Base URL gates
   /// the request entirely so we require both.
   @override
-  bool get isConfigured =>
-      config.baseUrl.isNotEmpty && config.model.isNotEmpty;
+  bool get isConfigured => config.baseUrl.isNotEmpty && config.model.isNotEmpty;
 
-  Uri get _endpoint => Uri.parse(_joinUrl(config.baseUrl, '/v1/chat/completions'));
+  Uri get _endpoint =>
+      Uri.parse(_joinUrl(config.baseUrl, '/v1/chat/completions'));
 
   Map<String, String> _headers() {
     final headers = <String, String>{'Content-Type': 'application/json'};
@@ -390,7 +396,8 @@ class OpenAiCompatibleProvider implements LlmProvider {
       throw LlmProviderException(
         providerName: name,
         statusCode: 0,
-        message: 'Request timed out after '
+        message:
+            'Request timed out after '
             '${config.requestTimeout.inSeconds}s.',
       );
     } catch (e) {
@@ -440,10 +447,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
       );
     }
     final text = message['content'] as String;
-    return LlmResponse(
-      text: text,
-      usage: _parseOpenAiUsage(decoded['usage']),
-    );
+    return LlmResponse(text: text, usage: _parseOpenAiUsage(decoded['usage']));
   }
 
   @override
@@ -457,7 +461,8 @@ class OpenAiCompatibleProvider implements LlmProvider {
       stopwatch.stop();
       return LlmConnectionTestResult(
         success: true,
-        message: 'Connected. Sample reply: '
+        message:
+            'Connected. Sample reply: '
             '${resp.text.length > 60 ? '${resp.text.substring(0, 60)}…' : resp.text}',
         roundTripMs: stopwatch.elapsedMilliseconds,
       );
@@ -490,10 +495,8 @@ class AnthropicProvider implements LlmProvider {
   final LlmProviderConfig config;
   final http.Client _http;
 
-  AnthropicProvider({
-    required this.config,
-    required http.Client httpClient,
-  }) : _http = httpClient;
+  AnthropicProvider({required this.config, required http.Client httpClient})
+    : _http = httpClient;
 
   @override
   String get name => 'Anthropic Claude';
@@ -543,7 +546,8 @@ class AnthropicProvider implements LlmProvider {
       throw LlmProviderException(
         providerName: name,
         statusCode: 0,
-        message: 'Request timed out after '
+        message:
+            'Request timed out after '
             '${config.requestTimeout.inSeconds}s.',
       );
     } catch (e) {
@@ -578,9 +582,7 @@ class AnthropicProvider implements LlmProvider {
     // schema supports more.
     final buf = StringBuffer();
     for (final block in content) {
-      if (block is Map &&
-          block['type'] == 'text' &&
-          block['text'] is String) {
+      if (block is Map && block['type'] == 'text' && block['text'] is String) {
         buf.write(block['text'] as String);
       }
     }
@@ -610,7 +612,8 @@ class AnthropicProvider implements LlmProvider {
       stopwatch.stop();
       return LlmConnectionTestResult(
         success: true,
-        message: 'Connected. Sample reply: '
+        message:
+            'Connected. Sample reply: '
             '${resp.text.length > 60 ? '${resp.text.substring(0, 60)}…' : resp.text}',
         roundTripMs: stopwatch.elapsedMilliseconds,
       );
@@ -647,10 +650,8 @@ class OllamaLocalProvider implements LlmProvider {
   final LlmProviderConfig config;
   final http.Client _http;
 
-  OllamaLocalProvider({
-    required this.config,
-    required http.Client httpClient,
-  }) : _http = httpClient;
+  OllamaLocalProvider({required this.config, required http.Client httpClient})
+    : _http = httpClient;
 
   @override
   String get name => 'Ollama';
@@ -661,8 +662,7 @@ class OllamaLocalProvider implements LlmProvider {
   /// Ollama has no auth in the default config. Only base URL + model
   /// are required.
   @override
-  bool get isConfigured =>
-      config.baseUrl.isNotEmpty && config.model.isNotEmpty;
+  bool get isConfigured => config.baseUrl.isNotEmpty && config.model.isNotEmpty;
 
   Uri get _endpoint => Uri.parse(_joinUrl(config.baseUrl, '/api/chat'));
 
@@ -689,14 +689,18 @@ class OllamaLocalProvider implements LlmProvider {
     final http.Response response;
     try {
       response = await _http
-          .post(_endpoint,
-              headers: {'Content-Type': 'application/json'}, body: body)
+          .post(
+            _endpoint,
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
           .timeout(config.requestTimeout);
     } on TimeoutException {
       throw LlmProviderException(
         providerName: name,
         statusCode: 0,
-        message: 'Request timed out after '
+        message:
+            'Request timed out after '
             '${config.requestTimeout.inSeconds}s.',
       );
     } catch (e) {
@@ -744,7 +748,8 @@ class OllamaLocalProvider implements LlmProvider {
       stopwatch.stop();
       return LlmConnectionTestResult(
         success: true,
-        message: 'Connected to Ollama. Sample reply: '
+        message:
+            'Connected to Ollama. Sample reply: '
             '${resp.text.length > 60 ? '${resp.text.substring(0, 60)}…' : resp.text}',
         roundTripMs: stopwatch.elapsedMilliseconds,
       );
@@ -774,14 +779,14 @@ class OllamaLocalProvider implements LlmProvider {
 // ---------------------------------------------------------------------------
 
 String _joinUrl(String baseUrl, String path) {
-  final trimmedBase =
-      baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  final trimmedBase = baseUrl.endsWith('/')
+      ? baseUrl.substring(0, baseUrl.length - 1)
+      : baseUrl;
   final trimmedPath = path.startsWith('/') ? path : '/$path';
   return '$trimmedBase$trimmedPath';
 }
 
-Map<String, dynamic> _decodeJson(String body,
-    {required String providerName}) {
+Map<String, dynamic> _decodeJson(String body, {required String providerName}) {
   try {
     final decoded = jsonDecode(body);
     if (decoded is! Map<String, dynamic>) {

@@ -121,12 +121,13 @@ class FilePluginStorage implements PluginStorage {
     this._pluginId, {
     Future<Directory> Function()? baseDirectoryProvider,
   }) : _baseDirectoryProvider =
-            baseDirectoryProvider ?? _defaultPluginStorageDirectory;
+           baseDirectoryProvider ?? _defaultPluginStorageDirectory;
 
   Future<File> _getStorageFile() async {
     final baseDir = await _baseDirectoryProvider();
-    final pluginsDir =
-        Directory(path.join(baseDir.path, 'nightshade_plugins', 'storage'));
+    final pluginsDir = Directory(
+      path.join(baseDir.path, 'nightshade_plugins', 'storage'),
+    );
     if (!await pluginsDir.exists()) {
       await pluginsDir.create(recursive: true);
     }
@@ -252,30 +253,36 @@ class FilePluginStorage implements PluginStorage {
 }
 
 Future<Directory> _defaultPluginStorageDirectory() async {
-  final home = Platform.environment['HOME'] ??
+  final home =
+      Platform.environment['HOME'] ??
       Platform.environment['USERPROFILE'] ??
       Directory.current.path;
 
   if (Platform.isWindows) {
-    final appData = Platform.environment['LOCALAPPDATA'] ??
+    final appData =
+        Platform.environment['LOCALAPPDATA'] ??
         Platform.environment['APPDATA'] ??
         path.join(home, 'AppData', 'Local');
     return Directory(path.join(appData, 'Nightshade'));
   }
 
   if (Platform.isMacOS) {
-    return Directory(path.join(home, 'Library', 'Application Support', 'Nightshade'));
+    return Directory(
+      path.join(home, 'Library', 'Application Support', 'Nightshade'),
+    );
   }
 
   final xdgDataHome =
-      Platform.environment['XDG_DATA_HOME'] ?? path.join(home, '.local', 'share');
+      Platform.environment['XDG_DATA_HOME'] ??
+      path.join(home, '.local', 'share');
   return Directory(path.join(xdgDataHome, 'nightshade'));
 }
 
 /// Stream-based implementation of PluginEventBus
 class StreamPluginEventBus implements PluginEventBus {
   final _controller = StreamController<PluginEvent>.broadcast();
-  final Map<String, StreamController<Map<String, dynamic>>> _namedControllers = {};
+  final Map<String, StreamController<Map<String, dynamic>>> _namedControllers =
+      {};
   bool _disposed = false;
 
   @override
@@ -283,10 +290,7 @@ class StreamPluginEventBus implements PluginEventBus {
     if (_disposed || _controller.isClosed) {
       return;
     }
-    final event = PluginEvent(
-      name: eventName,
-      data: data ?? {},
-    );
+    final event = PluginEvent(name: eventName, data: data ?? {});
 
     // Emit to general stream
     _controller.add(event);
@@ -302,7 +306,8 @@ class StreamPluginEventBus implements PluginEventBus {
   Stream<Map<String, dynamic>> on(String eventName) {
     if (_disposed) {
       return Stream.error(
-          StateError('Plugin event bus has been disposed and cannot be reused'));
+        StateError('Plugin event bus has been disposed and cannot be reused'),
+      );
     }
     final controller = _namedControllers.putIfAbsent(
       eventName,
@@ -392,10 +397,14 @@ class SandboxedPluginEventBus implements PluginEventBus {
 
   void _validateEventName(String eventName) {
     if (eventName.trim().isEmpty) {
-      throw PluginException('Plugin $_pluginId emitted or subscribed to an empty event name');
+      throw PluginException(
+        'Plugin $_pluginId emitted or subscribed to an empty event name',
+      );
     }
     if (eventName.length > 128) {
-      throw PluginException('Plugin $_pluginId used an event name longer than 128 characters');
+      throw PluginException(
+        'Plugin $_pluginId used an event name longer than 128 characters',
+      );
     }
   }
 }
@@ -417,9 +426,9 @@ class PluginContextFactory {
   PluginContextFactory({
     PluginSandboxPolicy policy = const PluginSandboxPolicy(),
     PluginStorage Function(String pluginId)? storageFactory,
-  })  : _policy = policy,
-        _storageFactory =
-            storageFactory ?? ((pluginId) => FilePluginStorage(pluginId));
+  }) : _policy = policy,
+       _storageFactory =
+           storageFactory ?? ((pluginId) => FilePluginStorage(pluginId));
 
   /// Create a context for a specific plugin
   PluginContext createContext(String pluginId) {

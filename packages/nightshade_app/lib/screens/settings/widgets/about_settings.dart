@@ -51,7 +51,9 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Nightshade',
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize20 : NightshadeTypography.fontSize24,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize20
+                      : NightshadeTypography.fontSize24,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -60,7 +62,9 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Version 2.2.0',
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize13
+                      : NightshadeTypography.fontSize14,
                   color: colors.textSecondary,
                 ),
               ),
@@ -68,7 +72,9 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Advanced astrophotography suite',
                 style: TextStyle(
-                  fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize13,
+                  fontSize: isMobile
+                      ? NightshadeTypography.fontSize12
+                      : NightshadeTypography.fontSize13,
                   color: colors.textMuted,
                 ),
               ),
@@ -136,12 +142,12 @@ class AboutSettings extends StatelessWidget {
                   children: [
                     Text(
                       'System Information',
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 16),
                     SettingsInfoRow(
-                        label: 'Platform',
-                        value: Platform.operatingSystem),
+                        label: 'Platform', value: Platform.operatingSystem),
                     SettingsInfoRow(
                         label: 'OS Version',
                         value: Platform.operatingSystemVersion),

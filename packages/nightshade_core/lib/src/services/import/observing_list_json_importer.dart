@@ -57,13 +57,15 @@ class ObservingListEntry {
     final target = json['target'];
     if (target is! Map) {
       throw MalformedSourceError(
-          'Observing list item missing "target" object: $json');
+        'Observing list item missing "target" object: $json',
+      );
     }
     final raRaw = target['ra'] ?? target['raHours'] ?? target['ra_hours'];
     final decRaw = target['dec'] ?? target['decDegrees'] ?? target['dec_deg'];
     if (raRaw is! num || decRaw is! num) {
       throw MalformedSourceError(
-          'Observing list item missing numeric RA/Dec: $target');
+        'Observing list item missing numeric RA/Dec: $target',
+      );
     }
     final exposuresRaw = json['exposures'];
     final exposures = <ObservingListExposure>[];
@@ -86,7 +88,9 @@ class ObservingListEntry {
       rotation: (target['rotation'] is num)
           ? (target['rotation'] as num).toDouble()
           : null,
-      priority: (json['priority'] is num) ? (json['priority'] as num).toInt() : 0,
+      priority: (json['priority'] is num)
+          ? (json['priority'] as num).toInt()
+          : 0,
       notes: json['notes']?.toString(),
       exposures: exposures,
       mosaic: mosaic,
@@ -110,12 +114,12 @@ class ObservingListExposure {
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'duration_secs': durationSecs,
-        'count': count,
-        if (filter != null) 'filter': filter,
-        if (gain != null) 'gain': gain,
-        if (offset != null) 'offset': offset,
-      };
+    'duration_secs': durationSecs,
+    'count': count,
+    if (filter != null) 'filter': filter,
+    if (gain != null) 'gain': gain,
+    if (offset != null) 'offset': offset,
+  };
 
   factory ObservingListExposure.fromJson(Map<String, dynamic> json) {
     return ObservingListExposure(
@@ -124,8 +128,7 @@ class ObservingListExposure {
       count: (json['count'] ?? 1).toInt(),
       filter: json['filter']?.toString(),
       gain: (json['gain'] is num) ? (json['gain'] as num).toInt() : null,
-      offset:
-          (json['offset'] is num) ? (json['offset'] as num).toInt() : null,
+      offset: (json['offset'] is num) ? (json['offset'] as num).toInt() : null,
     );
   }
 }
@@ -146,19 +149,18 @@ class ObservingListMosaic {
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'name': name,
-        'panel_index': panelIndex,
-        'total_panels': totalPanels,
-        'row': row,
-        'column': column,
-      };
+    'name': name,
+    'panel_index': panelIndex,
+    'total_panels': totalPanels,
+    'row': row,
+    'column': column,
+  };
 
   factory ObservingListMosaic.fromJson(Map<String, dynamic> json) {
     return ObservingListMosaic(
       name: (json['name'] ?? '').toString(),
       panelIndex: (json['panel_index'] ?? json['panelIndex'] ?? 0).toInt(),
-      totalPanels:
-          (json['total_panels'] ?? json['totalPanels'] ?? 1).toInt(),
+      totalPanels: (json['total_panels'] ?? json['totalPanels'] ?? 1).toInt(),
       row: (json['row'] ?? 0).toInt(),
       column: (json['column'] ?? 0).toInt(),
     );
@@ -191,15 +193,17 @@ class ObservingListDocument {
   });
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'name': name,
-        'version': version,
-        if (description != null) 'description': description,
-        if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
-        'items': items.map((i) => i.toJson()).toList(),
-      };
+    'name': name,
+    'version': version,
+    if (description != null) 'description': description,
+    if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+    'items': items.map((i) => i.toJson()).toList(),
+  };
 
   factory ObservingListDocument.fromJson(Map<String, dynamic> json) {
-    final version = (json['version'] is num) ? (json['version'] as num).toInt() : 1;
+    final version = (json['version'] is num)
+        ? (json['version'] as num).toInt()
+        : 1;
     if (version < 1 || version > schemaVersion) {
       throw MalformedSourceError(
         'Unsupported observing-list schema version $version '
@@ -209,7 +213,8 @@ class ObservingListDocument {
     final rawItems = json['items'];
     if (rawItems is! List) {
       throw MalformedSourceError(
-          'Observing list missing "items" array (got ${rawItems.runtimeType})');
+        'Observing list missing "items" array (got ${rawItems.runtimeType})',
+      );
     }
     final items = <ObservingListEntry>[];
     for (final raw in rawItems) {
@@ -217,7 +222,8 @@ class ObservingListDocument {
         items.add(ObservingListEntry.fromJson(raw));
       } else {
         throw MalformedSourceError(
-            'Observing list item is not an object: $raw');
+          'Observing list item is not an object: $raw',
+        );
       }
     }
     return ObservingListDocument(
@@ -242,8 +248,7 @@ class ObservingListJsonImporter {
     if (!trimmed.startsWith('{')) return false;
     // Take a generous slice — most observing-list files have the header in
     // the first ~512 bytes.
-    final slice =
-        trimmed.length > 2048 ? trimmed.substring(0, 2048) : trimmed;
+    final slice = trimmed.length > 2048 ? trimmed.substring(0, 2048) : trimmed;
     // Explicit format marker wins.
     if (slice.contains('"observing_list_v1"') ||
         slice.contains('"_format"') && slice.contains('observing_list')) {
@@ -269,7 +274,8 @@ class ObservingListJsonImporter {
     }
     if (raw is! Map<String, dynamic>) {
       throw MalformedSourceError(
-          'Observing list root must be a JSON object, got ${raw.runtimeType}');
+        'Observing list root must be a JSON object, got ${raw.runtimeType}',
+      );
     }
     final doc = ObservingListDocument.fromJson(raw);
 
@@ -299,19 +305,21 @@ class ObservingListJsonImporter {
   CanonicalSequenceNode _buildTargetNode(ObservingListEntry item) {
     final children = <CanonicalSequenceNode>[];
     for (final exposure in item.exposures) {
-      children.add(CanonicalSequenceNode(
-        kind: CanonicalKind.exposure,
-        name: 'Light',
-        sourceType: 'ObservingListExposure',
-        attributes: {
-          'exposureTime': exposure.durationSecs,
-          'count': exposure.count,
-          if (exposure.filter != null) 'filterName': exposure.filter,
-          if (exposure.gain != null) 'gain': exposure.gain,
-          if (exposure.offset != null) 'offset': exposure.offset,
-          'imageType': 'LIGHT',
-        },
-      ));
+      children.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.exposure,
+          name: 'Light',
+          sourceType: 'ObservingListExposure',
+          attributes: {
+            'exposureTime': exposure.durationSecs,
+            'count': exposure.count,
+            if (exposure.filter != null) 'filterName': exposure.filter,
+            if (exposure.gain != null) 'gain': exposure.gain,
+            if (exposure.offset != null) 'offset': exposure.offset,
+            'imageType': 'LIGHT',
+          },
+        ),
+      );
     }
 
     final attrs = <String, Object?>{
@@ -346,11 +354,7 @@ class ObservingListJsonImporter {
   ///
   /// The output is pretty-printed (2-space indent) for human inspection
   /// and diff-friendliness.
-  static String export(
-    Sequence sequence, {
-    String? name,
-    String? description,
-  }) {
+  static String export(Sequence sequence, {String? name, String? description}) {
     final items = <ObservingListEntry>[];
     for (final node in sequence.nodes.values) {
       if (node is! TargetHeaderNode) continue;
@@ -358,33 +362,37 @@ class ObservingListJsonImporter {
       for (final childId in node.childIds) {
         final child = sequence.nodes[childId];
         if (child is ExposureNode) {
-          exposures.add(ObservingListExposure(
-            durationSecs: child.durationSecs,
-            count: child.count,
-            filter: child.filter,
-            gain: child.gain,
-            offset: child.offset,
-          ));
+          exposures.add(
+            ObservingListExposure(
+              durationSecs: child.durationSecs,
+              count: child.count,
+              filter: child.filter,
+              gain: child.gain,
+              offset: child.offset,
+            ),
+          );
         }
       }
-      items.add(ObservingListEntry(
-        name: node.targetName,
-        raHours: node.raHours,
-        decDegrees: node.decDegrees,
-        rotation: node.rotation,
-        priority: node.priority,
-        notes: node.comment,
-        exposures: exposures,
-        mosaic: node.mosaicPanel == null
-            ? null
-            : ObservingListMosaic(
-                name: node.mosaicPanel!.mosaicName,
-                panelIndex: node.mosaicPanel!.panelIndex,
-                totalPanels: node.mosaicPanel!.totalPanels,
-                row: node.mosaicPanel!.row,
-                column: node.mosaicPanel!.column,
-              ),
-      ));
+      items.add(
+        ObservingListEntry(
+          name: node.targetName,
+          raHours: node.raHours,
+          decDegrees: node.decDegrees,
+          rotation: node.rotation,
+          priority: node.priority,
+          notes: node.comment,
+          exposures: exposures,
+          mosaic: node.mosaicPanel == null
+              ? null
+              : ObservingListMosaic(
+                  name: node.mosaicPanel!.mosaicName,
+                  panelIndex: node.mosaicPanel!.panelIndex,
+                  totalPanels: node.mosaicPanel!.totalPanels,
+                  row: node.mosaicPanel!.row,
+                  column: node.mosaicPanel!.column,
+                ),
+        ),
+      );
     }
     final doc = ObservingListDocument(
       name: name ?? sequence.name,

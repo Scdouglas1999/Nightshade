@@ -73,7 +73,9 @@ const _lineFigureSet03 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 13.1664, dec: 17.5293), // Alpha Com (Diadem)
+          ra: 13.1664,
+          dec: 17.5293,
+        ), // Alpha Com (Diadem)
         end: CelestialCoordinate(ra: 13.1979, dec: 27.8781), // Beta Com
         startStarName: 'Diadem',
       ),
@@ -107,7 +109,9 @@ const _lineFigureSet03 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 1.8853, dec: 29.5789), // Alpha Tri (Mothallah)
+          ra: 1.8853,
+          dec: 29.5789,
+        ), // Alpha Tri (Mothallah)
         end: CelestialCoordinate(ra: 2.1591, dec: 34.9872), // Beta Tri
         startStarName: 'Mothallah',
       ),
@@ -151,8 +155,10 @@ const _lineFigureSet03 = <ConstellationData>[
     center: CelestialCoordinate(ra: 20.2, dec: 25),
     lines: [
       ConstellationLine(
-        start:
-            CelestialCoordinate(ra: 19.4784, dec: 24.6650), // Alpha Vul (Anser)
+        start: CelestialCoordinate(
+          ra: 19.4784,
+          dec: 24.6650,
+        ), // Alpha Vul (Anser)
         end: CelestialCoordinate(ra: 20.6337, dec: 27.7545), // 13 Vul
         startStarName: 'Anser',
       ),
@@ -186,7 +192,9 @@ const _lineFigureSet03 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 20.7763, dec: 16.1243), // Delta Del
         end: CelestialCoordinate(
-            ra: 20.6240, dec: 11.3714), // Epsilon Del (tail)
+          ra: 20.6240,
+          dec: 11.3714,
+        ), // Epsilon Del (tail)
       ),
     ],
   ),
@@ -199,7 +207,9 @@ const _lineFigureSet03 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 21.1726, dec: 10.0063), // Alpha Equ (Kitalpha)
+          ra: 21.1726,
+          dec: 10.0063,
+        ), // Alpha Equ (Kitalpha)
         end: CelestialCoordinate(ra: 21.2415, dec: 6.8112), // Delta Equ
         startStarName: 'Kitalpha',
       ),
@@ -253,8 +263,10 @@ const _lineFigureSet03 = <ConstellationData>[
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 3.5490, dec: -21.6328), // Zaurak
-        end:
-            CelestialCoordinate(ra: 3.7210, dec: -12.1019), // Epsilon Eri (Ran)
+        end: CelestialCoordinate(
+          ra: 3.7210,
+          dec: -12.1019,
+        ), // Epsilon Eri (Ran)
         endStarName: 'Ran',
       ),
       ConstellationLine(
@@ -276,8 +288,10 @@ const _lineFigureSet03 = <ConstellationData>[
     center: CelestialCoordinate(ra: 2.8, dec: -30),
     lines: [
       ConstellationLine(
-        start:
-            CelestialCoordinate(ra: 3.2013, dec: -28.9877), // Alpha For (Dalim)
+        start: CelestialCoordinate(
+          ra: 3.2013,
+          dec: -28.9877,
+        ), // Alpha For (Dalim)
         end: CelestialCoordinate(ra: 2.8182, dec: -32.4059), // Beta For
         startStarName: 'Dalim',
       ),
@@ -541,7 +555,9 @@ const _lineFigureSet03 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 19.1579, dec: -37.9044), // Alpha CrA (Meridiana)
+          ra: 19.1579,
+          dec: -37.9044,
+        ), // Alpha CrA (Meridiana)
         end: CelestialCoordinate(ra: 19.1670, dec: -39.3407), // Beta CrA
         startStarName: 'Meridiana',
       ),

@@ -172,7 +172,8 @@ class _CauseDistributionBar extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 1),
                 decoration: BoxDecoration(
                   color: forensicsCauseColor(e.key, colors),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
               ),
             );
@@ -191,7 +192,8 @@ class _CauseDistributionBar extends StatelessWidget {
                   height: 8,
                   decoration: BoxDecoration(
                     color: forensicsCauseColor(e.key, colors),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline2),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -243,7 +245,8 @@ class _ForensicsRow extends StatelessWidget {
               margin: const EdgeInsets.only(right: NightshadeTokens.spaceMd),
               decoration: BoxDecoration(
                 color: causeColor,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
             Expanded(
@@ -255,7 +258,8 @@ class _ForensicsRow extends StatelessWidget {
                     children: [
                       Text(
                         record.likelyCause.humanLabel,
-                        style: NightshadeTypography.h6.copyWith(color: causeColor),
+                        style:
+                            NightshadeTypography.h6.copyWith(color: causeColor),
                       ),
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       Text(
@@ -290,8 +294,7 @@ class _ForensicsRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(LucideIcons.chevronRight,
-                size: 14, color: colors.textMuted),
+            Icon(LucideIcons.chevronRight, size: 14, color: colors.textMuted),
           ],
         ),
       ),

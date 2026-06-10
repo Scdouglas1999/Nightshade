@@ -26,7 +26,8 @@ class MosaicPlannerSkyView extends ConsumerStatefulWidget {
   final int bortleClass;
 
   @override
-  ConsumerState<MosaicPlannerSkyView> createState() => _MosaicPlannerSkyViewState();
+  ConsumerState<MosaicPlannerSkyView> createState() =>
+      _MosaicPlannerSkyViewState();
 }
 
 class _MosaicPlannerSkyViewState extends ConsumerState<MosaicPlannerSkyView> {

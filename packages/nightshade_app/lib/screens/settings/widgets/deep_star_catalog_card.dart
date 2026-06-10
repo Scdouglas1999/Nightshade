@@ -97,8 +97,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
       final result = await _manager.verify();
       if (!mounted) return;
       if (result.ok) {
-        context.showSuccessSnackBar(
-            'All ${result.tilesChecked} tiles verified');
+        context
+            .showSuccessSnackBar('All ${result.tilesChecked} tiles verified');
       } else {
         context.showErrorSnackBar(
             '${result.missing.length} missing, ${result.corrupt.length} corrupt');

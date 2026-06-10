@@ -378,7 +378,8 @@ class _PolarErrorPainter extends CustomPainter {
       final radius = maxRadius * (positions[i] / 120.0);
       textPainter.text = TextSpan(
         text: labels[i],
-        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
       );
       textPainter.layout();
       textPainter.paint(

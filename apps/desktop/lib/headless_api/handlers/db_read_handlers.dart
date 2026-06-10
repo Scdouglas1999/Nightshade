@@ -212,10 +212,7 @@ class DbReadHandlers {
       limit: limit,
       offset: offset,
     );
-    final total = await dao.countFiltered(
-      sinceMs: sinceMs,
-      untilMs: untilMs,
-    );
+    final total = await dao.countFiltered(sinceMs: sinceMs, untilMs: untilMs);
 
     return jsonOk({
       'items': rows.map(_guideRmsToJson).toList(),
@@ -253,8 +250,7 @@ class DbReadHandlers {
       limit: limit,
       offset: offset,
     );
-    final total =
-        await dao.countFiltered(equipmentProfileId: profileId);
+    final total = await dao.countFiltered(equipmentProfileId: profileId);
 
     return jsonOk({
       'items': rows.map(_polarAlignmentToJson).toList(),
@@ -262,8 +258,7 @@ class DbReadHandlers {
     });
   }
 
-  Map<String, dynamic> _polarAlignmentToJson(
-      PolarAlignmentHistoryEntry row) {
+  Map<String, dynamic> _polarAlignmentToJson(PolarAlignmentHistoryEntry row) {
     return {
       'id': row.id,
       'equipmentProfileId': row.equipmentProfileId,
@@ -455,8 +450,9 @@ class DbReadHandlers {
         limit: 1,
       );
       if (firstFrames.isNotEmpty && firstFrames.first.targetId != null) {
-        final target = await _database.targetsDao
-            .getTargetById(firstFrames.first.targetId!);
+        final target = await _database.targetsDao.getTargetById(
+          firstFrames.first.targetId!,
+        );
         targetName = target?.name;
       }
     }
@@ -540,8 +536,7 @@ class DbReadHandlers {
       if (parsed == null) {
         throw BadRequestError(
           field: 'severityMin',
-          expected:
-              'one of: ${LogLevel.values.map((l) => l.name).join(', ')}',
+          expected: 'one of: ${LogLevel.values.map((l) => l.name).join(', ')}',
           message: '"$sevRaw" is not a valid severity name',
         );
       }

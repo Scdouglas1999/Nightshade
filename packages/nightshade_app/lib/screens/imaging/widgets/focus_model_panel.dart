@@ -162,7 +162,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
                 totalPoints == 0
                     ? 'No focus data collected yet. Run autofocus at different temperatures to build a model.'
                     : 'Collecting data ($totalPoints point${totalPoints == 1 ? '' : 's'}). Need at least 3 temperature buckets for a model.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary),
               ),
             ),
           ],
@@ -256,7 +258,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
           ? Center(
               child: Text(
                 'No data points to display',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             )
           : ClipRRect(
@@ -290,11 +294,14 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
-            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature,
+                size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'No temperature reading available from focuser',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             ),
           ],
         ),
@@ -311,16 +318,21 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
-            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature,
+                size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'Current: ${currentTemp.toStringAsFixed(1)}°C',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
             const SizedBox(width: 12),
             Text(
               'Model not yet reliable enough for predictions',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             ),
           ],
         ),
@@ -342,7 +354,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             children: [
               Text(
                 'Current Temperature',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
               Text(
                 '${currentTemp.toStringAsFixed(1)}°C',
@@ -365,7 +379,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             children: [
               Text(
                 'Predicted Focus',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted),
               ),
               Text(
                 '${prediction.position}',
@@ -383,11 +399,13 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: NightshadeDecorations.tintedBadge(
               _confidenceColor(prediction.confidence, colors),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               prediction.confidenceDescription,
-              style: NightshadeTypography.labelStrongSm.copyWith(color: _confidenceColor(prediction.confidence, colors),
+              style: NightshadeTypography.labelStrongSm.copyWith(
+                color: _confidenceColor(prediction.confidence, colors),
               ),
             ),
           ),
@@ -452,8 +470,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
                     await focusService.clearProfileData(profileId);
                     if (mounted) {
                       setState(() {});
-                      context
-                          .showSuccessSnackBar('Focus model data cleared.');
+                      context.showSuccessSnackBar('Focus model data cleared.');
                     }
                   }
                 },
@@ -462,7 +479,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         if (dataPoints.isNotEmpty)
           Text(
             'Last updated: ${_formatLastUpdated(dataPoints.last.timestamp)}',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
       ],
     );
@@ -551,7 +570,9 @@ class _ModelStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10,
+              color: colors.textMuted),
         ),
         const SizedBox(height: 2),
         Text(
@@ -631,17 +652,20 @@ class _FilterChip extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 fillAlpha: 0.1,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
           label,
-          style: NightshadeTypography.labelQuiet.copyWith(color: isSelected ? colors.primary : colors.textSecondary),
+          style: NightshadeTypography.labelQuiet.copyWith(
+              color: isSelected ? colors.primary : colors.textSecondary),
         ),
       ),
     );
@@ -784,7 +808,8 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: pos.toInt().toString(),
-          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize9, color: textColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -809,7 +834,8 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: '${temp.toStringAsFixed(0)}°',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize9, color: textColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -890,7 +916,8 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
     final xLabel = TextPainter(
       text: TextSpan(
         text: 'Temperature (°C)',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize9, color: textColor),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -909,7 +936,8 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
     final yLabel = TextPainter(
       text: TextSpan(
         text: 'Focus Position',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize9, color: textColor),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

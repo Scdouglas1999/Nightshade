@@ -17,107 +17,107 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
 
         final imageArea = Container(
           key: PolarAlignmentTutorialKeys.imageView,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: NightshadeTokens.borderRadiusInline8,
-                border: Border.all(color: colors.border),
-              ),
-              child: Stack(
-                children: [
-                  // Image display
-                  if (state.hasImage)
-                    Center(
-                      child: ClipRRect(
-                        borderRadius: NightshadeTokens.borderRadiusInline8,
-                        child: Image.memory(
-                          state.imageData!,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                        ),
-                      ),
-                    )
-                  else
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 60,
-                            height: 60,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 4,
-                              color: colors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Waiting for image...',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: NightshadeTokens.borderRadiusInline8,
+            border: Border.all(color: colors.border),
+          ),
+          child: Stack(
+            children: [
+              // Image display
+              if (state.hasImage)
+                Center(
+                  child: ClipRRect(
+                    borderRadius: NightshadeTokens.borderRadiusInline8,
+                    child: Image.memory(
+                      state.imageData!,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
                     ),
-
-                  // Solve coordinates overlay
-                  if (state.solvedRa != null && state.solvedDec != null)
-                    Positioned(
-                      left: 12,
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: colors.background.withValues(alpha: 0.85),
-                          borderRadius: NightshadeTokens.borderRadiusInline4,
-                          border: Border.all(color: colors.border),
+                  ),
+                )
+              else
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 4,
+                          color: colors.primary,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Waiting for image...',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Solve coordinates overlay
+              if (state.solvedRa != null && state.solvedDec != null)
+                Positioned(
+                  left: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colors.background.withValues(alpha: 0.85),
+                      borderRadius: NightshadeTokens.borderRadiusInline4,
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(NightshadeIcons.success,
-                                    size: 12, color: colors.success),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Plate Solved',
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize10,
-                                    fontWeight: FontWeight.w600,
-                                    color: colors.success,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
+                            Icon(NightshadeIcons.success,
+                                size: 12, color: colors.success),
+                            const SizedBox(width: 6),
                             Text(
-                              'RA: ${_formatRA(state.solvedRa!)}',
+                              'Plate Solved',
                               style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                color: colors.textPrimary,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                            Text(
-                              'Dec: ${_formatDec(state.solvedDec!)}',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                color: colors.textPrimary,
-                                fontFamily: 'monospace',
+                                fontSize: NightshadeTypography.fontSize10,
+                                fontWeight: FontWeight.w600,
+                                color: colors.success,
                               ),
                             ),
                           ],
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'RA: ${_formatRA(state.solvedRa!)}',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textPrimary,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        Text(
+                          'Dec: ${_formatDec(state.solvedDec!)}',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textPrimary,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
                     ),
-                ],
-              ),
-            );
+                  ),
+                ),
+            ],
+          ),
+        );
 
         final progressPanel = NightshadeCard(
           variant: CardVariant.subtle,
@@ -129,7 +129,8 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
             children: [
               Text(
                 'Progress',
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 16),
               _MeasurementProgressItem(
@@ -275,253 +276,252 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
         final stack = constraints.maxWidth < 520;
 
         final imageArea = Container(
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: NightshadeTokens.borderRadiusInline8,
-                border: Border.all(color: colors.border),
-              ),
-              child: Stack(
-                children: [
-                  // Live image
-                  if (state.hasImage)
-                    Center(
-                      child: ClipRRect(
-                        borderRadius: NightshadeTokens.borderRadiusInline8,
-                        child: Image.memory(
-                          state.imageData!,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: NightshadeTokens.borderRadiusInline8,
+            border: Border.all(color: colors.border),
+          ),
+          child: Stack(
+            children: [
+              // Live image
+              if (state.hasImage)
+                Center(
+                  child: ClipRRect(
+                    borderRadius: NightshadeTokens.borderRadiusInline8,
+                    child: Image.memory(
+                      state.imageData!,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                )
+              else
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 4,
+                          color: colors.primary,
                         ),
                       ),
-                    )
-                  else
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 60,
-                            height: 60,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 4,
-                              color: colors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Capturing adjustment image...',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12,
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 16),
+                      Text(
+                        'Capturing adjustment image...',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted,
+                        ),
                       ),
-                    ),
-
-                  // Bullseye overlay
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _BullseyeOverlayPainter(
-                        colors: colors,
-                        azimuthError: error?.azimuthError,
-                        altitudeError: error?.altitudeError,
-                      ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
+
+              // Bullseye overlay
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _BullseyeOverlayPainter(
+                    colors: colors,
+                    azimuthError: error?.azimuthError,
+                    altitudeError: error?.altitudeError,
+                  ),
+                ),
               ),
-            );
+            ],
+          ),
+        );
 
         final directionPanel = NightshadeCard(
-              key: PolarAlignmentTutorialKeys.adjustment,
-              variant: CardVariant.subtle,
-              borderRadius: NightshadeTokens.radiusInline8,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
-                children: [
-                  Text(
-                    'Adjust Mount',
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          key: PolarAlignmentTutorialKeys.adjustment,
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusInline8,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              Text(
+                'Adjust Mount',
+                style:
+                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              ),
+              const SizedBox(height: 20),
+
+              // Azimuth direction
+              Text(
+                'Azimuth',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (error != null)
+                Text(
+                  '$azDir ${error.azimuthError.abs().toStringAsFixed(1)}"',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize22,
+                    fontWeight: FontWeight.bold,
+                    color: error.azimuthError.abs() < 30
+                        ? colors.success
+                        : error.azimuthError.abs() < 60
+                            ? colors.warning
+                            : colors.error,
                   ),
-                  const SizedBox(height: 20),
-
-                  // Azimuth direction
-                  Text(
-                    'Azimuth',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted,
-                    ),
+                )
+              else
+                Text(
+                  '--',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize22,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textMuted,
                   ),
-                  const SizedBox(height: 4),
-                  if (error != null)
-                    Text(
-                      '$azDir ${error.azimuthError.abs().toStringAsFixed(1)}"',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize22,
-                        fontWeight: FontWeight.bold,
-                        color: error.azimuthError.abs() < 30
-                            ? colors.success
-                            : error.azimuthError.abs() < 60
-                                ? colors.warning
-                                : colors.error,
-                      ),
-                    )
-                  else
-                    Text(
-                      '--',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize22,
-                        fontWeight: FontWeight.bold,
-                        color: colors.textMuted,
-                      ),
-                    ),
+                ),
 
-                  const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-                  // Altitude direction
-                  Text(
-                    'Altitude',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted,
-                    ),
+              // Altitude direction
+              Text(
+                'Altitude',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (error != null)
+                Text(
+                  '$altDir ${error.altitudeError.abs().toStringAsFixed(1)}"',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize22,
+                    fontWeight: FontWeight.bold,
+                    color: error.altitudeError.abs() < 30
+                        ? colors.success
+                        : error.altitudeError.abs() < 60
+                            ? colors.warning
+                            : colors.error,
                   ),
-                  const SizedBox(height: 4),
-                  if (error != null)
-                    Text(
-                      '$altDir ${error.altitudeError.abs().toStringAsFixed(1)}"',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize22,
-                        fontWeight: FontWeight.bold,
-                        color: error.altitudeError.abs() < 30
-                            ? colors.success
-                            : error.altitudeError.abs() < 60
-                                ? colors.warning
-                                : colors.error,
-                      ),
-                    )
-                  else
-                    Text(
-                      '--',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize22,
-                        fontWeight: FontWeight.bold,
-                        color: colors.textMuted,
-                      ),
-                    ),
-
-                  const SizedBox(height: 24),
-                  Divider(color: colors.border),
-                  const SizedBox(height: 16),
-
-                  // Total error
-                  Text(
-                    'Total Error',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted,
-                    ),
+                )
+              else
+                Text(
+                  '--',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize22,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textMuted,
                   ),
-                  const SizedBox(height: 4),
-                  if (error != null)
-                    Text(
-                      '${error.totalError.toStringAsFixed(1)}"',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize28,
-                        fontWeight: FontWeight.bold,
-                        color: error.totalError < 30
-                            ? colors.success
-                            : error.totalError < 60
-                                ? colors.warning
-                                : colors.error,
-                      ),
-                    )
-                  else
-                    Text(
-                      '--',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize28,
-                        fontWeight: FontWeight.bold,
-                        color: colors.textMuted,
-                      ),
-                    ),
+                ),
 
-                  if (!stack) const Spacer() else const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              Divider(color: colors.border),
+              const SizedBox(height: 16),
 
-                  // Progress toward threshold
-                  Text(
-                    'Threshold: ${config.autoCompleteThreshold.toStringAsFixed(0)}"',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textMuted,
-                    ),
+              // Total error
+              Text(
+                'Total Error',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (error != null)
+                Text(
+                  '${error.totalError.toStringAsFixed(1)}"',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize28,
+                    fontWeight: FontWeight.bold,
+                    color: error.totalError < 30
+                        ? colors.success
+                        : error.totalError < 60
+                            ? colors.warning
+                            : colors.error,
                   ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: NightshadeTokens.borderRadiusInline4,
-                    child: LinearProgressIndicator(
-                      value: error != null
-                          ? (1.0 - (error.totalError / 120.0)).clamp(0.0, 1.0)
-                          : 0.0,
-                      backgroundColor: colors.surfaceAlt,
-                      color: error != null
-                          ? (error.totalError < 30
-                              ? colors.success
-                              : error.totalError < 60
-                                  ? colors.warning
-                                  : colors.error)
+                )
+              else
+                Text(
+                  '--',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize28,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textMuted,
+                  ),
+                ),
+
+              if (!stack) const Spacer() else const SizedBox(height: 20),
+
+              // Progress toward threshold
+              Text(
+                'Threshold: ${config.autoCompleteThreshold.toStringAsFixed(0)}"',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: NightshadeTokens.borderRadiusInline4,
+                child: LinearProgressIndicator(
+                  value: error != null
+                      ? (1.0 - (error.totalError / 120.0)).clamp(0.0, 1.0)
+                      : 0.0,
+                  backgroundColor: colors.surfaceAlt,
+                  color: error != null
+                      ? (error.totalError < 30
+                          ? colors.success
+                          : error.totalError < 60
+                              ? colors.warning
+                              : colors.error)
+                      : colors.textMuted,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Auto-complete indicator
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      NightshadeIcons.target,
+                      size: 14,
+                      color: error != null &&
+                              error.totalError < config.autoCompleteThreshold
+                          ? colors.success
                           : colors.textMuted,
-                      minHeight: 6,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Auto-complete indicator
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius: NightshadeTokens.borderRadiusMd,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          NightshadeIcons.target,
-                          size: 14,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        error != null &&
+                                error.totalError < config.autoCompleteThreshold
+                            ? 'Below threshold!'
+                            : 'Adjust to threshold',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
                           color: error != null &&
                                   error.totalError <
                                       config.autoCompleteThreshold
                               ? colors.success
-                              : colors.textMuted,
+                              : colors.textSecondary,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            error != null &&
-                                    error.totalError <
-                                        config.autoCompleteThreshold
-                                ? 'Below threshold!'
-                                : 'Adjust to threshold',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
-                              color: error != null &&
-                                      error.totalError <
-                                          config.autoCompleteThreshold
-                                  ? colors.success
-                                  : colors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
+            ],
+          ),
+        );
 
         if (stack) {
           return Padding(

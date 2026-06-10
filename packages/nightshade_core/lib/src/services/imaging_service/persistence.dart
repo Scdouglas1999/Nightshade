@@ -24,10 +24,12 @@ extension _ImagingServicePersistence on ImagingService {
     final header = FitsWriteHeader(
       objectName: targetName,
       exposureTime: exposureSettings.exposureTime,
-      captureTimestamp:
-          timestamp.toUtc().toIso8601String(), // Use UTC for FITS standard
+      captureTimestamp: timestamp
+          .toUtc()
+          .toIso8601String(), // Use UTC for FITS standard
       frameType: exposureSettings
-          .frameType.displayName, // Use display name for FITS standard
+          .frameType
+          .displayName, // Use display name for FITS standard
       filter: exposureSettings.filter,
       gain: exposureSettings.gain,
       offset: exposureSettings.offset,

@@ -469,12 +469,14 @@ class _MobileNodeRow extends StatelessWidget {
           decoration: isCurrent
               ? NightshadeDecorations.emphasisSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 )
               : BoxDecoration(
                   color: colors.surface,
                   border: Border.all(color: colors.border),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
           child: Row(
             children: [

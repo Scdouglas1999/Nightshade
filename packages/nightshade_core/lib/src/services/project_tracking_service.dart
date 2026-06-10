@@ -77,13 +77,15 @@ class ProjectTrackingService {
         }
       }
 
-      progress.add(ProjectProgress(
-        target: target,
-        sessionCount: targetSessions.length,
-        successfulExposures: successfulExposures,
-        integratedSecs: integratedSecs,
-        lastSessionAt: lastSessionAt,
-      ));
+      progress.add(
+        ProjectProgress(
+          target: target,
+          sessionCount: targetSessions.length,
+          successfulExposures: successfulExposures,
+          integratedSecs: integratedSecs,
+          lastSessionAt: lastSessionAt,
+        ),
+      );
     }
 
     progress.sort((a, b) {
@@ -93,8 +95,9 @@ class ProjectTrackingService {
         return aPriority.compareTo(bPriority);
       }
       if (a.isTracked && b.isTracked) {
-        final completionOrder =
-            a.completionFraction.compareTo(b.completionFraction);
+        final completionOrder = a.completionFraction.compareTo(
+          b.completionFraction,
+        );
         if (completionOrder != 0) {
           return completionOrder;
         }

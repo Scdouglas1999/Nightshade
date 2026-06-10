@@ -41,10 +41,8 @@ class ScienceInsightsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lastFailure = ref
-        .watch(scienceProcessingStatusProvider)
-        .valueOrNull
-        ?.lastFailure;
+    final lastFailure =
+        ref.watch(scienceProcessingStatusProvider).valueOrNull?.lastFailure;
 
     const engine = ScienceInsightsEngine();
     final insights = engine.evaluate(
@@ -69,8 +67,7 @@ class ScienceInsightsPanel extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(LucideIcons.lightbulb,
-                    size: 14, color: colors.primary),
+                Icon(LucideIcons.lightbulb, size: 14, color: colors.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Insights',
@@ -93,7 +90,9 @@ class ScienceInsightsPanel extends ConsumerWidget {
             if (insights.isEmpty)
               Text(
                 'No actionable insights yet. Keep capturing frames.',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12),
               )
             else
               ...insights.map(

@@ -89,13 +89,12 @@ Future<void> _pumpTreeWithNode(
   await tester.pump(const Duration(milliseconds: 600));
 }
 
-ExposureNode _exposureFrom(ProviderContainer container) =>
-    container
-        .read(currentSequenceProvider)!
-        .nodes
-        .values
-        .whereType<ExposureNode>()
-        .first;
+ExposureNode _exposureFrom(ProviderContainer container) => container
+    .read(currentSequenceProvider)!
+    .nodes
+    .values
+    .whereType<ExposureNode>()
+    .first;
 
 void main() {
   testWidgets(

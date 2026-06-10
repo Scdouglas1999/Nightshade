@@ -158,17 +158,19 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    issues: issues,
-    workflow: workflow,
-    metadataTool: metadataTool,
-    ciRecipe: ciRecipe,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(
+      passed: passed,
+      issues: issues,
+      workflow: workflow,
+      metadataTool: metadataTool,
+      ciRecipe: ciRecipe,
+    ),
+  );
 
   stdout.writeln('Linux release workflow audit complete.');
   stdout.writeln('Passed: $passed');
@@ -287,11 +289,11 @@ class _FileAudit {
   }
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'exists': exists,
-        'sizeBytes': sizeBytes,
-        'missingText': missingText,
-        'missingTextCount': missingText.length,
-        'passed': exists && missingText.isEmpty,
-      };
+    'path': path,
+    'exists': exists,
+    'sizeBytes': sizeBytes,
+    'missingText': missingText,
+    'missingTextCount': missingText.length,
+    'passed': exists && missingText.isEmpty,
+  };
 }

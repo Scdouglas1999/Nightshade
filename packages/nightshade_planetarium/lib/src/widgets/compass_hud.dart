@@ -117,7 +117,8 @@ class _CompassHudPainter extends CustomPainter {
       );
 
       // Tick marks for intercardinal directions
-      final tickAngle = (angles[i] + 45 - azimuth) * math.pi / 180 - math.pi / 2;
+      final tickAngle =
+          (angles[i] + 45 - azimuth) * math.pi / 180 - math.pi / 2;
       final tickStart = Offset(
         center.dx + math.cos(tickAngle) * (radius - 4),
         center.dy + math.sin(tickAngle) * (radius - 4),
@@ -168,11 +169,19 @@ class _CompassHudPainter extends CustomPainter {
     textPainter.layout();
     textPainter.paint(
       canvas,
-      Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height / 2),
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
     );
   }
 
-  void _drawAltitudeArc(Canvas canvas, Size size, Offset compassCenter, double compassRadius) {
+  void _drawAltitudeArc(
+    Canvas canvas,
+    Size size,
+    Offset compassCenter,
+    double compassRadius,
+  ) {
     final arcLeft = compassCenter.dx + compassRadius + 8;
     final arcWidth = 24.0;
     final arcHeight = size.height - 16;
@@ -208,7 +217,9 @@ class _CompassHudPainter extends CustomPainter {
       canvas.drawLine(
         Offset(arcLeft, y),
         Offset(arcLeft + 4, y),
-        Paint()..color = Colors.white.withValues(alpha: 0.4)..strokeWidth = 1,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.4)
+          ..strokeWidth = 1,
       );
 
       // Label (only 0 and 90 to avoid clutter)
@@ -274,7 +285,7 @@ class _CompassHudPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CompassHudPainter oldDelegate) {
     return azimuth != oldDelegate.azimuth ||
-           altitude != oldDelegate.altitude ||
-           showAltitude != oldDelegate.showAltitude;
+        altitude != oldDelegate.altitude ||
+        showAltitude != oldDelegate.showAltitude;
   }
 }

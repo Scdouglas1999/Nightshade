@@ -22,14 +22,8 @@ void main() {
       expect(project.name, 'Winter Nebulae');
       expect(project.description, 'Orion + Horsehead campaign');
       expect(project.colorArgb, 0xFF5B9EC4);
-      expect(
-        project.createdAt.millisecondsSinceEpoch,
-        createdUnix * 1000,
-      );
-      expect(
-        project.updatedAt.millisecondsSinceEpoch,
-        updatedUnix * 1000,
-      );
+      expect(project.createdAt.millisecondsSinceEpoch, createdUnix * 1000);
+      expect(project.updatedAt.millisecondsSinceEpoch, updatedUnix * 1000);
     });
 
     test('accepts null description and color', () {
@@ -46,13 +40,13 @@ void main() {
 
   group('Project equality, copyWith, JSON', () {
     Project sample() => Project(
-          id: 3,
-          name: 'P',
-          description: 'd',
-          colorArgb: 0xFFFFFFFF,
-          createdAt: DateTime.fromMillisecondsSinceEpoch(1000 * 1000),
-          updatedAt: DateTime.fromMillisecondsSinceEpoch(2000 * 1000),
-        );
+      id: 3,
+      name: 'P',
+      description: 'd',
+      colorArgb: 0xFFFFFFFF,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(1000 * 1000),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(2000 * 1000),
+    );
 
     test('value equality and hashCode', () {
       expect(sample(), equals(sample()));
@@ -66,10 +60,7 @@ void main() {
       expect(renamed.name, 'Renamed');
       expect(renamed.description, 'd');
 
-      final cleared = base.copyWith(
-        clearDescription: true,
-        clearColor: true,
-      );
+      final cleared = base.copyWith(clearDescription: true, clearColor: true);
       expect(cleared.description, isNull);
       expect(cleared.colorArgb, isNull);
       // Clear takes precedence over a provided value.
@@ -87,9 +78,9 @@ void main() {
       expect(json['colorArgb'], 0xFFFFFFFF);
       expect(
         json['createdAt'],
-        DateTime.fromMillisecondsSinceEpoch(1000 * 1000)
-            .toUtc()
-            .toIso8601String(),
+        DateTime.fromMillisecondsSinceEpoch(
+          1000 * 1000,
+        ).toUtc().toIso8601String(),
       );
     });
   });
@@ -305,31 +296,30 @@ void main() {
 
   group('CampaignProgress', () {
     Project proj() => Project(
-          id: 1,
-          name: 'Campaign',
-          createdAt: DateTime.fromMillisecondsSinceEpoch(0),
-          updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
-        );
+      id: 1,
+      name: 'Campaign',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+    );
 
     ProjectTargetProgress target({
       required int id,
       required int goalFrames,
       required int capturedFrames,
-    }) =>
-        ProjectTargetProgress(
-          targetId: id,
-          targetName: 'T$id',
-          raHours: 0,
-          decDegrees: 0,
-          filters: [
-            FilterProgressLine(
-              filter: 'L',
-              exposureSeconds: 60,
-              goalFrames: goalFrames,
-              capturedFrames: capturedFrames,
-            ),
-          ],
-        );
+    }) => ProjectTargetProgress(
+      targetId: id,
+      targetName: 'T$id',
+      raHours: 0,
+      decDegrees: 0,
+      filters: [
+        FilterProgressLine(
+          filter: 'L',
+          exposureSeconds: 60,
+          goalFrames: goalFrames,
+          capturedFrames: capturedFrames,
+        ),
+      ],
+    );
 
     test('totals, counts, and incompleteTargets filter', () {
       final complete = target(id: 1, goalFrames: 10, capturedFrames: 10);

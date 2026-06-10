@@ -152,30 +152,30 @@ class BridgePostSessionSeam implements PostSessionSeam {
 
   @override
   Future<IntegrateSessionResult> integrateSession(
-      Map<String, dynamic> args) async {
-    final out =
-        await bridge.apiIntegrateSession(argsJson: jsonEncode(args));
+    Map<String, dynamic> args,
+  ) async {
+    final out = await bridge.apiIntegrateSession(argsJson: jsonEncode(args));
     return IntegrateSessionResult.fromJson(_decodeObject(out));
   }
 
   @override
   Future<MasterAccumulateResult> masterAccumulate(
-      Map<String, dynamic> args) async {
-    final out =
-        await bridge.apiMasterAccumulate(argsJson: jsonEncode(args));
+    Map<String, dynamic> args,
+  ) async {
+    final out = await bridge.apiMasterAccumulate(argsJson: jsonEncode(args));
     return MasterAccumulateResult.fromJson(_decodeObject(out));
   }
 
   @override
   Future<BuildMasterFlatResult> buildMasterFlat(
-      Map<String, dynamic> args) async {
+    Map<String, dynamic> args,
+  ) async {
     final out = await bridge.apiBuildMasterFlat(argsJson: jsonEncode(args));
     return BuildMasterFlatResult.fromJson(_decodeObject(out));
   }
 
   @override
-  Future<SaveFitsMasterResult> saveFitsMaster(
-      Map<String, dynamic> args) async {
+  Future<SaveFitsMasterResult> saveFitsMaster(Map<String, dynamic> args) async {
     final out = await bridge.apiSaveFitsMaster(argsJson: jsonEncode(args));
     return SaveFitsMasterResult.fromJson(_decodeObject(out));
   }
@@ -212,8 +212,9 @@ class BridgePostSessionSeam implements PostSessionSeam {
       if (maxStars != null) 'maxStars': maxStars,
       if (aperture != null) 'aperture': aperture,
     };
-    final out =
-        await bridge.apiDetectStarsPhotometry(argsJson: jsonEncode(args));
+    final out = await bridge.apiDetectStarsPhotometry(
+      argsJson: jsonEncode(args),
+    );
     return StarPhotometryResult.fromJson(_decodeObject(out));
   }
 
@@ -256,7 +257,8 @@ class BridgePostSessionSeam implements PostSessionSeam {
 
   @override
   Future<Map<String, dynamic>> drizzleIntegrate(
-      Map<String, dynamic> args) async {
+    Map<String, dynamic> args,
+  ) async {
     final out = await bridge.apiDrizzleIntegrate(argsJson: jsonEncode(args));
     return _decodeObject(out);
   }
@@ -278,13 +280,17 @@ class BridgePostSessionSeam implements PostSessionSeam {
     final backend = _backend;
     if (backend == null) return const Stream.empty();
     return backend.eventStream
-        .where((e) =>
-            e.category == EventCategory.imaging &&
-            e.eventType == 'IntegrationProgress')
-        .map((e) => (
-              phase: e.data['phase'] as String? ?? '',
-              fraction: (e.data['fraction'] as num?)?.toDouble() ?? 0.0,
-            ));
+        .where(
+          (e) =>
+              e.category == EventCategory.imaging &&
+              e.eventType == 'IntegrationProgress',
+        )
+        .map(
+          (e) => (
+            phase: e.data['phase'] as String? ?? '',
+            fraction: (e.data['fraction'] as num?)?.toDouble() ?? 0.0,
+          ),
+        );
   }
 
   /// Decode a `{outputPath}` envelope to its path string. Throws a
@@ -407,28 +413,28 @@ class PerFrameRecord {
       eccentricity: (json['eccentricity'] as num?)?.toDouble(),
       transform: rawTransform is List
           ? rawTransform
-              .map((e) => (e as num).toDouble())
-              .toList(growable: false)
+                .map((e) => (e as num).toDouble())
+                .toList(growable: false)
           : null,
       transformKind: json['transformKind'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'path': path,
-        'weight': weight,
-        'rmsResidualPx': rmsResidualPx,
-        'accepted': accepted,
-        'reason': reason,
-        'snr': snr,
-        'noise': noise,
-        'background': background,
-        'starCount': starCount,
-        'fwhm': fwhm,
-        'eccentricity': eccentricity,
-        if (transform != null) 'transform': transform,
-        if (transformKind != null) 'transformKind': transformKind,
-      };
+    'path': path,
+    'weight': weight,
+    'rmsResidualPx': rmsResidualPx,
+    'accepted': accepted,
+    'reason': reason,
+    'snr': snr,
+    'noise': noise,
+    'background': background,
+    'starCount': starCount,
+    'fwhm': fwhm,
+    'eccentricity': eccentricity,
+    if (transform != null) 'transform': transform,
+    if (transformKind != null) 'transformKind': transformKind,
+  };
 }
 
 /// Decoded result of [PostSessionSeam.integrateSession].

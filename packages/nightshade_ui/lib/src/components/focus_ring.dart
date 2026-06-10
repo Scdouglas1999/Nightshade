@@ -3,7 +3,8 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 
 /// A wrapper that adds a crisp focus ring for keyboard navigation.
-class FocusRing extends StatefulWidget {  /// The child widget to wrap
+class FocusRing extends StatefulWidget {
+  /// The child widget to wrap
   final Widget child;
 
   /// Focus node to track (optional, creates one if not provided)
@@ -55,9 +56,10 @@ class _FocusRingState extends State<FocusRing>
       vsync: this,
       duration: NightshadeTokens.durationFast,
     );
-    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -86,7 +88,8 @@ class _FocusRingState extends State<FocusRing>
     // Check if focus is from keyboard (not mouse/touch)
     if (widget.keyboardOnly) {
       final focusHighlightMode = FocusManager.instance.highlightMode;
-      final isKeyboardFocus = focusHighlightMode == FocusHighlightMode.traditional;
+      final isKeyboardFocus =
+          focusHighlightMode == FocusHighlightMode.traditional;
 
       if (hasFocus && isKeyboardFocus) {
         setState(() => _isFocused = true);
@@ -112,7 +115,8 @@ class _FocusRingState extends State<FocusRing>
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final effectiveFocusColor = widget.focusColor ?? colors.primary;
-    final effectiveRadius = widget.borderRadius ?? NightshadeTokens.borderRadiusMd;
+    final effectiveRadius =
+        widget.borderRadius ?? NightshadeTokens.borderRadiusMd;
 
     return Focus(
       focusNode: _focusNode,
@@ -201,7 +205,8 @@ class _FocusBuilderState extends State<FocusBuilder> {
 
     if (widget.keyboardOnly) {
       final focusHighlightMode = FocusManager.instance.highlightMode;
-      final isKeyboardFocus = focusHighlightMode == FocusHighlightMode.traditional;
+      final isKeyboardFocus =
+          focusHighlightMode == FocusHighlightMode.traditional;
       setState(() => _isFocused = hasFocus && isKeyboardFocus);
     } else {
       setState(() => _isFocused = hasFocus);

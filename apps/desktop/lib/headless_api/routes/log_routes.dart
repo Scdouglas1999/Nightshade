@@ -12,12 +12,14 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [LogHandlers].
 List<HeadlessRoute> buildLogRoutes(LogHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/logs', h.handleListFiles),
-      HeadlessRoute(HttpMethod.get, '/api/logs/recent', h.handleRecent),
-      HeadlessRoute(HttpMethod.get, '/api/logs/files/<filename>/download',
-          h.handleDownloadFile),
-      HeadlessRoute(HttpMethod.get, '/api/logs/tail', h.handleTail),
-      HeadlessRoute(HttpMethod.post, '/api/logs/clear', h.handleClear),
-      HeadlessRoute(
-          HttpMethod.post, '/api/logs/test-entry', h.handleTestEntry),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/logs', h.handleListFiles),
+  HeadlessRoute(HttpMethod.get, '/api/logs/recent', h.handleRecent),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/logs/files/<filename>/download',
+    h.handleDownloadFile,
+  ),
+  HeadlessRoute(HttpMethod.get, '/api/logs/tail', h.handleTail),
+  HeadlessRoute(HttpMethod.post, '/api/logs/clear', h.handleClear),
+  HeadlessRoute(HttpMethod.post, '/api/logs/test-entry', h.handleTestEntry),
+];

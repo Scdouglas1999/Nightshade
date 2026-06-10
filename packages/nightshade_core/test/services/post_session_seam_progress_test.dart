@@ -32,24 +32,22 @@ NightshadeEvent _progressEvent({
   required double fraction,
   int? framesDone,
   int? framesTotal,
-}) =>
-    NightshadeEvent(
-      timestamp: 0,
-      severity: EventSeverity.info,
-      category: EventCategory.imaging,
-      eventType: 'IntegrationProgress',
-      data: {
-        'phase': phase,
-        'fraction': fraction,
-        if (framesDone != null) 'frames_done': framesDone,
-        if (framesTotal != null) 'frames_total': framesTotal,
-      },
-    );
+}) => NightshadeEvent(
+  timestamp: 0,
+  severity: EventSeverity.info,
+  category: EventCategory.imaging,
+  eventType: 'IntegrationProgress',
+  data: {
+    'phase': phase,
+    'fraction': fraction,
+    if (framesDone != null) 'frames_done': framesDone,
+    if (framesTotal != null) 'frames_total': framesTotal,
+  },
+);
 
 void main() {
   group('BridgePostSessionSeam.integrationProgress', () {
-    test(
-        'yields (phase, fraction) for imaging IntegrationProgress events and '
+    test('yields (phase, fraction) for imaging IntegrationProgress events and '
         'drops everything else', () async {
       final backend = _MockBackend();
       final controller = StreamController<NightshadeEvent>();
@@ -62,29 +60,35 @@ void main() {
       final collected = seam.integrationProgress().toList();
 
       // A non-imaging event with the same eventType must be ignored.
-      controller.add(const NightshadeEvent(
-        timestamp: 0,
-        severity: EventSeverity.info,
-        category: EventCategory.sequencer,
-        eventType: 'IntegrationProgress',
-        data: {'phase': 'calibrating', 'fraction': 0.0},
-      ));
+      controller.add(
+        const NightshadeEvent(
+          timestamp: 0,
+          severity: EventSeverity.info,
+          category: EventCategory.sequencer,
+          eventType: 'IntegrationProgress',
+          data: {'phase': 'calibrating', 'fraction': 0.0},
+        ),
+      );
       // An imaging event of a different type must be ignored.
-      controller.add(const NightshadeEvent(
-        timestamp: 0,
-        severity: EventSeverity.info,
-        category: EventCategory.imaging,
-        eventType: 'ExposureProgress',
-        data: {'progress': 0.5},
-      ));
+      controller.add(
+        const NightshadeEvent(
+          timestamp: 0,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureProgress',
+          data: {'progress': 0.5},
+        ),
+      );
       // The real progress events flow through, in order.
       controller.add(_progressEvent(phase: 'calibrating', fraction: 0.1));
-      controller.add(_progressEvent(
-        phase: 'integrating',
-        fraction: 0.6,
-        framesDone: 12,
-        framesTotal: 20,
-      ));
+      controller.add(
+        _progressEvent(
+          phase: 'integrating',
+          fraction: 0.6,
+          framesDone: 12,
+          framesTotal: 20,
+        ),
+      );
       controller.add(_progressEvent(phase: 'preview', fraction: 1.0));
 
       await controller.close();
@@ -106,13 +110,15 @@ void main() {
 
       // `fraction` arriving as an int (num) must coerce to double; a missing
       // `phase` must fall back to '' rather than throwing.
-      controller.add(const NightshadeEvent(
-        timestamp: 0,
-        severity: EventSeverity.info,
-        category: EventCategory.imaging,
-        eventType: 'IntegrationProgress',
-        data: {'fraction': 1},
-      ));
+      controller.add(
+        const NightshadeEvent(
+          timestamp: 0,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'IntegrationProgress',
+          data: {'fraction': 1},
+        ),
+      );
 
       await controller.close();
 

@@ -64,8 +64,12 @@ class _SkyViewState extends State<SkyView> {
         });
       }
     } catch (e) {
-      developer.log('[SkyView] Error loading catalogs: $e',
-          name: 'SkyView', level: 1000, error: e);
+      developer.log(
+        '[SkyView] Error loading catalogs: $e',
+        name: 'SkyView',
+        level: 1000,
+        error: e,
+      );
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -176,7 +180,7 @@ class _SkyPainter extends CustomPainter {
       _drawStars(canvas, size, center);
     }
   }
-  
+
   void _drawGrid(Canvas canvas, Size size, Offset center) {
     final paint = Paint()
       ..color = const Color(0x33FFFFFF)
@@ -199,7 +203,7 @@ class _SkyPainter extends CustomPainter {
       );
     }
   }
-  
+
   void _drawStars(Canvas canvas, Size size, Offset center) {
     if (stars == null || stars!.isEmpty) return;
 
@@ -255,7 +259,7 @@ class _SkyPainter extends CustomPainter {
       }
     }
   }
-  
+
   void _drawConstellations(Canvas canvas, Size size, Offset center) {
     final paint = Paint()
       ..color = const Color(0x44888888)
@@ -306,9 +310,9 @@ class _SkyPainter extends CustomPainter {
     if (dsos == null || dsos!.isEmpty) return;
 
     // Only draw brighter DSOs to avoid clutter
-    final visibleDsos = dsos!.where((dso) =>
-      (dso.magnitude ?? 99) < 10.0
-    ).toList();
+    final visibleDsos = dsos!
+        .where((dso) => (dso.magnitude ?? 99) < 10.0)
+        .toList();
 
     for (final dso in visibleDsos) {
       // Convert to horizontal coordinates
@@ -353,7 +357,11 @@ class _SkyPainter extends CustomPainter {
     } else if (dso.type.isNebula) {
       // Nebula: square
       canvas.drawRect(
-        Rect.fromCenter(center: position, width: size * 1.5, height: size * 1.5),
+        Rect.fromCenter(
+          center: position,
+          width: size * 1.5,
+          height: size * 1.5,
+        ),
         paint,
       );
     } else if (dso.type.isCluster) {
@@ -395,7 +403,8 @@ class _SkyPainter extends CustomPainter {
 
     // Stereographic projection
     // Calculate angular separation
-    final cosDist = math.sin(viewAltRad) * math.sin(altRad) +
+    final cosDist =
+        math.sin(viewAltRad) * math.sin(altRad) +
         math.cos(viewAltRad) * math.cos(altRad) * math.cos(azDiffRad);
 
     // Skip if behind viewer (angular distance > 90 degrees)
@@ -407,7 +416,8 @@ class _SkyPainter extends CustomPainter {
     final sinAzDiff = math.sin(azDiffRad);
     final cosAzDiff = math.cos(azDiffRad);
     final y = math.cos(altRad) * sinAzDiff;
-    final x = math.cos(viewAltRad) * math.sin(altRad) -
+    final x =
+        math.cos(viewAltRad) * math.sin(altRad) -
         math.sin(viewAltRad) * math.cos(altRad) * cosAzDiff;
     final posAngle = math.atan2(y, x);
 
@@ -419,8 +429,10 @@ class _SkyPainter extends CustomPainter {
     final screenY = center.dy - radius * math.sin(posAngle);
 
     // Check if within canvas bounds (with margin)
-    if (screenX < -50 || screenX > size.width + 50 ||
-        screenY < -50 || screenY > size.height + 50) {
+    if (screenX < -50 ||
+        screenX > size.width + 50 ||
+        screenY < -50 ||
+        screenY > size.height + 50) {
       return null;
     }
 
@@ -430,14 +442,9 @@ class _SkyPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SkyPainter oldDelegate) {
     return azimuth != oldDelegate.azimuth ||
-           altitude != oldDelegate.altitude ||
-           zoom != oldDelegate.zoom ||
-           stars != oldDelegate.stars ||
-           dsos != oldDelegate.dsos;
+        altitude != oldDelegate.altitude ||
+        zoom != oldDelegate.zoom ||
+        stars != oldDelegate.stars ||
+        dsos != oldDelegate.dsos;
   }
 }
-
-
-
-
-

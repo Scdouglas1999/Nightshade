@@ -14,8 +14,9 @@ import 'settings_provider.dart';
 // ============================================================================
 
 /// Provider for the target suggestion service.
-final targetSuggestionServiceProvider =
-    Provider<TargetSuggestionService>((ref) {
+final targetSuggestionServiceProvider = Provider<TargetSuggestionService>((
+  ref,
+) {
   final logging = ref.watch(loggingServiceProvider);
   return TargetSuggestionService(loggingService: logging);
 });
@@ -28,8 +29,9 @@ final targetSuggestionServiceProvider =
 ///
 /// This allows the UI to modify filter and sort settings for suggestions.
 /// Default values provide sensible defaults for most imaging scenarios.
-final targetSuggestionConfigProvider =
-    StateProvider<TargetSuggestionConfig>((ref) {
+final targetSuggestionConfigProvider = StateProvider<TargetSuggestionConfig>((
+  ref,
+) {
   return const TargetSuggestionConfig(
     minAltitude: 30.0,
     minScore: 50.0,
@@ -76,101 +78,103 @@ Future<List<db.Target>>? _catalogTargetsLoadFuture;
 /// to the current configuration.
 final tonightSuggestionsProvider =
     FutureProvider.autoDispose<List<TargetSuggestion>>((ref) async {
-  // Watch configuration for filter/sort changes
-  final config = ref.watch(targetSuggestionConfigProvider);
+      // Watch configuration for filter/sort changes
+      final config = ref.watch(targetSuggestionConfigProvider);
 
-  // Watch refresh trigger for manual refresh
-  ref.watch(refreshSuggestionsProvider);
+      // Watch refresh trigger for manual refresh
+      ref.watch(refreshSuggestionsProvider);
 
-  // Watch optical config for FOV-aware framing fit scoring
-  final opticalConfig = ref.watch(opticalConfigProvider);
+      // Watch optical config for FOV-aware framing fit scoring
+      final opticalConfig = ref.watch(opticalConfigProvider);
 
-  final observerLocation = ref.watch(appObserverLocationProvider);
-  if (observerLocation == null) {
-    // Settings not loaded yet, return empty list
-    return [];
-  }
-
-  final latitude = observerLocation.latitude;
-  final longitude = observerLocation.longitude;
-
-  // Validate location is set
-  if (latitude == 0.0 && longitude == 0.0) {
-    // No location configured, return empty list
-    // The UI should prompt user to set location in settings
-    return [];
-  }
-
-  // Get the suggestion service
-  final service = ref.read(targetSuggestionServiceProvider);
-  final logging = ref.read(loggingServiceProvider);
-
-  try {
-    // Fetch host-backed targets and sessions when connected remotely.
-    final List<db.Target> userTargets =
-        await ref.watch(allDbTargetsProvider.future);
-    final List<db.ImagingSession> sessions =
-        await ref.watch(allSessionsProvider.future);
-
-    // Fetch catalog objects from OpenNGC
-    final catalogTargets = await _loadCatalogTargets(logging);
-
-    // Combine user targets with catalog targets
-    // User targets take precedence (they have imaging progress data)
-    final seenCatalogIds = <String>{};
-    for (final t in userTargets) {
-      if (t.catalogId != null) {
-        seenCatalogIds.add(t.catalogId!.toUpperCase());
+      final observerLocation = ref.watch(appObserverLocationProvider);
+      if (observerLocation == null) {
+        // Settings not loaded yet, return empty list
+        return [];
       }
-    }
 
-    // Filter out catalog objects that already exist as user targets
-    final filteredCatalog = catalogTargets.where((t) {
-      if (t.catalogId == null) return true;
-      return !seenCatalogIds.contains(t.catalogId!.toUpperCase());
-    }).toList();
+      final latitude = observerLocation.latitude;
+      final longitude = observerLocation.longitude;
 
-    // Combine: user targets first (have progress data), then catalog targets
-    final allTargets = [...userTargets, ...filteredCatalog];
+      // Validate location is set
+      if (latitude == 0.0 && longitude == 0.0) {
+        // No location configured, return empty list
+        // The UI should prompt user to set location in settings
+        return [];
+      }
 
-    logging.info(
-      'Loaded ${userTargets.length} user targets + ${filteredCatalog.length} catalog targets = ${allTargets.length} total',
-      source: 'TargetSuggestionProvider',
-    );
+      // Get the suggestion service
+      final service = ref.read(targetSuggestionServiceProvider);
+      final logging = ref.read(loggingServiceProvider);
 
-    // Get custom horizon profile for obstruction filtering
-    final horizonProfile = ref.read(horizonProfileProvider);
+      try {
+        // Fetch host-backed targets and sessions when connected remotely.
+        final List<db.Target> userTargets = await ref.watch(
+          allDbTargetsProvider.future,
+        );
+        final List<db.ImagingSession> sessions = await ref.watch(
+          allSessionsProvider.future,
+        );
 
-    // Generate suggestions
-    final suggestions = await service.getSuggestionsForTonight(
-      config: config,
-      latitude: latitude,
-      longitude: longitude,
-      targets: allTargets,
-      sessions: sessions,
-      opticalConfig: opticalConfig,
-      horizonProfile: horizonProfile.isFlat ? null : horizonProfile,
-    );
+        // Fetch catalog objects from OpenNGC
+        final catalogTargets = await _loadCatalogTargets(logging);
 
-    // Keep alive to prevent constant refetching while the user is viewing
-    ref.keepAlive();
+        // Combine user targets with catalog targets
+        // User targets take precedence (they have imaging progress data)
+        final seenCatalogIds = <String>{};
+        for (final t in userTargets) {
+          if (t.catalogId != null) {
+            seenCatalogIds.add(t.catalogId!.toUpperCase());
+          }
+        }
 
-    return suggestions;
-  } catch (e, stackTrace) {
-    // Log the error but don't crash - return empty list
-    logging.error(
-      'Failed to generate target suggestions: $e',
-      source: 'TargetSuggestionProvider',
-    );
-    logging.debug(
-      'Stack trace: $stackTrace',
-      source: 'TargetSuggestionProvider',
-    );
+        // Filter out catalog objects that already exist as user targets
+        final filteredCatalog = catalogTargets.where((t) {
+          if (t.catalogId == null) return true;
+          return !seenCatalogIds.contains(t.catalogId!.toUpperCase());
+        }).toList();
 
-    // Rethrow to let the UI show the error state
-    rethrow;
-  }
-});
+        // Combine: user targets first (have progress data), then catalog targets
+        final allTargets = [...userTargets, ...filteredCatalog];
+
+        logging.info(
+          'Loaded ${userTargets.length} user targets + ${filteredCatalog.length} catalog targets = ${allTargets.length} total',
+          source: 'TargetSuggestionProvider',
+        );
+
+        // Get custom horizon profile for obstruction filtering
+        final horizonProfile = ref.read(horizonProfileProvider);
+
+        // Generate suggestions
+        final suggestions = await service.getSuggestionsForTonight(
+          config: config,
+          latitude: latitude,
+          longitude: longitude,
+          targets: allTargets,
+          sessions: sessions,
+          opticalConfig: opticalConfig,
+          horizonProfile: horizonProfile.isFlat ? null : horizonProfile,
+        );
+
+        // Keep alive to prevent constant refetching while the user is viewing
+        ref.keepAlive();
+
+        return suggestions;
+      } catch (e, stackTrace) {
+        // Log the error but don't crash - return empty list
+        logging.error(
+          'Failed to generate target suggestions: $e',
+          source: 'TargetSuggestionProvider',
+        );
+        logging.debug(
+          'Stack trace: $stackTrace',
+          source: 'TargetSuggestionProvider',
+        );
+
+        // Rethrow to let the UI show the error state
+        rethrow;
+      }
+    });
 
 /// Load targets from the OpenNGC catalog.
 ///
@@ -259,30 +263,32 @@ Future<List<db.Target>> _readCatalogTargets(
     // Skip objects with invalid coordinates
     if (dso.ra == 0 && dso.dec == 0) continue;
 
-    targets.add(db.Target(
-      id: fakeId--,
-      name: dso.displayName,
-      catalogId: dso.name,
-      objectType: dso.typeDescription,
-      // OpenNGC ra is in degrees, Target expects decimal hours
-      ra: dso.ra / 15.0,
-      dec: dso.dec,
-      magnitude: dso.magnitude,
-      constellation: dso.constellation,
-      sizeArcmin: dso.majorAxis,
-      positionAngle: dso.positionAngle,
-      minAltitude: 30.0,
-      priority: 5,
-      totalPlannedSubs: 0,
-      capturedSubs: 0,
-      totalIntegrationSecs: 0.0,
-      goalIntegrationSecs: 0.0,
-      filterProgress: null,
-      notes: dso.commonNames,
-      createdAt: now,
-      updatedAt: now,
-      isFavorite: false,
-    ));
+    targets.add(
+      db.Target(
+        id: fakeId--,
+        name: dso.displayName,
+        catalogId: dso.name,
+        objectType: dso.typeDescription,
+        // OpenNGC ra is in degrees, Target expects decimal hours
+        ra: dso.ra / 15.0,
+        dec: dso.dec,
+        magnitude: dso.magnitude,
+        constellation: dso.constellation,
+        sizeArcmin: dso.majorAxis,
+        positionAngle: dso.positionAngle,
+        minAltitude: 30.0,
+        priority: 5,
+        totalPlannedSubs: 0,
+        capturedSubs: 0,
+        totalIntegrationSecs: 0.0,
+        goalIntegrationSecs: 0.0,
+        filterProgress: null,
+        notes: dso.commonNames,
+        createdAt: now,
+        updatedAt: now,
+        isFavorite: false,
+      ),
+    );
   }
 
   return targets;
@@ -297,34 +303,36 @@ Future<List<db.Target>> _readCatalogTargets(
 /// Useful for showing a preview or summary in the dashboard.
 final topSuggestionsProvider = Provider.autoDispose
     .family<AsyncValue<List<TargetSuggestion>>, int>((ref, count) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      final topN = suggestions.take(count).toList();
-      return AsyncData(topN);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          final topN = suggestions.take(count).toList();
+          return AsyncData(topN);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });
 
 /// Provider that returns suggestions filtered by a specific object type.
 final suggestionsByTypeProvider = Provider.autoDispose
     .family<AsyncValue<List<TargetSuggestion>>, String>((ref, objectType) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      final filtered = suggestions
-          .where((suggestion) => _matchesSuggestionType(suggestion, objectType))
-          .toList();
-      return AsyncData(filtered);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          final filtered = suggestions
+              .where(
+                (suggestion) => _matchesSuggestionType(suggestion, objectType),
+              )
+              .toList();
+          return AsyncData(filtered);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });
 
 bool _matchesSuggestionType(TargetSuggestion suggestion, String selectedType) {
   final normalizedSelected = selectedType.trim().toLowerCase();
@@ -332,8 +340,9 @@ bool _matchesSuggestionType(TargetSuggestion suggestion, String selectedType) {
     return true;
   }
 
-  final normalizedObjectType =
-      (suggestion.objectType ?? '').trim().toLowerCase();
+  final normalizedObjectType = (suggestion.objectType ?? '')
+      .trim()
+      .toLowerCase();
   if (normalizedObjectType.isEmpty) {
     return false;
   }
@@ -374,32 +383,33 @@ bool _matchesSuggestionType(TargetSuggestion suggestion, String selectedType) {
 /// Provider that returns incomplete targets only (less than 50% data collected).
 final incompleteSuggestionsProvider =
     Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      final incomplete =
-          suggestions.where((s) => s.dataProgress < 0.5).toList();
-      return AsyncData(incomplete);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          final incomplete = suggestions
+              .where((s) => s.dataProgress < 0.5)
+              .toList();
+          return AsyncData(incomplete);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });
 
 /// Provider that returns the best single suggestion for tonight.
 final bestSuggestionProvider =
     Provider.autoDispose<AsyncValue<TargetSuggestion?>>((ref) {
-  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
 
-  return suggestionsAsync.when(
-    data: (suggestions) {
-      if (suggestions.isEmpty) {
-        return const AsyncData(null);
-      }
-      return AsyncData(suggestions.first);
-    },
-    loading: () => const AsyncLoading(),
-    error: (error, stackTrace) => AsyncError(error, stackTrace),
-  );
-});
+      return suggestionsAsync.when(
+        data: (suggestions) {
+          if (suggestions.isEmpty) {
+            return const AsyncData(null);
+          }
+          return AsyncData(suggestions.first);
+        },
+        loading: () => const AsyncLoading(),
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+      );
+    });

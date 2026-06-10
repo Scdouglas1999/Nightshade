@@ -79,8 +79,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('What kind of constraint?'), findsOneWidget);
-    expect(find.byKey(const ValueKey('wizard-kind-timeWindow')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('wizard-kind-timeWindow')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-kind-moon')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-kind-horizon')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-kind-scheduledWindow')),
@@ -110,7 +110,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
+    await tester
+        .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
     await tester.pumpAndSettle();
 
     // Select the time-window card.
@@ -157,7 +158,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
+    await tester
+        .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
     await tester.pumpAndSettle();
 
     // Pick "Moon avoidance" (simpler than horizon — no profile prerequisite).
@@ -216,10 +218,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
-    await tester.pumpAndSettle();
     await tester
-        .tap(find.byKey(const ValueKey('wizard-kind-scheduledWindow')));
+        .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('wizard-kind-scheduledWindow')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('wizard-next')));
     await tester.pumpAndSettle();

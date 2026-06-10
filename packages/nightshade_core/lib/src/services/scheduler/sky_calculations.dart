@@ -47,7 +47,8 @@ class SkyCalculations {
     final utc = dt.toUtc();
     int y = utc.year;
     int m = utc.month;
-    final d = utc.day +
+    final d =
+        utc.day +
         utc.hour / 24.0 +
         utc.minute / 1440.0 +
         utc.second / 86400.0 +
@@ -91,7 +92,8 @@ class SkyCalculations {
     final mRad = _deg2rad(m);
 
     // Equation of center (deg).
-    final c = (1.914602 - t * (0.004817 + 0.000014 * t)) * math.sin(mRad) +
+    final c =
+        (1.914602 - t * (0.004817 + 0.000014 * t)) * math.sin(mRad) +
         (0.019993 - 0.000101 * t) * math.sin(2 * mRad) +
         0.000289 * math.sin(3 * mRad);
 
@@ -104,11 +106,9 @@ class SkyCalculations {
     final apparentLonRad = _deg2rad(apparentLon);
 
     // Mean obliquity of ecliptic (deg) with nutation correction.
-    final seconds = 21.448 -
-        t * (46.8150 + t * (0.00059 - t * 0.001813));
+    final seconds = 21.448 - t * (46.8150 + t * (0.00059 - t * 0.001813));
     final meanObliquity = 23.0 + (26.0 + (seconds / 60.0)) / 60.0;
-    final obliquity =
-        meanObliquity + 0.00256 * math.cos(_deg2rad(omegaDeg));
+    final obliquity = meanObliquity + 0.00256 * math.cos(_deg2rad(omegaDeg));
     final obliquityRad = _deg2rad(obliquity);
 
     // Right ascension (rad), declination (rad).
@@ -119,7 +119,8 @@ class SkyCalculations {
     final dec = math.asin(math.sin(obliquityRad) * math.sin(apparentLonRad));
 
     // Greenwich mean sidereal time (deg) at time.
-    var gmst = 280.46061837 +
+    var gmst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000.0;
@@ -132,14 +133,15 @@ class SkyCalculations {
     final haRad = _deg2rad(hourAngleDeg);
 
     final latRad = _deg2rad(latitudeDegrees);
-    final sinAlt = math.sin(latRad) * math.sin(dec) +
+    final sinAlt =
+        math.sin(latRad) * math.sin(dec) +
         math.cos(latRad) * math.cos(dec) * math.cos(haRad);
     final altRad = math.asin(sinAlt.clamp(-1.0, 1.0));
 
     // Azimuth measured east of north.
     final y = -math.sin(haRad);
-    final x = math.tan(dec) * math.cos(latRad) -
-        math.sin(latRad) * math.cos(haRad);
+    final x =
+        math.tan(dec) * math.cos(latRad) - math.sin(latRad) * math.cos(haRad);
     var az = math.atan2(y, x);
     if (az < 0) az += 2 * math.pi;
 
@@ -204,9 +206,8 @@ class SkyCalculations {
       }
       prevAlt = alt;
       prevT = t;
-      if (eveningEnd != null &&
-          morningStart != null &&
-          t.isAfter(searchEnd)) break;
+      if (eveningEnd != null && morningStart != null && t.isAfter(searchEnd))
+        break;
     }
 
     return TwilightTimes(

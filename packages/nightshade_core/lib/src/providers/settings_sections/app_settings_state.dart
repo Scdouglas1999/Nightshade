@@ -14,7 +14,7 @@ class AppSettingsState {
   final String accentColor; // hex color
   final String fontSize; // 'Small', 'Medium', 'Large'
   final String
-      uiScale; // 'Auto', 'Small (0.8x)', 'Normal (1.0x)', 'Large (1.2x)', 'Extra Large (1.4x)'
+  uiScale; // 'Auto', 'Small (0.8x)', 'Normal (1.0x)', 'Large (1.2x)', 'Extra Large (1.4x)'
   final bool sidebarCollapsed;
 
   // Location
@@ -39,7 +39,7 @@ class AppSettingsState {
   final bool ditherEnabled;
   final int ditherEveryFrames;
   final SafetyFailMode
-      safetyFailMode; // How to behave when safety data unavailable
+  safetyFailMode; // How to behave when safety data unavailable
 
   // Plate Solving
   final String plateSolver; // 'ASTAP', 'Astrometry.net', 'PlateSolve2'
@@ -107,7 +107,7 @@ class AppSettingsState {
   // Observing Environment
   final int bortleClass; // 1-9, Bortle dark-sky scale
   final String
-      horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
+  horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
 
   /// Effective horizon in degrees used by the Run Dashboard, scheduler and
   /// planetarium when computing "time-to-set". 0° = mathematical horizon;
@@ -185,9 +185,9 @@ class AppSettingsState {
   final int afBacklashIn;
   final int afBacklashOut;
   final String
-      afAutofocusFilterName; // designated filter for AF runs (empty = use current)
+  afAutofocusFilterName; // designated filter for AF runs (empty = use current)
   final String
-      afFilterSettingsJson; // JSON map of filter name to FilterAutofocusConfig
+  afFilterSettingsJson; // JSON map of filter name to FilterAutofocusConfig
 
   /// Pack G — observer name written into FITS `OBSERVER`. Empty string
   /// (the default) is treated as "no observer" and the keyword is omitted
@@ -843,15 +843,18 @@ class AppSettingsState {
       criticalAlertSound: criticalAlertSound ?? this.criticalAlertSound,
       pushCriticalAlerts: pushCriticalAlerts ?? this.pushCriticalAlerts,
       // Wave 4 Recovery Mode
-      recoveryDefaultRetryIntervalMins: recoveryDefaultRetryIntervalMins ??
+      recoveryDefaultRetryIntervalMins:
+          recoveryDefaultRetryIntervalMins ??
           this.recoveryDefaultRetryIntervalMins,
       recoveryDefaultMaxDurationMins:
           recoveryDefaultMaxDurationMins ?? this.recoveryDefaultMaxDurationMins,
-      recoveryStopTrackingDuringRecovery: recoveryStopTrackingDuringRecovery ??
+      recoveryStopTrackingDuringRecovery:
+          recoveryStopTrackingDuringRecovery ??
           this.recoveryStopTrackingDuringRecovery,
       recoveryAbortOnMeridian:
           recoveryAbortOnMeridian ?? this.recoveryAbortOnMeridian,
-      recoveryAudibleAlertWhenEntered: recoveryAudibleAlertWhenEntered ??
+      recoveryAudibleAlertWhenEntered:
+          recoveryAudibleAlertWhenEntered ??
           this.recoveryAudibleAlertWhenEntered,
       afMethod: afMethod ?? this.afMethod,
       afCurveFitting: afCurveFitting ?? this.afCurveFitting,
@@ -884,21 +887,22 @@ class AppSettingsState {
           : imageGradingHfrThresholdPx as double?,
       imageGradingHfrBaselinePercent:
           identical(imageGradingHfrBaselinePercent, _unset)
-              ? this.imageGradingHfrBaselinePercent
-              : imageGradingHfrBaselinePercent as double?,
+          ? this.imageGradingHfrBaselinePercent
+          : imageGradingHfrBaselinePercent as double?,
       imageGradingEccentricityThreshold:
           identical(imageGradingEccentricityThreshold, _unset)
-              ? this.imageGradingEccentricityThreshold
-              : imageGradingEccentricityThreshold as double?,
+          ? this.imageGradingEccentricityThreshold
+          : imageGradingEccentricityThreshold as double?,
       imageGradingStarCountMin: identical(imageGradingStarCountMin, _unset)
           ? this.imageGradingStarCountMin
           : imageGradingStarCountMin as int?,
-      imageGradingMaxConsecutiveRejects: imageGradingMaxConsecutiveRejects ??
+      imageGradingMaxConsecutiveRejects:
+          imageGradingMaxConsecutiveRejects ??
           this.imageGradingMaxConsecutiveRejects,
       imageGradingRejectFolderPath:
           identical(imageGradingRejectFolderPath, _unset)
-              ? this.imageGradingRejectFolderPath
-              : imageGradingRejectFolderPath as String?,
+          ? this.imageGradingRejectFolderPath
+          : imageGradingRejectFolderPath as String?,
       // Wave 5 Agent 2 — Sky-brightness adaptive exposure
       adaptiveExposureEnabled:
           adaptiveExposureEnabled ?? this.adaptiveExposureEnabled,
@@ -910,11 +914,14 @@ class AppSettingsState {
           adaptiveExposureMinSecs ?? this.adaptiveExposureMinSecs,
       adaptiveExposureMaxSecs:
           adaptiveExposureMaxSecs ?? this.adaptiveExposureMaxSecs,
-      adaptiveExposurePerFilterEnabled: adaptiveExposurePerFilterEnabled ??
+      adaptiveExposurePerFilterEnabled:
+          adaptiveExposurePerFilterEnabled ??
           this.adaptiveExposurePerFilterEnabled,
-      adaptiveExposurePerFilterMinSecs: adaptiveExposurePerFilterMinSecs ??
+      adaptiveExposurePerFilterMinSecs:
+          adaptiveExposurePerFilterMinSecs ??
           this.adaptiveExposurePerFilterMinSecs,
-      adaptiveExposurePerFilterMaxSecs: adaptiveExposurePerFilterMaxSecs ??
+      adaptiveExposurePerFilterMaxSecs:
+          adaptiveExposurePerFilterMaxSecs ??
           this.adaptiveExposurePerFilterMaxSecs,
       // Wave 5 Agent 3 — Pre-flight
       preflightStrictness: preflightStrictness ?? this.preflightStrictness,
@@ -928,26 +935,29 @@ class AppSettingsState {
       smartNightMaxSessionHours: identical(smartNightMaxSessionHours, _unset)
           ? this.smartNightMaxSessionHours
           : smartNightMaxSessionHours as double?,
-      smartNightDefaultAfCadenceFrames: smartNightDefaultAfCadenceFrames ??
+      smartNightDefaultAfCadenceFrames:
+          smartNightDefaultAfCadenceFrames ??
           this.smartNightDefaultAfCadenceFrames,
       smartNightDefaultIntegrationBudgetMinsPerTarget:
           smartNightDefaultIntegrationBudgetMinsPerTarget ??
-              this.smartNightDefaultIntegrationBudgetMinsPerTarget,
+          this.smartNightDefaultIntegrationBudgetMinsPerTarget,
       smartNightIncludeFlatsAtEnd:
           smartNightIncludeFlatsAtEnd ?? this.smartNightIncludeFlatsAtEnd,
       smartNightUseSchedulerForMultiTarget:
           smartNightUseSchedulerForMultiTarget ??
-              this.smartNightUseSchedulerForMultiTarget,
-      smartNightSchedulerTargetThreshold: smartNightSchedulerTargetThreshold ??
+          this.smartNightUseSchedulerForMultiTarget,
+      smartNightSchedulerTargetThreshold:
+          smartNightSchedulerTargetThreshold ??
           this.smartNightSchedulerTargetThreshold,
       smartNightDefaultStrategy:
           smartNightDefaultStrategy ?? this.smartNightDefaultStrategy,
       smartNightPolarAlignmentStaleAfterDays:
           smartNightPolarAlignmentStaleAfterDays ??
-              this.smartNightPolarAlignmentStaleAfterDays,
+          this.smartNightPolarAlignmentStaleAfterDays,
       smartNightSubExposureFloorSecs:
           smartNightSubExposureFloorSecs ?? this.smartNightSubExposureFloorSecs,
-      smartNightSubExposureCeilingSecs: smartNightSubExposureCeilingSecs ??
+      smartNightSubExposureCeilingSecs:
+          smartNightSubExposureCeilingSecs ??
           this.smartNightSubExposureCeilingSecs,
       smartNightTargetSnr: smartNightTargetSnr ?? this.smartNightTargetSnr,
       smartNightAutoPromptEnabled:
@@ -958,7 +968,8 @@ class AppSettingsState {
       // Wave 7 — Session lifecycle.
       sessionHandoffAutoPrompt:
           sessionHandoffAutoPrompt ?? this.sessionHandoffAutoPrompt,
-      campaignRollupSurfaceTargetsTab: campaignRollupSurfaceTargetsTab ??
+      campaignRollupSurfaceTargetsTab:
+          campaignRollupSurfaceTargetsTab ??
           this.campaignRollupSurfaceTargetsTab,
       campaignRollupGroupingMode:
           campaignRollupGroupingMode ?? this.campaignRollupGroupingMode,
@@ -967,7 +978,8 @@ class AppSettingsState {
           adaptiveSwapEnabledByDefault ?? this.adaptiveSwapEnabledByDefault,
       adaptiveSwapDefaultThreshold:
           adaptiveSwapDefaultThreshold ?? this.adaptiveSwapDefaultThreshold,
-      adaptiveSwapDefaultHysteresisSecs: adaptiveSwapDefaultHysteresisSecs ??
+      adaptiveSwapDefaultHysteresisSecs:
+          adaptiveSwapDefaultHysteresisSecs ??
           this.adaptiveSwapDefaultHysteresisSecs,
       conditionsScoreWeights:
           conditionsScoreWeights ?? this.conditionsScoreWeights,

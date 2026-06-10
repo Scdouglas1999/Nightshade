@@ -51,13 +51,17 @@ class MosaicStitchResult {
 
   factory MosaicStitchResult.fromJson(Map<String, dynamic> json) {
     return MosaicStitchResult(
-      outputPath: json['outputPath'] is String ? json['outputPath'] as String : '',
+      outputPath: json['outputPath'] is String
+          ? json['outputPath'] as String
+          : '',
       coveragePath: json['coveragePath'] is String
           ? json['coveragePath'] as String
           : null,
       previewPath: json['previewPngPath'] is String
           ? json['previewPngPath'] as String
-          : (json['previewPath'] is String ? json['previewPath'] as String : null),
+          : (json['previewPath'] is String
+                ? json['previewPath'] as String
+                : null),
       outWidth: _asInt(json['outWidth']),
       outHeight: _asInt(json['outHeight']),
       overlapPairs: _asInt(json['overlapPairs']),
@@ -66,14 +70,14 @@ class MosaicStitchResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'outputPath': outputPath,
-        if (coveragePath != null) 'coveragePath': coveragePath,
-        if (previewPath != null) 'previewPngPath': previewPath,
-        'outWidth': outWidth,
-        'outHeight': outHeight,
-        'overlapPairs': overlapPairs,
-        'meanPanelGain': meanPanelGain,
-      };
+    'outputPath': outputPath,
+    if (coveragePath != null) 'coveragePath': coveragePath,
+    if (previewPath != null) 'previewPngPath': previewPath,
+    'outWidth': outWidth,
+    'outHeight': outHeight,
+    'overlapPairs': overlapPairs,
+    'meanPanelGain': meanPanelGain,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -89,14 +93,14 @@ class MosaicStitchResult {
 
   @override
   int get hashCode => Object.hash(
-        outputPath,
-        coveragePath,
-        previewPath,
-        outWidth,
-        outHeight,
-        overlapPairs,
-        meanPanelGain,
-      );
+    outputPath,
+    coveragePath,
+    previewPath,
+    outWidth,
+    outHeight,
+    overlapPairs,
+    meanPanelGain,
+  );
 }
 
 double _asDouble(Object? v) => v is num ? v.toDouble() : 0.0;

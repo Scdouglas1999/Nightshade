@@ -13,8 +13,8 @@ final starImagePollIntervalProvider = StateProvider<int>((ref) => 500);
 /// Provider for star image data
 final starImageProvider =
     StateNotifierProvider<StarImageNotifier, AsyncValue<Phd2StarImage>>((ref) {
-  return StarImageNotifier(ref);
-});
+      return StarImageNotifier(ref);
+    });
 
 /// Notifier that polls PHD2 for star image data
 class StarImageNotifier extends StateNotifier<AsyncValue<Phd2StarImage>> {
@@ -67,8 +67,10 @@ class StarImageNotifier extends StateNotifier<AsyncValue<Phd2StarImage>> {
     }
 
     try {
-      final image =
-          await backend.guiderGetStarImage(deviceId: guiderId, size: size);
+      final image = await backend.guiderGetStarImage(
+        deviceId: guiderId,
+        size: size,
+      );
       if (mounted) {
         state = AsyncValue.data(image);
       }
@@ -100,10 +102,11 @@ const int maxTargetHistoryPoints = 50;
 
 /// Provider for target display error history
 final targetDisplayHistoryProvider =
-    StateNotifierProvider<TargetDisplayHistoryNotifier, List<GuideErrorPoint>>(
-        (ref) {
-  return TargetDisplayHistoryNotifier(ref);
-});
+    StateNotifierProvider<TargetDisplayHistoryNotifier, List<GuideErrorPoint>>((
+      ref,
+    ) {
+      return TargetDisplayHistoryNotifier(ref);
+    });
 
 /// Notifier that tracks guide error history for target display
 class TargetDisplayHistoryNotifier
@@ -119,8 +122,10 @@ class TargetDisplayHistoryNotifier
       if (!mounted) return;
       if (event.category == EventCategory.guiding &&
           event.eventType == 'GuideStep') {
-        _logger.debug('Received GuideStep event',
-            source: 'TargetDisplayHistoryNotifier');
+        _logger.debug(
+          'Received GuideStep event',
+          source: 'TargetDisplayHistoryNotifier',
+        );
         final json = event.data;
         final raError = (json['RADistanceRaw'] ?? 0).toDouble();
         final decError = (json['DECDistanceRaw'] ?? 0).toDouble();

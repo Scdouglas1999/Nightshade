@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/ui_consistency_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/ui_consistency_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('UI consistency audit not found: ${script.path}');
   }
@@ -19,8 +20,10 @@ Future<void> main() async {
       temp,
       'docs/production-readiness/ui-consistency-audit.json',
     );
-    _expect(passing['blockingFindingCount'] == 0,
-        'intentional overlay colors should not block');
+    _expect(
+      passing['blockingFindingCount'] == 0,
+      'intentional overlay colors should not block',
+    );
     _expect(
       passing['textReportPath'] == 'reports/ui.txt',
       'custom text output path should be recorded',
@@ -81,19 +84,12 @@ Future<void> main() async {
 
 Future<void> _writePassingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'apps/desktop/lib/framing/overlay_color.dart',
-    '''
+  await _writeFile(root, 'apps/desktop/lib/framing/overlay_color.dart', '''
 void paintOverlay() {
   final color = Colors.red;
 }
-''',
-  );
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    '''
+''');
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', '''
 void register(router) {
   router.get('/api/status', handler);
 }
@@ -103,15 +99,10 @@ List<String> _getAvailableEndpoints() {
     'GET /api/status',
   ];
 }
-''',
-  );
-  await _writeFile(
-    root,
-    'packages/nightshade_ui/lib/nightshade_ui.dart',
-    '''
+''');
+  await _writeFile(root, 'packages/nightshade_ui/lib/nightshade_ui.dart', '''
 export 'src/widgets/design_system_gallery.dart';
-''',
-  );
+''');
   await _writeFile(
     root,
     'packages/nightshade_ui/lib/src/widgets/design_system_gallery.dart',
@@ -165,10 +156,7 @@ void galleryTestMarkers() {
 
 Future<void> _writeFailingFixture(Directory root) async {
   await _resetWorkspace(root);
-  await _writeFile(
-    root,
-    'packages/nightshade_app/lib/bad_panel.dart',
-    '''
+  await _writeFile(root, 'packages/nightshade_app/lib/bad_panel.dart', '''
 void buildPanel() {
   final style = ElevatedButton.styleFrom();
   final radius = BorderRadius.circular(24);
@@ -179,12 +167,8 @@ void buildPanel() {
     // TODO: wire real action
   });
 }
-''',
-  );
-  await _writeFile(
-    root,
-    'apps/desktop/lib/headless_api_server.dart',
-    '''
+''');
+  await _writeFile(root, 'apps/desktop/lib/headless_api_server.dart', '''
 void register(router) {
   router.post('/api/control/start', handler);
 }
@@ -194,8 +178,7 @@ List<String> _getAvailableEndpoints() {
     'GET /api/status',
   ];
 }
-''',
-  );
+''');
 }
 
 Future<void> _resetWorkspace(Directory root) async {

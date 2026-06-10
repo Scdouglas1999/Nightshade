@@ -85,7 +85,8 @@ void main() {
     final expectedRectWidth = fovWidth * expectedPxPerDeg;
     final expectedRectHeight = fovHeight * expectedPxPerDeg;
 
-    test('FramingFOVPainter sizes the FOV rect from the shared plate scale', () {
+    test('FramingFOVPainter sizes the FOV rect from the shared plate scale',
+        () {
       final canvas = _RecordingCanvas();
       FramingFOVPainter(
         fovWidth: fovWidth,
@@ -120,7 +121,8 @@ void main() {
       expect(fovRect.height, closeTo(expectedRectHeight, 1e-6));
     });
 
-    test('FramingMosaicGridPainter sizes a 1x1 panel from the shared plate scale',
+    test(
+        'FramingMosaicGridPainter sizes a 1x1 panel from the shared plate scale',
         () {
       final canvas = _RecordingCanvas();
       const config = FramingMosaicConfig(

@@ -123,8 +123,9 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
   void initState() {
     super.initState();
     _hostController = TextEditingController(text: widget.initialHost ?? '');
-    _portController =
-        TextEditingController(text: (widget.initialPort ?? 8080).toString());
+    _portController = TextEditingController(
+      text: (widget.initialPort ?? 8080).toString(),
+    );
     _tokenController = TextEditingController();
     final initialScheme = widget.initialScheme?.toLowerCase();
     _scheme = initialScheme == 'https' ? 'https' : 'http';
@@ -145,8 +146,7 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
     final l10n = context.l10n;
     final host = _hostController.text.trim();
     final portText = _portController.text.trim();
-    var hostError =
-        host.isEmpty ? l10n.text('tailscaleHostEmptyError') : null;
+    var hostError = host.isEmpty ? l10n.text('tailscaleHostEmptyError') : null;
     if (hostError == null && !SavedServer.isTailscaleEndpoint(host)) {
       hostError = l10n.text('tailscaleHostInvalidError');
     }
@@ -230,14 +230,16 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
             children: [
               Text(
                 l10n.text('tailscaleConnect'),
-                style: NightshadeTypography.h4
-                    .copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.h4.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 l10n.text('tailscaleConnectSubtitle'),
-                style: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -290,7 +292,9 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
       children: [
         Text(
           l10n.text('tailscaleAddressLabel'),
-          style: NightshadeTypography.label.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.label.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         NightshadeTextField(
@@ -314,8 +318,9 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
                 children: [
                   Text(
                     l10n.text('tailscalePortLabel'),
-                    style: NightshadeTypography.label
-                        .copyWith(color: colors.textSecondary),
+                    style: NightshadeTypography.label.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: NightshadeTokens.spaceXs),
                   NightshadeTextField(
@@ -324,9 +329,7 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
                     prefixIcon: LucideIcons.hash,
                     errorText: _portError,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onChanged: (_) {
                       if (_portError != null) setState(() => _portError = null);
                     },
@@ -341,8 +344,9 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
                 children: [
                   Text(
                     l10n.text('tailscaleTransportLabel'),
-                    style: NightshadeTypography.label
-                        .copyWith(color: colors.textSecondary),
+                    style: NightshadeTypography.label.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: NightshadeTokens.spaceXs),
                   _SchemeToggle(
@@ -357,7 +361,9 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
         const SizedBox(height: NightshadeTokens.spaceMd),
         Text(
           l10n.text('tailscaleTokenLabel'),
-          style: NightshadeTypography.label.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.label.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         NightshadeTextField(
@@ -503,13 +509,18 @@ class _SetupStep extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, size: NightshadeTokens.iconSm, color: colors.textSecondary),
+                  Icon(
+                    icon,
+                    size: NightshadeTokens.iconSm,
+                    color: colors.textSecondary,
+                  ),
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   Expanded(
                     child: Text(
                       title,
-                      style: NightshadeTypography.bodyMedium
-                          .copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.bodyMedium.copyWith(
+                        color: colors.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -517,8 +528,10 @@ class _SetupStep extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 body,
-                style: NightshadeTypography.bodySm
-                    .copyWith(color: colors.textSecondary, height: 1.4),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),

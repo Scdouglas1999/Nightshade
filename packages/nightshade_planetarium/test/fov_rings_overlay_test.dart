@@ -4,8 +4,9 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 void main() {
   group('FovRingsOverlay', () {
-    testWidgets('renders without error and sizes to its parent',
-        (tester) async {
+    testWidgets('renders without error and sizes to its parent', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: SizedBox(
@@ -24,8 +25,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('IgnorePointer wrapper lets taps reach widgets beneath',
-        (tester) async {
+    testWidgets('IgnorePointer wrapper lets taps reach widgets beneath', (
+      tester,
+    ) async {
       var tapped = false;
       await tester.pumpWidget(
         MaterialApp(
@@ -59,16 +61,12 @@ void main() {
 
     testWidgets('repaints when field of view changes (zoom)', (tester) async {
       Widget build(double fov) => MaterialApp(
-            home: SizedBox(
-              width: 400,
-              height: 300,
-              child: FovRingsOverlay(
-                fieldOfView: fov,
-                centerRA: 0,
-                centerDec: 0,
-              ),
-            ),
-          );
+        home: SizedBox(
+          width: 400,
+          height: 300,
+          child: FovRingsOverlay(fieldOfView: fov, centerRA: 0, centerDec: 0),
+        ),
+      );
 
       await tester.pumpWidget(build(10));
       // Zoom in: smaller FOV -> rings should grow in pixels. Just verify a

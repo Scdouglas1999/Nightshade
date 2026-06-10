@@ -10,8 +10,8 @@ import 'equipment_retry_defaults.dart';
 /// Rotator state provider
 final rotatorStateProvider =
     StateNotifierProvider<RotatorStateNotifier, RotatorState>((ref) {
-  return RotatorStateNotifier(ref);
-});
+      return RotatorStateNotifier(ref);
+    });
 
 class RotatorStateNotifier extends StateNotifier<RotatorState> {
   final Ref _ref;
@@ -19,8 +19,10 @@ class RotatorStateNotifier extends StateNotifier<RotatorState> {
 
   RotatorStateNotifier(this._ref) : super(const RotatorState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

@@ -77,10 +77,7 @@ class HealpixXyf {
 
   @override
   bool operator ==(Object other) =>
-      other is HealpixXyf &&
-      other.x == x &&
-      other.y == y &&
-      other.face == face;
+      other is HealpixXyf && other.x == x && other.y == y && other.face == face;
 
   @override
   int get hashCode => Object.hash(x, y, face);
@@ -109,8 +106,7 @@ class HealpixAngle {
   double get decDeg => 90.0 - theta * 180.0 / math.pi;
 
   @override
-  String toString() =>
-      'HealpixAngle(theta: $theta, phi: $phi)';
+  String toString() => 'HealpixAngle(theta: $theta, phi: $phi)';
 
   @override
   bool operator ==(Object other) =>
@@ -240,9 +236,7 @@ class HealpixNested {
   /// Converts native `(theta, phi)` radians to a NESTED pixel index.
   int angToPixNest(HealpixAngle a) {
     if (a.theta < 0.0 || a.theta > math.pi) {
-      throw HealpixArgumentError(
-        'theta must be in [0, pi], got ${a.theta}',
-      );
+      throw HealpixArgumentError('theta must be in [0, pi], got ${a.theta}');
     }
     final z = math.cos(a.theta);
     return _zphiToNest(z, _wrapTwoPi(a.phi));
@@ -422,7 +416,14 @@ class HealpixNested {
   /// order. Index 0 = West, then NW, N, NE, E, SE, S, SW (counter-clockwise
   /// from West). This is the canonical HEALPix `neighbors` ordering.
   static const List<String> neighbourDirections = [
-    'W', 'NW', 'N', 'NE', 'E', 'SE', 'S', 'SW',
+    'W',
+    'NW',
+    'N',
+    'NE',
+    'E',
+    'SE',
+    'S',
+    'SW',
   ];
 
   /// In-face step in x for each of the eight directions, matching
@@ -577,8 +578,7 @@ class HealpixNested {
     // acceptance radius by one pixel diagonal for the inclusive test so the
     // flood fill never stops short of a tile that clips the cap edge.
     final pixelDiagRad = inclusive ? _maxPixelDiagRad() : 0.0;
-    final cosGrown =
-        math.cos((radiusRad + pixelDiagRad).clamp(0.0, math.pi));
+    final cosGrown = math.cos((radiusRad + pixelDiagRad).clamp(0.0, math.pi));
 
     final start = ang2pixNest(raDeg, decDeg);
     final visited = <int>{};
@@ -598,12 +598,7 @@ class HealpixNested {
         continue;
       }
 
-      if (_pixelHitsCap(
-        pix,
-        center,
-        cosRadius,
-        inclusive: inclusive,
-      )) {
+      if (_pixelHitsCap(pix, center, cosRadius, inclusive: inclusive)) {
         accepted.add(pix);
       }
 
@@ -776,10 +771,7 @@ class HealpixNested {
     // Or the cap center inside the pixel footprint (a small cap fully
     // contained in one big tile). Containment test: the cap center maps to
     // this pixel.
-    return ang2pixNest(
-          _radFromVec(center).raDeg,
-          _radFromVec(center).decDeg,
-        ) ==
+    return ang2pixNest(_radFromVec(center).raDeg, _radFromVec(center).decDeg) ==
         pix;
   }
 

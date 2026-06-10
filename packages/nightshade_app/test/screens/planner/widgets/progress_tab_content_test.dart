@@ -141,9 +141,11 @@ void main() {
     });
 
     final progressMap = <int, TargetProgress>{
-      1: _progress(id: 1, name: 'NGC 7000', captured: 30, goal: 60, etaNights: 4),
+      1: _progress(
+          id: 1, name: 'NGC 7000', captured: 30, goal: 60, etaNights: 4),
       2: _progress(id: 2, name: 'M31', captured: 10, goal: 80, etaNights: 1),
-      3: _progress(id: 3, name: 'Untouched', captured: 0, goal: 40, etaNights: null),
+      3: _progress(
+          id: 3, name: 'Untouched', captured: 0, goal: 40, etaNights: null),
     };
 
     await tester.pumpWidget(
@@ -168,15 +170,12 @@ void main() {
     // Read the rendered target names in render order. Because every row is
     // wrapped in a ValueKey, we can find each by key and ask the framework
     // for its on-screen y-coordinate to assert ordering.
-    final m31Y = tester
-        .getTopLeft(find.byKey(const ValueKey('progress-row-2')))
-        .dy;
-    final ngcY = tester
-        .getTopLeft(find.byKey(const ValueKey('progress-row-1')))
-        .dy;
-    final untouchedY = tester
-        .getTopLeft(find.byKey(const ValueKey('progress-row-3')))
-        .dy;
+    final m31Y =
+        tester.getTopLeft(find.byKey(const ValueKey('progress-row-2'))).dy;
+    final ngcY =
+        tester.getTopLeft(find.byKey(const ValueKey('progress-row-1'))).dy;
+    final untouchedY =
+        tester.getTopLeft(find.byKey(const ValueKey('progress-row-3'))).dy;
 
     // ETA 1 (M31) sorts above ETA 4 (NGC 7000); both sort above ETA null
     // (Untouched).

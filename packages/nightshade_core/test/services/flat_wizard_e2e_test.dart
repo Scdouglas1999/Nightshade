@@ -42,67 +42,79 @@ void main() {
     const filters = ['L', 'R', 'G'];
 
     test(
-        '3-filter run converges; gain/offset propagated to camera (audit §1.1)',
-        () async {
-      final backend = _FlatWizardTestBackend(
-        // Linear synthetic ADU: at exposure = 1.0s the model returns exactly
-        // 30000 ADU (== target). Below 1.0s the ADU is under target; above,
-        // over. FlatWizardService's proportional loop should converge in a
-        // few iterations from the geometric-midpoint starting exposure.
-        //   adu(t) = 10000 + 20000 * t
-        aduForExposure: (t) => 10000.0 + 20000.0 * t,
-      );
-      addTearDown(backend.disposeFake);
+      '3-filter run converges; gain/offset propagated to camera (audit §1.1)',
+      () async {
+        final backend = _FlatWizardTestBackend(
+          // Linear synthetic ADU: at exposure = 1.0s the model returns exactly
+          // 30000 ADU (== target). Below 1.0s the ADU is under target; above,
+          // over. FlatWizardService's proportional loop should converge in a
+          // few iterations from the geometric-midpoint starting exposure.
+          //   adu(t) = 10000 + 20000 * t
+          aduForExposure: (t) => 10000.0 + 20000.0 * t,
+        );
+        addTearDown(backend.disposeFake);
 
-      final service = FlatWizardService(backend);
+        final service = FlatWizardService(backend);
 
-      final results = await service.calibrateMultipleFilters(
-        deviceId: cameraId,
-        filters: filters,
-        gain: 100,
-        offset: 50,
-        targetAdu: 30000,
-        tolerance: 5.0, // percent
-        minExposure: 0.01,
-        maxExposure: 10.0,
-        maxIterations: 12,
-      );
+        final results = await service.calibrateMultipleFilters(
+          deviceId: cameraId,
+          filters: filters,
+          gain: 100,
+          offset: 50,
+          targetAdu: 30000,
+          tolerance: 5.0, // percent
+          minExposure: 0.01,
+          maxExposure: 10.0,
+          maxIterations: 12,
+        );
 
-      // ----- Per-filter convergence assertions ------------------------------
-      expect(results, hasLength(3));
-      for (final r in results) {
-        expect(r.success, isTrue,
-            reason: 'Filter "${r.filter}" did not converge: '
-                'adu=${r.adu}, exposure=${r.exposure}, '
-                'iterations=${r.iterations}, error=${r.errorMessage}');
-        // Within 5% of target ADU per the configured tolerance.
-        final pctError = ((r.adu - 30000).abs() / 30000) * 100;
-        expect(pctError, lessThanOrEqualTo(5.0),
-            reason: 'Filter "${r.filter}" ADU outside tolerance');
-      }
-
-      // ----- The §1.1 fix: gain/offset must propagate, NOT default to 0 -----
-      // Every cameraStartExposure call recorded must use gain=100, offset=50.
-      expect(backend.exposureCalls, isNotEmpty);
-      for (final call in backend.exposureCalls) {
-        expect(call.gain, equals(100),
-            reason: 'gain was not forwarded to camera (audit §1.1 regression)');
-        expect(call.offset, equals(50),
+        // ----- Per-filter convergence assertions ------------------------------
+        expect(results, hasLength(3));
+        for (final r in results) {
+          expect(
+            r.success,
+            isTrue,
             reason:
-                'offset was not forwarded to camera (audit §1.1 regression)');
-        expect(call.frameType, equals(FrameType.flat));
-        expect(call.deviceId, equals(cameraId));
-      }
-    });
+                'Filter "${r.filter}" did not converge: '
+                'adu=${r.adu}, exposure=${r.exposure}, '
+                'iterations=${r.iterations}, error=${r.errorMessage}',
+          );
+          // Within 5% of target ADU per the configured tolerance.
+          final pctError = ((r.adu - 30000).abs() / 30000) * 100;
+          expect(
+            pctError,
+            lessThanOrEqualTo(5.0),
+            reason: 'Filter "${r.filter}" ADU outside tolerance',
+          );
+        }
+
+        // ----- The §1.1 fix: gain/offset must propagate, NOT default to 0 -----
+        // Every cameraStartExposure call recorded must use gain=100, offset=50.
+        expect(backend.exposureCalls, isNotEmpty);
+        for (final call in backend.exposureCalls) {
+          expect(
+            call.gain,
+            equals(100),
+            reason: 'gain was not forwarded to camera (audit §1.1 regression)',
+          );
+          expect(
+            call.offset,
+            equals(50),
+            reason:
+                'offset was not forwarded to camera (audit §1.1 regression)',
+          );
+          expect(call.frameType, equals(FrameType.flat));
+          expect(call.deviceId, equals(cameraId));
+        }
+      },
+    );
 
     test('captureTestFrame drives the filter wheel by name', () async {
       // FlatWizardService.calibrateMultipleFilters does NOT change filters
       // itself (that is the caller's responsibility — see flat_wizard_screen.
       // dart's `_moveFilterWheel`). The wheel-by-name path is exposed via
       // `captureTestFrame(filterWheelDeviceId: ...)`. Verify it works.
-      final backend = _FlatWizardTestBackend(
-        aduForExposure: (t) => 25000.0,
-      );
+      final backend = _FlatWizardTestBackend(aduForExposure: (t) => 25000.0);
       addTearDown(backend.disposeFake);
 
       final service = FlatWizardService(backend);
@@ -125,8 +137,7 @@ void main() {
       expect(backend.exposureCalls.single.offset, equals(50));
     });
 
-    test('camera failure on R isolates that filter; L and G converge',
-        () async {
+    test('camera failure on R isolates that filter; L and G converge', () async {
       // FlatWizardService.calibrateFilter reads back the last image via
       // `cameraGetLastImage`. If that returns null, the service surfaces a
       // non-converged `FlatResult` with `errorMessage: "Failed to capture
@@ -172,11 +183,16 @@ void main() {
       expect(byFilter['L']!.success, isTrue, reason: 'L should converge');
       expect(byFilter['G']!.success, isTrue, reason: 'G should converge');
 
-      expect(byFilter['R']!.success, isFalse,
-          reason: 'R should have failed when the camera returned no image');
+      expect(
+        byFilter['R']!.success,
+        isFalse,
+        reason: 'R should have failed when the camera returned no image',
+      );
       expect(byFilter['R']!.errorMessage, isNotNull);
-      expect(byFilter['R']!.errorMessage!.toLowerCase(),
-          contains('failed to capture test frame'));
+      expect(
+        byFilter['R']!.errorMessage!.toLowerCase(),
+        contains('failed to capture test frame'),
+      );
     });
   });
 }
@@ -219,9 +235,7 @@ class _ExposureCall {
 ///   - `filterWheelSetByName` records the call and tracks the active filter
 ///     so `cameraGetLastImage` can decide whether to fail.
 class _FlatWizardTestBackend extends Mock implements NightshadeBackend {
-  _FlatWizardTestBackend({
-    required this.aduForExposure,
-  });
+  _FlatWizardTestBackend({required this.aduForExposure});
 
   final double Function(double exposureTime) aduForExposure;
 
@@ -248,8 +262,7 @@ class _FlatWizardTestBackend extends Mock implements NightshadeBackend {
   Stream<NightshadeEvent> get eventStream => _events.stream;
 
   @override
-  Stream<Map<String, dynamic>> get polarAlignmentEvents =>
-      const Stream.empty();
+  Stream<Map<String, dynamic>> get polarAlignmentEvents => const Stream.empty();
 
   @override
   Future<void> filterWheelSetByName(String deviceId, String name) async {
@@ -270,15 +283,17 @@ class _FlatWizardTestBackend extends Mock implements NightshadeBackend {
     int? width,
     int? height,
   }) async {
-    exposureCalls.add(_ExposureCall(
-      deviceId: deviceId,
-      exposureTime: exposureTime,
-      frameType: frameType,
-      gain: gain,
-      offset: offset,
-      binX: binX,
-      binY: binY,
-    ));
+    exposureCalls.add(
+      _ExposureCall(
+        deviceId: deviceId,
+        exposureTime: exposureTime,
+        frameType: frameType,
+        gain: gain,
+        offset: offset,
+        binX: binX,
+        binY: binY,
+      ),
+    );
     _lastExposureTime = exposureTime;
 
     // Emit ExposureComplete on the next microtask. FlatWizardService
@@ -287,16 +302,18 @@ class _FlatWizardTestBackend extends Mock implements NightshadeBackend {
     scheduleMicrotask(() {
       if (_events.isClosed) return;
       _eventCounter++;
-      _events.add(NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch + _eventCounter,
-        severity: EventSeverity.info,
-        category: EventCategory.imaging,
-        eventType: 'ExposureComplete',
-        data: <String, dynamic>{
-          'deviceId': deviceId,
-          'exposureTime': exposureTime,
-        },
-      ));
+      _events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch + _eventCounter,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureComplete',
+          data: <String, dynamic>{
+            'deviceId': deviceId,
+            'exposureTime': exposureTime,
+          },
+        ),
+      );
     });
   }
 

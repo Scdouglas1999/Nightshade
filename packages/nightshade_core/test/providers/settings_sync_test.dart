@@ -44,136 +44,143 @@ void main() {
   });
 
   test(
-      'AppSettingsNotifier applies remote settings.changed event in-place',
-      () async {
-    final controller = StreamController<NightshadeEvent>.broadcast();
-    addTearDown(controller.close);
+    'AppSettingsNotifier applies remote settings.changed event in-place',
+    () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
 
-    final backend = _MockNetworkBackend();
-    when(() => backend.eventStream).thenAnswer((_) => controller.stream);
-    when(() => backend.getSettings()).thenAnswer(
-      (_) async => const models.AppSettings(theme: 'dark'),
-    );
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+      when(
+        () => backend.getSettings(),
+      ).thenAnswer((_) async => const models.AppSettings(theme: 'dark'));
 
-    final container = ProviderContainer(
-      overrides: [
-        backendProvider.overrideWith(
-          (ref) => _FixedBackendNotifier(ref, backend),
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container.read(appSettingsProvider.future);
+      expect(initial.theme, equals('dark'));
+
+      // Server emits a single-field change.
+      controller.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: {
+            'key': 'theme',
+            'value': 'light',
+            'changedAt': DateTime.now().toUtc().toIso8601String(),
+          },
         ),
-      ],
-    );
-    addTearDown(container.dispose);
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final initial = await container.read(appSettingsProvider.future);
-    expect(initial.theme, equals('dark'));
+      final updated = container.read(appSettingsProvider).valueOrNull;
+      expect(updated, isNotNull);
+      expect(
+        updated!.theme,
+        equals('light'),
+        reason: 'settings.changed must apply the delta without a refetch',
+      );
+      // getSettings was called exactly once (initial load); the event
+      // path does NOT re-fetch.
+      verify(() => backend.getSettings()).called(1);
+    },
+  );
 
-    // Server emits a single-field change.
-    controller.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: {
-        'key': 'theme',
-        'value': 'light',
-        'changedAt': DateTime.now().toUtc().toIso8601String(),
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+  test(
+    'AppSettingsNotifier ignores settings.changed events from another category',
+    () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
 
-    final updated = container.read(appSettingsProvider).valueOrNull;
-    expect(updated, isNotNull);
-    expect(updated!.theme, equals('light'),
-        reason: 'settings.changed must apply the delta without a refetch');
-    // getSettings was called exactly once (initial load); the event
-    // path does NOT re-fetch.
-    verify(() => backend.getSettings()).called(1);
-  });
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+      when(
+        () => backend.getSettings(),
+      ).thenAnswer((_) async => const models.AppSettings(language: 'en'));
 
-  test('AppSettingsNotifier ignores settings.changed events from another category',
-      () async {
-    final controller = StreamController<NightshadeEvent>.broadcast();
-    addTearDown(controller.close);
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final backend = _MockNetworkBackend();
-    when(() => backend.eventStream).thenAnswer((_) => controller.stream);
-    when(() => backend.getSettings()).thenAnswer(
-      (_) async => const models.AppSettings(language: 'en'),
-    );
+      await container.read(appSettingsProvider.future);
 
-    final container = ProviderContainer(
-      overrides: [
-        backendProvider.overrideWith(
-          (ref) => _FixedBackendNotifier(ref, backend),
+      // An equipment-category event with eventType=settings.changed (which
+      // should never happen, but tests defence-in-depth) is ignored.
+      controller.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.equipment,
+          eventType: settingsChangedEventType,
+          data: const {'key': 'language', 'value': 'fr'},
         ),
-      ],
-    );
-    addTearDown(container.dispose);
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    await container.read(appSettingsProvider.future);
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after!.language, equals('en'));
+    },
+  );
 
-    // An equipment-category event with eventType=settings.changed (which
-    // should never happen, but tests defence-in-depth) is ignored.
-    controller.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: settingsChangedEventType,
-      data: const {
-        'key': 'language',
-        'value': 'fr',
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+  test(
+    'AppSettingsNotifier applies snapshot variant when key=__snapshot__',
+    () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
 
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after!.language, equals('en'));
-  });
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+      when(
+        () => backend.getSettings(),
+      ).thenAnswer((_) async => const models.AppSettings());
 
-  test('AppSettingsNotifier applies snapshot variant when key=__snapshot__',
-      () async {
-    final controller = StreamController<NightshadeEvent>.broadcast();
-    addTearDown(controller.close);
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final backend = _MockNetworkBackend();
-    when(() => backend.eventStream).thenAnswer((_) => controller.stream);
-    when(() => backend.getSettings()).thenAnswer(
-      (_) async => const models.AppSettings(),
-    );
+      await container.read(appSettingsProvider.future);
 
-    final container = ProviderContainer(
-      overrides: [
-        backendProvider.overrideWith(
-          (ref) => _FixedBackendNotifier(ref, backend),
+      // Server emits a full-snapshot variant — happens on the recovery
+      // path when the server cannot read the previous settings.
+      final snapshot = const models.AppSettings(
+        theme: 'midnight',
+        language: 'de',
+      ).toJson();
+      controller.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: {'key': '__snapshot__', 'value': snapshot},
         ),
-      ],
-    );
-    addTearDown(container.dispose);
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    await container.read(appSettingsProvider.future);
-
-    // Server emits a full-snapshot variant — happens on the recovery
-    // path when the server cannot read the previous settings.
-    final snapshot = const models.AppSettings(
-      theme: 'midnight',
-      language: 'de',
-    ).toJson();
-    controller.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: {
-        'key': '__snapshot__',
-        'value': snapshot,
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after, isNotNull);
-    expect(after!.theme, equals('midnight'));
-    expect(after.language, equals('de'));
-  });
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after, isNotNull);
+      expect(after!.theme, equals('midnight'));
+      expect(after.language, equals('de'));
+    },
+  );
 }
-

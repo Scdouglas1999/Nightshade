@@ -34,14 +34,16 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: 36,
                   child: Text(
                     '#',
-                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
+                    style: NightshadeTypography.h6
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
                     'Filter Name',
-                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
+                    style: NightshadeTypography.h6
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -49,7 +51,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: dialogMaxWidth(context, 100),
                   child: Text(
                     'Focus Offset',
-                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
+                    style: NightshadeTypography.h6
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
                 const SizedBox(width: 36), // Space for delete button
@@ -162,13 +165,15 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   children: [
                     Text(
                       'Binning',
-                      style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
+                      style: NightshadeTypography.labelSm
+                          .copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 6),
                     Container(
                       decoration: BoxDecoration(
                         color: colors.surface,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         border: Border.all(color: colors.border),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -178,7 +183,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           dropdownColor: colors.surfaceAlt,
                           style: TextStyle(
-                              color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
+                              color: colors.textPrimary,
+                              fontSize: NightshadeTypography.fontSize13),
                           items: [1, 2, 3, 4].map((b) {
                             return DropdownMenuItem(
                               value: b,
@@ -226,29 +232,30 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                     Container(
                       decoration: BoxDecoration(
                         color: colors.surface,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         border: Border.all(color: colors.border),
                       ),
                       child: Material(
                         type: MaterialType.transparency,
                         child: CheckboxListTile(
-                        value: _coolOnConnect,
-                        onChanged: (v) =>
-                            setState(() => _coolOnConnect = v ?? false),
-                        title: Text(
-                          'Cool on connect',
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: NightshadeTypography.fontSize13,
+                          value: _coolOnConnect,
+                          onChanged: (v) =>
+                              setState(() => _coolOnConnect = v ?? false),
+                          title: Text(
+                            'Cool on connect',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: NightshadeTypography.fontSize13,
+                            ),
                           ),
+                          activeColor: colors.primary,
+                          checkColor: Theme.of(context).colorScheme.onPrimary,
+                          controlAffinity: ListTileControlAffinity.trailing,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                          dense: true,
                         ),
-                        activeColor: colors.primary,
-                        checkColor: Theme.of(context).colorScheme.onPrimary,
-                        controlAffinity: ListTileControlAffinity.trailing,
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        dense: true,
-                      ),
                       ),
                     ),
                   ],
@@ -355,7 +362,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             constraints: const BoxConstraints(maxWidth: 240),
             child: Text(
               disabledReason,
-              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+              style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize11),
             ),
           ),
       ],
@@ -411,50 +420,51 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
               children: [
                 Icon(
                   hasAny ? LucideIcons.info : LucideIcons.alertCircle,
-                size: 14,
-                color: hasAny ? colors.primary : colors.textMuted,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                hasAny
-                    ? 'Camera SDK reported:'
-                    : 'Camera SDK did not report any recommendation',
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-              ),
-            ],
-          ),
-          if (hasAny) ...[
-            const SizedBox(height: 6),
-            _buildRecRow('Unity gain', rec.unityGain, colors),
-            _buildRecRow('HCG gain', rec.hcgGain, colors),
-            _buildRecRow('Default offset', rec.defaultOffset, colors),
-          ],
-          if (rec.notes.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              rec.notes,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontStyle: FontStyle.italic,
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-          if (canApplyGain || canApplyOffset) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                NightshadeButton(
-                  onPressed: () => _applyRecommendation(rec),
-                  icon: LucideIcons.check,
-                  label:
-                      'Apply${(canApplyGain && canApplyOffset) ? ' both' : canApplyGain ? ' gain' : ' offset'}',
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.small,
+                  size: 14,
+                  color: hasAny ? colors.primary : colors.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  hasAny
+                      ? 'Camera SDK reported:'
+                      : 'Camera SDK did not report any recommendation',
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
-          ],
+            if (hasAny) ...[
+              const SizedBox(height: 6),
+              _buildRecRow('Unity gain', rec.unityGain, colors),
+              _buildRecRow('HCG gain', rec.hcgGain, colors),
+              _buildRecRow('Default offset', rec.defaultOffset, colors),
+            ],
+            if (rec.notes.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                rec.notes,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  fontStyle: FontStyle.italic,
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
+            if (canApplyGain || canApplyOffset) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  NightshadeButton(
+                    onPressed: () => _applyRecommendation(rec),
+                    icon: LucideIcons.check,
+                    label:
+                        'Apply${(canApplyGain && canApplyOffset) ? ' both' : canApplyGain ? ' gain' : ' offset'}',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -470,7 +480,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
             width: 110,
             child: Text(
               '$label:',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
           Text(

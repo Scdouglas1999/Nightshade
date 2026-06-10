@@ -32,9 +32,10 @@ class HygCatalogLoader {
 
     if (malformedLines > 0) {
       developer.log(
-          '[Catalog] StarCatalogLoader: Skipped $malformedLines malformed lines',
-          name: 'CatalogManager',
-          level: 900);
+        '[Catalog] StarCatalogLoader: Skipped $malformedLines malformed lines',
+        name: 'CatalogManager',
+        level: 900,
+      );
     }
 
     _cachedData = stars;
@@ -85,15 +86,15 @@ class HygCatalogLoader {
     final all = await loadAll();
 
     return all.where((star) {
-      // Apply magnitude filter first (cheaper check)
-      if (maxMagnitude != null && (star.magnitude ?? 99) > maxMagnitude) {
-        return false;
-      }
+        // Apply magnitude filter first (cheaper check)
+        if (maxMagnitude != null && (star.magnitude ?? 99) > maxMagnitude) {
+          return false;
+        }
 
-      // Calculate angular distance
-      final distance = _angularDistance(ra, dec, star.ra, star.dec);
-      return distance <= radiusDegrees;
-    }).toList()
+        // Calculate angular distance
+        final distance = _angularDistance(ra, dec, star.ra, star.dec);
+        return distance <= radiusDegrees;
+      }).toList()
       // Sort by magnitude (brightest first)
       ..sort((a, b) => (a.magnitude ?? 99).compareTo(b.magnitude ?? 99));
   }
@@ -141,9 +142,10 @@ class OpenNgcCatalogLoader {
 
     if (malformedLines > 0) {
       developer.log(
-          '[Catalog] DSOCatalogLoader: Skipped $malformedLines malformed lines',
-          name: 'CatalogManager',
-          level: 900);
+        '[Catalog] DSOCatalogLoader: Skipped $malformedLines malformed lines',
+        name: 'CatalogManager',
+        level: 900,
+      );
     }
 
     _cachedData = dsos;
@@ -191,7 +193,8 @@ class OpenNgcCatalogLoader {
     final normalizedName = name.toUpperCase().replaceAll(' ', '');
     return all
         .where(
-            (d) => d.name.toUpperCase().replaceAll(' ', '') == normalizedName)
+          (d) => d.name.toUpperCase().replaceAll(' ', '') == normalizedName,
+        )
         .firstOrNull;
   }
 
@@ -212,15 +215,15 @@ class OpenNgcCatalogLoader {
     final all = await loadAll();
 
     return all.where((dso) {
-      // Apply magnitude filter first (cheaper check)
-      if (maxMagnitude != null && (dso.magnitude ?? 99) > maxMagnitude) {
-        return false;
-      }
+        // Apply magnitude filter first (cheaper check)
+        if (maxMagnitude != null && (dso.magnitude ?? 99) > maxMagnitude) {
+          return false;
+        }
 
-      // Calculate angular distance
-      final distance = _angularDistance(ra, dec, dso.ra, dso.dec);
-      return distance <= radiusDegrees;
-    }).toList()
+        // Calculate angular distance
+        final distance = _angularDistance(ra, dec, dso.ra, dso.dec);
+        return distance <= radiusDegrees;
+      }).toList()
       // Sort by magnitude (brightest first)
       ..sort((a, b) => (a.magnitude ?? 99).compareTo(b.magnitude ?? 99));
   }

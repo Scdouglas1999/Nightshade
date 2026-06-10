@@ -81,11 +81,13 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
             height: 60,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: isConnected && guideGraphData.isNotEmpty
                 ? ClipRRect(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: CustomPaint(
                       painter: _DashboardGuidingGraphPainter(
                           data: guideGraphData, colors: colors),
@@ -97,7 +99,9 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                       isConnected
                           ? l10n.text('clickStartToBegin')
                           : l10n.text('connectGuider'),
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize10,
+                          color: colors.textMuted),
                     ),
                   ),
           ),
@@ -112,7 +116,9 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                   width: 10, height: 2, color: NightshadeChartColors.seriesRed),
               const SizedBox(width: 3),
               Text('$rmsRa"',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textSecondary)),
               const SizedBox(width: 8),
               Container(
                   width: 10,
@@ -120,7 +126,9 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                   color: NightshadeChartColors.seriesBlue),
               const SizedBox(width: 3),
               Text('$rmsDec"',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textSecondary)),
               const Spacer(),
               // Start/Stop button
               SizedBox(

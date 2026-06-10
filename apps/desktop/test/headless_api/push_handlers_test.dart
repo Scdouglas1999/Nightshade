@@ -73,53 +73,57 @@ void main() {
       container.dispose();
     });
 
-    test('register-token upserts (second register overwrites in place)',
-        () async {
-      final first = await _request(
-        client,
-        baseUri,
-        '/api/push/register-token',
-        method: 'POST',
-        token: controlToken,
-        body: {'deviceId': deviceId, 'platform': 'fcm', 'token': 'tok-1'},
-      );
-      expect(first.statusCode, HttpStatus.ok);
-      expect(first.body['status'], 'registered');
+    test(
+      'register-token upserts (second register overwrites in place)',
+      () async {
+        final first = await _request(
+          client,
+          baseUri,
+          '/api/push/register-token',
+          method: 'POST',
+          token: controlToken,
+          body: {'deviceId': deviceId, 'platform': 'fcm', 'token': 'tok-1'},
+        );
+        expect(first.statusCode, HttpStatus.ok);
+        expect(first.body['status'], 'registered');
 
-      // Re-register with a refreshed token — must overwrite, not duplicate.
-      final second = await _request(
-        client,
-        baseUri,
-        '/api/push/register-token',
-        method: 'POST',
-        token: controlToken,
-        body: {'deviceId': deviceId, 'platform': 'fcm', 'token': 'tok-2'},
-      );
-      expect(second.statusCode, HttpStatus.ok);
+        // Re-register with a refreshed token — must overwrite, not duplicate.
+        final second = await _request(
+          client,
+          baseUri,
+          '/api/push/register-token',
+          method: 'POST',
+          token: controlToken,
+          body: {'deviceId': deviceId, 'platform': 'fcm', 'token': 'tok-2'},
+        );
+        expect(second.statusCode, HttpStatus.ok);
 
-      final rows = await database.getPushTokensByPlatform('fcm');
-      expect(rows, hasLength(1), reason: 'upsert must not duplicate');
-      expect(rows.single.token, 'tok-2');
-      expect(rows.single.deviceId, deviceId);
-    });
+        final rows = await database.getPushTokensByPlatform('fcm');
+        expect(rows, hasLength(1), reason: 'upsert must not duplicate');
+        expect(rows.single.token, 'tok-2');
+        expect(rows.single.deviceId, deviceId);
+      },
+    );
 
-    test('register-token rejects a deviceId that is not the caller (403)',
-        () async {
-      // Post-IDOR-fix: the caller-ownership check fires BEFORE the
-      // unknown-device existence check, so a paired caller cannot even probe
-      // whether some other deviceId is paired — registering for any deviceId
-      // other than your own is a flat 403 (no paired-device enumeration
-      // oracle).
-      final res = await _request(
-        client,
-        baseUri,
-        '/api/push/register-token',
-        method: 'POST',
-        token: controlToken,
-        body: {'deviceId': 'never-paired', 'platform': 'fcm', 'token': 't'},
-      );
-      expect(res.statusCode, HttpStatus.forbidden);
-    });
+    test(
+      'register-token rejects a deviceId that is not the caller (403)',
+      () async {
+        // Post-IDOR-fix: the caller-ownership check fires BEFORE the
+        // unknown-device existence check, so a paired caller cannot even probe
+        // whether some other deviceId is paired — registering for any deviceId
+        // other than your own is a flat 403 (no paired-device enumeration
+        // oracle).
+        final res = await _request(
+          client,
+          baseUri,
+          '/api/push/register-token',
+          method: 'POST',
+          token: controlToken,
+          body: {'deviceId': 'never-paired', 'platform': 'fcm', 'token': 't'},
+        );
+        expect(res.statusCode, HttpStatus.forbidden);
+      },
+    );
 
     test('register-token rejects an invalid platform with 400', () async {
       final res = await _request(
@@ -156,51 +160,55 @@ void main() {
       expect(await database.getPushTokensForDevice(deviceId), isEmpty);
     });
 
-    test('preferences round-trip: PUT then GET returns the same matrix',
-        () async {
-      final put = await _request(
-        client,
-        baseUri,
-        '/api/push/preferences',
-        method: 'PUT',
-        token: controlToken,
-        body: {
-          'deviceId': deviceId,
-          'enabled': true,
-          'muteWeatherUnsafe': true,
-          'muteAutofocusFailed': true,
-        },
-      );
-      expect(put.statusCode, HttpStatus.ok);
+    test(
+      'preferences round-trip: PUT then GET returns the same matrix',
+      () async {
+        final put = await _request(
+          client,
+          baseUri,
+          '/api/push/preferences',
+          method: 'PUT',
+          token: controlToken,
+          body: {
+            'deviceId': deviceId,
+            'enabled': true,
+            'muteWeatherUnsafe': true,
+            'muteAutofocusFailed': true,
+          },
+        );
+        expect(put.statusCode, HttpStatus.ok);
 
-      final get = await _request(
-        client,
-        baseUri,
-        '/api/push/preferences?deviceId=$deviceId',
-        token: controlToken,
-      );
-      expect(get.statusCode, HttpStatus.ok);
-      expect(get.body['enabled'], isTrue);
-      expect(get.body['muteWeatherUnsafe'], isTrue);
-      expect(get.body['muteAutofocusFailed'], isTrue);
-      // Flags not sent default to "not muted".
-      expect(get.body['muteSequenceFailed'], isFalse);
-      expect(get.body['muteGuidingLost'], isFalse);
-      expect(get.body['muteEquipmentDisconnected'], isFalse);
-    });
+        final get = await _request(
+          client,
+          baseUri,
+          '/api/push/preferences?deviceId=$deviceId',
+          token: controlToken,
+        );
+        expect(get.statusCode, HttpStatus.ok);
+        expect(get.body['enabled'], isTrue);
+        expect(get.body['muteWeatherUnsafe'], isTrue);
+        expect(get.body['muteAutofocusFailed'], isTrue);
+        // Flags not sent default to "not muted".
+        expect(get.body['muteSequenceFailed'], isFalse);
+        expect(get.body['muteGuidingLost'], isFalse);
+        expect(get.body['muteEquipmentDisconnected'], isFalse);
+      },
+    );
 
-    test('GET preferences returns all-enabled defaults when no row exists',
-        () async {
-      final get = await _request(
-        client,
-        baseUri,
-        '/api/push/preferences?deviceId=$deviceId',
-        token: controlToken,
-      );
-      expect(get.statusCode, HttpStatus.ok);
-      expect(get.body['enabled'], isTrue);
-      expect(get.body['muteWeatherUnsafe'], isFalse);
-    });
+    test(
+      'GET preferences returns all-enabled defaults when no row exists',
+      () async {
+        final get = await _request(
+          client,
+          baseUri,
+          '/api/push/preferences?deviceId=$deviceId',
+          token: controlToken,
+        );
+        expect(get.statusCode, HttpStatus.ok);
+        expect(get.body['enabled'], isTrue);
+        expect(get.body['muteWeatherUnsafe'], isFalse);
+      },
+    );
 
     test('push endpoints require authentication (no bearer → 401)', () async {
       final res = await _request(
@@ -287,88 +295,102 @@ void main() {
         expect(res.statusCode, HttpStatus.forbidden);
       });
 
-      test('cannot delete another device\'s tokens (403, victim intact)',
-          () async {
-        // Victim registers a token for itself.
-        await _request(
-          client,
-          baseUri,
-          '/api/push/register-token',
-          method: 'POST',
-          token: controlToken,
-          body: {
-            'deviceId': victimDeviceId,
-            'platform': 'fcm',
-            'token': 'victim-tok',
-          },
-        );
-        expect(
-            await database.getPushTokensForDevice(victimDeviceId), hasLength(1));
+      test(
+        'cannot delete another device\'s tokens (403, victim intact)',
+        () async {
+          // Victim registers a token for itself.
+          await _request(
+            client,
+            baseUri,
+            '/api/push/register-token',
+            method: 'POST',
+            token: controlToken,
+            body: {
+              'deviceId': victimDeviceId,
+              'platform': 'fcm',
+              'token': 'victim-tok',
+            },
+          );
+          expect(
+            await database.getPushTokensForDevice(victimDeviceId),
+            hasLength(1),
+          );
 
-        final res = await _request(
-          client,
-          baseUri,
-          '/api/push/token',
-          method: 'DELETE',
-          token: attackerToken,
-          body: {'deviceId': victimDeviceId},
-        );
-        expect(res.statusCode, HttpStatus.forbidden);
-        expect(
-            await database.getPushTokensForDevice(victimDeviceId), hasLength(1),
-            reason: 'attacker must not delete the victim\'s token');
-      });
+          final res = await _request(
+            client,
+            baseUri,
+            '/api/push/token',
+            method: 'DELETE',
+            token: attackerToken,
+            body: {'deviceId': victimDeviceId},
+          );
+          expect(res.statusCode, HttpStatus.forbidden);
+          expect(
+            await database.getPushTokensForDevice(victimDeviceId),
+            hasLength(1),
+            reason: 'attacker must not delete the victim\'s token',
+          );
+        },
+      );
 
-      test('cannot delete another device\'s token by value (victim intact)',
-          () async {
-        await _request(
-          client,
-          baseUri,
-          '/api/push/register-token',
-          method: 'POST',
-          token: controlToken,
-          body: {
-            'deviceId': victimDeviceId,
-            'platform': 'fcm',
-            'token': 'victim-tok',
-          },
-        );
+      test(
+        'cannot delete another device\'s token by value (victim intact)',
+        () async {
+          await _request(
+            client,
+            baseUri,
+            '/api/push/register-token',
+            method: 'POST',
+            token: controlToken,
+            body: {
+              'deviceId': victimDeviceId,
+              'platform': 'fcm',
+              'token': 'victim-tok',
+            },
+          );
 
-        // Attacker knows/guesses the victim's token value and tries to drop it
-        // by value. The handler scopes by-value deletes to the caller's own
-        // tokens, so this is a no-op the victim survives.
-        final res = await _request(
-          client,
-          baseUri,
-          '/api/push/token',
-          method: 'DELETE',
-          token: attackerToken,
-          body: {'token': 'victim-tok'},
-        );
-        expect(res.statusCode, HttpStatus.ok); // idempotent no-op
-        expect(
-            await database.getPushTokensForDevice(victimDeviceId), hasLength(1),
-            reason: 'by-value delete must not reach another device\'s token');
-      });
+          // Attacker knows/guesses the victim's token value and tries to drop it
+          // by value. The handler scopes by-value deletes to the caller's own
+          // tokens, so this is a no-op the victim survives.
+          final res = await _request(
+            client,
+            baseUri,
+            '/api/push/token',
+            method: 'DELETE',
+            token: attackerToken,
+            body: {'token': 'victim-tok'},
+          );
+          expect(res.statusCode, HttpStatus.ok); // idempotent no-op
+          expect(
+            await database.getPushTokensForDevice(victimDeviceId),
+            hasLength(1),
+            reason: 'by-value delete must not reach another device\'s token',
+          );
+        },
+      );
 
-      test('CAN manage its own device (control of own registration works)',
-          () async {
-        final res = await _request(
-          client,
-          baseUri,
-          '/api/push/register-token',
-          method: 'POST',
-          token: attackerToken,
-          body: {
-            'deviceId': attackerDeviceId,
-            'platform': 'fcm',
-            'token': 'own-tok',
-          },
-        );
-        expect(res.statusCode, HttpStatus.ok);
-        expect(await database.getPushTokensForDevice(attackerDeviceId),
-            hasLength(1));
-      });
+      test(
+        'CAN manage its own device (control of own registration works)',
+        () async {
+          final res = await _request(
+            client,
+            baseUri,
+            '/api/push/register-token',
+            method: 'POST',
+            token: attackerToken,
+            body: {
+              'deviceId': attackerDeviceId,
+              'platform': 'fcm',
+              'token': 'own-tok',
+            },
+          );
+          expect(res.statusCode, HttpStatus.ok);
+          expect(
+            await database.getPushTokensForDevice(attackerDeviceId),
+            hasLength(1),
+          );
+        },
+      );
     });
 
     test('a revoked device cannot register a token (403)', () async {

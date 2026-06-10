@@ -22,7 +22,8 @@ class PlanetaryPositions {
     final utc = dt.toUtc();
     final y = utc.year;
     final m = utc.month;
-    final d = utc.day +
+    final d =
+        utc.day +
         utc.hour / 24 +
         utc.minute / 1440 +
         utc.second / 86400 +
@@ -52,7 +53,8 @@ class PlanetaryPositions {
     final lat = latDeg * _deg2rad;
     final eps = obliquityDeg * _deg2rad;
 
-    final sinDec = math.sin(lat) * math.cos(eps) +
+    final sinDec =
+        math.sin(lat) * math.cos(eps) +
         math.cos(lat) * math.sin(eps) * math.sin(lon);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
@@ -95,13 +97,15 @@ class PlanetaryPositions {
     for (var i = 0; i < planetNames.length; i++) {
       final pos = getPlanetPosition(i, dt);
       if (pos != null) {
-        planets.add(PlanetData(
-          name: planetNames[i],
-          ra: pos.$1,
-          dec: pos.$2,
-          magnitude: pos.$3,
-          color: planetColors[i],
-        ));
+        planets.add(
+          PlanetData(
+            name: planetNames[i],
+            ra: pos.$1,
+            dec: pos.$2,
+            magnitude: pos.$3,
+            color: planetColors[i],
+          ),
+        );
       }
     }
 
@@ -112,13 +116,17 @@ class PlanetaryPositions {
   /// planetIndex: 0=Mercury, 1=Venus, 2=Mars, 3=Jupiter, 4=Saturn, 5=Uranus, 6=Neptune
   /// Returns (ra degrees, dec degrees, magnitude)
   static (double ra, double dec, double magnitude)? getPlanetPosition(
-      int planetIndex, DateTime dt) {
+    int planetIndex,
+    DateTime dt,
+  ) {
     final jd = julianDate(dt);
     final t = (jd - _j2000) / 365250; // Julian millennia from J2000
 
     // Get heliocentric ecliptic coordinates of planet
-    final (planetLon, planetLat, planetR) =
-        _heliocentricEcliptic(planetIndex, t);
+    final (planetLon, planetLat, planetR) = _heliocentricEcliptic(
+      planetIndex,
+      t,
+    );
     if (planetLon == null || planetLat == null) return null;
 
     // Get heliocentric ecliptic coordinates of Earth
@@ -146,15 +154,21 @@ class PlanetaryPositions {
     );
 
     // Calculate visual magnitude
-    final magnitude =
-        _calculateMagnitude(planetIndex, planetR, distance, geoLon, earthLon);
+    final magnitude = _calculateMagnitude(
+      planetIndex,
+      planetR,
+      distance,
+      geoLon,
+      earthLon,
+    );
 
     return (ra / 15, dec, magnitude); // Convert RA to hours
   }
 
   /// Calculate heliocentric ecliptic coordinates for Earth
   static (double lon, double lat, double r) _earthHeliocentricEcliptic(
-      double t) {
+    double t,
+  ) {
     // Earth's heliocentric coordinates using simplified VSOP87
     double l = 0, b = 0, r = 0;
 
@@ -214,7 +228,9 @@ class PlanetaryPositions {
 
   /// Calculate heliocentric ecliptic coordinates for a planet
   static (double? lon, double? lat, double r) _heliocentricEcliptic(
-      int planetIndex, double t) {
+    int planetIndex,
+    double t,
+  ) {
     switch (planetIndex) {
       case 0:
         return _mercuryPosition(t);

@@ -17,7 +17,8 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       const ProviderScope(
-        child: MaterialApp(home: Scaffold(body: RunDashboardObservatoryPanel())),
+        child:
+            MaterialApp(home: Scaffold(body: RunDashboardObservatoryPanel())),
       ),
     );
     await tester.pump();
@@ -54,7 +55,8 @@ void main() {
     expect(find.text('No dome, cover, or switch connected.'), findsNothing);
   });
 
-  testWidgets('renders cover + flat-light state when connected', (tester) async {
+  testWidgets('renders cover + flat-light state when connected',
+      (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 

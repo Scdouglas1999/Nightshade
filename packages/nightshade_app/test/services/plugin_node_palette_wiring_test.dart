@@ -101,9 +101,8 @@ void main() {
       addTearDown(container.dispose);
 
       final blueprintEmissions = <int>[];
-      final subscription =
-          container.listen<List<PluginNodeBlueprint>>(
-              pluginNodeBlueprintsProvider, (prev, next) {
+      final subscription = container.listen<List<PluginNodeBlueprint>>(
+          pluginNodeBlueprintsProvider, (prev, next) {
         blueprintEmissions.add(next.length);
       }, fireImmediately: true);
       addTearDown(subscription.close);
@@ -137,8 +136,7 @@ void main() {
       addTearDown(registry.dispose);
       registry.registerSequencePlugin(_BrokenDefinitionPlugin());
 
-      final blueprints =
-          blueprintsFromRegistrations(registry.registrations);
+      final blueprints = blueprintsFromRegistrations(registry.registrations);
       expect(blueprints, hasLength(1),
           reason: 'only the well-formed definition should be retained');
       expect(blueprints.single.nodeTypeId, equals('ok.node'));

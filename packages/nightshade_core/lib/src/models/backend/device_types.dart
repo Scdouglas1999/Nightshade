@@ -16,35 +16,13 @@ enum DeviceType {
 }
 
 /// Driver backend type
-enum DriverType {
-  ascom,
-  alpaca,
-  indi,
-  native,
-  simulator,
-}
+enum DriverType { ascom, alpaca, indi, native, simulator }
 
 /// Device connection state
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+enum ConnectionState { disconnected, connecting, connected, error }
 
 /// Side of pier for German Equatorial mounts
-enum PierSide {
-  east,
-  west,
-  unknown,
-}
+enum PierSide { east, west, unknown }
 
 /// Camera operational state
-enum CameraState {
-  idle,
-  waiting,
-  exposing,
-  reading,
-  download,
-  error,
-}
+enum CameraState { idle, waiting, exposing, reading, download, error }

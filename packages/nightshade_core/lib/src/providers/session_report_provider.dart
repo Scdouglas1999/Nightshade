@@ -26,6 +26,6 @@ final sessionReportServiceProvider = Provider<SessionReportService>((ref) {
 /// one is already on screen).
 final sessionReportProvider = FutureProvider.autoDispose
     .family<SessionReport, int>((ref, sessionId) async {
-  final service = ref.watch(sessionReportServiceProvider);
-  return service.buildReport(sessionId);
-});
+      final service = ref.watch(sessionReportServiceProvider);
+      return service.buildReport(sessionId);
+    });

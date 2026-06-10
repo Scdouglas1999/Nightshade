@@ -50,13 +50,14 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
   /// `?format=json` — returns metadata + base64 bitmap in a JSON wrapper.
   Future<Response> handleGetDefectMap(Request request, String id) async {
     final iid = _parsePathId(id, 'id');
-    final format =
-        (request.url.queryParameters['format'] ?? 'binary').toLowerCase();
+    final format = (request.url.queryParameters['format'] ?? 'binary')
+        .toLowerCase();
     _logInfo('[API] GET /api/calibration/defect-maps/$iid?format=$format');
 
     final db = _database;
-    final row = await (db.select(db.defectMaps)..where((t) => t.id.equals(iid)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.defectMaps,
+    )..where((t) => t.id.equals(iid))).getSingleOrNull();
     if (row == null) {
       return jsonNotFound({
         'error': 'defect_map_not_found',
@@ -67,10 +68,7 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     if (format == 'json') {
       final meta = await _defectMapMetadataToJson(row);
       return jsonOk({
-        'defectMap': {
-          ...meta,
-          'bitmapBase64': base64Encode(row.bitmap),
-        },
+        'defectMap': {...meta, 'bitmapBase64': base64Encode(row.bitmap)},
       });
     }
     if (format != 'binary') {
@@ -91,10 +89,11 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
         'x-defect-map-camera-id': row.cameraId,
         'x-defect-map-width': row.width.toString(),
         'x-defect-map-height': row.height.toString(),
-        'x-defect-map-temperature-bucket-decicelsius':
-            row.temperatureBucketDecicelsius.toString(),
-        'x-defect-map-defective-pixel-count':
-            row.defectivePixelCount.toString(),
+        'x-defect-map-temperature-bucket-decicelsius': row
+            .temperatureBucketDecicelsius
+            .toString(),
+        'x-defect-map-defective-pixel-count': row.defectivePixelCount
+            .toString(),
       },
     );
   }
@@ -130,13 +129,16 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
       throw BadRequestError(
         field: 'bitmap',
         expected: 'bytes of length $expectedLength',
-        message: 'bitmap byte-length (${bitmap.length}) does not match width × '
+        message:
+            'bitmap byte-length (${bitmap.length}) does not match width × '
             'height = $width × $height (expected $expectedLength bytes)',
       );
     }
 
     final db = _database;
-    final id = await db.into(db.defectMaps).insert(
+    final id = await db
+        .into(db.defectMaps)
+        .insert(
           DefectMapsCompanion.insert(
             cameraId: cameraId,
             width: width,
@@ -147,8 +149,9 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
             filePath: Value(sourceFilePath),
           ),
         );
-    final row = await (db.select(db.defectMaps)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.defectMaps,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (row == null) {
       throw HandlerFailure(
         code: 'defect_map_register_failed',
@@ -166,8 +169,9 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
         request.url.queryParameters['deleteFile']?.toLowerCase() == 'true';
 
     final db = _database;
-    final row = await (db.select(db.defectMaps)..where((t) => t.id.equals(iid)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.defectMaps,
+    )..where((t) => t.id.equals(iid))).getSingleOrNull();
     if (row == null) {
       return jsonNotFound({
         'error': 'defect_map_not_found',
@@ -202,12 +206,10 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
       }
     }
 
-    final rowsAffected =
-        await (db.delete(db.defectMaps)..where((t) => t.id.equals(iid))).go();
-    return jsonOk({
-      'deleted': rowsAffected > 0,
-      'fileDeleted': fileDeleted,
-    });
+    final rowsAffected = await (db.delete(
+      db.defectMaps,
+    )..where((t) => t.id.equals(iid))).go();
+    return jsonOk({'deleted': rowsAffected > 0, 'fileDeleted': fileDeleted});
   }
 
   /// POST /api/calibration/defect-maps/{id}/regenerate
@@ -215,16 +217,14 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
   /// Recomputes the defect map by re-running the Rust defect-map build
   /// against the source file. Returns 409 when the source path is unset
   /// or no longer on disk.
-  Future<Response> handleRegenerateDefectMap(
-    Request request,
-    String id,
-  ) async {
+  Future<Response> handleRegenerateDefectMap(Request request, String id) async {
     final iid = _parsePathId(id, 'id');
     _logInfo('[API] POST /api/calibration/defect-maps/$iid/regenerate');
 
     final db = _database;
-    final row = await (db.select(db.defectMaps)..where((t) => t.id.equals(iid)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.defectMaps,
+    )..where((t) => t.id.equals(iid))).getSingleOrNull();
     if (row == null) {
       return jsonNotFound({
         'error': 'defect_map_not_found',
@@ -235,7 +235,8 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     if (sourcePath == null || sourcePath.isEmpty) {
       return jsonConflict({
         'error': 'defect_map_no_source',
-        'message': 'Defect map $iid was registered without a sourceFilePath; '
+        'message':
+            'Defect map $iid was registered without a sourceFilePath; '
             'cannot regenerate',
       });
     }
@@ -261,9 +262,9 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     // side via a separate code path, or we may need to reflect the new
     // count + last-rebuilt-at directly. Refresh the row and use the
     // returned status as the source of truth for the response.
-    final refreshed = await (db.select(db.defectMaps)
-          ..where((t) => t.id.equals(iid)))
-        .getSingleOrNull();
+    final refreshed = await (db.select(
+      db.defectMaps,
+    )..where((t) => t.id.equals(iid))).getSingleOrNull();
     return jsonOk({
       'status': {
         'cameraId': status.cameraId,

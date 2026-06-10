@@ -29,11 +29,11 @@ class MobilePairingService {
     String scheme = 'http',
     String? pinnedFingerprint,
   }) : _client = RemotePairingClient(
-          host: host,
-          port: port,
-          scheme: scheme,
-          pinnedFingerprint: pinnedFingerprint,
-        );
+         host: host,
+         port: port,
+         scheme: scheme,
+         pinnedFingerprint: pinnedFingerprint,
+       );
 
   static Future<String> deviceId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -77,8 +77,7 @@ class MobilePairingService {
   static String _generateDeviceId() {
     final rng = Random.secure();
     final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
-    final hex =
-        bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     return 'mobile:$hex';
   }
 }

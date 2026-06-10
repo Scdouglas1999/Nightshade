@@ -25,10 +25,8 @@ import 'voice_control_service.dart';
 
 /// Bridges Riverpod sequence state -> native voice cache and back.
 class VoiceControlLifecycleController {
-  VoiceControlLifecycleController(
-    this._ref, {
-    VoiceControlService? service,
-  }) : _service = service ?? VoiceControlService();
+  VoiceControlLifecycleController(this._ref, {VoiceControlService? service})
+    : _service = service ?? VoiceControlService();
 
   final Ref _ref;
   final VoiceControlService _service;
@@ -103,8 +101,7 @@ class VoiceControlLifecycleController {
     if (_disposed) return;
     final last = _lastPublishedAt;
     final now = DateTime.now();
-    final elapsed =
-        last == null ? _minPublishInterval : now.difference(last);
+    final elapsed = last == null ? _minPublishInterval : now.difference(last);
     if (elapsed >= _minPublishInterval) {
       _pendingTimer?.cancel();
       _pendingTimer = null;
@@ -177,7 +174,9 @@ class VoiceControlLifecycleController {
       // Don't rethrow inside a Riverpod listener — surface via dev log
       // and the LoggingService (production telemetry).
       try {
-        _ref.read(loggingServiceProvider).warning(
+        _ref
+            .read(loggingServiceProvider)
+            .warning(
               'Voice control publish failed: $e',
               source: 'VoiceControlLifecycle',
             );
@@ -280,18 +279,22 @@ class VoiceControlLifecycleController {
 
   void _logInfo(String message) {
     try {
-      _ref.read(loggingServiceProvider).info(
-            message,
-            source: 'VoiceControlLifecycle',
-          );
+      _ref
+          .read(loggingServiceProvider)
+          .info(message, source: 'VoiceControlLifecycle');
     } catch (_) {
-      developer.log('[VoiceControlLifecycle] $message',
-          name: 'VoiceControlLifecycle');
+      developer.log(
+        '[VoiceControlLifecycle] $message',
+        name: 'VoiceControlLifecycle',
+      );
     }
   }
 
-  void _logError(String message,
-      {required Object error, required StackTrace stack}) {
+  void _logError(
+    String message, {
+    required Object error,
+    required StackTrace stack,
+  }) {
     developer.log(
       '[VoiceControlLifecycle] $message',
       name: 'VoiceControlLifecycle',
@@ -300,7 +303,9 @@ class VoiceControlLifecycleController {
       stackTrace: stack,
     );
     try {
-      _ref.read(loggingServiceProvider).error(
+      _ref
+          .read(loggingServiceProvider)
+          .error(
             message,
             source: 'VoiceControlLifecycle',
             fields: <String, Object?>{'error': error.toString()},
@@ -335,17 +340,17 @@ final voiceControlServiceProvider = Provider<VoiceControlService>((ref) {
 /// Eagerly-constructed lifecycle controller. The consumer in
 /// `apps/mobile/lib/main.dart` calls `ref.watch(voiceControlLifecycleProvider)`
 /// during app boot which triggers `start()` and installs the listeners.
-final voiceControlLifecycleProvider =
-    Provider<VoiceControlLifecycleController>((ref) {
-  // Share the same service instance so the inbound stream a UI listener
-  // sees and the inbound stream the lifecycle controller sees are the
-  // same broadcast stream.
-  final service = ref.watch(voiceControlServiceProvider);
-  final controller =
-      VoiceControlLifecycleController(ref, service: service);
-  controller.start();
-  ref.onDispose(() {
-    unawaited(controller.dispose());
-  });
-  return controller;
-});
+final voiceControlLifecycleProvider = Provider<VoiceControlLifecycleController>(
+  (ref) {
+    // Share the same service instance so the inbound stream a UI listener
+    // sees and the inbound stream the lifecycle controller sees are the
+    // same broadcast stream.
+    final service = ref.watch(voiceControlServiceProvider);
+    final controller = VoiceControlLifecycleController(ref, service: service);
+    controller.start();
+    ref.onDispose(() {
+      unawaited(controller.dispose());
+    });
+    return controller;
+  },
+);

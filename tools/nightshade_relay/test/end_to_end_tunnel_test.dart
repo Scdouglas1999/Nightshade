@@ -76,8 +76,9 @@ void main() {
       },
     );
     uplink.start();
-    final applianceId =
-        await registered.future.timeout(const Duration(seconds: 10));
+    final applianceId = await registered.future.timeout(
+      const Duration(seconds: 10),
+    );
 
     // 4. Phone tunnel client.
     tunnel = await RelayTunnelClient.connect(
@@ -95,20 +96,21 @@ void main() {
 
   test('REST GET round-trips through the tunnel', () async {
     final client = HttpClient();
-    final req = await client
-        .getUrl(Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/info'));
+    final req = await client.getUrl(
+      Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/info'),
+    );
     final resp = await req.close();
     expect(resp.statusCode, 200);
-    final body =
-        jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
+    final body = jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
     expect(body['mode'], 'headless');
     client.close();
   });
 
   test('a large response is reassembled intact across mux frames', () async {
     final client = HttpClient();
-    final req = await client
-        .getUrl(Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/big'));
+    final req = await client.getUrl(
+      Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/big'),
+    );
     final resp = await req.close();
     expect(resp.statusCode, 200);
     final bytes = await resp.fold<int>(0, (sum, chunk) => sum + chunk.length);
@@ -118,7 +120,8 @@ void main() {
 
   test('WebSocket upgrade flows through the tunnel', () async {
     final ws = await WebSocket.connect(
-        'ws://127.0.0.1:${tunnel!.localPort}/ws/echo');
+      'ws://127.0.0.1:${tunnel!.localPort}/ws/echo',
+    );
     final replies = <String>[];
     final got = Completer<void>();
     ws.listen((m) {
@@ -136,10 +139,10 @@ void main() {
     final client = HttpClient();
     Future<String> fetchMode() async {
       final req = await client.getUrl(
-          Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/info'));
+        Uri.parse('http://127.0.0.1:${tunnel!.localPort}/api/info'),
+      );
       final resp = await req.close();
-      final body =
-          jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
+      final body = jsonDecode(await resp.transform(utf8.decoder).join()) as Map;
       return body['mode'] as String;
     }
 
@@ -156,7 +159,8 @@ void main() {
     try {
       final client = HttpClient();
       final req = await client.getUrl(
-          Uri.parse('http://127.0.0.1:${second.localPort}/api/info'));
+        Uri.parse('http://127.0.0.1:${second.localPort}/api/info'),
+      );
       final resp = await req.close();
       expect(resp.statusCode, 200);
       await resp.drain<void>();

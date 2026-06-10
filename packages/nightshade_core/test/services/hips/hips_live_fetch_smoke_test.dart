@@ -83,7 +83,7 @@ void main() {
   final skipReason = liveEnabled
       ? null
       : 'live-network test: set NIGHTSHADE_LIVE_NETWORK=1 and run with '
-          '--tags live-network to enable real CDS HiPS fetches';
+            '--tags live-network to enable real CDS HiPS fetches';
 
   group('HiPS live fetch smoke (DSS2-color @ M42)', () {
     late HipsTileFetcher fetcher;
@@ -107,70 +107,96 @@ void main() {
       HttpOverrides.global = savedOverrides;
     });
 
-    test('fetches + parses the live properties document with attribution',
-        () async {
-      final props = await fetcher.fetchProperties(baseUrl);
+    test(
+      'fetches + parses the live properties document with attribution',
+      () async {
+        final props = await fetcher.fetchProperties(baseUrl);
 
-      // Structural invariants the framing LOD + addressing depend on.
-      expect(props.hipsOrder, greaterThanOrEqualTo(3),
-          reason: 'DSS2-color publishes a multi-order pyramid');
-      expect(props.hipsOrderMin, greaterThanOrEqualTo(0));
-      expect(props.hipsOrderMin, lessThanOrEqualTo(props.hipsOrder));
-      expect(props.tileWidth, greaterThan(0));
-      expect(props.tileFormats, isNotEmpty);
-      expect(props.frame, HipsFrame.equatorial,
-          reason: 'DSS2-color is tiled in the equatorial frame');
+        // Structural invariants the framing LOD + addressing depend on.
+        expect(
+          props.hipsOrder,
+          greaterThanOrEqualTo(3),
+          reason: 'DSS2-color publishes a multi-order pyramid',
+        );
+        expect(props.hipsOrderMin, greaterThanOrEqualTo(0));
+        expect(props.hipsOrderMin, lessThanOrEqualTo(props.hipsOrder));
+        expect(props.tileWidth, greaterThan(0));
+        expect(props.tileFormats, isNotEmpty);
+        expect(
+          props.frame,
+          HipsFrame.equatorial,
+          reason: 'DSS2-color is tiled in the equatorial frame',
+        );
 
-      // Attribution the framing UI surfaces to the user must be present and
-      // non-empty — a colour DSS composite always carries an STScI/NASA +
-      // CDS credit. We assert it parsed, not its exact wording (CDS may revise
-      // the copy), so the test stays robust to harmless text edits.
-      expect(props.obsCopyright, isNotNull,
-          reason: 'DSS2-color publishes obs_copyright attribution');
-      expect(props.obsCopyright!.trim(), isNotEmpty);
-    });
+        // Attribution the framing UI surfaces to the user must be present and
+        // non-empty — a colour DSS composite always carries an STScI/NASA +
+        // CDS credit. We assert it parsed, not its exact wording (CDS may revise
+        // the copy), so the test stays robust to harmless text edits.
+        expect(
+          props.obsCopyright,
+          isNotNull,
+          reason: 'DSS2-color publishes obs_copyright attribution',
+        );
+        expect(props.obsCopyright!.trim(), isNotEmpty);
+      },
+    );
 
-    test('fetches + decodes the whole-sky Allsky base LOD to a valid image',
-        () async {
-      final props = await fetcher.fetchProperties(baseUrl);
-      final format = props.preferredFormat;
+    test(
+      'fetches + decodes the whole-sky Allsky base LOD to a valid image',
+      () async {
+        final props = await fetcher.fetchProperties(baseUrl);
+        final format = props.preferredFormat;
 
-      // CDS publishes the whole-sky `Allsky` map at a single low-resolution
-      // *allsky order* — the standard HiPS convention (and the value used by
-      // Aladin/HipsGen) is Norder 3, regardless of the pyramid's hips_order_min
-      // (which for DSS2-color is the default 0 because the key is absent, yet
-      // Norder0..2 have no Allsky map). [HipsProperties.allskyOrder] encodes that
-      // convention (standard order 3, clamped to the survey range) and is the
-      // SAME value the production loader/painter address the Allsky at — so we
-      // fetch it here too, proving the production order resolves live.
-      final allskyOrder = props.allskyOrder;
-      expect(allskyOrder, 3,
-          reason: 'DSS2-color omits hips_order_min (-> 0) but its Allsky lives '
-              'at the standard order 3');
-      expect(props.hipsOrder, greaterThanOrEqualTo(allskyOrder),
-          reason: 'survey must publish at least to the allsky order');
+        // CDS publishes the whole-sky `Allsky` map at a single low-resolution
+        // *allsky order* — the standard HiPS convention (and the value used by
+        // Aladin/HipsGen) is Norder 3, regardless of the pyramid's hips_order_min
+        // (which for DSS2-color is the default 0 because the key is absent, yet
+        // Norder0..2 have no Allsky map). [HipsProperties.allskyOrder] encodes that
+        // convention (standard order 3, clamped to the survey range) and is the
+        // SAME value the production loader/painter address the Allsky at — so we
+        // fetch it here too, proving the production order resolves live.
+        final allskyOrder = props.allskyOrder;
+        expect(
+          allskyOrder,
+          3,
+          reason:
+              'DSS2-color omits hips_order_min (-> 0) but its Allsky lives '
+              'at the standard order 3',
+        );
+        expect(
+          props.hipsOrder,
+          greaterThanOrEqualTo(allskyOrder),
+          reason: 'survey must publish at least to the allsky order',
+        );
 
-      final ui.Image allsky =
-          await fetcher.fetchAllsky(baseUrl, allskyOrder, format);
-      addTearDown(allsky.dispose);
+        final ui.Image allsky = await fetcher.fetchAllsky(
+          baseUrl,
+          allskyOrder,
+          format,
+        );
+        addTearDown(allsky.dispose);
 
-      expect(allsky.width, greaterThan(0));
-      expect(allsky.height, greaterThan(0));
+        expect(allsky.width, greaterThan(0));
+        expect(allsky.height, greaterThan(0));
 
-      // Prove the decoded image actually has pixels (a degenerate/blank decode
-      // would still report dimensions); read back the raw RGBA and confirm it
-      // is the expected size and not entirely transparent-black.
-      final byteData =
-          await allsky.toByteData(format: ui.ImageByteFormat.rawRgba);
-      expect(byteData, isNotNull);
-      final rgba = byteData!.buffer.asUint8List();
-      expect(rgba.length, allsky.width * allsky.height * 4);
-      expect(rgba.any((b) => b != 0), isTrue,
-          reason: 'a real sky thumbnail is not all-zero pixels');
-    });
+        // Prove the decoded image actually has pixels (a degenerate/blank decode
+        // would still report dimensions); read back the raw RGBA and confirm it
+        // is the expected size and not entirely transparent-black.
+        final byteData = await allsky.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        expect(byteData, isNotNull);
+        final rgba = byteData!.buffer.asUint8List();
+        expect(rgba.length, allsky.width * allsky.height * 4);
+        expect(
+          rgba.any((b) => b != 0),
+          isTrue,
+          reason: 'a real sky thumbnail is not all-zero pixels',
+        );
+      },
+    );
 
-    test('fetches + decodes the Norder tiles covering the fixture field',
-        () async {
+    test('fetches + decodes the Norder tiles covering the fixture field', () async {
       final props = await fetcher.fetchProperties(baseUrl);
       final format = props.preferredFormat;
 
@@ -178,8 +204,9 @@ void main() {
       // published order (coarse, whole-field) and a deeper order clamped to the
       // pyramid's max. These bracket the LOD range the framing layer streams.
       final coarseOrder = props.hipsOrderMin;
-      final deepOrder =
-          props.hipsOrder < coarseOrder + 5 ? props.hipsOrder : coarseOrder + 5;
+      final deepOrder = props.hipsOrder < coarseOrder + 5
+          ? props.hipsOrder
+          : coarseOrder + 5;
 
       // Address the *exact* tile that contains M42 at each order using the same
       // C1 HEALPix NESTED math the selection layer (C3) uses — not a guessed
@@ -193,37 +220,46 @@ void main() {
         final ui.Image tile = await fetcher.fetchTile(id, baseUrl, format);
         addTearDown(tile.dispose);
 
-        expect(tile.width, greaterThan(0),
-            reason: 'Norder$order/Npix$npix decoded to a positive width');
+        expect(
+          tile.width,
+          greaterThan(0),
+          reason: 'Norder$order/Npix$npix decoded to a positive width',
+        );
         expect(tile.height, greaterThan(0));
 
-        final byteData =
-            await tile.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final byteData = await tile.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
         expect(byteData, isNotNull);
         final rgba = byteData!.buffer.asUint8List();
         expect(rgba.length, tile.width * tile.height * 4);
         // The M42 field is bright Milky-Way sky, so its tile is never an
         // all-zero (pure black/transparent) image at any published order.
-        expect(rgba.any((b) => b != 0), isTrue,
-            reason: 'the M42 tile at Norder$order has real sky signal');
+        expect(
+          rgba.any((b) => b != 0),
+          isTrue,
+          reason: 'the M42 tile at Norder$order has real sky signal',
+        );
       }
     });
 
-    test('a missing tile surfaces a typed HTTP error (errors are a feature)',
-        () async {
-      final props = await fetcher.fetchProperties(baseUrl);
-      final format = props.preferredFormat;
+    test(
+      'a missing tile surfaces a typed HTTP error (errors are a feature)',
+      () async {
+        final props = await fetcher.fetchProperties(baseUrl);
+        final format = props.preferredFormat;
 
-      // Address a tile one order *beyond* the published maximum. The pyramid
-      // has no such order, so the live server must answer non-200 and C5 must
-      // surface it as a typed [HipsFetchHttpException] — never a silent blank.
-      final missingOrder = props.hipsOrder + 1;
-      final id = HipsTileId(survey: surveyId, norder: missingOrder, npix: 0);
+        // Address a tile one order *beyond* the published maximum. The pyramid
+        // has no such order, so the live server must answer non-200 and C5 must
+        // surface it as a typed [HipsFetchHttpException] — never a silent blank.
+        final missingOrder = props.hipsOrder + 1;
+        final id = HipsTileId(survey: surveyId, norder: missingOrder, npix: 0);
 
-      await expectLater(
-        fetcher.fetchTile(id, baseUrl, format),
-        throwsA(isA<HipsFetchHttpException>()),
-      );
-    });
+        await expectLater(
+          fetcher.fetchTile(id, baseUrl, format),
+          throwsA(isA<HipsFetchHttpException>()),
+        );
+      },
+    );
   }, skip: skipReason);
 }

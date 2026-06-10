@@ -10,14 +10,15 @@ import '../services/thumbnail_sidecar_service.dart';
 /// provider to inject deterministic bytes without booting the bridge.
 final fitsThumbnailBytesGeneratorProvider =
     Provider<FitsThumbnailBytesGenerator>((ref) {
-  return defaultGenerateFitsThumbnail;
-});
+      return defaultGenerateFitsThumbnail;
+    });
 
 /// Singleton [ThumbnailSidecarService] for the running app. Constructed
 /// from the injected generator + logging service so production gets the
 /// real FFI binding and tests get a controllable stub.
-final thumbnailSidecarServiceProvider =
-    Provider<ThumbnailSidecarService>((ref) {
+final thumbnailSidecarServiceProvider = Provider<ThumbnailSidecarService>((
+  ref,
+) {
   return ThumbnailSidecarService(
     generator: ref.watch(fitsThumbnailBytesGeneratorProvider),
     logger: ref.watch(loggingServiceProvider),

@@ -29,16 +29,20 @@ class _SentimentPicker extends StatelessWidget {
                   color: value == opt
                       ? NightshadeDecorations.selectedSurface(
                           colors.primary,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusMd),
                           fillAlpha: 0.18,
                         ).color
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(
                     color: value == opt ? colors.primary : colors.border,
                   ),
                 ),
-                child: Text(opt, style: const TextStyle(fontSize: NightshadeTypography.fontSize18)),
+                child: Text(opt,
+                    style: const TextStyle(
+                        fontSize: NightshadeTypography.fontSize18)),
               ),
             ),
           ),
@@ -118,7 +122,9 @@ class NotesQuickPromptDialog extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 'A quick note now is worth a long memory later.',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted),
               ),
               const SizedBox(height: 14),
               FilledButton.icon(

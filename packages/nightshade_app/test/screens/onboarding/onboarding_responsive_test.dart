@@ -128,7 +128,8 @@ void main() {
       });
 
       if (isPhoneColumn) {
-        testWidgets('onboarding primary action meets touch target $name '
+        testWidgets(
+            'onboarding primary action meets touch target $name '
             '$orientation', (tester) async {
           final db = _newDb();
           addTearDown(db.close);

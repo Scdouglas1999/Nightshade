@@ -76,7 +76,8 @@ extension RotatorDeviceHandlers on DeviceHandlers {
     // Why accept both `positionAngle` and `angle`: the canonical field name
     // is `positionAngle` (matches plate-solve terminology), but the move-to
     // endpoint uses `angle` and earlier dashboard builds reused that key.
-    final pa = optionalDouble(payload, 'positionAngle') ??
+    final pa =
+        optionalDouble(payload, 'positionAngle') ??
         optionalDouble(payload, 'angle');
     if (pa == null) {
       throw BadRequestError(

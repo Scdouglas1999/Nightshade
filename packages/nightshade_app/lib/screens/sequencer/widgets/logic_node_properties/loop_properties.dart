@@ -106,7 +106,8 @@ class LoopProperties extends ConsumerWidget {
                           horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
                         border: Border.all(color: colors.border),
                       ),
                       child: Row(

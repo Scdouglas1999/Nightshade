@@ -106,13 +106,13 @@ class Annotation {
   }
 
   Map<String, dynamic> toJson() => {
-        'label': label,
-        'x': x,
-        'y': y,
-        'kind': kind.wire,
-        'sizePx': sizePx,
-        if (paDeg != null) 'paDeg': paDeg,
-      };
+    'label': label,
+    'x': x,
+    'y': y,
+    'kind': kind.wire,
+    'sizePx': sizePx,
+    if (paDeg != null) 'paDeg': paDeg,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -142,8 +142,11 @@ class AnnotationLayer {
   });
 
   /// An empty layer. Used as the fail-soft fallback.
-  static const AnnotationLayer empty =
-      AnnotationLayer(width: 0, height: 0, items: []);
+  static const AnnotationLayer empty = AnnotationLayer(
+    width: 0,
+    height: 0,
+    items: [],
+  );
 
   factory AnnotationLayer.fromJson(Map<String, dynamic> json) {
     final raw = json['items'];
@@ -163,10 +166,10 @@ class AnnotationLayer {
   }
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'items': items.map((a) => a.toJson()).toList(),
-      };
+    'width': width,
+    'height': height,
+    'items': items.map((a) => a.toJson()).toList(),
+  };
 
   @override
   bool operator ==(Object other) =>

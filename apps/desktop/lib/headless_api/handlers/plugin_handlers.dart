@@ -56,11 +56,13 @@ class PluginHandlers {
       throw BadRequestError(
         field: 'filename',
         expected: 'non-empty string',
-        message: 'POST /api/plugins/upload requires a `filename` query parameter',
+        message:
+            'POST /api/plugins/upload requires a `filename` query parameter',
       );
     }
-    final declaredSha256 =
-        request.url.queryParameters['sha256']?.trim().toLowerCase();
+    final declaredSha256 = request.url.queryParameters['sha256']
+        ?.trim()
+        .toLowerCase();
 
     // Buffer the whole body. Plugins are small (manifests + a few
     // hundred KB of Dart code at most) so a streaming pipeline is
@@ -81,13 +83,11 @@ class PluginHandlers {
       final manifest = await _service.installFromBytes(
         bytes,
         filename: filename,
-        declaredSha256:
-            (declaredSha256 == null || declaredSha256.isEmpty) ? null : declaredSha256,
+        declaredSha256: (declaredSha256 == null || declaredSha256.isEmpty)
+            ? null
+            : declaredSha256,
       );
-      return jsonOk({
-        'status': 'installed',
-        'manifest': manifest.toJson(),
-      });
+      return jsonOk({'status': 'installed', 'manifest': manifest.toJson()});
     } on PluginVerificationException catch (e) {
       // Surface the verification message verbatim so a remote operator
       // can see what failed (digest mismatch / missing manifest field /
@@ -113,10 +113,7 @@ class PluginHandlers {
 
   Future<Response> _setEnabled(String pluginId, bool enabled) async {
     if (pluginId.trim().isEmpty) {
-      throw BadRequestError(
-        field: 'pluginId',
-        expected: 'non-empty string',
-      );
+      throw BadRequestError(field: 'pluginId', expected: 'non-empty string');
     }
     try {
       final manifest = await _service.setEnabled(pluginId, enabled);
@@ -125,34 +122,24 @@ class PluginHandlers {
         'manifest': manifest.toJson(),
       });
     } on PluginNotFoundException {
-      return jsonNotFound({
-        'error': 'plugin_not_found',
-        'pluginId': pluginId,
-      });
+      return jsonNotFound({'error': 'plugin_not_found', 'pluginId': pluginId});
     }
   }
 
   /// DELETE /api/plugins/<id>
   Future<Response> handleUninstallPlugin(
-      Request request, String pluginId) async {
+    Request request,
+    String pluginId,
+  ) async {
     _logInfo('[API] DELETE /api/plugins/$pluginId');
     if (pluginId.trim().isEmpty) {
-      throw BadRequestError(
-        field: 'pluginId',
-        expected: 'non-empty string',
-      );
+      throw BadRequestError(field: 'pluginId', expected: 'non-empty string');
     }
     try {
       await _service.uninstall(pluginId);
-      return jsonOk({
-        'status': 'uninstalled',
-        'pluginId': pluginId,
-      });
+      return jsonOk({'status': 'uninstalled', 'pluginId': pluginId});
     } on PluginNotFoundException {
-      return jsonNotFound({
-        'error': 'plugin_not_found',
-        'pluginId': pluginId,
-      });
+      return jsonNotFound({'error': 'plugin_not_found', 'pluginId': pluginId});
     }
   }
 }

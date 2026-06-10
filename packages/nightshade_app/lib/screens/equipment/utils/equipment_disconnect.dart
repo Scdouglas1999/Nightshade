@@ -23,17 +23,61 @@ List<EquipmentDisconnectTarget> equipmentDisconnectTargets(WidgetRef ref) {
   final cover = ref.read(coverCalibratorStateProvider);
 
   return [
-    (disconnect: ref.read(deviceServiceProvider).disconnectCamera, label: 'camera', connectionState: camera.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectMount, label: 'mount', connectionState: mount.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectFocuser, label: 'focuser', connectionState: focuser.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectFilterWheel, label: 'filter wheel', connectionState: filterWheel.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectGuider, label: 'guider', connectionState: guider.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectRotator, label: 'rotator', connectionState: rotator.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectDome, label: 'dome', connectionState: dome.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectWeather, label: 'weather station', connectionState: weather.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectSafetyMonitor, label: 'safety monitor', connectionState: safety.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectSwitch, label: 'switch', connectionState: switchDevice.connectionState),
-    (disconnect: ref.read(deviceServiceProvider).disconnectCoverCalibrator, label: 'cover calibrator', connectionState: cover.connectionState),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectCamera,
+      label: 'camera',
+      connectionState: camera.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectMount,
+      label: 'mount',
+      connectionState: mount.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectFocuser,
+      label: 'focuser',
+      connectionState: focuser.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectFilterWheel,
+      label: 'filter wheel',
+      connectionState: filterWheel.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectGuider,
+      label: 'guider',
+      connectionState: guider.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectRotator,
+      label: 'rotator',
+      connectionState: rotator.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectDome,
+      label: 'dome',
+      connectionState: dome.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectWeather,
+      label: 'weather station',
+      connectionState: weather.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectSafetyMonitor,
+      label: 'safety monitor',
+      connectionState: safety.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectSwitch,
+      label: 'switch',
+      connectionState: switchDevice.connectionState
+    ),
+    (
+      disconnect: ref.read(deviceServiceProvider).disconnectCoverCalibrator,
+      label: 'cover calibrator',
+      connectionState: cover.connectionState
+    ),
   ];
 }
 

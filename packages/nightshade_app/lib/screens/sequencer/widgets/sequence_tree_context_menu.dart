@@ -132,7 +132,9 @@ class SequenceTreeContextMenu extends ConsumerWidget {
           Flexible(
             child: Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: effectiveLabel),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: effectiveLabel),
               overflow: TextOverflow.ellipsis,
               softWrap: false,
             ),
@@ -510,111 +512,117 @@ class _InsertNodePicker extends ConsumerWidget {
           child: SafeArea(
             top: false,
             child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.plus, size: 16, color: colors.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Insert node',
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: [
-                    for (final category in categories) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                        child: Text(
-                          category.name,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textMuted,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.plus, size: 16, color: colors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Insert node',
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
                       ),
-                      for (final item in category.items)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                          onTap: () {
-                            final newNode = item.createNode();
-                            final notifier =
-                                ref.read(currentSequenceProvider.notifier);
-                            notifier.addNode(
-                              newNode,
-                              parentId: parentId,
-                              index: index,
-                            );
-                            final children = item.createChildren?.call();
-                            if (children != null) {
-                              for (final c in children) {
-                                notifier.addNode(c, parentId: newNode.id);
-                              }
-                            }
-                            ref.read(selectedNodeIdProvider.notifier).state =
-                                newNode.id;
-                            onDismiss();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 10),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    color: colors.surfaceAlt,
-                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                                  ),
-                                  child: Icon(
-                                    LucideIcons.box,
-                                    size: 14,
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.name,
-                                        style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
-                                      ),
-                                      Text(
-                                        item.description,
-                                        style: TextStyle(
-                                          fontSize: NightshadeTypography.fontSize11,
-                                          color: colors.textMuted,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      for (final category in categories) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                          child: Text(
+                            category.name,
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textMuted,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ),
+                        for (final item in category.items)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline8),
+                            onTap: () {
+                              final newNode = item.createNode();
+                              final notifier =
+                                  ref.read(currentSequenceProvider.notifier);
+                              notifier.addNode(
+                                newNode,
+                                parentId: parentId,
+                                index: index,
+                              );
+                              final children = item.createChildren?.call();
+                              if (children != null) {
+                                for (final c in children) {
+                                  notifier.addNode(c, parentId: newNode.id);
+                                }
+                              }
+                              ref.read(selectedNodeIdProvider.notifier).state =
+                                  newNode.id;
+                              onDismiss();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceAlt,
+                                      borderRadius: BorderRadius.circular(
+                                          NightshadeTokens.radiusMd),
+                                    ),
+                                    child: Icon(
+                                      LucideIcons.box,
+                                      size: 14,
+                                      color: colors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: NightshadeTypography.label
+                                              .copyWith(
+                                                  color: colors.textPrimary),
+                                        ),
+                                        Text(
+                                          item.description,
+                                          style: TextStyle(
+                                            fontSize:
+                                                NightshadeTypography.fontSize11,
+                                            color: colors.textMuted,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 16),
                     ],
-                    const SizedBox(height: 16),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         );
       },

@@ -13,9 +13,8 @@ class ConnectAllFailure {
   });
 
   factory ConnectAllFailure.fromProgress(DeviceConnectProgress event) {
-    final raw = event.errorMessage ??
-        event.error?.toString() ??
-        'Connection failed';
+    final raw =
+        event.errorMessage ?? event.error?.toString() ?? 'Connection failed';
     final pretty = PrettyError.format(raw);
     return ConnectAllFailure(
       deviceType: event.deviceType,

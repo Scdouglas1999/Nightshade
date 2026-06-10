@@ -14,15 +14,24 @@ class PolarAlignmentTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'polar_hemisphere': return hemisphere;
-      case 'polar_exposure': return exposure;
-      case 'polar_step_size': return stepSize;
-      case 'polar_start_btn': return startBtn;
-      case 'polar_image_view': return imageView;
-      case 'polar_error_display': return errorDisplay;
-      case 'polar_adjustment': return adjustment;
-      case 'polar_progress': return progress;
-      default: return null;
+      case 'polar_hemisphere':
+        return hemisphere;
+      case 'polar_exposure':
+        return exposure;
+      case 'polar_step_size':
+        return stepSize;
+      case 'polar_start_btn':
+        return startBtn;
+      case 'polar_image_view':
+        return imageView;
+      case 'polar_error_display':
+        return errorDisplay;
+      case 'polar_adjustment':
+        return adjustment;
+      case 'polar_progress':
+        return progress;
+      default:
+        return null;
     }
   }
 }

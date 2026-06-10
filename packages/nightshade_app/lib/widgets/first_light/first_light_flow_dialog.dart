@@ -281,8 +281,7 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
           controller: _exposureController,
           hint: '5',
           prefixIcon: LucideIcons.timer,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
           ],
@@ -298,8 +297,7 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
         Text(
           'A few seconds is plenty for a first light — long enough to capture '
           'stars, short enough to finish quickly.',
-          style:
-              NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
+          style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceXl),
         Align(
@@ -604,8 +602,8 @@ class _AnnotationSummary extends ConsumerWidget {
           Expanded(
             child: NightshadeInlineBanner(
               severity: NightshadeAlertSeverity.warning,
-              message: state.note ??
-                  FirstLightOrchestrator.solverNotConfiguredNote,
+              message:
+                  state.note ?? FirstLightOrchestrator.solverNotConfiguredNote,
             ),
           ),
           const SizedBox(width: NightshadeTokens.spaceMd),

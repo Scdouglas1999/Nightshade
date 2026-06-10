@@ -27,8 +27,10 @@ class SessionCheckpointConfig {
     bool? enabled,
   }) {
     return SessionCheckpointConfig(
-      checkpointImageInterval: checkpointImageInterval ?? this.checkpointImageInterval,
-      checkpointTimeInterval: checkpointTimeInterval ?? this.checkpointTimeInterval,
+      checkpointImageInterval:
+          checkpointImageInterval ?? this.checkpointImageInterval,
+      checkpointTimeInterval:
+          checkpointTimeInterval ?? this.checkpointTimeInterval,
       enabled: enabled ?? this.enabled,
     );
   }
@@ -110,7 +112,8 @@ class SessionRecoveryInfo {
 /// Service for managing imaging session lifecycle with persistence and recovery
 class SessionService {
   final ImagingRecordsRepository _records;
-  final SequenceCheckpointsDao? checkpointsDao; // Optional, for sequence integration
+  final SequenceCheckpointsDao?
+  checkpointsDao; // Optional, for sequence integration
   final LoggingService _logger;
 
   SessionCheckpointConfig _config = const SessionCheckpointConfig();
@@ -136,9 +139,9 @@ class SessionService {
     this.checkpointsDao,
     required LoggingService logger,
     DateTime Function()? nowProvider,
-  })  : _records = records,
-        _logger = logger,
-        _now = nowProvider ?? DateTime.now;
+  }) : _records = records,
+       _logger = logger,
+       _now = nowProvider ?? DateTime.now;
 
   /// Stream of status updates
   Stream<String> get statusStream => _statusController.stream;
@@ -160,7 +163,9 @@ class SessionService {
     int? profileId,
   }) async {
     if (_currentSessionId != null) {
-      throw Exception('Session already active. End current session before starting a new one.');
+      throw Exception(
+        'Session already active. End current session before starting a new one.',
+      );
     }
 
     _logger.debug('Starting new session...', source: 'SessionService');
@@ -187,7 +192,10 @@ class SessionService {
     }
 
     _statusController.add('Session started: ID $sessionId');
-    _logger.info('Session started with ID: $sessionId', source: 'SessionService');
+    _logger.info(
+      'Session started with ID: $sessionId',
+      source: 'SessionService',
+    );
 
     return sessionId;
   }
@@ -204,9 +212,12 @@ class SessionService {
     _imagesSinceCheckpoint++;
 
     // Check if checkpoint is needed
-    final imageThresholdReached = _imagesSinceCheckpoint >= _config.checkpointImageInterval;
-    final timeThresholdReached = _lastCheckpoint != null &&
-        DateTime.now().difference(_lastCheckpoint!) >= _config.checkpointTimeInterval;
+    final imageThresholdReached =
+        _imagesSinceCheckpoint >= _config.checkpointImageInterval;
+    final timeThresholdReached =
+        _lastCheckpoint != null &&
+        DateTime.now().difference(_lastCheckpoint!) >=
+            _config.checkpointTimeInterval;
 
     if (_config.enabled && (imageThresholdReached || timeThresholdReached)) {
       await _performCheckpoint();
@@ -216,7 +227,10 @@ class SessionService {
   /// Manually trigger a checkpoint save
   Future<void> checkpoint() async {
     if (_currentSessionId == null || _currentStats == null) {
-      _logger.debug('No active session to checkpoint', source: 'SessionService');
+      _logger.debug(
+        'No active session to checkpoint',
+        source: 'SessionService',
+      );
       return;
     }
 
@@ -230,7 +244,10 @@ class SessionService {
       return;
     }
 
-    _logger.info('Ending session $_currentSessionId with status: $status', source: 'SessionService');
+    _logger.info(
+      'Ending session $_currentSessionId with status: $status',
+      source: 'SessionService',
+    );
 
     try {
       // Perform final checkpoint to save latest stats
@@ -258,10 +275,22 @@ class SessionService {
 
       _statusController.add('Session ended: $_currentSessionId ($status)');
       _logger.info('Session finalized', source: 'SessionService');
-      _logger.debug('  Completed: ${stats.completedExposures}', source: 'SessionService');
-      _logger.debug('  Failed: ${stats.failedExposures}', source: 'SessionService');
-      _logger.debug('  Integration: ${stats.totalIntegrationSecs}s', source: 'SessionService');
-      _logger.debug('  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%', source: 'SessionService');
+      _logger.debug(
+        '  Completed: ${stats.completedExposures}',
+        source: 'SessionService',
+      );
+      _logger.debug(
+        '  Failed: ${stats.failedExposures}',
+        source: 'SessionService',
+      );
+      _logger.debug(
+        '  Integration: ${stats.totalIntegrationSecs}s',
+        source: 'SessionService',
+      );
+      _logger.debug(
+        '  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%',
+        source: 'SessionService',
+      );
     } catch (e) {
       _logger.error('Error ending session: $e', source: 'SessionService');
       rethrow;
@@ -287,7 +316,9 @@ class SessionService {
       final currentSession = await _records.getSessionById(_currentSessionId!);
       if (currentSession != null) {
         final notes = currentSession.notes ?? '';
-        final errorNotes = notes.isEmpty ? errorMessage : '$notes\n\nError: $errorMessage';
+        final errorNotes = notes.isEmpty
+            ? errorMessage
+            : '$notes\n\nError: $errorMessage';
         await _records.updateSessionNotes(_currentSessionId!, errorNotes);
       }
     }
@@ -297,20 +328,28 @@ class SessionService {
   /// Check for incomplete sessions (crashed/interrupted sessions)
   /// Returns list of sessions that can be recovered
   Future<List<SessionRecoveryInfo>> findIncompleteSessionsForRecovery() async {
-    _logger.debug('Checking for incomplete sessions...', source: 'SessionService');
+    _logger.debug(
+      'Checking for incomplete sessions...',
+      source: 'SessionService',
+    );
 
     try {
       final allSessions = await _records.getAllSessions();
 
       // Find sessions with 'active' status (not completed/aborted/error)
-      final incompleteSessions = allSessions.where((s) => s.status == 'active').toList();
+      final incompleteSessions = allSessions
+          .where((s) => s.status == 'active')
+          .toList();
 
       if (incompleteSessions.isEmpty) {
         _logger.debug('No incomplete sessions found', source: 'SessionService');
         return [];
       }
 
-      _logger.info('Found ${incompleteSessions.length} incomplete session(s)', source: 'SessionService');
+      _logger.info(
+        'Found ${incompleteSessions.length} incomplete session(s)',
+        source: 'SessionService',
+      );
 
       // Convert to recovery info
       final recoveryInfoList = <SessionRecoveryInfo>[];
@@ -325,18 +364,23 @@ class SessionService {
           lastUpdated: session.startTime, // Use start time as fallback
         );
 
-        recoveryInfoList.add(SessionRecoveryInfo(
-          sessionId: session.id,
-          sessionName: session.name,
-          targetId: session.targetId,
-          startTime: session.startTime,
-          stats: stats,
-        ));
+        recoveryInfoList.add(
+          SessionRecoveryInfo(
+            sessionId: session.id,
+            sessionName: session.name,
+            targetId: session.targetId,
+            startTime: session.startTime,
+            stats: stats,
+          ),
+        );
       }
 
       return recoveryInfoList;
     } catch (e) {
-      _logger.error('Error finding incomplete sessions: $e', source: 'SessionService');
+      _logger.error(
+        'Error finding incomplete sessions: $e',
+        source: 'SessionService',
+      );
       return [];
     }
   }
@@ -356,7 +400,9 @@ class SessionService {
     }
 
     if (session.status != 'active') {
-      throw Exception('Session $sessionId is not in active state (status: ${session.status})');
+      throw Exception(
+        'Session $sessionId is not in active state (status: ${session.status})',
+      );
     }
 
     // Restore session state
@@ -379,14 +425,26 @@ class SessionService {
     }
 
     _statusController.add('Session recovered: $sessionId');
-    _logger.info('Session $sessionId recovered successfully', source: 'SessionService');
-    _logger.debug('  Exposures completed: ${session.successfulExposures}', source: 'SessionService');
-    _logger.debug('  Integration time: ${session.totalIntegrationSecs}s', source: 'SessionService');
+    _logger.info(
+      'Session $sessionId recovered successfully',
+      source: 'SessionService',
+    );
+    _logger.debug(
+      '  Exposures completed: ${session.successfulExposures}',
+      source: 'SessionService',
+    );
+    _logger.debug(
+      '  Integration time: ${session.totalIntegrationSecs}s',
+      source: 'SessionService',
+    );
   }
 
   /// Mark a session as aborted (for recovery dialog when user chooses not to resume)
   Future<void> markSessionAborted(int sessionId) async {
-    _logger.info('Marking session $sessionId as aborted', source: 'SessionService');
+    _logger.info(
+      'Marking session $sessionId as aborted',
+      source: 'SessionService',
+    );
     await _records.endSession(sessionId, status: 'aborted');
   }
 
@@ -402,7 +460,8 @@ class SessionService {
     } else if (!_config.enabled && wasEnabled) {
       // Checkpointing was just disabled, stop timer
       _stopCheckpointTimer();
-    } else if (_config.enabled && _config.checkpointTimeInterval != previousInterval) {
+    } else if (_config.enabled &&
+        _config.checkpointTimeInterval != previousInterval) {
       // Interval changed, restart timer
       _stopCheckpointTimer();
       _startCheckpointTimer();
@@ -423,7 +482,10 @@ class SessionService {
         _performCheckpoint();
       }
     });
-    _logger.debug('Checkpoint timer started (interval: ${_config.checkpointTimeInterval.inMinutes} min)', source: 'SessionService');
+    _logger.debug(
+      'Checkpoint timer started (interval: ${_config.checkpointTimeInterval.inMinutes} min)',
+      source: 'SessionService',
+    );
   }
 
   void _stopCheckpointTimer() {
@@ -434,13 +496,17 @@ class SessionService {
   Future<void> _performCheckpoint() async {
     if (_currentSessionId == null || _currentStats == null) return;
 
-    _logger.debug('Performing checkpoint for session $_currentSessionId...', source: 'SessionService');
+    _logger.debug(
+      'Performing checkpoint for session $_currentSessionId...',
+      source: 'SessionService',
+    );
 
     try {
       // Save current statistics to database
       await _records.updateSessionStats(
         _currentSessionId!,
-        totalExposures: _currentStats!.completedExposures + _currentStats!.failedExposures,
+        totalExposures:
+            _currentStats!.completedExposures + _currentStats!.failedExposures,
         successfulExposures: _currentStats!.completedExposures,
         failedExposures: _currentStats!.failedExposures,
         totalIntegrationSecs: _currentStats!.totalIntegrationSecs,
@@ -455,7 +521,10 @@ class SessionService {
       _statusController.add('Checkpoint saved');
       _logger.debug('Checkpoint saved successfully', source: 'SessionService');
     } catch (e) {
-      _logger.error('Error performing checkpoint: $e', source: 'SessionService');
+      _logger.error(
+        'Error performing checkpoint: $e',
+        source: 'SessionService',
+      );
       _statusController.add('Checkpoint failed: $e');
     }
   }

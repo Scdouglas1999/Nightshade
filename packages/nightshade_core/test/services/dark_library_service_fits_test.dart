@@ -19,8 +19,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('DarkLibraryService FITS parser — IMG-P2-2 float32 / float64 support',
-      () {
+  group('DarkLibraryService FITS parser — IMG-P2-2 float32 / float64 support', () {
     late Directory tempDir;
     late DarkLibraryService service;
     late NightshadeDatabase database;
@@ -70,28 +69,30 @@ void main() {
       },
     );
 
-    test('BITPIX=-32: float32 FITS decodes through clamp+round to u16',
-        () async {
-      // Four pixels: 0.0, 12345.5, 65535.0, and -1.0 (will saturate to 0).
-      final values = <double>[0.0, 12345.5, 65535.0, -1.0];
-      final fits = _buildFitsFloat32(
-        values: values,
-        bzero: null,
-        bscale: null,
-      );
-      final file = await writeFits('float32.fit', fits);
+    test(
+      'BITPIX=-32: float32 FITS decodes through clamp+round to u16',
+      () async {
+        // Four pixels: 0.0, 12345.5, 65535.0, and -1.0 (will saturate to 0).
+        final values = <double>[0.0, 12345.5, 65535.0, -1.0];
+        final fits = _buildFitsFloat32(
+          values: values,
+          bzero: null,
+          bscale: null,
+        );
+        final file = await writeFits('float32.fit', fits);
 
-      final pixels = await service.loadDarkPixels(file.path);
+        final pixels = await service.loadDarkPixels(file.path);
 
-      expect(pixels.length, 4);
-      expect(pixels[0], 0);
-      // 12345.5 rounds-half-away-from-zero to 12346 in our implementation
-      // (we use floor(x + 0.5)).
-      expect(pixels[1], 12346);
-      expect(pixels[2], 65535);
-      // -1.0 saturates to 0 (loud warning is logged by the service).
-      expect(pixels[3], 0);
-    });
+        expect(pixels.length, 4);
+        expect(pixels[0], 0);
+        // 12345.5 rounds-half-away-from-zero to 12346 in our implementation
+        // (we use floor(x + 0.5)).
+        expect(pixels[1], 12346);
+        expect(pixels[2], 65535);
+        // -1.0 saturates to 0 (loud warning is logged by the service).
+        expect(pixels[3], 0);
+      },
+    );
 
     test(
       'BITPIX=-32: BZERO/BSCALE linear transform is applied per FITS spec',
@@ -147,79 +148,83 @@ void main() {
       },
     );
 
-    test('BITPIX=-64: float64 FITS decodes through clamp+round to u16',
-        () async {
-      // Pick values that would not survive a float32 round-trip exactly, to
-      // confirm we are actually using float64 (8-byte) decoding.
-      final values = <double>[
-        0.0,
-        1.0 / 3.0 * 65535.0, // 21845.0
-        65535.0,
-        70000.0, // saturates high
-      ];
-      final fits = _buildFitsFloat64(
-        values: values,
-        bzero: null,
-        bscale: null,
-      );
-      final file = await writeFits('float64.fit', fits);
-
-      final pixels = await service.loadDarkPixels(file.path);
-
-      expect(pixels.length, 4);
-      expect(pixels[0], 0);
-      // 21845.0 ± rounding → 21845 exactly
-      expect(pixels[1], 21845);
-      expect(pixels[2], 65535);
-      expect(pixels[3], 65535);
-    });
-
-    test('BITPIX=-32 NaN samples collapse to 0 instead of poisoning the buffer',
-        () async {
-      final values = <double>[double.nan, 100.0];
-      final fits =
-          _buildFitsFloat32(values: values, bzero: null, bscale: null);
-      final file = await writeFits('float32_nan.fit', fits);
-
-      final pixels = await service.loadDarkPixels(file.path);
-
-      expect(pixels[0], 0);
-      expect(pixels[1], 100);
-    });
-
     test(
-      'Unsupported BITPIX is rejected with a descriptive error listing the '
-      'supported encodings',
+      'BITPIX=-64: float64 FITS decodes through clamp+round to u16',
       () async {
-        // BITPIX=8 (unsigned byte) is valid FITS but not accepted by the dark
-        // library; the error MUST list the supported values so the user can
-        // fix their pipeline rather than guess.
-        final fits = _buildFitsHeaderOnly(
-          width: 4,
-          height: 1,
-          bitpix: 8,
-          extraCards: const [],
-          dataBytes: Uint8List(4),
+        // Pick values that would not survive a float32 round-trip exactly, to
+        // confirm we are actually using float64 (8-byte) decoding.
+        final values = <double>[
+          0.0,
+          1.0 / 3.0 * 65535.0, // 21845.0
+          65535.0,
+          70000.0, // saturates high
+        ];
+        final fits = _buildFitsFloat64(
+          values: values,
+          bzero: null,
+          bscale: null,
         );
-        final file = await writeFits('bitpix8.fit', fits);
+        final file = await writeFits('float64.fit', fits);
 
-        await expectLater(
-          service.loadDarkPixels(file.path),
-          throwsA(
-            isA<FormatException>().having(
-              (e) => e.message,
-              'message',
-              allOf(
-                contains('Unsupported FITS BITPIX=8'),
-                contains('16'),
-                contains('-32'),
-                contains('-64'),
-              ),
-            ),
-          ),
-        );
+        final pixels = await service.loadDarkPixels(file.path);
+
+        expect(pixels.length, 4);
+        expect(pixels[0], 0);
+        // 21845.0 ± rounding → 21845 exactly
+        expect(pixels[1], 21845);
+        expect(pixels[2], 65535);
+        expect(pixels[3], 65535);
       },
     );
+
+    test(
+      'BITPIX=-32 NaN samples collapse to 0 instead of poisoning the buffer',
+      () async {
+        final values = <double>[double.nan, 100.0];
+        final fits = _buildFitsFloat32(
+          values: values,
+          bzero: null,
+          bscale: null,
+        );
+        final file = await writeFits('float32_nan.fit', fits);
+
+        final pixels = await service.loadDarkPixels(file.path);
+
+        expect(pixels[0], 0);
+        expect(pixels[1], 100);
+      },
+    );
+
+    test('Unsupported BITPIX is rejected with a descriptive error listing the '
+        'supported encodings', () async {
+      // BITPIX=8 (unsigned byte) is valid FITS but not accepted by the dark
+      // library; the error MUST list the supported values so the user can
+      // fix their pipeline rather than guess.
+      final fits = _buildFitsHeaderOnly(
+        width: 4,
+        height: 1,
+        bitpix: 8,
+        extraCards: const [],
+        dataBytes: Uint8List(4),
+      );
+      final file = await writeFits('bitpix8.fit', fits);
+
+      await expectLater(
+        service.loadDarkPixels(file.path),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('Unsupported FITS BITPIX=8'),
+              contains('16'),
+              contains('-32'),
+              contains('-64'),
+            ),
+          ),
+        ),
+      );
+    });
 
     test('Unsupported BITPIX=-16 is also rejected loudly', () async {
       // -16 isn't a real FITS encoding but exercises the "any other value"

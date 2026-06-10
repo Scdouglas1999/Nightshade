@@ -59,87 +59,86 @@ void main() {
     test('rejects an empty deviceId synchronously', () async {
       backend = _buildBackend(fake);
       final stream = backend.subscribeLiveViewWebRtc(deviceId: '');
-      await expectLater(
-        stream,
-        emitsError(isA<ArgumentError>()),
-      );
+      await expectLater(stream, emitsError(isA<ArgumentError>()));
     });
 
     test(
-        'createPeerConnection is unavailable in unit tests → emits stream error '
-        '(no silent fallback)', () async {
-      // In a unit test, no libwebrtc plugin is registered, so the very
-      // first `createPeerConnection` call inside the subscription
-      // throws (`MissingPluginException` typically). The stream MUST
-      // surface that as an error and close — never go quiet.
-      backend = _buildBackend(fake);
-      final completer = Completer<Object>();
-      late StreamSubscription<dynamic> sub;
-      sub = backend
-          .subscribeLiveViewWebRtc(deviceId: 'test:cam:1')
-          .listen(
-        (_) {
-          // No frame should ever arrive — there's no peer connection.
-        },
-        onError: (Object e) {
-          if (!completer.isCompleted) completer.complete(e);
-        },
-      );
-      final err = await completer.future
-          .timeout(const Duration(seconds: 5));
-      await sub.cancel();
-      expect(err, isNotNull);
-      // The offer endpoint may or may not have been touched depending
-      // on where flutter_webrtc throws — both shapes are acceptable.
-      // What's NOT acceptable is silently completing.
-    });
+      'createPeerConnection is unavailable in unit tests → emits stream error '
+      '(no silent fallback)',
+      () async {
+        // In a unit test, no libwebrtc plugin is registered, so the very
+        // first `createPeerConnection` call inside the subscription
+        // throws (`MissingPluginException` typically). The stream MUST
+        // surface that as an error and close — never go quiet.
+        backend = _buildBackend(fake);
+        final completer = Completer<Object>();
+        late StreamSubscription<dynamic> sub;
+        sub = backend
+            .subscribeLiveViewWebRtc(deviceId: 'test:cam:1')
+            .listen(
+              (_) {
+                // No frame should ever arrive — there's no peer connection.
+              },
+              onError: (Object e) {
+                if (!completer.isCompleted) completer.complete(e);
+              },
+            );
+        final err = await completer.future.timeout(const Duration(seconds: 5));
+        await sub.cancel();
+        expect(err, isNotNull);
+        // The offer endpoint may or may not have been touched depending
+        // on where flutter_webrtc throws — both shapes are acceptable.
+        // What's NOT acceptable is silently completing.
+      },
+    );
 
     test(
-        'subscribeLiveViewAuto invokes onFallback when WebRTC fails before '
-        'first frame', timeout: const Timeout(Duration(seconds: 15)), () async {
-      // The WS leg will hang waiting on a WebSocket that never
-      // connects (we have no WS server in this test), but the
-      // assertion we care about is that the auto path observes the
-      // WebRTC failure and triggers the fallback callback. We poll
-      // for the callback to fire then cancel the stream with a hard
-      // timeout so a hung WS close cannot deadlock the test.
-      backend = _buildBackend(fake);
-      final fallbacks = <String>[];
-      final stream = backend.subscribeLiveViewAuto(
-        deviceId: 'test:cam:1',
-        webRtcFirstFrameTimeout: const Duration(seconds: 1),
-        onFallback: fallbacks.add,
-      );
-      late StreamSubscription<dynamic> sub;
-      sub = stream.listen((_) {}, onError: (_) {});
-      // Poll up to 8 s for the fallback to fire. The WebRTC leg fails
-      // immediately in test env, so the callback should fire within
-      // a tick.
-      final deadline = DateTime.now().add(const Duration(seconds: 8));
-      while (fallbacks.isEmpty && DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
-      expect(
-        fallbacks,
-        isNotEmpty,
-        reason: 'expected at least one fallback notice when WebRTC fails '
-            'before delivering a frame',
-      );
-      expect(
-        fallbacks.first,
-        contains('falling back from WebRTC to WS'),
-      );
-      // Cancel with a short timeout — the WS leg's sink.close may hang
-      // on an unconnected socket. Abandoning the cancel future is fine
-      // because the test isolate is about to shut down anyway.
-      await sub.cancel().timeout(
-            const Duration(milliseconds: 200),
-            onTimeout: () {
-              // Leak the subscription rather than block the test; the
-              // assertions have already executed.
-            },
-          );
-    });
+      'subscribeLiveViewAuto invokes onFallback when WebRTC fails before '
+      'first frame',
+      timeout: const Timeout(Duration(seconds: 15)),
+      () async {
+        // The WS leg will hang waiting on a WebSocket that never
+        // connects (we have no WS server in this test), but the
+        // assertion we care about is that the auto path observes the
+        // WebRTC failure and triggers the fallback callback. We poll
+        // for the callback to fire then cancel the stream with a hard
+        // timeout so a hung WS close cannot deadlock the test.
+        backend = _buildBackend(fake);
+        final fallbacks = <String>[];
+        final stream = backend.subscribeLiveViewAuto(
+          deviceId: 'test:cam:1',
+          webRtcFirstFrameTimeout: const Duration(seconds: 1),
+          onFallback: fallbacks.add,
+        );
+        late StreamSubscription<dynamic> sub;
+        sub = stream.listen((_) {}, onError: (_) {});
+        // Poll up to 8 s for the fallback to fire. The WebRTC leg fails
+        // immediately in test env, so the callback should fire within
+        // a tick.
+        final deadline = DateTime.now().add(const Duration(seconds: 8));
+        while (fallbacks.isEmpty && DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(
+          fallbacks,
+          isNotEmpty,
+          reason:
+              'expected at least one fallback notice when WebRTC fails '
+              'before delivering a frame',
+        );
+        expect(fallbacks.first, contains('falling back from WebRTC to WS'));
+        // Cancel with a short timeout — the WS leg's sink.close may hang
+        // on an unconnected socket. Abandoning the cancel future is fine
+        // because the test isolate is about to shut down anyway.
+        await sub.cancel().timeout(
+          const Duration(milliseconds: 200),
+          onTimeout: () {
+            // Leak the subscription rather than block the test; the
+            // assertions have already executed.
+          },
+        );
+      },
+    );
   });
 
   group('subscribeLiveViewWebRtc HTTP signalling order', () {

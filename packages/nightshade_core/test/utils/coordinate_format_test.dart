@@ -54,8 +54,7 @@ void main() {
 
     test('paddedLetters + integerRounded', () {
       expect(
-        CoordinateFormat.dec(-45.5,
-            seconds: SecondsPrecision.integerRounded),
+        CoordinateFormat.dec(-45.5, seconds: SecondsPrecision.integerRounded),
         "-45° 30' 00\"",
       );
     });

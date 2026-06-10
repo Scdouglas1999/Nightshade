@@ -28,7 +28,9 @@ enum AppScreen {
 /// This is updated by [AppShell] whenever the user navigates to a new screen.
 /// Used by [SmartNotificationService] to conditionally show notifications
 /// only when the user is NOT viewing the relevant screen.
-final currentScreenProvider = StateProvider<AppScreen>((ref) => AppScreen.dashboard);
+final currentScreenProvider = StateProvider<AppScreen>(
+  (ref) => AppScreen.dashboard,
+);
 
 /// Maps a route location string to an [AppScreen] enum value.
 AppScreen locationToAppScreen(String location) {

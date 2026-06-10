@@ -9,8 +9,7 @@ import 'settings_widgets.dart';
 class GeneralSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const GeneralSettings(
-      {super.key, this.isMobile = false});
+  const GeneralSettings({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

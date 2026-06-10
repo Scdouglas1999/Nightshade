@@ -39,7 +39,9 @@ class _ParamsEditor extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(' to ',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted)),
             const SizedBox(width: 8),
             Expanded(
               child: NodeNumberInput(
@@ -103,7 +105,9 @@ class _ParamsEditor extends StatelessWidget {
               },
               icon: Icon(LucideIcons.plus, size: 14, color: colors.primary),
               label: Text('Add sub-trigger',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.primary)),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.primary)),
             ),
           ],
         );
@@ -177,7 +181,9 @@ class _TimeInputButton extends StatelessWidget {
             Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(hhmm,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textPrimary)),
           ],
         ),
       ),
@@ -218,7 +224,9 @@ class _TriggerPreview extends ConsumerWidget {
           Expanded(
             child: Text(
               '${isStart ? "Starts when" : "Ends when"} $summary',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
           ),
         ],

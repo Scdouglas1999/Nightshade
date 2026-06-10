@@ -57,8 +57,8 @@ class _AnimatedTabIndicatorPainter extends BoxPainter {
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
     final Rect rect = offset & configuration.size!;
-    final Rect indicatorRect = insets.resolve(configuration.textDirection!)
-        .deflateRect(rect);
+    final Rect indicatorRect =
+        insets.resolve(configuration.textDirection!).deflateRect(rect);
 
     final paint = Paint()
       ..color = color
@@ -77,4 +77,3 @@ class _AnimatedTabIndicatorPainter extends BoxPainter {
     canvas.drawRRect(rrect, paint);
   }
 }
-

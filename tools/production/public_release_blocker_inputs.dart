@@ -25,7 +25,8 @@ void main() async {
   if (gate == null) {
     stderr.writeln('Missing public release gate artifact: $_gatePath');
     stderr.writeln(
-        'Run: dart run melos run audit:public-release-gate --no-select');
+      'Run: dart run melos run audit:public-release-gate --no-select',
+    );
     exit(1);
   }
 
@@ -58,12 +59,12 @@ void main() async {
     'blockers': blockers.map((blocker) => blocker.toJson()).toList(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    gate: gate,
-    blockers: blockers,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(
+    _markdownOutputPath,
+  ).writeAsString(_renderMarkdown(gate: gate, blockers: blockers));
 
   stdout.writeln('Public release blocker inputs complete.');
   stdout.writeln('Decision: ${gate['decision']}');
@@ -84,8 +85,9 @@ _BlockerInput _blockerInputFor(
     case 'release_staging':
       final branch = context.staging?['currentBranch']?.toString() ?? 'unknown';
       final entryCount = _intValue(context.staging?['entryCount']);
-      final untrackedCritical =
-          _intValue(context.staging?['untrackedReleaseCriticalCount']);
+      final untrackedCritical = _intValue(
+        context.staging?['untrackedReleaseCriticalCount'],
+      );
       final bucketCount = _intValue(context.splitPlan?['bucketCount']);
       final ownerGroups =
           context.ownerMatrix?['decisionGroups'] as Map<String, dynamic>?;
@@ -147,7 +149,7 @@ _BlockerInput _blockerInputFor(
         requiredInput: 'Direct evidence that satisfies this gate check.',
         acceptanceCriteria: ['Gate check passes with direct evidence.'],
         rerunCommands: [
-          'dart run melos run audit:public-release-gate --no-select'
+          'dart run melos run audit:public-release-gate --no-select',
         ],
         expectedEvidence: [check['evidence']?.toString() ?? 'unknown'],
         currentGateDetail: detail,
@@ -165,19 +167,23 @@ _BlockerInput _linuxBlocker(
       .map((value) => value.cast<String, dynamic>())
       .toList();
   final failedRequired = checks
-      .where((item) =>
-          item['requiredForLinuxBuild'] == true && item['exitCode'] != 0)
-      .map((item) => '${item['id']}: ${_firstNonEmpty([
-                item['stderr']?.toString(),
-                item['stdout']?.toString(),
-              ])}')
+      .where(
+        (item) =>
+            item['requiredForLinuxBuild'] == true && item['exitCode'] != 0,
+      )
+      .map(
+        (item) =>
+            '${item['id']}: ${_firstNonEmpty([item['stderr']?.toString(), item['stdout']?.toString()])}',
+      )
       .toList();
   final dockerFailure = checks
       .where((item) => item['id'] == 'docker_version' && item['exitCode'] != 0)
-      .map((item) => _firstNonEmpty([
-            item['stderr']?.toString(),
-            item['stdout']?.toString(),
-          ]))
+      .map(
+        (item) => _firstNonEmpty([
+          item['stderr']?.toString(),
+          item['stdout']?.toString(),
+        ]),
+      )
       .firstOrNull;
 
   return _BlockerInput(
@@ -396,8 +402,9 @@ _BlockerInput _finalChecklistBlocker(
   final unchecked = _intValue(audit?['uncheckedItemCount']);
   final checked = _intValue(audit?['checkedItemCount']);
   final total = _intValue(audit?['totalItemCount']);
-  final checkedWithoutEvidence =
-      _intValue(audit?['checkedWithoutEvidenceCount']);
+  final checkedWithoutEvidence = _intValue(
+    audit?['checkedWithoutEvidenceCount'],
+  );
   final knownLimitationsReferenced =
       audit?['knownLimitationsReferenced'] == true;
   final supportedHardwareReferenced =
@@ -564,14 +571,14 @@ class _BlockerInput {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'label': label,
-        'category': category,
-        'currentGateDetail': currentGateDetail,
-        'localStatus': localStatus,
-        'requiredInput': requiredInput,
-        'acceptanceCriteria': acceptanceCriteria,
-        'rerunCommands': rerunCommands,
-        'expectedEvidence': expectedEvidence,
-      };
+    'id': id,
+    'label': label,
+    'category': category,
+    'currentGateDetail': currentGateDetail,
+    'localStatus': localStatus,
+    'requiredInput': requiredInput,
+    'acceptanceCriteria': acceptanceCriteria,
+    'rerunCommands': rerunCommands,
+    'expectedEvidence': expectedEvidence,
+  };
 }

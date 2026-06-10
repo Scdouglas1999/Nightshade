@@ -111,7 +111,9 @@ class _IntStepper extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary)),
         const SizedBox(height: 4),
         Row(
           children: [
@@ -212,7 +214,9 @@ class _SliderRow extends StatelessWidget {
         Row(
           children: [
             Text(label,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textSecondary)),
             const Spacer(),
             Text(
               '${value.toStringAsFixed(0)}$suffix',
@@ -308,7 +312,9 @@ class _StatsCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: highlight ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
+              fontSize: highlight
+                  ? NightshadeTypography.fontSize14
+                  : NightshadeTypography.fontSize12,
               color: highlight ? colors.accent : colors.primary,
               fontWeight: FontWeight.w700,
             ),
@@ -367,7 +373,8 @@ class _AdvancedPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Advanced (numerical)',
-                        style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary)),
+                        style: NightshadeTypography.labelStrong
+                            .copyWith(color: colors.textPrimary)),
                   ),
                   Icon(
                     expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,

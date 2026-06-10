@@ -17,18 +17,30 @@ Future<void> main() async {
     await _writeBlockedChecklist(temp);
     await _runAuditor(auditor, temp);
     final blockedReport = _readReport(temp);
-    _expect(blockedReport['totalItemCount'] == 4,
-        'blocked fixture should have 4 checklist items');
-    _expect(blockedReport['checkedItemCount'] == 3,
-        'blocked fixture should have 3 checked items');
-    _expect(blockedReport['uncheckedItemCount'] == 1,
-        'blocked fixture should have 1 unchecked item');
-    _expect(blockedReport['checkedWithoutEvidenceCount'] == 1,
-        'blocked fixture should have 1 checked item without evidence');
-    _expect(blockedReport['knownLimitationsReferenced'] == true,
-        'blocked fixture should reference known limitations');
-    _expect(blockedReport['supportedHardwareByPlatformReferenced'] == false,
-        'blocked fixture should not reference supported hardware');
+    _expect(
+      blockedReport['totalItemCount'] == 4,
+      'blocked fixture should have 4 checklist items',
+    );
+    _expect(
+      blockedReport['checkedItemCount'] == 3,
+      'blocked fixture should have 3 checked items',
+    );
+    _expect(
+      blockedReport['uncheckedItemCount'] == 1,
+      'blocked fixture should have 1 unchecked item',
+    );
+    _expect(
+      blockedReport['checkedWithoutEvidenceCount'] == 1,
+      'blocked fixture should have 1 checked item without evidence',
+    );
+    _expect(
+      blockedReport['knownLimitationsReferenced'] == true,
+      'blocked fixture should reference known limitations',
+    );
+    _expect(
+      blockedReport['supportedHardwareByPlatformReferenced'] == false,
+      'blocked fixture should not reference supported hardware',
+    );
     _expectListLength(blockedReport, 'checkedWithoutEvidence', 1);
     _expectListLength(blockedReport, 'uncheckedItems', 1);
 
@@ -38,30 +50,40 @@ Future<void> main() async {
       arguments: ['--fail-on-unchecked'],
       allowFailure: true,
     );
-    _expect(failResult.exitCode == 1,
-        '--fail-on-unchecked should fail blocked fixture');
+    _expect(
+      failResult.exitCode == 1,
+      '--fail-on-unchecked should fail blocked fixture',
+    );
 
     await _writeCompleteChecklist(temp);
     await _runAuditor(auditor, temp);
     final completeReport = _readReport(temp);
-    _expect(completeReport['totalItemCount'] == 3,
-        'complete fixture should have 3 checklist items');
-    _expect(completeReport['checkedItemCount'] == 3,
-        'complete fixture should have 3 checked items');
-    _expect(completeReport['uncheckedItemCount'] == 0,
-        'complete fixture should have no unchecked items');
-    _expect(completeReport['checkedWithoutEvidenceCount'] == 0,
-        'complete fixture should have no checked-without-evidence items');
-    _expect(completeReport['knownLimitationsReferenced'] == true,
-        'complete fixture should reference known limitations');
-    _expect(completeReport['supportedHardwareByPlatformReferenced'] == true,
-        'complete fixture should reference supported hardware');
-
-    await _runAuditor(
-      auditor,
-      temp,
-      arguments: ['--fail-on-unchecked'],
+    _expect(
+      completeReport['totalItemCount'] == 3,
+      'complete fixture should have 3 checklist items',
     );
+    _expect(
+      completeReport['checkedItemCount'] == 3,
+      'complete fixture should have 3 checked items',
+    );
+    _expect(
+      completeReport['uncheckedItemCount'] == 0,
+      'complete fixture should have no unchecked items',
+    );
+    _expect(
+      completeReport['checkedWithoutEvidenceCount'] == 0,
+      'complete fixture should have no checked-without-evidence items',
+    );
+    _expect(
+      completeReport['knownLimitationsReferenced'] == true,
+      'complete fixture should reference known limitations',
+    );
+    _expect(
+      completeReport['supportedHardwareByPlatformReferenced'] == true,
+      'complete fixture should reference supported hardware',
+    );
+
+    await _runAuditor(auditor, temp, arguments: ['--fail-on-unchecked']);
 
     stdout.writeln('Public release checklist audit self-test passed.');
   } finally {
@@ -124,11 +146,10 @@ Future<ProcessResult> _runAuditor(
   List<String> arguments = const [],
   bool allowFailure = false,
 }) async {
-  final result = await Process.run(
-    'dart',
-    [auditor.path, ...arguments],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = await Process.run('dart', [
+    auditor.path,
+    ...arguments,
+  ], workingDirectory: workingDirectory.path);
   if (!allowFailure && result.exitCode != 0) {
     throw StateError(
       'Checklist auditor failed with exit ${result.exitCode}\n'

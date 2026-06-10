@@ -37,15 +37,17 @@ const _wideRig = FovPreset(
 );
 
 void main() {
-  testWidgets('renders nothing interactive when no presets exist',
-      (tester) async {
+  testWidgets('renders nothing interactive when no presets exist', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host((_) {}));
     expect(find.byType(MultiFovOverlay), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dragging the active preset body pins it to a sky coordinate',
-      (tester) async {
+  testWidgets('dragging the active preset body pins it to a sky coordinate', (
+    tester,
+  ) async {
     late WidgetRef captured;
     await tester.pumpWidget(_host((ref) => captured = ref));
     captured.read(fovPresetsProvider.notifier).add(_wideRig);
@@ -79,14 +81,18 @@ void main() {
     expect(captured.read(fovPresetsProvider).active!.center, isNull);
   });
 
-  testWidgets('dragging the rotation handle changes position angle',
-      (tester) async {
+  testWidgets('dragging the rotation handle changes position angle', (
+    tester,
+  ) async {
     late WidgetRef captured;
     await tester.pumpWidget(_host((ref) => captured = ref));
     captured.read(fovPresetsProvider.notifier).add(_wideRig);
     await tester.pump();
 
-    final initialPa = captured.read(fovPresetsProvider).active!.positionAngleDeg;
+    final initialPa = captured
+        .read(fovPresetsProvider)
+        .active!
+        .positionAngleDeg;
     expect(initialPa, 0);
 
     // The handle sits above the preset center along the short axis.
@@ -103,8 +109,9 @@ void main() {
     expect(pa, isNot(0));
   });
 
-  testWidgets('hidden presets are not drawn (overlay collapses)',
-      (tester) async {
+  testWidgets('hidden presets are not drawn (overlay collapses)', (
+    tester,
+  ) async {
     late WidgetRef captured;
     await tester.pumpWidget(_host((ref) => captured = ref));
     final notifier = captured.read(fovPresetsProvider.notifier);

@@ -2,12 +2,7 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
     show PairingDatabase, PairingResult, TokenManager;
 
 /// Outcome of a verify attempt against the [PairingService].
-enum PairingVerifyOutcome {
-  success,
-  invalidCode,
-  codeExpired,
-  codeAlreadyUsed,
-}
+enum PairingVerifyOutcome { success, invalidCode, codeExpired, codeAlreadyUsed }
 
 class PairingStartResult {
   /// User-facing pairing code (e.g. `STAR-LYRA-1234`) shown on the desktop.
@@ -58,9 +53,9 @@ class PairingService {
     required PairingDatabase database,
     required TokenManager tokenManager,
     required DateTime Function() now,
-  })  : _database = database,
-        _tokenManager = tokenManager,
-        _now = now;
+  }) : _database = database,
+       _tokenManager = tokenManager,
+       _now = now;
 
   PairingDatabase get database => _database;
 

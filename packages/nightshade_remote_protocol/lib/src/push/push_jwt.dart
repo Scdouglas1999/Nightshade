@@ -20,8 +20,7 @@ import 'package:basic_utils/basic_utils.dart';
 import 'package:pointycastle/export.dart';
 
 /// base64url WITHOUT padding, per RFC 7515 §2 (JWS).
-String _b64Url(List<int> bytes) =>
-    base64Url.encode(bytes).replaceAll('=', '');
+String _b64Url(List<int> bytes) => base64Url.encode(bytes).replaceAll('=', '');
 
 String _b64UrlJson(Map<String, Object?> map) =>
     _b64Url(utf8.encode(jsonEncode(map)));
@@ -71,10 +70,7 @@ String signEs256Jwt({
   required String privateKeyPem,
   required String keyId,
 }) {
-  final header = <String, Object?>{
-    'alg': 'ES256',
-    'kid': keyId,
-  };
+  final header = <String, Object?>{'alg': 'ES256', 'kid': keyId};
   final signingInput = buildJwtSigningInput(header, claims);
 
   final privateKey = CryptoUtils.ecPrivateKeyFromPem(privateKeyPem);
@@ -86,9 +82,9 @@ String signEs256Jwt({
         _secureRandom(),
       ),
     );
-  final ecSig = signer.generateSignature(
-    Uint8List.fromList(utf8.encode(signingInput)),
-  ) as ECSignature;
+  final ecSig =
+      signer.generateSignature(Uint8List.fromList(utf8.encode(signingInput)))
+          as ECSignature;
 
   final joseSig = Uint8List(64)
     ..setRange(0, 32, _bigIntToFixed(ecSig.r, 32))

@@ -164,8 +164,7 @@ class _BottomNavItem extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius:
-            BorderRadius.circular(BottomNavMetrics.itemBorderRadius),
+        borderRadius: BorderRadius.circular(BottomNavMetrics.itemBorderRadius),
         onTap: onTap,
         child: AnimatedContainer(
           duration: BottomNavMetrics.itemSelectionAnimationDuration,

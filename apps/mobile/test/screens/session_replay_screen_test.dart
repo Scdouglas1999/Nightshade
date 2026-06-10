@@ -66,8 +66,9 @@ void main() {
     );
   }
 
-  testWidgets('renders timeline + snapshot after a successful load',
-      (tester) async {
+  testWidgets('renders timeline + snapshot after a successful load', (
+    tester,
+  ) async {
     final source = _StubSource(
       run: RemoteSequenceRunDetail(
         id: 1,
@@ -88,16 +89,12 @@ void main() {
         isPartial: false,
         source: 'logging_service_ring_buffer',
       ),
-      frames: [
-        frameAt(1, 60),
-        frameAt(2, 180),
-      ],
+      frames: [frameAt(1, 60), frameAt(2, 180)],
     );
 
-    await tester.pumpWidget(wrap(SessionReplayScreen(
-      runId: 1,
-      dataSourceOverride: source,
-    )));
+    await tester.pumpWidget(
+      wrap(SessionReplayScreen(runId: 1, dataSourceOverride: source)),
+    );
     // Loading spinner first.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     // Drain async + stream microtasks.
@@ -116,8 +113,9 @@ void main() {
     expect(find.text('2 frames'), findsOneWidget);
   });
 
-  testWidgets('renders partial-data banner when events are truncated',
-      (tester) async {
+  testWidgets('renders partial-data banner when events are truncated', (
+    tester,
+  ) async {
     final source = _StubSource(
       run: RemoteSequenceRunDetail(
         id: 1,
@@ -137,10 +135,9 @@ void main() {
       frames: const [],
     );
 
-    await tester.pumpWidget(wrap(SessionReplayScreen(
-      runId: 1,
-      dataSourceOverride: source,
-    )));
+    await tester.pumpWidget(
+      wrap(SessionReplayScreen(runId: 1, dataSourceOverride: source)),
+    );
     await tester.pumpAndSettle();
 
     // The banner specifically calls out the no-buffered-entries
@@ -153,10 +150,9 @@ void main() {
 
   testWidgets('error state renders Retry button', (tester) async {
     final source = _StubSource.failing(error: Exception('boom'));
-    await tester.pumpWidget(wrap(SessionReplayScreen(
-      runId: 1,
-      dataSourceOverride: source,
-    )));
+    await tester.pumpWidget(
+      wrap(SessionReplayScreen(runId: 1, dataSourceOverride: source)),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Replay failed'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
@@ -176,10 +172,10 @@ class _StubSource implements SessionReplayDataSource {
   }) : failure = null;
 
   _StubSource.failing({required Object error})
-      : run = null,
-        eventsPage = null,
-        frames = null,
-        failure = error;
+    : run = null,
+      eventsPage = null,
+      frames = null,
+      failure = error;
 
   @override
   Future<RemoteSequenceRunDetail> fetchRun(int runId) async {

@@ -70,10 +70,7 @@ class PluginNodeExecutionResult {
   /// message id, a Home Assistant state confirmation. May be `null`.
   final String? message;
 
-  const PluginNodeExecutionResult({
-    required this.success,
-    this.message,
-  });
+  const PluginNodeExecutionResult({required this.success, this.message});
 
   /// Convenience: build a success result with no payload.
   const PluginNodeExecutionResult.ok([this.message]) : success = true;

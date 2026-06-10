@@ -51,7 +51,8 @@ void main() {
     });
 
     test('locale "$locale" has no blank values', () {
-      final blanks = values[locale]!.entries
+      final blanks = values[locale]!
+          .entries
           .where((e) => e.value.trim().isEmpty)
           .map((e) => e.key)
           .toList()

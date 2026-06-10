@@ -44,8 +44,7 @@ final deepStarStoreProvider = Provider<DeepStarTileStore>((ref) {
 /// Loads (or reloads) the installed tileset manifest. Returns null when no
 /// deep-star tileset is installed. Bumping [deepStarManifestRefreshProvider]
 /// forces a reload after a download/delete.
-final deepStarManifestProvider =
-    FutureProvider<DeepStarManifest?>((ref) async {
+final deepStarManifestProvider = FutureProvider<DeepStarManifest?>((ref) async {
   ref.watch(deepStarManifestRefreshProvider);
   final store = ref.watch(deepStarStoreProvider);
   final ok = await store.loadManifest();
@@ -89,8 +88,12 @@ final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
       maxResults: maxStars,
     );
   } catch (e) {
-    developer.log('[DeepStar] query failed: $e',
-        name: 'DeepStarProviders', level: 900, error: e);
+    developer.log(
+      '[DeepStar] query failed: $e',
+      name: 'DeepStarProviders',
+      level: 900,
+      error: e,
+    );
     return const [];
   }
 });

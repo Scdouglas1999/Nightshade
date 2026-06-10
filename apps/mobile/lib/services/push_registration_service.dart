@@ -48,10 +48,10 @@ class PushRegistrationService {
     @visibleForTesting MethodChannel? channel,
     @visibleForTesting http.Client? httpClient,
     @visibleForTesting bool? isIosOverride,
-  })  : _channel = channel ?? const MethodChannel('nightshade/push'),
-        _http = httpClient ?? http.Client(),
-        _ownsHttpClient = httpClient == null,
-        _isIos = isIosOverride ?? Platform.isIOS {
+  }) : _channel = channel ?? const MethodChannel('nightshade/push'),
+       _http = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null,
+       _isIos = isIosOverride ?? Platform.isIOS {
     // The host pushes the token to us via `onApnsToken` the moment APNs issues
     // it. We attach the handler eagerly (even before `ensureRegistered`) so a
     // token that arrives during launch — racing our registration call — is

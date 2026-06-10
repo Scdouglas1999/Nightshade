@@ -36,72 +36,74 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
       child: Material(
         type: MaterialType.transparency,
         child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.zero,
-        initiallyExpanded: _expanded,
-        onExpansionChanged: (v) => setState(() => _expanded = v),
-        leading: Icon(LucideIcons.sliders,
-            size: NightshadeTokens.iconSm, color: colors.primary),
-        title: Text(
-          'Scoring weights',
-          style: NightshadeTypography.labelStrong.copyWith(
-            color: colors.textPrimary,
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          initiallyExpanded: _expanded,
+          onExpansionChanged: (v) => setState(() => _expanded = v),
+          leading: Icon(LucideIcons.sliders,
+              size: NightshadeTokens.iconSm, color: colors.primary),
+          title: Text(
+            'Scoring weights',
+            style: NightshadeTypography.labelStrong.copyWith(
+              color: colors.textPrimary,
+            ),
           ),
-        ),
-        children: [
-          _WeightSlider(
-            label: 'Altitude',
-            value: w.altitude,
-            onChanged: (v) => widget.onWeightsChanged(w.copyWith(altitude: v)),
-          ),
-          _WeightSlider(
-            label: 'Meridian',
-            value: w.meridian,
-            onChanged: (v) => widget.onWeightsChanged(w.copyWith(meridian: v)),
-          ),
-          _WeightSlider(
-            label: 'Moon',
-            value: w.moon,
-            onChanged: (v) => widget.onWeightsChanged(w.copyWith(moon: v)),
-          ),
-          _WeightSlider(
-            label: 'Time remaining',
-            value: w.timeRemaining,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(timeRemaining: v)),
-          ),
-          _WeightSlider(
-            label: 'Filter coverage',
-            value: w.filterCoverage,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(filterCoverage: v)),
-          ),
-          _WeightSlider(
-            label: 'User priority',
-            value: w.userPriority,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(userPriority: v)),
-          ),
-          const Divider(height: 12),
-          _ParameterSlider(
-            label: 'Min altitude',
-            value: c.minAltitudeDegrees,
-            min: 0.0,
-            max: 60.0,
-            divisions: 60,
-            suffix: '°',
-            onChanged: widget.onMinAltitudeChanged,
-          ),
-          _ParameterSlider(
-            label: 'Switch hysteresis',
-            value: c.hysteresisRatio,
-            min: 1.0,
-            max: 2.0,
-            divisions: 20,
-            suffix: 'x',
-            onChanged: widget.onHysteresisChanged,
-          ),
-        ],
+          children: [
+            _WeightSlider(
+              label: 'Altitude',
+              value: w.altitude,
+              onChanged: (v) =>
+                  widget.onWeightsChanged(w.copyWith(altitude: v)),
+            ),
+            _WeightSlider(
+              label: 'Meridian',
+              value: w.meridian,
+              onChanged: (v) =>
+                  widget.onWeightsChanged(w.copyWith(meridian: v)),
+            ),
+            _WeightSlider(
+              label: 'Moon',
+              value: w.moon,
+              onChanged: (v) => widget.onWeightsChanged(w.copyWith(moon: v)),
+            ),
+            _WeightSlider(
+              label: 'Time remaining',
+              value: w.timeRemaining,
+              onChanged: (v) =>
+                  widget.onWeightsChanged(w.copyWith(timeRemaining: v)),
+            ),
+            _WeightSlider(
+              label: 'Filter coverage',
+              value: w.filterCoverage,
+              onChanged: (v) =>
+                  widget.onWeightsChanged(w.copyWith(filterCoverage: v)),
+            ),
+            _WeightSlider(
+              label: 'User priority',
+              value: w.userPriority,
+              onChanged: (v) =>
+                  widget.onWeightsChanged(w.copyWith(userPriority: v)),
+            ),
+            const Divider(height: 12),
+            _ParameterSlider(
+              label: 'Min altitude',
+              value: c.minAltitudeDegrees,
+              min: 0.0,
+              max: 60.0,
+              divisions: 60,
+              suffix: '°',
+              onChanged: widget.onMinAltitudeChanged,
+            ),
+            _ParameterSlider(
+              label: 'Switch hysteresis',
+              value: c.hysteresisRatio,
+              min: 1.0,
+              max: 2.0,
+              divisions: 20,
+              suffix: 'x',
+              onChanged: widget.onHysteresisChanged,
+            ),
+          ],
         ),
       ),
     );
@@ -130,7 +132,9 @@ class _WeightSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -191,7 +195,9 @@ class _ParameterSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ),
           Expanded(

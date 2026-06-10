@@ -251,7 +251,8 @@ Future<File> _capture(
                   projectId: projectId,
                   panelOutputPathBuilder: (panel) =>
                       '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
-                  stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
+                  stitchOutputDirectory: (project) =>
+                      '/tmp/mosaic/${project.id}',
                 ),
               ),
             ),

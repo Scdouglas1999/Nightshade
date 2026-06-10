@@ -49,10 +49,7 @@ Future<T?> showAdaptiveModal<T>({
     switch (phoneMode) {
       case PhoneModalMode.fullScreen:
         return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
-          MaterialPageRoute<T>(
-            fullscreenDialog: true,
-            builder: builder,
-          ),
+          MaterialPageRoute<T>(fullscreenDialog: true, builder: builder),
         );
       case PhoneModalMode.bottomSheet:
         final colors = context.nightshadeColors;
@@ -70,8 +67,7 @@ Future<T?> showAdaptiveModal<T>({
             ),
           ),
           builder: (sheetContext) {
-            final maxHeight =
-                MediaQuery.sizeOf(sheetContext).height * 0.92;
+            final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.92;
             return SafeArea(
               top: false,
               child: ConstrainedBox(
@@ -87,8 +83,7 @@ Future<T?> showAdaptiveModal<T>({
                         width: 36,
                         height: 4,
                         decoration: BoxDecoration(
-                          color:
-                              sheetContext.nightshadeColors.border,
+                          color: sheetContext.nightshadeColors.border,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),

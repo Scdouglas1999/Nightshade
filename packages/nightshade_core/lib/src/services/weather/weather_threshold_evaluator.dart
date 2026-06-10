@@ -58,13 +58,7 @@ class WeatherReading {
 
 /// The specific metric that tripped an unsafe verdict, for operator-facing
 /// reasoning. `none` means the reading was safe.
-enum WeatherThresholdBreach {
-  none,
-  humidity,
-  wind,
-  rain,
-  cloud,
-}
+enum WeatherThresholdBreach { none, humidity, wind, rain, cloud }
 
 /// Result of evaluating a [WeatherReading] against [WeatherThresholds].
 class WeatherThresholdResult {

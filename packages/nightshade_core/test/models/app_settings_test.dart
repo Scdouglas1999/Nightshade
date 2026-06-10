@@ -29,11 +29,7 @@ void main() {
     });
 
     test('deserializes from JSON', () {
-      final json = {
-        'latitude': 45.5,
-        'longitude': -122.6,
-        'elevation': 100.0,
-      };
+      final json = {'latitude': 45.5, 'longitude': -122.6, 'elevation': 100.0};
 
       final location = ObserverLocation.fromJson(json);
       expect(location.latitude, 45.5);
@@ -42,9 +38,21 @@ void main() {
     });
 
     test('equality works', () {
-      const loc1 = ObserverLocation(latitude: 45.5, longitude: -122.6, elevation: 100.0);
-      const loc2 = ObserverLocation(latitude: 45.5, longitude: -122.6, elevation: 100.0);
-      const loc3 = ObserverLocation(latitude: 46.0, longitude: -122.6, elevation: 100.0);
+      const loc1 = ObserverLocation(
+        latitude: 45.5,
+        longitude: -122.6,
+        elevation: 100.0,
+      );
+      const loc2 = ObserverLocation(
+        latitude: 45.5,
+        longitude: -122.6,
+        elevation: 100.0,
+      );
+      const loc3 = ObserverLocation(
+        latitude: 46.0,
+        longitude: -122.6,
+        elevation: 100.0,
+      );
 
       expect(loc1, equals(loc2));
       expect(loc1, isNot(equals(loc3)));
@@ -146,9 +154,7 @@ void main() {
     });
 
     test('effectiveLatitude falls back to latitude field', () {
-      const settings = AppSettings(
-        latitude: 45.5,
-      );
+      const settings = AppSettings(latitude: 45.5);
 
       expect(settings.effectiveLatitude, 45.5);
     });

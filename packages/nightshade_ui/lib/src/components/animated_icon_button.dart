@@ -64,27 +64,30 @@ class _AnimatedIconButtonState extends State<AnimatedIconButton>
     final iconColor = isDisabled
         ? colors.textMuted
         : widget.isActive
-            ? widget.hoverColor ?? colors.primary
-            : _isHovered
-                ? widget.hoverColor ?? colors.primary
-                : widget.color ?? colors.textSecondary;
+        ? widget.hoverColor ?? colors.primary
+        : _isHovered
+        ? widget.hoverColor ?? colors.primary
+        : widget.color ?? colors.textSecondary;
 
     final bgColor = widget.isActive
-        ? (widget.hoverBackgroundColor ?? colors.primary.withValues(alpha: 0.15))
+        ? (widget.hoverBackgroundColor ??
+              colors.primary.withValues(alpha: 0.15))
         : _isHovered
-            ? (widget.hoverBackgroundColor ?? colors.surfaceHover)
-            : widget.backgroundColor ?? Colors.transparent;
+        ? (widget.hoverBackgroundColor ?? colors.surfaceHover)
+        : widget.backgroundColor ?? Colors.transparent;
 
     final borderColor = widget.isActive
         ? colors.primary.withValues(alpha: 0.3)
         : _isHovered && widget.showBorder
-            ? colors.border
-            : Colors.transparent;
+        ? colors.border
+        : Colors.transparent;
 
     Widget button = MouseRegion(
       onEnter: isDisabled ? null : (_) => setState(() => _isHovered = true),
       onExit: isDisabled ? null : (_) => setState(() => _isHovered = false),
-      cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+      cursor: isDisabled
+          ? SystemMouseCursors.forbidden
+          : SystemMouseCursors.click,
       child: GestureDetector(
         onTapDown: isDisabled ? null : (_) => _pressController.forward(),
         onTapUp: isDisabled ? null : (_) => _pressController.reverse(),
@@ -101,11 +104,7 @@ class _AnimatedIconButtonState extends State<AnimatedIconButton>
               border: Border.all(color: borderColor),
               boxShadow: null,
             ),
-            child: Icon(
-              widget.icon,
-              size: widget.size,
-              color: iconColor,
-            ),
+            child: Icon(widget.icon, size: widget.size, color: iconColor),
           ),
         ),
       ),
@@ -157,9 +156,7 @@ class AnimatedIconButtonGroup extends StatelessWidget {
           final isSelected = index == selectedIndex;
 
           return Padding(
-            padding: EdgeInsets.only(
-              right: index < items.length - 1 ? 2 : 0,
-            ),
+            padding: EdgeInsets.only(right: index < items.length - 1 ? 2 : 0),
             child: AnimatedIconButton(
               icon: item.icon,
               size: iconSize,
@@ -179,10 +176,5 @@ class AnimatedIconButtonItem {
   final IconData icon;
   final String? tooltip;
 
-  const AnimatedIconButtonItem({
-    required this.icon,
-    this.tooltip,
-  });
+  const AnimatedIconButtonItem({required this.icon, this.tooltip});
 }
-
-

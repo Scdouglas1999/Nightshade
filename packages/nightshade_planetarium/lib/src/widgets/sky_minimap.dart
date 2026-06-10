@@ -37,7 +37,9 @@ class SkyMinimap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapUp: onTap != null ? (details) => _handleTap(details.localPosition) : null,
+      onTapUp: onTap != null
+          ? (details) => _handleTap(details.localPosition)
+          : null,
       child: Container(
         width: size,
         height: size,
@@ -178,7 +180,10 @@ class _SkyMinimapPainter extends CustomPainter {
         textPainter.layout();
         textPainter.paint(
           canvas,
-          Offset(pos.dx - textPainter.width / 2, pos.dy - textPainter.height / 2),
+          Offset(
+            pos.dx - textPainter.width / 2,
+            pos.dy - textPainter.height / 2,
+          ),
         );
       }
     }
@@ -261,9 +266,9 @@ class _SkyMinimapPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SkyMinimapPainter oldDelegate) {
     return azimuth != oldDelegate.azimuth ||
-           altitude != oldDelegate.altitude ||
-           fieldOfView != oldDelegate.fieldOfView ||
-           rotation != oldDelegate.rotation ||
-           showLabels != oldDelegate.showLabels;
+        altitude != oldDelegate.altitude ||
+        fieldOfView != oldDelegate.fieldOfView ||
+        rotation != oldDelegate.rotation ||
+        showLabels != oldDelegate.showLabels;
   }
 }

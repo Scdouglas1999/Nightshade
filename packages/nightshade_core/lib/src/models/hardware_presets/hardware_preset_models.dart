@@ -111,22 +111,24 @@ class TelescopePreset {
       focalLengthMm: _doubleValue(json['focalLengthMm'], 'focalLengthMm'),
       apertureMm: _doubleValue(json['apertureMm'], 'apertureMm'),
       design: OpticalDesign.fromJson(json['design']),
-      nativeFocalRatio:
-          _optionalDoubleValue(json['nativeFocalRatio'], 'nativeFocalRatio'),
+      nativeFocalRatio: _optionalDoubleValue(
+        json['nativeFocalRatio'],
+        'nativeFocalRatio',
+      ),
       isBuiltIn: _boolValue(json['isBuiltIn'], 'isBuiltIn', orElse: false),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'brand': brand,
-        'model': model,
-        'focalLengthMm': focalLengthMm,
-        'apertureMm': apertureMm,
-        'design': design.name,
-        if (nativeFocalRatio != null) 'nativeFocalRatio': nativeFocalRatio,
-        'isBuiltIn': isBuiltIn,
-      };
+    'id': id,
+    'brand': brand,
+    'model': model,
+    'focalLengthMm': focalLengthMm,
+    'apertureMm': apertureMm,
+    'design': design.name,
+    if (nativeFocalRatio != null) 'nativeFocalRatio': nativeFocalRatio,
+    'isBuiltIn': isBuiltIn,
+  };
 
   TelescopePreset copyWith({
     String? id,
@@ -168,15 +170,15 @@ class TelescopePreset {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        brand,
-        model,
-        focalLengthMm,
-        apertureMm,
-        design,
-        nativeFocalRatio,
-        isBuiltIn,
-      );
+    id,
+    brand,
+    model,
+    focalLengthMm,
+    apertureMm,
+    design,
+    nativeFocalRatio,
+    isBuiltIn,
+  );
 
   @override
   String toString() =>
@@ -255,15 +257,19 @@ class CameraDefaultsPreset {
       aliases: aliasesJson is List
           ? aliasesJson.map((value) => value.toString()).toList()
           : const [],
-      pixelSizeMicrons:
-          _doubleValue(json['pixelSizeMicrons'], 'pixelSizeMicrons'),
+      pixelSizeMicrons: _doubleValue(
+        json['pixelSizeMicrons'],
+        'pixelSizeMicrons',
+      ),
       sensorWidthPx: _intValue(json['sensorWidthPx'], 'sensorWidthPx'),
       sensorHeightPx: _intValue(json['sensorHeightPx'], 'sensorHeightPx'),
       sensorName: _stringValue(json['sensorName'], 'sensorName'),
       isColor: _boolValue(json['isColor'], 'isColor'),
       recommendedGain: _intValue(json['recommendedGain'], 'recommendedGain'),
-      recommendedOffset:
-          _intValue(json['recommendedOffset'], 'recommendedOffset'),
+      recommendedOffset: _intValue(
+        json['recommendedOffset'],
+        'recommendedOffset',
+      ),
       recommendedBinX: json.containsKey('recommendedBinX')
           ? _intValue(json['recommendedBinX'], 'recommendedBinX')
           : 1,
@@ -279,23 +285,23 @@ class CameraDefaultsPreset {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'brand': brand,
-        'model': model,
-        'aliases': aliases,
-        'pixelSizeMicrons': pixelSizeMicrons,
-        'sensorWidthPx': sensorWidthPx,
-        'sensorHeightPx': sensorHeightPx,
-        'sensorName': sensorName,
-        'isColor': isColor,
-        'recommendedGain': recommendedGain,
-        'recommendedOffset': recommendedOffset,
-        'recommendedBinX': recommendedBinX,
-        'recommendedBinY': recommendedBinY,
-        if (recommendedCoolingTempC != null)
-          'recommendedCoolingTempC': recommendedCoolingTempC,
-        'isBuiltIn': isBuiltIn,
-      };
+    'id': id,
+    'brand': brand,
+    'model': model,
+    'aliases': aliases,
+    'pixelSizeMicrons': pixelSizeMicrons,
+    'sensorWidthPx': sensorWidthPx,
+    'sensorHeightPx': sensorHeightPx,
+    'sensorName': sensorName,
+    'isColor': isColor,
+    'recommendedGain': recommendedGain,
+    'recommendedOffset': recommendedOffset,
+    'recommendedBinX': recommendedBinX,
+    'recommendedBinY': recommendedBinY,
+    if (recommendedCoolingTempC != null)
+      'recommendedCoolingTempC': recommendedCoolingTempC,
+    'isBuiltIn': isBuiltIn,
+  };
 
   CameraDefaultsPreset copyWith({
     String? id,
@@ -358,25 +364,26 @@ class CameraDefaultsPreset {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        brand,
-        model,
-        Object.hashAll(aliases),
-        pixelSizeMicrons,
-        sensorWidthPx,
-        sensorHeightPx,
-        sensorName,
-        isColor,
-        recommendedGain,
-        recommendedOffset,
-        recommendedBinX,
-        recommendedBinY,
-        recommendedCoolingTempC,
-        isBuiltIn,
-      );
+    id,
+    brand,
+    model,
+    Object.hashAll(aliases),
+    pixelSizeMicrons,
+    sensorWidthPx,
+    sensorHeightPx,
+    sensorName,
+    isColor,
+    recommendedGain,
+    recommendedOffset,
+    recommendedBinX,
+    recommendedBinY,
+    recommendedCoolingTempC,
+    isBuiltIn,
+  );
 
   @override
-  String toString() => 'CameraDefaultsPreset($displayName, $sensorName, '
+  String toString() =>
+      'CameraDefaultsPreset($displayName, $sensorName, '
       '$pixelSizeMicronsµm, ${sensorWidthPx}x$sensorHeightPx, '
       '${isColor ? 'color' : 'mono'})';
 }

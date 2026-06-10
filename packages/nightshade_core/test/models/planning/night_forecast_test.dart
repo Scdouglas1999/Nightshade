@@ -10,29 +10,27 @@ void main() {
     String name = 'M31',
     double upDarkHours = 4.0,
     double maxAlt = 65.0,
-  }) =>
-      ForecastTargetUp(
-        targetId: id,
-        targetName: name,
-        upDarkHours: upDarkHours,
-        maxAltitudeDeg: maxAlt,
-      );
+  }) => ForecastTargetUp(
+    targetId: id,
+    targetName: name,
+    upDarkHours: upDarkHours,
+    maxAltitudeDeg: maxAlt,
+  );
 
   NightForecast night({
     double darkHours = 8.0,
     double clearDarkHours = 6.0,
     double meanCloud = 0.2,
     List<ForecastTargetUp>? targets,
-  }) =>
-      NightForecast(
-        nightDateLocal: nightDate,
-        astronomicalDuskUtc: DateTime.utc(2026, 5, 31, 3),
-        astronomicalDawnUtc: DateTime.utc(2026, 5, 31, 11),
-        darkHours: darkHours,
-        clearDarkHours: clearDarkHours,
-        meanCloudCoverDuringDark: meanCloud,
-        bestTargets: targets ?? [target()],
-      );
+  }) => NightForecast(
+    nightDateLocal: nightDate,
+    astronomicalDuskUtc: DateTime.utc(2026, 5, 31, 3),
+    astronomicalDawnUtc: DateTime.utc(2026, 5, 31, 11),
+    darkHours: darkHours,
+    clearDarkHours: clearDarkHours,
+    meanCloudCoverDuringDark: meanCloud,
+    bestTargets: targets ?? [target()],
+  );
 
   group('ForecastTargetUp', () {
     test('equality and JSON round-trip shape', () {
@@ -57,18 +55,17 @@ void main() {
     });
 
     test('is 0 when no project target is up, regardless of clear sky', () {
-      final n = night(
-        darkHours: 8,
-        clearDarkHours: 8,
-        targets: const [],
-      );
+      final n = night(darkHours: 8, clearDarkHours: 8, targets: const []);
       expect(n.score, 0.0);
     });
 
-    test('equals the clear fraction of the dark window when a target is up', () {
-      final n = night(darkHours: 8, clearDarkHours: 6);
-      expect(n.score, closeTo(0.75, 1e-9));
-    });
+    test(
+      'equals the clear fraction of the dark window when a target is up',
+      () {
+        final n = night(darkHours: 8, clearDarkHours: 6);
+        expect(n.score, closeTo(0.75, 1e-9));
+      },
+    );
 
     test('rises as clearDarkHours rises (monotonic in clear time)', () {
       final low = night(darkHours: 8, clearDarkHours: 2);
@@ -109,10 +106,7 @@ void main() {
 
     test('toJson serializes timestamps as ISO-8601 UTC and includes score', () {
       final json = night(darkHours: 8, clearDarkHours: 6).toJson();
-      expect(
-        json['nightDateLocal'],
-        nightDate.toUtc().toIso8601String(),
-      );
+      expect(json['nightDateLocal'], nightDate.toUtc().toIso8601String());
       expect(
         json['astronomicalDuskUtc'],
         DateTime.utc(2026, 5, 31, 3).toIso8601String(),
@@ -127,8 +121,7 @@ void main() {
     });
 
     test('unavailable night serializes null twilight and its reason', () {
-      final json =
-          NightForecast.unavailable(nightDate, 'polar day').toJson();
+      final json = NightForecast.unavailable(nightDate, 'polar day').toJson();
       expect(json['astronomicalDuskUtc'], isNull);
       expect(json['astronomicalDawnUtc'], isNull);
       expect(json['forecastAvailable'], false);
@@ -145,26 +138,34 @@ void main() {
     });
 
     test('returns null when every night is unavailable', () {
-      final week = WeekForecast(nights: [
-        NightForecast.unavailable(nightDate, 'offline'),
-        NightForecast.unavailable(
-            nightDate.add(const Duration(days: 1)), 'offline'),
-      ]);
+      final week = WeekForecast(
+        nights: [
+          NightForecast.unavailable(nightDate, 'offline'),
+          NightForecast.unavailable(
+            nightDate.add(const Duration(days: 1)),
+            'offline',
+          ),
+        ],
+      );
       expect(week.bestNight, isNull);
     });
 
-    test('ignores unavailable nights and picks the max-score available one',
-        () {
-      final good = night(darkHours: 8, clearDarkHours: 8); // score 1.0
-      final mediocre = night(darkHours: 8, clearDarkHours: 4); // score 0.5
-      final week = WeekForecast(nights: [
-        mediocre,
-        NightForecast.unavailable(nightDate, 'offline'),
-        good,
-      ]);
-      expect(week.bestNight, same(good));
-      expect(week.bestNight!.score, 1.0);
-    });
+    test(
+      'ignores unavailable nights and picks the max-score available one',
+      () {
+        final good = night(darkHours: 8, clearDarkHours: 8); // score 1.0
+        final mediocre = night(darkHours: 8, clearDarkHours: 4); // score 0.5
+        final week = WeekForecast(
+          nights: [
+            mediocre,
+            NightForecast.unavailable(nightDate, 'offline'),
+            good,
+          ],
+        );
+        expect(week.bestNight, same(good));
+        expect(week.bestNight!.score, 1.0);
+      },
+    );
 
     test('picks max score across available nights', () {
       final a = night(darkHours: 10, clearDarkHours: 3); // 0.3
@@ -205,11 +206,15 @@ void main() {
     });
 
     test('JSON round-trip shape', () {
-      final week = WeekForecast(nights: [
-        night(darkHours: 8, clearDarkHours: 6),
-        NightForecast.unavailable(
-            nightDate.add(const Duration(days: 1)), 'offline'),
-      ]);
+      final week = WeekForecast(
+        nights: [
+          night(darkHours: 8, clearDarkHours: 6),
+          NightForecast.unavailable(
+            nightDate.add(const Duration(days: 1)),
+            'offline',
+          ),
+        ],
+      );
       final json = week.toJson();
       expect((json['nights'] as List).length, 2);
       expect(json['available'], true);

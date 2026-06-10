@@ -30,12 +30,13 @@ class MinorPlanetPositionState {
 /// Notifier that periodically recomputes minor planet positions.
 ///
 /// Updates every 30 seconds (asteroids move slowly — sub-arcsecond per second).
-class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState> {
+class MinorPlanetPositionNotifier
+    extends StateNotifier<MinorPlanetPositionState> {
   final Ref _ref;
   Timer? _timer;
 
   MinorPlanetPositionNotifier(this._ref)
-      : super(MinorPlanetPositionState(lastUpdate: DateTime.now())) {
+    : super(MinorPlanetPositionState(lastUpdate: DateTime.now())) {
     // Listen for toggle changes
     _ref.listen(showMinorPlanetsProvider, (prev, next) {
       if (next) {
@@ -43,7 +44,10 @@ class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState
       } else {
         _stopUpdates();
         if (mounted) {
-          state = MinorPlanetPositionState(bodies: const [], lastUpdate: DateTime.now());
+          state = MinorPlanetPositionState(
+            bodies: const [],
+            lastUpdate: DateTime.now(),
+          );
         }
       }
     });
@@ -89,8 +93,12 @@ class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState
         lastUpdate: DateTime.now(),
       );
     } catch (e) {
-      developer.log('[MinorPlanet] Position computation error: $e',
-          name: 'MinorPlanetProviders', level: 900, error: e);
+      developer.log(
+        '[MinorPlanet] Position computation error: $e',
+        name: 'MinorPlanetProviders',
+        level: 900,
+        error: e,
+      );
     }
   }
 
@@ -107,9 +115,12 @@ class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState
 }
 
 final minorPlanetPositionProvider =
-    StateNotifierProvider<MinorPlanetPositionNotifier, MinorPlanetPositionState>((ref) {
-  return MinorPlanetPositionNotifier(ref);
-});
+    StateNotifierProvider<
+      MinorPlanetPositionNotifier,
+      MinorPlanetPositionState
+    >((ref) {
+      return MinorPlanetPositionNotifier(ref);
+    });
 
 /// Convenience provider for just the minor body list.
 final currentMinorPlanetsProvider = Provider<List<MinorBodyData>>((ref) {

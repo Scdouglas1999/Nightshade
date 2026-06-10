@@ -50,8 +50,7 @@ void main(List<String> args) {
 
   for (final rule in rules) {
     final globRegex = _globToRegExp(rule.glob);
-    final matched =
-        allFiles.where((path) => globRegex.hasMatch(path)).toList();
+    final matched = allFiles.where((path) => globRegex.hasMatch(path)).toList();
     if (matched.isEmpty) {
       if (rule.requirePresent) {
         violations.add({
@@ -75,8 +74,7 @@ void main(List<String> args) {
         // so a corrupt or unreadable file doesn't bypass policy.
         violations.add({
           'id': rule.id,
-          'description':
-              '[READ FAILED] ${rule.description}: ${e.message}',
+          'description': '[READ FAILED] ${rule.description}: ${e.message}',
           'path': path,
           'line': null,
           'sinceVersion': rule.sinceVersion,
@@ -110,11 +108,13 @@ void main(List<String> args) {
     'violations': violations,
   };
   File(_jsonOutputPath).parent.createSync(recursive: true);
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
   File(_markdownOutputPath).parent.createSync(recursive: true);
-  File(_markdownOutputPath)
-      .writeAsStringSync(_renderMarkdown(rules, violations));
+  File(
+    _markdownOutputPath,
+  ).writeAsStringSync(_renderMarkdown(rules, violations));
 
   stdout.writeln('Fail-closed audit complete.');
   stdout.writeln('Rules: ${rules.length}');
@@ -127,13 +127,13 @@ void main(List<String> args) {
   if (assertMinFiles != null) {
     final required = int.tryParse(assertMinFiles);
     if (required == null) {
-      stderr.writeln(
-          'Invalid --min-files value: $assertMinFiles');
+      stderr.writeln('Invalid --min-files value: $assertMinFiles');
       exit(2);
     }
     if (allFiles.length < required) {
       stderr.writeln(
-          'Fail-closed check scanned ${allFiles.length} files; required >= $required');
+        'Fail-closed check scanned ${allFiles.length} files; required >= $required',
+      );
       exit(1);
     }
   }
@@ -175,7 +175,10 @@ int _lineFromOffset(String content, int offset) {
   return line;
 }
 
-String _renderMarkdown(List<_Rule> rules, List<Map<String, Object?>> violations) {
+String _renderMarkdown(
+  List<_Rule> rules,
+  List<Map<String, Object?>> violations,
+) {
   final buffer = StringBuffer()
     ..writeln('# Fail-Closed Audit')
     ..writeln()
@@ -347,8 +350,9 @@ List<_Rule> _loadRules(String path) {
 
   void flushRule() {
     if (currentFoldedKey != null && current != null) {
-      current![currentFoldedKey!] =
-          (currentFoldedValue ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+      current![currentFoldedKey!] = (currentFoldedValue ?? '')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
       currentFoldedKey = null;
       currentFoldedValue = null;
     }
@@ -381,10 +385,14 @@ List<_Rule> _loadRules(String path) {
       flushRule();
       current = <String, dynamic>{};
       final kv = trimmed.substring(2).trim();
-      _consumeKeyValue(kv, current!, onFolded: (key) {
-        currentFoldedKey = key;
-        currentFoldedValue = '';
-      });
+      _consumeKeyValue(
+        kv,
+        current!,
+        onFolded: (key) {
+          currentFoldedKey = key;
+          currentFoldedValue = '';
+        },
+      );
       continue;
     }
 
@@ -399,23 +407,27 @@ List<_Rule> _loadRules(String path) {
       // non-empty line not deeper than indent 6 (`      `) terminates the
       // folded block.
       if (indent >= 8) {
-        currentFoldedValue =
-            '${currentFoldedValue ?? ''} ${trimmed}'.trim();
+        currentFoldedValue = '${currentFoldedValue ?? ''} ${trimmed}'.trim();
         continue;
       } else {
         // Terminate folded scalar and re-process this line as a new key.
-        current![currentFoldedKey!] =
-            (currentFoldedValue ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+        current![currentFoldedKey!] = (currentFoldedValue ?? '')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
         currentFoldedKey = null;
         currentFoldedValue = null;
         // fall through
       }
     }
 
-    _consumeKeyValue(trimmed, current!, onFolded: (key) {
-      currentFoldedKey = key;
-      currentFoldedValue = '';
-    });
+    _consumeKeyValue(
+      trimmed,
+      current!,
+      onFolded: (key) {
+        currentFoldedKey = key;
+        currentFoldedValue = '';
+      },
+    );
   }
 
   flushRule();
@@ -441,7 +453,9 @@ void _consumeKeyValue(
   if (rawValue.isEmpty) {
     return;
   }
-  if (rawValue == '>-' || rawValue == '>' || rawValue == '|' ||
+  if (rawValue == '>-' ||
+      rawValue == '>' ||
+      rawValue == '|' ||
       rawValue == '|-') {
     onFolded(key);
     return;
@@ -466,15 +480,17 @@ _Rule _buildRule(String rulesPath, Map<String, dynamic> map) {
   final patternStr = (map['forbidden_pattern'] ?? '').toString();
   if (id.isEmpty || glob.isEmpty || patternStr.isEmpty) {
     stderr.writeln(
-        'Invalid rule in $rulesPath: id, glob, and forbidden_pattern are required '
-        '(got id="$id" glob="$glob" pattern="$patternStr").');
+      'Invalid rule in $rulesPath: id, glob, and forbidden_pattern are required '
+      '(got id="$id" glob="$glob" pattern="$patternStr").',
+    );
     exit(2);
   }
-  final caseSensitive =
-      _parseBool(map['case_sensitive'], defaultValue: true);
+  final caseSensitive = _parseBool(map['case_sensitive'], defaultValue: true);
   final multiLine = _parseBool(map['multi_line'], defaultValue: false);
-  final requirePresent =
-      _parseBool(map['require_present'], defaultValue: false);
+  final requirePresent = _parseBool(
+    map['require_present'],
+    defaultValue: false,
+  );
   final RegExp regex;
   try {
     regex = RegExp(
@@ -483,8 +499,7 @@ _Rule _buildRule(String rulesPath, Map<String, dynamic> map) {
       multiLine: multiLine,
     );
   } on FormatException catch (e) {
-    stderr.writeln(
-        'Invalid regex in rule "$id" ($rulesPath): ${e.message}');
+    stderr.writeln('Invalid regex in rule "$id" ($rulesPath): ${e.message}');
     exit(2);
   }
   return _Rule(

@@ -45,8 +45,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
     final colors = context.nightshadeColors;
     final idleHandleColor =
         widget.handleColor ?? colors.border.withValues(alpha: 0.35);
-    final activeHandleColor =
-        widget.handleHoverColor ?? colors.borderHighlight;
+    final activeHandleColor = widget.handleHoverColor ?? colors.borderHighlight;
 
     final handle = MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,

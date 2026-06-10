@@ -147,8 +147,9 @@ void main() {
       // contract that matters is that the panel constructs a payload
       // whose `.node` correctly mirrors the queued target.
       final container = await _pumpPanel(tester);
-      container.read(targetQueueProvider.notifier).addTarget(
-          _fakeObject('IC 1396', raHours: 21.65, decDeg: 57.5));
+      container
+          .read(targetQueueProvider.notifier)
+          .addTarget(_fakeObject('IC 1396', raHours: 21.65, decDeg: 57.5));
       await tester.pump();
 
       // Build the payload the way TargetQueuePanel does — duplicated

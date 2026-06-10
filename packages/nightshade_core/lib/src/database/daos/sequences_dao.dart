@@ -152,14 +152,16 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get node by ID
   Future<SequenceNode?> getNodeById(int id) {
-    return (select(sequenceNodes)..where((n) => n.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      sequenceNodes,
+    )..where((n) => n.id.equals(id))).getSingleOrNull();
   }
 
   /// Get node by UUID
   Future<SequenceNode?> getNodeByUuid(String nodeId) {
-    return (select(sequenceNodes)..where((n) => n.nodeId.equals(nodeId)))
-        .getSingleOrNull();
+    return (select(
+      sequenceNodes,
+    )..where((n) => n.nodeId.equals(nodeId))).getSingleOrNull();
   }
 
   /// Create a new node
@@ -199,13 +201,17 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Get children of a node
-  Future<List<SequenceNode>> getChildNodes(int sequenceId, String parentNodeId) {
+  Future<List<SequenceNode>> getChildNodes(
+    int sequenceId,
+    String parentNodeId,
+  ) {
     return (select(sequenceNodes)
-          ..where((n) =>
-              n.sequenceId.equals(sequenceId) &
-              n.parentNodeId.equals(parentNodeId))
+          ..where(
+            (n) =>
+                n.sequenceId.equals(sequenceId) &
+                n.parentNodeId.equals(parentNodeId),
+          )
           ..orderBy([(n) => OrderingTerm.asc(n.orderIndex)]))
         .get();
   }
 }
-

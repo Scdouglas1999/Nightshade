@@ -15,7 +15,9 @@ class FlatHistoryDaoManager {
   FlatHistoryDaoManager(this._db);
   $$EquipmentProfilesTableTableManager get equipmentProfiles =>
       $$EquipmentProfilesTableTableManager(
-          _db.attachedDatabase, _db.equipmentProfiles);
+        _db.attachedDatabase,
+        _db.equipmentProfiles,
+      );
   $$FlatHistoryTableTableManager get flatHistory =>
       $$FlatHistoryTableTableManager(_db.attachedDatabase, _db.flatHistory);
 }

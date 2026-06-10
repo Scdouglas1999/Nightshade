@@ -20,19 +20,19 @@ enum LiveStackingMode {
   recordAndBroadcast;
 
   String get storageKey => switch (this) {
-        LiveStackingMode.broadcastOnly => 'broadcast_only',
-        LiveStackingMode.recordAndBroadcast => 'record_and_broadcast',
-      };
+    LiveStackingMode.broadcastOnly => 'broadcast_only',
+    LiveStackingMode.recordAndBroadcast => 'record_and_broadcast',
+  };
 
   String get label => switch (this) {
-        LiveStackingMode.broadcastOnly => 'Broadcast only',
-        LiveStackingMode.recordAndBroadcast => 'Record + broadcast',
-      };
+    LiveStackingMode.broadcastOnly => 'Broadcast only',
+    LiveStackingMode.recordAndBroadcast => 'Record + broadcast',
+  };
 
   static LiveStackingMode fromStorageKey(String? key) => switch (key) {
-        'record_and_broadcast' => LiveStackingMode.recordAndBroadcast,
-        _ => LiveStackingMode.broadcastOnly,
-      };
+    'record_and_broadcast' => LiveStackingMode.recordAndBroadcast,
+    _ => LiveStackingMode.broadcastOnly,
+  };
 }
 
 /// Stack-combine method for the live stack.
@@ -45,22 +45,22 @@ enum LiveStackingMethod {
   sigma;
 
   String get storageKey => switch (this) {
-        LiveStackingMethod.average => 'average',
-        LiveStackingMethod.medianRej => 'median_rej',
-        LiveStackingMethod.sigma => 'sigma',
-      };
+    LiveStackingMethod.average => 'average',
+    LiveStackingMethod.medianRej => 'median_rej',
+    LiveStackingMethod.sigma => 'sigma',
+  };
 
   String get label => switch (this) {
-        LiveStackingMethod.average => 'Average',
-        LiveStackingMethod.medianRej => 'Median + Rejection',
-        LiveStackingMethod.sigma => 'Sigma-clipped',
-      };
+    LiveStackingMethod.average => 'Average',
+    LiveStackingMethod.medianRej => 'Median + Rejection',
+    LiveStackingMethod.sigma => 'Sigma-clipped',
+  };
 
   static LiveStackingMethod fromStorageKey(String? key) => switch (key) {
-        'median_rej' => LiveStackingMethod.medianRej,
-        'sigma' => LiveStackingMethod.sigma,
-        _ => LiveStackingMethod.average,
-      };
+    'median_rej' => LiveStackingMethod.medianRej,
+    'sigma' => LiveStackingMethod.sigma,
+    _ => LiveStackingMethod.average,
+  };
 }
 
 /// EAA / outreach broadcast node.
@@ -208,18 +208,18 @@ class LiveStackingNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        mode,
-        stackMethod,
-        maxFramesToStack,
-        broadcastEnabled,
-        broadcastPort,
-        broadcastPath,
-        authToken,
-        watermarkText,
-        thumbnailWidth,
-        thumbnailHeight,
-      ];
+    ...super.props,
+    mode,
+    stackMethod,
+    maxFramesToStack,
+    broadcastEnabled,
+    broadcastPort,
+    broadcastPath,
+    authToken,
+    watermarkText,
+    thumbnailWidth,
+    thumbnailHeight,
+  ];
 }
 
 /// Parse a duration string of the form "4h 30m", "90m", "3600s", "1.5h"

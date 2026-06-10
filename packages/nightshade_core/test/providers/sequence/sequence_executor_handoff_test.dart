@@ -29,7 +29,9 @@ Future<int> _createTarget(
   required String name,
   String? catalogId,
 }) async {
-  return db.into(db.targets).insert(
+  return db
+      .into(db.targets)
+      .insert(
         db_ent.TargetsCompanion.insert(
           name: name,
           ra: 0.7,
@@ -87,14 +89,16 @@ void main() {
 
   setUp(() async {
     backend = MockBackend();
-    when(() => backend.sequencerUpdatePendingIntegrationCarryOver(any()))
-        .thenAnswer((_) async {});
+    when(
+      () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
+    ).thenAnswer((_) async {});
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     container = ProviderContainer(
       overrides: [
         databaseProvider.overrideWithValue(db),
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(() async {
@@ -141,10 +145,14 @@ void main() {
 
       // Operator chose Resume for this target.
       container
-          .read(sessionHandoffDecisionProvider(
-            (sequenceId: null, targetId: targetId),
-          ).notifier)
-          .state = SessionHandoffDecision.resume;
+              .read(
+                sessionHandoffDecisionProvider((
+                  sequenceId: null,
+                  targetId: targetId,
+                )).notifier,
+              )
+              .state =
+          SessionHandoffDecision.resume;
 
       final executor = container.read(sequenceExecutorProvider);
       await executor.seedIntegrationCarryOverFromHandoffForTest(
@@ -152,9 +160,9 @@ void main() {
         sequence,
       );
 
-      final captured = verify(() =>
-              backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()))
-          .captured;
+      final captured = verify(
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()),
+      ).captured;
       expect(captured, hasLength(1));
       final payload = captured.single as Map<String, Map<String, double>>;
       // Single target entry keyed by the Dart TargetHeaderNode.id (the
@@ -192,10 +200,14 @@ void main() {
       );
       container.read(currentSequenceProvider.notifier).loadSequence(sequence);
       container
-          .read(sessionHandoffDecisionProvider(
-            (sequenceId: null, targetId: targetId),
-          ).notifier)
-          .state = SessionHandoffDecision.restart;
+              .read(
+                sessionHandoffDecisionProvider((
+                  sequenceId: null,
+                  targetId: targetId,
+                )).notifier,
+              )
+              .state =
+          SessionHandoffDecision.restart;
 
       final executor = container.read(sequenceExecutorProvider);
       await executor.seedIntegrationCarryOverFromHandoffForTest(
@@ -203,9 +215,9 @@ void main() {
         sequence,
       );
 
-      final captured = verify(() =>
-              backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()))
-          .captured;
+      final captured = verify(
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()),
+      ).captured;
       final payload = captured.single as Map<String, Map<String, double>>;
       // Restart writes an explicit empty inner map so the Rust side
       // zeroes any pre-existing per-target state.
@@ -214,8 +226,11 @@ void main() {
 
     test('ContinueNew omits the target from the payload', () async {
       final now = DateTime.now();
-      final targetId =
-          await _createTarget(db, name: 'NGC 7000', catalogId: 'NGC7000');
+      final targetId = await _createTarget(
+        db,
+        name: 'NGC 7000',
+        catalogId: 'NGC7000',
+      );
       final sid = await _insertSession(
         db,
         targetId: targetId,
@@ -241,10 +256,14 @@ void main() {
       );
       container.read(currentSequenceProvider.notifier).loadSequence(sequence);
       container
-          .read(sessionHandoffDecisionProvider(
-            (sequenceId: null, targetId: targetId),
-          ).notifier)
-          .state = SessionHandoffDecision.continueNew;
+              .read(
+                sessionHandoffDecisionProvider((
+                  sequenceId: null,
+                  targetId: targetId,
+                )).notifier,
+              )
+              .state =
+          SessionHandoffDecision.continueNew;
 
       final executor = container.read(sequenceExecutorProvider);
       await executor.seedIntegrationCarryOverFromHandoffForTest(
@@ -254,13 +273,17 @@ void main() {
 
       // ContinueNew → payload was empty → backend never called.
       verifyNever(
-          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
+      );
     });
 
     test('no decision recorded → backend not called', () async {
       final now = DateTime.now();
-      final targetId =
-          await _createTarget(db, name: 'IC 1396', catalogId: 'IC1396');
+      final targetId = await _createTarget(
+        db,
+        name: 'IC 1396',
+        catalogId: 'IC1396',
+      );
       final sid = await _insertSession(
         db,
         targetId: targetId,
@@ -295,7 +318,8 @@ void main() {
       );
 
       verifyNever(
-          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
+      );
     });
 
     test('no target headers → early return, no backend call', () async {
@@ -309,7 +333,8 @@ void main() {
         sequence,
       );
       verifyNever(
-          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
+      );
     });
   });
 }

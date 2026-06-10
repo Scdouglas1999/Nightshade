@@ -38,12 +38,12 @@ class SequencerStatus {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'state': state,
-        'currentNodeId': currentNodeId,
-        'currentNodeName': currentNodeName,
-        'progress': progress,
-        'message': message,
-      };
+    'state': state,
+    'currentNodeId': currentNodeId,
+    'currentNodeName': currentNodeName,
+    'progress': progress,
+    'message': message,
+  };
 
   /// Check if sequencer is running
   bool get isRunning => state == 'running';
@@ -90,8 +90,8 @@ class CheckpointInfo {
       sequenceName: json['sequenceName'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String),
       completedExposures: json['completedExposures'] as int,
-      completedIntegrationSecs:
-          (json['completedIntegrationSecs'] as num).toDouble(),
+      completedIntegrationSecs: (json['completedIntegrationSecs'] as num)
+          .toDouble(),
       canResume: json['canResume'] as bool,
       ageSeconds: json['ageSeconds'] as int,
     );
@@ -99,13 +99,13 @@ class CheckpointInfo {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'sequenceName': sequenceName,
-        'timestamp': timestamp.toIso8601String(),
-        'completedExposures': completedExposures,
-        'completedIntegrationSecs': completedIntegrationSecs,
-        'canResume': canResume,
-        'ageSeconds': ageSeconds,
-      };
+    'sequenceName': sequenceName,
+    'timestamp': timestamp.toIso8601String(),
+    'completedExposures': completedExposures,
+    'completedIntegrationSecs': completedIntegrationSecs,
+    'canResume': canResume,
+    'ageSeconds': ageSeconds,
+  };
 
   /// Get a human-readable age string
   String get ageString {

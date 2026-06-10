@@ -322,7 +322,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                               ? 'No Image'
                                               : 'No Camera Connected',
                                           style: TextStyle(
-                                            fontSize: NightshadeTypography.fontSize18,
+                                            fontSize:
+                                                NightshadeTypography.fontSize18,
                                             fontWeight: FontWeight.w600,
                                             color: colors.textSecondary,
                                           ),
@@ -334,7 +335,8 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                               : 'Connect a camera in Equipment settings',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            fontSize: NightshadeTypography.fontSize13,
+                                            fontSize:
+                                                NightshadeTypography.fontSize13,
                                             color: colors.textMuted,
                                           ),
                                         ),

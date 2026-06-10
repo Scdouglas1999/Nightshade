@@ -127,13 +127,19 @@ class AnnotationObject {
 
   /// Merge two objects (prefer OpenNGC for metadata, HyperLEDA for coordinates)
   factory AnnotationObject.merged(AnnotationObject ngc, AnnotationObject leda) {
-    final allNames = <String>{ngc.primaryName, ...ngc.alternateNames, leda.primaryName, ...leda.alternateNames};
+    final allNames = <String>{
+      ngc.primaryName,
+      ...ngc.alternateNames,
+      leda.primaryName,
+      ...leda.alternateNames,
+    };
 
     // Use Messier or NGC name as primary if available
     String primaryName = ngc.primaryName;
     if (ngc.primaryName.startsWith('M')) {
       primaryName = ngc.primaryName;
-    } else if (leda.primaryName.startsWith('NGC') || leda.primaryName.startsWith('IC')) {
+    } else if (leda.primaryName.startsWith('NGC') ||
+        leda.primaryName.startsWith('IC')) {
       primaryName = leda.primaryName;
     }
     allNames.remove(primaryName);
@@ -267,9 +273,9 @@ class AnnotationCatalog {
     OpenNgcCatalogLoader? ngcLoader,
     HyperLedaCatalogLoader? ledaLoader,
     GladePlusCatalogLoader? gladeLoader,
-  })  : _ngcLoader = ngcLoader,
-        _ledaLoader = ledaLoader,
-        _gladeLoader = gladeLoader;
+  }) : _ngcLoader = ngcLoader,
+       _ledaLoader = ledaLoader,
+       _gladeLoader = gladeLoader;
 
   /// Check if catalog is available
   bool get isAvailable =>
@@ -292,12 +298,13 @@ class AnnotationCatalog {
     // Load OpenNGC first (higher priority for bright objects)
     if (_ngcLoader != null) {
       try {
-        final ngcData = await _ngcLoader!.loadAll();
+        final ngcData = await _ngcLoader.loadAll();
         for (final dso in ngcData) {
           final obj = AnnotationObject.fromOpenNgc(dso);
           objects.add(obj);
           // Index by position for deduplication
-          final posKey = '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
+          final posKey =
+              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
           ngcByPosition[posKey] = obj;
         }
       } catch (e) {
@@ -308,12 +315,13 @@ class AnnotationCatalog {
     // Load HyperLEDA and merge/add
     if (_ledaLoader != null) {
       try {
-        final ledaData = await _ledaLoader!.loadAll();
+        final ledaData = await _ledaLoader.loadAll();
         for (final galaxy in ledaData) {
           final obj = AnnotationObject.fromHyperLeda(galaxy);
 
           // Check for duplicate (within 0.02 degrees ≈ 1.2 arcmin)
-          final posKey = '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
+          final posKey =
+              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
           final existing = ngcByPosition[posKey];
 
           if (existing != null) {
@@ -338,11 +346,12 @@ class AnnotationCatalog {
     // Load GLADE+ and merge/add
     if (_gladeLoader != null) {
       try {
-        final gladeData = await _gladeLoader!.loadAll();
+        final gladeData = await _gladeLoader.loadAll();
         for (final galaxy in gladeData) {
           final obj = AnnotationObject.fromGladePlus(galaxy);
 
-          final posKey = '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
+          final posKey =
+              '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
           final existing = ngcByPosition[posKey];
 
           if (existing != null) {

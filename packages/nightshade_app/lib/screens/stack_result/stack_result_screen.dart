@@ -490,8 +490,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           isExpanded: true,
           value: _stretch.name,
           items: StackViewerStretch.values.map((s) => s.name).toList(),
-          itemLabels:
-              StackViewerStretch.values.map(_stretchLabel).toList(),
+          itemLabels: StackViewerStretch.values.map(_stretchLabel).toList(),
           onChanged: canRestretch
               ? (name) {
                   if (name == null) return;
@@ -676,7 +675,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     final (extension, allowed, title) = switch (format) {
       ShareExportFormat.png => ('png', ['png'], 'Export PNG'),
       ShareExportFormat.jpeg => ('jpg', ['jpg', 'jpeg'], 'Export JPEG'),
-      ShareExportFormat.shareCard => ('png', ['png', 'jpg', 'jpeg'], 'Export Share Card'),
+      ShareExportFormat.shareCard => (
+          'png',
+          ['png', 'jpg', 'jpeg'],
+          'Export Share Card'
+        ),
     };
 
     final outputPath = await picker(

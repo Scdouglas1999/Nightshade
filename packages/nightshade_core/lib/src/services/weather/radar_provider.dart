@@ -111,17 +111,17 @@ class GeoBounds {
 
   /// Creates a global coverage bounds (entire world).
   const GeoBounds.global()
-      : north = 90.0,
-        south = -90.0,
-        east = 180.0,
-        west = -180.0;
+    : north = 90.0,
+      south = -90.0,
+      east = 180.0,
+      west = -180.0;
 
   /// Creates bounds for the contiguous United States.
   const GeoBounds.conus()
-      : north = 50.0,
-        south = 24.0,
-        east = -66.0,
-        west = -125.0;
+    : north = 50.0,
+      south = 24.0,
+      east = -66.0,
+      west = -125.0;
 }
 
 /// Abstract base class for radar data providers.

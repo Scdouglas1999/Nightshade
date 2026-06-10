@@ -151,26 +151,36 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
       advancedModeEnabled: _parseBool(settings[_keys['advancedMode']], false),
       overlayEnabled: _parseBool(settings[_keys['overlay']], true),
       photometryEnabled: _parseBool(settings[_keys['photometry']], true),
-      photometricCalibrationEnabled:
-          _parseBool(settings[_keys['photometricCalibration']], true),
+      photometricCalibrationEnabled: _parseBool(
+        settings[_keys['photometricCalibration']],
+        true,
+      ),
       transparencyEnabled: _parseBool(settings[_keys['transparency']], true),
       psfMapEnabled: _parseBool(settings[_keys['psfMap']], true),
-      astrometricResidualsEnabled:
-          _parseBool(settings[_keys['astrometricResiduals']], true),
+      astrometricResidualsEnabled: _parseBool(
+        settings[_keys['astrometricResiduals']],
+        true,
+      ),
       movingObjectsEnabled: _parseBool(settings[_keys['movingObjects']], false),
-      narrowbandRatiosEnabled:
-          _parseBool(settings[_keys['narrowbandRatios']], false),
-      frameQualityMapsEnabled:
-          _parseBool(settings[_keys['frameQualityMaps']], true),
+      narrowbandRatiosEnabled: _parseBool(
+        settings[_keys['narrowbandRatios']],
+        false,
+      ),
+      frameQualityMapsEnabled: _parseBool(
+        settings[_keys['frameQualityMaps']],
+        true,
+      ),
       surface3dEnabled: _parseBool(settings[_keys['surface3d']], true),
       manualPurgeOnly: _parseBool(settings[_keys['manualPurgeOnly']], true),
-      fitsHeaderWritebackEnabled:
-          _parseBool(settings[_keys['fitsHeaderWriteback']], true),
+      fitsHeaderWritebackEnabled: _parseBool(
+        settings[_keys['fitsHeaderWriteback']],
+        true,
+      ),
       mpcObservatoryCode: settings[_keys['mpcObservatoryCode']] ?? '',
       aavsoObserverCode: settings[_keys['aavsoObserverCode']] ?? '',
       autoFrameGradingEnabled:
           _parseBool(settings[_keys['autoFrameGrading']], false) ||
-              _parseBool(settings['image_grading_enabled'], false),
+          _parseBool(settings['image_grading_enabled'], false),
       frameGradeRulesJson: settings[_keys['frameGradeRules']],
     );
   }
@@ -185,96 +195,144 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
 
   Future<void> setAdvancedModeEnabled(bool enabled) async {
     await _setSetting(_keys['advancedMode']!, enabled);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(advancedModeEnabled: enabled));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        advancedModeEnabled: enabled,
+      ),
+    );
   }
 
   Future<void> setOverlayEnabled(bool enabled) async {
     await _setSetting(_keys['overlay']!, enabled);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(overlayEnabled: enabled));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        overlayEnabled: enabled,
+      ),
+    );
   }
 
   Future<void> setFeatureEnabled(ScienceFeature feature, bool enabled) async {
     switch (feature) {
       case ScienceFeature.photometry:
         await _setSetting(_keys['photometry']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(photometryEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            photometryEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.photometricCalibration:
         await _setSetting(_keys['photometricCalibration']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(photometricCalibrationEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            photometricCalibrationEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.transparency:
         await _setSetting(_keys['transparency']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(transparencyEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            transparencyEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.psfMap:
         await _setSetting(_keys['psfMap']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(psfMapEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            psfMapEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.astrometricResiduals:
         await _setSetting(_keys['astrometricResiduals']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(astrometricResidualsEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            astrometricResidualsEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.movingObjects:
         await _setSetting(_keys['movingObjects']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(movingObjectsEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            movingObjectsEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.narrowbandRatios:
         await _setSetting(_keys['narrowbandRatios']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(narrowbandRatiosEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            narrowbandRatiosEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.frameQualityMaps:
         await _setSetting(_keys['frameQualityMaps']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(frameQualityMapsEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            frameQualityMapsEnabled: enabled,
+          ),
+        );
         break;
       case ScienceFeature.surface3d:
         await _setSetting(_keys['surface3d']!, enabled);
-        state = AsyncData((state.value ?? const ScienceSettings())
-            .copyWith(surface3dEnabled: enabled));
+        state = AsyncData(
+          (state.value ?? const ScienceSettings()).copyWith(
+            surface3dEnabled: enabled,
+          ),
+        );
         break;
     }
   }
 
   Future<void> setMpcObservatoryCode(String code) async {
     await _setStringSetting(_keys['mpcObservatoryCode']!, code);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(mpcObservatoryCode: code));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        mpcObservatoryCode: code,
+      ),
+    );
   }
 
   Future<void> setAavsoObserverCode(String code) async {
     await _setStringSetting(_keys['aavsoObserverCode']!, code);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(aavsoObserverCode: code));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        aavsoObserverCode: code,
+      ),
+    );
   }
 
   Future<void> setFitsHeaderWritebackEnabled(bool enabled) async {
     await _setSetting(_keys['fitsHeaderWriteback']!, enabled);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(fitsHeaderWritebackEnabled: enabled));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        fitsHeaderWritebackEnabled: enabled,
+      ),
+    );
   }
 
   Future<void> setAutoFrameGradingEnabled(bool enabled) async {
     await _setSetting(_keys['autoFrameGrading']!, enabled);
     await ref.read(appSettingsProvider.notifier).setEnableImageGrading(enabled);
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(autoFrameGradingEnabled: enabled));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        autoFrameGradingEnabled: enabled,
+      ),
+    );
   }
 
   Future<void> setFrameGradeRules(FrameGradeRules rules) async {
     final json = rules.isEmpty ? '' : rules.toJsonString();
     await _writeScienceSettings(ref, {_keys['frameGradeRules']!: json});
-    state = AsyncData((state.value ?? const ScienceSettings())
-        .copyWith(frameGradeRulesJson: json.isEmpty ? null : json));
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        frameGradeRulesJson: json.isEmpty ? null : json,
+      ),
+    );
   }
 
   bool _parseBool(String? value, bool fallback) {
@@ -287,5 +345,5 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
 
 final scienceSettingsProvider =
     AsyncNotifierProvider<ScienceSettingsNotifier, ScienceSettings>(
-  ScienceSettingsNotifier.new,
-);
+      ScienceSettingsNotifier.new,
+    );

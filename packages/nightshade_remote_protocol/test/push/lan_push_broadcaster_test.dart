@@ -16,7 +16,8 @@ void main() {
         id: '12345678-90ab-cdef-1234-567890abcdef',
         severity: severity,
         title: 'Weather Unsafe',
-        body: 'Safety monitor reports unsafe conditions. The mount may '
+        body:
+            'Safety monitor reports unsafe conditions. The mount may '
             'be parked to protect equipment.',
         data: const {'eventType': 'WeatherUnsafe', 'category': 'safety'},
         timestamp: DateTime.utc(2026, 5, 24, 1, 30, 0),
@@ -84,19 +85,35 @@ void main() {
     });
 
     test('decode rejects a non-NSPP datagram', () {
-      final junk = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]
-          .followedBy(List<int>.filled(kLanPushHeaderBytes, 0))
-          .toList());
+      final junk = Uint8List.fromList(
+        [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+        ].followedBy(List<int>.filled(kLanPushHeaderBytes, 0)).toList(),
+      );
       final result = decodePushFrame(junk, hmacKey: hmacKey);
       expect(result.isOk, isFalse);
       // Either bad magic (if header is at the right offset) or truncated.
-      expect(result.failure,
-          anyOf(LanPushDecodeFailure.badMagic, LanPushDecodeFailure.truncatedHeader));
+      expect(
+        result.failure,
+        anyOf(
+          LanPushDecodeFailure.badMagic,
+          LanPushDecodeFailure.truncatedHeader,
+        ),
+      );
     });
 
     test('decode rejects a truncated header', () {
-      final result = decodePushFrame(Uint8List.fromList([1, 2, 3]),
-          hmacKey: hmacKey);
+      final result = decodePushFrame(
+        Uint8List.fromList([1, 2, 3]),
+        hmacKey: hmacKey,
+      );
       expect(result.isOk, isFalse);
       expect(result.failure, LanPushDecodeFailure.truncatedHeader);
     });
@@ -154,27 +171,31 @@ void main() {
       expect(sink.sends[0].bytes, sink.sends[1].bytes);
     });
 
-    test('drops a frame below the severity floor (critical-only default)',
-        () async {
-      final sink = _RecordingSink();
-      final broadcaster = LanPushBroadcaster(
-        serverFingerprint: fingerprint,
-        overrideSink: sink,
-      );
-      await broadcaster.start();
+    test(
+      'drops a frame below the severity floor (critical-only default)',
+      () async {
+        final sink = _RecordingSink();
+        final broadcaster = LanPushBroadcaster(
+          serverFingerprint: fingerprint,
+          overrideSink: sink,
+        );
+        await broadcaster.start();
 
-      await broadcaster.sendCriticalPush(PushNotificationFrame(
-        id: 'frame-info',
-        severity: 'info',
-        title: 'Sequence Started',
-        body: 'Sequence is now running.',
-        data: const {},
-        timestamp: DateTime.utc(2026, 5, 24),
-        serverFingerprint: fingerprint,
-      ));
-      await broadcaster.stop();
-      expect(sink.sends, isEmpty);
-    });
+        await broadcaster.sendCriticalPush(
+          PushNotificationFrame(
+            id: 'frame-info',
+            severity: 'info',
+            title: 'Sequence Started',
+            body: 'Sequence is now running.',
+            data: const {},
+            timestamp: DateTime.utc(2026, 5, 24),
+            serverFingerprint: fingerprint,
+          ),
+        );
+        await broadcaster.stop();
+        expect(sink.sends, isEmpty);
+      },
+    );
 
     test('warning filter admits warning AND critical', () async {
       final sink = _RecordingSink();
@@ -184,58 +205,66 @@ void main() {
         severityFilter: LanPushSeverityFilter.warning,
       );
       await broadcaster.start();
-      await broadcaster.sendCriticalPush(PushNotificationFrame(
-        id: 'warn-1',
-        severity: 'warning',
-        title: 'Autofocus Failed',
-        body: '',
-        data: const {},
-        timestamp: DateTime.utc(2026, 5, 24),
-        serverFingerprint: fingerprint,
-      ));
-      await broadcaster.sendCriticalPush(PushNotificationFrame(
-        id: 'crit-1',
-        severity: 'critical',
-        title: 'Weather Unsafe',
-        body: '',
-        data: const {},
-        timestamp: DateTime.utc(2026, 5, 24),
-        serverFingerprint: fingerprint,
-      ));
+      await broadcaster.sendCriticalPush(
+        PushNotificationFrame(
+          id: 'warn-1',
+          severity: 'warning',
+          title: 'Autofocus Failed',
+          body: '',
+          data: const {},
+          timestamp: DateTime.utc(2026, 5, 24),
+          serverFingerprint: fingerprint,
+        ),
+      );
+      await broadcaster.sendCriticalPush(
+        PushNotificationFrame(
+          id: 'crit-1',
+          severity: 'critical',
+          title: 'Weather Unsafe',
+          body: '',
+          data: const {},
+          timestamp: DateTime.utc(2026, 5, 24),
+          serverFingerprint: fingerprint,
+        ),
+      );
       await broadcaster.stop();
       // 2 frames * 2 addresses = 4 sends.
       expect(sink.sends, hasLength(4));
     });
 
-    test('stamps the broadcaster fingerprint over a stale frame value',
-        () async {
-      final sink = _RecordingSink();
-      final broadcaster = LanPushBroadcaster(
-        serverFingerprint: fingerprint,
-        overrideSink: sink,
-      );
-      await broadcaster.start();
-      // Frame claims a different fingerprint — broadcaster should
-      // overwrite with its own.
-      await broadcaster.sendCriticalPush(PushNotificationFrame(
-        id: 'stamp-test',
-        severity: 'critical',
-        title: 'A',
-        body: 'B',
-        data: const {},
-        timestamp: DateTime.utc(2026, 5, 24),
-        serverFingerprint: 'wrong-fingerprint-value',
-      ));
-      await broadcaster.stop();
+    test(
+      'stamps the broadcaster fingerprint over a stale frame value',
+      () async {
+        final sink = _RecordingSink();
+        final broadcaster = LanPushBroadcaster(
+          serverFingerprint: fingerprint,
+          overrideSink: sink,
+        );
+        await broadcaster.start();
+        // Frame claims a different fingerprint — broadcaster should
+        // overwrite with its own.
+        await broadcaster.sendCriticalPush(
+          PushNotificationFrame(
+            id: 'stamp-test',
+            severity: 'critical',
+            title: 'A',
+            body: 'B',
+            data: const {},
+            timestamp: DateTime.utc(2026, 5, 24),
+            serverFingerprint: 'wrong-fingerprint-value',
+          ),
+        );
+        await broadcaster.stop();
 
-      expect(sink.sends, isNotEmpty);
-      final decoded = decodePushFrame(
-        Uint8List.fromList(sink.sends.first.bytes),
-        hmacKey: derivePushHmacKey(fingerprint),
-      );
-      expect(decoded.isOk, isTrue);
-      expect(decoded.frame!.serverFingerprint, fingerprint);
-    });
+        expect(sink.sends, isNotEmpty);
+        final decoded = decodePushFrame(
+          Uint8List.fromList(sink.sends.first.bytes),
+          hmacKey: derivePushHmacKey(fingerprint),
+        );
+        expect(decoded.isOk, isTrue);
+        expect(decoded.frame!.serverFingerprint, fingerprint);
+      },
+    );
 
     test('isStarted/isActive transitions are correct', () async {
       final sink = _RecordingSink();
@@ -258,8 +287,7 @@ void main() {
   });
 
   group('LanPushBroadcaster ↔ socket pair (real UDP loopback)', () {
-    test('broadcaster + receiver-side decode of 10 frames in order',
-        () async {
+    test('broadcaster + receiver-side decode of 10 frames in order', () async {
       // The TWO independent UDP sockets bound on the same OS with
       // distinct fingerprints simulate a desktop-and-phone pair. We
       // can't easily run a full LanPushNotificationReceiver here because
@@ -318,11 +346,7 @@ void main() {
             serverFingerprint: fp,
           );
           final bytes = encodePushFrame(frame, hmacKey: hmacKey);
-          senderSocket.send(
-            bytes,
-            InternetAddress.loopbackIPv4,
-            loopbackPort,
-          );
+          senderSocket.send(bytes, InternetAddress.loopbackIPv4, loopbackPort);
         }
 
         await completer.future.timeout(const Duration(seconds: 3));
@@ -337,8 +361,7 @@ void main() {
       }
     });
 
-    test('two broadcasters on different ports do not cross-talk',
-        () async {
+    test('two broadcasters on different ports do not cross-talk', () async {
       // Two RawDatagramSockets on distinct ephemeral ports. We send to
       // port A, listen on port B, and assert nothing arrives on B.
       final senderSocketA = await RawDatagramSocket.bind(
@@ -395,8 +418,11 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       try {
-        expect(bArrivals, 0,
-            reason: 'Receiver on the OTHER port saw a frame — cross-talk');
+        expect(
+          bArrivals,
+          0,
+          reason: 'Receiver on the OTHER port saw a frame — cross-talk',
+        );
         expect(aArrivals, greaterThanOrEqualTo(1));
       } finally {
         senderSocketA.close();
@@ -407,50 +433,54 @@ void main() {
   });
 
   group('Real-interface bind failure handling', () {
-    test('bind failure logs a warning and leaves the broadcaster inactive',
-        () async {
-      // Bind the broadcaster against a port that does NOT exist (a
-      // negative value). RawDatagramSocket.bind would throw — but our
-      // broadcaster catches per-interface and continues. With every
-      // interface failing, isActive must end up false.
-      //
-      // We use an override sink that throws on send to simulate a hard
-      // failure WITHOUT going through real OS socket binding (which is
-      // platform-dependent in CI). isActive should still be true after
-      // start (the override sink itself is healthy), but the per-send
-      // throw must not crash the broadcaster.
-      final sink = _ThrowingSink();
-      var warnings = 0;
-      final broadcaster = LanPushBroadcaster(
-        serverFingerprint: 'cafe' * 16,
-        overrideSink: sink,
-        logger: (level, message, {fields}) {
-          if (level == LanPushLogLevel.warning) warnings++;
-        },
-      );
-      await broadcaster.start();
-      // Should not throw even though the sink throws — fan-out continues
-      // through whatever other sinks exist.
-      await expectLater(
-        () => broadcaster.sendCriticalPush(PushNotificationFrame(
-          id: 'x',
-          severity: 'critical',
-          title: 't',
-          body: 'b',
-          data: const {},
-          timestamp: DateTime.utc(2026, 5, 24),
+    test(
+      'bind failure logs a warning and leaves the broadcaster inactive',
+      () async {
+        // Bind the broadcaster against a port that does NOT exist (a
+        // negative value). RawDatagramSocket.bind would throw — but our
+        // broadcaster catches per-interface and continues. With every
+        // interface failing, isActive must end up false.
+        //
+        // We use an override sink that throws on send to simulate a hard
+        // failure WITHOUT going through real OS socket binding (which is
+        // platform-dependent in CI). isActive should still be true after
+        // start (the override sink itself is healthy), but the per-send
+        // throw must not crash the broadcaster.
+        final sink = _ThrowingSink();
+        var warnings = 0;
+        final broadcaster = LanPushBroadcaster(
           serverFingerprint: 'cafe' * 16,
-        )),
-        returnsNormally,
-      );
-      await broadcaster.stop();
-      // The throwing sink should have been called even though it errors.
-      expect(sink.sendAttempts, greaterThan(0));
-      // Warning count from the throw isn't directly exposed (sink
-      // internals are abstracted); just ensure the broadcaster's
-      // overall logger stayed quiet about catastrophic failures.
-      expect(warnings, lessThan(100));
-    });
+          overrideSink: sink,
+          logger: (level, message, {fields}) {
+            if (level == LanPushLogLevel.warning) warnings++;
+          },
+        );
+        await broadcaster.start();
+        // Should not throw even though the sink throws — fan-out continues
+        // through whatever other sinks exist.
+        await expectLater(
+          () => broadcaster.sendCriticalPush(
+            PushNotificationFrame(
+              id: 'x',
+              severity: 'critical',
+              title: 't',
+              body: 'b',
+              data: const {},
+              timestamp: DateTime.utc(2026, 5, 24),
+              serverFingerprint: 'cafe' * 16,
+            ),
+          ),
+          returnsNormally,
+        );
+        await broadcaster.stop();
+        // The throwing sink should have been called even though it errors.
+        expect(sink.sendAttempts, greaterThan(0));
+        // Warning count from the throw isn't directly exposed (sink
+        // internals are abstracted); just ensure the broadcaster's
+        // overall logger stayed quiet about catastrophic failures.
+        expect(warnings, lessThan(100));
+      },
+    );
   });
 }
 

@@ -56,9 +56,10 @@ import 'system_prompt_builder.dart';
 /// shows the "Configure an AI provider in Settings" empty state.
 class ConversationalBuilderUnconfigured implements Exception {
   final String message;
-  const ConversationalBuilderUnconfigured(
-      [this.message =
-          'No AI provider configured. Open Settings → AI Assistant to set one up.']);
+  const ConversationalBuilderUnconfigured([
+    this.message =
+        'No AI provider configured. Open Settings → AI Assistant to set one up.',
+  ]);
   @override
   String toString() => 'ConversationalBuilderUnconfigured: $message';
 }
@@ -213,8 +214,7 @@ class ConversationalBuilderOptions {
     bool? useSchedulerForMultiTarget,
   }) {
     return ConversationalBuilderOptions(
-      restrictToCandidates:
-          restrictToCandidates ?? this.restrictToCandidates,
+      restrictToCandidates: restrictToCandidates ?? this.restrictToCandidates,
       maxSessionHours: maxSessionHours ?? this.maxSessionHours,
       includeFlatsAtEnd: includeFlatsAtEnd ?? this.includeFlatsAtEnd,
       useSchedulerForMultiTarget:
@@ -273,9 +273,7 @@ class ConversationalBuilderService {
       throw const ConversationalBuilderUnconfigured();
     }
     if (userPrompt.trim().isEmpty) {
-      throw const ConversationalBuilderException(
-        'User prompt is empty.',
-      );
+      throw const ConversationalBuilderException('User prompt is empty.');
     }
 
     final systemPrompt = promptBuilder.build(context);
@@ -364,8 +362,9 @@ class ConversationalBuilderService {
         bestIssues = issues;
       }
 
-      final hasErrors =
-          issues.any((i) => i.severity == ValidationSeverity.error);
+      final hasErrors = issues.any(
+        (i) => i.severity == ValidationSeverity.error,
+      );
       if (!hasErrors) {
         // Success — return immediately.
         return ConversationalBuildResult(
@@ -432,9 +431,11 @@ class ConversationalBuilderService {
     required String originalUserPrompt,
   }) {
     final issuesBlock = issues
-        .map((i) =>
-            '- [${i.severity.name.toUpperCase()}] ${i.title}: ${i.description}'
-            '${i.resolutionHint != null ? '\n  Resolution hint: ${i.resolutionHint}' : ''}')
+        .map(
+          (i) =>
+              '- [${i.severity.name.toUpperCase()}] ${i.title}: ${i.description}'
+              '${i.resolutionHint != null ? '\n  Resolution hint: ${i.resolutionHint}' : ''}',
+        )
         .join('\n');
     return [
       'Your previous reply (verbatim) was:',
@@ -560,37 +561,37 @@ Map<String, dynamic> _nodeOutline(SequenceNode node) {
   // would refer to in a "use 300s subs instead of 180s" amendment.
   final extras = switch (node) {
     ExposureNode() => <String, dynamic>{
-        'durationSecs': node.durationSecs,
-        'count': node.count,
-        'filter': node.filter,
-        'frameType': node.frameType.name,
-        'gain': node.gain,
-        'offset': node.offset,
-      },
+      'durationSecs': node.durationSecs,
+      'count': node.count,
+      'filter': node.filter,
+      'frameType': node.frameType.name,
+      'gain': node.gain,
+      'offset': node.offset,
+    },
     SmartExposureNode() => <String, dynamic>{
-        'plans': node.plans
-            .map((p) => {
-                  'filterName': p.filterName,
-                  'count': p.count,
-                  'durationSecs': p.durationSecs,
-                  'ditherEvery': p.ditherEvery,
-                })
-            .toList(growable: false),
-        'rotateFilters': node.rotateFilters,
-        'integrationBudgetSecs': node.integrationBudgetSecs,
-      },
+      'plans': node.plans
+          .map(
+            (p) => {
+              'filterName': p.filterName,
+              'count': p.count,
+              'durationSecs': p.durationSecs,
+              'ditherEvery': p.ditherEvery,
+            },
+          )
+          .toList(growable: false),
+      'rotateFilters': node.rotateFilters,
+      'integrationBudgetSecs': node.integrationBudgetSecs,
+    },
     TargetHeaderNode() => <String, dynamic>{
-        'targetName': node.targetName,
-        'raHours': node.raHours,
-        'decDegrees': node.decDegrees,
-        'minAltitude': node.minAltitude,
-      },
+      'targetName': node.targetName,
+      'raHours': node.raHours,
+      'decDegrees': node.decDegrees,
+      'minAltitude': node.minAltitude,
+    },
     AutofocusNode() => <String, dynamic>{
-        'useSettingsDefaults': node.useSettingsDefaults,
-      },
-    CoolCameraNode() => <String, dynamic>{
-        'targetTemp': node.targetTemp,
-      },
+      'useSettingsDefaults': node.useSettingsDefaults,
+    },
+    CoolCameraNode() => <String, dynamic>{'targetTemp': node.targetTemp},
     _ => const <String, dynamic>{},
   };
   base.addAll(extras);

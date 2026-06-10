@@ -22,7 +22,9 @@ extension _PhotometricWizardFrameSelection
           'Choose a frame captured in a field with known standard stars '
           '(e.g., Landolt fields, Stetson standards). The frame must be '
           'plate-solved so star positions can be matched to catalog entries.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12),
         ),
         const SizedBox(height: 16),
         Row(
@@ -32,15 +34,20 @@ extension _PhotometricWizardFrameSelection
             SizedBox(
               width: 120,
               child: TextField(
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize13),
                 decoration: InputDecoration(
                   hintText: 'e.g., V, B, R',
-                  hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
+                  hintStyle: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize13),
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                 ),
@@ -57,13 +64,16 @@ extension _PhotometricWizardFrameSelection
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border.withValues(alpha: 0.3)),
             ),
             child: Text(
               'No imaging sessions found. Capture frames with a standard '
               'star field first.',
-              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+              style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ),
       ],
@@ -89,7 +99,8 @@ extension _PhotometricWizardFrameSelection
                   width: 140,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                 ),
               ),
@@ -110,7 +121,9 @@ extension _PhotometricWizardFrameSelection
         if (solvedImages.isEmpty) {
           return Text(
             'No plate-solved light frames found in the latest session.',
-            style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+            style: TextStyle(
+                color: colors.textMuted,
+                fontSize: NightshadeTypography.fontSize12),
           );
         }
 
@@ -142,7 +155,9 @@ extension _PhotometricWizardFrameSelection
                   'Stars: ${img.starCount ?? "?"} | '
                   'RA: ${img.solvedRa?.toStringAsFixed(4) ?? "?"} '
                   'Dec: ${img.solvedDec?.toStringAsFixed(4) ?? "?"}',
-                  style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                  style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11),
                 ),
                 leading: Icon(
                   isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
@@ -150,7 +165,8 @@ extension _PhotometricWizardFrameSelection
                   size: 18,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 onTap: () {
                   _update(() {

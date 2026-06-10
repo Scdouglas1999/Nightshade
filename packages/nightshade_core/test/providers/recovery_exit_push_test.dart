@@ -150,14 +150,19 @@ void main() {
         RecoveryEventEnvelope(
           kind: kind,
           context: _status(cause, attemptCount: attemptCount),
-          abortedByUser: kind == RecoveryEventKind.gaveUp ? abortedByUser : null,
+          abortedByUser: kind == RecoveryEventKind.gaveUp
+              ? abortedByUser
+              : null,
         ),
       );
       // Let the ref.listen microtask + the stream event flush.
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
-      expect(mock.delivered, isNotEmpty,
-          reason: 'exit event should produce a delivered frame');
+      expect(
+        mock.delivered,
+        isNotEmpty,
+        reason: 'exit event should produce a delivered frame',
+      );
       return mock.delivered.last;
     }
 
@@ -170,8 +175,10 @@ void main() {
       expect(frame.severity, 'critical');
       expect(frame.severityCode, kLanPushSeverityCritical);
       expect(frame.title, 'Recovered - Guide star lost');
-      expect(frame.body,
-          'Guide star lost -> re-acquired after 2 attempts, imaging resumed.');
+      expect(
+        frame.body,
+        'Guide star lost -> re-acquired after 2 attempts, imaging resumed.',
+      );
       expect(frame.data['eventType'], 'recovery_recovered_guide_star_lost');
     });
 
@@ -183,9 +190,14 @@ void main() {
       );
       expect(frame.severity, 'critical');
       expect(frame.title, 'Recovered - Critical focus drift');
-      expect(frame.body,
-          'Critical focus drift -> re-acquired after 1 attempt, imaging resumed.');
-      expect(frame.data['eventType'], 'recovery_recovered_focus_drift_critical');
+      expect(
+        frame.body,
+        'Critical focus drift -> re-acquired after 1 attempt, imaging resumed.',
+      );
+      expect(
+        frame.data['eventType'],
+        'recovery_recovered_focus_drift_critical',
+      );
     });
 
     test('weather-abort gave up -> critical "gave up" frame', () async {
@@ -196,8 +208,10 @@ void main() {
       );
       expect(frame.severity, 'critical');
       expect(frame.title, 'Recovery failed - Weather unsafe');
-      expect(frame.body,
-          'Weather unsafe -> gave up after 3 attempts; sequence stopped, mount safe.');
+      expect(
+        frame.body,
+        'Weather unsafe -> gave up after 3 attempts; sequence stopped, mount safe.',
+      );
       expect(frame.data['eventType'], 'recovery_gave_up_weather_unsafe');
     });
 
@@ -209,8 +223,10 @@ void main() {
       );
       expect(frame.severity, 'critical');
       expect(frame.title, 'Recovery failed - Device disconnected');
-      expect(frame.body,
-          'Device disconnected -> gave up after 5 attempts; sequence stopped, mount safe.');
+      expect(
+        frame.body,
+        'Device disconnected -> gave up after 5 attempts; sequence stopped, mount safe.',
+      );
       expect(frame.data['eventType'], 'recovery_gave_up_device_disconnected');
     });
 
@@ -223,51 +239,58 @@ void main() {
       );
       expect(frame.severity, 'critical');
       expect(frame.title, 'Recovery aborted - Guide star lost');
-      expect(frame.body,
-          'Guide star lost -> recovery aborted by operator after 2 attempts.');
+      expect(
+        frame.body,
+        'Guide star lost -> recovery aborted by operator after 2 attempts.',
+      );
       expect(frame.data['eventType'], 'recovery_gave_up_guide_star_lost');
     });
 
-    test('push respects the pushCriticalAlerts gate (off => no frame)',
-        () async {
-      // Rebuild with the gate disabled.
-      await sub.cancel();
-      container.dispose();
-      mock = _RecordingDelivery();
-      pushes = <PushNotification>[];
-      container = ProviderContainer(
-        overrides: [
-          appSettingsProvider.overrideWith(
-            () => _FakeAppSettingsNotifier(
-              const AppSettingsState(pushCriticalAlerts: false),
+    test(
+      'push respects the pushCriticalAlerts gate (off => no frame)',
+      () async {
+        // Rebuild with the gate disabled.
+        await sub.cancel();
+        container.dispose();
+        mock = _RecordingDelivery();
+        pushes = <PushNotification>[];
+        container = ProviderContainer(
+          overrides: [
+            appSettingsProvider.overrideWith(
+              () => _FakeAppSettingsNotifier(
+                const AppSettingsState(pushCriticalAlerts: false),
+              ),
             ),
+          ],
+        );
+        // Resolve settings so the gate (disabled here) is actually consulted —
+        // proving suppression, not just an unresolved-future no-op.
+        await container.read(appSettingsProvider.future);
+        container.read(recoveryPushBridgeProvider);
+        ref = container.read(_refCaptureProvider);
+        final service = container.read(pushNotificationServiceProvider);
+        sub = service.notifications.listen((n) {
+          // ignore: discarded_futures
+          mock.deliver(_frameFor(n));
+        });
+
+        applyRecoveryEventForTest(
+          ref,
+          RecoveryEventEnvelope(
+            kind: RecoveryEventKind.completed,
+            context: _status(RecoveryCause.guideStarLost()),
+            abortedByUser: null,
           ),
-        ],
-      );
-      // Resolve settings so the gate (disabled here) is actually consulted —
-      // proving suppression, not just an unresolved-future no-op.
-      await container.read(appSettingsProvider.future);
-      container.read(recoveryPushBridgeProvider);
-      ref = container.read(_refCaptureProvider);
-      final service = container.read(pushNotificationServiceProvider);
-      sub = service.notifications.listen((n) {
-        // ignore: discarded_futures
-        mock.deliver(_frameFor(n));
-      });
+        );
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
 
-      applyRecoveryEventForTest(
-        ref,
-        RecoveryEventEnvelope(
-          kind: RecoveryEventKind.completed,
-          context: _status(RecoveryCause.guideStarLost()),
-          abortedByUser: null,
-        ),
-      );
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
-
-      expect(mock.delivered, isEmpty,
-          reason: 'a disabled pushCriticalAlerts gate suppresses the push');
-    });
+        expect(
+          mock.delivered,
+          isEmpty,
+          reason: 'a disabled pushCriticalAlerts gate suppresses the push',
+        );
+      },
+    );
   });
 }

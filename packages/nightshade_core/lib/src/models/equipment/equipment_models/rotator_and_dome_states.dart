@@ -56,16 +56,16 @@ class RotatorState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        position,
-        mechanicalPosition,
-        isMoving,
-        isReversed,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    position,
+    mechanicalPosition,
+    isMoving,
+    isReversed,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }
 
 /// Dome shutter status
@@ -135,16 +135,16 @@ class DomeState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        azimuth,
-        shutterStatus,
-        isSlewing,
-        isParked,
-        isAtHome,
-        isSlaved,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    azimuth,
+    shutterStatus,
+    isSlewing,
+    isParked,
+    isAtHome,
+    isSlaved,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }

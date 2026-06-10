@@ -53,7 +53,9 @@ void main(List<String> args) {
   // the constructor head so we don't flag `.copyWith(color: ...)` recolors of
   // an existing typography token (the sanctioned recolor pattern). The
   // non-greedy body stops at the first `fontSize:` within the constructor.
-  final textStylePattern = RegExp(r'TextStyle\((?:[^()]|\([^()]*\))*?fontSize:');
+  final textStylePattern = RegExp(
+    r'TextStyle\((?:[^()]|\([^()]*\))*?fontSize:',
+  );
 
   // Raw Material `Colors.<name>` (e.g. Colors.white, Colors.red). Excludes
   // `NightshadeColors` (different identifier) via the leading word boundary
@@ -64,14 +66,15 @@ void main(List<String> args) {
   final textStyleHits = <_Hit>[];
   final colorsHits = <_Hit>[];
 
-  final dartFiles = rootDir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'))
-      .where((f) => !f.path.endsWith('.g.dart'))
-      .where((f) => !f.path.endsWith('.freezed.dart'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final dartFiles =
+      rootDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .where((f) => !f.path.endsWith('.g.dart'))
+          .where((f) => !f.path.endsWith('.freezed.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   for (final file in dartFiles) {
     final relPath = file.path.replaceAll('\\', '/');
@@ -118,16 +121,21 @@ void main(List<String> args) {
     }
     if (textStyleHits.isNotEmpty) {
       failures.add(
-          'inline TextStyle(fontSize:): ${textStyleHits.length} (strict: expected 0)');
+        'inline TextStyle(fontSize:): ${textStyleHits.length} (strict: expected 0)',
+      );
     }
     if (colorsHits.isNotEmpty) {
       failures.add(
-          'raw Colors.* usages: ${colorsHits.length} (strict: expected 0)');
+        'raw Colors.* usages: ${colorsHits.length} (strict: expected 0)',
+      );
     }
   } else {
     check('hardcoded radii', radiiHits.length, options.maxRadii);
-    check('inline TextStyle(fontSize:)', textStyleHits.length,
-        options.maxTextStyles);
+    check(
+      'inline TextStyle(fontSize:)',
+      textStyleHits.length,
+      options.maxTextStyles,
+    );
     check('raw Colors.* usages', colorsHits.length, options.maxColors);
   }
 
@@ -193,9 +201,11 @@ void _printReport({
     'use NightshadeColors.of(context).<semantic>',
   );
   stdout.writeln('------------------------------------------------');
-  stdout.writeln('TOTAL flagged: '
-      '${radii.length + textStyles.length + colors.length} '
-      '(radii ${radii.length}, textStyles ${textStyles.length}, colors ${colors.length})');
+  stdout.writeln(
+    'TOTAL flagged: '
+    '${radii.length + textStyles.length + colors.length} '
+    '(radii ${radii.length}, textStyles ${textStyles.length}, colors ${colors.length})',
+  );
 }
 
 void _printCategory(String title, List<_Hit> hits, String guidance) {
@@ -254,7 +264,9 @@ class _Options {
     int? intArg(String value, String flag) {
       final parsed = int.tryParse(value);
       if (parsed == null || parsed < 0) {
-        stderr.writeln('design-tokens-audit: invalid value for $flag: "$value"');
+        stderr.writeln(
+          'design-tokens-audit: invalid value for $flag: "$value"',
+        );
         exit(2);
       }
       return parsed;
@@ -268,11 +280,15 @@ class _Options {
       } else if (arg.startsWith('--max-radii=')) {
         maxRadii = intArg(arg.substring('--max-radii='.length), '--max-radii');
       } else if (arg.startsWith('--max-textstyles=')) {
-        maxTextStyles =
-            intArg(arg.substring('--max-textstyles='.length), '--max-textstyles');
+        maxTextStyles = intArg(
+          arg.substring('--max-textstyles='.length),
+          '--max-textstyles',
+        );
       } else if (arg.startsWith('--max-colors=')) {
-        maxColors =
-            intArg(arg.substring('--max-colors='.length), '--max-colors');
+        maxColors = intArg(
+          arg.substring('--max-colors='.length),
+          '--max-colors',
+        );
       } else {
         stderr.writeln('design-tokens-audit: unknown argument: $arg');
         exit(2);

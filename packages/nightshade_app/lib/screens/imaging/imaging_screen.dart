@@ -505,7 +505,6 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
       ),
     );
   }
-
 }
 
 /// Composes the Camera tab from its existing controls and the new

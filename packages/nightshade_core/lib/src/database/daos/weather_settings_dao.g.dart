@@ -13,5 +13,7 @@ class WeatherSettingsDaoManager {
   WeatherSettingsDaoManager(this._db);
   $$WeatherSettingsTableTableManager get weatherSettings =>
       $$WeatherSettingsTableTableManager(
-          _db.attachedDatabase, _db.weatherSettings);
+        _db.attachedDatabase,
+        _db.weatherSettings,
+      );
 }

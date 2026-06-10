@@ -44,9 +44,7 @@ class TargetHandlers {
     final database = container.read(databaseProvider);
     final targets = await database.targetsDao.getAllTargets();
 
-    return jsonOk({
-      'targets': targets.map((t) => _targetToJson(t)).toList(),
-    });
+    return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
   // ===========================================================================
@@ -76,9 +74,7 @@ class TargetHandlers {
     final database = container.read(databaseProvider);
     final targets = await database.targetsDao.searchTargets(query);
 
-    return jsonOk({
-      'targets': targets.map((t) => _targetToJson(t)).toList(),
-    });
+    return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
   // ===========================================================================
@@ -90,9 +86,7 @@ class TargetHandlers {
     final database = container.read(databaseProvider);
     final targets = await database.targetsDao.getFavoriteTargets();
 
-    return jsonOk({
-      'targets': targets.map((t) => _targetToJson(t)).toList(),
-    });
+    return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
   // ===========================================================================
@@ -120,10 +114,12 @@ class TargetHandlers {
       priority: Value(optionalInt(payload, 'priority') ?? 0),
       totalPlannedSubs: Value(optionalInt(payload, 'totalPlannedSubs') ?? 0),
       capturedSubs: Value(optionalInt(payload, 'capturedSubs') ?? 0),
-      totalIntegrationSecs:
-          Value(optionalDouble(payload, 'totalIntegrationSecs') ?? 0.0),
-      goalIntegrationSecs:
-          Value(optionalDouble(payload, 'goalIntegrationSecs') ?? 0.0),
+      totalIntegrationSecs: Value(
+        optionalDouble(payload, 'totalIntegrationSecs') ?? 0.0,
+      ),
+      goalIntegrationSecs: Value(
+        optionalDouble(payload, 'goalIntegrationSecs') ?? 0.0,
+      ),
       filterProgress: Value(optionalString(payload, 'filterProgress')),
     );
 
@@ -160,35 +156,44 @@ class TargetHandlers {
     // state rather than overwriting with null.
     final updated = existing.copyWith(
       name: optionalString(payload, 'name') ?? existing.name,
-      catalogId:
-          Value(optionalString(payload, 'catalogId') ?? existing.catalogId),
+      catalogId: Value(
+        optionalString(payload, 'catalogId') ?? existing.catalogId,
+      ),
       ra: optionalDouble(payload, 'ra') ?? existing.ra,
       dec: optionalDouble(payload, 'dec') ?? existing.dec,
-      objectType:
-          Value(optionalString(payload, 'objectType') ?? existing.objectType),
+      objectType: Value(
+        optionalString(payload, 'objectType') ?? existing.objectType,
+      ),
       constellation: Value(
-          optionalString(payload, 'constellation') ?? existing.constellation),
-      magnitude:
-          Value(optionalDouble(payload, 'magnitude') ?? existing.magnitude),
-      sizeArcmin:
-          Value(optionalDouble(payload, 'sizeArcmin') ?? existing.sizeArcmin),
+        optionalString(payload, 'constellation') ?? existing.constellation,
+      ),
+      magnitude: Value(
+        optionalDouble(payload, 'magnitude') ?? existing.magnitude,
+      ),
+      sizeArcmin: Value(
+        optionalDouble(payload, 'sizeArcmin') ?? existing.sizeArcmin,
+      ),
       positionAngle: Value(
-          optionalDouble(payload, 'positionAngle') ?? existing.positionAngle),
+        optionalDouble(payload, 'positionAngle') ?? existing.positionAngle,
+      ),
       minAltitude:
           optionalDouble(payload, 'minAltitude') ?? existing.minAltitude,
       notes: Value(optionalString(payload, 'notes') ?? existing.notes),
       isFavorite: optionalBool(payload, 'isFavorite') ?? existing.isFavorite,
       priority: optionalInt(payload, 'priority') ?? existing.priority,
-      totalPlannedSubs: optionalInt(payload, 'totalPlannedSubs') ??
-          existing.totalPlannedSubs,
+      totalPlannedSubs:
+          optionalInt(payload, 'totalPlannedSubs') ?? existing.totalPlannedSubs,
       capturedSubs:
           optionalInt(payload, 'capturedSubs') ?? existing.capturedSubs,
-      totalIntegrationSecs: optionalDouble(payload, 'totalIntegrationSecs') ??
+      totalIntegrationSecs:
+          optionalDouble(payload, 'totalIntegrationSecs') ??
           existing.totalIntegrationSecs,
-      goalIntegrationSecs: optionalDouble(payload, 'goalIntegrationSecs') ??
+      goalIntegrationSecs:
+          optionalDouble(payload, 'goalIntegrationSecs') ??
           existing.goalIntegrationSecs,
-      filterProgress: Value(optionalString(payload, 'filterProgress') ??
-          existing.filterProgress),
+      filterProgress: Value(
+        optionalString(payload, 'filterProgress') ?? existing.filterProgress,
+      ),
       updatedAt: DateTime.now(),
     );
 
@@ -271,9 +276,7 @@ class TargetHandlers {
     final database = container.read(databaseProvider);
     final targets = await database.targetsDao.getTargetsByType(objectType);
 
-    return jsonOk({
-      'targets': targets.map((t) => _targetToJson(t)).toList(),
-    });
+    return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
   // ===========================================================================
@@ -285,9 +288,7 @@ class TargetHandlers {
     final database = container.read(databaseProvider);
     final targets = await database.targetsDao.getTargetsByPriority();
 
-    return jsonOk({
-      'targets': targets.map((t) => _targetToJson(t)).toList(),
-    });
+    return jsonOk({'targets': targets.map((t) => _targetToJson(t)).toList()});
   }
 
   // ===========================================================================

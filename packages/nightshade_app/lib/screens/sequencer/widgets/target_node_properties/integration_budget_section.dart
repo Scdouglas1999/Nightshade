@@ -142,7 +142,8 @@ class _BudgetEditor extends ConsumerWidget {
         const SizedBox(height: 8),
         Text(
           'Per-filter caps',
-          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         ...budget.perFilter.entries.map(
@@ -183,7 +184,9 @@ class _BudgetEditor extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Stop target when budget met',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary),
               ),
             ),
             NodeToggleSwitch(

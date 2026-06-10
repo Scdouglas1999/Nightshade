@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/dialogs/import_summary_dialog.dart';
 import 'package:nightshade_core/src/models/import/canonical_sequence_node.dart';
@@ -46,8 +46,7 @@ ImportResult _fakeResult({
     mappingTable: const [
       MappingTableRow(
           sourceType: 'TakeExposure', nightshadeType: 'TakeExposure', count: 5),
-      MappingTableRow(
-          sourceType: 'Annotation', nightshadeType: null, count: 1),
+      MappingTableRow(sourceType: 'Annotation', nightshadeType: null, count: 1),
     ],
     droppedNodes: dropped,
     unsupportedNodes: unsupported,
@@ -99,8 +98,7 @@ void main() {
 
   testWidgets('renders unsupported section when there are unsupported nodes',
       (tester) async {
-    await _pump(
-        tester, _fakeResult(withUnsupported: true, forcedImport: true));
+    await _pump(tester, _fakeResult(withUnsupported: true, forcedImport: true));
     expect(find.textContaining('Unsupported nodes'), findsOneWidget);
     expect(find.textContaining('Vendor voodoo step'), findsOneWidget);
     // Force-import badge in the header.
@@ -111,8 +109,7 @@ void main() {
       (tester) async {
     await _pump(
       tester,
-      _fakeResult(
-          withDropped: true, withUnsupported: true, forcedImport: true),
+      _fakeResult(withDropped: true, withUnsupported: true, forcedImport: true),
     );
     expect(find.textContaining('Dropped'), findsAtLeastNWidgets(1));
     expect(find.textContaining('Unsupported nodes'), findsAtLeastNWidgets(1));

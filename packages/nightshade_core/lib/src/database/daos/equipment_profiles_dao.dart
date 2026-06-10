@@ -20,26 +20,30 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get the active profile
   Future<EquipmentProfile?> getActiveProfile() {
-    return (select(equipmentProfiles)..where((p) => p.isActive.equals(true)))
-        .getSingleOrNull();
+    return (select(
+      equipmentProfiles,
+    )..where((p) => p.isActive.equals(true))).getSingleOrNull();
   }
 
   /// Watch the active profile
   Stream<EquipmentProfile?> watchActiveProfile() {
-    return (select(equipmentProfiles)..where((p) => p.isActive.equals(true)))
-        .watchSingleOrNull();
+    return (select(
+      equipmentProfiles,
+    )..where((p) => p.isActive.equals(true))).watchSingleOrNull();
   }
 
   /// Get a profile by ID
   Future<EquipmentProfile?> getProfileById(int id) {
-    return (select(equipmentProfiles)..where((p) => p.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      equipmentProfiles,
+    )..where((p) => p.id.equals(id))).getSingleOrNull();
   }
 
   /// Get the default profile.
   Future<EquipmentProfile?> getDefaultProfile() {
-    return (select(equipmentProfiles)..where((p) => p.isDefault.equals(true)))
-        .getSingleOrNull();
+    return (select(
+      equipmentProfiles,
+    )..where((p) => p.isDefault.equals(true))).getSingleOrNull();
   }
 
   /// Create a new profile.
@@ -49,10 +53,10 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   Future<int> createProfile(EquipmentProfilesCompanion profile) async {
     return transaction(() async {
       final countExpression = equipmentProfiles.id.count();
-      final existingCount = await (selectOnly(equipmentProfiles)
-            ..addColumns([countExpression]))
-          .map((row) => row.read(countExpression) ?? 0)
-          .getSingle();
+      final existingCount =
+          await (selectOnly(equipmentProfiles)..addColumns([countExpression]))
+              .map((row) => row.read(countExpression) ?? 0)
+              .getSingle();
       final isFirstProfile = existingCount == 0;
 
       final id = await into(equipmentProfiles).insert(
@@ -79,35 +83,40 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   Future<int> deleteProfile(int id) async {
     return transaction(() async {
       final deletedProfile = await getProfileById(id);
-      final rows =
-          await (delete(equipmentProfiles)..where((p) => p.id.equals(id))).go();
+      final rows = await (delete(
+        equipmentProfiles,
+      )..where((p) => p.id.equals(id))).go();
 
       if (rows == 0) {
         return 0;
       }
 
-      final remaining = await (select(equipmentProfiles)
-            ..orderBy([
-              (p) => OrderingTerm.asc(p.sortOrder),
-              (p) => OrderingTerm.asc(p.id),
-            ]))
-          .get();
+      final remaining =
+          await (select(equipmentProfiles)..orderBy([
+                (p) => OrderingTerm.asc(p.sortOrder),
+                (p) => OrderingTerm.asc(p.id),
+              ]))
+              .get();
 
       if (remaining.isEmpty) {
         return rows;
       }
 
-      final activeProfile = remaining
-          .cast<EquipmentProfile?>()
-          .firstWhere((p) => p!.isActive, orElse: () => null);
-      final defaultProfile = remaining
-          .cast<EquipmentProfile?>()
-          .firstWhere((p) => p!.isDefault, orElse: () => null);
+      final activeProfile = remaining.cast<EquipmentProfile?>().firstWhere(
+        (p) => p!.isActive,
+        orElse: () => null,
+      );
+      final defaultProfile = remaining.cast<EquipmentProfile?>().firstWhere(
+        (p) => p!.isDefault,
+        orElse: () => null,
+      );
 
       if (deletedProfile?.isDefault == true || defaultProfile == null) {
         final replacement = activeProfile ?? remaining.first;
-        await setDefaultProfile(replacement.id,
-            makeActive: activeProfile == null);
+        await setDefaultProfile(
+          replacement.id,
+          makeActive: activeProfile == null,
+        );
       } else if (deletedProfile?.isActive == true || activeProfile == null) {
         await setActiveProfile(defaultProfile.id);
       }
@@ -120,9 +129,9 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   /// persisted startup/default profile.
   Future<void> setActiveProfile(int profileId) async {
     await transaction(() async {
-      await update(equipmentProfiles).write(
-        const EquipmentProfilesCompanion(isActive: Value(false)),
-      );
+      await update(
+        equipmentProfiles,
+      ).write(const EquipmentProfilesCompanion(isActive: Value(false)));
       await (update(equipmentProfiles)..where((p) => p.id.equals(profileId)))
           .write(const EquipmentProfilesCompanion(isActive: Value(true)));
     });
@@ -132,17 +141,22 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   ///
   /// When [makeActive] is true, the default profile also becomes the current
   /// active profile so the UI and startup behavior remain aligned.
-  Future<void> setDefaultProfile(int profileId,
-      {bool makeActive = true}) async {
+  Future<void> setDefaultProfile(
+    int profileId, {
+    bool makeActive = true,
+  }) async {
     await transaction(() async {
-      await update(equipmentProfiles).write(
-        const EquipmentProfilesCompanion(isDefault: Value(false)),
+      await update(
+        equipmentProfiles,
+      ).write(const EquipmentProfilesCompanion(isDefault: Value(false)));
+      await (update(
+        equipmentProfiles,
+      )..where((p) => p.id.equals(profileId))).write(
+        const EquipmentProfilesCompanion(
+          isDefault: Value(true),
+          isActive: Value.absent(),
+        ),
       );
-      await (update(equipmentProfiles)..where((p) => p.id.equals(profileId)))
-          .write(const EquipmentProfilesCompanion(
-        isDefault: Value(true),
-        isActive: Value.absent(),
-      ));
 
       if (makeActive) {
         await setActiveProfile(profileId);
@@ -153,9 +167,9 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   /// Clear the persisted default profile without changing the current active
   /// selection.
   Future<void> clearDefaultProfile() async {
-    await update(equipmentProfiles).write(
-      const EquipmentProfilesCompanion(isDefault: Value(false)),
-    );
+    await update(
+      equipmentProfiles,
+    ).write(const EquipmentProfilesCompanion(isDefault: Value(false)));
   }
 
   /// Duplicate a profile

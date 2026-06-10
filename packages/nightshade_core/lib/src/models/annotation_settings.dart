@@ -161,11 +161,7 @@ abstract class AnnotationPreset with _$AnnotationPreset {
 }
 
 /// Type of user-drawn annotation on the image
-enum CustomAnnotationType {
-  circle,
-  arrow,
-  text,
-}
+enum CustomAnnotationType { circle, arrow, text }
 
 /// A user-drawn annotation on the image (circle, arrow, or text)
 @freezed

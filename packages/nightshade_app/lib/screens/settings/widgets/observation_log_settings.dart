@@ -83,7 +83,8 @@ class _ObservationLogSettingsState
                     filled: true,
                     fillColor: colors.background,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     contentPadding:
@@ -251,7 +252,8 @@ class _ObservationLogSettingsState
               children: [
                 Text(
                   _formatDate(log.timestamp),
-                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _formatTime(log.timestamp),
@@ -274,7 +276,8 @@ class _ObservationLogSettingsState
                   children: [
                     Text(
                       log.objectName,
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                     if (log.catalogId != null) ...[
                       const SizedBox(width: 6),
@@ -283,7 +286,8 @@ class _ObservationLogSettingsState
                             horizontal: 6, vertical: 2),
                         decoration: NightshadeDecorations.statusChip(
                           colors.primary,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           bordered: false,
                         ),
                         child: Text(
@@ -457,7 +461,7 @@ class _StatChip extends StatelessWidget {
   const _StatChip({
     required this.label,
     required this.value,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -73,7 +73,9 @@ List<PluginNodeBlueprint> _toBlueprints(
   final out = <PluginNodeBlueprint>[];
   for (final reg in registrations) {
     final definition = reg.definition;
-    if (reg.pluginId.isEmpty || definition.id.isEmpty || definition.name.isEmpty) {
+    if (reg.pluginId.isEmpty ||
+        definition.id.isEmpty ||
+        definition.name.isEmpty) {
       developer.log(
         'Skipping malformed plugin sequence node registration: '
         'pluginId=${reg.pluginId}, nodeTypeId=${definition.id}, '

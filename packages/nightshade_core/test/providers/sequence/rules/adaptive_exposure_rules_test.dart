@@ -1,4 +1,4 @@
-﻿// Wave 5 Agent 2 — sky-brightness adaptive exposure validation tests.
+// Wave 5 Agent 2 — sky-brightness adaptive exposure validation tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -54,15 +54,19 @@ void main() {
     test('min <= 0 fires error', () {
       final cfg = AdaptiveExposureConfig(minExposureSecs: 0);
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
-      expect(issues.where((i) => i.title.contains('min must be > 0')),
-          hasLength(1));
+      expect(
+        issues.where((i) => i.title.contains('min must be > 0')),
+        hasLength(1),
+      );
     });
 
     test('max <= 0 fires error', () {
       final cfg = AdaptiveExposureConfig(maxExposureSecs: 0);
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
-      expect(issues.where((i) => i.title.contains('max must be > 0')),
-          hasLength(1));
+      expect(
+        issues.where((i) => i.title.contains('max must be > 0')),
+        hasLength(1),
+      );
     });
 
     test('per-filter min > effective max fires error', () {
@@ -73,8 +77,7 @@ void main() {
       );
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(
-        issues.where(
-            (i) => i.title.contains('per-filter bounds inverted')),
+        issues.where((i) => i.title.contains('per-filter bounds inverted')),
         hasLength(1),
       );
     });
@@ -126,7 +129,9 @@ void main() {
         minExposureSecs: 10,
         maxExposureSecs: 600,
       );
-      final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg, duration: 60)));
+      final issues = rule.validate(
+        _sequenceWith(_exp(adaptive: cfg, duration: 60)),
+      );
       expect(issues, isEmpty);
     });
 
@@ -135,7 +140,9 @@ void main() {
         minExposureSecs: 100,
         maxExposureSecs: 600,
       );
-      final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg, duration: 60)));
+      final issues = rule.validate(
+        _sequenceWith(_exp(adaptive: cfg, duration: 60)),
+      );
       expect(issues, hasLength(1));
       expect(issues.first.severity, ValidationSeverity.warning);
       expect(issues.first.title, contains('below'));
@@ -146,7 +153,9 @@ void main() {
         minExposureSecs: 5,
         maxExposureSecs: 60,
       );
-      final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg, duration: 600)));
+      final issues = rule.validate(
+        _sequenceWith(_exp(adaptive: cfg, duration: 600)),
+      );
       expect(issues, hasLength(1));
       expect(issues.first.severity, ValidationSeverity.warning);
       expect(issues.first.title, contains('above'));
@@ -158,7 +167,9 @@ void main() {
         minExposureSecs: 100,
         maxExposureSecs: 600,
       );
-      final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg, duration: 60)));
+      final issues = rule.validate(
+        _sequenceWith(_exp(adaptive: cfg, duration: 60)),
+      );
       expect(issues, isEmpty);
     });
   });

@@ -65,8 +65,12 @@ class SlewNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props =>
-      [...super.props, useTargetCoords, customRa, customDec];
+  List<Object?> get props => [
+    ...super.props,
+    useTargetCoords,
+    customRa,
+    customDec,
+  ];
 }
 
 /// Center target (plate solve + sync + slew)
@@ -149,15 +153,15 @@ class CenterNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        accuracyArcsec,
-        maxAttempts,
-        useTargetCoords,
-        customRa,
-        customDec,
-        exposureDuration,
-        filter,
-      ];
+    ...super.props,
+    accuracyArcsec,
+    maxAttempts,
+    useTargetCoords,
+    customRa,
+    customDec,
+    exposureDuration,
+    filter,
+  ];
 }
 
 /// Wave 5 Agent 2 — Sky-brightness adaptive exposure config carried on
@@ -338,19 +342,19 @@ class ExposureNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        durationSecs,
-        count,
-        frameType,
-        filter,
-        filterIndex,
-        gain,
-        offset,
-        binning,
-        ditherEvery,
-        triggers,
-        adaptiveExposure,
-      ];
+    ...super.props,
+    durationSecs,
+    count,
+    frameType,
+    filter,
+    filterIndex,
+    gain,
+    offset,
+    binning,
+    ditherEvery,
+    triggers,
+    adaptiveExposure,
+  ];
 }
 
 /// Autofocus instruction
@@ -400,8 +404,10 @@ class AutofocusNode extends SequenceNode {
   NodeCategory get category => NodeCategory.instruction;
 
   @override
-  Set<DeviceType> get requiredDevices =>
-      {DeviceType.camera, DeviceType.focuser};
+  Set<DeviceType> get requiredDevices => {
+    DeviceType.camera,
+    DeviceType.focuser,
+  };
 
   @override
   AutofocusNode copyWith({
@@ -440,25 +446,22 @@ class AutofocusNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        method,
-        stepSize,
-        stepsOut,
-        exposuresPerPoint,
-        exposureDuration,
-        useSettingsDefaults,
-        maxDurationSecs,
-      ];
+    ...super.props,
+    method,
+    stepSize,
+    stepsOut,
+    exposuresPerPoint,
+    exposureDuration,
+    useSettingsDefaults,
+    maxDurationSecs,
+  ];
 }
 
 /// Dither instruction
 /// Mirror of Rust `DitherPattern` (sequencer/src/lib.rs). `random` produces
 /// classic uncorrelated offsets each call; `grid` cycles through an NxN
 /// grid of positions, which yields more uniform sky coverage.
-enum DitherPattern {
-  random,
-  grid,
-}
+enum DitherPattern { random, grid }
 
 class DitherNode extends SequenceNode {
   final double pixels;
@@ -545,15 +548,15 @@ class DitherNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        pixels,
-        settleTime,
-        settlePixels,
-        settleTimeout,
-        raOnly,
-        pattern,
-        gridSize,
-      ];
+    ...super.props,
+    pixels,
+    settleTime,
+    settlePixels,
+    settleTimeout,
+    raOnly,
+    pattern,
+    gridSize,
+  ];
 }
 
 /// Start guiding instruction - connects to PHD2 and starts guiding
@@ -619,8 +622,13 @@ class StartGuidingNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props =>
-      [...super.props, settlePixels, settleTime, settleTimeout, autoSelectStar];
+  List<Object?> get props => [
+    ...super.props,
+    settlePixels,
+    settleTime,
+    settleTimeout,
+    autoSelectStar,
+  ];
 }
 
 /// Stop guiding instruction - stops PHD2 guiding

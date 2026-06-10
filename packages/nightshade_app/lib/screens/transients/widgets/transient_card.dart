@@ -93,7 +93,8 @@ class _TransientCardState extends State<TransientCard> {
     );
   }
 
-  Widget _buildHeader(NightshadeColors colors, TransientAlertState effectiveState) {
+  Widget _buildHeader(
+      NightshadeColors colors, TransientAlertState effectiveState) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -119,7 +120,8 @@ class _TransientCardState extends State<TransientCard> {
             children: [
               Text(
                 widget.alert.name,
-                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: NightshadeTokens.spaceXs),
               Row(
@@ -248,7 +250,8 @@ class _TransientCardState extends State<TransientCard> {
     );
   }
 
-  Widget _buildActionsRow(NightshadeColors colors, TransientAlertState effectiveState) {
+  Widget _buildActionsRow(
+      NightshadeColors colors, TransientAlertState effectiveState) {
     final isQueued = effectiveState == TransientAlertState.queued;
     final isDismissed = effectiveState == TransientAlertState.dismissed;
     final isObserved = effectiveState == TransientAlertState.observed;
@@ -288,7 +291,8 @@ class _TransientCardState extends State<TransientCard> {
                   const SizedBox(width: NightshadeTokens.spaceXs),
                   Text(
                     'Queued',
-                    style: NightshadeTypography.labelSm.copyWith(color: colors.warning),
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: colors.warning),
                   ),
                 ],
               ),
@@ -316,7 +320,8 @@ class _TransientCardState extends State<TransientCard> {
                   const SizedBox(width: NightshadeTokens.spaceXs),
                   Text(
                     'Observed',
-                    style: NightshadeTypography.labelSm.copyWith(color: colors.success),
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: colors.success),
                   ),
                 ],
               ),
@@ -450,7 +455,6 @@ class _TransientCardState extends State<TransientCard> {
         return 'Manual Entry';
     }
   }
-
 
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
@@ -613,7 +617,8 @@ class _DetailRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: NightshadeTokens.iconXs, color: colors.textMuted),
+              Icon(icon,
+                  size: NightshadeTokens.iconXs, color: colors.textMuted),
               const SizedBox(width: NightshadeTokens.spaceXs),
               Text(
                 label,

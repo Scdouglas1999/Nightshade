@@ -76,8 +76,9 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
 /// DSOs filtered by dynamic magnitude limit based on current FOV
 /// As the user zooms in (narrower FOV), fainter DSOs become visible.
 /// This provider should be used by the sky renderer for FOV-aware DSO display.
-final fovFilteredDsosProvider =
-    Provider<AsyncValue<List<DeepSkyObject>>>((ref) {
+final fovFilteredDsosProvider = Provider<AsyncValue<List<DeepSkyObject>>>((
+  ref,
+) {
   final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
@@ -190,11 +191,12 @@ final sunPositionProvider = Provider<(double ra, double dec)>((ref) {
 
 /// Moon position for current time
 /// Uses minute precision - moon moves ~0.5 arcmin per minute which is fine for rendering.
-final moonPositionProvider =
-    Provider<(double ra, double dec, double distance)>((ref) {
-  final time = ref.watch(_currentMinuteProvider);
-  return AstronomyCalculations.moonPosition(time);
-});
+final moonPositionProvider = Provider<(double ra, double dec, double distance)>(
+  (ref) {
+    final time = ref.watch(_currentMinuteProvider);
+    return AstronomyCalculations.moonPosition(time);
+  },
+);
 
 /// Planet positions for current time
 /// Uses minute precision - planets move very slowly, minute precision is more than enough.

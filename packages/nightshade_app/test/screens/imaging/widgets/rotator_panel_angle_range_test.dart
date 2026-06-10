@@ -126,8 +126,7 @@ void main() {
   testWidgets(
       'out_of_range_rejected_with_caps_window: 300 rejected for 0..270 caps',
       (tester) async {
-    final service =
-        await _pumpPanel(tester, _caps(minAngle: 0, maxAngle: 270));
+    final service = await _pumpPanel(tester, _caps(minAngle: 0, maxAngle: 270));
 
     await _goTo(tester, '300');
 
@@ -140,8 +139,7 @@ void main() {
   testWidgets(
       'in_range_accepted_with_caps_window: 200 dispatched for 0..270 caps',
       (tester) async {
-    final service =
-        await _pumpPanel(tester, _caps(minAngle: 0, maxAngle: 270));
+    final service = await _pumpPanel(tester, _caps(minAngle: 0, maxAngle: 270));
 
     await _goTo(tester, '200');
 
@@ -151,8 +149,7 @@ void main() {
         reason: 'An in-range angle must dispatch moveRotatorTo.');
   });
 
-  testWidgets(
-      'null_range_falls_back_to_full_turn: 360 accepted, 361 rejected',
+  testWidgets('null_range_falls_back_to_full_turn: 360 accepted, 361 rejected',
       (tester) async {
     // A rotator that can move absolutely but does not report angle bounds
     // (minAngleDeg/maxAngleDeg == null). The Go-To section still renders
@@ -189,8 +186,7 @@ void main() {
         reason: 'A null angle range must fall back to a 0..360 hint.');
   });
 
-  testWidgets(
-      'inverted_caps_range_falls_back: min>=max ignored, uses 0..360',
+  testWidgets('inverted_caps_range_falls_back: min>=max ignored, uses 0..360',
       (tester) async {
     // Degenerate driver data (min >= max) must be treated as missing and fall
     // back to the full-turn window for both validation and the hint.

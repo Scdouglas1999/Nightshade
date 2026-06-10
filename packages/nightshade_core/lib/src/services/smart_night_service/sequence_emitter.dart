@@ -20,20 +20,25 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     }
 
     if (includeSessionPreamble) {
-      addRootChild(CoolCameraNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Cool camera to ${settings.coolDownTargetC.toStringAsFixed(0)}°C',
-        targetTemp: settings.coolDownTargetC,
-        durationMins: 10.0,
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
-      addRootChild(UnparkNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Unpark mount',
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        CoolCameraNode(
+          id: SmartNightService._uuid.v4(),
+          name:
+              'Cool camera to ${settings.coolDownTargetC.toStringAsFixed(0)}°C',
+          targetTemp: settings.coolDownTargetC,
+          durationMins: 10.0,
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
+      addRootChild(
+        UnparkNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Unpark mount',
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
     }
 
     final header = _emitTargetHeaderSubtree(
@@ -52,18 +57,22 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     childOrder.add(updatedHeader.id);
 
     if (includeSessionPreamble) {
-      addRootChild(WarmCameraNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Warm camera',
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
-      addRootChild(ParkNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Park mount',
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        WarmCameraNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Warm camera',
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
+      addRootChild(
+        ParkNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Park mount',
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
     }
 
     final root = InstructionSetNode(
@@ -115,7 +124,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
         : intervalWindowSecs;
     final budgetSecs =
         (integrationBudgetHours ?? settings.defaultIntegrationBudgetHours) *
-            3600;
+        3600;
     return math.min(naturalSecs, budgetSecs);
   }
 
@@ -200,37 +209,44 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     }
 
     // -- 1. Cool camera (always — needed before any imaging)
-    addRootChild(CoolCameraNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Cool camera to ${settings.coolDownTargetC.toStringAsFixed(0)}°C',
-      targetTemp: settings.coolDownTargetC,
-      durationMins: 10.0,
-      parentId: rootId,
-      orderIndex: childOrder.length - 1,
-    ));
+    addRootChild(
+      CoolCameraNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Cool camera to ${settings.coolDownTargetC.toStringAsFixed(0)}°C',
+        targetTemp: settings.coolDownTargetC,
+        durationMins: 10.0,
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ),
+    );
 
     // -- 2. Unpark mount
-    addRootChild(UnparkNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Unpark mount',
-      parentId: rootId,
-      orderIndex: childOrder.length - 1,
-    ));
+    addRootChild(
+      UnparkNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Unpark mount',
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ),
+    );
 
     // -- 3. Polar alignment if stale
     if (settings.prependPolarAlignmentIfStale &&
         context.daysSinceLastPolarAlignment != null &&
         context.daysSinceLastPolarAlignment! >
             settings.polarAlignmentStaleAfterDays) {
-      addRootChild(PolarAlignmentNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Polar alignment '
-            '(${context.daysSinceLastPolarAlignment} days since last)',
-        startFromCurrent: true,
-        isNorth: latitudeSign(profile),
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        PolarAlignmentNode(
+          id: SmartNightService._uuid.v4(),
+          name:
+              'Polar alignment '
+              '(${context.daysSinceLastPolarAlignment} days since last)',
+          startFromCurrent: true,
+          isNorth: latitudeSign(profile),
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
     }
 
     // -- 4. Targets
@@ -316,17 +332,20 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     } else if (settings.includeFlatsAtEnd && !settings.hasCoverCalibrator) {
       // No panel → leave a NotificationNode reminder; we never schedule
       // unattended sky-flats. The user gets a heads-up at session end.
-      addRootChild(NotificationNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Flats reminder',
-        title: 'No flat panel detected',
-        message: 'No flat panel detected — remember to shoot manual flats next '
-            'session for this equipment profile.',
-        level: NotificationLevel.info,
-        explicitTransports: const [NotificationTransportKind.inApp],
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        NotificationNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Flats reminder',
+          title: 'No flat panel detected',
+          message:
+              'No flat panel detected — remember to shoot manual flats next '
+              'session for this equipment profile.',
+          level: NotificationLevel.info,
+          explicitTransports: const [NotificationTransportKind.inApp],
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
     }
 
     // -- 5b. Dark Library Refresh (opt-in; only when settings flag set AND
@@ -343,53 +362,63 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       final darkChildren = <SequenceNode>[];
       final coverAvailable = settings.hasCoverCalibrator;
       if (coverAvailable) {
-        darkChildren.add(CloseCoverNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Close cover for darks',
-          parentId: darkGroupId,
-        ));
+        darkChildren.add(
+          CloseCoverNode(
+            id: SmartNightService._uuid.v4(),
+            name: 'Close cover for darks',
+            parentId: darkGroupId,
+          ),
+        );
       } else {
         // No cover → the executor can't physically block light; emit a
         // notification so the user covers the OTA manually before the
         // dark run begins. We do NOT silently skip — capturing "darks"
         // with the sensor still seeing sky light would corrupt the
         // library.
-        darkChildren.add(NotificationNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Cover OTA for darks',
-          title: 'Cover the OTA',
-          message: 'Dark library refresh is about to start. Cover the OTA '
-              'to block all stray light before continuing — uncovered '
-              '"darks" will corrupt the library.',
-          level: NotificationLevel.warning,
-          explicitTransports: const [NotificationTransportKind.inApp],
-          parentId: darkGroupId,
-        ));
+        darkChildren.add(
+          NotificationNode(
+            id: SmartNightService._uuid.v4(),
+            name: 'Cover OTA for darks',
+            title: 'Cover the OTA',
+            message:
+                'Dark library refresh is about to start. Cover the OTA '
+                'to block all stray light before continuing — uncovered '
+                '"darks" will corrupt the library.',
+            level: NotificationLevel.warning,
+            explicitTransports: const [NotificationTransportKind.inApp],
+            parentId: darkGroupId,
+          ),
+        );
       }
       for (final req in context.missingDarkRequirements) {
         final tempLabel = req.targetTemp == null
             ? 'any'
             : '${req.targetTemp!.toStringAsFixed(0)}°C';
-        darkChildren.add(ExposureNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Darks — ${req.durationSecs.toStringAsFixed(0)}s '
-              '@ G${req.gain} ($tempLabel, bin ${req.binX}x${req.binY})',
-          durationSecs: req.durationSecs,
-          count: framesPerCombo,
-          frameType: FrameType.dark,
-          gain: req.gain,
-          offset: req.offset,
-          binning: _binningModeForInt(req.binX),
-          ditherEvery: 0,
-          parentId: darkGroupId,
-        ));
+        darkChildren.add(
+          ExposureNode(
+            id: SmartNightService._uuid.v4(),
+            name:
+                'Darks — ${req.durationSecs.toStringAsFixed(0)}s '
+                '@ G${req.gain} ($tempLabel, bin ${req.binX}x${req.binY})',
+            durationSecs: req.durationSecs,
+            count: framesPerCombo,
+            frameType: FrameType.dark,
+            gain: req.gain,
+            offset: req.offset,
+            binning: _binningModeForInt(req.binX),
+            ditherEvery: 0,
+            parentId: darkGroupId,
+          ),
+        );
       }
       if (coverAvailable) {
-        darkChildren.add(OpenCoverNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Open cover after darks',
-          parentId: darkGroupId,
-        ));
+        darkChildren.add(
+          OpenCoverNode(
+            id: SmartNightService._uuid.v4(),
+            name: 'Open cover after darks',
+            parentId: darkGroupId,
+          ),
+        );
       }
       for (var i = 0; i < darkChildren.length; i++) {
         final reparented = _reparented(darkChildren[i], darkGroupId, i);
@@ -397,7 +426,8 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       }
       final darkGroup = InstructionSetNode(
         id: darkGroupId,
-        name: 'Dark Library Refresh — '
+        name:
+            'Dark Library Refresh — '
             '${context.missingDarkRequirements.length} combinations',
         parentId: rootId,
         orderIndex: childOrder.length,
@@ -408,18 +438,22 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     }
 
     // -- 6. Warm camera + park (always — clean shutdown)
-    addRootChild(WarmCameraNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Warm camera',
-      parentId: rootId,
-      orderIndex: childOrder.length - 1,
-    ));
-    addRootChild(ParkNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Park mount',
-      parentId: rootId,
-      orderIndex: childOrder.length - 1,
-    ));
+    addRootChild(
+      WarmCameraNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Warm camera',
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ),
+    );
+    addRootChild(
+      ParkNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Park mount',
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ),
+    );
 
     // -- 7. Weather recovery (optional, prepended as a sibling under
     // the root so the executor's parallel watchdog can interrupt the
@@ -427,24 +461,28 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     // [SmartNightService.willInjectWeatherRecovery] so the plan preview shares the same
     // threshold.
     if (SmartNightService.willInjectWeatherRecovery(context)) {
-      addRootChild(RecoveryNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Cloud arriving — auto-park',
-        triggerType: TriggerType.weatherUnsafe,
-        recoveryAction: RecoveryActionType.parkAndAbort,
-        maxRetries: 1,
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-        comment: 'Cloud forecast probability '
-            '${(context.rainOrCloudProbability! * 100).toStringAsFixed(0)}% '
-            'within next ${context.cloudArrivalLeadTimeMinutes} min',
-      ));
+      addRootChild(
+        RecoveryNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Cloud arriving — auto-park',
+          triggerType: TriggerType.weatherUnsafe,
+          recoveryAction: RecoveryActionType.parkAndAbort,
+          maxRetries: 1,
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+          comment:
+              'Cloud forecast probability '
+              '${(context.rainOrCloudProbability! * 100).toStringAsFixed(0)}% '
+              'within next ${context.cloudArrivalLeadTimeMinutes} min',
+        ),
+      );
     }
 
     // Compose the root.
     final root = InstructionSetNode(
       id: rootId,
-      name: 'Smart Night — '
+      name:
+          'Smart Night — '
           '${planned.map((p) => p.suggestion.targetName).join(", ")}',
       childIds: childOrder,
     );
@@ -498,19 +536,22 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     // loud reminder so the user runs the Flat Wizard once to learn the
     // exposures.
     if (calibrated.isEmpty) {
-      addRootChild(NotificationNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Flats need calibration',
-        title: 'Automated flats skipped — no calibrated exposures',
-        message: 'Smart Night will not shoot blind flats. Run the Flat Wizard '
-            'once for ${uncalibrated.isEmpty ? "your filters" : uncalibrated.join(", ")} '
-            'so the ADU-targeted exposure + panel brightness are learned; '
-            'after that, Smart Night will reuse them automatically.',
-        level: NotificationLevel.warning,
-        explicitTransports: const [NotificationTransportKind.inApp],
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        NotificationNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Flats need calibration',
+          title: 'Automated flats skipped — no calibrated exposures',
+          message:
+              'Smart Night will not shoot blind flats. Run the Flat Wizard '
+              'once for ${uncalibrated.isEmpty ? "your filters" : uncalibrated.join(", ")} '
+              'so the ADU-targeted exposure + panel brightness are learned; '
+              'after that, Smart Night will reuse them automatically.',
+          level: NotificationLevel.warning,
+          explicitTransports: const [NotificationTransportKind.inApp],
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
       return;
     }
 
@@ -524,11 +565,13 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     );
     final flatChildren = <SequenceNode>[];
 
-    flatChildren.add(CloseCoverNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Close cover',
-      parentId: flatGroupId,
-    ));
+    flatChildren.add(
+      CloseCoverNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Close cover',
+        parentId: flatGroupId,
+      ),
+    );
 
     // Group calibrated filters by the panel brightness that produced their
     // target ADU so the panel is set once per brightness level (matching the
@@ -548,50 +591,62 @@ extension _SmartNightSequenceEmitter on SmartNightService {
 
     final sortedBrightness = byBrightness.keys.toList()..sort();
     for (final brightness in sortedBrightness) {
-      flatChildren.add(CalibratorOnNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Calibrator on (brightness $brightness)',
-        brightness: brightness,
-        parentId: flatGroupId,
-      ));
+      flatChildren.add(
+        CalibratorOnNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Calibrator on (brightness $brightness)',
+          brightness: brightness,
+          parentId: flatGroupId,
+        ),
+      );
       final exposures = byBrightness[brightness]!
         ..sort((a, b) => a.filterName.compareTo(b.filterName));
       for (final exposure in exposures) {
-        flatChildren.add(FilterChangeNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Change filter → ${exposure.filterName}',
-          filterName: exposure.filterName,
-          parentId: flatGroupId,
-        ));
-        flatChildren.add(ExposureNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Flats — ${exposure.filterName} '
-              '(${exposure.exposureSecs.toStringAsFixed(2)}s @ '
-              '${exposure.histogramTargetPercent.toStringAsFixed(0)}% hist)',
-          durationSecs: exposure.exposureSecs,
-          count: settings.flatCountPerFilter,
-          frameType: FrameType.flat,
-          filter: exposure.filterName,
-          gain: profile.defaultGain,
-          offset: profile.defaultOffset,
-          ditherEvery: 0, // no dither for flats
-          parentId: flatGroupId,
-          comment: 'ADU-calibrated: previously hit '
-              '${exposure.actualAdu} ADU at panel brightness $brightness.',
-        ));
+        flatChildren.add(
+          FilterChangeNode(
+            id: SmartNightService._uuid.v4(),
+            name: 'Change filter → ${exposure.filterName}',
+            filterName: exposure.filterName,
+            parentId: flatGroupId,
+          ),
+        );
+        flatChildren.add(
+          ExposureNode(
+            id: SmartNightService._uuid.v4(),
+            name:
+                'Flats — ${exposure.filterName} '
+                '(${exposure.exposureSecs.toStringAsFixed(2)}s @ '
+                '${exposure.histogramTargetPercent.toStringAsFixed(0)}% hist)',
+            durationSecs: exposure.exposureSecs,
+            count: settings.flatCountPerFilter,
+            frameType: FrameType.flat,
+            filter: exposure.filterName,
+            gain: profile.defaultGain,
+            offset: profile.defaultOffset,
+            ditherEvery: 0, // no dither for flats
+            parentId: flatGroupId,
+            comment:
+                'ADU-calibrated: previously hit '
+                '${exposure.actualAdu} ADU at panel brightness $brightness.',
+          ),
+        );
       }
     }
 
-    flatChildren.add(CalibratorOffNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Calibrator off',
-      parentId: flatGroupId,
-    ));
-    flatChildren.add(OpenCoverNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Open cover',
-      parentId: flatGroupId,
-    ));
+    flatChildren.add(
+      CalibratorOffNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Calibrator off',
+        parentId: flatGroupId,
+      ),
+    );
+    flatChildren.add(
+      OpenCoverNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Open cover',
+        parentId: flatGroupId,
+      ),
+    );
     for (var i = 0; i < flatChildren.length; i++) {
       final reparented = _reparented(flatChildren[i], flatGroupId, i);
       nodes[reparented.id] = reparented;
@@ -604,20 +659,23 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     // Any requested filter without a panel-calibrated exposure gets a loud
     // reminder appended after the flat group — never a blind exposure.
     if (uncalibrated.isNotEmpty) {
-      addRootChild(NotificationNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Flats skipped for uncalibrated filters',
-        title: 'Some filters have no calibrated flat exposure',
-        message: 'Flats were captured for '
-            '${calibrated.keys.where((f) => !uncalibrated.contains(f)).join(", ")}. '
-            'No ADU-calibrated panel exposure exists for: '
-            '${uncalibrated.toSet().toList().join(", ")}. Run the Flat Wizard '
-            'once for these filters so Smart Night can reuse the exposures.',
-        level: NotificationLevel.warning,
-        explicitTransports: const [NotificationTransportKind.inApp],
-        parentId: rootId,
-        orderIndex: childOrder.length - 1,
-      ));
+      addRootChild(
+        NotificationNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Flats skipped for uncalibrated filters',
+          title: 'Some filters have no calibrated flat exposure',
+          message:
+              'Flats were captured for '
+              '${calibrated.keys.where((f) => !uncalibrated.contains(f)).join(", ")}. '
+              'No ADU-calibrated panel exposure exists for: '
+              '${uncalibrated.toSet().toList().join(", ")}. Run the Flat Wizard '
+              'once for these filters so Smart Night can reuse the exposures.',
+          level: NotificationLevel.warning,
+          explicitTransports: const [NotificationTransportKind.inApp],
+          parentId: rootId,
+          orderIndex: childOrder.length - 1,
+        ),
+      );
     }
   }
 
@@ -636,33 +694,39 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     final children = <SequenceNode>[];
 
     // 1. Slew to target
-    children.add(SlewNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Slew → ${planned.suggestion.targetName}',
-      useTargetCoords: true,
-      parentId: headerId,
-    ));
+    children.add(
+      SlewNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Slew → ${planned.suggestion.targetName}',
+        useTargetCoords: true,
+        parentId: headerId,
+      ),
+    );
 
     // 2. Center via plate solve
-    children.add(CenterNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Center via plate solve',
-      accuracyArcsec: 5.0,
-      maxAttempts: 5,
-      useTargetCoords: true,
-      parentId: headerId,
-    ));
+    children.add(
+      CenterNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Center via plate solve',
+        accuracyArcsec: 5.0,
+        maxAttempts: 5,
+        useTargetCoords: true,
+        parentId: headerId,
+      ),
+    );
 
     // 3. Initial autofocus — BEFORE guiding. Running autofocus moves the
     //    focuser through a V-curve (and the executor stops guiding for the
     //    duration), so starting guiding first would just be interrupted. Focus
     //    first, then guide on the now-sharp stars.
-    children.add(AutofocusNode(
-      id: SmartNightService._uuid.v4(),
-      name: 'Initial autofocus',
-      useSettingsDefaults: true,
-      parentId: headerId,
-    ));
+    children.add(
+      AutofocusNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Initial autofocus',
+        useSettingsDefaults: true,
+        parentId: headerId,
+      ),
+    );
 
     // 4. Start guiding when profile has a guider and target is usable. Placed
     //    after the initial autofocus so the freshly-started guiding is not
@@ -671,12 +735,14 @@ extension _SmartNightSequenceEmitter on SmartNightService {
         (planned.suggestion.visibility.peakAltitude ??
                 planned.suggestion.visibility.currentAltitude) >=
             settings.minAltitudeDeg) {
-      children.add(StartGuidingNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Start guiding',
-        autoSelectStar: true,
-        parentId: headerId,
-      ));
+      children.add(
+        StartGuidingNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Start guiding',
+          autoSelectStar: true,
+          parentId: headerId,
+        ),
+      );
     }
 
     // 5. Smart Exposure — the heart of the night
@@ -695,15 +761,17 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     // shows it. Condition lives in [SmartNightService.willInjectMeridianFlip] so the plan
     // preview shares the exact same rule.
     if (SmartNightService.willInjectMeridianFlip(planned)) {
-      children.add(MeridianFlipNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Meridian flip',
-        autoCenter: true,
-        refocusAfter: true,
-        resumeGuiding: true,
-        parentId: headerId,
-        useGlobalDefaults: false,
-      ));
+      children.add(
+        MeridianFlipNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Meridian flip',
+          autoCenter: true,
+          refocusAfter: true,
+          resumeGuiding: true,
+          parentId: headerId,
+          useGlobalDefaults: false,
+        ),
+      );
     }
 
     final integrationSecsTotal = planned.filterPlans.fold<double>(
@@ -769,7 +837,8 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     }).toList();
     return SmartExposureNode(
       id: SmartNightService._uuid.v4(),
-      name: 'Smart Exposure — '
+      name:
+          'Smart Exposure — '
           '${planned.filterPlans.map((p) => p.filterName).join("+")}',
       plans: plans,
       rotateFilters: true,

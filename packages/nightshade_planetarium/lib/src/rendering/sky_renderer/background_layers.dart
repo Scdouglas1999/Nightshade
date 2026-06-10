@@ -25,10 +25,12 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     // Use cached gradient if sun altitude hasn't changed significantly (2-degree bucket)
     if (_backgroundGradientCache.isValid(sunAlt, size)) {
       final paint = _PaintCache.getBackgroundPaint(
-          _backgroundGradientCache.verticalShader!);
+        _backgroundGradientCache.verticalShader!,
+      );
       canvas.drawRect(rect, paint);
       final radialPaint = _PaintCache.getBackgroundPaint(
-          _backgroundGradientCache.radialShader!);
+        _backgroundGradientCache.radialShader!,
+      );
       canvas.drawRect(rect, radialPaint);
       return;
     }
@@ -49,10 +51,7 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     final radialGradient = RadialGradient(
       center: Alignment.center,
       radius: 1.5,
-      colors: [
-        Colors.transparent,
-        zenithColor.withValues(alpha: 0.3),
-      ],
+      colors: [Colors.transparent, zenithColor.withValues(alpha: 0.3)],
     );
     final radialShader = radialGradient.createShader(rect);
 
@@ -119,7 +118,11 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     // Check if we can reuse a cached Milky Way Picture.
     // The Milky Way is fixed on the sky, so it only needs redrawing when the view moves.
     if (_milkyWayCache.isValid(
-        viewState.centerRA, viewState.centerDec, viewState.fieldOfView, size)) {
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      size,
+    )) {
       canvas.drawPicture(_milkyWayCache.picture!);
       return;
     }
@@ -156,27 +159,44 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
 
     // Draw all glow points as a single batch
     if (glowPoints.isNotEmpty) {
-      final glowPaint =
-          _PaintCache.getBlurPaint(blurRadius, baseColor, alpha: 0.12);
+      final glowPaint = _PaintCache.getBlurPaint(
+        blurRadius,
+        baseColor,
+        alpha: 0.12,
+      );
       glowPaint.strokeWidth = pointRadius * 4;
       glowPaint.strokeCap = StrokeCap.round;
       recordCanvas.drawRawPoints(
-          ui.PointMode.points, Float32List.fromList(glowPoints), glowPaint);
+        ui.PointMode.points,
+        Float32List.fromList(glowPoints),
+        glowPaint,
+      );
     }
 
     // Draw brighter core points as a second batch
     if (corePoints.isNotEmpty) {
-      final corePaint =
-          _PaintCache.getBlurPaint(blurRadius * 0.5, baseColor, alpha: 0.18);
+      final corePaint = _PaintCache.getBlurPaint(
+        blurRadius * 0.5,
+        baseColor,
+        alpha: 0.18,
+      );
       corePaint.strokeWidth = pointRadius * 2;
       corePaint.strokeCap = StrokeCap.round;
       recordCanvas.drawRawPoints(
-          ui.PointMode.points, Float32List.fromList(corePoints), corePaint);
+        ui.PointMode.points,
+        Float32List.fromList(corePoints),
+        corePaint,
+      );
     }
 
     final picture = recorder.endRecording();
-    _milkyWayCache.store(picture, viewState.centerRA, viewState.centerDec,
-        viewState.fieldOfView, size);
+    _milkyWayCache.store(
+      picture,
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      size,
+    );
 
     canvas.drawPicture(picture);
   }

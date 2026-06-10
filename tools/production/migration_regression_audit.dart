@@ -96,11 +96,7 @@ Future<void> main(List<String> args) async {
     path: _manualProbePath,
     requiredText: _requiredManualProbeText,
   );
-  final issues = [
-    ...fixture.issues,
-    ...tests.issues,
-    ...manualProbe.issues,
-  ];
+  final issues = [...fixture.issues, ...tests.issues, ...manualProbe.issues];
   final passed = issues.isEmpty;
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -118,17 +114,19 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    issues: issues,
-    fixture: fixture,
-    tests: tests,
-    manualProbe: manualProbe,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(
+      passed: passed,
+      issues: issues,
+      fixture: fixture,
+      tests: tests,
+      manualProbe: manualProbe,
+    ),
+  );
 
   stdout.writeln('Migration regression audit complete.');
   stdout.writeln('Passed: $passed');
@@ -255,11 +253,11 @@ class _FileAudit {
   }
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'exists': exists,
-        'sizeBytes': sizeBytes,
-        'missingText': missingText,
-        'missingTextCount': missingText.length,
-        'passed': passed,
-      };
+    'path': path,
+    'exists': exists,
+    'sizeBytes': sizeBytes,
+    'missingText': missingText,
+    'missingTextCount': missingText.length,
+    'passed': passed,
+  };
 }

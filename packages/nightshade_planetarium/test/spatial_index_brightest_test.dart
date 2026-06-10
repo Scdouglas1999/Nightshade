@@ -4,11 +4,11 @@ import 'package:nightshade_planetarium/src/celestial_object.dart';
 import 'package:nightshade_planetarium/src/coordinate_system.dart';
 
 Star _star(String id, double raHours, double decDeg, double mag) => Star(
-      id: id,
-      name: id,
-      coordinates: CelestialCoordinate(ra: raHours, dec: decDeg),
-      magnitude: mag,
-    );
+  id: id,
+  name: id,
+  coordinates: CelestialCoordinate(ra: raHours, dec: decDeg),
+  magnitude: mag,
+);
 
 void main() {
   group('StarSpatialIndex.queryBrightestInViewport', () {
@@ -22,7 +22,9 @@ void main() {
       index.add(_star('far', 18.0, -60.0, 0.0));
 
       final result = index.queryBrightestInViewport(
-        6.0, 0.0, 20.0,
+        6.0,
+        0.0,
+        20.0,
         maxMagnitude: 12.0,
         maxResults: 3,
       );
@@ -43,7 +45,9 @@ void main() {
       index.add(_star('faint', 6.0, 0.0, 9.0));
 
       final result = index.queryBrightestInViewport(
-        6.0, 0.0, 30.0,
+        6.0,
+        0.0,
+        30.0,
         maxMagnitude: 6.0,
         maxResults: 100,
       );
@@ -54,12 +58,20 @@ void main() {
     test('narrow-FOV path returns same on-screen brightest set', () {
       final index = StarSpatialIndex();
       for (var i = 0; i < 50; i++) {
-        index.add(_star('s$i', 6.0 + (i - 25) * 0.001, 0.0 + (i - 25) * 0.01,
-            2.0 + i * 0.1));
+        index.add(
+          _star(
+            's$i',
+            6.0 + (i - 25) * 0.001,
+            0.0 + (i - 25) * 0.01,
+            2.0 + i * 0.1,
+          ),
+        );
       }
       // 2-degree field exercises the cell-query branch (< _magWalkMinFovDegrees).
       final result = index.queryBrightestInViewport(
-        6.0, 0.0, 2.0,
+        6.0,
+        0.0,
+        2.0,
         maxMagnitude: 12.0,
         maxResults: 5,
       );

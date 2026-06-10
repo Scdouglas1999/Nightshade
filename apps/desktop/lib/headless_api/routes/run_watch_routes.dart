@@ -12,10 +12,11 @@ import 'headless_route.dart';
 
 /// Build the declarative route table for [RunWatchHandlers].
 List<HeadlessRoute> buildRunWatchRoutes(RunWatchHandlers h) => <HeadlessRoute>[
-      HeadlessRoute(
-          HttpMethod.get, '/api/run-watch/snapshot', h.handleSnapshot),
-      HeadlessRoute(HttpMethod.get, '/api/run-watch/frame-thumbnail',
-          h.handleFrameThumbnail),
-      HeadlessRoute(
-          HttpMethod.get, '/api/run-watch/events', h.handleEventStream),
-    ];
+  HeadlessRoute(HttpMethod.get, '/api/run-watch/snapshot', h.handleSnapshot),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/run-watch/frame-thumbnail',
+    h.handleFrameThumbnail,
+  ),
+  HeadlessRoute(HttpMethod.get, '/api/run-watch/events', h.handleEventStream),
+];

@@ -46,15 +46,19 @@ class CatalogManager {
       await dir.create(recursive: true);
     }
 
-    developer.log('[Catalog] initialized with directory: $catalogDirectory',
-        name: 'CatalogManager', level: 800);
+    developer.log(
+      '[Catalog] initialized with directory: $catalogDirectory',
+      name: 'CatalogManager',
+      level: 800,
+    );
   }
 
   /// Get the catalog directory path
   String get catalogDirectory {
     if (_catalogDirectory == null) {
       throw StateError(
-          'CatalogManager not initialized. Call initialize() first.');
+        'CatalogManager not initialized. Call initialize() first.',
+      );
     }
     return _catalogDirectory!;
   }
@@ -100,8 +104,11 @@ class CatalogManager {
         installedDate = DateTime.tryParse(metaJson['installedDate'] ?? '');
       } catch (e) {
         // Metadata corrupted or malformed - report as installed with defaults
-        developer.log('[Catalog]: Failed to parse metadata: $e',
-            name: 'CatalogManager', level: 900);
+        developer.log(
+          '[Catalog]: Failed to parse metadata: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
       }
     }
 
@@ -232,13 +239,12 @@ class CatalogManager {
     required double dec,
     required double radiusDegrees,
     double? maxMagnitude,
-  }) =>
-      _searchDsoCatalogNearby(
-        ra: ra,
-        dec: dec,
-        radiusDegrees: radiusDegrees,
-        maxMagnitude: maxMagnitude,
-      );
+  }) => _searchDsoCatalogNearby(
+    ra: ra,
+    dec: dec,
+    radiusDegrees: radiusDegrees,
+    maxMagnitude: maxMagnitude,
+  );
 
   /// Search for stars near a given RA/Dec position.
   Future<List<HygStarData>> searchStarsNearby({
@@ -246,34 +252,30 @@ class CatalogManager {
     required double dec,
     required double radiusDegrees,
     double? maxMagnitude,
-  }) =>
-      _searchStarCatalogNearby(
-        ra: ra,
-        dec: dec,
-        radiusDegrees: radiusDegrees,
-        maxMagnitude: maxMagnitude,
-      );
+  }) => _searchStarCatalogNearby(
+    ra: ra,
+    dec: dec,
+    radiusDegrees: radiusDegrees,
+    maxMagnitude: maxMagnitude,
+  );
 
   /// Download and install the star catalog.
   Future<bool> downloadStarCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
-  }) =>
-      _downloadStarCatalog(package: package, onProgress: onProgress);
+  }) => _downloadStarCatalog(package: package, onProgress: onProgress);
 
   /// Download and install the DSO catalog.
   Future<bool> downloadDsoCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
-  }) =>
-      _downloadDsoCatalog(package: package, onProgress: onProgress);
+  }) => _downloadDsoCatalog(package: package, onProgress: onProgress);
 
   /// Import a star or DSO catalog from a custom location.
   Future<bool> importCatalog({
     required String sourcePath,
     required String type,
-  }) =>
-      _importCatalog(sourcePath: sourcePath, type: type);
+  }) => _importCatalog(sourcePath: sourcePath, type: type);
 
   /// Delete installed star and DSO catalogs.
   Future<void> deleteCatalogs() => _deleteCatalogs();
@@ -287,17 +289,13 @@ class CatalogManager {
     AnnotationPackage package = AnnotationPackage.standard,
     void Function(DownloadProgress)? onProgress,
   }) =>
-      _downloadAnnotationCatalogEntry(
-        package: package,
-        onProgress: onProgress,
-      );
+      _downloadAnnotationCatalogEntry(package: package, onProgress: onProgress);
 
   /// Import the annotation catalog from a local file.
   Future<bool> importAnnotationCatalog({
     required String sourcePath,
     AnnotationPackage package = AnnotationPackage.standard,
-  }) =>
-      _importAnnotationCatalog(sourcePath: sourcePath, package: package);
+  }) => _importAnnotationCatalog(sourcePath: sourcePath, package: package);
 
   /// Delete the annotation catalog.
   Future<void> deleteAnnotationCatalog() => _deleteAnnotationCatalog();
@@ -319,25 +317,23 @@ class CatalogManager {
     String? jobId,
     void Function(int downloaded, int total)? onProgress,
     Future<bool> Function()? isCancelled,
-  }) =>
-      _downloadAndInstallCatalog(
-        name,
-        jobId: jobId,
-        onProgress: onProgress,
-        isCancelled: isCancelled,
-      );
+  }) => _downloadAndInstallCatalog(
+    name,
+    jobId: jobId,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
 
   /// Install a catalog from a pre-staged file on disk.
   Future<CatalogInstallResult> installFromFile({
     required String name,
     required File source,
     String? expectedSha256,
-  }) =>
-      _installCatalogFromFile(
-        name: name,
-        source: source,
-        expectedSha256: expectedSha256,
-      );
+  }) => _installCatalogFromFile(
+    name: name,
+    source: source,
+    expectedSha256: expectedSha256,
+  );
 
   /// Uninstall a catalog by name.
   Future<bool> uninstall(String name) => _uninstallCatalog(name);

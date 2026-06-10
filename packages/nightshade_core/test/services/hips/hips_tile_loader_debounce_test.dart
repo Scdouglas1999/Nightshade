@@ -123,8 +123,7 @@ class _CountingServer {
       hitsByUrl.entries.where((e) => e.key.contains('/Npix'));
 
   /// Total GETs issued for actual tiles (not Allsky).
-  int get totalTileGets =>
-      tileHits.fold(0, (sum, e) => sum + e.value);
+  int get totalTileGets => tileHits.fold(0, (sum, e) => sum + e.value);
 }
 
 Uint8List _png({int size = 8}) {
@@ -163,7 +162,11 @@ HipsViewport _viewport({
       imagePixelWidth: 1200,
       imagePixelHeight: 1200,
     ),
-    target: FramingTarget(name: 'M42', raHours: raHours, decDegrees: decDegrees),
+    target: FramingTarget(
+      name: 'M42',
+      raHours: raHours,
+      decDegrees: decDegrees,
+    ),
     canvasSize: canvasSize,
     zoom: zoom,
     pan: pan,
@@ -187,37 +190,39 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('debounce: O(final-set) recomputes, not O(updates)', () {
-    test('a burst of N updates collapses to a single recompute generation',
-        () async {
-      final clock = _FakeClock();
-      final server = _CountingServer();
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-        debounce: const Duration(milliseconds: 90),
-      );
-      addTearDown(loader.dispose);
+    test(
+      'a burst of N updates collapses to a single recompute generation',
+      () async {
+        final clock = _FakeClock();
+        final server = _CountingServer();
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+          debounce: const Duration(milliseconds: 90),
+        );
+        addTearDown(loader.dispose);
 
-      // A 10-frame pan gesture: 10 distinct viewports.
-      for (var i = 0; i < 10; i++) {
-        loader.requestTiles(_viewport(pan: ui.Offset(i * 4.0, 0)));
-      }
+        // A 10-frame pan gesture: 10 distinct viewports.
+        for (var i = 0; i < 10; i++) {
+          loader.requestTiles(_viewport(pan: ui.Offset(i * 4.0, 0)));
+        }
 
-      // Each update armed a timer, but only the trailing one is still active —
-      // the previous nine were cancelled and replaced (trailing debounce).
-      expect(clock.scheduledCount, 10);
-      expect(clock.activeCount, 1);
-      // Nothing has computed yet: no recompute ran during the burst.
-      expect(loader.generation, 0);
+        // Each update armed a timer, but only the trailing one is still active —
+        // the previous nine were cancelled and replaced (trailing debounce).
+        expect(clock.scheduledCount, 10);
+        expect(clock.activeCount, 1);
+        // Nothing has computed yet: no recompute ran during the burst.
+        expect(loader.generation, 0);
 
-      clock.fireAll();
-      await _settle();
+        clock.fireAll();
+        await _settle();
 
-      // EXACTLY ONE recompute generation ran for the whole burst.
-      expect(loader.generation, 1);
-      expect(clock.firedCount, 1);
-    });
+        // EXACTLY ONE recompute generation ran for the whole burst.
+        expect(loader.generation, 1);
+        expect(clock.firedCount, 1);
+      },
+    );
 
     test('holding the gesture stationary does not re-arm or re-fetch', () async {
       final clock = _FakeClock();
@@ -286,82 +291,96 @@ void main() {
 
       // No tile URL was requested more than once.
       for (final e in server.tileHits) {
-        expect(e.value, 1,
-            reason: 'tile ${e.key} fetched ${e.value} times (dedup failed)');
+        expect(
+          e.value,
+          1,
+          reason: 'tile ${e.key} fetched ${e.value} times (dedup failed)',
+        );
       }
       expect(server.tileHits, isNotEmpty);
     });
 
-    test('a resident (cached) tile is not re-fetched on the next recompute',
-        () async {
-      final clock = _FakeClock();
-      final server = _CountingServer();
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'a resident (cached) tile is not re-fetched on the next recompute',
+      () async {
+        final clock = _FakeClock();
+        final server = _CountingServer();
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      // First settle: tiles become resident.
-      loader.requestTiles(_viewport());
-      clock.fireAll();
-      await _settle();
-      await _settle();
-      final getsAfterFirst = Map<String, int>.from(server.hitsByUrl);
+        // First settle: tiles become resident.
+        loader.requestTiles(_viewport());
+        clock.fireAll();
+        await _settle();
+        await _settle();
+        final getsAfterFirst = Map<String, int>.from(server.hitsByUrl);
 
-      // A tiny pan reuses almost the entire visible set. Tiles already resident
-      // must not be re-fetched (cache.contains dedup), so their counts stay 1.
-      loader.requestTiles(_viewport(pan: const ui.Offset(1, 0)));
-      clock.fireAll();
-      await _settle();
-      await _settle();
+        // A tiny pan reuses almost the entire visible set. Tiles already resident
+        // must not be re-fetched (cache.contains dedup), so their counts stay 1.
+        loader.requestTiles(_viewport(pan: const ui.Offset(1, 0)));
+        clock.fireAll();
+        await _settle();
+        await _settle();
 
-      for (final url in getsAfterFirst.keys.where((u) => u.contains('/Npix'))) {
-        expect(server.hitsByUrl[url], getsAfterFirst[url],
-            reason: 'cached tile $url was re-fetched');
-      }
-    });
+        for (final url in getsAfterFirst.keys.where(
+          (u) => u.contains('/Npix'),
+        )) {
+          expect(
+            server.hitsByUrl[url],
+            getsAfterFirst[url],
+            reason: 'cached tile $url was re-fetched',
+          );
+        }
+      },
+    );
 
-    test('two recomputes sharing an in-flight tile do not double-issue it',
-        () async {
-      final clock = _FakeClock();
-      final server = _CountingServer();
-      server.gate = Completer<void>(); // hold every request in flight
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'two recomputes sharing an in-flight tile do not double-issue it',
+      () async {
+        final clock = _FakeClock();
+        final server = _CountingServer();
+        server.gate = Completer<void>(); // hold every request in flight
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      // Generation 1: tiles requested but held in flight.
-      loader.requestTiles(_viewport());
-      clock.fireAll();
-      await _settle();
+        // Generation 1: tiles requested but held in flight.
+        loader.requestTiles(_viewport());
+        clock.fireAll();
+        await _settle();
 
-      // Generation 2 for an overlapping view (tiny pan keeps most tiles the
-      // same). Tiles still in flight from gen 1 must NOT be re-issued — but note
-      // gen 2 supersedes gen 1, cancelling gen 1's token. We assert no tile URL
-      // is requested more than once across both generations.
-      loader.requestTiles(_viewport(pan: const ui.Offset(2, 0)));
-      clock.fireAll();
-      await _settle();
+        // Generation 2 for an overlapping view (tiny pan keeps most tiles the
+        // same). Tiles still in flight from gen 1 must NOT be re-issued — but note
+        // gen 2 supersedes gen 1, cancelling gen 1's token. We assert no tile URL
+        // is requested more than once across both generations.
+        loader.requestTiles(_viewport(pan: const ui.Offset(2, 0)));
+        clock.fireAll();
+        await _settle();
 
-      server.gate!.complete();
-      await _settle();
-      await _settle();
+        server.gate!.complete();
+        await _settle();
+        await _settle();
 
-      for (final e in server.tileHits) {
-        expect(e.value, lessThanOrEqualTo(1),
-            reason: 'tile ${e.key} issued ${e.value} times across generations');
-      }
-    });
+        for (final e in server.tileHits) {
+          expect(
+            e.value,
+            lessThanOrEqualTo(1),
+            reason: 'tile ${e.key} issued ${e.value} times across generations',
+          );
+        }
+      },
+    );
   });
 
   group('cancel: superseded generation is abandoned', () {
-    test('a fast view change supersedes the prior generation cleanly',
-        () async {
+    test('a fast view change supersedes the prior generation cleanly', () async {
       final clock = _FakeClock();
       final server = _CountingServer();
       final sink = _CapturingErrorSink();
@@ -393,71 +412,78 @@ void main() {
       await _settle();
       await _settle();
 
-      expect(sink.failures, isEmpty,
-          reason: 'a cancellation must never be surfaced as a tile error');
+      expect(
+        sink.failures,
+        isEmpty,
+        reason: 'a cancellation must never be surfaced as a tile error',
+      );
       expect(loader.snapshot.failures, isEmpty);
     });
 
-    test('the snapshot for the superseded generation is not the final one',
-        () async {
-      final clock = _FakeClock();
-      final server = _CountingServer();
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-      );
-      addTearDown(loader.dispose);
+    test(
+      'the snapshot for the superseded generation is not the final one',
+      () async {
+        final clock = _FakeClock();
+        final server = _CountingServer();
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+        );
+        addTearDown(loader.dispose);
 
-      loader.requestTiles(_viewport(raHours: 5.5, decDegrees: -5.4));
-      clock.fireAll();
-      await _settle();
-      await _settle();
-      final firstNorder = loader.snapshot.selectedNorder;
-      expect(firstNorder, greaterThanOrEqualTo(3));
+        loader.requestTiles(_viewport(raHours: 5.5, decDegrees: -5.4));
+        clock.fireAll();
+        await _settle();
+        await _settle();
+        final firstNorder = loader.snapshot.selectedNorder;
+        expect(firstNorder, greaterThanOrEqualTo(3));
 
-      // Generation 2 at a much wider FOV selects a different (lower) order; the
-      // published snapshot must reflect generation 2, not the abandoned one.
-      loader.requestTiles(
-        _viewport(raHours: 18.0, decDegrees: 60.0, zoom: 0.25),
-      );
-      clock.fireAll();
-      await _settle();
-      await _settle();
+        // Generation 2 at a much wider FOV selects a different (lower) order; the
+        // published snapshot must reflect generation 2, not the abandoned one.
+        loader.requestTiles(
+          _viewport(raHours: 18.0, decDegrees: 60.0, zoom: 0.25),
+        );
+        clock.fireAll();
+        await _settle();
+        await _settle();
 
-      expect(loader.generation, 2);
-      // The latest snapshot is for the current generation and has imagery
-      // (never blank), proving the loader moved on from the superseded view.
-      expect(loader.snapshot.hasAnyImagery, isTrue);
-    });
+        expect(loader.generation, 2);
+        // The latest snapshot is for the current generation and has imagery
+        // (never blank), proving the loader moved on from the superseded view.
+        expect(loader.snapshot.hasAnyImagery, isTrue);
+      },
+    );
 
-    test('disposing mid-flight aborts cleanly without surfacing errors',
-        () async {
-      final clock = _FakeClock();
-      final server = _CountingServer();
-      final sink = _CapturingErrorSink();
-      server.gate = Completer<void>();
-      final loader = HipsTileLoader(
-        cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
-        fetcher: HipsTileFetcher(httpClient: server.build()),
-        clock: clock,
-        errorSink: sink,
-      );
+    test(
+      'disposing mid-flight aborts cleanly without surfacing errors',
+      () async {
+        final clock = _FakeClock();
+        final server = _CountingServer();
+        final sink = _CapturingErrorSink();
+        server.gate = Completer<void>();
+        final loader = HipsTileLoader(
+          cache: HipsTileCache(maxEntries: 512, maxBytes: 64 * 1024 * 1024),
+          fetcher: HipsTileFetcher(httpClient: server.build()),
+          clock: clock,
+          errorSink: sink,
+        );
 
-      loader.requestTiles(_viewport());
-      clock.fireAll();
-      await _settle();
+        loader.requestTiles(_viewport());
+        clock.fireAll();
+        await _settle();
 
-      // Dispose while requests are in flight: pending completions must be
-      // dropped (the disposed-image guard) and never surfaced.
-      loader.dispose();
-      server.gate!.complete();
-      await _settle();
-      await _settle();
+        // Dispose while requests are in flight: pending completions must be
+        // dropped (the disposed-image guard) and never surfaced.
+        loader.dispose();
+        server.gate!.complete();
+        await _settle();
+        await _settle();
 
-      expect(sink.failures, isEmpty);
-      // Using the disposed loader surfaces a StateError (errors are a feature).
-      expect(() => loader.requestTiles(_viewport()), throwsStateError);
-    });
+        expect(sink.failures, isEmpty);
+        // Using the disposed loader surfaces a StateError (errors are a feature).
+        expect(() => loader.requestTiles(_viewport()), throwsStateError);
+      },
+    );
   });
 }

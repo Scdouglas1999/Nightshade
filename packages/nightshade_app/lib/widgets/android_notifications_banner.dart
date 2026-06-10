@@ -13,8 +13,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///
 /// Desktop builds never flip this off (the banner is gated on Android in
 /// [AndroidNotificationsBanner.build]).
-final androidNotificationsAuthorizedProvider =
-    StateProvider<bool>((_) => true);
+final androidNotificationsAuthorizedProvider = StateProvider<bool>((_) => true);
 
 /// Persistent advisory shown across all screens on Android when
 /// `POST_NOTIFICATIONS` (Android 13+ runtime permission) is *not* granted.

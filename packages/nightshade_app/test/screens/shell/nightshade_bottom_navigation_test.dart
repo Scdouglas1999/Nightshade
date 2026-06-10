@@ -26,7 +26,8 @@ void main() {
       expect(
         box.size.height,
         greaterThanOrEqualTo(NightshadeTokens.minTouchTarget - 1),
-        reason: 'Bottom nav tap target height below ${NightshadeTokens.minTouchTarget}pt',
+        reason:
+            'Bottom nav tap target height below ${NightshadeTokens.minTouchTarget}pt',
       );
     }
   });

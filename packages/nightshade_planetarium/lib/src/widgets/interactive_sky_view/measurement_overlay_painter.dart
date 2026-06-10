@@ -116,7 +116,8 @@ class _MeasurementOverlayPainter extends CustomPainter {
     final lon2 = lonDeg * _deg2rad;
     final lat2 = latDeg * _deg2rad;
 
-    final cosc = math.sin(lat1) * math.sin(lat2) +
+    final cosc =
+        math.sin(lat1) * math.sin(lat2) +
         math.cos(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
 
     // Behind the projection plane.
@@ -124,7 +125,8 @@ class _MeasurementOverlayPainter extends CustomPainter {
 
     final k = 2 / (1 + cosc);
     final x = k * math.cos(lat2) * math.sin(lon2 - lon1);
-    final y = k *
+    final y =
+        k *
         (math.cos(lat1) * math.sin(lat2) -
             math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1));
 
@@ -147,7 +149,8 @@ class _MeasurementOverlayPainter extends CustomPainter {
   }) {
     final textPainter = TextPainter(
       text: TextSpan(
-        text: '${_formatSeparation(separationDeg)}\n'
+        text:
+            '${_formatSeparation(separationDeg)}\n'
             'PA ${positionAngleDeg.toStringAsFixed(1)}°',
         style: const TextStyle(
           color: _lineColor,

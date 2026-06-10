@@ -49,9 +49,9 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   /// Intended for periodic housekeeping; the planner's window is bounded
   /// by [recentForMount]'s limit, so older rows are dead weight.
   Future<void> deleteOlderThan(DateTime cutoff) {
-    return (delete(guideRmsHistory)
-          ..where((t) => t.recordedAt.isSmallerThanValue(cutoff)))
-        .go();
+    return (delete(
+      guideRmsHistory,
+    )..where((t) => t.recordedAt.isSmallerThanValue(cutoff))).go();
   }
 
   /// P2-8: time-bucketed paginated listing for the remote read API.

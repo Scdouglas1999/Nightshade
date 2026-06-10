@@ -45,8 +45,9 @@ class TransientHandlers {
     final alerts = await service.getAllAlerts(settings);
 
     // Filter out dismissed alerts
-    final activeAlerts =
-        alerts.where((a) => !_dismissedAlertIds.contains(a.id)).toList();
+    final activeAlerts = alerts
+        .where((a) => !_dismissedAlertIds.contains(a.id))
+        .toList();
 
     return jsonOk({
       "alerts": activeAlerts.map((a) => _alertToJson(a)).toList(),
@@ -91,20 +92,26 @@ class TransientHandlers {
     Set<TransientSource> enabledSources = _settings.enabledSources;
     final rawSources = optionalList<String>(payload, 'enabledSources');
     if (rawSources != null) {
-      enabledSources =
-          rawSources.map(_parseSource).whereType<TransientSource>().toSet();
+      enabledSources = rawSources
+          .map(_parseSource)
+          .whereType<TransientSource>()
+          .toSet();
     }
 
     Set<TransientType> typesToMonitor = _settings.typesToMonitor;
     final rawTypes = optionalList<String>(payload, 'typesToMonitor');
     if (rawTypes != null) {
-      typesToMonitor =
-          rawTypes.map(_parseType).whereType<TransientType>().toSet();
+      typesToMonitor = rawTypes
+          .map(_parseType)
+          .whereType<TransientType>()
+          .toSet();
     }
 
-    final magnitudeThreshold = optionalDouble(payload, 'magnitudeThreshold') ??
+    final magnitudeThreshold =
+        optionalDouble(payload, 'magnitudeThreshold') ??
         _settings.magnitudeThreshold;
-    final autoQueueMagnitude = optionalDouble(payload, 'autoQueueMagnitude') ??
+    final autoQueueMagnitude =
+        optionalDouble(payload, 'autoQueueMagnitude') ??
         _settings.autoQueueMagnitude;
     final notifyOnNew =
         optionalBool(payload, 'notifyOnNew') ?? _settings.notifyOnNew;
@@ -123,10 +130,8 @@ class TransientHandlers {
     return jsonOk({
       "status": "ok",
       "settings": {
-        "enabledSources":
-            _settings.enabledSources.map((s) => s.name).toList(),
-        "typesToMonitor":
-            _settings.typesToMonitor.map((t) => t.name).toList(),
+        "enabledSources": _settings.enabledSources.map((s) => s.name).toList(),
+        "typesToMonitor": _settings.typesToMonitor.map((t) => t.name).toList(),
         "magnitudeThreshold": _settings.magnitudeThreshold,
         "notifyOnNew": _settings.notifyOnNew,
         "autoQueueBright": _settings.autoQueueBright,
@@ -189,8 +194,9 @@ class TransientHandlers {
 
     // Fetch all alerts and filter to queued ones
     final alerts = await service.getAllAlerts(settings);
-    final queuedAlerts =
-        alerts.where((a) => _queuedAlertIds.contains(a.id)).toList();
+    final queuedAlerts = alerts
+        .where((a) => _queuedAlertIds.contains(a.id))
+        .toList();
 
     return jsonOk({
       "queued": queuedAlerts.map((a) => _alertToJson(a)).toList(),

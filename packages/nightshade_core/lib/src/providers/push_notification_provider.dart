@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +6,8 @@ import 'database_provider.dart';
 import '../services/push_notification_service.dart';
 
 /// Notifier that manages push notification configuration, persisted to database
-class PushNotificationConfigNotifier extends AsyncNotifier<PushNotificationConfig> {
+class PushNotificationConfigNotifier
+    extends AsyncNotifier<PushNotificationConfig> {
   @override
   Future<PushNotificationConfig> build() async {
     final dao = ref.read(settingsDaoProvider);
@@ -16,18 +17,24 @@ class PushNotificationConfigNotifier extends AsyncNotifier<PushNotificationConfi
         final map = jsonDecode(json) as Map<String, dynamic>;
         return PushNotificationConfig(
           enabled: map['enabled'] as bool? ?? true,
-          notifySequenceCompleted: map['notifySequenceCompleted'] as bool? ?? true,
+          notifySequenceCompleted:
+              map['notifySequenceCompleted'] as bool? ?? true,
           notifySequenceFailed: map['notifySequenceFailed'] as bool? ?? true,
           notifyMeridianFlip: map['notifyMeridianFlip'] as bool? ?? true,
           notifyWeatherUnsafe: map['notifyWeatherUnsafe'] as bool? ?? true,
           notifyGuidingLost: map['notifyGuidingLost'] as bool? ?? true,
           notifyExposureFailed: map['notifyExposureFailed'] as bool? ?? true,
           notifyAutofocusFailed: map['notifyAutofocusFailed'] as bool? ?? true,
-          notifyEquipmentDisconnected: map['notifyEquipmentDisconnected'] as bool? ?? false,
+          notifyEquipmentDisconnected:
+              map['notifyEquipmentDisconnected'] as bool? ?? false,
         );
       } catch (e) {
-        developer.log('[PushNotificationConfig] Failed to parse config: $e',
-            name: 'PushNotificationConfig', level: 1000, error: e);
+        developer.log(
+          '[PushNotificationConfig] Failed to parse config: $e',
+          name: 'PushNotificationConfig',
+          level: 1000,
+          error: e,
+        );
         return const PushNotificationConfig();
       }
     }
@@ -116,9 +123,10 @@ class PushNotificationConfigNotifier extends AsyncNotifier<PushNotificationConfi
 
 /// Provider for push notification config (persisted)
 final pushNotificationConfigProvider =
-    AsyncNotifierProvider<PushNotificationConfigNotifier, PushNotificationConfig>(
-  PushNotificationConfigNotifier.new,
-);
+    AsyncNotifierProvider<
+      PushNotificationConfigNotifier,
+      PushNotificationConfig
+    >(PushNotificationConfigNotifier.new);
 
 /// Provider for the PushNotificationService instance.
 ///
@@ -133,7 +141,9 @@ final pushNotificationConfigProvider =
 /// systemPush feed (its per-event toggles + master `enabled` gate are read by
 /// [SystemPushTransport] / enforced in `enqueue`); config changes are applied
 /// in-place via [PushNotificationService.updateConfig].
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
   // Read (don't watch) config for initial value -- changes are handled via
   // ref.listen below so the broadcaster instance (and the web server's
   // subscription to its stream) survives a config toggle.

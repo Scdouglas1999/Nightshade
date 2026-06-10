@@ -138,7 +138,8 @@ abstract class DeviceBackend {
   /// ASCOM, Alpaca, INDI, gphoto2/Fujifilm). Callers MUST treat `null` as
   /// "no recommendation available" and never fabricate values.
   Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
-      String deviceId);
+    String deviceId,
+  );
 
   // =========================================================================
   // Mount Control

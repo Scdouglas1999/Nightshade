@@ -81,16 +81,20 @@ class BackupMetadata {
       createdAt: DateTime.parse(json['createdAt'] as String),
       appVersion: json['appVersion'] as String? ?? 'unknown',
       platform: json['platform'] as String? ?? 'unknown',
-      settingsCount: metadata?['settingsCount'] as int? ??
+      settingsCount:
+          metadata?['settingsCount'] as int? ??
           json['settingsCount'] as int? ??
           0,
-      profilesCount: metadata?['profilesCount'] as int? ??
+      profilesCount:
+          metadata?['profilesCount'] as int? ??
           json['profilesCount'] as int? ??
           0,
-      sequencesCount: metadata?['sequencesCount'] as int? ??
+      sequencesCount:
+          metadata?['sequencesCount'] as int? ??
           json['sequencesCount'] as int? ??
           0,
-      targetsCount: metadata?['targetsCount'] as int? ??
+      targetsCount:
+          metadata?['targetsCount'] as int? ??
           json['targetsCount'] as int? ??
           0,
     );
@@ -198,9 +202,12 @@ class BackupService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
       await file.writeAsString(jsonString);
 
-      final extendedItems =
-          extendedTables.values.fold<int>(0, (sum, rows) => sum + rows.length);
-      final totalItems = settings.length +
+      final extendedItems = extendedTables.values.fold<int>(
+        0,
+        (sum, rows) => sum + rows.length,
+      );
+      final totalItems =
+          settings.length +
           profiles.length +
           sequences.length +
           targets.length +
@@ -361,8 +368,9 @@ class BackupService {
         if (!backup.containsKey(key)) continue;
         final rows = backup[key];
         if (rows is! List) {
-          _logger
-              .debug('Skipping extended table "$key": payload is not a list');
+          _logger.debug(
+            'Skipping extended table "$key": payload is not a list',
+          );
           continue;
         }
         try {
@@ -373,13 +381,17 @@ class BackupService {
           // One bad table must not abort the whole restore — log and
           // continue with the rest so the operator still gets the
           // recoverable subset.
-          _logger.error('Failed to restore extended table "$key": $e\n$st',
-              source: 'BackupService');
+          _logger.error(
+            'Failed to restore extended table "$key": $e\n$st',
+            source: 'BackupService',
+          );
         }
       }
 
-      final totalItems =
-          categoryCounts.values.fold<int>(0, (sum, count) => sum + count);
+      final totalItems = categoryCounts.values.fold<int>(
+        0,
+        (sum, count) => sum + count,
+      );
 
       _logger.info(
         'Restore completed successfully\n'
@@ -427,18 +439,22 @@ class BackupService {
     try {
       decoded = jsonDecode(jsonString);
     } catch (e) {
-      throw _BackupValidationException('Invalid backup file: not valid JSON ($e)');
+      throw _BackupValidationException(
+        'Invalid backup file: not valid JSON ($e)',
+      );
     }
     if (decoded is! Map<String, dynamic>) {
       throw const _BackupValidationException(
-          'Invalid backup file: root is not a JSON object');
+        'Invalid backup file: root is not a JSON object',
+      );
     }
     final backup = decoded;
 
     final version = backup['version'];
     if (version is! String || version.isEmpty) {
       throw const _BackupValidationException(
-          'Invalid backup file: missing version');
+        'Invalid backup file: missing version',
+      );
     }
 
     // Settings — must be a JSON object when present.
@@ -447,7 +463,8 @@ class BackupService {
       final raw = backup['settings'];
       if (raw is! Map<String, dynamic>) {
         throw const _BackupValidationException(
-            'Invalid backup file: "settings" is not an object');
+          'Invalid backup file: "settings" is not an object',
+        );
       }
       settings = raw;
     }
@@ -464,10 +481,7 @@ class BackupService {
     // Targets — same contract as profiles.
     List<Map<String, dynamic>>? targets;
     if (backup.containsKey('targets')) {
-      targets = _validateNamedRows(
-        backup['targets'],
-        section: 'targets',
-      );
+      targets = _validateNamedRows(backup['targets'], section: 'targets');
     }
 
     // Sequences — must be a list, and every entry must decode fully.
@@ -476,20 +490,23 @@ class BackupService {
       final raw = backup['sequences'];
       if (raw is! List) {
         throw const _BackupValidationException(
-            'Invalid backup file: "sequences" is not a list');
+          'Invalid backup file: "sequences" is not a list',
+        );
       }
       final decodedSequences = <Sequence>[];
       for (var i = 0; i < raw.length; i++) {
         final entry = raw[i];
         if (entry is! Map<String, dynamic>) {
           throw _BackupValidationException(
-              'Invalid backup file: sequences[$i] is not an object');
+            'Invalid backup file: sequences[$i] is not an object',
+          );
         }
         final sequence = _jsonToSequence(entry);
         if (sequence == null) {
           throw _BackupValidationException(
-              'Invalid backup file: sequences[$i] failed to decode '
-              '(name: ${entry['name'] ?? '<unknown>'})');
+            'Invalid backup file: sequences[$i] failed to decode '
+            '(name: ${entry['name'] ?? '<unknown>'})',
+          );
         }
         decodedSequences.add(sequence);
       }
@@ -516,19 +533,22 @@ class BackupService {
   }) {
     if (raw is! List) {
       throw _BackupValidationException(
-          'Invalid backup file: "$section" is not a list');
+        'Invalid backup file: "$section" is not a list',
+      );
     }
     final out = <Map<String, dynamic>>[];
     for (var i = 0; i < raw.length; i++) {
       final entry = raw[i];
       if (entry is! Map<String, dynamic>) {
         throw _BackupValidationException(
-            'Invalid backup file: $section[$i] is not an object');
+          'Invalid backup file: $section[$i] is not an object',
+        );
       }
       final name = entry['name'];
       if (name is! String || name.isEmpty) {
         throw _BackupValidationException(
-            'Invalid backup file: $section[$i] is missing a non-empty "name"');
+          'Invalid backup file: $section[$i] is missing a non-empty "name"',
+        );
       }
       out.add(entry);
     }
@@ -561,16 +581,19 @@ class BackupService {
 
       final files = await backupDir
           .list()
-          .where((entity) =>
-              entity is File &&
-              (entity.path.endsWith('.nsbackup') ||
-                  entity.path.endsWith('.json')))
+          .where(
+            (entity) =>
+                entity is File &&
+                (entity.path.endsWith('.nsbackup') ||
+                    entity.path.endsWith('.json')),
+          )
           .map((entity) => entity as File)
           .toList();
 
       // Sort by modification time (newest first)
       files.sort(
-          (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+        (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+      );
 
       return files;
     } catch (e) {
@@ -675,7 +698,7 @@ class BackupService {
   /// JSON. Missing dependencies (e.g. an empty table) yield an empty list,
   /// never a missing key, so an old backup file is structurally complete.
   Future<Map<String, List<Map<String, dynamic>>>>
-      _exportExtendedTables() async {
+  _exportExtendedTables() async {
     return {
       // Calibration library
       'darkLibrary': await _dumpTable(database.darkLibrary),
@@ -690,19 +713,24 @@ class BackupService {
       'guideRmsHistory': await _dumpTable(database.guideRmsHistory),
       // Science tables.
       'scienceSessionConfig': await _dumpTable(database.scienceSessionConfig),
-      'photometryMeasurements':
-          await _dumpTable(database.photometryMeasurements),
-      'framePhotometricCalibration':
-          await _dumpTable(database.framePhotometricCalibration),
+      'photometryMeasurements': await _dumpTable(
+        database.photometryMeasurements,
+      ),
+      'framePhotometricCalibration': await _dumpTable(
+        database.framePhotometricCalibration,
+      ),
       'transparencySamples': await _dumpTable(database.transparencySamples),
       'psfFieldTiles': await _dumpTable(database.psfFieldTiles),
-      'scienceFrameQualityMetrics':
-          await _dumpTable(database.scienceFrameQualityMetrics),
+      'scienceFrameQualityMetrics': await _dumpTable(
+        database.scienceFrameQualityMetrics,
+      ),
       'scienceTileMetrics': await _dumpTable(database.scienceTileMetrics),
-      'astrometryResidualVectors':
-          await _dumpTable(database.astrometryResidualVectors),
-      'movingObjectCandidates':
-          await _dumpTable(database.movingObjectCandidates),
+      'astrometryResidualVectors': await _dumpTable(
+        database.astrometryResidualVectors,
+      ),
+      'movingObjectCandidates': await _dumpTable(
+        database.movingObjectCandidates,
+      ),
       'photometricTransforms': await _dumpTable(database.photometricTransforms),
       'lineRatioProducts': await _dumpTable(database.lineRatioProducts),
       // Focus models
@@ -738,102 +766,102 @@ class BackupService {
   /// number of rows that were successfully inserted (rejected duplicates
   /// don't count).
   late final Map<String, Future<int> Function(List<dynamic>)>
-      _extendedTableImporters = {
+  _extendedTableImporters = {
     'darkLibrary': (rows) => _importRows(
-          rows,
-          (json) => DarkLibraryEntry.fromJson(json),
-          database.darkLibrary,
-        ),
+      rows,
+      (json) => DarkLibraryEntry.fromJson(json),
+      database.darkLibrary,
+    ),
     'flatHistory': (rows) => _importRows(
-          rows,
-          (json) => FlatHistoryEntry.fromJson(json),
-          database.flatHistory,
-        ),
+      rows,
+      (json) => FlatHistoryEntry.fromJson(json),
+      database.flatHistory,
+    ),
     'defectMaps': (rows) => _importRows(
-          rows,
-          (json) => DefectMapEntry.fromJson(json),
-          database.defectMaps,
-        ),
+      rows,
+      (json) => DefectMapEntry.fromJson(json),
+      database.defectMaps,
+    ),
     'sequenceRuns': (rows) => _importRows(
-          rows,
-          (json) => SequenceRun.fromJson(json),
-          database.sequenceRuns,
-        ),
+      rows,
+      (json) => SequenceRun.fromJson(json),
+      database.sequenceRuns,
+    ),
     'notesJournal': (rows) => _importRows(
-          rows,
-          (json) => ObservationLogEntry.fromJson(json),
-          database.observationLogs,
-        ),
+      rows,
+      (json) => ObservationLogEntry.fromJson(json),
+      database.observationLogs,
+    ),
     'polarAlignmentHistory': (rows) => _importRows(
-          rows,
-          (json) => PolarAlignmentHistoryEntry.fromJson(json),
-          database.polarAlignmentHistory,
-        ),
+      rows,
+      (json) => PolarAlignmentHistoryEntry.fromJson(json),
+      database.polarAlignmentHistory,
+    ),
     'guideRmsHistory': (rows) => _importRows(
-          rows,
-          (json) => GuideRmsHistoryEntry.fromJson(json),
-          database.guideRmsHistory,
-        ),
+      rows,
+      (json) => GuideRmsHistoryEntry.fromJson(json),
+      database.guideRmsHistory,
+    ),
     'scienceSessionConfig': (rows) => _importRows(
-          rows,
-          (json) => ScienceSessionConfigRow.fromJson(json),
-          database.scienceSessionConfig,
-        ),
+      rows,
+      (json) => ScienceSessionConfigRow.fromJson(json),
+      database.scienceSessionConfig,
+    ),
     'photometryMeasurements': (rows) => _importRows(
-          rows,
-          (json) => PhotometryMeasurementRow.fromJson(json),
-          database.photometryMeasurements,
-        ),
+      rows,
+      (json) => PhotometryMeasurementRow.fromJson(json),
+      database.photometryMeasurements,
+    ),
     'framePhotometricCalibration': (rows) => _importRows(
-          rows,
-          (json) => FramePhotometricCalibrationRow.fromJson(json),
-          database.framePhotometricCalibration,
-        ),
+      rows,
+      (json) => FramePhotometricCalibrationRow.fromJson(json),
+      database.framePhotometricCalibration,
+    ),
     'transparencySamples': (rows) => _importRows(
-          rows,
-          (json) => TransparencySampleRow.fromJson(json),
-          database.transparencySamples,
-        ),
+      rows,
+      (json) => TransparencySampleRow.fromJson(json),
+      database.transparencySamples,
+    ),
     'psfFieldTiles': (rows) => _importRows(
-          rows,
-          (json) => PsfFieldTileRow.fromJson(json),
-          database.psfFieldTiles,
-        ),
+      rows,
+      (json) => PsfFieldTileRow.fromJson(json),
+      database.psfFieldTiles,
+    ),
     'scienceFrameQualityMetrics': (rows) => _importRows(
-          rows,
-          (json) => ScienceFrameQualityMetricsRow.fromJson(json),
-          database.scienceFrameQualityMetrics,
-        ),
+      rows,
+      (json) => ScienceFrameQualityMetricsRow.fromJson(json),
+      database.scienceFrameQualityMetrics,
+    ),
     'scienceTileMetrics': (rows) => _importRows(
-          rows,
-          (json) => ScienceTileMetricRow.fromJson(json),
-          database.scienceTileMetrics,
-        ),
+      rows,
+      (json) => ScienceTileMetricRow.fromJson(json),
+      database.scienceTileMetrics,
+    ),
     'astrometryResidualVectors': (rows) => _importRows(
-          rows,
-          (json) => AstrometryResidualVectorRow.fromJson(json),
-          database.astrometryResidualVectors,
-        ),
+      rows,
+      (json) => AstrometryResidualVectorRow.fromJson(json),
+      database.astrometryResidualVectors,
+    ),
     'movingObjectCandidates': (rows) => _importRows(
-          rows,
-          (json) => MovingObjectCandidateRow.fromJson(json),
-          database.movingObjectCandidates,
-        ),
+      rows,
+      (json) => MovingObjectCandidateRow.fromJson(json),
+      database.movingObjectCandidates,
+    ),
     'photometricTransforms': (rows) => _importRows(
-          rows,
-          (json) => PhotometricTransformRow.fromJson(json),
-          database.photometricTransforms,
-        ),
+      rows,
+      (json) => PhotometricTransformRow.fromJson(json),
+      database.photometricTransforms,
+    ),
     'lineRatioProducts': (rows) => _importRows(
-          rows,
-          (json) => LineRatioProductRow.fromJson(json),
-          database.lineRatioProducts,
-        ),
+      rows,
+      (json) => LineRatioProductRow.fromJson(json),
+      database.lineRatioProducts,
+    ),
     'focusModels': (rows) => _importRows(
-          rows,
-          (json) => FocusModelEntry.fromJson(json),
-          database.focusModels,
-        ),
+      rows,
+      (json) => FocusModelEntry.fromJson(json),
+      database.focusModels,
+    ),
   };
 
   /// Generic per-row import. Each row's JSON is decoded into its companion

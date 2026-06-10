@@ -46,9 +46,11 @@ class ObservationLogs extends Table {
   IntColumn get rating => integer().nullable()();
 
   /// Equipment profile used during the observation
-  IntColumn get equipmentProfileId => integer()
-      .nullable()
-      .references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
+  IntColumn get equipmentProfileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   /// Seeing conditions description (e.g., "excellent", "good", "fair", "poor")
   TextColumn get seeingConditions => text().nullable()();

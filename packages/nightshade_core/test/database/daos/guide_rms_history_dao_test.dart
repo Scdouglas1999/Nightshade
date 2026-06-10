@@ -105,7 +105,9 @@ void main() {
     expect(limited, hasLength(3));
     // We asked for the 3 most recent — RMS values 4, 3, 2 in DESC order.
     expect(
-        limited.map((s) => s.totalRmsArcsec).toList(), equals([4.0, 3.0, 2.0]));
+      limited.map((s) => s.totalRmsArcsec).toList(),
+      equals([4.0, 3.0, 2.0]),
+    );
   });
 
   test('deleteOlderThan removes only entries before the cutoff', () async {
@@ -113,10 +115,12 @@ void main() {
     final cutoff = DateTime(2026, 5, 15, 12);
     final fresh = DateTime(2026, 5, 17, 12);
 
-    final oldId =
-        await dao.insertSample(sample(mountId: 'mount-1', recordedAt: old));
-    final freshId =
-        await dao.insertSample(sample(mountId: 'mount-1', recordedAt: fresh));
+    final oldId = await dao.insertSample(
+      sample(mountId: 'mount-1', recordedAt: old),
+    );
+    final freshId = await dao.insertSample(
+      sample(mountId: 'mount-1', recordedAt: fresh),
+    );
 
     await dao.deleteOlderThan(cutoff);
 
@@ -127,8 +131,7 @@ void main() {
     expect(remaining.any((s) => s.id == oldId), isFalse);
   });
 
-  test(
-      'recentForMount default limit returns 20 entries in DESC recordedAt '
+  test('recentForMount default limit returns 20 entries in DESC recordedAt '
       'order after inserting 25', () async {
     // End-to-end check: the planner asks for "recent history" without
     // overriding the limit, and we want exactly the 20 newest samples in
@@ -156,7 +159,8 @@ void main() {
       expect(
         recent[i].recordedAt.isAfter(recent[i - 1].recordedAt),
         isFalse,
-        reason: 'recentForMount must return rows in DESC recordedAt order; '
+        reason:
+            'recentForMount must return rows in DESC recordedAt order; '
             'row $i (${recent[i].recordedAt}) is after row ${i - 1} '
             '(${recent[i - 1].recordedAt}).',
       );

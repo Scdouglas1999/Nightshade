@@ -137,20 +137,20 @@ class MeridianFlipNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        triggerMethod,
-        minutesPastMeridian,
-        minutesBeforeLimit,
-        hourAngleThreshold,
-        pauseGuiding,
-        autoCenter,
-        refocusAfter,
-        settleTime,
-        resumeGuiding,
-        maxRetries,
-        failureAction,
-        useGlobalDefaults,
-      ];
+    ...super.props,
+    triggerMethod,
+    minutesPastMeridian,
+    minutesBeforeLimit,
+    hourAngleThreshold,
+    pauseGuiding,
+    autoCenter,
+    refocusAfter,
+    settleTime,
+    resumeGuiding,
+    maxRetries,
+    failureAction,
+    useGlobalDefaults,
+  ];
 }
 
 /// Open Dome instruction
@@ -399,15 +399,15 @@ class PolarAlignmentNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        exposureDuration,
-        binning,
-        startAltitude,
-        rotationStep,
-        gain,
-        offset,
-        startFromCurrent,
-        isNorth,
-        manualSlew,
-      ];
+    ...super.props,
+    exposureDuration,
+    binning,
+    startAltitude,
+    rotationStep,
+    gain,
+    offset,
+    startFromCurrent,
+    isNorth,
+    manualSlew,
+  ];
 }

@@ -272,7 +272,8 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: NightshadeDecorations.statusChip(
               _getDriverTypeColor(activeBackend, colors),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               activeBackend.shortLabel.toLowerCase(),
@@ -290,8 +291,9 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
           PopupMenuButton<AssignAction>(
             onSelected: _handleAssign,
             offset: const Offset(0, 30),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+            shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8)),
             color: colors.surface,
             itemBuilder: (context) => _buildAssignMenuItems(colors),
             child: Container(

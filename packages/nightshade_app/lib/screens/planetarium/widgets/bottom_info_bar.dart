@@ -6,7 +6,6 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/coordinate_format_utils.dart';
 
-
 class BottomInfoBar extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -23,7 +22,8 @@ class BottomInfoBar extends ConsumerWidget {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 900;
         final isVeryCompact = constraints.maxWidth < 720;
-        final horizontalPadding = isVeryCompact ? 12.0 : (isCompact ? 16.0 : 20.0);
+        final horizontalPadding =
+            isVeryCompact ? 12.0 : (isCompact ? 16.0 : 20.0);
         final itemSpacing = isVeryCompact ? 8.0 : (isCompact ? 12.0 : 20.0);
 
         final items = <Widget>[

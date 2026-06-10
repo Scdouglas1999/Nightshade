@@ -34,31 +34,33 @@ class HomeAssistantDiscoveryConfig extends Equatable {
     String? deviceName,
     bool? allowControl,
     String? discoveryPrefix,
-  }) =>
-      HomeAssistantDiscoveryConfig(
-        enabled: enabled ?? this.enabled,
-        deviceName: deviceName ?? this.deviceName,
-        allowControl: allowControl ?? this.allowControl,
-        discoveryPrefix: discoveryPrefix ?? this.discoveryPrefix,
-      );
+  }) => HomeAssistantDiscoveryConfig(
+    enabled: enabled ?? this.enabled,
+    deviceName: deviceName ?? this.deviceName,
+    allowControl: allowControl ?? this.allowControl,
+    discoveryPrefix: discoveryPrefix ?? this.discoveryPrefix,
+  );
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
-        'deviceName': deviceName,
-        'allowControl': allowControl,
-        'discoveryPrefix': discoveryPrefix,
-      };
+    'enabled': enabled,
+    'deviceName': deviceName,
+    'allowControl': allowControl,
+    'discoveryPrefix': discoveryPrefix,
+  };
 
   factory HomeAssistantDiscoveryConfig.fromJson(Map<String, dynamic> json) =>
       HomeAssistantDiscoveryConfig(
         enabled: json['enabled'] as bool? ?? false,
         deviceName: json['deviceName'] as String? ?? '',
         allowControl: json['allowControl'] as bool? ?? false,
-        discoveryPrefix:
-            json['discoveryPrefix'] as String? ?? 'homeassistant',
+        discoveryPrefix: json['discoveryPrefix'] as String? ?? 'homeassistant',
       );
 
   @override
-  List<Object?> get props =>
-      [enabled, deviceName, allowControl, discoveryPrefix];
+  List<Object?> get props => [
+    enabled,
+    deviceName,
+    allowControl,
+    discoveryPrefix,
+  ];
 }

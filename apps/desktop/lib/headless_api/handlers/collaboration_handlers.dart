@@ -33,14 +33,10 @@ class CollaborationHandlers {
   final LiveCollaborationSessionManager manager;
   final LoggingService logger;
 
-  CollaborationHandlers({
-    required this.manager,
-    required this.logger,
-  });
+  CollaborationHandlers({required this.manager, required this.logger});
 
   void _logWarning(String message, {Map<String, Object?>? fields}) =>
-      logger.warning(message,
-          source: 'CollaborationHandlers', fields: fields);
+      logger.warning(message, source: 'CollaborationHandlers', fields: fields);
 
   /// `GET /api/collaboration/state` — snapshot the current presence list,
   /// preview, chat backlog, and active annotations. Read-only.
@@ -70,8 +66,7 @@ class CollaborationHandlers {
       if (effectiveViewerId == null || effectiveViewerId.isEmpty) {
         return jsonBadRequest({
           'error': 'Missing viewerId',
-          'message':
-              'viewerId required when authentication is disabled.',
+          'message': 'viewerId required when authentication is disabled.',
         });
       }
       if (authIdentity != null &&
@@ -179,8 +174,9 @@ class CollaborationHandlers {
       final viewerName = payload['viewerName'] as String?;
       final message = payload['message'] as String?;
       if (viewerId == null || viewerName == null || message == null) {
-        return jsonBadRequest(
-            {'error': 'viewerId, viewerName, and message are required'});
+        return jsonBadRequest({
+          'error': 'viewerId, viewerName, and message are required',
+        });
       }
       manager.addChat(
         viewerId: viewerId,
@@ -221,7 +217,7 @@ class CollaborationHandlers {
           kind == null ||
           annotationPayload is! Map<String, dynamic>) {
         return jsonBadRequest({
-          'error': 'annotationId, viewerId, kind, and payload are required'
+          'error': 'annotationId, viewerId, kind, and payload are required',
         });
       }
       manager.addAnnotation(
@@ -251,8 +247,7 @@ class CollaborationHandlers {
   /// `GET /api/session-handoff` — snapshot the currently-active handoff
   /// payload (null when no operator has set one).
   Future<Response> handleGetSessionHandoff(Request request) async {
-    return jsonOk(
-        {'sessionHandoff': manager.state.sessionHandoff});
+    return jsonOk({'sessionHandoff': manager.state.sessionHandoff});
   }
 
   /// `POST /api/session-handoff` — set the handoff payload. The body
@@ -267,8 +262,7 @@ class CollaborationHandlers {
         return jsonBadRequest({'error': 'handoff must be an object'});
       }
       manager.setSessionHandoff(handoff as Map<String, dynamic>?);
-      return jsonOk(
-          {'sessionHandoff': manager.state.sessionHandoff});
+      return jsonOk({'sessionHandoff': manager.state.sessionHandoff});
     } catch (e, st) {
       // Fail-closed: surface a stable 500 with a sanitized message; the real
       // cause/stack is logged server-side, never serialized to the caller.

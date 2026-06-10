@@ -10,11 +10,7 @@ class MosaicPlanState {
   final PlanetariumMosaicConfig? config;
   final bool isEditing;
 
-  const MosaicPlanState({
-    this.plan,
-    this.config,
-    this.isEditing = false,
-  });
+  const MosaicPlanState({this.plan, this.config, this.isEditing = false});
 
   MosaicPlanState copyWith({
     MosaicPlan? plan,
@@ -55,11 +51,7 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
 
     final plan = MosaicPlanner.generateMosaic(config);
 
-    state = MosaicPlanState(
-      plan: plan,
-      config: config,
-      isEditing: true,
-    );
+    state = MosaicPlanState(plan: plan, config: config, isEditing: true);
   }
 
   void createRectangularMosaic({
@@ -81,11 +73,7 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
       rotation: equipment.rotation,
     );
 
-    state = MosaicPlanState(
-      plan: plan,
-      config: plan.config,
-      isEditing: true,
-    );
+    state = MosaicPlanState(plan: plan, config: plan.config, isEditing: true);
   }
 
   void updateOverlap(double horizontal, double vertical) {
@@ -131,8 +119,8 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
 
 final mosaicPlanProvider =
     StateNotifierProvider<MosaicPlanNotifier, MosaicPlanState>((ref) {
-  return MosaicPlanNotifier(ref);
-});
+      return MosaicPlanNotifier(ref);
+    });
 
 // ============================================================================
 // Best Targets Provider
@@ -140,8 +128,9 @@ final mosaicPlanProvider =
 
 /// Find best imaging targets for tonight
 /// Uses cached date to avoid flickering from second-by-second updates
-final bestTargetsProvider =
-    FutureProvider<List<(DeepSkyObject, ObjectVisibility)>>((ref) async {
+final bestTargetsProvider = FutureProvider<List<(DeepSkyObject, ObjectVisibility)>>((
+  ref,
+) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final location = ref.watch(observerLocationProvider);
   final currentDate = ref.watch(_currentDateProvider);
@@ -154,7 +143,8 @@ final bestTargetsProvider =
   );
 
   // Use astronomical twilight as imaging time, or 9 PM if not available
-  final imagingTime = twilight.astronomicalDusk ??
+  final imagingTime =
+      twilight.astronomicalDusk ??
       DateTime(currentDate.year, currentDate.month, currentDate.day, 21, 0);
 
   // Computing visibility (iterative rise/transit/set) for the full ~12k-DSO
@@ -208,6 +198,7 @@ List<(int, ObjectVisibility)> _computeBestTargetIndices(_BestTargetsArgs a) {
     }
   }
   ranked.sort(
-      (x, y) => (y.$2.transitAltitude ?? 0).compareTo(x.$2.transitAltitude ?? 0));
+    (x, y) => (y.$2.transitAltitude ?? 0).compareTo(x.$2.transitAltitude ?? 0),
+  );
   return ranked.take(20).toList();
 }

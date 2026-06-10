@@ -164,84 +164,84 @@ class _FirstTimeOnboarding extends StatelessWidget {
               children: [
                 Icon(
                   LucideIcons.moon,
-              size: NightshadeTokens.iconXl,
-              color: colors.primary,
-            ),
+                  size: NightshadeTokens.iconXl,
+                  color: colors.primary,
+                ),
 
-            const SizedBox(height: NightshadeTokens.spaceLg),
+                const SizedBox(height: NightshadeTokens.spaceLg),
 
-            Text(
-              'Welcome to Nightshade',
-              style: NightshadeTypography.h2.copyWith(
-                color: colors.textPrimary,
-              ),
-            ),
-
-            const SizedBox(height: NightshadeTokens.spaceSm),
-
-            Text(
-              "Let's set up your first equipment profile",
-              style: NightshadeTypography.body.copyWith(
-                color: colors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 40),
-
-            // Setup steps
-            NightshadeCard(
-              variant: CardVariant.standard,
-              borderRadius: NightshadeTokens.radiusInline8,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  _SetupStep(
-                    number: '1',
-                    text: "We'll scan for connected equipment",
-                    colors: colors,
+                Text(
+                  'Welcome to Nightshade',
+                  style: NightshadeTypography.h2.copyWith(
+                    color: colors.textPrimary,
                   ),
-                  const SizedBox(height: 16),
-                  _SetupStep(
-                    number: '2',
-                    text: 'Select the devices you want to use',
-                    colors: colors,
+                ),
+
+                const SizedBox(height: NightshadeTokens.spaceSm),
+
+                Text(
+                  "Let's set up your first equipment profile",
+                  style: NightshadeTypography.body.copyWith(
+                    color: colors.textSecondary,
                   ),
-                  const SizedBox(height: 16),
-                  _SetupStep(
-                    number: '3',
-                    text: 'Save as a profile for one-click connection',
-                    colors: colors,
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 40),
+
+                // Setup steps
+                NightshadeCard(
+                  variant: CardVariant.standard,
+                  borderRadius: NightshadeTokens.radiusInline8,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      _SetupStep(
+                        number: '1',
+                        text: "We'll scan for connected equipment",
+                        colors: colors,
+                      ),
+                      const SizedBox(height: 16),
+                      _SetupStep(
+                        number: '2',
+                        text: 'Select the devices you want to use',
+                        colors: colors,
+                      ),
+                      const SizedBox(height: 16),
+                      _SetupStep(
+                        number: '3',
+                        text: 'Save as a profile for one-click connection',
+                        colors: colors,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
-            const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-            // Action buttons
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                label: 'Start Setup',
-                icon: LucideIcons.arrowRight,
-                variant: ButtonVariant.primary,
-                size: ButtonSize.large,
-                onPressed: onStartSetup,
-              ),
-            ),
+                // Action buttons
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    label: 'Start Setup',
+                    icon: LucideIcons.arrowRight,
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.large,
+                    onPressed: onStartSetup,
+                  ),
+                ),
 
-            const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                onPressed: onManualSetup,
-                label: "I'll do it manually",
-                variant: ButtonVariant.outline,
-                size: ButtonSize.medium,
-              ),
-            ),
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    onPressed: onManualSetup,
+                    label: "I'll do it manually",
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.medium,
+                  ),
+                ),
               ],
             ),
           ),
@@ -276,7 +276,8 @@ class _SetupStep extends StatelessWidget {
           child: Center(
             child: Text(
               number,
-              style: NightshadeTypography.labelStrong.copyWith(color: colors.primary),
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.primary),
             ),
           ),
         ),
@@ -336,7 +337,8 @@ class _ProfileMismatchBanner extends ConsumerWidget {
               'Device Mismatch: The connected ${mismatches.join(", ")} '
               '${mismatches.length == 1 ? 'does' : 'do'} not match the '
               'assignments in the active profile "${activeProfile.name}".',
-              style: NightshadeTypography.labelSm.copyWith(color: colors.warning),
+              style:
+                  NightshadeTypography.labelSm.copyWith(color: colors.warning),
             ),
           ),
           const SizedBox(width: 8),

@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -80,9 +80,7 @@ void main() {
       final sequence = Sequence.create(
         name: 'Tablet Draft',
         databaseId: null,
-        nodes: {
-          rootId: InstructionSetNode(id: rootId, name: 'Sequence'),
-        },
+        nodes: {rootId: InstructionSetNode(id: rootId, name: 'Sequence')},
         rootNodeId: rootId,
       );
 
@@ -91,9 +89,11 @@ void main() {
       expect(id, 7);
       verify(
         () => backend.saveFullSequence(
-          any(that: predicate<Map<String, dynamic>>(
-            (map) => map['name'] == 'Tablet Draft',
-          )),
+          any(
+            that: predicate<Map<String, dynamic>>(
+              (map) => map['name'] == 'Tablet Draft',
+            ),
+          ),
           isTemplate: false,
           databaseId: null,
         ),

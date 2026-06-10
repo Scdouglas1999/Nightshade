@@ -95,7 +95,9 @@ class CockpitRecentFrames extends ConsumerWidget {
                 Text(
                   total == 1 ? '1 frame' : '$total frames',
                   style: NightshadeTypography.withTabular(
-                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                 ),
             ],
@@ -125,7 +127,9 @@ class _EmptyHint extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'No frames captured this session yet',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11_5, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11_5,
+                color: colors.textMuted),
           ),
         ],
       ),
@@ -331,7 +335,9 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                      TextStyle(
+                          fontSize: NightshadeTypography.fontSize10,
+                          color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -343,7 +349,9 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
             Text(
               _timeLabel(),
               style: NightshadeTypography.withTabular(
-                TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                TextStyle(
+                    fontSize: NightshadeTypography.fontSize9,
+                    color: colors.textMuted),
               ),
             ),
           ],

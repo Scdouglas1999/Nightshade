@@ -33,8 +33,10 @@ import '../sequence_provider.dart' show currentSequenceProvider;
 /// [currentSequenceProvider] changes (because we `ref.watch` it). That is
 /// fine — we *want* a single mutation to clear every node's cached value;
 /// stale roll-ups deeper in the tree would be a "silent fallback" bug.
-final nodeRollupDurationProvider =
-    Provider.family<Duration, String>((ref, nodeId) {
+final nodeRollupDurationProvider = Provider.family<Duration, String>((
+  ref,
+  nodeId,
+) {
   final sequence = ref.watch(currentSequenceProvider);
   if (sequence == null) return Duration.zero;
   final secs = _rollupSecs(sequence, nodeId, const SequenceOverheadConfig());
@@ -117,8 +119,9 @@ double _rollupSecs(
     childSecs.add(s);
     childSum += s;
   }
-  final childMax =
-      childSecs.isEmpty ? 0.0 : childSecs.reduce((a, b) => a > b ? a : b);
+  final childMax = childSecs.isEmpty
+      ? 0.0
+      : childSecs.reduce((a, b) => a > b ? a : b);
 
   // Self overhead for non-exposure nodes that have a fixed time cost
   // (slew, autofocus, etc). For containers this is 0.
@@ -135,8 +138,10 @@ double _rollupSecs(
         // single-iteration when the deadline is in the past matches
         // _estimateNodeIntegration().
         if (node.repeatUntil != null && childSum > 0) {
-          final availableSecs =
-              node.repeatUntil!.difference(DateTime.now()).inSeconds.toDouble();
+          final availableSecs = node.repeatUntil!
+              .difference(DateTime.now())
+              .inSeconds
+              .toDouble();
           if (availableSecs > 0) {
             final iters = (availableSecs / childSum).floor();
             return selfOverhead + (childSum * iters);
@@ -157,8 +162,8 @@ double _rollupSecs(
             }
           }
           if (exposurePerIteration > 0) {
-            final iters =
-                (node.integrationTimeTarget! / exposurePerIteration).ceil();
+            final iters = (node.integrationTimeTarget! / exposurePerIteration)
+                .ceil();
             return selfOverhead + (childSum * iters);
           }
         }

@@ -41,7 +41,8 @@ class RunDashboardTargetHeader extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceMd),
             Text(
               'No target configured',
-              style: NightshadeTypography.h5.copyWith(color: colors.textSecondary),
+              style:
+                  NightshadeTypography.h5.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -96,7 +97,9 @@ class RunDashboardTargetHeader extends ConsumerWidget {
     final name = Text(
       target.displayName,
       style: TextStyle(
-        fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
+        fontSize: isMobile
+            ? NightshadeTypography.fontSize18
+            : NightshadeTypography.fontSize22,
         fontWeight: FontWeight.w700,
         color: colors.textPrimary,
       ),
@@ -243,7 +246,8 @@ class _BudgetProgressPanel extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                   child: LinearProgressIndicator(
                     value: fraction.clamp(0.0, 1.0),
                     minHeight: 6,
@@ -360,7 +364,8 @@ class _TargetProgress extends ConsumerWidget {
             children: [
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} frames',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textSecondary),
               ),
               const SizedBox(width: 6),
               Text(
@@ -381,7 +386,8 @@ class _TargetProgress extends ConsumerWidget {
               const Spacer(),
               Text(
                 '${(stats.fraction * 100).round()}%',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textSecondary),
               ),
             ],
           ),

@@ -67,14 +67,14 @@ class WatchComplicationSnapshot {
   final String weatherLabel;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'targetName': targetName,
-        'framesCompleted': framesCompleted,
-        'framesTotal': framesTotal,
-        'currentFilter': currentFilter,
-        'jobState': jobState,
-        'weatherSafe': weatherSafe,
-        'weatherLabel': weatherLabel,
-      };
+    'targetName': targetName,
+    'framesCompleted': framesCompleted,
+    'framesTotal': framesTotal,
+    'currentFilter': currentFilter,
+    'jobState': jobState,
+    'weatherSafe': weatherSafe,
+    'weatherLabel': weatherLabel,
+  };
 
   String encode() => jsonEncode(toJson());
 
@@ -93,14 +93,14 @@ class WatchComplicationSnapshot {
 
   @override
   int get hashCode => Object.hash(
-        targetName,
-        framesCompleted,
-        framesTotal,
-        currentFilter,
-        jobState,
-        weatherSafe,
-        weatherLabel,
-      );
+    targetName,
+    framesCompleted,
+    framesTotal,
+    currentFilter,
+    jobState,
+    weatherSafe,
+    weatherLabel,
+  );
 }
 
 /// Host-side bridge for the Apple Watch complication declared in
@@ -125,8 +125,8 @@ class WatchComplicationSnapshot {
 /// [WatchComplicationUnsupportedPlatformException] on non-iOS platforms.
 class WatchComplicationService {
   WatchComplicationService({MethodChannel? channel, bool? platformIsIos})
-      : _channel = channel ?? const MethodChannel(_channelName),
-        _platformIsIos = platformIsIos ?? Platform.isIOS;
+    : _channel = channel ?? const MethodChannel(_channelName),
+      _platformIsIos = platformIsIos ?? Platform.isIOS;
 
   /// Public for tests.
   static const String channelName = _channelName;

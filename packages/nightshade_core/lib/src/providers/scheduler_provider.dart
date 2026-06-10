@@ -11,7 +11,10 @@ import '../models/scheduler/target_constraint.dart';
 import '../models/planning/project.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/planning/project_service.dart'
-    show projectTargetsProjectIndexSql, projectTargetsSchemaSql, projectsSchemaSql;
+    show
+        projectTargetsProjectIndexSql,
+        projectTargetsSchemaSql,
+        projectsSchemaSql;
 import '../services/safe_rig_service.dart';
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
@@ -26,7 +29,8 @@ import 'event_provider.dart';
 // membership. The dependency is one-directional (planning_provider imports
 // scheduler_provider, not the reverse) — only these read-only providers are
 // pulled in here, so there is no cycle.
-import 'planning_provider.dart' show activeProjectIdProvider, projectListProvider;
+import 'planning_provider.dart'
+    show activeProjectIdProvider, projectListProvider;
 import 'profiles_provider.dart';
 import 'sequence_provider.dart';
 // Hide settings_provider's legacy 8-compass-point HorizonProfile so the
@@ -41,25 +45,25 @@ import 'package:nightshade_bridge/nightshade_bridge.dart';
 /// Stream that pushes engine trigger events derived from the native bridge.
 /// Hooks weather / guiding / mount events into the engine without
 /// introducing new event types (per the W6-SCHED coordination note).
-final schedulerTriggerStreamProvider = Provider<Stream<SchedulerTriggerEvent>>(
-  (ref) {
-    final controller = StreamController<SchedulerTriggerEvent>.broadcast();
-    final sub = ref.listen<AsyncValue<NightshadeEvent>>(
-      nightshadeEventsProvider,
-      (previous, next) {
-        next.whenData((event) {
-          final mapped = _mapEventToTrigger(event);
-          if (mapped != null) controller.add(mapped);
-        });
-      },
-    );
-    ref.onDispose(() {
-      sub.close();
-      controller.close();
-    });
-    return controller.stream;
-  },
-);
+final schedulerTriggerStreamProvider = Provider<Stream<SchedulerTriggerEvent>>((
+  ref,
+) {
+  final controller = StreamController<SchedulerTriggerEvent>.broadcast();
+  final sub = ref.listen<AsyncValue<NightshadeEvent>>(
+    nightshadeEventsProvider,
+    (previous, next) {
+      next.whenData((event) {
+        final mapped = _mapEventToTrigger(event);
+        if (mapped != null) controller.add(mapped);
+      });
+    },
+  );
+  ref.onDispose(() {
+    sub.close();
+    controller.close();
+  });
+  return controller.stream;
+});
 
 SchedulerTriggerEvent? _mapEventToTrigger(NightshadeEvent event) {
   switch (event.category) {
@@ -223,16 +227,18 @@ class SchedulerCandidateLoader {
       // Restrict to the project's members. The effective priority is the
       // membership override when set, else the target's own priority — and we
       // order by that effective value so the engine sees project-scoped ranking.
-      targetRows = await db.customSelect(
-        'SELECT t.id, t.name, t.ra, t.dec, '
-        'COALESCE(pt.priority_override, t.priority) AS priority, '
-        't.object_type, t.notes '
-        'FROM targets t '
-        'INNER JOIN project_targets pt ON pt.target_id = t.id '
-        'WHERE pt.project_id = ? '
-        'ORDER BY priority DESC, t.name ASC',
-        variables: [Variable.withInt(projectId)],
-      ).get();
+      targetRows = await db
+          .customSelect(
+            'SELECT t.id, t.name, t.ra, t.dec, '
+            'COALESCE(pt.priority_override, t.priority) AS priority, '
+            't.object_type, t.notes '
+            'FROM targets t '
+            'INNER JOIN project_targets pt ON pt.target_id = t.id '
+            'WHERE pt.project_id = ? '
+            'ORDER BY priority DESC, t.name ASC',
+            variables: [Variable.withInt(projectId)],
+          )
+          .get();
     } else {
       targetRows = await db
           .customSelect(
@@ -248,9 +254,7 @@ class SchedulerCandidateLoader {
         )
         .get();
     final horizonRows = await db
-        .customSelect(
-          'SELECT id, name, samples_json FROM horizon_profiles',
-        )
+        .customSelect('SELECT id, name, samples_json FROM horizon_profiles')
         .get();
 
     final horizonProfiles = <int, HorizonProfile>{};
@@ -283,10 +287,9 @@ class SchedulerCandidateLoader {
       final goals = await goalService.listForTarget(id);
       final counts = <int>[];
       for (final g in goals) {
-        counts.add(await goalService.capturedFrameCount(
-          targetId: id,
-          filter: g.filter,
-        ));
+        counts.add(
+          await goalService.capturedFrameCount(targetId: id, filter: g.filter),
+        );
       }
       final cs = constraintsByTarget[id] ?? const <TargetConstraint>[];
       // Only attach horizon profiles a constraint actually references —
@@ -298,25 +301,28 @@ class SchedulerCandidateLoader {
           final hp = horizonProfiles[ct.customHorizonId];
           if (hp == null) {
             throw StateError(
-                'Target $id references horizon profile ${ct.customHorizonId} which does not exist');
+              'Target $id references horizon profile ${ct.customHorizonId} which does not exist',
+            );
           }
           usedProfiles[ct.customHorizonId!] = hp;
         }
       }
 
-      out.add(SchedulerCandidate(
-        targetId: id,
-        name: row.read<String>('name'),
-        raHours: row.read<double>('ra'),
-        decDegrees: row.read<double>('dec'),
-        userPriority: row.read<int>('priority'),
-        goals: goals,
-        capturedCounts: counts,
-        constraints: cs,
-        horizonProfiles: usedProfiles,
-        availableFilters: availableFilters,
-        isMosaicTarget: _isMosaicTarget(row),
-      ));
+      out.add(
+        SchedulerCandidate(
+          targetId: id,
+          name: row.read<String>('name'),
+          raHours: row.read<double>('ra'),
+          decDegrees: row.read<double>('dec'),
+          userPriority: row.read<int>('priority'),
+          goals: goals,
+          capturedCounts: counts,
+          constraints: cs,
+          horizonProfiles: usedProfiles,
+          availableFilters: availableFilters,
+          isMosaicTarget: _isMosaicTarget(row),
+        ),
+      );
     }
     return out;
   }
@@ -324,8 +330,8 @@ class SchedulerCandidateLoader {
   bool _isMosaicTarget(QueryRow row) {
     final objectType = row.readNullable<String>('object_type') ?? '';
     final notes = row.readNullable<String>('notes') ?? '';
-    final haystack =
-        '${row.read<String>('name')} $objectType $notes'.toLowerCase();
+    final haystack = '${row.read<String>('name')} $objectType $notes'
+        .toLowerCase();
     return haystack.contains('mosaic');
   }
 
@@ -344,23 +350,26 @@ class SchedulerCandidateLoader {
   }
 }
 
-final schedulerCandidateLoaderProvider =
-    Provider<SchedulerCandidateLoader>((ref) {
+final schedulerCandidateLoaderProvider = Provider<SchedulerCandidateLoader>((
+  ref,
+) {
   return SchedulerCandidateLoader(ref);
 });
 
 /// Live stream of every integration goal. Driven by
 /// `IntegrationGoalService.watchAll`; used by [_schedulerAutoReevalProvider]
 /// to wake the engine whenever the operator edits goals.
-final integrationGoalsStreamProvider =
-    StreamProvider<List<IntegrationGoal>>((ref) {
+final integrationGoalsStreamProvider = StreamProvider<List<IntegrationGoal>>((
+  ref,
+) {
   return ref.watch(integrationGoalServiceProvider).watchAll();
 });
 
 /// Live stream of every constraint. Driven by
 /// `TargetConstraintService.watchAll`.
-final targetConstraintsStreamProvider =
-    StreamProvider<List<TargetConstraint>>((ref) {
+final targetConstraintsStreamProvider = StreamProvider<List<TargetConstraint>>((
+  ref,
+) {
   return ref.watch(targetConstraintServiceProvider).watchAll();
 });
 
@@ -385,7 +394,8 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   // reload triggered later still queries the scope the engine was configured
   // with, rather than re-reading a moving provider value mid-tick.
   Future<List<SchedulerCandidate>> Function() loaderFor(int? activeId) =>
-      () => ref.read(schedulerCandidateLoaderProvider).load(projectId: activeId);
+      () =>
+          ref.read(schedulerCandidateLoaderProvider).load(projectId: activeId);
 
   // Read (not watch) the initial scope: watching activeProjectIdProvider here
   // would rebuild the whole engine on every project switch and lose its
@@ -430,16 +440,16 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
 final schedulerAutoReevalProvider = Provider<void>((ref) {
   final engine = ref.watch(schedulerEngineProvider);
 
-  ref.listen<AsyncValue<List<ndb.Target>>>(
-    allDbTargetsProvider,
-    (previous, next) {
-      // Only react once we have data, and only after the very first
-      // emission (initial load is the cold-start, not a "change").
-      if (previous == null || !previous.hasValue) return;
-      if (!next.hasValue) return;
-      engine.requestReevaluation(reason: 'targets table changed');
-    },
-  );
+  ref.listen<AsyncValue<List<ndb.Target>>>(allDbTargetsProvider, (
+    previous,
+    next,
+  ) {
+    // Only react once we have data, and only after the very first
+    // emission (initial load is the cold-start, not a "change").
+    if (previous == null || !previous.hasValue) return;
+    if (!next.hasValue) return;
+    engine.requestReevaluation(reason: 'targets table changed');
+  });
 
   ref.listen<AsyncValue<List<IntegrationGoal>>>(
     integrationGoalsStreamProvider,
@@ -464,13 +474,10 @@ final schedulerAutoReevalProvider = Provider<void>((ref) {
   // scheduled tick. The loader was already re-scoped in schedulerEngineProvider
   // for this same transition; the engine's internal debounce coalesces this
   // poke with that one into a single evaluation.
-  ref.listen<int?>(
-    activeProjectIdProvider,
-    (previous, next) {
-      if (previous == next) return;
-      engine.requestReevaluation(reason: 'active project changed');
-    },
-  );
+  ref.listen<int?>(activeProjectIdProvider, (previous, next) {
+    if (previous == next) return;
+    engine.requestReevaluation(reason: 'active project changed');
+  });
 
   // Project membership changes (adding/removing a target, editing a priority
   // override) change which targets — and at what priority — the active project
@@ -478,14 +485,11 @@ final schedulerAutoReevalProvider = Provider<void>((ref) {
   // ProjectService mutation (it bridges watchChanges → re-list), which covers
   // membership edits as well as project CRUD. As above, only react after the
   // initial emission so the cold-start load is not treated as a change.
-  ref.listen<AsyncValue<List<Project>>>(
-    projectListProvider,
-    (previous, next) {
-      if (previous == null || !previous.hasValue) return;
-      if (!next.hasValue) return;
-      engine.requestReevaluation(reason: 'project membership changed');
-    },
-  );
+  ref.listen<AsyncValue<List<Project>>>(projectListProvider, (previous, next) {
+    if (previous == null || !previous.hasValue) return;
+    if (!next.hasValue) return;
+    engine.requestReevaluation(reason: 'project membership changed');
+  });
 });
 
 /// StateNotifier that mirrors the engine's status stream into Riverpod so
@@ -493,9 +497,9 @@ final schedulerAutoReevalProvider = Provider<void>((ref) {
 /// the stream themselves.
 final schedulerStatusProvider =
     StateNotifierProvider<SchedulerStatusNotifier, SchedulerStatus>((ref) {
-  final engine = ref.watch(schedulerEngineProvider);
-  return SchedulerStatusNotifier(engine);
-});
+      final engine = ref.watch(schedulerEngineProvider);
+      return SchedulerStatusNotifier(engine);
+    });
 
 class SchedulerStatusNotifier extends StateNotifier<SchedulerStatus> {
   final SchedulerEngine _engine;
@@ -518,10 +522,11 @@ class SchedulerStatusNotifier extends StateNotifier<SchedulerStatus> {
 /// StateNotifier surfacing the engine's last decision.
 final currentSchedulerDecisionProvider =
     StateNotifierProvider<CurrentSchedulerDecisionNotifier, SchedulerDecision?>(
-        (ref) {
-  final engine = ref.watch(schedulerEngineProvider);
-  return CurrentSchedulerDecisionNotifier(engine);
-});
+      (ref) {
+        final engine = ref.watch(schedulerEngineProvider);
+        return CurrentSchedulerDecisionNotifier(engine);
+      },
+    );
 
 class CurrentSchedulerDecisionNotifier
     extends StateNotifier<SchedulerDecision?> {
@@ -558,14 +563,14 @@ class CurrentSchedulerDecisionNotifier
 /// auto-reeval listeners that poke the engine cover the underlying data edits.
 final schedulerPreviewDecisionProvider =
     FutureProvider.autoDispose<SchedulerDecision>((ref) async {
-  final engine = ref.watch(schedulerEngineProvider);
-  final clock = ref.watch(clockProvider);
-  // Re-derive the preview each time the autopilot publishes a fresh decision
-  // so the read-only view tracks live evaluation. Watching the decision (not
-  // just reading it once) keeps the headline current after ticks/triggers.
-  ref.watch(currentSchedulerDecisionProvider);
-  return engine.previewDecision(clock.now());
-});
+      final engine = ref.watch(schedulerEngineProvider);
+      final clock = ref.watch(clockProvider);
+      // Re-derive the preview each time the autopilot publishes a fresh decision
+      // so the read-only view tracks live evaluation. Watching the decision (not
+      // just reading it once) keeps the headline current after ticks/triggers.
+      ref.watch(currentSchedulerDecisionProvider);
+      return engine.previewDecision(clock.now());
+    });
 
 /// Read-only ranked candidate list (best-first, eligible only) the autopilot
 /// would consider right now — the headline ordering for the Planner. Shares
@@ -573,25 +578,27 @@ final schedulerPreviewDecisionProvider =
 /// entry equals [schedulerPreviewDecisionProvider]'s chosen target.
 final schedulerPreviewRankingProvider =
     FutureProvider.autoDispose<List<TargetScore>>((ref) async {
-  final engine = ref.watch(schedulerEngineProvider);
-  final clock = ref.watch(clockProvider);
-  ref.watch(currentSchedulerDecisionProvider);
-  return engine.previewRanking(clock.now());
-});
+      final engine = ref.watch(schedulerEngineProvider);
+      final clock = ref.watch(clockProvider);
+      ref.watch(currentSchedulerDecisionProvider);
+      return engine.previewRanking(clock.now());
+    });
 
 /// Quick-access provider for the list of all integration goals (refreshes
 /// when the operator edits them).
-final allIntegrationGoalsProvider =
-    FutureProvider<List<IntegrationGoal>>((ref) async {
+final allIntegrationGoalsProvider = FutureProvider<List<IntegrationGoal>>((
+  ref,
+) async {
   return ref.watch(integrationGoalServiceProvider).listAll();
 });
 
 /// Per-target progress provider used by the Scheduler screen rows.
 final integrationGoalProgressProvider =
-    FutureProvider.family<List<IntegrationGoalProgress>, int>(
-  (ref, targetId) async {
-    return ref
-        .watch(integrationGoalServiceProvider)
-        .progressForTarget(targetId);
-  },
-);
+    FutureProvider.family<List<IntegrationGoalProgress>, int>((
+      ref,
+      targetId,
+    ) async {
+      return ref
+          .watch(integrationGoalServiceProvider)
+          .progressForTarget(targetId);
+    });

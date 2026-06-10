@@ -465,7 +465,9 @@ class _TonightRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -59,12 +59,15 @@ class SessionChart extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No data',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted),
                     ),
                   ),
                 ),

@@ -1,9 +1,9 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceFilterWheelControls on DeviceService {
-// ===========================================================================
-// Filter Wheel Control
-// ===========================================================================
+  // ===========================================================================
+  // Filter Wheel Control
+  // ===========================================================================
 
   /// Get the connected filter wheel device ID
   /// First checks the currently connected filter wheel state, then falls back to active profile
@@ -48,7 +48,9 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
     var hardwareStillMoving = false;
     try {
       // Move the filter wheel
-      _ref.read(loggingServiceProvider).debug(
+      _ref
+          .read(loggingServiceProvider)
+          .debug(
             'Changing filter wheel $deviceId to $filterName '
             '(position $position)',
             source: 'DeviceService',
@@ -68,8 +70,10 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
         await _applyFilterFocusOffset(filterNames[position]);
       }
     } catch (e) {
-      hardwareStillMoving =
-          await _recoverFilterWheelMovingState(deviceId, filterWheelNotifier);
+      hardwareStillMoving = await _recoverFilterWheelMovingState(
+        deviceId,
+        filterWheelNotifier,
+      );
       rethrow;
     } finally {
       if (!hardwareStillMoving) {

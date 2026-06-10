@@ -121,7 +121,8 @@ Future<void> _pump(WidgetTester tester, SessionReport report) async {
           body: Builder(
             builder: (ctx) => Center(
               child: ElevatedButton(
-                onPressed: () => SessionReportDialog.show(ctx, report.sessionId),
+                onPressed: () =>
+                    SessionReportDialog.show(ctx, report.sessionId),
                 child: const Text('Open'),
               ),
             ),
@@ -144,8 +145,7 @@ Future<void> _pump(WidgetTester tester, SessionReport report) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders headline metrics and per-target table',
-      (tester) async {
+  testWidgets('renders headline metrics and per-target table', (tester) async {
     await _pump(tester, _fakeReport());
 
     // Headline.

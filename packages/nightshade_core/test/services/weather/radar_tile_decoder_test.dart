@@ -18,8 +18,7 @@ void main() {
 
   /// Encodes an [img.Image] as PNG bytes (round-trips through the real codec the
   /// providers use).
-  Uint8List encode(img.Image image) =>
-      Uint8List.fromList(img.encodePng(image));
+  Uint8List encode(img.Image image) => Uint8List.fromList(img.encodePng(image));
 
   /// A 256×256 RGBA tile filled with a single straight-alpha colour.
   img.Image solidTile(int r, int g, int b, int a) {
@@ -31,11 +30,19 @@ void main() {
   group('RadarColormap.intensityForPixel (RainViewer scheme 2)', () {
     test('each anchor colour maps to its pinned intensity', () {
       for (final stop in colormap.stops) {
-        final intensity =
-            colormap.intensityForPixel(stop.r, stop.g, stop.b, 255);
-        expect(intensity, closeTo(stop.intensity, 1e-9),
-            reason: 'anchor (${stop.r},${stop.g},${stop.b}) must map to '
-                '${stop.intensity}');
+        final intensity = colormap.intensityForPixel(
+          stop.r,
+          stop.g,
+          stop.b,
+          255,
+        );
+        expect(
+          intensity,
+          closeTo(stop.intensity, 1e-9),
+          reason:
+              'anchor (${stop.r},${stop.g},${stop.b}) must map to '
+              '${stop.intensity}',
+        );
       }
     });
 
@@ -125,41 +132,44 @@ void main() {
       }
     });
 
-    test('a tile with a painted northern half places intensity in top rows', () {
-      // Top half = heavy rain (magenta, 1.0); bottom half = transparent (0).
-      final stop = colormap.stops.last;
-      final image = img.Image(width: 256, height: 256, numChannels: 4);
-      img.fill(image, color: img.ColorRgba8(0, 0, 0, 0)); // transparent
-      img.fillRect(
-        image,
-        x1: 0,
-        y1: 0,
-        x2: 255,
-        y2: 127,
-        color: img.ColorRgba8(stop.r, stop.g, stop.b, 255),
-      );
+    test(
+      'a tile with a painted northern half places intensity in top rows',
+      () {
+        // Top half = heavy rain (magenta, 1.0); bottom half = transparent (0).
+        final stop = colormap.stops.last;
+        final image = img.Image(width: 256, height: 256, numChannels: 4);
+        img.fill(image, color: img.ColorRgba8(0, 0, 0, 0)); // transparent
+        img.fillRect(
+          image,
+          x1: 0,
+          y1: 0,
+          x2: 255,
+          y2: 127,
+          color: img.ColorRgba8(stop.r, stop.g, stop.b, 255),
+        );
 
-      final tile = DecodedRadarTile(z: z, x: tileX, y: tileY, image: image);
-      final bounds = tileBounds();
+        final tile = DecodedRadarTile(z: z, x: tileX, y: tileY, image: image);
+        final bounds = tileBounds();
 
-      final grid = decoder.buildIntensityGrid(
-        tiles: [tile],
-        colormap: colormap,
-        north: bounds.north,
-        south: bounds.south,
-        west: bounds.west,
-        east: bounds.east,
-        gridRows: 8,
-        gridCols: 8,
-        z: z,
-      );
+        final grid = decoder.buildIntensityGrid(
+          tiles: [tile],
+          colormap: colormap,
+          north: bounds.north,
+          south: bounds.south,
+          west: bounds.west,
+          east: bounds.east,
+          gridRows: 8,
+          gridCols: 8,
+          z: z,
+        );
 
-      expect(grid, isNotNull);
-      // Top rows (north, image top) should be the painted intensity...
-      expect(grid![0][0], closeTo(1.0, 1e-9));
-      // ...and bottom rows (south) clear.
-      expect(grid[7][0], 0.0);
-    });
+        expect(grid, isNotNull);
+        // Top rows (north, image top) should be the painted intensity...
+        expect(grid![0][0], closeTo(1.0, 1e-9));
+        // ...and bottom rows (south) clear.
+        expect(grid[7][0], 0.0);
+      },
+    );
 
     test('empty tile list returns null (no-data, not a fabricated grid)', () {
       final grid = decoder.buildIntensityGrid(
@@ -200,10 +210,22 @@ void main() {
     test('GOES bright (cold cloud) pixels map high, dark ground maps to 0', () {
       // North half bright (cloud), south half dark (clear ground).
       final image = img.Image(width: 64, height: 64, numChannels: 4);
-      img.fillRect(image,
-          x1: 0, y1: 0, x2: 63, y2: 31, color: img.ColorRgba8(255, 255, 255, 255));
-      img.fillRect(image,
-          x1: 0, y1: 32, x2: 63, y2: 63, color: img.ColorRgba8(0, 0, 0, 255));
+      img.fillRect(
+        image,
+        x1: 0,
+        y1: 0,
+        x2: 63,
+        y2: 31,
+        color: img.ColorRgba8(255, 255, 255, 255),
+      );
+      img.fillRect(
+        image,
+        x1: 0,
+        y1: 32,
+        x2: 63,
+        y2: 63,
+        color: img.ColorRgba8(0, 0, 0, 255),
+      );
 
       final grid = decoder.buildIntensityGridFromWmsImage(
         image: image,

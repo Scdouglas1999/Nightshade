@@ -126,7 +126,8 @@ class _PlayButtonState extends State<_PlayButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: NightshadeTypography.labelStrong.copyWith(color: onPrimary),
+                style:
+                    NightshadeTypography.labelStrong.copyWith(color: onPrimary),
               ),
             ],
           ),
@@ -182,7 +183,8 @@ class _PauseButtonState extends State<_PauseButton> {
               const SizedBox(width: 8),
               Text(
                 'Pause',
-                style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.warning),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: widget.colors.warning),
               ),
             ],
           ),
@@ -234,7 +236,8 @@ class _ControlButtonState extends State<_ControlButton> {
               color: _isHovered && !isDisabled
                   ? widget.colors.surfaceAlt
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: widget.colors.border),
             ),
             child: Icon(

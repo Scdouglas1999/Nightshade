@@ -6,10 +6,11 @@ part of '../guiding_provider.dart';
 
 /// Provider for PHD2 brain parameters
 final brainParamsProvider =
-    StateNotifierProvider<BrainParamsNotifier, AsyncValue<Phd2BrainParams>>(
-        (ref) {
-  return BrainParamsNotifier(ref);
-});
+    StateNotifierProvider<BrainParamsNotifier, AsyncValue<Phd2BrainParams>>((
+      ref,
+    ) {
+      return BrainParamsNotifier(ref);
+    });
 
 /// Notifier that fetches and caches PHD2 brain parameters
 class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
@@ -74,18 +75,22 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
 
       final decParams = <String, double>{};
       for (final name in decNames) {
-        decParams[name] =
-            await backend.phd2GetAlgoParam(axis: 'dec', name: name);
+        decParams[name] = await backend.phd2GetAlgoParam(
+          axis: 'dec',
+          name: name,
+        );
       }
 
       if (mounted) {
         _hasFetched = true;
-        state = AsyncValue.data(Phd2BrainParams(
-          raParamNames: raNames,
-          decParamNames: decNames,
-          raParams: raParams,
-          decParams: decParams,
-        ));
+        state = AsyncValue.data(
+          Phd2BrainParams(
+            raParamNames: raNames,
+            decParamNames: decNames,
+            raParams: raParams,
+            decParams: decParams,
+          ),
+        );
       }
     } catch (e, st) {
       _logger.error('Failed to load PHD2 brain params: $e', source: 'PHD2');
@@ -128,8 +133,8 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
 /// Provider for calibration state
 final calibrationStateProvider =
     StateNotifierProvider<CalibrationStateNotifier, Phd2CalibrationData>((ref) {
-  return CalibrationStateNotifier(ref);
-});
+      return CalibrationStateNotifier(ref);
+    });
 
 /// Notifier that tracks calibration state
 class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
@@ -168,19 +173,22 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
     // Fetch calibration data when PHD2 connects
     ref.listen<GuiderState>(guiderStateProvider, (previous, next) {
       _logger.debug(
-          'CalibrationStateNotifier: guiderState changed from ${previous?.connectionState} to ${next.connectionState}',
-          source: 'PHD2');
+        'CalibrationStateNotifier: guiderState changed from ${previous?.connectionState} to ${next.connectionState}',
+        source: 'PHD2',
+      );
       if (next.connectionState == DeviceConnectionState.connected &&
           next.deviceId == 'phd2_guider' &&
           !_hasFetched) {
         _logger.debug(
-            'CalibrationStateNotifier: PHD2 connected, fetching calibration data...',
-            source: 'PHD2');
+          'CalibrationStateNotifier: PHD2 connected, fetching calibration data...',
+          source: 'PHD2',
+        );
         unawaited(refreshCalibrationData());
       } else if (next.connectionState == DeviceConnectionState.disconnected) {
         _logger.debug(
-            'CalibrationStateNotifier: PHD2 disconnected, resetting state',
-            source: 'PHD2');
+          'CalibrationStateNotifier: PHD2 disconnected, resetting state',
+          source: 'PHD2',
+        );
         _hasFetched = false;
         state = const Phd2CalibrationData();
       } else if (next.connectionState == DeviceConnectionState.connected &&
@@ -193,13 +201,15 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
     // Also check current state on initialization
     final guiderState = ref.read(guiderStateProvider);
     _logger.debug(
-        'CalibrationStateNotifier: Initial guiderState.connectionState = ${guiderState.connectionState}',
-        source: 'PHD2');
+      'CalibrationStateNotifier: Initial guiderState.connectionState = ${guiderState.connectionState}',
+      source: 'PHD2',
+    );
     if (guiderState.connectionState == DeviceConnectionState.connected &&
         guiderState.deviceId == 'phd2_guider') {
       _logger.debug(
-          'CalibrationStateNotifier: Already connected on init, fetching calibration data...',
-          source: 'PHD2');
+        'CalibrationStateNotifier: Already connected on init, fetching calibration data...',
+        source: 'PHD2',
+      );
       unawaited(refreshCalibrationData());
     }
   }
@@ -214,8 +224,9 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
       if (mounted) {
         state = data;
         _logger.info(
-            'Fetched calibration data - calibrated: ${data.isCalibrated}',
-            source: 'PHD2');
+          'Fetched calibration data - calibrated: ${data.isCalibrated}',
+          source: 'PHD2',
+        );
       }
     } catch (e) {
       _logger.error('Failed to fetch calibration data: $e', source: 'PHD2');

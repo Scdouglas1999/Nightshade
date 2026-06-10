@@ -23,8 +23,8 @@ class WsTicketManager {
   final Map<String, _Ticket> _tickets = {};
 
   WsTicketManager({Random? random, DateTime Function()? now})
-      : _random = random ?? Random.secure(),
-        _now = now ?? DateTime.now;
+    : _random = random ?? Random.secure(),
+      _now = now ?? DateTime.now;
 
   /// Issues a fresh ticket bound to [identity] (the SHA-256 digest of the
   /// bearer token that authenticated `POST /api/ws/ticket`). The caller is
@@ -96,7 +96,9 @@ class WsTicketManager {
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final buffer = StringBuffer();
     for (var i = 0; i < _ticketLengthBytes; i++) {
-      buffer.writeCharCode(alphabet.codeUnitAt(_random.nextInt(alphabet.length)));
+      buffer.writeCharCode(
+        alphabet.codeUnitAt(_random.nextInt(alphabet.length)),
+      );
     }
     return buffer.toString();
   }

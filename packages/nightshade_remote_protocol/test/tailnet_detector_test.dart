@@ -6,14 +6,22 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 void main() {
   group('TailnetDetector.classify — loopback', () {
     test('127.0.0.0/8 and localhost are loopback', () {
-      expect(TailnetDetector.classify('127.0.0.1'),
-          HostReachabilityTier.loopback);
-      expect(TailnetDetector.classify('127.255.255.254'),
-          HostReachabilityTier.loopback);
       expect(
-          TailnetDetector.classify('localhost'), HostReachabilityTier.loopback);
-      expect(TailnetDetector.classify('LOCALHOST'),
-          HostReachabilityTier.loopback);
+        TailnetDetector.classify('127.0.0.1'),
+        HostReachabilityTier.loopback,
+      );
+      expect(
+        TailnetDetector.classify('127.255.255.254'),
+        HostReachabilityTier.loopback,
+      );
+      expect(
+        TailnetDetector.classify('localhost'),
+        HostReachabilityTier.loopback,
+      );
+      expect(
+        TailnetDetector.classify('LOCALHOST'),
+        HostReachabilityTier.loopback,
+      );
     });
 
     test('IPv6 ::1 is loopback', () {
@@ -27,81 +35,123 @@ void main() {
       expect(TailnetDetector.classify('10.0.0.1'), HostReachabilityTier.lan);
       expect(TailnetDetector.classify('172.16.0.1'), HostReachabilityTier.lan);
       expect(
-          TailnetDetector.classify('172.31.255.254'), HostReachabilityTier.lan);
+        TailnetDetector.classify('172.31.255.254'),
+        HostReachabilityTier.lan,
+      );
       expect(
-          TailnetDetector.classify('192.168.1.42'), HostReachabilityTier.lan);
+        TailnetDetector.classify('192.168.1.42'),
+        HostReachabilityTier.lan,
+      );
     });
 
     test('172.x outside /12 is not LAN', () {
-      expect(TailnetDetector.classify('172.15.0.1'),
-          HostReachabilityTier.public);
-      expect(TailnetDetector.classify('172.32.0.1'),
-          HostReachabilityTier.public);
+      expect(
+        TailnetDetector.classify('172.15.0.1'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('172.32.0.1'),
+        HostReachabilityTier.public,
+      );
     });
 
     test('169.254.0.0/16 link-local is LAN', () {
       expect(
-          TailnetDetector.classify('169.254.10.20'), HostReachabilityTier.lan);
+        TailnetDetector.classify('169.254.10.20'),
+        HostReachabilityTier.lan,
+      );
     });
 
     test('.local mDNS names are LAN', () {
-      expect(TailnetDetector.classify('nightshade.local'),
-          HostReachabilityTier.lan);
+      expect(
+        TailnetDetector.classify('nightshade.local'),
+        HostReachabilityTier.lan,
+      );
       expect(TailnetDetector.classify('PI4.LOCAL'), HostReachabilityTier.lan);
     });
 
     test('fe80::/10 link-local and generic fc00::/7 ULA are LAN', () {
       expect(TailnetDetector.classify('fe80::1'), HostReachabilityTier.lan);
       expect(
-          TailnetDetector.classify('fe80::1%eth0'), HostReachabilityTier.lan);
+        TailnetDetector.classify('fe80::1%eth0'),
+        HostReachabilityTier.lan,
+      );
       expect(TailnetDetector.classify('fc00::1'), HostReachabilityTier.lan);
       expect(TailnetDetector.classify('fd00::1'), HostReachabilityTier.lan);
-      expect(TailnetDetector.classify('fcff:ffff:ffff:ffff::1'),
-          HostReachabilityTier.lan);
+      expect(
+        TailnetDetector.classify('fcff:ffff:ffff:ffff::1'),
+        HostReachabilityTier.lan,
+      );
     });
   });
 
   group('TailnetDetector.classify — tailnet (Tailscale)', () {
     test('100.64.0.0/10 CGNAT boundaries are tailnet', () {
-      expect(TailnetDetector.classify('100.64.0.0'),
-          HostReachabilityTier.tailscale);
-      expect(TailnetDetector.classify('100.64.0.1'),
-          HostReachabilityTier.tailscale);
-      expect(TailnetDetector.classify('100.127.255.255'),
-          HostReachabilityTier.tailscale);
-      expect(TailnetDetector.classify('100.100.0.1'),
-          HostReachabilityTier.tailscale);
+      expect(
+        TailnetDetector.classify('100.64.0.0'),
+        HostReachabilityTier.tailscale,
+      );
+      expect(
+        TailnetDetector.classify('100.64.0.1'),
+        HostReachabilityTier.tailscale,
+      );
+      expect(
+        TailnetDetector.classify('100.127.255.255'),
+        HostReachabilityTier.tailscale,
+      );
+      expect(
+        TailnetDetector.classify('100.100.0.1'),
+        HostReachabilityTier.tailscale,
+      );
     });
 
     test('just outside the CGNAT /10 is NOT tailnet', () {
       // 100.0.0.0/8 below the CGNAT block holds ~16M public IPs — must be
       // classified public, never tailnet, or a crafted QR could point at one.
-      expect(TailnetDetector.classify('100.63.255.255'),
-          HostReachabilityTier.public);
-      expect(TailnetDetector.classify('100.0.0.1'),
-          HostReachabilityTier.public);
-      expect(TailnetDetector.classify('100.50.0.1'),
-          HostReachabilityTier.public);
-      expect(TailnetDetector.classify('100.128.0.0'),
-          HostReachabilityTier.public);
+      expect(
+        TailnetDetector.classify('100.63.255.255'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('100.0.0.1'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('100.50.0.1'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('100.128.0.0'),
+        HostReachabilityTier.public,
+      );
     });
 
     test('neighbouring /8 (99.x / 101.x) is public, not tailnet', () {
       expect(
-          TailnetDetector.classify('99.84.0.1'), HostReachabilityTier.public);
-      expect(TailnetDetector.classify('101.64.0.1'),
-          HostReachabilityTier.public);
+        TailnetDetector.classify('99.84.0.1'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('101.64.0.1'),
+        HostReachabilityTier.public,
+      );
     });
 
     test('Tailscale IPv6 fd7a:115c::/32 is tailnet (not generic ULA)', () {
       // The Tailscale /32 sits inside fd00::/8 — it must be distinguished from
       // a vanilla ULA so the reachability badge can say "via Tailscale".
-      expect(TailnetDetector.classify('fd7a:115c:a1e0::1'),
-          HostReachabilityTier.tailscale);
-      expect(TailnetDetector.classify('fd7a:115c::1'),
-          HostReachabilityTier.tailscale);
-      expect(TailnetDetector.classify('[fd7a:115c:a1e0::53]'),
-          HostReachabilityTier.tailscale);
+      expect(
+        TailnetDetector.classify('fd7a:115c:a1e0::1'),
+        HostReachabilityTier.tailscale,
+      );
+      expect(
+        TailnetDetector.classify('fd7a:115c::1'),
+        HostReachabilityTier.tailscale,
+      );
+      expect(
+        TailnetDetector.classify('[fd7a:115c:a1e0::53]'),
+        HostReachabilityTier.tailscale,
+      );
     });
 
     test('isTailscaleHost matches the tailnet tier', () {
@@ -116,29 +166,43 @@ void main() {
     test('globally-routable IPv4 is public', () {
       expect(TailnetDetector.classify('8.8.8.8'), HostReachabilityTier.public);
       expect(TailnetDetector.classify('1.1.1.1'), HostReachabilityTier.public);
-      expect(TailnetDetector.classify('52.85.132.10'),
-          HostReachabilityTier.public);
+      expect(
+        TailnetDetector.classify('52.85.132.10'),
+        HostReachabilityTier.public,
+      );
     });
 
     test('globally-routable IPv6 is public', () {
-      expect(TailnetDetector.classify('2606:4700:4700::1111'),
-          HostReachabilityTier.public);
       expect(
-          TailnetDetector.classify('2001:db8::1'), HostReachabilityTier.public);
+        TailnetDetector.classify('2606:4700:4700::1111'),
+        HostReachabilityTier.public,
+      );
+      expect(
+        TailnetDetector.classify('2001:db8::1'),
+        HostReachabilityTier.public,
+      );
     });
 
     test('empty / malformed / non-literal hosts are invalid', () {
       expect(TailnetDetector.classify(''), HostReachabilityTier.invalid);
-      expect(TailnetDetector.classify('192.168.0'),
-          HostReachabilityTier.invalid);
-      expect(TailnetDetector.classify('192.168.0.999'),
-          HostReachabilityTier.invalid);
-      expect(TailnetDetector.classify('not.an.ip'),
-          HostReachabilityTier.invalid);
+      expect(
+        TailnetDetector.classify('192.168.0'),
+        HostReachabilityTier.invalid,
+      );
+      expect(
+        TailnetDetector.classify('192.168.0.999'),
+        HostReachabilityTier.invalid,
+      );
+      expect(
+        TailnetDetector.classify('not.an.ip'),
+        HostReachabilityTier.invalid,
+      );
       // A DNS name that is not *.local cannot be proven private without
       // resolution, which we refuse to perform — invalid.
-      expect(TailnetDetector.classify('example.com'),
-          HostReachabilityTier.invalid);
+      expect(
+        TailnetDetector.classify('example.com'),
+        HostReachabilityTier.invalid,
+      );
     });
   });
 
@@ -191,7 +255,8 @@ void main() {
     test('recognises a 100.x interface address', () {
       expect(
         TailnetDetector.isTailscaleInterfaceAddress(
-            InternetAddress('100.96.0.7')),
+          InternetAddress('100.96.0.7'),
+        ),
         isTrue,
       );
     });
@@ -199,7 +264,8 @@ void main() {
     test('rejects a LAN interface address', () {
       expect(
         TailnetDetector.isTailscaleInterfaceAddress(
-            InternetAddress('192.168.1.10')),
+          InternetAddress('192.168.1.10'),
+        ),
         isFalse,
       );
     });
@@ -221,21 +287,27 @@ void main() {
       expect(TailnetDetector.isTailscaleEndpoint('fd7a:115c:a1e0::1'), isTrue);
     });
 
-    test('a *.ts.net MagicDNS name is an endpoint (isTailscaleHost is not)',
-        () {
-      const magic = 'my-rig.tailnet-name.ts.net';
-      // The whole point of the dedicated predicate: a MagicDNS name is a
-      // tailnet endpoint even though it is not an IP literal, so the IP-only
-      // isTailscaleHost returns false for it.
-      expect(TailnetDetector.isTailscaleHost(magic), isFalse);
-      expect(TailnetDetector.isTailscaleEndpoint(magic), isTrue);
-    });
+    test(
+      'a *.ts.net MagicDNS name is an endpoint (isTailscaleHost is not)',
+      () {
+        const magic = 'my-rig.tailnet-name.ts.net';
+        // The whole point of the dedicated predicate: a MagicDNS name is a
+        // tailnet endpoint even though it is not an IP literal, so the IP-only
+        // isTailscaleHost returns false for it.
+        expect(TailnetDetector.isTailscaleHost(magic), isFalse);
+        expect(TailnetDetector.isTailscaleEndpoint(magic), isTrue);
+      },
+    );
 
     test('MagicDNS matching is case-insensitive and trims whitespace', () {
-      expect(TailnetDetector.isTailscaleEndpoint('MyRig.Tailnet.TS.NET'),
-          isTrue);
-      expect(TailnetDetector.isTailscaleEndpoint('  rig.tail.ts.net  '),
-          isTrue);
+      expect(
+        TailnetDetector.isTailscaleEndpoint('MyRig.Tailnet.TS.NET'),
+        isTrue,
+      );
+      expect(
+        TailnetDetector.isTailscaleEndpoint('  rig.tail.ts.net  '),
+        isTrue,
+      );
     });
 
     test('the bare suffix and non-tailnet hosts are not endpoints', () {

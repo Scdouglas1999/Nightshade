@@ -20,10 +20,10 @@ extension _ImagingServiceQualityProcessing on ImagingService {
       final hfrScore = hfr < 2.0
           ? 100.0
           : hfr < 3.0
-              ? 100.0 - (hfr - 2.0) * 25.0
-              : hfr < 5.0
-                  ? 75.0 - (hfr - 3.0) * 25.0
-                  : math.max(0.0, 25.0 - math.min(5.0, hfr - 5.0) * 5.0);
+          ? 100.0 - (hfr - 2.0) * 25.0
+          : hfr < 5.0
+          ? 75.0 - (hfr - 3.0) * 25.0
+          : math.max(0.0, 25.0 - math.min(5.0, hfr - 5.0) * 5.0);
       score += hfrScore * 0.4;
       weightSum += 0.4;
     }
@@ -34,10 +34,10 @@ extension _ImagingServiceQualityProcessing on ImagingService {
       final starScore = starCount >= 100
           ? 100.0
           : starCount >= 50
-              ? 66.0 + (starCount - 50) / 50.0 * 34.0
-              : starCount >= 20
-                  ? 33.0 + (starCount - 20) / 30.0 * 33.0
-                  : math.max(0.0, starCount / 20.0 * 33.0);
+          ? 66.0 + (starCount - 50) / 50.0 * 34.0
+          : starCount >= 20
+          ? 33.0 + (starCount - 20) / 30.0 * 33.0
+          : math.max(0.0, starCount / 20.0 * 33.0);
       score += starScore * 0.3;
       weightSum += 0.3;
     }
@@ -49,8 +49,8 @@ extension _ImagingServiceQualityProcessing on ImagingService {
       final uniformityScore = cv < 0.1
           ? 100.0
           : cv < 0.3
-              ? 100.0 - (cv - 0.1) * 333.0
-              : math.max(0.0, 33.0 - math.min(0.33, cv - 0.3) * 100.0);
+          ? 100.0 - (cv - 0.1) * 333.0
+          : math.max(0.0, 33.0 - math.min(0.33, cv - 0.3) * 100.0);
       score += uniformityScore * 0.3;
       weightSum += 0.3;
     }
@@ -97,8 +97,10 @@ extension _ImagingServiceQualityProcessing on ImagingService {
     // Background level based on gain and exposure
     final gain = settings.gain;
     final exposureTime = settings.exposureTime;
-    final baseBackground =
-        (30 + gain * 0.2 + exposureTime * 2).round().clamp(20, 100);
+    final baseBackground = (30 + gain * 0.2 + exposureTime * 2).round().clamp(
+      20,
+      100,
+    );
     final noiseLevel = (10 + gain * 0.1).round().clamp(5, 30);
 
     // Fill with background + noise

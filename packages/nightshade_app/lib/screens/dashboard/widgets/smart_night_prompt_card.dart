@@ -176,7 +176,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   LucideIcons.sparkles,

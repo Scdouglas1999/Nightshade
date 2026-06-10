@@ -57,7 +57,9 @@ void main() {
       try {
         // Rebuild integrated_masters in its v43 shape (v41 base + v42 additive
         // columns, but none of the v44 WCS / finishing-path columns).
-        await setupDb.customStatement('DROP TABLE IF EXISTS integrated_masters');
+        await setupDb.customStatement(
+          'DROP TABLE IF EXISTS integrated_masters',
+        );
         await setupDb.customStatement(
           'CREATE TABLE integrated_masters('
           'id INTEGER PRIMARY KEY AUTOINCREMENT,'
@@ -87,8 +89,9 @@ void main() {
           'target_integration_s REAL,'
           'improvement_curve_json TEXT)',
         );
-        await setupDb
-            .customStatement('DROP TABLE IF EXISTS narrowband_composites');
+        await setupDb.customStatement(
+          'DROP TABLE IF EXISTS narrowband_composites',
+        );
         await setupDb.customStatement('PRAGMA user_version = 43');
       } finally {
         await setupDb.close();
@@ -103,10 +106,8 @@ void main() {
       return rows.map((r) => r.read<String>('name')).toSet();
     }
 
-    Future<Set<String>> columnNames(
-        NightshadeDatabase db, String table) async {
-      final info =
-          await db.customSelect("PRAGMA table_info('$table')").get();
+    Future<Set<String>> columnNames(NightshadeDatabase db, String table) async {
+      final info = await db.customSelect("PRAGMA table_info('$table')").get();
       return info.map((r) => r.data['name'] as String).toSet();
     }
 
@@ -121,43 +122,49 @@ void main() {
       );
     }
 
-    test('adds the v44 WCS + finishing columns and narrowband_composites table',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v43_v44_create_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV43Database(tempDir);
+    test(
+      'adds the v44 WCS + finishing columns and narrowband_composites table',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v43_v44_create_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV43Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final cols = await columnNames(upgraded, 'integrated_masters');
-        for (final c in [...wcsColumns, ...finishingColumns]) {
-          expect(cols, contains(c),
-              reason: '$c column missing after v43 -> v44 upgrade');
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final cols = await columnNames(upgraded, 'integrated_masters');
+          for (final c in [...wcsColumns, ...finishingColumns]) {
+            expect(
+              cols,
+              contains(c),
+              reason: '$c column missing after v43 -> v44 upgrade',
+            );
+          }
+          // The v42 columns must survive the upgrade untouched.
+          expect(cols, contains('background_extracted'));
+          expect(cols, contains('improvement_curve_json'));
+
+          final names = await tableNames(upgraded);
+          expect(names, contains('narrowband_composites'));
+
+          final indexes = await upgraded
+              .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
+              .get();
+          final indexNames = indexes.map((r) => r.read<String>('name')).toSet();
+          expect(indexNames, contains('idx_narrowband_composites_target'));
+        } finally {
+          await upgraded.close();
         }
-        // The v42 columns must survive the upgrade untouched.
-        expect(cols, contains('background_extracted'));
-        expect(cols, contains('improvement_curve_json'));
+      },
+    );
 
-        final names = await tableNames(upgraded);
-        expect(names, contains('narrowband_composites'));
-
-        final indexes = await upgraded
-            .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
-            .get();
-        final indexNames = indexes.map((r) => r.read<String>('name')).toSet();
-        expect(indexNames, contains('idx_narrowband_composites_target'));
-      } finally {
-        await upgraded.close();
-      }
-    });
-
-    test('plate-solved WCS + finishing paths round-trip through the DAO',
-        () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v43_v44_wcs_roundtrip_');
+    test('plate-solved WCS + finishing paths round-trip through the DAO', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v43_v44_wcs_roundtrip_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -229,8 +236,9 @@ void main() {
     });
 
     test('a narrowband composite round-trips through the new DAO', () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v43_v44_composite_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v43_v44_composite_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -269,8 +277,9 @@ void main() {
     });
 
     test('re-running the v44 migration block is idempotent (no-op)', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v43_v44_idem_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v43_v44_idem_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -303,9 +312,13 @@ void main() {
         final count = await second
             .customSelect('SELECT COUNT(*) AS c FROM narrowband_composites')
             .getSingle();
-        expect(count.read<int>('c'), 1,
-            reason: 'The idempotent helper must NOT recreate / clobber the '
-                'pre-existing composite row.');
+        expect(
+          count.read<int>('c'),
+          1,
+          reason:
+              'The idempotent helper must NOT recreate / clobber the '
+              'pre-existing composite row.',
+        );
       } finally {
         await second.close();
       }

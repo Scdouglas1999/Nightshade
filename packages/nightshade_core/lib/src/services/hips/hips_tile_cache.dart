@@ -87,10 +87,7 @@ class HipsTileCache {
   /// Both limits must be strictly positive; passing a non-positive limit is a
   /// configuration bug and throws [ArgumentError] rather than degrading to an
   /// unbounded or do-nothing cache.
-  HipsTileCache({
-    required this.maxEntries,
-    required this.maxBytes,
-  }) {
+  HipsTileCache({required this.maxEntries, required this.maxBytes}) {
     if (maxEntries < 1) {
       throw ArgumentError.value(
         maxEntries,
@@ -222,11 +219,9 @@ class HipsTileCache {
   HipsTileCacheSnapshot snapshot() {
     _assertNotDisposed();
     return HipsTileCacheSnapshot._(
-      Map<HipsTileId, ui.Image>.unmodifiable(
-        <HipsTileId, ui.Image>{
-          for (final entry in _entries.entries) entry.key: entry.value.image,
-        },
-      ),
+      Map<HipsTileId, ui.Image>.unmodifiable(<HipsTileId, ui.Image>{
+        for (final entry in _entries.entries) entry.key: entry.value.image,
+      }),
     );
   }
 
@@ -290,8 +285,9 @@ class HipsTileCacheSnapshot {
   const HipsTileCacheSnapshot._(this._images);
 
   /// An empty snapshot, useful as an initial value before any tile loads.
-  static const HipsTileCacheSnapshot empty =
-      HipsTileCacheSnapshot._(<HipsTileId, ui.Image>{});
+  static const HipsTileCacheSnapshot empty = HipsTileCacheSnapshot._(
+    <HipsTileId, ui.Image>{},
+  );
 
   /// Number of tiles in the snapshot.
   int get length => _images.length;
@@ -322,8 +318,5 @@ class _CacheEntry {
   final ui.Image image;
   final int estimatedBytes;
 
-  const _CacheEntry({
-    required this.image,
-    required this.estimatedBytes,
-  });
+  const _CacheEntry({required this.image, required this.estimatedBytes});
 }

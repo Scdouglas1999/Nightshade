@@ -61,11 +61,7 @@ Future<void> main(List<String> args) async {
     requiredText: _requiredTestText,
   );
   final usage = _scanUsage(root);
-  final issues = [
-    ...helper.issues,
-    ...tests.issues,
-    ...usage.issues,
-  ];
+  final issues = [...helper.issues, ...tests.issues, ...usage.issues];
   final passed = issues.isEmpty;
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -80,26 +76,30 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOut).parent.create(recursive: true);
-  await File(jsonOut).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOut,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOut).parent.create(recursive: true);
-  await File(markdownOut).writeAsString(_renderMarkdown(
-    passed: passed,
-    issues: issues,
-    helper: helper,
-    tests: tests,
-    usage: usage,
-  ));
+  await File(markdownOut).writeAsString(
+    _renderMarkdown(
+      passed: passed,
+      issues: issues,
+      helper: helper,
+      tests: tests,
+      usage: usage,
+    ),
+  );
 
   stdout.writeln('Headless response helper audit complete.');
   stdout.writeln('Passed: $passed');
   stdout.writeln('Issues: ${issues.length}');
   stdout.writeln('Raw Response calls: ${usage.rawResponseCallCount}');
   stdout.writeln(
-      'Intentional raw Response calls: ${usage.intentionalRawResponseCallCount}');
+    'Intentional raw Response calls: ${usage.intentionalRawResponseCallCount}',
+  );
   stdout.writeln(
-      'Unclassified raw Response calls: ${usage.unclassifiedRawResponseCallCount}');
+    'Unclassified raw Response calls: ${usage.unclassifiedRawResponseCallCount}',
+  );
   stdout.writeln('JSON content-type mentions: ${usage.jsonContentTypeCount}');
   stdout.writeln('JSON helper imports: ${usage.helperImportCount}');
   stdout.writeln('JSON: $jsonOut');
@@ -153,13 +153,17 @@ _UsageAudit _scanUsage(Directory root) {
   }
   files.sort((a, b) => a.path.compareTo(b.path));
 
-  final rawResponsePattern = RegExp(r'\bResponse\.(ok|badRequest|notFound|'
-      r'internalServerError|forbidden|unauthorized|movedPermanently)\b|'
-      r'\bResponse\s*\(');
-  final helperCallPattern = RegExp(r'\bjson(Ok|Created|BadRequest|'
-      r'Unauthorized|Forbidden|NotFound|Conflict|TooLarge|UpgradeRequired|'
-      r'RateLimited|InternalServerError|NotImplemented|Response)\s*\(|'
-      r'\b(contentResponse|attachmentResponse)\s*\(');
+  final rawResponsePattern = RegExp(
+    r'\bResponse\.(ok|badRequest|notFound|'
+    r'internalServerError|forbidden|unauthorized|movedPermanently)\b|'
+    r'\bResponse\s*\(',
+  );
+  final helperCallPattern = RegExp(
+    r'\bjson(Ok|Created|BadRequest|'
+    r'Unauthorized|Forbidden|NotFound|Conflict|TooLarge|UpgradeRequired|'
+    r'RateLimited|InternalServerError|NotImplemented|Response)\s*\(|'
+    r'\b(contentResponse|attachmentResponse)\s*\(',
+  );
   final perFile = <Map<String, Object?>>[];
   var rawResponseCallCount = 0;
   var intentionalRawResponseCallCount = 0;
@@ -271,9 +275,11 @@ String _renderMarkdown({
     ..writeln('- Scanned files: `${usage.scannedFileCount}`')
     ..writeln('- Raw `Response.*` calls: `${usage.rawResponseCallCount}`')
     ..writeln(
-        '- Intentional raw `Response.*` calls: `${usage.intentionalRawResponseCallCount}`')
+      '- Intentional raw `Response.*` calls: `${usage.intentionalRawResponseCallCount}`',
+    )
     ..writeln(
-        '- Unclassified raw `Response.*` calls: `${usage.unclassifiedRawResponseCallCount}`')
+      '- Unclassified raw `Response.*` calls: `${usage.unclassifiedRawResponseCallCount}`',
+    )
     ..writeln('- JSON content-type mentions: `${usage.jsonContentTypeCount}`')
     ..writeln('- JSON helper imports: `${usage.helperImportCount}`')
     ..writeln('- JSON helper calls: `${usage.helperCallCount}`')
@@ -376,13 +382,13 @@ class _FileAudit {
   }
 
   Map<String, Object?> toJson() => {
-        'path': path,
-        'exists': exists,
-        'sizeBytes': sizeBytes,
-        'missingText': missingText,
-        'missingTextCount': missingText.length,
-        'passed': exists && missingText.isEmpty,
-      };
+    'path': path,
+    'exists': exists,
+    'sizeBytes': sizeBytes,
+    'missingText': missingText,
+    'missingTextCount': missingText.length,
+    'passed': exists && missingText.isEmpty,
+  };
 }
 
 class _UsageAudit {
@@ -429,13 +435,13 @@ class _UsageAudit {
   }
 
   Map<String, Object?> toJson() => {
-        'scannedFileCount': scannedFileCount,
-        'rawResponseCallCount': rawResponseCallCount,
-        'intentionalRawResponseCallCount': intentionalRawResponseCallCount,
-        'unclassifiedRawResponseCallCount': unclassifiedRawResponseCallCount,
-        'jsonContentTypeCount': jsonContentTypeCount,
-        'helperImportCount': helperImportCount,
-        'helperCallCount': helperCallCount,
-        'files': files,
-      };
+    'scannedFileCount': scannedFileCount,
+    'rawResponseCallCount': rawResponseCallCount,
+    'intentionalRawResponseCallCount': intentionalRawResponseCallCount,
+    'unclassifiedRawResponseCallCount': unclassifiedRawResponseCallCount,
+    'jsonContentTypeCount': jsonContentTypeCount,
+    'helperImportCount': helperImportCount,
+    'helperCallCount': helperCallCount,
+    'files': files,
+  };
 }

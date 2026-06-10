@@ -53,9 +53,7 @@ const _excludedDirectoryNames = <String>{
 // Substrings that genuinely identify generated code regardless of where they
 // appear in the path. `frb_generated.` is a filename prefix produced by
 // flutter_rust_bridge, never a hand-authored module.
-const _excludedSubstrings = <String>[
-  '/frb_generated.',
-];
+const _excludedSubstrings = <String>['/frb_generated.'];
 
 final _runtimePathPatterns = <RegExp>[
   RegExp(r'^apps/[^/]+/lib/'),
@@ -105,7 +103,8 @@ void main(List<String> args) {
   // §7B.4 regression-pin: CI passes either --min-files <N> or the older
   // --assert-at-least-files-scanned <N>. Both names point at the same check;
   // the short form is preferred in new YAML.
-  final assertMinFiles = _argValue(args, '--min-files') ??
+  final assertMinFiles =
+      _argValue(args, '--min-files') ??
       _argValue(args, '--assert-at-least-files-scanned');
 
   final allowlist = _loadAllowlist(allowlistPath);
@@ -120,8 +119,10 @@ void main(List<String> args) {
       continue;
     }
 
-    for (final entity
-        in rootDir.listSync(recursive: true, followLinks: false)) {
+    for (final entity in rootDir.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) {
         continue;
       }
@@ -183,7 +184,8 @@ void main(List<String> args) {
     }
     if (filesScanned < required) {
       stderr.writeln(
-          'Placeholder audit scanned $filesScanned files; required >= $required');
+        'Placeholder audit scanned $filesScanned files; required >= $required',
+      );
       exit(1);
     }
   }
@@ -289,9 +291,11 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     final firstColon = normalized.indexOf(':');
     if (firstColon < 0) {
       // Path-only entry — reject loudly per §7B.5. Errors are a feature.
-      stderr.writeln('Invalid allowlist entry at $path:${lineNumber + 1}: '
-          '"$raw" — path-only entries are not allowed. '
-          'Use "path:line" or "path:line:exact_text" for granularity.');
+      stderr.writeln(
+        'Invalid allowlist entry at $path:${lineNumber + 1}: '
+        '"$raw" — path-only entries are not allowed. '
+        'Use "path:line" or "path:line:exact_text" for granularity.',
+      );
       exit(2);
     }
     final secondColon = normalized.indexOf(':', firstColon + 1);
@@ -307,17 +311,21 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     }
     final lineNo = int.tryParse(linePart);
     if (lineNo == null) {
-      stderr.writeln('Invalid allowlist entry at $path:${lineNumber + 1}: '
-          '"$raw" — second segment must be a line number, got "$linePart". '
-          'Use "path:line" or "path:line:exact_text".');
+      stderr.writeln(
+        'Invalid allowlist entry at $path:${lineNumber + 1}: '
+        '"$raw" — second segment must be a line number, got "$linePart". '
+        'Use "path:line" or "path:line:exact_text".',
+      );
       exit(2);
     }
-    entries.add(_AllowlistEntry(
-      fullEntry: normalized,
-      path: pathPart,
-      line: lineNo,
-      exactText: textPart,
-    ));
+    entries.add(
+      _AllowlistEntry(
+        fullEntry: normalized,
+        path: pathPart,
+        line: lineNo,
+        exactText: textPart,
+      ),
+    );
   }
   return entries;
 }
@@ -329,8 +337,9 @@ bool _isAllowlisted(String entry, List<_AllowlistEntry> allowlist) {
   final normalizedEntry = _normalize(entry);
   // Format from main loop: path:line:trimmed_text
   final firstColon = normalizedEntry.indexOf(':');
-  final secondColon =
-      firstColon >= 0 ? normalizedEntry.indexOf(':', firstColon + 1) : -1;
+  final secondColon = firstColon >= 0
+      ? normalizedEntry.indexOf(':', firstColon + 1)
+      : -1;
   if (firstColon < 0 || secondColon < 0) {
     return false;
   }
@@ -399,8 +408,9 @@ List<String> _readLinesSafe(File file) {
   } catch (_) {
     try {
       final bytes = file.readAsBytesSync();
-      return const LineSplitter()
-          .convert(utf8.decode(bytes, allowMalformed: true));
+      return const LineSplitter().convert(
+        utf8.decode(bytes, allowMalformed: true),
+      );
     } catch (_) {
       return const <String>[];
     }

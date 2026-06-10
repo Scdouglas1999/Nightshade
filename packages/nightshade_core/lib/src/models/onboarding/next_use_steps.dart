@@ -124,8 +124,7 @@ const List<NextUseStep> kNextUseSteps = <NextUseStep>[
   NextUseStep(
     id: NextUseActionId.captureFirstLight,
     title: 'Capture first light',
-    body:
-        'Take your first frame and watch it land in the live capture view.',
+    body: 'Take your first frame and watch it land in the live capture view.',
     actionLabel: 'Capture first light',
     iconKey: 'camera',
     deepLinkRoute: '/imaging?firstLight=1',

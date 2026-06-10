@@ -36,8 +36,9 @@ final exposureSettingsUserDirtyProvider = StateProvider<bool>((ref) => false);
 /// This prevents re-applying defaults when navigating back to the imaging screen
 /// while still allowing a profile switch to re-initialize the controls.
 final _lastAppliedProfileIdProvider = StateProvider<int?>((ref) => null);
-final _lastAppliedSmartExposureProfileIdProvider =
-    StateProvider<int?>((ref) => null);
+final _lastAppliedSmartExposureProfileIdProvider = StateProvider<int?>(
+  (ref) => null,
+);
 
 /// Call this provider from the imaging screen's initState/build to ensure
 /// snapshot controls are initialized from the active equipment profile.
@@ -50,8 +51,9 @@ final syncExposureFromProfileProvider = Provider<void>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return;
 
-  final exposureContext =
-      ref.watch(smartNightExposureContextProvider).valueOrNull;
+  final exposureContext = ref
+      .watch(smartNightExposureContextProvider)
+      .valueOrNull;
 
   var disposed = false;
   ref.onDispose(() => disposed = true);
@@ -102,8 +104,8 @@ final lastImageStatsProvider = StateProvider<ImageStats?>((ref) => null);
 /// Settings are persisted to the database and loaded on startup.
 final autoStretchSettingsProvider =
     StateNotifierProvider<AutoStretchSettingsNotifier, AutoStretchSettings>(
-  (ref) => AutoStretchSettingsNotifier(ref),
-);
+      (ref) => AutoStretchSettingsNotifier(ref),
+    );
 
 /// StateNotifier for auto-stretch settings with database persistence.
 class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
@@ -111,7 +113,7 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
   bool _isLoaded = false;
 
   AutoStretchSettingsNotifier(this._ref)
-      : super(AutoStretchSettings.defaults()) {
+    : super(AutoStretchSettings.defaults()) {
     _loadSettings();
   }
 
@@ -128,8 +130,11 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
         state = AutoStretchSettings.fromJson(decoded);
       }
     } catch (e) {
-      developer.log('Failed to load auto-stretch settings: $e',
-          name: 'AutoStretch', level: 1000);
+      developer.log(
+        'Failed to load auto-stretch settings: $e',
+        name: 'AutoStretch',
+        level: 1000,
+      );
     }
   }
 
@@ -150,8 +155,11 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
       final json = jsonEncode(state.toJson());
       await db.settingsDao.setAutoStretchSettings(json);
     } catch (e) {
-      developer.log('Failed to save auto-stretch settings: $e',
-          name: 'AutoStretch', level: 1000);
+      developer.log(
+        'Failed to save auto-stretch settings: $e',
+        name: 'AutoStretch',
+        level: 1000,
+      );
     }
   }
 
@@ -178,8 +186,8 @@ final coolingStatusProvider = StateProvider<CoolingStatus>((ref) {
 /// reset when unrelated app settings are saved.
 final focusSettingsProvider =
     StateNotifierProvider<FocusSettingsNotifier, FocusSettings>((ref) {
-  return FocusSettingsNotifier(ref);
-});
+      return FocusSettingsNotifier(ref);
+    });
 
 /// StateNotifier for focus settings that reads from AppSettings only once.
 ///
@@ -260,8 +268,9 @@ final namingPatternProvider = Provider<NamingPattern>((ref) {
 });
 
 /// Last star detection result
-final starDetectionResultProvider =
-    StateProvider<StarDetectionResult?>((ref) => null);
+final starDetectionResultProvider = StateProvider<StarDetectionResult?>(
+  (ref) => null,
+);
 
 /// Debayer settings for color cameras
 final debayerEnabledProvider = StateProvider<bool>((ref) => false);
@@ -280,8 +289,8 @@ final autoDetectBayerPatternProvider = StateProvider<bool>((ref) => true);
 /// Session captured images
 final sessionImagesProvider =
     StateNotifierProvider<SessionImagesNotifier, List<CapturedImage>>((ref) {
-  return SessionImagesNotifier();
-});
+      return SessionImagesNotifier();
+    });
 
 class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
   SessionImagesNotifier() : super([]);
@@ -330,10 +339,11 @@ class TemperaturePoint {
 
 /// Provider for temperature history (last N points)
 final temperatureHistoryProvider =
-    StateNotifierProvider<TemperatureHistoryNotifier, List<TemperaturePoint>>(
-        (ref) {
-  return TemperatureHistoryNotifier();
-});
+    StateNotifierProvider<TemperatureHistoryNotifier, List<TemperaturePoint>>((
+      ref,
+    ) {
+      return TemperatureHistoryNotifier();
+    });
 
 class TemperatureHistoryNotifier extends StateNotifier<List<TemperaturePoint>> {
   static const int maxPoints = 120; // 10 minutes at 5-second intervals

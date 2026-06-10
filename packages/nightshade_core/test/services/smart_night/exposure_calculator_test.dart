@@ -39,10 +39,7 @@ void main() {
       final recommendation = calculator.recommend(asi2600());
 
       expect(recommendation.seconds, equals(300));
-      expect(
-        recommendation.limitingFactor,
-        ExposureLimitingFactor.userCap,
-      );
+      expect(recommendation.limitingFactor, ExposureLimitingFactor.userCap);
       expect(
         recommendation.allCeilings[ExposureLimitingFactor.glover],
         inInclusiveRange(280, 600),
@@ -52,20 +49,14 @@ void main() {
 
     test('recommends short broadband subs under Bortle 8 skies', () {
       final recommendation = calculator.recommend(
-        asi2600(
-          bortleClass: 8,
-          filter: const FilterExposureSpec.luminance(),
-        ),
+        asi2600(bortleClass: 8, filter: const FilterExposureSpec.luminance()),
       );
 
       expect(recommendation.seconds, lessThanOrEqualTo(90));
       expect(recommendation.seconds, greaterThanOrEqualTo(60));
       expect(
         recommendation.limitingFactor,
-        anyOf(
-          ExposureLimitingFactor.glover,
-          ExposureLimitingFactor.floor,
-        ),
+        anyOf(ExposureLimitingFactor.glover, ExposureLimitingFactor.floor),
       );
     });
 
@@ -86,8 +77,10 @@ void main() {
       );
 
       expect(FilterExposureSpec.fromName('L-eXtreme').bandwidthNm, 7);
-      expect(lExtreme.allCeilings[ExposureLimitingFactor.glover],
-          greaterThan(luminance.allCeilings[ExposureLimitingFactor.glover]!));
+      expect(
+        lExtreme.allCeilings[ExposureLimitingFactor.glover],
+        greaterThan(luminance.allCeilings[ExposureLimitingFactor.glover]!),
+      );
     });
 
     test('lighter sky never increases the exposure recommendation', () {
@@ -143,14 +136,8 @@ void main() {
         ),
       );
 
-      expect(
-        withoutHistory.allCeilings[ExposureLimitingFactor.mount],
-        isNull,
-      );
-      expect(
-        withHistory.limitingFactor,
-        ExposureLimitingFactor.mount,
-      );
+      expect(withoutHistory.allCeilings[ExposureLimitingFactor.mount], isNull);
+      expect(withHistory.limitingFactor, ExposureLimitingFactor.mount);
       expect(withHistory.seconds, lessThan(withoutHistory.seconds));
       expect(
         withHistory.caveats,
@@ -162,14 +149,14 @@ void main() {
       // Dark sky + small fast scope so broadband sky-limited lengths rise above
       // the floor and the per-channel ordering is observable end-to-end.
       ExposureRecommendation forFilter(String name) => calculator.recommend(
-            asi2600(
-              bortleClass: 3,
-              filter: FilterExposureSpec.fromName(name),
-              floorSeconds: 30,
-              userCapSeconds: 600,
-              fullWellE: 50000,
-            ),
-          );
+        asi2600(
+          bortleClass: 3,
+          filter: FilterExposureSpec.fromName(name),
+          floorSeconds: 30,
+          userCapSeconds: 600,
+          fullWellE: 50000,
+        ),
+      );
 
       final l = forFilter('L').seconds;
       final r = forFilter('R').seconds;
@@ -196,8 +183,11 @@ void main() {
       expect(sii, equals(ha));
 
       // The whole point of the fix: broadband channels are NOT all identical.
-      expect({l, r, g, b}.length, greaterThan(1),
-          reason: 'broadband channels must not collapse to one value');
+      expect(
+        {l, r, g, b}.length,
+        greaterThan(1),
+        reason: 'broadband channels must not collapse to one value',
+      );
     });
 
     test('target SNR scales sky-limited recommendations', () {

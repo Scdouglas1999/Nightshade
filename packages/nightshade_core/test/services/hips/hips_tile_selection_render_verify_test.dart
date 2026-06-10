@@ -105,20 +105,31 @@ hips_frame        = equatorial
       // Draw the mesh grid lines (rows + columns) so curvature + seams show.
       for (var row = 0; row <= n; row++) {
         for (var col = 0; col < n; col++) {
-          _line(image, mesh.vertexAt(row, col).screen,
-              mesh.vertexAt(row, col + 1).screen, color);
+          _line(
+            image,
+            mesh.vertexAt(row, col).screen,
+            mesh.vertexAt(row, col + 1).screen,
+            color,
+          );
         }
       }
       for (var col = 0; col <= n; col++) {
         for (var row = 0; row < n; row++) {
-          _line(image, mesh.vertexAt(row, col).screen,
-              mesh.vertexAt(row + 1, col).screen, color);
+          _line(
+            image,
+            mesh.vertexAt(row, col).screen,
+            mesh.vertexAt(row + 1, col).screen,
+            color,
+          );
         }
       }
       drawn++;
     }
-    expect(drawn, greaterThan(4),
-        reason: 'expected a populated mosaic, drew $drawn tiles');
+    expect(
+      drawn,
+      greaterThan(4),
+      reason: 'expected a populated mosaic, drew $drawn tiles',
+    );
 
     // Center crosshair at the projected target.
     final c0 = set.projection.raDecToScreen(target.raHours, target.decDegrees);
@@ -146,9 +157,13 @@ hips_frame        = equatorial
       // ignore: avoid_print
       print('Golden created: ${golden.absolute.path}');
     } else {
-      expect(png, golden.readAsBytesSync(),
-          reason: 'C3 tile-selection render drifted from golden; if '
-              'intentional, delete ${golden.path} to regenerate.');
+      expect(
+        png,
+        golden.readAsBytesSync(),
+        reason:
+            'C3 tile-selection render drifted from golden; if '
+            'intentional, delete ${golden.path} to regenerate.',
+      );
     }
   });
 }

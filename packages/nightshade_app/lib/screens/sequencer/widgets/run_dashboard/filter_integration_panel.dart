@@ -75,23 +75,22 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
                 ),
               ),
             )
-          else
-            ...[
-              for (final f in filterNames) ...[
-                _FilterRow(
-                  colors: colors,
-                  name: f,
-                  acquired: totals.integrationSecs[f] ?? 0.0,
-                  goal: totals.goalSecs[f] ?? 0.0,
-                  rejected: totals.rejectedSecsFor(f),
-                  inFlight: totals.inFlightFilter == f
-                      ? totals.inFlightElapsedSecs
-                      : 0.0,
-                ),
-                if (f != filterNames.last)
-                  const SizedBox(height: NightshadeTokens.spaceSm),
-              ],
+          else ...[
+            for (final f in filterNames) ...[
+              _FilterRow(
+                colors: colors,
+                name: f,
+                acquired: totals.integrationSecs[f] ?? 0.0,
+                goal: totals.goalSecs[f] ?? 0.0,
+                rejected: totals.rejectedSecsFor(f),
+                inFlight: totals.inFlightFilter == f
+                    ? totals.inFlightElapsedSecs
+                    : 0.0,
+              ),
+              if (f != filterNames.last)
+                const SizedBox(height: NightshadeTokens.spaceSm),
             ],
+          ],
         ],
       ),
     );
@@ -154,8 +153,7 @@ class _FilterRow extends StatelessWidget {
     // The accepted bar measures usable signal; the in-flight overlay extends
     // it by the current exposure's elapsed time so integration ticks up live
     // (the sub isn't accepted until written, so it's drawn as a lighter cap).
-    final acceptedFraction =
-        goal > 0 ? (acquired / goal).clamp(0.0, 1.0) : 0.0;
+    final acceptedFraction = goal > 0 ? (acquired / goal).clamp(0.0, 1.0) : 0.0;
     final liveFraction =
         goal > 0 ? ((acquired + inFlight) / goal).clamp(0.0, 1.0) : 0.0;
     final acquiredStr = formatSeconds(acquired);
@@ -219,8 +217,7 @@ class _FilterRow extends StatelessWidget {
             height: 12,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusXs),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
           ),
           // In-flight cap: the live extension beyond accepted, drawn lighter
@@ -243,8 +240,7 @@ class _FilterRow extends StatelessWidget {
               height: 12,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusXs),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               ),
             ),
           ),

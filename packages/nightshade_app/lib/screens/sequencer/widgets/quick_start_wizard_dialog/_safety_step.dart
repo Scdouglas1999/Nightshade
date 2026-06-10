@@ -14,7 +14,9 @@ extension _SafetyStep on _QuickStartWizardDialogState {
       children: [
         Text(
           'Configure safety and shutdown behavior.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize13),
         ),
         if (_populatedFromSavedDefaults) ...[
           const SizedBox(height: 8),
@@ -35,8 +37,9 @@ extension _SafetyStep on _QuickStartWizardDialogState {
             child: Row(
               children: [
                 Text('Target temperature:',
-                    style:
-                        TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12)),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 80,
@@ -44,19 +47,24 @@ extension _SafetyStep on _QuickStartWizardDialogState {
                   child: TextField(
                     controller: TextEditingController(
                         text: _coolingTemp.round().toString()),
-                    style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
+                    style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: NightshadeTypography.fontSize12),
                     keyboardType:
                         const TextInputType.numberWithOptions(signed: true),
                     decoration: InputDecoration(
                       suffixText: 'C',
-                      suffixStyle:
-                          TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                      suffixStyle: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize11),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusMd),
                         borderSide: BorderSide(color: colors.border),
                       ),
                       filled: true,

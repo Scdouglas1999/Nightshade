@@ -3,11 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../theme/nightshade_colors.dart';
 
 /// Calibration state for PHD2
-enum CalibrationState {
-  notCalibrated,
-  calibrating,
-  calibrated,
-}
+enum CalibrationState { notCalibrated, calibrating, calibrated }
 
 /// Calibration data from PHD2
 class CalibrationData {
@@ -132,8 +128,10 @@ class CalibrationPanel extends StatelessWidget {
             : const EdgeInsets.symmetric(horizontal: 10, vertical: 4);
 
         return Container(
-          padding:
-              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -168,8 +166,9 @@ class CalibrationPanel extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border:
-                        Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     statusText,
@@ -273,17 +272,29 @@ class CalibrationPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _buildDataRow('RA Angle',
-              '${data.raAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          _buildDataRow(
+            'RA Angle',
+            '${data.raAngle?.toStringAsFixed(1) ?? '-'}°',
+            colors,
+          ),
           const SizedBox(height: 8),
-          _buildDataRow('Dec Angle',
-              '${data.decAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          _buildDataRow(
+            'Dec Angle',
+            '${data.decAngle?.toStringAsFixed(1) ?? '-'}°',
+            colors,
+          ),
           const SizedBox(height: 8),
-          _buildDataRow('RA Rate',
-              '${data.raRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          _buildDataRow(
+            'RA Rate',
+            '${data.raRate?.toStringAsFixed(2) ?? '-'} px/s',
+            colors,
+          ),
           const SizedBox(height: 8),
-          _buildDataRow('Dec Rate',
-              '${data.decRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          _buildDataRow(
+            'Dec Rate',
+            '${data.decRate?.toStringAsFixed(2) ?? '-'} px/s',
+            colors,
+          ),
           if (data.calibrationTime != null) ...[
             const SizedBox(height: 12),
             Divider(color: colors.border.withValues(alpha: 0.5), height: 1),
@@ -294,10 +305,7 @@ class CalibrationPanel extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   _formatTime(data.calibrationTime!),
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: colors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -323,8 +331,11 @@ class CalibrationPanel extends StatelessWidget {
               color: colors.warning.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(LucideIcons.alertTriangle,
-                color: colors.warning, size: 24),
+            child: Icon(
+              LucideIcons.alertTriangle,
+              color: colors.warning,
+              size: 24,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -352,10 +363,7 @@ class CalibrationPanel extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
         ),
         Text(
           value,
@@ -418,10 +426,7 @@ class CalibrationPanel extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Use "Flip" after a meridian flip',
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: 10,
-                ),
+                style: TextStyle(color: colors.textMuted, fontSize: 10),
               ),
             ],
           ),
@@ -457,8 +462,8 @@ class CalibrationPanel extends StatelessWidget {
               color: isPrimary
                   ? (isDisabled ? colors.surfaceAlt : color)
                   : (isDisabled
-                      ? colors.surfaceAlt
-                      : color.withValues(alpha: 0.15)),
+                        ? colors.surfaceAlt
+                        : color.withValues(alpha: 0.15)),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isDisabled

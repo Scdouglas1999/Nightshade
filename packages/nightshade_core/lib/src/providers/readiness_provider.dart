@@ -50,9 +50,11 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
 
   // Connection is satisfied ONLY on an explicit `connected` state. Every other
   // state (disconnected / connecting / error) is fail-closed to false.
-  final cameraConnected = ref.watch(cameraStateProvider).connectionState ==
+  final cameraConnected =
+      ref.watch(cameraStateProvider).connectionState ==
       DeviceConnectionState.connected;
-  final mountConnected = ref.watch(mountStateProvider).connectionState ==
+  final mountConnected =
+      ref.watch(mountStateProvider).connectionState ==
       DeviceConnectionState.connected;
 
   // --- Location & output path (persisted settings) --------------------------
@@ -62,14 +64,14 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
 
   // 0.0/0.0 is the unset sentinel used throughout settings_provider; a
   // location counts as configured only when BOTH coordinates are non-zero.
-  final locationSet = settings != null &&
-      settings.latitude != 0.0 &&
-      settings.longitude != 0.0;
+  final locationSet =
+      settings != null && settings.latitude != 0.0 && settings.longitude != 0.0;
 
   // The capture output directory is persisted via
   // `SettingsDao.setDefaultImageDirectory`, surfaced here as
   // `imageOutputPath`. Onboarding's `complete()` writes the same field.
-  final outputPathSet = settings != null && settings.imageOutputPath.trim().isNotEmpty;
+  final outputPathSet =
+      settings != null && settings.imageOutputPath.trim().isNotEmpty;
 
   // --- Plate solver ---------------------------------------------------------
   // A rig is solver-ready when ANY usable solver is configured — ASTAP (with a
@@ -80,7 +82,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
   // Loading/error -> null -> false.
   final plateSolverReady =
       ref.watch(plateSolverDetectionProvider).valueOrNull?.hasAnySolver ??
-          false;
+      false;
 
   // --- Dark library ---------------------------------------------------------
   // Coverage is satisfied once at least one master dark exists. The stats
@@ -95,7 +97,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
   final focuser = ref.watch(focuserStateProvider);
   final focusKnown =
       focuser.connectionState == DeviceConnectionState.connected &&
-          focuser.position != null;
+      focuser.position != null;
 
   return buildReadinessReport(
     cameraConnected: cameraConnected,

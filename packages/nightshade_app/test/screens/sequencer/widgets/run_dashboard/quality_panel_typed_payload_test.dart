@@ -103,7 +103,8 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
-          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider
+              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
         addTearDown(container.dispose);
 
@@ -161,7 +162,8 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
-          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider
+              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
         addTearDown(container.dispose);
 
@@ -210,7 +212,8 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
-          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider
+              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
         addTearDown(container.dispose);
 
@@ -248,7 +251,8 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
-          backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider
+              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
         addTearDown(container.dispose);
 

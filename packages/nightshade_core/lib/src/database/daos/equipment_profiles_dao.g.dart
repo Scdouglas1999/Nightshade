@@ -14,5 +14,7 @@ class EquipmentProfilesDaoManager {
   EquipmentProfilesDaoManager(this._db);
   $$EquipmentProfilesTableTableManager get equipmentProfiles =>
       $$EquipmentProfilesTableTableManager(
-          _db.attachedDatabase, _db.equipmentProfiles);
+        _db.attachedDatabase,
+        _db.equipmentProfiles,
+      );
 }

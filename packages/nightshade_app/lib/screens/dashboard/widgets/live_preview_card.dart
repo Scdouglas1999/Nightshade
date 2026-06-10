@@ -235,7 +235,9 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       isConnected
                           ? context.l10n.text('takeSnapshotOrStartSequence')
                           : context.l10n.text('connectCameraInEquipment'),
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -251,7 +253,8 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     border:
                         Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
@@ -276,7 +279,8 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     border:
                         Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
@@ -399,7 +403,9 @@ class _StatCell extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9,
+                color: colors.textMuted),
           ),
         ],
       ),

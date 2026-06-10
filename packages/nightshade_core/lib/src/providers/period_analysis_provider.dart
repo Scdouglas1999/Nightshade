@@ -57,8 +57,9 @@ class PeriodAnalysisState {
       isRunning: isRunning ?? this.isRunning,
       result: clearResult ? null : (result ?? this.result),
       error: clearError ? null : (error ?? this.error),
-      customPeriodDays:
-          clearCustomPeriod ? null : (customPeriodDays ?? this.customPeriodDays),
+      customPeriodDays: clearCustomPeriod
+          ? null
+          : (customPeriodDays ?? this.customPeriodDays),
       customPhaseFold: clearCustomPhaseFold
           ? null
           : (customPhaseFold ?? this.customPhaseFold),
@@ -83,7 +84,8 @@ class PeriodAnalysisNotifier extends Notifier<PeriodAnalysisState> {
     if (lightCurve.length < 10) {
       state = state.copyWith(
         isRunning: false,
-        error: 'Need at least 10 light curve points for period analysis. '
+        error:
+            'Need at least 10 light curve points for period analysis. '
             'Currently have ${lightCurve.length}.',
         clearResult: true,
       );
@@ -112,11 +114,13 @@ class PeriodAnalysisNotifier extends Notifier<PeriodAnalysisState> {
         clearCustomPhaseFold: true,
       );
     } catch (error, stack) {
-      developer.log('Period analysis failed: $error',
-          name: 'PeriodAnalysis',
-          level: 1000,
-          error: error,
-          stackTrace: stack);
+      developer.log(
+        'Period analysis failed: $error',
+        name: 'PeriodAnalysis',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
       state = state.copyWith(
         isRunning: false,
         error: error.toString(),
@@ -188,5 +192,5 @@ PeriodAnalysisResult _runAnalysisIsolate(_AnalysisParams params) {
 /// The main provider for period analysis state.
 final periodAnalysisProvider =
     NotifierProvider<PeriodAnalysisNotifier, PeriodAnalysisState>(
-  PeriodAnalysisNotifier.new,
-);
+      PeriodAnalysisNotifier.new,
+    );

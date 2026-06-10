@@ -86,127 +86,130 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
           designMaxWidth: 500,
         ),
         child: SingleChildScrollView(
-        child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: NightshadeDecorations.tintedBadge(
-                    colors.warning,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                  ),
-                  child: Icon(
-                    LucideIcons.folderOpen,
-                    color: colors.warning,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Save Location Required',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize18,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
-                        ),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: NightshadeDecorations.tintedBadge(
+                        colors.warning,
+                        borderRadius:
+                            BorderRadius.circular(NightshadeTokens.radiusLg),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Choose where to save your flat frames',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: colors.textSecondary,
-                        ),
+                      child: Icon(
+                        LucideIcons.folderOpen,
+                        color: colors.warning,
+                        size: 24,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Save Location Required',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize18,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Choose where to save your flat frames',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize13,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Path input
+                Row(
+                  children: [
+                    Expanded(
+                      child: NightshadeTextField(
+                        controller: _pathController,
+                        hint: 'Select a folder...',
+                        prefixIcon: LucideIcons.folder,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      label: 'Browse...',
+                      onPressed: _browsePath,
+                      variant: ButtonVariant.outline,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Options
+                _OptionCheckbox(
+                  value: _createDateSubfolder,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _createDateSubfolder = v);
+                    }
+                  },
+                  label: 'Create date subfolder automatically',
+                  description: 'e.g., /2026-01-07/',
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _OptionCheckbox(
+                  value: _createFilterSubfolders,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _createFilterSubfolders = v);
+                    }
+                  },
+                  label: 'Create filter subfolders',
+                  description: 'e.g., /L/, /R/, /G/, /B/',
+                  colors: colors,
+                ),
+                const SizedBox(height: 24),
+
+                // Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    NightshadeButton(
+                      label: 'Cancel',
+                      onPressed: () => Navigator.of(context).pop(),
+                      variant: ButtonVariant.ghost,
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      label: 'Continue',
+                      onPressed:
+                          _pathController.text.isNotEmpty ? _confirm : null,
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Path input
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeTextField(
-                    controller: _pathController,
-                    hint: 'Select a folder...',
-                    prefixIcon: LucideIcons.folder,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  label: 'Browse...',
-                  onPressed: _browsePath,
-                  variant: ButtonVariant.outline,
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Options
-            _OptionCheckbox(
-              value: _createDateSubfolder,
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _createDateSubfolder = v);
-                }
-              },
-              label: 'Create date subfolder automatically',
-              description: 'e.g., /2026-01-07/',
-              colors: colors,
-            ),
-            const SizedBox(height: 12),
-            _OptionCheckbox(
-              value: _createFilterSubfolders,
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _createFilterSubfolders = v);
-                }
-              },
-              label: 'Create filter subfolders',
-              description: 'e.g., /L/, /R/, /G/, /B/',
-              colors: colors,
-            ),
-            const SizedBox(height: 24),
-
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                NightshadeButton(
-                  label: 'Cancel',
-                  onPressed: () => Navigator.of(context).pop(),
-                  variant: ButtonVariant.ghost,
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  label: 'Continue',
-                  onPressed: _pathController.text.isNotEmpty ? _confirm : null,
-                ),
-              ],
-            ),
-          ],
-        ),
-        ),
+          ),
         ),
       ),
     );

@@ -67,7 +67,9 @@ class RunDashboardObservatoryPanel extends ConsumerWidget {
           if (blocks.isEmpty)
             Text(
               'No dome, cover, or switch connected.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             )
           else
             for (var i = 0; i < blocks.length; i++) ...[
@@ -238,7 +240,8 @@ class _ObservatoryBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 name,
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -265,7 +268,9 @@ class _ObservatoryBlock extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             deviceName!,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -300,7 +305,9 @@ class _Row extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),

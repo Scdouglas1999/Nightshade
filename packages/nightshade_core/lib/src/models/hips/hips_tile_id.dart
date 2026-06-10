@@ -35,13 +35,10 @@ class HipsTileId extends Equatable {
   /// NESTED-scheme HEALPix pixel index (`Npix`) of the tile at [norder].
   final int npix;
 
-  HipsTileId({
-    required this.survey,
-    required this.norder,
-    required this.npix,
-  })  : assert(survey.isNotEmpty, 'survey must not be empty'),
-        assert(norder >= 0 && norder <= 29, 'norder out of HiPS range'),
-        assert(npix >= 0, 'npix must be non-negative') {
+  HipsTileId({required this.survey, required this.norder, required this.npix})
+    : assert(survey.isNotEmpty, 'survey must not be empty'),
+      assert(norder >= 0 && norder <= 29, 'norder out of HiPS range'),
+      assert(npix >= 0, 'npix must be non-negative') {
     final tileCount = numberOfTiles(norder);
     if (npix >= tileCount) {
       throw ArgumentError.value(
@@ -80,8 +77,9 @@ class HipsTileId extends Equatable {
   /// A single trailing slash on [baseUrl] is tolerated and normalised so the
   /// result never contains a doubled or missing separator.
   String tileUrl(String baseUrl, HipsTileFormat format) {
-    final normalizedBase =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedBase = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     return '$normalizedBase/${relativePath(format)}';
   }
 
@@ -100,8 +98,9 @@ class HipsTileId extends Equatable {
 
   /// Joins [baseUrl] with [allskyRelativePath] to form the absolute Allsky URL.
   static String allskyUrl(String baseUrl, int order, HipsTileFormat format) {
-    final normalizedBase =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedBase = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     return '$normalizedBase/${allskyRelativePath(order, format)}';
   }
 

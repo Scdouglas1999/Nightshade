@@ -18,12 +18,15 @@ void main() {
     });
 
     test('fromJson throws FormatException on unknown value', () {
-      expect(() => OpticalDesign.fromJson('parabolic'),
-          throwsA(isA<FormatException>()));
-      expect(() => OpticalDesign.fromJson(null),
-          throwsA(isA<FormatException>()));
       expect(
-          () => OpticalDesign.fromJson(7), throwsA(isA<FormatException>()));
+        () => OpticalDesign.fromJson('parabolic'),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => OpticalDesign.fromJson(null),
+        throwsA(isA<FormatException>()),
+      );
+      expect(() => OpticalDesign.fromJson(7), throwsA(isA<FormatException>()));
     });
   });
 
@@ -274,9 +277,9 @@ void main() {
       );
       expect(c.copyWith(recommendedGain: 120).recommendedGain, 120);
       expect(
-          c.copyWith(clearRecommendedCoolingTempC: true)
-              .recommendedCoolingTempC,
-          isNull);
+        c.copyWith(clearRecommendedCoolingTempC: true).recommendedCoolingTempC,
+        isNull,
+      );
     });
   });
 
@@ -289,8 +292,11 @@ void main() {
       final generated = <String>{};
       for (var i = 0; i < 1000; i++) {
         final id = newHardwarePresetId();
-        expect(builtInIds.contains(id), isFalse,
-            reason: '$id collided with a built-in id');
+        expect(
+          builtInIds.contains(id),
+          isFalse,
+          reason: '$id collided with a built-in id',
+        );
         expect(generated.add(id), isTrue, reason: '$id was generated twice');
       }
     });
@@ -316,11 +322,18 @@ void main() {
       };
       for (final preset in builtInTelescopePresets) {
         final expected = stated[preset.id];
-        expect(expected, isNotNull,
-            reason: 'no stated f/ratio for ${preset.id}');
-        expect(preset.focalRatio, closeTo(expected!, 0.1),
-            reason: '${preset.displayName} computed f/${preset.focalRatio} '
-                'vs stated f/$expected');
+        expect(
+          expected,
+          isNotNull,
+          reason: 'no stated f/ratio for ${preset.id}',
+        );
+        expect(
+          preset.focalRatio,
+          closeTo(expected!, 0.1),
+          reason:
+              '${preset.displayName} computed f/${preset.focalRatio} '
+              'vs stated f/$expected',
+        );
         // nativeFocalRatio, when present, must also agree with the stated value.
         if (preset.nativeFocalRatio != null) {
           expect(preset.nativeFocalRatio!, closeTo(expected, 0.1));

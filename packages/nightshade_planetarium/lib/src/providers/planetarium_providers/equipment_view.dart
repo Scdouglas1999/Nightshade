@@ -5,13 +5,7 @@ part of '../planetarium_providers.dart';
 // ============================================================================
 
 /// Tracking status for the mount
-enum MountTrackingStatus {
-  disconnected,
-  parked,
-  slewing,
-  tracking,
-  stopped,
-}
+enum MountTrackingStatus { disconnected, parked, slewing, tracking, stopped }
 
 /// Mount position state for displaying on planetarium
 class MountPositionState {
@@ -73,8 +67,8 @@ class MountPositionNotifier extends StateNotifier<MountPositionState> {
 
 final mountPositionProvider =
     StateNotifierProvider<MountPositionNotifier, MountPositionState>((ref) {
-  return MountPositionNotifier();
-});
+      return MountPositionNotifier();
+    });
 
 // ============================================================================
 // Selected Object Provider
@@ -162,8 +156,8 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
 
 final selectedObjectProvider =
     StateNotifierProvider<SelectedObjectNotifier, SelectedObjectState>((ref) {
-  return SelectedObjectNotifier(ref);
-});
+      return SelectedObjectNotifier(ref);
+    });
 
 // ============================================================================
 // Equipment FOV Provider
@@ -247,5 +241,5 @@ class EquipmentFOVNotifier extends StateNotifier<EquipmentFOVState> {
 
 final equipmentFOVProvider =
     StateNotifierProvider<EquipmentFOVNotifier, EquipmentFOVState>((ref) {
-  return EquipmentFOVNotifier();
-});
+      return EquipmentFOVNotifier();
+    });

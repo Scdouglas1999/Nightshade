@@ -12,12 +12,13 @@ import 'archive_extraction.dart';
 import 'update_verifier.dart';
 
 /// Callback for push progress updates
-typedef PushProgressCallback = void Function(
-  int receivedBytes,
-  int totalBytes,
-  double progress,
-  String message,
-);
+typedef PushProgressCallback =
+    void Function(
+      int receivedBytes,
+      int totalBytes,
+      double progress,
+      String message,
+    );
 
 /// Service for receiving LAN push updates from dev machine
 class LanPushReceiver {
@@ -62,11 +63,11 @@ class LanPushReceiver {
     String? pushSecret,
     UpdateVerifier? verifier,
     int serverPort = pushPort,
-  })  : _currentVersion = currentVersion,
-        _currentBuildNumber = currentBuildNumber,
-        _pushSecret = pushSecret,
-        _serverPort = serverPort,
-        _verifier = verifier ?? UpdateVerifier();
+  }) : _currentVersion = currentVersion,
+       _currentBuildNumber = currentBuildNumber,
+       _pushSecret = pushSecret,
+       _serverPort = serverPort,
+       _verifier = verifier ?? UpdateVerifier();
 
   /// Set the pre-shared push secret. Must be called before [startServer].
   void setPushSecret(String secret) {
@@ -85,10 +86,10 @@ class LanPushReceiver {
 
   /// Current version info for discovery response
   Map<String, dynamic> get versionInfo => {
-        'version': _currentVersion,
-        'buildNumber': _currentBuildNumber,
-        'isReceiving': _receiveState != _ReceiveState.idle,
-      };
+    'version': _currentVersion,
+    'buildNumber': _currentBuildNumber,
+    'isReceiving': _receiveState != _ReceiveState.idle,
+  };
 
   /// Start listening for LAN push connections.
   /// A push secret must be configured via the constructor or [setPushSecret]
@@ -118,14 +119,23 @@ class LanPushReceiver {
     }
 
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, _serverPort);
-    developer.log('Listening on port $_serverPort',
-        name: 'LanPushReceiver', level: 800);
+    developer.log(
+      'Listening on port $_serverPort',
+      name: 'LanPushReceiver',
+      level: 800,
+    );
 
-    _server!.listen(_handleConnection, onError: (error) {
-      developer.log('Server error: $error',
-          name: 'LanPushReceiver', level: 1000);
-      onError?.call('Server error: $error');
-    });
+    _server!.listen(
+      _handleConnection,
+      onError: (error) {
+        developer.log(
+          'Server error: $error',
+          name: 'LanPushReceiver',
+          level: 1000,
+        );
+        onError?.call('Server error: $error');
+      },
+    );
   }
 
   /// Stop the server
@@ -141,8 +151,11 @@ class LanPushReceiver {
   /// The server responds with {"auth": "ok"} or {"auth": "rejected"} and closes.
   void _handleConnection(Socket socket) async {
     final remoteAddress = socket.remoteAddress.address;
-    developer.log('Connection from $remoteAddress',
-        name: 'LanPushReceiver', level: 800);
+    developer.log(
+      'Connection from $remoteAddress',
+      name: 'LanPushReceiver',
+      level: 800,
+    );
 
     if (!_tryReserveReceiveSlot()) {
       socket.write(jsonEncode({'error': 'Already receiving update'}));
@@ -162,8 +175,11 @@ class LanPushReceiver {
 
       await _receiveUpdate(socket);
     } catch (e) {
-      developer.log('Error receiving update: $e',
-          name: 'LanPushReceiver', level: 1000);
+      developer.log(
+        'Error receiving update: $e',
+        name: 'LanPushReceiver',
+        level: 1000,
+      );
       onError?.call(e.toString());
     } finally {
       _releaseReceiveSlot();
@@ -219,9 +235,9 @@ class LanPushReceiver {
         // Need at least 4 bytes for the length prefix
         if (bytes.length < 4) return;
 
-        final authLen =
-            ByteData.view(Uint8List.fromList(bytes.sublist(0, 4)).buffer)
-                .getInt32(0, Endian.big);
+        final authLen = ByteData.view(
+          Uint8List.fromList(bytes.sublist(0, 4)).buffer,
+        ).getInt32(0, Endian.big);
 
         // Sanity check: auth message should be small (< 4KB)
         if (authLen <= 0 || authLen > 4096) {
@@ -231,7 +247,8 @@ class LanPushReceiver {
             level: 1000,
           );
           socket.write(
-              jsonEncode({'auth': 'rejected', 'reason': 'invalid frame'}));
+            jsonEncode({'auth': 'rejected', 'reason': 'invalid frame'}),
+          );
           socket.close();
           subscription.cancel();
           timeout?.cancel();
@@ -259,7 +276,8 @@ class LanPushReceiver {
               level: 1000,
             );
             socket.write(
-                jsonEncode({'auth': 'rejected', 'reason': 'invalid secret'}));
+              jsonEncode({'auth': 'rejected', 'reason': 'invalid secret'}),
+            );
             socket.close();
             if (!completer.isCompleted) completer.complete(false);
             return;
@@ -279,8 +297,9 @@ class LanPushReceiver {
             name: 'LanPushReceiver',
             level: 1000,
           );
-          socket
-              .write(jsonEncode({'auth': 'rejected', 'reason': 'parse error'}));
+          socket.write(
+            jsonEncode({'auth': 'rejected', 'reason': 'parse error'}),
+          );
           socket.close();
           if (!completer.isCompleted) completer.complete(false);
         }
@@ -341,9 +360,9 @@ class LanPushReceiver {
         // Step 1: Read manifest length
         if (manifestLength == null && buffer.length >= 4) {
           final bytes = buffer.takeBytes();
-          manifestLength =
-              ByteData.view(Uint8List.fromList(bytes.sublist(0, 4)).buffer)
-                  .getInt32(0, Endian.big);
+          manifestLength = ByteData.view(
+            Uint8List.fromList(bytes.sublist(0, 4)).buffer,
+          ).getInt32(0, Endian.big);
           buffer.add(bytes.sublist(4));
           onProgress?.call(0, 0, 0, 'Receiving manifest...');
         }
@@ -360,8 +379,9 @@ class LanPushReceiver {
           // §7A.7: verify signature BEFORE we open update.zip for write
           // so a forged or unsigned manifest can never trigger
           // filesystem allocation.
-          final manifestVerified =
-              await _verifier.verifyManifestSignature(manifest);
+          final manifestVerified = await _verifier.verifyManifestSignature(
+            manifest,
+          );
           if (!manifestVerified) {
             throw Exception('Update manifest signature verification failed');
           }
@@ -397,10 +417,9 @@ class LanPushReceiver {
           );
 
           // Send acknowledgment
-          socket.write(jsonEncode({
-            'status': 'receiving',
-            'version': manifest.version,
-          }));
+          socket.write(
+            jsonEncode({'status': 'receiving', 'version': manifest.version}),
+          );
 
           buffer.clear();
           continue;
@@ -433,8 +452,9 @@ class LanPushReceiver {
           // Break out of loop once we've received all expected bytes
           if (receivedPackageBytes >= packageSize!) {
             developer.log(
-                'All $receivedPackageBytes bytes received, breaking out of receive loop',
-                name: 'LanPushReceiver');
+              'All $receivedPackageBytes bytes received, breaking out of receive loop',
+              name: 'LanPushReceiver',
+            );
             break;
           }
         }
@@ -500,30 +520,34 @@ class LanPushReceiver {
 
     // Write ready marker
     final markerFile = File(path.join(staging.path, 'ready.json'));
-    developer.log('Writing ready marker to: ${markerFile.path}',
-        name: 'LanPushReceiver');
-    await markerFile.writeAsString(jsonEncode({
-      'version': manifest.version,
-      'buildNumber': manifest.buildNumber,
-      'stagedAt': DateTime.now().toIso8601String(),
-      'extractPath': extractDir.path,
-      'source': 'lan_push',
-    }));
+    developer.log(
+      'Writing ready marker to: ${markerFile.path}',
+      name: 'LanPushReceiver',
+    );
+    await markerFile.writeAsString(
+      jsonEncode({
+        'version': manifest.version,
+        'buildNumber': manifest.buildNumber,
+        'stagedAt': DateTime.now().toIso8601String(),
+        'extractPath': extractDir.path,
+        'source': 'lan_push',
+      }),
+    );
     developer.log('Ready marker written successfully', name: 'LanPushReceiver');
 
     // Send success response (may fail if pusher already disconnected, which is OK)
     try {
-      socket.write(jsonEncode({
-        'status': 'complete',
-        'version': manifest.version,
-      }));
+      socket.write(
+        jsonEncode({'status': 'complete', 'version': manifest.version}),
+      );
       await socket.flush();
     } catch (e) {
       // Pusher may have disconnected - that's fine, update is complete
       developer.log(
-          'Could not send completion response (pusher disconnected): $e',
-          name: 'LanPushReceiver',
-          level: 900);
+        'Could not send completion response (pusher disconnected): $e',
+        name: 'LanPushReceiver',
+        level: 900,
+      );
     }
 
     onProgress?.call(actualSize, actualSize, 1.0, 'Update ready!');
@@ -546,8 +570,4 @@ class LanPushReceiver {
   }
 }
 
-enum _ReceiveState {
-  idle,
-  authenticating,
-  receiving,
-}
+enum _ReceiveState { idle, authenticating, receiving }

@@ -117,8 +117,9 @@ class NightFinding {
       explanation: json['explanation'] as String? ?? '',
       evidenceSubIds: _intList(json['evidenceSubIds']),
       advice: json['advice'] as String? ?? '',
-      metricSeries:
-          json['metricSeries'] == null ? null : _doubleList(json['metricSeries']),
+      metricSeries: json['metricSeries'] == null
+          ? null
+          : _doubleList(json['metricSeries']),
     );
   }
 
@@ -136,14 +137,14 @@ class NightFinding {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        severity,
-        title,
-        explanation,
-        Object.hashAll(evidenceSubIds),
-        advice,
-        metricSeries == null ? null : Object.hashAll(metricSeries!),
-      );
+    id,
+    severity,
+    title,
+    explanation,
+    Object.hashAll(evidenceSubIds),
+    advice,
+    metricSeries == null ? null : Object.hashAll(metricSeries!),
+  );
 }
 
 /// The Night Doctor's report for one session (and/or target): an overall
@@ -210,9 +211,9 @@ class NightReport {
       headline: json['headline'] as String? ?? '',
       findings: json['findings'] is List
           ? (json['findings'] as List)
-              .whereType<Map>()
-              .map((e) => NightFinding.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map((e) => NightFinding.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
           : const [],
       createdAt: _parseDate(json['createdAt']),
     );
@@ -254,13 +255,13 @@ class NightReport {
 
   @override
   int get hashCode => Object.hash(
-        sessionId,
-        targetId,
-        score,
-        headline,
-        Object.hashAll(findings),
-        createdAt,
-      );
+    sessionId,
+    targetId,
+    score,
+    headline,
+    Object.hashAll(findings),
+    createdAt,
+  );
 }
 
 List<int> _intList(Object? value) {
@@ -279,8 +280,10 @@ DateTime _parseDate(Object? value) {
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   }
   if (value is num) {
-    return DateTime.fromMillisecondsSinceEpoch(value.toInt() * 1000,
-        isUtc: true);
+    return DateTime.fromMillisecondsSinceEpoch(
+      value.toInt() * 1000,
+      isUtc: true,
+    );
   }
   return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 }

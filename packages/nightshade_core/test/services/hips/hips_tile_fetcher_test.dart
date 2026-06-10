@@ -97,19 +97,29 @@ void main() {
       expect(requested.toString(), '$baseUrl/properties');
     });
 
-    test('non-200 status throws HipsFetchHttpException with the status code',
-        () async {
-      final client = MockClient((request) async => http.Response('nope', 404));
-      final fetcher = HipsTileFetcher(httpClient: client);
-      addTearDown(fetcher.dispose);
+    test(
+      'non-200 status throws HipsFetchHttpException with the status code',
+      () async {
+        final client = MockClient(
+          (request) async => http.Response('nope', 404),
+        );
+        final fetcher = HipsTileFetcher(httpClient: client);
+        addTearDown(fetcher.dispose);
 
-      await expectLater(
-        fetcher.fetchProperties(baseUrl),
-        throwsA(isA<HipsFetchHttpException>()
-            .having((e) => e.statusCode, 'statusCode', 404)
-            .having((e) => e.requestUrl, 'requestUrl', '$baseUrl/properties')),
-      );
-    });
+        await expectLater(
+          fetcher.fetchProperties(baseUrl),
+          throwsA(
+            isA<HipsFetchHttpException>()
+                .having((e) => e.statusCode, 'statusCode', 404)
+                .having(
+                  (e) => e.requestUrl,
+                  'requestUrl',
+                  '$baseUrl/properties',
+                ),
+          ),
+        );
+      },
+    );
 
     test('empty body throws HipsFetchDecodeException', () async {
       final client = MockClient((request) async => http.Response('   ', 200));
@@ -132,9 +142,13 @@ void main() {
 
       await expectLater(
         fetcher.fetchProperties(baseUrl),
-        throwsA(isA<HipsFetchDecodeException>()
-            .having((e) => e.cause, 'cause',
-                isA<HipsPropertiesParseException>())),
+        throwsA(
+          isA<HipsFetchDecodeException>().having(
+            (e) => e.cause,
+            'cause',
+            isA<HipsPropertiesParseException>(),
+          ),
+        ),
       );
     });
 
@@ -143,7 +157,7 @@ void main() {
       final client = MockClient.streaming((request, bodyStream) async {
         return http.StreamedResponse(
           Stream<List<int>>.fromIterable(<List<int>>[
-            <int>[0xFF, 0xFE, 0xFF]
+            <int>[0xFF, 0xFE, 0xFF],
           ]),
           200,
         );
@@ -157,20 +171,27 @@ void main() {
       );
     });
 
-    test('transport error throws HipsFetchHttpException with null status',
-        () async {
-      final client = MockClient((request) async {
-        throw http.ClientException('connection reset', request.url);
-      });
-      final fetcher = HipsTileFetcher(httpClient: client);
-      addTearDown(fetcher.dispose);
+    test(
+      'transport error throws HipsFetchHttpException with null status',
+      () async {
+        final client = MockClient((request) async {
+          throw http.ClientException('connection reset', request.url);
+        });
+        final fetcher = HipsTileFetcher(httpClient: client);
+        addTearDown(fetcher.dispose);
 
-      await expectLater(
-        fetcher.fetchProperties(baseUrl),
-        throwsA(isA<HipsFetchHttpException>()
-            .having((e) => e.statusCode, 'statusCode', isNull)),
-      );
-    });
+        await expectLater(
+          fetcher.fetchProperties(baseUrl),
+          throwsA(
+            isA<HipsFetchHttpException>().having(
+              (e) => e.statusCode,
+              'statusCode',
+              isNull,
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('HipsTileFetcher.fetchTile', () {
@@ -186,8 +207,7 @@ void main() {
       addTearDown(fetcher.dispose);
 
       final id = HipsTileId(survey: 'CDS/P/DSS2/red', norder: 3, npix: 42);
-      final image =
-          await fetcher.fetchTile(id, baseUrl, HipsTileFormat.jpeg);
+      final image = await fetcher.fetchTile(id, baseUrl, HipsTileFormat.jpeg);
       addTearDown(image.dispose);
 
       expect(requested.toString(), '$baseUrl/Norder3/Dir0/Npix42.jpg');
@@ -204,8 +224,7 @@ void main() {
       addTearDown(fetcher.dispose);
 
       final id = HipsTileId(survey: 'CDS/P/DSS2/red', norder: 5, npix: 10001);
-      final image =
-          await fetcher.fetchTile(id, baseUrl, HipsTileFormat.jpeg);
+      final image = await fetcher.fetchTile(id, baseUrl, HipsTileFormat.jpeg);
       addTearDown(image.dispose);
 
       expect(image.width, 32);
@@ -253,14 +272,20 @@ void main() {
       final id = HipsTileId(survey: 's', norder: 3, npix: 1);
       await expectLater(
         fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
-        throwsA(isA<HipsFetchHttpException>()
-            .having((e) => e.statusCode, 'statusCode', 503)),
+        throwsA(
+          isA<HipsFetchHttpException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            503,
+          ),
+        ),
       );
     });
 
     test('empty 200 body throws HipsFetchDecodeException', () async {
-      final client =
-          MockClient((request) async => http.Response.bytes(<int>[], 200));
+      final client = MockClient(
+        (request) async => http.Response.bytes(<int>[], 200),
+      );
       final fetcher = HipsTileFetcher(httpClient: client);
       addTearDown(fetcher.dispose);
 
@@ -283,8 +308,7 @@ void main() {
       final fetcher = HipsTileFetcher(httpClient: client);
       addTearDown(fetcher.dispose);
 
-      final image =
-          await fetcher.fetchAllsky(baseUrl, 3, HipsTileFormat.png);
+      final image = await fetcher.fetchAllsky(baseUrl, 3, HipsTileFormat.png);
       addTearDown(image.dispose);
 
       expect(requested.toString(), '$baseUrl/Norder3/Allsky.png');
@@ -294,59 +318,77 @@ void main() {
   });
 
   group('size cap', () {
-    test('declared Content-Length over the cap throws before download',
-        () async {
-      var streamWasRead = false;
-      final client = MockClient.streaming((request, bodyStream) async {
-        return http.StreamedResponse(
-          Stream<List<int>>.fromIterable(<List<int>>[
-            <int>[1, 2, 3]
-          ]).map((chunk) {
-            streamWasRead = true;
-            return chunk;
-          }),
-          200,
-          contentLength: 5000,
+    test(
+      'declared Content-Length over the cap throws before download',
+      () async {
+        var streamWasRead = false;
+        final client = MockClient.streaming((request, bodyStream) async {
+          return http.StreamedResponse(
+            Stream<List<int>>.fromIterable(<List<int>>[
+              <int>[1, 2, 3],
+            ]).map((chunk) {
+              streamWasRead = true;
+              return chunk;
+            }),
+            200,
+            contentLength: 5000,
+          );
+        });
+        final fetcher = HipsTileFetcher(
+          httpClient: client,
+          maxResponseBytes: 1024,
         );
-      });
-      final fetcher =
-          HipsTileFetcher(httpClient: client, maxResponseBytes: 1024);
-      addTearDown(fetcher.dispose);
+        addTearDown(fetcher.dispose);
 
-      final id = HipsTileId(survey: 's', norder: 3, npix: 1);
-      await expectLater(
-        fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
-        throwsA(isA<HipsFetchDecodeException>()
-            .having((e) => e.message, 'message', contains('exceeds'))),
-      );
-      // The body must be rejected on Content-Length alone, but draining is
-      // allowed; the key assertion is the typed throw above. streamWasRead may
-      // be true (drain) or false; both are acceptable.
-      expect(streamWasRead, anyOf(isTrue, isFalse));
-    });
-
-    test('a body that exceeds the cap mid-stream (no Content-Length) throws',
-        () async {
-      final big = List<int>.filled(4096, 7);
-      final client = MockClient.streaming((request, bodyStream) async {
-        return http.StreamedResponse(
-          Stream<List<int>>.fromIterable(<List<int>>[big]),
-          200,
-          // contentLength deliberately omitted (null) so the incremental cap
-          // is what catches it.
+        final id = HipsTileId(survey: 's', norder: 3, npix: 1);
+        await expectLater(
+          fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
+          throwsA(
+            isA<HipsFetchDecodeException>().having(
+              (e) => e.message,
+              'message',
+              contains('exceeds'),
+            ),
+          ),
         );
-      });
-      final fetcher =
-          HipsTileFetcher(httpClient: client, maxResponseBytes: 1024);
-      addTearDown(fetcher.dispose);
+        // The body must be rejected on Content-Length alone, but draining is
+        // allowed; the key assertion is the typed throw above. streamWasRead may
+        // be true (drain) or false; both are acceptable.
+        expect(streamWasRead, anyOf(isTrue, isFalse));
+      },
+    );
 
-      final id = HipsTileId(survey: 's', norder: 3, npix: 1);
-      await expectLater(
-        fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
-        throwsA(isA<HipsFetchDecodeException>()
-            .having((e) => e.message, 'message', contains('mid-stream'))),
-      );
-    });
+    test(
+      'a body that exceeds the cap mid-stream (no Content-Length) throws',
+      () async {
+        final big = List<int>.filled(4096, 7);
+        final client = MockClient.streaming((request, bodyStream) async {
+          return http.StreamedResponse(
+            Stream<List<int>>.fromIterable(<List<int>>[big]),
+            200,
+            // contentLength deliberately omitted (null) so the incremental cap
+            // is what catches it.
+          );
+        });
+        final fetcher = HipsTileFetcher(
+          httpClient: client,
+          maxResponseBytes: 1024,
+        );
+        addTearDown(fetcher.dispose);
+
+        final id = HipsTileId(survey: 's', norder: 3, npix: 1);
+        await expectLater(
+          fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
+          throwsA(
+            isA<HipsFetchDecodeException>().having(
+              (e) => e.message,
+              'message',
+              contains('mid-stream'),
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('cancellation', () {
@@ -386,8 +428,12 @@ void main() {
 
       final token = HipsFetchToken();
       final id = HipsTileId(survey: 's', norder: 3, npix: 1);
-      final future =
-          fetcher.fetchTile(id, baseUrl, HipsTileFormat.png, token: token);
+      final future = fetcher.fetchTile(
+        id,
+        baseUrl,
+        HipsTileFormat.png,
+        token: token,
+      );
 
       // Let the send begin, then cancel.
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -419,8 +465,12 @@ void main() {
 
       final token = HipsFetchToken();
       final id = HipsTileId(survey: 's', norder: 3, npix: 1);
-      final image =
-          await fetcher.fetchTile(id, baseUrl, HipsTileFormat.png, token: token);
+      final image = await fetcher.fetchTile(
+        id,
+        baseUrl,
+        HipsTileFormat.png,
+        token: token,
+      );
       addTearDown(image.dispose);
 
       // Cancelling after completion must not throw, must not affect the
@@ -450,8 +500,13 @@ void main() {
       final id = HipsTileId(survey: 's', norder: 3, npix: 1);
       await expectLater(
         fetcher.fetchTile(id, baseUrl, HipsTileFormat.png),
-        throwsA(isA<HipsFetchHttpException>()
-            .having((e) => e.message, 'message', contains('timed out'))),
+        throwsA(
+          isA<HipsFetchHttpException>().having(
+            (e) => e.message,
+            'message',
+            contains('timed out'),
+          ),
+        ),
       );
     });
   });
@@ -480,8 +535,11 @@ void main() {
       final fetcher = HipsTileFetcher(httpClient: client);
       await fetcher.fetchProperties(baseUrl);
       fetcher.dispose();
-      expect(closed, isFalse,
-          reason: 'an injected client is owned by the caller');
+      expect(
+        closed,
+        isFalse,
+        reason: 'an injected client is owned by the caller',
+      );
       client.close();
       expect(closed, isTrue);
     });

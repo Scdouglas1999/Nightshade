@@ -504,7 +504,8 @@ class SequenceToolbar extends ConsumerWidget {
                             horizontal: 10, vertical: 4),
                         decoration: NightshadeDecorations.kpiBadge(
                           colors.warning,
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           shape: BoxShape.rectangle,
                         ),
                         child: Row(

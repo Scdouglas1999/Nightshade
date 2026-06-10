@@ -165,7 +165,8 @@ class HistogramWidget extends StatelessWidget {
                     decoration: BoxDecoration(
                       // absolute: empty-state fill in the image-canvas HUD panel
                       color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Center(
                       child: Text(

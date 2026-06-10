@@ -6,9 +6,8 @@ import '../../models/weather/weather_models.dart';
 
 /// Service for generating weather alerts based on radar data and thresholds
 class WeatherAlertService {
-  WeatherAlertService({
-    Duration debounceDuration = const Duration(seconds: 30),
-  }) : _debounceDuration = debounceDuration;
+  WeatherAlertService({Duration debounceDuration = const Duration(seconds: 30)})
+    : _debounceDuration = debounceDuration;
 
   final StreamController<WeatherAlert> _alertController =
       StreamController<WeatherAlert>.broadcast();

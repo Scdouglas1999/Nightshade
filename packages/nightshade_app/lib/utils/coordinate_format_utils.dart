@@ -100,8 +100,7 @@ class CoordinateFormatUtils {
   /// Format RA and Dec together for display dialogs.
   ///
   /// Example: (12.345, -45.678) -> "RA: 12.3450h\nDec: -45.6780\u00b0"
-  static String formatRADecPrecise(double ra, double dec,
-      {int decimals = 4}) {
+  static String formatRADecPrecise(double ra, double dec, {int decimals = 4}) {
     return 'RA: ${ra.toStringAsFixed(decimals)}h\n'
         'Dec: ${dec.toStringAsFixed(decimals)}\u00b0';
   }

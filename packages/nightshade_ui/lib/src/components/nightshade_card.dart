@@ -48,7 +48,8 @@ class _NightshadeCardState extends State<NightshadeCard> {
     final colors = NightshadeColors.of(context);
     final shouldAnimate = widget.enableHover || widget.onTap != null;
 
-    final baseBackground = widget.backgroundColor ??
+    final baseBackground =
+        widget.backgroundColor ??
         switch (widget.variant) {
           CardVariant.standard => colors.surfaceAlt,
           CardVariant.elevated => colors.surfaceElevated,
@@ -61,14 +62,14 @@ class _NightshadeCardState extends State<NightshadeCard> {
             baseBackground,
           )
         : _isHovered && shouldAnimate
-            ? colors.surfaceHover
-            : baseBackground;
+        ? colors.surfaceHover
+        : baseBackground;
 
     final borderColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.45)
         : _isHovered && shouldAnimate
-            ? colors.borderHighlight.withValues(alpha: 0.85)
-            : colors.border.withValues(alpha: 0.55);
+        ? colors.borderHighlight.withValues(alpha: 0.85)
+        : colors.border.withValues(alpha: 0.55);
 
     Widget content = widget.child;
     if (widget.padding != null) {

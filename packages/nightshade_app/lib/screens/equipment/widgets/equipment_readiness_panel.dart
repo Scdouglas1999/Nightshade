@@ -25,8 +25,7 @@ class EquipmentReadinessPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final report = ref.watch(readinessReportProvider);
-    final outstanding =
-        report.blockedItems.length + report.cautionItems.length;
+    final outstanding = report.blockedItems.length + report.cautionItems.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

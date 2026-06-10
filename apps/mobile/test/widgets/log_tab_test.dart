@@ -91,9 +91,7 @@ Future<void> _pumpLogTab(
         }),
       ],
       child: MaterialApp(
-        theme: ThemeData(
-          extensions: const [NightshadeColors.dark],
-        ),
+        theme: ThemeData(extensions: const [NightshadeColors.dark]),
         home: const Scaffold(body: LogTab()),
       ),
     ),
@@ -114,8 +112,9 @@ class _OverrideBackendNotifier extends BackendNotifier {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('LogTab clears events when the backend identity changes',
-      (tester) async {
+  testWidgets('LogTab clears events when the backend identity changes', (
+    tester,
+  ) async {
     final backendA = _StubBackend('A');
     final backendB = _StubBackend('B');
 
@@ -133,9 +132,7 @@ void main() {
           }),
         ],
         child: MaterialApp(
-          theme: ThemeData(
-            extensions: const [NightshadeColors.dark],
-          ),
+          theme: ThemeData(extensions: const [NightshadeColors.dark]),
           home: const Scaffold(body: LogTab()),
         ),
       ),
@@ -147,8 +144,11 @@ void main() {
     await tester.pump(); // flush the broadcast-stream microtask
     await tester.pump(); // rebuild with the delivered event
 
-    expect(find.text('event-from-A'), findsOneWidget,
-        reason: 'Backend A event must be visible while A is active.');
+    expect(
+      find.text('event-from-A'),
+      findsOneWidget,
+      reason: 'Backend A event must be visible while A is active.',
+    );
 
     // Swap to backend B by publishing a new backend identity; LogTab must
     // flush its buffer when the watched backend changes.
@@ -158,10 +158,16 @@ void main() {
 
     // The A event must be gone; LogTab should be empty and showing the
     // "Waiting for events" empty state.
-    expect(find.text('event-from-A'), findsNothing,
-        reason: 'Buffer must clear when the backend identity changes.');
-    expect(find.text('Waiting for events'), findsOneWidget,
-        reason: 'Empty-state message must appear after a backend swap.');
+    expect(
+      find.text('event-from-A'),
+      findsNothing,
+      reason: 'Buffer must clear when the backend identity changes.',
+    );
+    expect(
+      find.text('Waiting for events'),
+      findsOneWidget,
+      reason: 'Empty-state message must appear after a backend swap.',
+    );
 
     // Verify the new backend's events land normally.
     backendB.emit(_makeEvent('event-from-B'));
@@ -173,8 +179,9 @@ void main() {
     await backendB.close();
   });
 
-  testWidgets('LogTab keeps events when rebuild does not change backend',
-      (tester) async {
+  testWidgets('LogTab keeps events when rebuild does not change backend', (
+    tester,
+  ) async {
     final backend = _StubBackend('only');
     await _pumpLogTab(tester, backend: backend);
 
@@ -186,8 +193,11 @@ void main() {
     // Rebuild the tree with the SAME backend instance — the buffer must
     // not flush. Identity check is identical(_subscribedBackend, backend).
     await tester.pump();
-    expect(find.text('keep-me'), findsOneWidget,
-        reason: 'Identical-backend rebuild must not clear the buffer.');
+    expect(
+      find.text('keep-me'),
+      findsOneWidget,
+      reason: 'Identical-backend rebuild must not clear the buffer.',
+    );
 
     await backend.close();
   });

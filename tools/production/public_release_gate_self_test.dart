@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final gate =
-      File('${repoRoot.path}/tools/production/public_release_gate.dart');
+  final gate = File(
+    '${repoRoot.path}/tools/production/public_release_gate.dart',
+  );
   if (!gate.existsSync()) {
     throw StateError('Public release gate not found: ${gate.path}');
   }
@@ -20,12 +21,18 @@ Future<void> main() async {
     await _writeReadyFixture(temp);
     await _runGate(gate, temp);
     final failedSelfTestsReport = _readReport(temp);
-    _expect(failedSelfTestsReport['decision'] == 'NOT_READY',
-        'failed self-test aggregate fixture should not be ready');
-    final failedSelfTests =
-        _checkById(failedSelfTestsReport, 'public_release_self_tests');
-    _expect(failedSelfTests['passed'] == false,
-        'failed public_release_self_tests check should fail');
+    _expect(
+      failedSelfTestsReport['decision'] == 'NOT_READY',
+      'failed self-test aggregate fixture should not be ready',
+    );
+    final failedSelfTests = _checkById(
+      failedSelfTestsReport,
+      'public_release_self_tests',
+    );
+    _expect(
+      failedSelfTests['passed'] == false,
+      'failed public_release_self_tests check should fail',
+    );
     _expect(
       failedSelfTests['detail'].toString().contains('failedCount=1'),
       'failed public_release_self_tests detail should include failed count',
@@ -35,40 +42,48 @@ Future<void> main() async {
     await _writeStaleSplitPlanFixture(temp);
     await _runGate(gate, temp);
     final staleReport = _readReport(temp);
-    _expect(staleReport['decision'] == 'NOT_READY',
-        'stale split-plan fixture should not be ready');
+    _expect(
+      staleReport['decision'] == 'NOT_READY',
+      'stale split-plan fixture should not be ready',
+    );
     _expectCheckPassed(staleReport, 'public_release_self_tests');
     final staleStaging = _checkById(staleReport, 'release_staging');
-    _expect(staleStaging['passed'] == false,
-        'stale split-plan release_staging check should fail');
     _expect(
-      staleStaging['detail']
-          .toString()
-          .contains('source audit timestamp mismatch'),
+      staleStaging['passed'] == false,
+      'stale split-plan release_staging check should fail',
+    );
+    _expect(
+      staleStaging['detail'].toString().contains(
+        'source audit timestamp mismatch',
+      ),
       'stale split-plan detail should report source timestamp mismatch',
     );
     _expect(
-      staleStaging['detail']
-          .toString()
-          .contains('plan entryCount=1 but staging paths=2'),
+      staleStaging['detail'].toString().contains(
+        'plan entryCount=1 but staging paths=2',
+      ),
       'stale split-plan detail should report entry count mismatch',
     );
 
     await _writeReadyFixture(temp);
     await _runGate(gate, temp);
     final readyReport = _readReport(temp);
-    _expect(readyReport['decision'] == 'READY',
-        'ready fixture decision should be READY');
+    _expect(
+      readyReport['decision'] == 'READY',
+      'ready fixture decision should be READY',
+    );
     _expect(readyReport['ready'] == true, 'ready fixture ready should be true');
-    _expect(readyReport['blockerCount'] == 0,
-        'ready fixture should have no blockers');
+    _expect(
+      readyReport['blockerCount'] == 0,
+      'ready fixture should have no blockers',
+    );
     _expectCheckPassed(readyReport, 'public_release_self_tests');
     _expectCheckPassed(readyReport, 'release_staging');
     final readyUiConsistency = _checkById(readyReport, 'ui_consistency');
     _expect(
-      readyUiConsistency['detail']
-          .toString()
-          .contains('designSystemGalleryReady=true'),
+      readyUiConsistency['detail'].toString().contains(
+        'designSystemGalleryReady=true',
+      ),
       'ready UI consistency detail should expose gallery readiness',
     );
 
@@ -79,17 +94,19 @@ Future<void> main() async {
 }
 
 Future<void> _prepareWorkspace(Directory root) async {
-  await Directory('${root.path}/docs/production-readiness').create(
-    recursive: true,
-  );
-  await Directory('${root.path}/docs/production-readiness/release-pr-pathspecs')
-      .create(recursive: true);
+  await Directory(
+    '${root.path}/docs/production-readiness',
+  ).create(recursive: true);
+  await Directory(
+    '${root.path}/docs/production-readiness/release-pr-pathspecs',
+  ).create(recursive: true);
   await File('${root.path}/.audit_highrisk.txt').writeAsString('');
-  await File('${root.path}/docs/production-readiness/highrisk-baseline.txt')
-      .writeAsString('');
   await File(
-          '${root.path}/docs/production-readiness/public-release-master-checklist.md')
-      .writeAsString('# Public Release Master Checklist\n');
+    '${root.path}/docs/production-readiness/highrisk-baseline.txt',
+  ).writeAsString('');
+  await File(
+    '${root.path}/docs/production-readiness/public-release-master-checklist.md',
+  ).writeAsString('# Public Release Master Checklist\n');
 }
 
 Future<void> _writeBasePassingArtifacts(Directory root) async {
@@ -103,16 +120,16 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
     'violationCount': 0,
   });
   await _writeJson(
-      root, 'docs/production-readiness/ui-consistency-audit.json', {
-    'blockingFindingCount': 0,
-    'findingCount': 0,
-    'countsByRule': {},
-    'rawColorClassifications': {},
-    'designSystemGallery': {
-      'ready': true,
-      'missing': [],
+    root,
+    'docs/production-readiness/ui-consistency-audit.json',
+    {
+      'blockingFindingCount': 0,
+      'findingCount': 0,
+      'countsByRule': {},
+      'rawColorClassifications': {},
+      'designSystemGallery': {'ready': true, 'missing': []},
     },
-  });
+  );
   await _writeJson(
     root,
     'docs/production-readiness/developer-quality-audit.json',
@@ -152,13 +169,16 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
     },
   );
   await _writeJson(
-      root, 'docs/production-readiness/windows-bundle-audit.json', {
-    'passed': true,
-    'fileCount': 1,
-    'missingRequiredFileCount': 0,
-    'disallowedFileCount': 0,
-    'bundlePath': 'fixture',
-  });
+    root,
+    'docs/production-readiness/windows-bundle-audit.json',
+    {
+      'passed': true,
+      'fileCount': 1,
+      'missingRequiredFileCount': 0,
+      'disallowedFileCount': 0,
+      'bundlePath': 'fixture',
+    },
+  );
   await _writeJson(root, 'docs/production-readiness/dependency-hygiene.json', {
     'passed': true,
     'packageCount': 1,
@@ -222,9 +242,7 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
       'defaultLimitedPolicyCount': 0,
       'ordinaryReadLimited': false,
       'fileBrowseAuditAction': 'file_browse',
-      'bodyLimits': {
-        '/api/mount/slew': 1048576,
-      },
+      'bodyLimits': {'/api/mount/slew': 1048576},
       'bodyLimitedApiWriteRouteCount': 3,
       'serverMiddlewareTestCount': 2,
       'serverMiddlewareTests': {
@@ -239,14 +257,8 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
     {
       'passed': true,
       'issueCount': 0,
-      'helper': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
-      'tests': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
+      'helper': {'exists': true, 'missingTextCount': 0},
+      'tests': {'exists': true, 'missingTextCount': 0},
       'usage': {
         'rawResponseCallCount': 2,
         'jsonContentTypeCount': 2,
@@ -269,12 +281,7 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
   await _writeJson(
     root,
     'docs/production-readiness/platform-capability-audit.json',
-    {
-      'passed': true,
-      'fileCount': 10,
-      'issueCount': 0,
-      'issues': [],
-    },
+    {'passed': true, 'fileCount': 10, 'issueCount': 0, 'issues': []},
   );
   await _writeJson(
     root,
@@ -282,18 +289,9 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
     {
       'passed': true,
       'issueCount': 0,
-      'workflow': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
-      'metadataTool': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
-      'ciRecipe': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
+      'workflow': {'exists': true, 'missingTextCount': 0},
+      'metadataTool': {'exists': true, 'missingTextCount': 0},
+      'ciRecipe': {'exists': true, 'missingTextCount': 0},
       'metadataRequirements': {
         'packageSha256': true,
         'perFileSha256': true,
@@ -321,9 +319,10 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
   );
   await _writePassingSelfTestsFixture(root);
   await _writeJson(
-      root, 'docs/production-readiness/linux-environment-probe.json', {
-    'linuxBuildEnvironmentAvailable': true,
-  });
+    root,
+    'docs/production-readiness/linux-environment-probe.json',
+    {'linuxBuildEnvironmentAvailable': true},
+  );
   await _writeJson(
     root,
     'docs/production-readiness/hardware-availability-probe.json',
@@ -340,18 +339,9 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
       'passed': true,
       'issueCount': 0,
       'manualRealArtifactGatePreserved': true,
-      'fixture': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
-      'tests': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
-      'manualProbe': {
-        'exists': true,
-        'missingTextCount': 0,
-      },
+      'fixture': {'exists': true, 'missingTextCount': 0},
+      'tests': {'exists': true, 'missingTextCount': 0},
+      'manualProbe': {'exists': true, 'missingTextCount': 0},
     },
   );
   await _writeJson(
@@ -376,18 +366,19 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
     },
   );
   await File(
-          '${root.path}/docs/production-readiness/android-emulator-remote-smoke-log.txt')
-      .writeAsString('remote smoke passed\n');
+    '${root.path}/docs/production-readiness/android-emulator-remote-smoke-log.txt',
+  ).writeAsString('remote smoke passed\n');
   await File(
-          '${root.path}/docs/production-readiness/android-emulator-remote-smoke.png')
-      .writeAsBytes([1]);
+    '${root.path}/docs/production-readiness/android-emulator-remote-smoke.png',
+  ).writeAsBytes([1]);
   await File(
-          '${root.path}/docs/production-readiness/mobile-remote-window-connected.xml')
-      .writeAsString('<window />');
+    '${root.path}/docs/production-readiness/mobile-remote-window-connected.xml',
+  ).writeAsString('<window />');
   await File(
-          '${root.path}/docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt')
-      .writeAsString(
-          'Server-observed mobile WebSocket viewer:\n{"viewers": [{"viewerId": "mobile"}]}\n');
+    '${root.path}/docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt',
+  ).writeAsString(
+    'Server-observed mobile WebSocket viewer:\n{"viewers": [{"viewerId": "mobile"}]}\n',
+  );
   await _writeJson(
     root,
     'docs/production-readiness/public-release-checklist-audit.json',
@@ -547,20 +538,23 @@ Future<void> _writeExternalEvidence(Directory root) async {
 Future<void> _writeStaleSplitPlanFixture(Directory root) async {
   await _clearPathspecs(root);
   await _writeJson(
-      root, 'docs/production-readiness/release-staging-audit.json', {
-    'generatedAt': '2026-05-05T00:00:02.000Z',
-    'currentBranch': 'release/public-readiness',
-    'entryCount': 2,
-    'untrackedReleaseCriticalCount': 0,
-    'categories': {
-      'release-tooling': {
-        'paths': [
-          _statusEntry('tools/production/a.dart'),
-          _statusEntry('tools/production/b.dart'),
-        ],
+    root,
+    'docs/production-readiness/release-staging-audit.json',
+    {
+      'generatedAt': '2026-05-05T00:00:02.000Z',
+      'currentBranch': 'release/public-readiness',
+      'entryCount': 2,
+      'untrackedReleaseCriticalCount': 0,
+      'categories': {
+        'release-tooling': {
+          'paths': [
+            _statusEntry('tools/production/a.dart'),
+            _statusEntry('tools/production/b.dart'),
+          ],
+        },
       },
     },
-  });
+  );
   await _writeJson(
     root,
     'docs/production-readiness/release-pr-split-plan.json',
@@ -583,13 +577,16 @@ Future<void> _writeStaleSplitPlanFixture(Directory root) async {
 Future<void> _writeReadyFixture(Directory root) async {
   await _clearPathspecs(root);
   await _writeJson(
-      root, 'docs/production-readiness/release-staging-audit.json', {
-    'generatedAt': '2026-05-05T00:00:03.000Z',
-    'currentBranch': 'release/public-readiness',
-    'entryCount': 0,
-    'untrackedReleaseCriticalCount': 0,
-    'categories': {},
-  });
+    root,
+    'docs/production-readiness/release-staging-audit.json',
+    {
+      'generatedAt': '2026-05-05T00:00:03.000Z',
+      'currentBranch': 'release/public-readiness',
+      'entryCount': 0,
+      'untrackedReleaseCriticalCount': 0,
+      'categories': {},
+    },
+  );
   await _writeJson(
     root,
     'docs/production-readiness/release-pr-split-plan.json',
@@ -603,8 +600,9 @@ Future<void> _writeReadyFixture(Directory root) async {
 }
 
 Future<void> _clearPathspecs(Directory root) async {
-  final directory =
-      Directory('${root.path}/docs/production-readiness/release-pr-pathspecs');
+  final directory = Directory(
+    '${root.path}/docs/production-readiness/release-pr-pathspecs',
+  );
   await directory.create(recursive: true);
   for (final file in directory.listSync().whereType<File>()) {
     await file.delete();
@@ -612,14 +610,14 @@ Future<void> _clearPathspecs(Directory root) async {
 }
 
 Map<String, Object?> _statusEntry(String path) => {
-      'status': ' M',
-      'path': path,
-      'untracked': false,
-      'deleted': false,
-      'generated': false,
-      'binary': false,
-      'releaseCritical': true,
-    };
+  'status': ' M',
+  'path': path,
+  'untracked': false,
+  'deleted': false,
+  'generated': false,
+  'binary': false,
+  'releaseCritical': true,
+};
 
 Future<void> _writeJson(
   Directory root,
@@ -632,11 +630,9 @@ Future<void> _writeJson(
 }
 
 Future<void> _runGate(File gate, Directory workingDirectory) async {
-  final result = await Process.run(
-    'dart',
-    [gate.path],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = await Process.run('dart', [
+    gate.path,
+  ], workingDirectory: workingDirectory.path);
   if (result.exitCode != 0) {
     throw StateError(
       'Public release gate failed with exit ${result.exitCode}\n'
@@ -647,8 +643,9 @@ Future<void> _runGate(File gate, Directory workingDirectory) async {
 }
 
 Map<String, dynamic> _readReport(Directory root) {
-  final report =
-      File('${root.path}/docs/production-readiness/public-release-gate.json');
+  final report = File(
+    '${root.path}/docs/production-readiness/public-release-gate.json',
+  );
   return jsonDecode(report.readAsStringSync()) as Map<String, dynamic>;
 }
 

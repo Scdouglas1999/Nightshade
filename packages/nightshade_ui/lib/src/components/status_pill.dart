@@ -48,9 +48,10 @@ class _StatusPillState extends State<StatusPill>
       vsync: this,
       duration: NightshadeTokens.durationSmooth,
     );
-    _flashAnimation = Tween<double>(begin: 1.0, end: 1.35).animate(
-      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
-    );
+    _flashAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.35,
+    ).animate(CurvedAnimation(parent: _flashController, curve: Curves.easeOut));
     _applyFlashForStatus();
   }
 
@@ -68,7 +69,8 @@ class _StatusPillState extends State<StatusPill>
   /// Flashes once when the pill transitions INTO the success state; otherwise
   /// resets the controller to its rest value. Never creates a new controller.
   void _applyFlashForStatus() {
-    final shouldFlash = widget.status == StatusPillStatus.success &&
+    final shouldFlash =
+        widget.status == StatusPillStatus.success &&
         _previousStatus != StatusPillStatus.success;
 
     if (shouldFlash) {

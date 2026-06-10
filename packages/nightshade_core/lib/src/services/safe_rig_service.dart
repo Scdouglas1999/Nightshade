@@ -163,8 +163,8 @@ class SafeRigService {
       final mount = _ref.read(mountStateProvider);
       final connected =
           mount.connectionState == DeviceConnectionState.connected &&
-              mount.deviceId != null &&
-              mount.deviceId!.isNotEmpty;
+          mount.deviceId != null &&
+          mount.deviceId!.isNotEmpty;
       if (!connected) {
         // No mount to park — nothing tracking under our control.
         result = result.copyWith(mountAlreadySafe: true);
@@ -188,9 +188,10 @@ class SafeRigService {
       final dome = _ref.read(domeStateProvider);
       final connected =
           dome.connectionState == DeviceConnectionState.connected &&
-              dome.deviceId != null &&
-              dome.deviceId!.isNotEmpty;
-      final alreadyClosed = dome.shutterStatus == ShutterStatus.closed ||
+          dome.deviceId != null &&
+          dome.deviceId!.isNotEmpty;
+      final alreadyClosed =
+          dome.shutterStatus == ShutterStatus.closed ||
           dome.shutterStatus == ShutterStatus.closing;
       if (connected && !alreadyClosed) {
         try {
@@ -207,8 +208,8 @@ class SafeRigService {
       final cover = _ref.read(coverCalibratorStateProvider);
       final connected =
           cover.connectionState == DeviceConnectionState.connected &&
-              cover.deviceId != null &&
-              cover.deviceId!.isNotEmpty;
+          cover.deviceId != null &&
+          cover.deviceId!.isNotEmpty;
       if (connected && cover.hasCover && !cover.isCoverClosed) {
         try {
           await closeCalibratorCover(backend, cover.deviceId!);
@@ -250,7 +251,9 @@ class SafeRigService {
   /// Issue the cover close command against [deviceId]. See [closeDomeShutter].
   @visibleForTesting
   Future<void> closeCalibratorCover(
-      NightshadeBackend backend, String deviceId) {
+    NightshadeBackend backend,
+    String deviceId,
+  ) {
     if (backend is NetworkBackend) {
       return backend.coverClose();
     }

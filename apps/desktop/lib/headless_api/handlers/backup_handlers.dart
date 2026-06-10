@@ -59,7 +59,8 @@ class BackupHandlers {
         'id': _idForBackupFile(file),
         'filePath': file.path,
         'fileName': file.uri.pathSegments.last,
-        'createdAt': metadata?.createdAt.millisecondsSinceEpoch ??
+        'createdAt':
+            metadata?.createdAt.millisecondsSinceEpoch ??
             stat.modified.millisecondsSinceEpoch,
         'fileSize': stat.size,
         'metadata': metadata != null
@@ -236,9 +237,7 @@ class BackupHandlers {
       return jsonOk({'metadata': null});
     }
 
-    return jsonOk({
-      'metadata': metadata.toJson(),
-    });
+    return jsonOk({'metadata': metadata.toJson()});
   }
 
   // ===========================================================================
@@ -277,8 +276,9 @@ class BackupHandlers {
   Future<Response> handleUploadRestoreBackup(Request request) async {
     _logInfo('[API] POST /api/backup/upload-restore');
     try {
-      final contentLength =
-          int.tryParse(request.headers['content-length'] ?? '');
+      final contentLength = int.tryParse(
+        request.headers['content-length'] ?? '',
+      );
       if (contentLength != null && contentLength > _maxBackupUploadBytes) {
         return jsonTooLarge({
           'error': 'Backup upload is too large',
@@ -483,10 +483,7 @@ class BackupHandlers {
       _logger.error(
         'Failed to delete orphaned upload ${file.path}: $e',
         source: 'BackupHandlers',
-        fields: {
-          'path': file.path,
-          'stack': stackTrace.toString(),
-        },
+        fields: {'path': file.path, 'stack': stackTrace.toString()},
       );
       return 'delete_failed';
     }
@@ -544,9 +541,6 @@ class BackupHandlers {
         .replaceAll(':', '-')
         .replaceAll('.', '-');
     final id = _uuid.v4();
-    return p.join(
-      dir.path,
-      'nightshade-backup-$tag-$timestamp-$id.nsbackup',
-    );
+    return p.join(dir.path, 'nightshade-backup-$tag-$timestamp-$id.nsbackup');
   }
 }

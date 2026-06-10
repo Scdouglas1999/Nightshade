@@ -227,7 +227,8 @@ void main() {
     expect(row.outputPath, path);
     // The component master ids are recorded in the mixer's channel order; both
     // narrowband masters fed the combine.
-    expect(row.componentMasterIds, containsAll(<int>[haMasterId, oiiiMasterId]));
+    expect(
+        row.componentMasterIds, containsAll(<int>[haMasterId, oiiiMasterId]));
     expect(row.componentMasterIds, hasLength(2));
     expect(row.targetId, targetId);
     // Composite dimensions track the component masters.

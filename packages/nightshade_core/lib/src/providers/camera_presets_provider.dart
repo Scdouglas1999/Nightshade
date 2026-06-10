@@ -12,9 +12,13 @@ import 'equipment/device_capability_provider.dart';
 import 'imaging_provider.dart';
 
 /// Provider for managing camera gain/offset presets
-final cameraPresetsProvider = StateNotifierProvider<CameraPresetsNotifier, AsyncValue<List<CameraPreset>>>((ref) {
-  return CameraPresetsNotifier(ref);
-});
+final cameraPresetsProvider =
+    StateNotifierProvider<
+      CameraPresetsNotifier,
+      AsyncValue<List<CameraPreset>>
+    >((ref) {
+      return CameraPresetsNotifier(ref);
+    });
 
 /// Provider for the currently selected preset ID
 final selectedPresetIdProvider = StateProvider<String?>((ref) => null);
@@ -49,7 +53,8 @@ final cameraPresetsSeedOnConnectProvider = Provider<void>((ref) {
   ref.listen<CameraStateSnapshot>(cameraStateProvider, (previous, next) {
     // Fire only on the transition INTO connected so we don't re-seed on every
     // status tick (temperature/cooler-power updates re-emit the snapshot).
-    final wasConnected = previous != null &&
+    final wasConnected =
+        previous != null &&
         previous.connectionState == DeviceConnectionState.connected;
     final nowConnected =
         next.connectionState == DeviceConnectionState.connected;
@@ -85,8 +90,9 @@ Future<void> _seedFromConnectedCamera(Ref ref, String deviceId) async {
   int? gainMin;
   int? gainMax;
   try {
-    final caps =
-        await ref.read(equipmentCameraCapabilitiesProvider(deviceId).future);
+    final caps = await ref.read(
+      equipmentCameraCapabilitiesProvider(deviceId).future,
+    );
     gainMin = caps?.gainMin;
     gainMax = caps?.gainMax;
   } catch (_) {
@@ -99,7 +105,8 @@ Future<void> _seedFromConnectedCamera(Ref ref, String deviceId) async {
       .seedFromRecommended(rec, gainMin: gainMin, gainMax: gainMax);
 }
 
-class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>> {
+class CameraPresetsNotifier
+    extends StateNotifier<AsyncValue<List<CameraPreset>>> {
   final Ref _ref;
   static const String _storageKey = 'camera_presets';
 
@@ -120,7 +127,9 @@ class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>
         state = AsyncValue.data(defaults);
       } else {
         final List<dynamic> jsonList = jsonDecode(jsonString);
-        final presets = jsonList.map((json) => CameraPreset.fromJson(json as Map<String, dynamic>)).toList();
+        final presets = jsonList
+            .map((json) => CameraPreset.fromJson(json as Map<String, dynamic>))
+            .toList();
         state = AsyncValue.data(presets);
       }
     } catch (e, stack) {
@@ -173,7 +182,9 @@ class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>
     final currentPresets = state.valueOrNull ?? [];
 
     // Check for duplicate names
-    if (currentPresets.any((p) => p.name.toLowerCase() == preset.name.toLowerCase())) {
+    if (currentPresets.any(
+      (p) => p.name.toLowerCase() == preset.name.toLowerCase(),
+    )) {
       throw Exception('A preset with this name already exists');
     }
 
@@ -192,9 +203,7 @@ class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>
     }
 
     final updatedPresets = [...currentPresets];
-    updatedPresets[index] = updatedPreset.copyWith(
-      updatedAt: DateTime.now(),
-    );
+    updatedPresets[index] = updatedPreset.copyWith(updatedAt: DateTime.now());
 
     await _savePresets(updatedPresets);
     state = AsyncValue.data(updatedPresets);
@@ -234,10 +243,8 @@ class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>
 
     // Update exposure settings
     final currentSettings = _ref.read(exposureSettingsProvider);
-    _ref.read(exposureSettingsProvider.notifier).state = currentSettings.copyWith(
-      gain: preset.gain,
-      offset: preset.offset,
-    );
+    _ref.read(exposureSettingsProvider.notifier).state = currentSettings
+        .copyWith(gain: preset.gain, offset: preset.offset);
   }
 
   /// Seed the factory unity-gain preset from a camera's manufacturer
@@ -276,7 +283,8 @@ class CameraPresetsNotifier extends StateNotifier<AsyncValue<List<CameraPreset>>
     final existing = currentPresets[index];
     // Only seed while the preset is still the untouched factory default. A
     // user-renamed or re-tuned preset must not be clobbered.
-    final isPristine = existing.name == 'Unity Gain' &&
+    final isPristine =
+        existing.name == 'Unity Gain' &&
         existing.gain == kDefaultUnityGain &&
         existing.offset == kDefaultUnityOffset;
     if (!isPristine) return;

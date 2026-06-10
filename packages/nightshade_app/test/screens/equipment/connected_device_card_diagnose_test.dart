@@ -52,8 +52,7 @@ Future<void> _pumpCard(
 
 void main() {
   group('ConnectedDeviceCard — Onboarding C4 Diagnose wiring', () {
-    testWidgets(
-        'healthy card renders no error subtitle and no Diagnose button',
+    testWidgets('healthy card renders no error subtitle and no Diagnose button',
         (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);

@@ -254,8 +254,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           results: results,
                           selectedKey: _selectedKey,
                           colors: colors,
-                          onTap: (key) =>
-                              _selectSection(key, isMobile: false),
+                          onTap: (key) => _selectSection(key, isMobile: false),
                         )
                       : _DesktopGroupedList(
                           groups: groups,
@@ -299,13 +298,14 @@ class _SearchField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+      style: TextStyle(
+          fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
       decoration: InputDecoration(
         isDense: true,
         hintText: 'Search settings…',
-        hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
-        prefixIcon:
-            Icon(LucideIcons.search, size: 16, color: colors.textMuted),
+        hintStyle: TextStyle(
+            fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+        prefixIcon: Icon(LucideIcons.search, size: 16, color: colors.textMuted),
         prefixIconConstraints:
             const BoxConstraints(minWidth: 36, minHeight: 36),
         suffixIcon: controller.text.isEmpty
@@ -486,7 +486,9 @@ class _DesktopSearchResults extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text(
           'No settings match your search.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize13,
+              color: colors.textMuted),
         ),
       );
     }
@@ -583,40 +585,40 @@ class _MobileSectionList extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: searching
-              ? _MobileSearchResults(
-                  results: results,
-                  colors: colors,
-                  onSectionTap: onSectionTap,
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: groups.length,
-                  itemBuilder: (context, index) {
-                    final group = groups[index];
-                    final expanded = expandedGroups.contains(group.title);
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _MobileGroupHeader(
-                          title: group.title,
-                          icon: group.icon,
-                          expanded: expanded,
-                          colors: colors,
-                          onTap: () => onToggleGroup(group.title),
-                        ),
-                        if (expanded)
-                          ...group.sections.map(
-                            (section) => _MobileSectionItem(
-                              icon: section.icon,
-                              label: section.label,
-                              onTap: () => onSectionTap(section.key),
-                              colors: colors,
-                            ),
+                ? _MobileSearchResults(
+                    results: results,
+                    colors: colors,
+                    onSectionTap: onSectionTap,
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: groups.length,
+                    itemBuilder: (context, index) {
+                      final group = groups[index];
+                      final expanded = expandedGroups.contains(group.title);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _MobileGroupHeader(
+                            title: group.title,
+                            icon: group.icon,
+                            expanded: expanded,
+                            colors: colors,
+                            onTap: () => onToggleGroup(group.title),
                           ),
-                      ],
-                    );
-                  },
-                ),
+                          if (expanded)
+                            ...group.sections.map(
+                              (section) => _MobileSectionItem(
+                                icon: section.icon,
+                                label: section.label,
+                                onTap: () => onSectionTap(section.key),
+                                colors: colors,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
           ),
         ),
       ],
@@ -642,7 +644,9 @@ class _MobileSearchResults extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text(
           'No settings match your search.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize14,
+              color: colors.textMuted),
         ),
       );
     }

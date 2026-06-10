@@ -109,8 +109,7 @@ class _CalibrationLibrarySettingsState
             items: [
               const DropdownMenuItem(value: null, child: Text('All types')),
               for (final type in CalibrationMasterType.values)
-                DropdownMenuItem(
-                    value: type, child: Text(_typeLabel(type))),
+                DropdownMenuItem(value: type, child: Text(_typeLabel(type))),
             ],
             onChanged: (value) {
               setState(() => _typeFilter = value);
@@ -166,8 +165,7 @@ class _CalibrationLibrarySettingsState
   }
 
   Future<void> _editTags(CalibrationMasterRecord record) async {
-    final tagsController =
-        TextEditingController(text: record.tags.join(', '));
+    final tagsController = TextEditingController(text: record.tags.join(', '));
     final notesController = TextEditingController(text: record.notes ?? '');
 
     final saved = await showDialog<bool>(
@@ -262,8 +260,7 @@ class _CalibrationLibrarySettingsState
     );
 
     if (confirmed != true) return;
-    await _service.deleteMaster(record.type, record.id,
-        deleteFile: deleteFile);
+    await _service.deleteMaster(record.type, record.id, deleteFile: deleteFile);
     await _reload();
   }
 }
@@ -299,8 +296,8 @@ class _MasterTile extends StatelessWidget {
                 _TypeBadge(type: record.type),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(_summary(record),
-                      style: theme.textTheme.bodyMedium),
+                  child:
+                      Text(_summary(record), style: theme.textTheme.bodyMedium),
                 ),
                 _FreshnessChip(freshness: freshness, ageDays: age),
                 IconButton(
@@ -336,8 +333,7 @@ class _MasterTile extends StatelessWidget {
                       Chip(
                         label: Text(tag),
                         visualDensity: VisualDensity.compact,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                   ],
                 ),
@@ -424,8 +420,7 @@ class _FreshnessChip extends StatelessWidget {
           children: [
             Icon(LucideIcons.clock, size: 13, color: color),
             const SizedBox(width: 3),
-            Text('${ageDays}d',
-                style: TextStyle(color: color, fontSize: 12)),
+            Text('${ageDays}d', style: TextStyle(color: color, fontSize: 12)),
           ],
         ),
       ),
@@ -607,8 +602,7 @@ class _MatchingPreviewState extends State<_MatchingPreview> {
                     const Icon(LucideIcons.check,
                         size: 13, color: Colors.green),
                     const SizedBox(width: 6),
-                    Expanded(
-                        child: Text(r, style: theme.textTheme.bodySmall)),
+                    Expanded(child: Text(r, style: theme.textTheme.bodySmall)),
                   ],
                 ),
               ),

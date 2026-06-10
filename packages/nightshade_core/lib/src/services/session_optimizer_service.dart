@@ -103,15 +103,15 @@ class SessionInsight {
   bool get isActionable => applyHint != null;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'kind': kind.name,
-        'title': title,
-        'body': body,
-        'recommendation': recommendation,
-        'confidence': confidence,
-        'targetId': targetId,
-        'applyHint': applyHint,
-      };
+    'id': id,
+    'kind': kind.name,
+    'title': title,
+    'body': body,
+    'recommendation': recommendation,
+    'confidence': confidence,
+    'targetId': targetId,
+    'applyHint': applyHint,
+  };
 }
 
 /// Per-target altitude trace used by the post-session optimizer.
@@ -206,6 +206,7 @@ class SessionOptimizationPlan {
   final List<TargetSuggestion> alternates;
   final double recommendedExposureSeconds;
   final String? recommendedFilterName;
+
   /// Full filter rotation inferred from target type and available filters.
   final List<String> recommendedFilterNames;
   final double estimatedUsableHours;
@@ -406,13 +407,9 @@ MosaicExposureSettings smartNightMosaicExposureSettings(
   );
 }
 
-const SmartNightExposureContext _fallbackExposureContext =
-    SmartNightExposureContext(
-  camera: CameraExposureSpec(
-    readNoiseE: 3.5,
-    fullWellE: 18000,
-    qePeak: 0.65,
-  ),
+const SmartNightExposureContext
+_fallbackExposureContext = SmartNightExposureContext(
+  camera: CameraExposureSpec(readNoiseE: 3.5, fullWellE: 18000, qePeak: 0.65),
   bortleClass: 5,
   focalLengthMm: 500,
   apertureMm: 80,
@@ -447,8 +444,8 @@ class SessionOptimizerService {
     required TargetSuggestionService suggestionService,
     SmartNightExposureCalculator exposureCalculator =
         const SmartNightExposureCalculator(),
-  })  : _suggestionService = suggestionService,
-        _exposureCalculator = exposureCalculator;
+  }) : _suggestionService = suggestionService,
+       _exposureCalculator = exposureCalculator;
 
   Future<SessionOptimizationPlan> optimizeTonight({
     required TargetSuggestionConfig config,
@@ -470,10 +467,7 @@ class SessionOptimizerService {
       opticalConfig: opticalConfig,
     );
 
-    return buildPlanFromSuggestions(
-      suggestions,
-      generatedAt: generatedAt,
-    );
+    return buildPlanFromSuggestions(suggestions, generatedAt: generatedAt);
   }
 
   /// Builds a session-ready plan from already-computed target suggestions.
@@ -505,8 +499,8 @@ class SessionOptimizerService {
 
     final primary = suggestions.first;
     final alternates = suggestions.skip(1).take(3).toList(growable: false);
-    final estimatedUsableHours =
-        (primary.visibility.hoursAboveMinAlt ?? 0).clamp(0.0, 24.0);
+    final estimatedUsableHours = (primary.visibility.hoursAboveMinAlt ?? 0)
+        .clamp(0.0, 24.0);
 
     final exposurePlan = _recommendExposure(primary, exposureContext);
     final availableFilters = exposureContext?.availableFilterNames ?? const [];
@@ -570,10 +564,7 @@ class SessionOptimizerService {
       seconds: recommendation.seconds,
       filterName: filter.name,
       rationale: recommendation.rationale,
-      caveats: [
-        ...effectiveContext.caveats,
-        ...recommendation.caveats,
-      ],
+      caveats: [...effectiveContext.caveats, ...recommendation.caveats],
     );
   }
 
@@ -609,34 +600,40 @@ class SessionOptimizerService {
       // below the floor — half an hour out of a 6-hour night = 0.083,
       // 2 hours = 0.33. We cap at 1.0 and floor at 0.2.
       final wallSecs = report.wallClockDuration.inSeconds;
-      final fraction =
-          wallSecs > 0 ? (trace.secondsBelowMinAltitude / wallSecs) : 0.0;
+      final fraction = wallSecs > 0
+          ? (trace.secondsBelowMinAltitude / wallSecs)
+          : 0.0;
       final confidence = (0.2 + fraction * 3.5).clamp(0.0, 1.0);
-      final suggestedAlt = (trace.minObservedAltitudeDeg ??
-                  trace.minRecommendedAltitudeDeg) +
-              thresholds.altitudeSuggestionMarginDeg;
+      final suggestedAlt =
+          (trace.minObservedAltitudeDeg ?? trace.minRecommendedAltitudeDeg) +
+          thresholds.altitudeSuggestionMarginDeg;
       final formattedDur = _formatDuration(
         Duration(seconds: trace.secondsBelowMinAltitude.round()),
       );
       final id =
           'altitude_window:${trace.targetId ?? trace.targetName.toLowerCase()}';
-      out.add(SessionInsight(
-        id: id,
-        kind: SessionInsightKind.altitudeWindow,
-        title: '${trace.targetName} was below '
-            '${trace.minRecommendedAltitudeDeg.toStringAsFixed(0)}° '
-            'for $formattedDur',
-        body: 'During capture, ${trace.targetName} spent $formattedDur '
-            'below the ${trace.minRecommendedAltitudeDeg.toStringAsFixed(0)}° '
-            'altitude floor. Frames acquired at low altitude carry more '
-            'atmospheric extinction and seeing penalty.',
-        recommendation: 'Tighten this target\'s start_when crossing to '
-            'AltitudeAbove(${suggestedAlt.toStringAsFixed(0)}°) so the '
-            'sequencer waits until the target clears the haze.',
-        confidence: confidence,
-        targetId: trace.targetId,
-        applyHint: {'altitudeAboveDeg': suggestedAlt},
-      ));
+      out.add(
+        SessionInsight(
+          id: id,
+          kind: SessionInsightKind.altitudeWindow,
+          title:
+              '${trace.targetName} was below '
+              '${trace.minRecommendedAltitudeDeg.toStringAsFixed(0)}° '
+              'for $formattedDur',
+          body:
+              'During capture, ${trace.targetName} spent $formattedDur '
+              'below the ${trace.minRecommendedAltitudeDeg.toStringAsFixed(0)}° '
+              'altitude floor. Frames acquired at low altitude carry more '
+              'atmospheric extinction and seeing penalty.',
+          recommendation:
+              'Tighten this target\'s start_when crossing to '
+              'AltitudeAbove(${suggestedAlt.toStringAsFixed(0)}°) so the '
+              'sequencer waits until the target clears the haze.',
+          confidence: confidence,
+          targetId: trace.targetId,
+          applyHint: {'altitudeAboveDeg': suggestedAlt},
+        ),
+      );
     }
 
     // -- Autofocus frequency ----------------------------------------------
@@ -647,22 +644,29 @@ class SessionOptimizerService {
       if (perHour >= thresholds.autofocusRunsPerHour) {
         // Confidence ramps from 0.5 at the threshold to 1.0 at 2x the
         // threshold; values above 2x cap at 1.0.
-        final overshoot =
-            (perHour / thresholds.autofocusRunsPerHour).clamp(1.0, 2.0);
+        final overshoot = (perHour / thresholds.autofocusRunsPerHour).clamp(
+          1.0,
+          2.0,
+        );
         final confidence = (0.5 + (overshoot - 1.0) * 0.5).clamp(0.0, 1.0);
-        out.add(SessionInsight(
-          id: 'autofocus_frequency',
-          kind: SessionInsightKind.autofocusFrequency,
-          title: 'Autofocus fired $afRuns times '
-              '(${perHour.toStringAsFixed(1)}/hour)',
-          body: 'A high autofocus cadence eats wall-clock time and can '
-              'jitter the focus position. Temperature compensation can '
-              'absorb most of the drift between explicit runs.',
-          recommendation: 'Enable focuser temperature compensation in '
-              'Settings → Autofocus, or relax the trigger threshold.',
-          confidence: confidence,
-          applyHint: {'autofocusInterval': (60 / perHour).round()},
-        ));
+        out.add(
+          SessionInsight(
+            id: 'autofocus_frequency',
+            kind: SessionInsightKind.autofocusFrequency,
+            title:
+                'Autofocus fired $afRuns times '
+                '(${perHour.toStringAsFixed(1)}/hour)',
+            body:
+                'A high autofocus cadence eats wall-clock time and can '
+                'jitter the focus position. Temperature compensation can '
+                'absorb most of the drift between explicit runs.',
+            recommendation:
+                'Enable focuser temperature compensation in '
+                'Settings → Autofocus, or relax the trigger threshold.',
+            confidence: confidence,
+            applyHint: {'autofocusInterval': (60 / perHour).round()},
+          ),
+        );
       }
     }
 
@@ -683,25 +687,29 @@ class SessionOptimizerService {
       if (distinctFilterChanges >= 4) {
         // Estimate 20s per filter change (typical wheel + refocus offset).
         const secondsPerChange = 20;
-        final estimatedOverheadSecs =
-            (distinctFilterChanges * secondsPerChange).toDouble();
+        final estimatedOverheadSecs = (distinctFilterChanges * secondsPerChange)
+            .toDouble();
         final fraction = estimatedOverheadSecs / wallSecs;
         if (fraction >= thresholds.filterChangeOverheadFraction) {
           final confidence =
               (fraction / (thresholds.filterChangeOverheadFraction * 2.0))
                   .clamp(0.3, 1.0);
           final pct = (fraction * 100).toStringAsFixed(1);
-          out.add(SessionInsight(
-            id: 'filter_change_overhead',
-            kind: SessionInsightKind.filterChangeOverhead,
-            title: 'Filter changes consumed ~$pct% of the night',
-            body: 'You changed filters about $distinctFilterChanges times. '
-                'Each change costs roughly $secondsPerChange seconds of '
-                'wheel + refocus time; that adds up over a long run.',
-            recommendation: 'Consider longer sub-stretches per filter '
-                '(group frames by filter inside each target).',
-            confidence: confidence,
-          ));
+          out.add(
+            SessionInsight(
+              id: 'filter_change_overhead',
+              kind: SessionInsightKind.filterChangeOverhead,
+              title: 'Filter changes consumed ~$pct% of the night',
+              body:
+                  'You changed filters about $distinctFilterChanges times. '
+                  'Each change costs roughly $secondsPerChange seconds of '
+                  'wheel + refocus time; that adds up over a long run.',
+              recommendation:
+                  'Consider longer sub-stretches per filter '
+                  '(group frames by filter inside each target).',
+              confidence: confidence,
+            ),
+          );
         }
       }
     }
@@ -712,22 +720,25 @@ class SessionOptimizerService {
       final rejected = report.totalFramesRejected;
       final fraction = rejected / attempted;
       if (fraction >= thresholds.rejectionRateFraction) {
-        final confidence =
-            (fraction / (thresholds.rejectionRateFraction * 2.0))
-                .clamp(0.3, 1.0);
+        final confidence = (fraction / (thresholds.rejectionRateFraction * 2.0))
+            .clamp(0.3, 1.0);
         final pct = (fraction * 100).toStringAsFixed(1);
-        out.add(SessionInsight(
-          id: 'rejection_rate',
-          kind: SessionInsightKind.rejectionRate,
-          title: '$pct% of frames were rejected',
-          body: '$rejected of $attempted attempted frames did not pass '
-              'image grading. High rejection rates often point at seeing, '
-              'guiding, or an HFR threshold that is too tight for the night.',
-          recommendation: 'Review the rejection reasons in the Targets '
-              'block above, then either relax the grading threshold in '
-              'Settings → Image Grading or address the upstream cause.',
-          confidence: confidence,
-        ));
+        out.add(
+          SessionInsight(
+            id: 'rejection_rate',
+            kind: SessionInsightKind.rejectionRate,
+            title: '$pct% of frames were rejected',
+            body:
+                '$rejected of $attempted attempted frames did not pass '
+                'image grading. High rejection rates often point at seeing, '
+                'guiding, or an HFR threshold that is too tight for the night.',
+            recommendation:
+                'Review the rejection reasons in the Targets '
+                'block above, then either relax the grading threshold in '
+                'Settings → Image Grading or address the upstream cause.',
+            confidence: confidence,
+          ),
+        );
       }
     }
 
@@ -735,21 +746,28 @@ class SessionOptimizerService {
     final gs = report.guideStats;
     final meanTotal = gs.meanRmsTotalArcsec;
     if (meanTotal != null && meanTotal >= thresholds.guidingDegradedArcsec) {
-      final overshoot =
-          (meanTotal / thresholds.guidingDegradedArcsec).clamp(1.0, 3.0);
+      final overshoot = (meanTotal / thresholds.guidingDegradedArcsec).clamp(
+        1.0,
+        3.0,
+      );
       final confidence = (0.4 + (overshoot - 1.0) * 0.3).clamp(0.0, 1.0);
-      out.add(SessionInsight(
-        id: 'guiding_degraded',
-        kind: SessionInsightKind.guidingDegraded,
-        title: 'Mean guide RMS was '
-            '${meanTotal.toStringAsFixed(2)}" '
-            '(threshold ${thresholds.guidingDegradedArcsec.toStringAsFixed(2)}")',
-        body: 'Guiding ran consistently above the threshold for this '
-            'session. Soft stars and HFR rejections are likely correlated.',
-        recommendation: 'Re-run polar alignment, recalibrate PHD2, or '
-            'shorten subs until the mount catches up.',
-        confidence: confidence,
-      ));
+      out.add(
+        SessionInsight(
+          id: 'guiding_degraded',
+          kind: SessionInsightKind.guidingDegraded,
+          title:
+              'Mean guide RMS was '
+              '${meanTotal.toStringAsFixed(2)}" '
+              '(threshold ${thresholds.guidingDegradedArcsec.toStringAsFixed(2)}")',
+          body:
+              'Guiding ran consistently above the threshold for this '
+              'session. Soft stars and HFR rejections are likely correlated.',
+          recommendation:
+              'Re-run polar alignment, recalibrate PHD2, or '
+              'shorten subs until the mount catches up.',
+          confidence: confidence,
+        ),
+      );
     }
 
     // -- Effective imaging fraction (efficiency) ---------------------------
@@ -757,28 +775,36 @@ class SessionOptimizerService {
       final eff = report.effectiveImagingFraction;
       if (eff > 0 && eff < thresholds.efficiencyLowFraction) {
         // The further below the floor, the higher the confidence.
-        final shortfall = (thresholds.efficiencyLowFraction - eff)
-            .clamp(0.0, thresholds.efficiencyLowFraction);
+        final shortfall = (thresholds.efficiencyLowFraction - eff).clamp(
+          0.0,
+          thresholds.efficiencyLowFraction,
+        );
         final confidence = (0.3 + shortfall * 1.5).clamp(0.0, 1.0);
         final pct = (eff * 100).toStringAsFixed(1);
-        out.add(SessionInsight(
-          id: 'efficiency_low',
-          kind: SessionInsightKind.efficiencyLow,
-          title: 'Effective imaging was only $pct% of the wall clock',
-          body: 'Slew, dither, autofocus and download dominated the night. '
-              'A 50% effective fraction is a reasonable target for a '
-              'multi-target run; below that, examine the longest downtime '
-              'events in the operations history.',
-          confidence: confidence,
-        ));
+        out.add(
+          SessionInsight(
+            id: 'efficiency_low',
+            kind: SessionInsightKind.efficiencyLow,
+            title: 'Effective imaging was only $pct% of the wall clock',
+            body:
+                'Slew, dither, autofocus and download dominated the night. '
+                'A 50% effective fraction is a reasonable target for a '
+                'multi-target run; below that, examine the longest downtime '
+                'events in the operations history.',
+            confidence: confidence,
+          ),
+        );
       }
     }
 
     // Filter out insights below the operator's confidence floor or that
     // have been explicitly dismissed (see `SessionInsightThresholds`).
-    final filtered = out.where((i) =>
-        i.confidence >= thresholds.minConfidence &&
-        !thresholds.dismissedIds.contains(i.id))
+    final filtered = out
+        .where(
+          (i) =>
+              i.confidence >= thresholds.minConfidence &&
+              !thresholds.dismissedIds.contains(i.id),
+        )
         .toList(growable: false);
 
     // Sort by confidence descending so the strongest insights surface first.
@@ -795,5 +821,4 @@ class SessionOptimizerService {
     if (d.inMinutes > 0) return '${d.inMinutes}m';
     return '${d.inSeconds}s';
   }
-
 }

@@ -1,4 +1,4 @@
-﻿// Tests for the secondary-tap / long-press context menu wired around
+// Tests for the secondary-tap / long-press context menu wired around
 // tree nodes. We mount only the wrapper widget itself with a known
 // sequence so the test stays focused on the menu's lifecycle (open ->
 // pick item -> mutate sequence).
@@ -17,8 +17,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
   final root = InstructionSetNode(name: 'Root');
   final tree = <String, SequenceNode>{
     child.id: child.copyWith(parentId: container.id),
-    container.id:
-        container.copyWith(parentId: root.id, childIds: [child.id]),
+    container.id: container.copyWith(parentId: root.id, childIds: [child.id]),
     root.id: root.copyWith(childIds: [container.id]),
   };
   return (
@@ -112,7 +111,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.childId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -126,8 +126,7 @@ void main() {
     expect(parent.childIds.length, 2);
   });
 
-  testWidgets('Group into Sequential Container wraps the node',
-      (tester) async {
+  testWidgets('Group into Sequential Container wraps the node', (tester) async {
     final t = _containerWithOneChild();
     final container = _seed(t.sequence);
 
@@ -137,7 +136,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.childId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -156,8 +156,7 @@ void main() {
     expect(newParent.parentId, t.containerId);
   });
 
-  testWidgets('Group into Parallel Container wraps the node',
-      (tester) async {
+  testWidgets('Group into Parallel Container wraps the node', (tester) async {
     final t = _containerWithOneChild();
     final container = _seed(t.sequence);
 
@@ -167,7 +166,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.childId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -190,7 +190,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.childId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -250,8 +251,7 @@ void main() {
         isFalse);
   });
 
-  testWidgets(
-      'Delete on a leaf can be cancelled and leaves the node in place',
+  testWidgets('Delete on a leaf can be cancelled and leaves the node in place',
       (tester) async {
     final t = _containerWithOneChild();
     final container = _seed(t.sequence);
@@ -291,7 +291,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.containerId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -302,12 +303,20 @@ void main() {
     // Confirmation dialog should now be on screen.
     expect(find.text('Cancel'), findsOneWidget);
     // The container is still present until the user confirms.
-    expect(container.read(currentSequenceProvider)!.nodes.containsKey(t.containerId),
+    expect(
+        container
+            .read(currentSequenceProvider)!
+            .nodes
+            .containsKey(t.containerId),
         isTrue);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(container.read(currentSequenceProvider)!.nodes.containsKey(t.containerId),
+    expect(
+        container
+            .read(currentSequenceProvider)!
+            .nodes
+            .containsKey(t.containerId),
         isTrue);
   });
 }

@@ -25,14 +25,19 @@ class _RecordingSafeRig extends SafeRigService {
   final List<String> coverClosedFor = [];
 
   @override
-  Future<void> closeDomeShutter(NightshadeBackend backend, String deviceId) async {
+  Future<void> closeDomeShutter(
+    NightshadeBackend backend,
+    String deviceId,
+  ) async {
     domeClosedFor.add(deviceId);
     if (failDome) throw Exception('dome stuck');
   }
 
   @override
   Future<void> closeCalibratorCover(
-      NightshadeBackend backend, String deviceId) async {
+    NightshadeBackend backend,
+    String deviceId,
+  ) async {
     coverClosedFor.add(deviceId);
   }
 }
@@ -46,8 +51,9 @@ void main() {
     setUp(() {
       backend = MockBackend();
       when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-      when(() => backend.polarAlignmentEvents)
-          .thenAnswer((_) => const Stream.empty());
+      when(
+        () => backend.polarAlignmentEvents,
+      ).thenAnswer((_) => const Stream.empty());
       when(() => backend.sequencerPause()).thenAnswer((_) async {});
       when(() => backend.mountPark(any())).thenAnswer((_) async {});
     });
@@ -63,8 +69,9 @@ void main() {
     }) {
       return ProviderContainer(
         overrides: [
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
           mountStateProvider.overrideWith((ref) {
             final n = MountStateNotifier(ref);
             if (mountConnected) {
@@ -117,35 +124,39 @@ void main() {
       expect(container.read(mountStateProvider).isTracking, isFalse);
     });
 
-    test('skips park when mount already parked (recorded as already safe)',
-        () async {
-      final container = makeContainer(mountParked: true);
-      addTearDown(container.dispose);
+    test(
+      'skips park when mount already parked (recorded as already safe)',
+      () async {
+        final container = makeContainer(mountParked: true);
+        addTearDown(container.dispose);
 
-      final result = await container
-          .read(safeRigServiceProvider)
-          .safeTheRig(reason: 'test', park: true);
+        final result = await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true);
 
-      verify(() => backend.sequencerPause()).called(1);
-      verifyNever(() => backend.mountPark(any()));
-      expect(result.mountParked, isFalse);
-      expect(result.mountAlreadySafe, isTrue);
-      expect(result.hasFailures, isFalse);
-    });
+        verify(() => backend.sequencerPause()).called(1);
+        verifyNever(() => backend.mountPark(any()));
+        expect(result.mountParked, isFalse);
+        expect(result.mountAlreadySafe, isTrue);
+        expect(result.hasFailures, isFalse);
+      },
+    );
 
-    test('skips park when no mount connected (recorded as already safe)',
-        () async {
-      final container = makeContainer(mountConnected: false);
-      addTearDown(container.dispose);
+    test(
+      'skips park when no mount connected (recorded as already safe)',
+      () async {
+        final container = makeContainer(mountConnected: false);
+        addTearDown(container.dispose);
 
-      final result = await container
-          .read(safeRigServiceProvider)
-          .safeTheRig(reason: 'test', park: true);
+        final result = await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true);
 
-      verifyNever(() => backend.mountPark(any()));
-      expect(result.mountAlreadySafe, isTrue);
-      expect(result.hasFailures, isFalse);
-    });
+        verifyNever(() => backend.mountPark(any()));
+        expect(result.mountAlreadySafe, isTrue);
+        expect(result.hasFailures, isFalse);
+      },
+    );
 
     test('does not park when park=false', () async {
       final container = makeContainer();
@@ -172,7 +183,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final result = await container.read(safeRigServiceProvider).safeTheRig(
+      final result = await container
+          .read(safeRigServiceProvider)
+          .safeTheRig(
             reason: 'test',
             park: true,
             closeDome: true,
@@ -205,8 +218,9 @@ void main() {
     });
 
     test('attempts every step then throws when park fails', () async {
-      when(() => backend.mountPark(any()))
-          .thenThrow(Exception('park motor fault'));
+      when(
+        () => backend.mountPark(any()),
+      ).thenThrow(Exception('park motor fault'));
       late _RecordingSafeRig recording;
       final container = makeContainer(
         domeConnected: true,
@@ -216,11 +230,9 @@ void main() {
       addTearDown(container.dispose);
 
       await expectLater(
-        () => container.read(safeRigServiceProvider).safeTheRig(
-              reason: 'test',
-              park: true,
-              closeDome: true,
-            ),
+        () => container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true, closeDome: true),
         throwsA(isA<SafeRigException>()),
       );
 
@@ -231,28 +243,27 @@ void main() {
     });
 
     test('aggregates multiple failures into the thrown exception', () async {
-      when(() => backend.sequencerPause())
-          .thenThrow(Exception('no sequence running'));
-      when(() => backend.mountPark(any()))
-          .thenThrow(Exception('park fault'));
+      when(
+        () => backend.sequencerPause(),
+      ).thenThrow(Exception('no sequence running'));
+      when(() => backend.mountPark(any())).thenThrow(Exception('park fault'));
       final container = makeContainer(
-        safeRigBuilder: (ref) =>
-            _RecordingSafeRig(ref, failDome: true),
+        safeRigBuilder: (ref) => _RecordingSafeRig(ref, failDome: true),
         domeConnected: true,
         domeShutter: ShutterStatus.open,
       );
       addTearDown(container.dispose);
 
       try {
-        await container.read(safeRigServiceProvider).safeTheRig(
-              reason: 'test',
-              park: true,
-              closeDome: true,
-            );
+        await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true, closeDome: true);
         fail('expected SafeRigException');
       } on SafeRigException catch (e) {
-        expect(e.result.failures.keys,
-            containsAll(<String>['pause', 'park', 'dome']));
+        expect(
+          e.result.failures.keys,
+          containsAll(<String>['pause', 'park', 'dome']),
+        );
       }
     });
 

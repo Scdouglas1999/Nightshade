@@ -154,14 +154,15 @@ void main() {
       expect(registration.name, 'Nightshade Test');
       expect(registration.port, 8080);
       expect(
-          registration.txt.keys,
-          containsAll(<String>[
-            'version',
-            'scheme',
-            'fingerprint',
-            'pairingSupported',
-            'name',
-          ]));
+        registration.txt.keys,
+        containsAll(<String>[
+          'version',
+          'scheme',
+          'fingerprint',
+          'pairingSupported',
+          'name',
+        ]),
+      );
       expect(registration.isRegistered, isFalse);
     });
   });
@@ -234,7 +235,8 @@ void main() {
     });
 
     test('parseStrict lower-cases an upper-case scheme', () {
-      const payload = '{"service":"nightshade","host":"100.96.0.7","port":8443,'
+      const payload =
+          '{"service":"nightshade","host":"100.96.0.7","port":8443,'
           '"version":"2.6.0","fingerprint":"abcdef1234567890",'
           '"scheme":"HTTPS"}';
       expect(QrConnectionData.parseStrict(payload).scheme, 'https');
@@ -308,11 +310,13 @@ void main() {
         request.response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'version': '3.0.0',
-            'apiVersion': '2.6.0',
-            'authRequired': false,
-          }));
+          ..write(
+            jsonEncode({
+              'version': '3.0.0',
+              'apiVersion': '2.6.0',
+              'authRequired': false,
+            }),
+          );
         await request.response.close();
       });
 

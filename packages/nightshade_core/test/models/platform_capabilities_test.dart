@@ -4,8 +4,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 void main() {
   group('PlatformCapabilityMatrix', () {
     test('marks ASCOM COM as Windows-only', () {
-      final ascom = PlatformCapabilityMatrix.rows
-          .singleWhere((row) => row.backend == 'ascom');
+      final ascom = PlatformCapabilityMatrix.rows.singleWhere(
+        (row) => row.backend == 'ascom',
+      );
 
       expect(ascom.isAvailableOn('windows'), isTrue);
       expect(ascom.isAvailableOn('linux'), isFalse);
@@ -27,8 +28,8 @@ void main() {
 
     test('serializes capability-gated backends for API responses', () {
       final report = PlatformCapabilityMatrix.forPlatform('windows').toJson();
-      final drivers =
-          (report['drivers'] as List<dynamic>).cast<Map<String, dynamic>>();
+      final drivers = (report['drivers'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
       final native = drivers.singleWhere((driver) {
         return driver['backend'] == 'native';
       });

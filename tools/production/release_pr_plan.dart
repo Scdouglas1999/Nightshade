@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _stagingAuditPath = 'docs/production-readiness/release-staging-audit.json';
+const _stagingAuditPath =
+    'docs/production-readiness/release-staging-audit.json';
 const _jsonOutputPath = 'docs/production-readiness/release-pr-plan.json';
 const _markdownOutputPath = 'docs/production-readiness/release-pr-plan.md';
 
@@ -67,7 +68,8 @@ void main() async {
     exit(2);
   }
 
-  final audit = jsonDecode(await auditFile.readAsString()) as Map<String, dynamic>;
+  final audit =
+      jsonDecode(await auditFile.readAsString()) as Map<String, dynamic>;
   final categories = audit['categories'] as Map<String, dynamic>? ?? const {};
   final buckets = {
     for (final bucket in _bucketOrder) bucket: <_PlannedEntry>[],
@@ -79,10 +81,12 @@ void main() async {
     final categoryData = categoryEntry.value as Map<String, dynamic>;
     final paths = categoryData['paths'] as List? ?? const [];
     for (final item in paths.whereType<Map>()) {
-      buckets[bucket]!.add(_PlannedEntry.fromJson(
-        category: category,
-        json: item.cast<String, dynamic>(),
-      ));
+      buckets[bucket]!.add(
+        _PlannedEntry.fromJson(
+          category: category,
+          json: item.cast<String, dynamic>(),
+        ),
+      );
     }
   }
 
@@ -104,13 +108,16 @@ void main() async {
         bucket: {
           'description': _bucketDescriptions[bucket],
           'count': buckets[bucket]!.length,
-          'untrackedCount':
-              buckets[bucket]!.where((entry) => entry.untracked).length,
+          'untrackedCount': buckets[bucket]!
+              .where((entry) => entry.untracked)
+              .length,
           'binaryCount': buckets[bucket]!.where((entry) => entry.binary).length,
-          'generatedCount':
-              buckets[bucket]!.where((entry) => entry.generated).length,
-          'releaseCriticalCount':
-              buckets[bucket]!.where((entry) => entry.releaseCritical).length,
+          'generatedCount': buckets[bucket]!
+              .where((entry) => entry.generated)
+              .length,
+          'releaseCriticalCount': buckets[bucket]!
+              .where((entry) => entry.releaseCritical)
+              .length,
           'paths': buckets[bucket]!.map((entry) => entry.toJson()).toList(),
         },
     },
@@ -118,12 +125,12 @@ void main() async {
         'This is a PR planning artifact only. It does not create a clean release branch, stage files, or open a PR.',
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(summary));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    audit: audit,
-    buckets: buckets,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(summary));
+  await File(
+    _markdownOutputPath,
+  ).writeAsString(_renderMarkdown(audit: audit, buckets: buckets));
 
   stdout.writeln('Release PR plan complete.');
   stdout.writeln('Source entries: ${audit['entryCount']}');
@@ -152,7 +159,9 @@ String _renderMarkdown({
     ..writeln()
     ..writeln('## Recommended Review Sequence')
     ..writeln()
-    ..writeln('| Bucket | Count | Untracked | Binary | Generated | Release-Critical |')
+    ..writeln(
+      '| Bucket | Count | Untracked | Binary | Generated | Release-Critical |',
+    )
     ..writeln('| --- | ---: | ---: | ---: | ---: | ---: |');
 
   for (final bucket in _bucketOrder) {
@@ -201,9 +210,7 @@ String _renderMarkdown({
     }
 
     for (final entry in entries.take(120)) {
-      buffer.writeln(
-        '- `${entry.status}` `${entry.path}` (${entry.category})',
-      );
+      buffer.writeln('- `${entry.status}` `${entry.path}` (${entry.category})');
     }
     if (entries.length > 120) {
       buffer.writeln('- ... ${entries.length - 120} more entries omitted.');
@@ -251,13 +258,13 @@ class _PlannedEntry {
   }
 
   Map<String, Object?> toJson() => {
-        'category': category,
-        'status': status,
-        'path': path,
-        'untracked': untracked,
-        'deleted': deleted,
-        'generated': generated,
-        'binary': binary,
-        'releaseCritical': releaseCritical,
-      };
+    'category': category,
+    'status': status,
+    'path': path,
+    'untracked': untracked,
+    'deleted': deleted,
+    'generated': generated,
+    'binary': binary,
+    'releaseCritical': releaseCritical,
+  };
 }

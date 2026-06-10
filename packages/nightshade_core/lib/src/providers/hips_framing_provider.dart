@@ -212,36 +212,34 @@ final hipsTileLoaderProvider = Provider.autoDispose<HipsTileLoader>((ref) {
 /// [AsyncValue]'s error state (and is logged), and consumers fall back (the badge
 /// renders nothing, the tile layer stays transparent over the canvas snapshot) —
 /// never a silent blank or a fabricated value.
-final framingHipsPropertiesProvider =
-    FutureProvider.autoDispose.family<HipsProperties, SurveySource>(
-  (ref, source) async {
-    final address = HipsSurveyAddress.forSurvey(source);
-    final fetcher = ref.watch(hipsTileFetcherProvider);
-    final token = HipsFetchToken();
-    ref.onDispose(token.cancel);
-    try {
-      return await fetcher.fetchProperties(address.baseUrl, token: token);
-    } on HipsFetchCancelledException {
-      // Expected when the provider is disposed (survey switch / screen left);
-      // rethrow so the future completes as cancelled rather than as a bogus
-      // success, and so a stale listener does not see a fabricated value.
-      rethrow;
-    } on HipsFetchException catch (e, st) {
-      // Surface the failure: log it and let it propagate into the AsyncValue's
-      // error state. Consumers treat an errored/absent properties value as "no
-      // metadata" and fall back to the canvas snapshot. No silent blank, no
-      // fabricated value.
-      developer.log(
-        'HiPS framing properties fetch failed for ${source.name}: ${e.message}',
-        name: 'HipsFramingProvider',
-        level: 900, // WARNING
-        error: e,
-        stackTrace: st,
-      );
-      rethrow;
-    }
-  },
-);
+final framingHipsPropertiesProvider = FutureProvider.autoDispose
+    .family<HipsProperties, SurveySource>((ref, source) async {
+      final address = HipsSurveyAddress.forSurvey(source);
+      final fetcher = ref.watch(hipsTileFetcherProvider);
+      final token = HipsFetchToken();
+      ref.onDispose(token.cancel);
+      try {
+        return await fetcher.fetchProperties(address.baseUrl, token: token);
+      } on HipsFetchCancelledException {
+        // Expected when the provider is disposed (survey switch / screen left);
+        // rethrow so the future completes as cancelled rather than as a bogus
+        // success, and so a stale listener does not see a fabricated value.
+        rethrow;
+      } on HipsFetchException catch (e, st) {
+        // Surface the failure: log it and let it propagate into the AsyncValue's
+        // error state. Consumers treat an errored/absent properties value as "no
+        // metadata" and fall back to the canvas snapshot. No silent blank, no
+        // fabricated value.
+        developer.log(
+          'HiPS framing properties fetch failed for ${source.name}: ${e.message}',
+          name: 'HipsFramingProvider',
+          level: 900, // WARNING
+          error: e,
+          stackTrace: st,
+        );
+        rethrow;
+      }
+    });
 
 // ===========================================================================
 // Feature flag
@@ -291,8 +289,10 @@ bool hipsSurveyIsTileCapable(SurveySource source) =>
 /// (inactive). Exposed as a family keyed by [SurveySource] so the framing
 /// screen can pass `framingProvider.surveySource` straight through without this
 /// file taking a dependency on the framing notifier's live state.
-final hipsFramingActiveProvider =
-    Provider.family<bool, SurveySource>((ref, source) {
+final hipsFramingActiveProvider = Provider.family<bool, SurveySource>((
+  ref,
+  source,
+) {
   final enabled = ref.watch(hipsFramingEnabledProvider);
   return enabled && hipsSurveyIsTileCapable(source);
 });
@@ -485,8 +485,11 @@ class HipsResidentTilesNotifier extends StateNotifier<HipsResidentSnapshot> {
 /// likewise torn down, disposing the cache + fetcher. Overridable in tests via
 /// the subclass-and-seed pattern (override with a notifier whose loader is fed a
 /// `MockClient` fetcher) so widget/golden tests never hit the network.
-final hipsResidentTilesProvider = StateNotifierProvider.autoDispose<
-    HipsResidentTilesNotifier, HipsResidentSnapshot>((ref) {
-  final loader = ref.watch(hipsTileLoaderProvider);
-  return HipsResidentTilesNotifier(loader);
-});
+final hipsResidentTilesProvider =
+    StateNotifierProvider.autoDispose<
+      HipsResidentTilesNotifier,
+      HipsResidentSnapshot
+    >((ref) {
+      final loader = ref.watch(hipsTileLoaderProvider);
+      return HipsResidentTilesNotifier(loader);
+    });

@@ -19,10 +19,14 @@ Future<void> main() async {
     await _writeBlockedFixture(temp);
     await _runAuditor(auditor, temp);
     final blockedReport = _readReport(temp);
-    _expect(blockedReport['decision'] == 'NOT_READY',
-        'blocked fixture decision should be NOT_READY');
-    _expect(blockedReport['blockerCount'] == 7,
-        'blocked fixture should emit 7 blockers');
+    _expect(
+      blockedReport['decision'] == 'NOT_READY',
+      'blocked fixture decision should be NOT_READY',
+    );
+    _expect(
+      blockedReport['blockerCount'] == 7,
+      'blocked fixture should emit 7 blockers',
+    );
     for (final id in _requiredBlockerIds) {
       final blocker = _blockerById(blockedReport, id);
       _expectNonEmpty(blocker, 'requiredInput');
@@ -45,10 +49,14 @@ Future<void> main() async {
     await _writeReadyFixture(temp);
     await _runAuditor(auditor, temp);
     final readyReport = _readReport(temp);
-    _expect(readyReport['decision'] == 'READY',
-        'ready fixture decision should be READY');
-    _expect(readyReport['blockerCount'] == 0,
-        'ready fixture should emit no blockers');
+    _expect(
+      readyReport['decision'] == 'READY',
+      'ready fixture decision should be READY',
+    );
+    _expect(
+      readyReport['blockerCount'] == 0,
+      'ready fixture should emit no blockers',
+    );
 
     stdout.writeln('Public release blocker inputs self-test passed.');
   } finally {
@@ -57,9 +65,9 @@ Future<void> main() async {
 }
 
 Future<void> _prepareWorkspace(Directory root) async {
-  await Directory('${root.path}/docs/production-readiness').create(
-    recursive: true,
-  );
+  await Directory(
+    '${root.path}/docs/production-readiness',
+  ).create(recursive: true);
 }
 
 Future<void> _writeBlockedFixture(Directory root) async {
@@ -90,11 +98,7 @@ Future<void> _writeBlockedFixture(Directory root) async {
           'exitCode': 1,
           'stderr': 'WSL unavailable',
         },
-        {
-          'id': 'docker_version',
-          'exitCode': 1,
-          'stderr': 'Docker unavailable',
-        },
+        {'id': 'docker_version', 'exitCode': 1, 'stderr': 'Docker unavailable'},
       ],
     },
   );
@@ -131,10 +135,7 @@ Future<void> _writeBlockedFixture(Directory root) async {
   await _writeJson(
     root,
     'docs/production-readiness/release-pr-split-plan.json',
-    {
-      'bucketCount': 10,
-      'entryCount': 42,
-    },
+    {'bucketCount': 10, 'entryCount': 42},
   );
   await _writeJson(
     root,
@@ -161,12 +162,12 @@ Future<void> _writeReadyFixture(Directory root) async {
 }
 
 Map<String, Object?> _gateCheck(String id, bool passed) => {
-      'id': id,
-      'label': id,
-      'passed': passed,
-      'evidence': 'docs/production-readiness/$id.json',
-      'detail': passed ? 'fixture passed' : 'fixture blocked detail for $id',
-    };
+  'id': id,
+  'label': id,
+  'passed': passed,
+  'evidence': 'docs/production-readiness/$id.json',
+  'detail': passed ? 'fixture passed' : 'fixture blocked detail for $id',
+};
 
 Future<void> _writeJson(
   Directory root,
@@ -179,11 +180,9 @@ Future<void> _writeJson(
 }
 
 Future<void> _runAuditor(File auditor, Directory workingDirectory) async {
-  final result = await Process.run(
-    'dart',
-    [auditor.path],
-    workingDirectory: workingDirectory.path,
-  );
+  final result = await Process.run('dart', [
+    auditor.path,
+  ], workingDirectory: workingDirectory.path);
   if (result.exitCode != 0) {
     throw StateError(
       'Blocker input auditor failed with exit ${result.exitCode}\n'

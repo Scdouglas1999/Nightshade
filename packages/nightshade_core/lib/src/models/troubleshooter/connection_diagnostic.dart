@@ -123,12 +123,12 @@ class ConnectionDiagnosis {
 
   @override
   int get hashCode => Object.hash(
-        category,
-        headline,
-        plainLanguage,
-        rawError,
-        Object.hashAll(steps),
-      );
+    category,
+    headline,
+    plainLanguage,
+    rawError,
+    Object.hashAll(steps),
+  );
 
   @override
   String toString() =>
@@ -172,14 +172,20 @@ ConnectionDiagnosis diagnoseConnectionFailure({
   String? rawError,
 }) {
   final normalized = (rawError ?? '').toLowerCase();
-  final category =
-      _classify(normalized, driverType: driverType, deviceType: deviceType);
+  final category = _classify(
+    normalized,
+    driverType: driverType,
+    deviceType: deviceType,
+  );
 
   return ConnectionDiagnosis(
     category: category,
     headline: _headlineFor(category),
-    plainLanguage:
-        _plainLanguageFor(category, deviceType: deviceType, driverType: driverType),
+    plainLanguage: _plainLanguageFor(
+      category,
+      deviceType: deviceType,
+      driverType: driverType,
+    ),
     steps: _stepsFor(category, deviceType: deviceType, driverType: driverType),
     rawError: rawError,
   );
@@ -431,7 +437,9 @@ List<RemediationStep> _stepsFor(
       return _networkSteps(deviceType: deviceType, driverType: driverType);
     case DiagnosticCategory.configuration:
       return _configurationSteps(
-          deviceType: deviceType, driverType: driverType);
+        deviceType: deviceType,
+        driverType: driverType,
+      );
     case DiagnosticCategory.unknown:
       return _unknownSteps(deviceType: deviceType, driverType: driverType);
   }
@@ -450,9 +458,11 @@ List<RemediationStep> _usbSteps({
   final device = _deviceNoun(deviceType);
   final steps = <RemediationStep>[
     RemediationStep(
-      instruction: 'Check the USB cable is fully seated and try a different '
+      instruction:
+          'Check the USB cable is fully seated and try a different '
           'USB port',
-      detail: 'Reseat both ends of the cable and prefer a port directly on '
+      detail:
+          'Reseat both ends of the cable and prefer a port directly on '
           'the computer over a hub. A marginal cable is the single most '
           'common cause of a missing $device.',
     ),
@@ -465,7 +475,8 @@ List<RemediationStep> _usbSteps({
     steps.add(
       RemediationStep(
         instruction: 'For powered devices, $supply',
-        detail: 'Cooled cameras and motorized mounts will not enumerate on '
+        detail:
+            'Cooled cameras and motorized mounts will not enumerate on '
             'USB at all without their main power. A lit status LED is a good '
             'sign the device has power.',
       ),
@@ -476,7 +487,8 @@ List<RemediationStep> _usbSteps({
     steps.add(
       RemediationStep(
         instruction: "Reinstall the manufacturer's SDK / driver",
-        detail: 'The native backend talks to the vendor SDK directly. If the '
+        detail:
+            'The native backend talks to the vendor SDK directly. If the '
             'SDK or its USB driver is missing or outdated, the $device will '
             'never appear in discovery.',
       ),
@@ -485,7 +497,8 @@ List<RemediationStep> _usbSteps({
     steps.add(
       const RemediationStep(
         instruction: "Verify the device's ASCOM driver is installed",
-        detail: 'Open the ASCOM Diagnostics or the Chooser to confirm the '
+        detail:
+            'Open the ASCOM Diagnostics or the Chooser to confirm the '
             'driver is registered. If it is missing, reinstall it from the '
             "manufacturer's site.",
       ),
@@ -494,9 +507,11 @@ List<RemediationStep> _usbSteps({
     final driver = _driverNoun(driverType);
     steps.add(
       RemediationStep(
-        instruction: 'Confirm the device is attached to the $driver server '
+        instruction:
+            'Confirm the device is attached to the $driver server '
             'host, not this computer',
-        detail: 'With $driver the hardware connects to the server machine. '
+        detail:
+            'With $driver the hardware connects to the server machine. '
             'Check the cable and power on that host, then re-run discovery.',
       ),
     );
@@ -505,7 +520,8 @@ List<RemediationStep> _usbSteps({
   steps.add(
     RemediationStep(
       instruction: 'Power-cycle the $device, then run discovery again',
-      detail: 'Unplug the $device, wait a few seconds, plug it back in, and '
+      detail:
+          'Unplug the $device, wait a few seconds, plug it back in, and '
           'rescan. This clears a stuck USB enumeration.',
     ),
   );
@@ -521,9 +537,11 @@ List<RemediationStep> _driverSteps({
   final driver = _driverNoun(driverType);
   final steps = <RemediationStep>[
     RemediationStep(
-      instruction: 'Confirm the $device is still physically connected and '
+      instruction:
+          'Confirm the $device is still physically connected and '
           'powered',
-      detail: 'An "RPC server unavailable" / driver-not-responding error '
+      detail:
+          'An "RPC server unavailable" / driver-not-responding error '
           'usually means the $device was unplugged or lost power after it was '
           'selected. Reseat the cable and check the power.',
     ),
@@ -532,9 +550,11 @@ List<RemediationStep> _driverSteps({
   if (driverType == DriverType.ascom) {
     steps.add(
       const RemediationStep(
-        instruction: 'Close and reopen the ASCOM driver, then any vendor '
+        instruction:
+            'Close and reopen the ASCOM driver, then any vendor '
             'control app',
-        detail: "If the driver's own setup window or a vendor utility is "
+        detail:
+            "If the driver's own setup window or a vendor utility is "
             'open, close it so Nightshade can take exclusive control, then '
             'reconnect.',
       ),
@@ -542,7 +562,8 @@ List<RemediationStep> _driverSteps({
     steps.add(
       const RemediationStep(
         instruction: 'Re-run ASCOM Diagnostics to confirm the driver loads',
-        detail: 'A "class not registered" error means the driver is not '
+        detail:
+            'A "class not registered" error means the driver is not '
             'installed correctly — reinstall it from the manufacturer.',
       ),
     );
@@ -550,7 +571,8 @@ List<RemediationStep> _driverSteps({
     steps.add(
       RemediationStep(
         instruction: 'Restart the $driver server on its host',
-        detail: 'The server process may have crashed or stopped. Restart it, '
+        detail:
+            'The server process may have crashed or stopped. Restart it, '
             'wait for it to report ready, then reconnect.',
       ),
     );
@@ -558,7 +580,8 @@ List<RemediationStep> _driverSteps({
     steps.add(
       RemediationStep(
         instruction: 'Restart Nightshade so the $driver driver reloads cleanly',
-        detail: 'A crashed driver process is cleared by reloading it. '
+        detail:
+            'A crashed driver process is cleared by reloading it. '
             'Restarting Nightshade reinitializes the $driver backend.',
       ),
     );
@@ -567,7 +590,8 @@ List<RemediationStep> _driverSteps({
   steps.add(
     RemediationStep(
       instruction: 'Power-cycle the $device, then reconnect',
-      detail: 'A full power cycle clears a hung firmware state that a '
+      detail:
+          'A full power cycle clears a hung firmware state that a '
           'software-only reconnect cannot.',
     ),
   );
@@ -583,13 +607,15 @@ List<RemediationStep> _permissionSteps({
   final steps = <RemediationStep>[
     RemediationStep(
       instruction: 'Close any other program that may be using the $device',
-      detail: 'A $device can only be opened by one application at a time. '
+      detail:
+          'A $device can only be opened by one application at a time. '
           'Vendor capture utilities, PHD2, or another planetarium app will '
           'hold it open and block Nightshade.',
     ),
     const RemediationStep(
       instruction: 'Try running Nightshade as administrator',
-      detail: 'An "access denied" error can mean Windows is withholding '
+      detail:
+          'An "access denied" error can mean Windows is withholding '
           'access until the app is elevated. Right-click Nightshade and '
           'choose "Run as administrator".',
     ),
@@ -598,9 +624,11 @@ List<RemediationStep> _permissionSteps({
   if (driverType == DriverType.native) {
     steps.add(
       const RemediationStep(
-        instruction: 'Check the device is not claimed by a generic Windows '
+        instruction:
+            'Check the device is not claimed by a generic Windows '
             'driver',
-        detail: "Reinstall the manufacturer's USB driver so it owns the "
+        detail:
+            "Reinstall the manufacturer's USB driver so it owns the "
             'device instead of a generic system driver.',
       ),
     );
@@ -609,7 +637,8 @@ List<RemediationStep> _permissionSteps({
   steps.add(
     RemediationStep(
       instruction: 'Power-cycle the $device and restart Nightshade',
-      detail: 'This releases any stale handle held by a crashed process and '
+      detail:
+          'This releases any stale handle held by a crashed process and '
           'gives Nightshade a clean claim on the $device.',
     ),
   );
@@ -628,23 +657,27 @@ List<RemediationStep> _networkSteps({
   return <RemediationStep>[
     RemediationStep(
       instruction: 'Confirm the $driver server is running on the host',
-      detail: 'Open the $driver server application on the host machine and '
+      detail:
+          'Open the $driver server application on the host machine and '
           'check it reports running/ready before reconnecting.',
     ),
     RemediationStep(
       instruction: 'Verify the host address and port',
-      detail: 'Double-check the IP/hostname matches the server machine and '
+      detail:
+          'Double-check the IP/hostname matches the server machine and '
           'that the port is correct — $defaultPortHint.',
     ),
     RemediationStep(
       instruction: 'Check the firewall allows the connection',
-      detail: 'A firewall on the host (or on this computer) can silently drop '
+      detail:
+          'A firewall on the host (or on this computer) can silently drop '
           'the connection. Allow the $driver server through, or temporarily '
           'disable the firewall to test.',
     ),
     const RemediationStep(
       instruction: 'Confirm both machines are on the same network',
-      detail: 'Make sure this computer and the server host are on the same '
+      detail:
+          'Make sure this computer and the server host are on the same '
           'subnet/VLAN, and ping the host to confirm it is reachable.',
     ),
   ];
@@ -659,7 +692,8 @@ List<RemediationStep> _configurationSteps({
   final steps = <RemediationStep>[
     RemediationStep(
       instruction: 'Confirm the correct $device is selected',
-      detail: 'If more than one device is available to the $driver driver, '
+      detail:
+          'If more than one device is available to the $driver driver, '
           'make sure the one you picked is the $device you actually want to '
           'use.',
     ),
@@ -669,7 +703,8 @@ List<RemediationStep> _configurationSteps({
     steps.add(
       const RemediationStep(
         instruction: "Open the driver's Setup dialog and check its settings",
-        detail: 'Most ASCOM drivers expose a Properties/Setup window. A '
+        detail:
+            'Most ASCOM drivers expose a Properties/Setup window. A '
             'missing COM port, model selection, or required value there '
             'causes an invalid-value error on connect.',
       ),
@@ -678,7 +713,8 @@ List<RemediationStep> _configurationSteps({
     steps.add(
       RemediationStep(
         instruction: 'Review the $device parameters on the $driver server',
-        detail: 'Check the server-side device configuration — an unset or '
+        detail:
+            'Check the server-side device configuration — an unset or '
             'out-of-range parameter will be rejected when Nightshade '
             'connects.',
       ),
@@ -688,7 +724,8 @@ List<RemediationStep> _configurationSteps({
   steps.add(
     RemediationStep(
       instruction: 'Re-run the equipment setup for this $device',
-      detail: 'Stepping back through the equipment configuration lets you '
+      detail:
+          'Stepping back through the equipment configuration lets you '
           'correct any value the driver rejected, then reconnect.',
     ),
   );
@@ -705,22 +742,26 @@ List<RemediationStep> _unknownSteps({
   return <RemediationStep>[
     RemediationStep(
       instruction: 'Check the $device is connected and powered',
-      detail: 'Reseat the cable, confirm power, and make sure the $device is '
+      detail:
+          'Reseat the cable, confirm power, and make sure the $device is '
           'switched on before trying again.',
     ),
     RemediationStep(
       instruction: 'Make sure no other program is using the $device',
-      detail: 'Close vendor utilities or other astronomy apps that may be '
+      detail:
+          'Close vendor utilities or other astronomy apps that may be '
           'holding the $device open.',
     ),
     RemediationStep(
       instruction: 'Restart Nightshade and reconnect',
-      detail: 'Reloading the $driver backend clears most transient connection '
+      detail:
+          'Reloading the $driver backend clears most transient connection '
           'problems.',
     ),
     const RemediationStep(
       instruction: 'Read the raw error below for the specific cause',
-      detail: 'The original driver message is shown verbatim — it often names '
+      detail:
+          'The original driver message is shown verbatim — it often names '
           'the exact problem, and is what to share with support if you get '
           'stuck.',
     ),

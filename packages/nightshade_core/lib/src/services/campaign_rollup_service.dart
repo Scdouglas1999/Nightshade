@@ -25,9 +25,9 @@ class CampaignRollupService {
     required ImagingRecordsRepository records,
     required TargetsDao targetsDao,
     required IntegrationGoalService goalService,
-  })  : _records = records,
-        _targetsDao = targetsDao,
-        _goalService = goalService;
+  }) : _records = records,
+       _targetsDao = targetsDao,
+       _goalService = goalService;
 
   /// Throws when [targetId] does not exist — same fail-loud policy as
   /// `SessionReportService.buildReport`.
@@ -54,8 +54,7 @@ class CampaignRollupService {
 
   Future<CampaignRollup> _build(Target target) async {
     final allSessions = await _records.getSessionsForTarget(target.id);
-    final imagesForTarget =
-        await _records.getImagesForTarget(target.id);
+    final imagesForTarget = await _records.getImagesForTarget(target.id);
     final lightFrames = imagesForTarget
         .where((i) => i.frameType == 'light' && i.isAccepted)
         .toList(growable: false);
@@ -66,17 +65,19 @@ class CampaignRollupService {
     await _attachGoalsToFilters(filters, target.id);
 
     final sessionRefs = allSessions
-        .map((s) => CampaignSessionRef(
-              sessionId: s.id,
-              sessionName: s.name,
-              startTime: s.startTime,
-              endTime: s.endTime,
-              status: s.status,
-              sessionIntegrationSecs: s.totalIntegrationSecs,
-              avgHfr: s.avgHfr,
-              avgGuidingRms: s.avgGuidingRms,
-              avgSeeing: s.avgSeeing,
-            ))
+        .map(
+          (s) => CampaignSessionRef(
+            sessionId: s.id,
+            sessionName: s.name,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            status: s.status,
+            sessionIntegrationSecs: s.totalIntegrationSecs,
+            avgHfr: s.avgHfr,
+            avgGuidingRms: s.avgGuidingRms,
+            avgSeeing: s.avgSeeing,
+          ),
+        )
         .toList(growable: false);
     // Sorted descending so the most recent session is at the top.
     sessionRefs.sort((a, b) => b.startTime.compareTo(a.startTime));
@@ -84,7 +85,8 @@ class CampaignRollupService {
     DateTime? firstAt;
     DateTime? lastAt;
     for (final s in sessionRefs) {
-      if (firstAt == null || s.startTime.isBefore(firstAt)) firstAt = s.startTime;
+      if (firstAt == null || s.startTime.isBefore(firstAt))
+        firstAt = s.startTime;
       if (lastAt == null || s.startTime.isAfter(lastAt)) lastAt = s.startTime;
     }
 
@@ -108,8 +110,7 @@ class CampaignRollupService {
       // would skew downward as the clock advances.
       final end = s.endTime;
       if (end != null && s.totalIntegrationSecs > 0.0) {
-        final wallSecs =
-            end.difference(s.startTime).inMilliseconds / 1000.0;
+        final wallSecs = end.difference(s.startTime).inMilliseconds / 1000.0;
         if (wallSecs > 0.0) {
           final eff = (s.totalIntegrationSecs / wallSecs).clamp(0.0, 1.0);
           efficiencyInputs.add(eff);
@@ -173,18 +174,22 @@ class CampaignRollupService {
     for (final entry in byLowerFilter.entries) {
       final bucket = entry.value;
       final label = bucket.pickLabel();
-      out.add(CampaignFilterRollup(
-        filter: label,
-        capturedFrames: bucket.totalFrames,
-        capturedIntegrationSecs: bucket.totalSecs,
-        goalExposureSecs: null,
-        goalFrames: null,
-        meanCapturedExposureSecs: bucket.totalFrames > 0
-            ? bucket.totalSecs / bucket.totalFrames
-            : null,
-      ));
+      out.add(
+        CampaignFilterRollup(
+          filter: label,
+          capturedFrames: bucket.totalFrames,
+          capturedIntegrationSecs: bucket.totalSecs,
+          goalExposureSecs: null,
+          goalFrames: null,
+          meanCapturedExposureSecs: bucket.totalFrames > 0
+              ? bucket.totalSecs / bucket.totalFrames
+              : null,
+        ),
+      );
     }
-    out.sort((a, b) => a.filter.toLowerCase().compareTo(b.filter.toLowerCase()));
+    out.sort(
+      (a, b) => a.filter.toLowerCase().compareTo(b.filter.toLowerCase()),
+    );
     return out;
   }
 
@@ -207,32 +212,38 @@ class CampaignRollupService {
       final key = goal.filter.toLowerCase();
       final existing = byKey[key];
       if (existing != null) {
-        merged.add(CampaignFilterRollup(
-          filter: existing.filter,
-          capturedFrames: existing.capturedFrames,
-          capturedIntegrationSecs: existing.capturedIntegrationSecs,
-          goalExposureSecs: goal.exposureSeconds,
-          goalFrames: goal.frameCount,
-          meanCapturedExposureSecs: existing.meanCapturedExposureSecs,
-        ));
+        merged.add(
+          CampaignFilterRollup(
+            filter: existing.filter,
+            capturedFrames: existing.capturedFrames,
+            capturedIntegrationSecs: existing.capturedIntegrationSecs,
+            goalExposureSecs: goal.exposureSeconds,
+            goalFrames: goal.frameCount,
+            meanCapturedExposureSecs: existing.meanCapturedExposureSecs,
+          ),
+        );
         consumed.add(key);
       } else {
         // Goal exists with no captured frames yet — show a goal-only row.
-        merged.add(CampaignFilterRollup(
-          filter: goal.filter,
-          capturedFrames: 0,
-          capturedIntegrationSecs: 0.0,
-          goalExposureSecs: goal.exposureSeconds,
-          goalFrames: goal.frameCount,
-          meanCapturedExposureSecs: null,
-        ));
+        merged.add(
+          CampaignFilterRollup(
+            filter: goal.filter,
+            capturedFrames: 0,
+            capturedIntegrationSecs: 0.0,
+            goalExposureSecs: goal.exposureSeconds,
+            goalFrames: goal.frameCount,
+            meanCapturedExposureSecs: null,
+          ),
+        );
       }
     }
     // Carry through any captured filters with no matching goal.
     for (final entry in byKey.entries) {
       if (!consumed.contains(entry.key)) merged.add(entry.value);
     }
-    merged.sort((a, b) => a.filter.toLowerCase().compareTo(b.filter.toLowerCase()));
+    merged.sort(
+      (a, b) => a.filter.toLowerCase().compareTo(b.filter.toLowerCase()),
+    );
     filters
       ..clear()
       ..addAll(merged);

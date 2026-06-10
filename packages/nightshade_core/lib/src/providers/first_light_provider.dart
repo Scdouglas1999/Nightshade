@@ -52,5 +52,5 @@ class FirstLightController extends StateNotifier<FirstLightState> {
 /// Provider for the first-light flow controller + state.
 final firstLightControllerProvider =
     StateNotifierProvider<FirstLightController, FirstLightState>(
-  FirstLightController.new,
-);
+      FirstLightController.new,
+    );

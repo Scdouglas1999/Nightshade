@@ -23,9 +23,9 @@ class DiscordTransport extends NotificationTransport {
     required DiscordTransportConfig config,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 15),
-  })  : _config = config,
-        _client = httpClient ?? http.Client(),
-        _timeout = timeout;
+  }) : _config = config,
+       _client = httpClient ?? http.Client(),
+       _timeout = timeout;
 
   @override
   NotificationTransportKind get kind => NotificationTransportKind.discord;
@@ -100,10 +100,10 @@ class DiscordTransport extends NotificationTransport {
 
       final response = await _client
           .post(
-        Uri.parse(_config.webhookUrl),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      )
+            Uri.parse(_config.webhookUrl),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
           .timeout(_timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -120,10 +120,15 @@ class DiscordTransport extends NotificationTransport {
       );
     } on TimeoutException {
       return NotificationResult.fail(
-          'Discord request timed out after ${_timeout.inSeconds}s');
+        'Discord request timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/Discord] Send failed: $e',
-          name: 'DiscordTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/Discord] Send failed: $e',
+        name: 'DiscordTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }

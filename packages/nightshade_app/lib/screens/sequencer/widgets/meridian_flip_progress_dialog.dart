@@ -266,7 +266,8 @@ class _MeridianFlipProgressDialogState
                       : _hasFailed
                           ? 'Meridian Flip Failed'
                           : 'Meridian Flip in Progress',
-                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h4
+                      .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _isComplete
@@ -312,7 +313,8 @@ class _MeridianFlipProgressDialogState
               const SizedBox(width: 8),
               Text(
                 'Target: $_targetName',
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -464,7 +466,8 @@ class _MeridianFlipProgressDialogState
           children: [
             Text(
               '$_progressPercent%',
-              style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+              style:
+                  NightshadeTypography.h6.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -659,7 +662,8 @@ class _StepRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.success,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   'done',
@@ -678,7 +682,8 @@ class _StepRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.error,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   'failed',
@@ -753,7 +758,8 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             value,
-            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.labelStrongSm
+                .copyWith(color: colors.textPrimary),
           ),
         ],
       ),

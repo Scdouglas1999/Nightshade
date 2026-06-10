@@ -60,7 +60,7 @@ class DeviceConnectionProgressState {
 class DeviceConnectionProgressNotifier
     extends StateNotifier<DeviceConnectionProgressState> {
   DeviceConnectionProgressNotifier()
-      : super(DeviceConnectionProgressState.empty);
+    : super(DeviceConnectionProgressState.empty);
 
   /// Begin a new sweep. Clears the prior snapshot so stale chips from a
   /// previous "Connect All" don't bleed into this run.
@@ -98,7 +98,8 @@ class DeviceConnectionProgressNotifier
 /// to per-device progress in real time; the equipment screen pushes events
 /// into this provider as it drains
 /// `DeviceService.connectAllFromProfile(profile)`.
-final deviceConnectionProgressProvider = StateNotifierProvider<
-    DeviceConnectionProgressNotifier, DeviceConnectionProgressState>(
-  (ref) => DeviceConnectionProgressNotifier(),
-);
+final deviceConnectionProgressProvider =
+    StateNotifierProvider<
+      DeviceConnectionProgressNotifier,
+      DeviceConnectionProgressState
+    >((ref) => DeviceConnectionProgressNotifier());

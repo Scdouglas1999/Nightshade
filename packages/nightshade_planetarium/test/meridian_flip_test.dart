@@ -53,10 +53,16 @@ void main() {
       const raDeg = 120.0;
       final t0 = DateTime.utc(2024, 6, 1, 2);
       final t1 = t0.add(const Duration(hours: 1));
-      final ha0 =
-          AstronomyCalculations.hourAngleDeg(raDeg: raDeg, dt: t0, longitudeDeg: lon);
-      final ha1 =
-          AstronomyCalculations.hourAngleDeg(raDeg: raDeg, dt: t1, longitudeDeg: lon);
+      final ha0 = AstronomyCalculations.hourAngleDeg(
+        raDeg: raDeg,
+        dt: t0,
+        longitudeDeg: lon,
+      );
+      final ha1 = AstronomyCalculations.hourAngleDeg(
+        raDeg: raDeg,
+        dt: t1,
+        longitudeDeg: lon,
+      );
       // One sidereal hour ≈ 15.041 deg of hour-angle advance.
       expect(ha1 - ha0, closeTo(15.041, 0.05));
     });
@@ -112,24 +118,27 @@ void main() {
       expect(flip.flipDeadline, equals(flip.transitTime));
     });
 
-    test('past-meridian allowance pushes the deadline later by that amount', () {
-      const raDeg = 150.0;
-      const decDeg = 20.0;
-      final date = DateTime(2024, 10, 15);
-      final flip = AstronomyCalculations.calculateMeridianFlip(
-        raDeg: raDeg,
-        decDeg: decDeg,
-        date: date,
-        latitudeDeg: lat,
-        longitudeDeg: lon,
-        pastMeridianMinutes: 20,
-      );
-      expect(flip, isNotNull);
-      expect(
-        flip!.flipDeadline.difference(flip.transitTime),
-        equals(const Duration(minutes: 20)),
-      );
-    });
+    test(
+      'past-meridian allowance pushes the deadline later by that amount',
+      () {
+        const raDeg = 150.0;
+        const decDeg = 20.0;
+        final date = DateTime(2024, 10, 15);
+        final flip = AstronomyCalculations.calculateMeridianFlip(
+          raDeg: raDeg,
+          decDeg: decDeg,
+          date: date,
+          latitudeDeg: lat,
+          longitudeDeg: lon,
+          pastMeridianMinutes: 20,
+        );
+        expect(flip, isNotNull);
+        expect(
+          flip!.flipDeadline.difference(flip.transitTime),
+          equals(const Duration(minutes: 20)),
+        );
+      },
+    );
 
     test('at the flip time the target sits on the meridian (HA ~ 0)', () {
       const raDeg = 60.0;

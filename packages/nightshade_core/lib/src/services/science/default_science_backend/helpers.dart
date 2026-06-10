@@ -1,7 +1,7 @@
 part of '../default_science_backend.dart';
 
 extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
-Future<List<_CatalogMatch>> _catalogMatches({
+  Future<List<_CatalogMatch>> _catalogMatches({
     required String imagePath,
     required WcsSolution wcs,
     required List<StarMeasurement> detectedStars,
@@ -12,12 +12,15 @@ Future<List<_CatalogMatch>> _catalogMatches({
     if (!manager.isInitialized) return const [];
     try {
       final fits = await apiReadFitsFile(filePath: imagePath);
-      final radius = (math.sqrt(wcs.fieldWidthDegrees * wcs.fieldWidthDegrees +
-                      wcs.fieldHeightDegrees * wcs.fieldHeightDegrees) *
-                  0.65 +
-              0.3)
-          .clamp(0.25, 8.0)
-          .toDouble();
+      final radius =
+          (math.sqrt(
+                        wcs.fieldWidthDegrees * wcs.fieldWidthDegrees +
+                            wcs.fieldHeightDegrees * wcs.fieldHeightDegrees,
+                      ) *
+                      0.65 +
+                  0.3)
+              .clamp(0.25, 8.0)
+              .toDouble();
       final nearby = await manager.searchStarsNearby(
         ra: wcs.raHours * 15.0,
         dec: wcs.decDegrees,
@@ -37,12 +40,14 @@ Future<List<_CatalogMatch>> _catalogMatches({
           height: fits.height.toDouble(),
         );
         if (px == null) continue;
-        projected.add(_ProjectedCatalogStar(
-          id: '${star.catalogId}_${star.ra.toStringAsFixed(6)}_${star.dec.toStringAsFixed(6)}',
-          x: px.x,
-          y: px.y,
-          mag: star.magnitude!,
-        ));
+        projected.add(
+          _ProjectedCatalogStar(
+            id: '${star.catalogId}_${star.ra.toStringAsFixed(6)}_${star.dec.toStringAsFixed(6)}',
+            x: px.x,
+            y: px.y,
+            mag: star.magnitude!,
+          ),
+        );
       }
       if (projected.isEmpty) return const [];
 
@@ -65,12 +70,14 @@ Future<List<_CatalogMatch>> _catalogMatches({
         }
         if (best != null) {
           usedCatalog.add(best.id);
-          matches.add(_CatalogMatch(
-            detected: detected,
-            catalogX: best.x,
-            catalogY: best.y,
-            catalogMag: best.mag,
-          ));
+          matches.add(
+            _CatalogMatch(
+              detected: detected,
+              catalogX: best.x,
+              catalogY: best.y,
+              catalogMag: best.mag,
+            ),
+          );
         }
       }
       return matches;
@@ -143,7 +150,8 @@ Future<List<_CatalogMatch>> _catalogMatches({
     final sinCDec = math.sin(cdec);
     final cosCDec = math.cos(cdec);
     final dec = math.asin(cosC * sinCDec + eta * sinC * cosCDec / rho);
-    final ra = cra +
+    final ra =
+        cra +
         math.atan2(xi * sinC, rho * cosCDec * cosC - eta * sinCDec * sinC);
     var raDeg = ra * 180.0 / math.pi;
     while (raDeg < 0) raDeg += 360;
@@ -156,13 +164,18 @@ Future<List<_CatalogMatch>> _catalogMatches({
     final t1 = lastObs == null ? null : DateTime.tryParse(lastObs);
     if (t0 != null && t1 != null) {
       return math.max(
-          1.0 / 60.0, t1.difference(t0).inMilliseconds.abs() / 60000.0);
+        1.0 / 60.0,
+        t1.difference(t0).inMilliseconds.abs() / 60000.0,
+      );
     }
     return math.max(1.0, (frameCount - 1).toDouble());
   }
 
-  bool _mutualNearest(StarMeasurement first, StarMeasurement last,
-      List<StarMeasurement> firstStars) {
+  bool _mutualNearest(
+    StarMeasurement first,
+    StarMeasurement last,
+    List<StarMeasurement> firstStars,
+  ) {
     StarMeasurement? nearest;
     var best = double.infinity;
     for (final candidate in firstStars) {
@@ -177,8 +190,11 @@ Future<List<_CatalogMatch>> _catalogMatches({
     return nearest == first;
   }
 
-  List<double> _sigmaClip(List<double> values,
-      {required double sigma, required int iterations}) {
+  List<double> _sigmaClip(
+    List<double> values, {
+    required double sigma,
+    required int iterations,
+  }) {
     var working = values.where((v) => v.isFinite).toList(growable: true);
     if (working.length < 3) return working;
     for (var i = 0; i < iterations; i++) {
@@ -186,8 +202,9 @@ Future<List<_CatalogMatch>> _catalogMatches({
       final mad = _mad(working, med);
       if (mad <= 0) break;
       final limit = sigma * 1.4826 * mad;
-      final filtered =
-          working.where((v) => (v - med).abs() <= limit).toList(growable: true);
+      final filtered = working
+          .where((v) => (v - med).abs() <= limit)
+          .toList(growable: true);
       if (filtered.length == working.length || filtered.length < 3) {
         working = filtered;
         break;
@@ -206,8 +223,9 @@ Future<List<_CatalogMatch>> _catalogMatches({
       final mad = _mad(working, med);
       if (mad <= 0) return med;
       final limit = 3 * 1.4826 * mad;
-      final filtered =
-          working.where((v) => (v - med).abs() <= limit).toList(growable: true);
+      final filtered = working
+          .where((v) => (v - med).abs() <= limit)
+          .toList(growable: true);
       if (filtered.length == working.length || filtered.length < 8)
         return _median(filtered);
       working = filtered;
@@ -219,8 +237,10 @@ Future<List<_CatalogMatch>> _catalogMatches({
     final sorted = values.where((v) => v.isFinite).toList(growable: false)
       ..sort();
     if (sorted.isEmpty) return 0.0;
-    final trim =
-        (sorted.length * trimFraction).floor().clamp(0, sorted.length ~/ 3);
+    final trim = (sorted.length * trimFraction).floor().clamp(
+      0,
+      sorted.length ~/ 3,
+    );
     final start = trim;
     final end = sorted.length - trim;
     return _median(sorted.sublist(start, end <= start ? sorted.length : end));
@@ -237,7 +257,8 @@ Future<List<_CatalogMatch>> _catalogMatches({
   double _mad(List<double> values, double median) {
     if (values.isEmpty) return 0.0;
     return _median(
-        values.map((v) => (v - median).abs()).toList(growable: false));
+      values.map((v) => (v - median).abs()).toList(growable: false),
+    );
   }
 
   double _robustStdDev(List<double> values) =>
@@ -315,7 +336,8 @@ Future<List<_CatalogMatch>> _catalogMatches({
     return sorted[lo] * (1 - t) + sorted[hi] * t;
   }
 
-  (ScienceFrameQualityMetrics, List<ScienceTileMetric>) _mapBridgeQualityResult({
+  (ScienceFrameQualityMetrics, List<ScienceTileMetric>)
+  _mapBridgeQualityResult({
     required QualityMapsResultApi result,
     required DateTime timestamp,
     required int? capturedImageId,
@@ -402,12 +424,16 @@ Future<List<_CatalogMatch>> _catalogMatches({
 
     for (var row = 0; row < rows; row++) {
       final yStart = (row * height / rows).floor();
-      final yEnd =
-          ((row + 1) * height / rows).floor().clamp(yStart + 1, height);
+      final yEnd = ((row + 1) * height / rows).floor().clamp(
+        yStart + 1,
+        height,
+      );
       for (var col = 0; col < cols; col++) {
         final xStart = (col * width / cols).floor();
-        final xEnd =
-            ((col + 1) * width / cols).floor().clamp(xStart + 1, width);
+        final xEnd = ((col + 1) * width / cols).floor().clamp(
+          xStart + 1,
+          width,
+        );
 
         final samples = <double>[];
         var sum = 0.0;
@@ -480,12 +506,14 @@ Future<List<_CatalogMatch>> _catalogMatches({
         final lowClipPercent = 100.0 * lowClip / count;
         final highClipPercent = 100.0 * highClip / count;
         final snr = stdDev <= 0.0 ? 0.0 : mean / stdDev;
-        final gradX = ((rightCount == 0 ? mean : rightSum / rightCount) -
-                (leftCount == 0 ? mean : leftSum / leftCount))
-            .toDouble();
-        final gradY = ((bottomCount == 0 ? mean : bottomSum / bottomCount) -
-                (topCount == 0 ? mean : topSum / topCount))
-            .toDouble();
+        final gradX =
+            ((rightCount == 0 ? mean : rightSum / rightCount) -
+                    (leftCount == 0 ? mean : leftSum / leftCount))
+                .toDouble();
+        final gradY =
+            ((bottomCount == 0 ? mean : bottomSum / bottomCount) -
+                    (topCount == 0 ? mean : topSum / topCount))
+                .toDouble();
         final gradMag = math.sqrt(gradX * gradX + gradY * gradY);
 
         tileMedians.add(p50);
@@ -581,7 +609,8 @@ Future<List<_CatalogMatch>> _catalogMatches({
     final safeCount = math.max(1, globalCount);
     final globalMean = globalSum / safeCount;
     final globalStdDev = math.sqrt(
-        math.max(0.0, (globalSumSq / safeCount) - (globalMean * globalMean)));
+      math.max(0.0, (globalSumSq / safeCount) - (globalMean * globalMean)),
+    );
     final median = tileMedians.isEmpty ? 0.0 : _median(tileMedians);
     final mad = tileMedians.isEmpty ? 0.0 : _mad(tileMedians, median);
     final background = tileMedians.isEmpty ? globalMean : _median(tileMedians);
@@ -593,11 +622,11 @@ Future<List<_CatalogMatch>> _catalogMatches({
     final gradientX = tileGradX.isEmpty
         ? 0.0
         : tileGradX.fold<double>(0.0, (sum, value) => sum + value) /
-            tileGradX.length;
+              tileGradX.length;
     final gradientY = tileGradY.isEmpty
         ? 0.0
         : tileGradY.fold<double>(0.0, (sum, value) => sum + value) /
-            tileGradY.length;
+              tileGradY.length;
 
     final frame = ScienceFrameQualityMetrics(
       capturedImageId: capturedImageId,
@@ -613,8 +642,9 @@ Future<List<_CatalogMatch>> _catalogMatches({
       dynamicRangeP1P99: dynamicRange,
       lowClipPercent: 100.0 * globalLowClip / safeCount,
       highClipPercent: 100.0 * globalHighClip / safeCount,
-      uniformityCv:
-          background.abs() < 1e-6 ? 0.0 : globalStdDev / background.abs(),
+      uniformityCv: background.abs() < 1e-6
+          ? 0.0
+          : globalStdDev / background.abs(),
       gradientX: gradientX,
       gradientY: gradientY,
       processingTier: processingTier,

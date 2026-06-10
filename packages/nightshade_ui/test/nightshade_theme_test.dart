@@ -98,8 +98,10 @@ void main() {
   group('NightshadeSwitchStyle.switchThemeData parity', () {
     test('uses colors.onPrimary for selected thumb in dark theme', () {
       const colors = NightshadeColors.dark;
-      final theme =
-          NightshadeSwitchStyle.switchThemeData(colors, colors.onPrimary);
+      final theme = NightshadeSwitchStyle.switchThemeData(
+        colors,
+        colors.onPrimary,
+      );
 
       expect(
         theme.thumbColor!.resolve({WidgetState.selected}),
@@ -109,8 +111,10 @@ void main() {
 
     test('uses colors.onPrimary for selected thumb in redNight theme', () {
       const colors = NightshadeColors.redNight;
-      final theme =
-          NightshadeSwitchStyle.switchThemeData(colors, colors.onPrimary);
+      final theme = NightshadeSwitchStyle.switchThemeData(
+        colors,
+        colors.onPrimary,
+      );
 
       expect(
         theme.thumbColor!.resolve({WidgetState.selected}),

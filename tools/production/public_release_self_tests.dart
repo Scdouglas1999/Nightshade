@@ -43,22 +43,23 @@ Future<void> main() async {
   for (final script in _selfTests) {
     stdout.writeln('Running $script');
     final watch = Stopwatch()..start();
-    final result = await Process.run(
-      'dart',
-      ['run', script],
-      runInShell: Platform.isWindows,
-    );
+    final result = await Process.run('dart', [
+      'run',
+      script,
+    ], runInShell: Platform.isWindows);
     watch.stop();
     stdout.write(result.stdout);
     stderr.write(result.stderr);
 
-    results.add(_SelfTestResult(
-      script: script,
-      exitCode: result.exitCode,
-      durationMillis: watch.elapsedMilliseconds,
-      stdoutText: result.stdout.toString(),
-      stderrText: result.stderr.toString(),
-    ));
+    results.add(
+      _SelfTestResult(
+        script: script,
+        exitCode: result.exitCode,
+        durationMillis: watch.elapsedMilliseconds,
+        stdoutText: result.stdout.toString(),
+        stderrText: result.stderr.toString(),
+      ),
+    );
 
     if (result.exitCode != 0) {
       failures.add('$script exited with ${result.exitCode}');
@@ -104,15 +105,18 @@ Future<void> _writeReports({
   };
 
   await Directory('docs/production-readiness').create(recursive: true);
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    generatedAt: generatedAt,
-    durationMillis: durationMillis,
-    passedCount: passedCount,
-    failedCount: failedCount,
-    results: results,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(
+      generatedAt: generatedAt,
+      durationMillis: durationMillis,
+      passedCount: passedCount,
+      failedCount: failedCount,
+      results: results,
+    ),
+  );
 }
 
 String _renderMarkdown({
@@ -165,11 +169,11 @@ class _SelfTestResult {
   bool get passed => exitCode == 0;
 
   Map<String, Object?> toJson() => {
-        'script': script,
-        'exitCode': exitCode,
-        'passed': passed,
-        'durationMillis': durationMillis,
-        'stdout': stdoutText,
-        'stderr': stderrText,
-      };
+    'script': script,
+    'exitCode': exitCode,
+    'passed': passed,
+    'durationMillis': durationMillis,
+    'stdout': stdoutText,
+    'stderr': stderrText,
+  };
 }

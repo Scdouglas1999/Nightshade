@@ -53,9 +53,9 @@ class TargetTimeWindow extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'start_minutes': startMinutes,
-        'end_minutes': endMinutes,
-      };
+    'start_minutes': startMinutes,
+    'end_minutes': endMinutes,
+  };
 
   static TargetTimeWindow fromJson(Map<String, dynamic> json) {
     return TargetTimeWindow(
@@ -99,10 +99,10 @@ class ScheduledWindow extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'start_utc_ms': startUtc.toUtc().millisecondsSinceEpoch,
-        'end_utc_ms': endUtc.toUtc().millisecondsSinceEpoch,
-        'priority_boost': priorityBoost,
-      };
+    'start_utc_ms': startUtc.toUtc().millisecondsSinceEpoch,
+    'end_utc_ms': endUtc.toUtc().millisecondsSinceEpoch,
+    'priority_boost': priorityBoost,
+  };
 
   static ScheduledWindow fromJson(Map<String, dynamic> json) {
     return ScheduledWindow(
@@ -195,19 +195,22 @@ class TargetConstraint extends Equatable {
       case TargetConstraintKind.moonIlluminationMax:
         if (moonIlluminationMax == null) {
           throw StateError(
-              'moonIlluminationMax constraint missing moonIlluminationMax value');
+            'moonIlluminationMax constraint missing moonIlluminationMax value',
+          );
         }
         return jsonEncode({'max': moonIlluminationMax});
       case TargetConstraintKind.customHorizon:
         if (customHorizonId == null) {
           throw StateError(
-              'customHorizon constraint missing customHorizonId value');
+            'customHorizon constraint missing customHorizonId value',
+          );
         }
         return jsonEncode({'profile_id': customHorizonId});
       case TargetConstraintKind.scheduledWindow:
         if (scheduledWindow == null) {
           throw StateError(
-              'scheduledWindow constraint missing scheduledWindow value');
+            'scheduledWindow constraint missing scheduledWindow value',
+          );
         }
         return jsonEncode(scheduledWindow!.toJson());
     }
@@ -264,13 +267,13 @@ class TargetConstraint extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        targetId,
-        kind,
-        timeWindow,
-        moonIlluminationMax,
-        customHorizonId,
-        scheduledWindow,
-        enabled,
-      ];
+    id,
+    targetId,
+    kind,
+    timeWindow,
+    moonIlluminationMax,
+    customHorizonId,
+    scheduledWindow,
+    enabled,
+  ];
 }

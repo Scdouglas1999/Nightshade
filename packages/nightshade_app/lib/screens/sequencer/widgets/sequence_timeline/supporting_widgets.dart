@@ -47,7 +47,8 @@ class _TimelineBlockState extends State<_TimelineBlock> {
             border: _isHovered
                 ? Border.all(
                     // absolute: lightening hover ring over the data-colored segment
-                    color: Colors.white.withValues(alpha: 0.5), width: 1)
+                    color: Colors.white.withValues(alpha: 0.5),
+                    width: 1)
                 : null,
           ),
           child: widget.segment.duration > 60

@@ -188,7 +188,10 @@ abstract class Sequence with _$Sequence {
 
   /// Calculate overhead for a node and its subtree, respecting loop multipliers
   double _calculateOverhead(
-      String nodeId, SequenceOverheadConfig config, int multiplier) {
+    String nodeId,
+    SequenceOverheadConfig config,
+    int multiplier,
+  ) {
     final node = nodes[nodeId];
     if (node == null || !node.isEnabled) return 0;
 
@@ -259,7 +262,9 @@ abstract class Sequence with _$Sequence {
 
   /// Recursively estimate integration time for a node and its children
   SequenceEstimate _estimateNodeIntegration(
-      String nodeId, DateTime referenceTime) {
+    String nodeId,
+    DateTime referenceTime,
+  ) {
     final node = nodes[nodeId];
     if (node == null || !node.isEnabled) {
       return const SequenceEstimate(

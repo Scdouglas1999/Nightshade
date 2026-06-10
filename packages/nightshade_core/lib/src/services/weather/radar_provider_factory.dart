@@ -90,8 +90,9 @@ class RadarProviderFactory {
 
   /// Checks if any registered provider covers the given location.
   bool hasProviderForLocation(double latitude, double longitude) {
-    return _providers.values
-        .any((provider) => provider.coversLocation(latitude, longitude));
+    return _providers.values.any(
+      (provider) => provider.coversLocation(latitude, longitude),
+    );
   }
 
   /// Disposes all registered providers and clears the registry.

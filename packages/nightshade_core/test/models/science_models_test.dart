@@ -5,10 +5,7 @@ void main() {
   group('ScienceLayerType', () {
     test('round-trips db values', () {
       for (final layer in ScienceLayerType.values) {
-        expect(
-          ScienceLayerType.fromDbValue(layer.dbValue),
-          equals(layer),
-        );
+        expect(ScienceLayerType.fromDbValue(layer.dbValue), equals(layer));
       }
     });
   });

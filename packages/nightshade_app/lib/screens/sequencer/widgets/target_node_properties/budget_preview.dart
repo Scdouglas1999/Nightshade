@@ -50,7 +50,9 @@ class _BudgetPreview extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             summary,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
           ),
           if (resolved.isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -58,7 +60,9 @@ class _BudgetPreview extends StatelessWidget {
               resolved.entries
                   .map((e) => '${e.key} ${_formatDuration(e.value)}')
                   .join(' · '),
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
           ],
         ],

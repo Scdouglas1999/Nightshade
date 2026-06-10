@@ -71,8 +71,10 @@ abstract class UpdateManifest with _$UpdateManifest {
 
   /// Check if this version is newer than another
   bool isNewerThan(String otherVersion) {
-    final other =
-        otherVersion.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+    final other = otherVersion
+        .split('.')
+        .map((p) => int.tryParse(p) ?? 0)
+        .toList();
     final mine = versionParts;
 
     for (var i = 0; i < mine.length && i < other.length; i++) {
@@ -85,9 +87,14 @@ abstract class UpdateManifest with _$UpdateManifest {
   /// Check if upgrade from a version is allowed
   bool canUpgradeFrom(String fromVersion) {
     if (minVersion == null) return true;
-    final from =
-        fromVersion.split('.').map((p) => int.tryParse(p) ?? 0).toList();
-    final min = minVersion!.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+    final from = fromVersion
+        .split('.')
+        .map((p) => int.tryParse(p) ?? 0)
+        .toList();
+    final min = minVersion!
+        .split('.')
+        .map((p) => int.tryParse(p) ?? 0)
+        .toList();
 
     for (var i = 0; i < from.length && i < min.length; i++) {
       if (from[i] > min[i]) return true;

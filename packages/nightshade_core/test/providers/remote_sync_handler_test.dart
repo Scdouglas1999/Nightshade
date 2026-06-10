@@ -27,9 +27,9 @@ void main() {
   group('applyRemoteSyncEvent', () {
     test('equipment Connected updates mount chip without hydration', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
 
       final container = ProviderContainer(
         overrides: [
@@ -47,10 +47,7 @@ void main() {
           severity: EventSeverity.info,
           category: EventCategory.equipment,
           eventType: 'Connected',
-          data: const {
-            'device_type': 'mount',
-            'device_id': 'ascom:mount:0',
-          },
+          data: const {'device_type': 'mount', 'device_id': 'ascom:mount:0'},
         ),
       );
 
@@ -61,9 +58,9 @@ void main() {
 
     test('HostStateChanged profile mutation invalidates profiles', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
 
       var loadCount = 0;
       final container = ProviderContainer(
@@ -93,42 +90,45 @@ void main() {
       expect(loadCount, greaterThanOrEqualTo(2));
     });
 
-    test('HostStateChanged target mutation invalidates target catalog', () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
-      when(() => backend.getAllTargets()).thenAnswer((_) async => []);
+    test(
+      'HostStateChanged target mutation invalidates target catalog',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(() => backend.getAllTargets()).thenAnswer((_) async => []);
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(allDbTargetsProvider.future);
+
+        await applyRemoteSyncEvent(
+          container,
+          buildHostMutationEvent(
+            entityType: HostMutationEntity.target,
+            action: HostMutationAction.updated,
+            entityId: '3',
           ),
-        ],
-      );
-      addTearDown(container.dispose);
+        );
 
-      await container.read(allDbTargetsProvider.future);
-
-      await applyRemoteSyncEvent(
-        container,
-        buildHostMutationEvent(
-          entityType: HostMutationEntity.target,
-          action: HostMutationAction.updated,
-          entityId: '3',
-        ),
-      );
-
-      await container.read(allDbTargetsProvider.future);
-      verify(() => backend.getAllTargets()).called(greaterThanOrEqualTo(2));
-    });
+        await container.read(allDbTargetsProvider.future);
+        verify(() => backend.getAllTargets()).called(greaterThanOrEqualTo(2));
+      },
+    );
 
     test('ImageCaptured invalidates target progress providers', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
 
       var progressReads = 0;
       final container = ProviderContainer(
@@ -164,9 +164,9 @@ void main() {
 
     test('ImageReady on remote populates currentImageProvider', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.cameraGetLastImage('asi:0')).thenAnswer(
         (_) async => makeCapturedImageResult(
           width: 4,
@@ -177,8 +177,9 @@ void main() {
       );
       // Publisher schedules a background raw-pixel load on NetworkBackend;
       // stub it so the coalesced fetch completes cleanly.
-      when(() => backend.getLastRawImageData('asi:0'))
-          .thenAnswer((_) async => List<int>.filled(4 * 2 * 2, 0));
+      when(
+        () => backend.getLastRawImageData('asi:0'),
+      ).thenAnswer((_) async => List<int>.filled(4 * 2 * 2, 0));
 
       final container = ProviderContainer(
         overrides: [
@@ -222,84 +223,90 @@ void main() {
     });
 
     test(
-        'ImageReady without networkBackend leaves currentImageProvider blank',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      'ImageReady without networkBackend leaves currentImageProvider blank',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(cameraStateProvider.notifier)
+          ..setConnecting('asi:0', 'ASI Camera')
+          ..setConnected();
+
+        // No networkBackend passed → desktop/host-local path: the host-local
+        // publisher owns currentImageProvider, so the remote fetch must NOT run.
+        await applyRemoteSyncEvent(
+          container,
+          NightshadeEvent(
+            timestamp: 6,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ImageReady',
+            data: const {'width': 4, 'height': 2},
           ),
-        ],
-      );
-      addTearDown(container.dispose);
+        );
+        await pumpEventQueue();
 
-      container.read(cameraStateProvider.notifier)
-        ..setConnecting('asi:0', 'ASI Camera')
-        ..setConnected();
+        expect(container.read(currentImageProvider), isNull);
+        verifyNever(() => backend.cameraGetLastImage(any()));
+      },
+    );
 
-      // No networkBackend passed → desktop/host-local path: the host-local
-      // publisher owns currentImageProvider, so the remote fetch must NOT run.
-      await applyRemoteSyncEvent(
-        container,
-        NightshadeEvent(
-          timestamp: 6,
-          severity: EventSeverity.info,
-          category: EventCategory.imaging,
-          eventType: 'ImageReady',
-          data: const {'width': 4, 'height': 2},
-        ),
-      );
-      await pumpEventQueue();
+    test(
+      'SequenceUpdated over WS invalidates savedSequencesProvider',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(() => backend.listFullSequences()).thenAnswer((_) async => []);
 
-      expect(container.read(currentImageProvider), isNull);
-      verifyNever(() => backend.cameraGetLastImage(any()));
-    });
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-    test('SequenceUpdated over WS invalidates savedSequencesProvider', () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
-      when(() => backend.listFullSequences()).thenAnswer((_) async => []);
+        container.listen(savedSequencesProvider, (_, __) {});
+        await container.read(savedSequencesProvider.future);
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+        await applyRemoteSyncEvent(
+          container,
+          NightshadeEvent.fromWireJson({
+            'type': 'event',
+            'timestamp': 2,
+            'severity': 'info',
+            'category': 'sequencer',
+            'eventType': sequenceUpdatedEventType,
+            'data': {'sequenceId': 4, 'action': 'saved'},
+          }),
+        );
 
-      container.listen(savedSequencesProvider, (_, __) {});
-      await container.read(savedSequencesProvider.future);
-
-      await applyRemoteSyncEvent(
-        container,
-        NightshadeEvent.fromWireJson({
-          'type': 'event',
-          'timestamp': 2,
-          'severity': 'info',
-          'category': 'sequencer',
-          'eventType': sequenceUpdatedEventType,
-          'data': {'sequenceId': 4, 'action': 'saved'},
-        }),
-      );
-
-      await container.read(savedSequencesProvider.future);
-      verify(() => backend.listFullSequences()).called(greaterThanOrEqualTo(2));
-    });
+        await container.read(savedSequencesProvider.future);
+        verify(
+          () => backend.listFullSequences(),
+        ).called(greaterThanOrEqualTo(2));
+      },
+    );
 
     test('HostStateChanged sequence mutation invalidates library', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.listFullSequences()).thenAnswer((_) async => []);
 
       final container = ProviderContainer(
@@ -340,7 +347,9 @@ void main() {
       when(() => backend.sequencerGetStatus()).thenAnswer(
         (_) async => const SequencerStatus(state: 'Idle', progress: 0),
       );
-      when(() => backend.getConnectedDevices()).thenAnswer((_) async => const []);
+      when(
+        () => backend.getConnectedDevices(),
+      ).thenAnswer((_) async => const []);
       when(() => backend.phd2GetStatus()).thenAnswer(
         (_) async => const Phd2Status(
           state: 'Stopped',
@@ -376,10 +385,7 @@ void main() {
           severity: EventSeverity.info,
           category: EventCategory.equipment,
           eventType: 'Connected',
-          data: const {
-            'device_type': 'camera',
-            'device_id': 'asi:0',
-          },
+          data: const {'device_type': 'camera', 'device_id': 'asi:0'},
         ),
       );
       await pumpEventQueue();

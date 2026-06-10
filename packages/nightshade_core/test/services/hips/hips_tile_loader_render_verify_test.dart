@@ -51,17 +51,17 @@ hips_frame        = equatorial
     const target = FramingTarget(name: 'M42', raHours: 5.59, decDegrees: -5.39);
 
     HipsViewport vp(double zoom) => HipsViewport(
-          plateScale: plateScale,
-          target: target,
-          canvasSize: canvas,
-          zoom: zoom,
-          pan: ui.Offset.zero,
-          rotationDegrees: 0.0,
-          baseUrl: baseUrl,
-          surveyId: surveyId,
-          format: HipsTileFormat.png,
-          props: props,
-        );
+      plateScale: plateScale,
+      target: target,
+      canvasSize: canvas,
+      zoom: zoom,
+      pan: ui.Offset.zero,
+      rotationDegrees: 0.0,
+      baseUrl: baseUrl,
+      surveyId: surveyId,
+      format: HipsTileFormat.png,
+      props: props,
+    );
 
     final clock = _FakeClock();
     final gate = _Gate();
@@ -98,8 +98,11 @@ hips_frame        = equatorial
     clock.fireAll();
     await _settle();
     final coarseNorder = loader.snapshot.selectedNorder;
-    expect(loader.snapshot.primaryTiles, isNotEmpty,
-        reason: 'coarse view should have loaded its tiles');
+    expect(
+      loader.snapshot.primaryTiles,
+      isNotEmpty,
+      reason: 'coarse view should have loaded its tiles',
+    );
 
     // 2) Zoom in hard so the selected order jumps to 8 (held in flight). The
     //    snapshot must now show coarse fallbacks (+ Allsky) covering the FOV.
@@ -109,21 +112,27 @@ hips_frame        = equatorial
 
     final snap = loader.snapshot;
     expect(snap.selectedNorder, greaterThan(coarseNorder));
-    expect(snap.selectedNorder, 8,
-        reason: 'expected the zoomed view to select Norder 8');
+    expect(
+      snap.selectedNorder,
+      8,
+      reason: 'expected the zoomed view to select Norder 8',
+    );
     // Sharp tiles are still on the wire, so primary may be empty, but the view
     // must NOT be blank.
     expect(snap.hasAnyImagery, isTrue, reason: 'never-blank invariant');
     expect(
       snap.fallbackTiles.isNotEmpty || snap.allsky != null,
       isTrue,
-      reason: 'coarse fallback or Allsky must cover the FOV while sharp '
+      reason:
+          'coarse fallback or Allsky must cover the FOV while sharp '
           'tiles stream',
     );
 
     // Render the snapshot exactly as the painter layers it.
-    final image = img.Image(width: canvas.width.toInt(),
-        height: canvas.height.toInt());
+    final image = img.Image(
+      width: canvas.width.toInt(),
+      height: canvas.height.toInt(),
+    );
     img.fill(image, color: img.ColorRgb8(6, 9, 16));
 
     // Allsky base (drawn as a faint full-canvas wash; the painter stretches the
@@ -151,14 +160,21 @@ hips_frame        = equatorial
     // Verify the fallback mosaic actually covers the FOV center (never blank
     // there): the projected center must land inside at least one fallback mesh
     // bounds, OR the Allsky base is present.
-    final center = vs.projection.raDecToScreen(target.raHours, target.decDegrees);
-    final centerCovered = snap.allsky != null ||
+    final center = vs.projection.raDecToScreen(
+      target.raHours,
+      target.decDegrees,
+    );
+    final centerCovered =
+        snap.allsky != null ||
         snap.fallbackTiles.any((t) {
           final b = t.mesh.screenBounds;
           return b != null && b.contains(ui.Offset(center.dx, center.dy));
         });
-    expect(centerCovered, isTrue,
-        reason: 'FOV center must be covered by a fallback / Allsky base');
+    expect(
+      centerCovered,
+      isTrue,
+      reason: 'FOV center must be covered by a fallback / Allsky base',
+    );
 
     final png = Uint8List.fromList(img.encodePng(image));
 
@@ -170,8 +186,7 @@ hips_frame        = equatorial
     final repoRoot = _repoRoot();
     final sampleDir = Directory('${repoRoot.path}/.hips_verify');
     sampleDir.createSync(recursive: true);
-    final sample =
-        File('${sampleDir.path}/hips_tile_loader_progressive.png');
+    final sample = File('${sampleDir.path}/hips_tile_loader_progressive.png');
     sample.writeAsBytesSync(png);
     // ignore: avoid_print
     print('HiPS C6 loader sample written: ${sample.absolute.path}');
@@ -179,16 +194,19 @@ hips_frame        = equatorial
     // Golden lock.
     final goldenDir = Directory('test/services/hips/goldens');
     goldenDir.createSync(recursive: true);
-    final golden =
-        File('${goldenDir.path}/hips_tile_loader_progressive.png');
+    final golden = File('${goldenDir.path}/hips_tile_loader_progressive.png');
     if (!golden.existsSync()) {
       golden.writeAsBytesSync(png);
       // ignore: avoid_print
       print('Golden created: ${golden.absolute.path}');
     } else {
-      expect(png, golden.readAsBytesSync(),
-          reason: 'C6 loader render drifted from golden; if intentional, '
-              'delete ${golden.path} to regenerate.');
+      expect(
+        png,
+        golden.readAsBytesSync(),
+        reason:
+            'C6 loader render drifted from golden; if intentional, '
+            'delete ${golden.path} to regenerate.',
+      );
     }
   });
 }
@@ -294,14 +312,22 @@ void _meshOutline(img.Image image, HipsTileMesh mesh, img.Color color) {
   final n = mesh.subdivisions;
   for (var row = 0; row <= n; row++) {
     for (var col = 0; col < n; col++) {
-      _line(image, mesh.vertexAt(row, col).screen,
-          mesh.vertexAt(row, col + 1).screen, color);
+      _line(
+        image,
+        mesh.vertexAt(row, col).screen,
+        mesh.vertexAt(row, col + 1).screen,
+        color,
+      );
     }
   }
   for (var col = 0; col <= n; col++) {
     for (var row = 0; row < n; row++) {
-      _line(image, mesh.vertexAt(row, col).screen,
-          mesh.vertexAt(row + 1, col).screen, color);
+      _line(
+        image,
+        mesh.vertexAt(row, col).screen,
+        mesh.vertexAt(row + 1, col).screen,
+        color,
+      );
     }
   }
 }

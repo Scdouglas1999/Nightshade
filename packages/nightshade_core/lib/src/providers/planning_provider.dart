@@ -49,12 +49,12 @@ const String _activeProjectIdSettingKey = 'planning.active_project_id';
 /// `null` means no project is active.
 final activeProjectIdProvider =
     StateNotifierProvider<ActiveProjectNotifier, int?>((ref) {
-  final notifier = ActiveProjectNotifier(ref);
-  // Kick off the async hydrate immediately. Until it resolves the state is
-  // `null` (no active project), which is the correct cold-start default.
-  notifier._load();
-  return notifier;
-});
+      final notifier = ActiveProjectNotifier(ref);
+      // Kick off the async hydrate immediately. Until it resolves the state is
+      // `null` (no active project), which is the correct cold-start default.
+      notifier._load();
+      return notifier;
+    });
 
 /// State notifier owning the active-project selection and its persistence.
 class ActiveProjectNotifier extends StateNotifier<int?> {
@@ -155,13 +155,13 @@ final projectListProvider = StreamProvider<List<Project>>((ref) {
 ///     detaching a target changes which targets roll up.
 ///
 /// `autoDispose` so a closed project detail view stops recomputing.
-final projectProgressProvider =
-    FutureProvider.autoDispose.family<CampaignProgress, int>((ref, id) {
-  ref.watch(allDbImagesProvider);
-  ref.watch(integrationGoalsStreamProvider);
-  ref.watch(projectListProvider);
-  return ref.watch(projectServiceProvider).buildProgress(id);
-});
+final projectProgressProvider = FutureProvider.autoDispose
+    .family<CampaignProgress, int>((ref, id) {
+      ref.watch(allDbImagesProvider);
+      ref.watch(integrationGoalsStreamProvider);
+      ref.watch(projectListProvider);
+      return ref.watch(projectServiceProvider).buildProgress(id);
+    });
 
 /// The roll-up for the active project, or `null` when no project is active.
 ///
@@ -169,10 +169,10 @@ final projectProgressProvider =
 /// recomputation triggers (captures / goals / membership) are inherited.
 final activeProjectProgressProvider =
     FutureProvider.autoDispose<CampaignProgress?>((ref) async {
-  final activeId = ref.watch(activeProjectIdProvider);
-  if (activeId == null) return null;
-  return ref.watch(projectProgressProvider(activeId).future);
-});
+      final activeId = ref.watch(activeProjectIdProvider);
+      if (activeId == null) return null;
+      return ref.watch(projectProgressProvider(activeId).future);
+    });
 
 /// Factory seam that builds the [OpenMeteoCloudProvider] used by
 /// [weekForecastProvider].
@@ -184,8 +184,8 @@ final activeProjectProgressProvider =
 /// contract.
 final planningCloudProviderFactoryProvider =
     Provider<OpenMeteoCloudProvider Function()>((ref) {
-  return OpenMeteoCloudProvider.new;
-});
+      return OpenMeteoCloudProvider.new;
+    });
 
 /// Immutable (latitude, longitude) key for the cloud-fetch provider family.
 ///
@@ -226,18 +226,18 @@ class ForecastSite {
 /// invalidates [weekForecastProvider], which transitively re-reads this).
 final weekForecastCloudProvider = FutureProvider.autoDispose
     .family<RadarFetchResult, ForecastSite>((ref, site) async {
-  // The provider owns an http.Client, so dispose it once we have the result to
-  // avoid leaking a connection per fetch.
-  final cloudProvider = ref.watch(planningCloudProviderFactoryProvider)();
-  try {
-    return await cloudProvider.fetchRadarFrames(
-      latitude: site.latitude,
-      longitude: site.longitude,
-    );
-  } finally {
-    cloudProvider.dispose();
-  }
-});
+      // The provider owns an http.Client, so dispose it once we have the result to
+      // avoid leaking a connection per fetch.
+      final cloudProvider = ref.watch(planningCloudProviderFactoryProvider)();
+      try {
+        return await cloudProvider.fetchRadarFrames(
+          latitude: site.latitude,
+          longitude: site.longitude,
+        );
+      } finally {
+        cloudProvider.dispose();
+      }
+    });
 
 /// The seven-night "This Week" forecast, scored against the active project's
 /// still-incomplete targets.
@@ -270,8 +270,9 @@ final weekForecastCloudProvider = FutureProvider.autoDispose
 ///   4. Build the week with [ForecastPlanningService.buildWeek].
 ///
 /// `autoDispose` so the forecast is torn down when the planner view closes.
-final weekForecastProvider =
-    FutureProvider.autoDispose<WeekForecast>((ref) async {
+final weekForecastProvider = FutureProvider.autoDispose<WeekForecast>((
+  ref,
+) async {
   final settings = await ref.watch(appSettingsProvider.future);
   final lat = settings.latitude;
   final lng = settings.longitude;
@@ -294,8 +295,9 @@ final weekForecastProvider =
   final activeProjectId = ref.watch(activeProjectIdProvider);
 
   // Cloud feed — cached per site; capture/goal rebuilds reuse it.
-  final cloudResult =
-      await ref.watch(weekForecastCloudProvider(ForecastSite(lat, lng)).future);
+  final cloudResult = await ref.watch(
+    weekForecastCloudProvider(ForecastSite(lat, lng)).future,
+  );
 
   final candidates = await _incompleteCandidates(ref, activeProjectId);
 
@@ -338,13 +340,15 @@ Future<List<ProjectTargetCandidate>> _incompleteCandidates(
           'which no longer exists in the catalog',
         );
       }
-      candidates.add(ProjectTargetCandidate(
-        targetId: tp.targetId,
-        name: tp.targetName,
-        raHours: tp.raHours,
-        decDegrees: tp.decDegrees,
-        minAltitudeDeg: row.minAltitude,
-      ));
+      candidates.add(
+        ProjectTargetCandidate(
+          targetId: tp.targetId,
+          name: tp.targetName,
+          raHours: tp.raHours,
+          decDegrees: tp.decDegrees,
+          minAltitudeDeg: row.minAltitude,
+        ),
+      );
     }
     return candidates;
   }
@@ -389,13 +393,15 @@ Future<List<ProjectTargetCandidate>> _incompleteCandidates(
         'in the catalog',
       );
     }
-    candidates.add(ProjectTargetCandidate(
-      targetId: targetId,
-      name: row.name,
-      raHours: row.ra,
-      decDegrees: row.dec,
-      minAltitudeDeg: row.minAltitude,
-    ));
+    candidates.add(
+      ProjectTargetCandidate(
+        targetId: targetId,
+        name: row.name,
+        raHours: row.ra,
+        decDegrees: row.dec,
+        minAltitudeDeg: row.minAltitude,
+      ),
+    );
   }
   return candidates;
 }

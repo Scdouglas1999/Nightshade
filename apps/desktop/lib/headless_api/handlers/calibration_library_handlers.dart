@@ -33,8 +33,10 @@ class CalibrationLibraryHandlers {
   /// (with `exposureTolSecs`), `tempMin`, `tempMax`, and `mastersOnly`
   /// (default true).
   Future<Response> handleList(Request request) async {
-    _logger.info('[API] GET /api/calibration-library',
-        source: 'CalibrationLibraryHandlers');
+    _logger.info(
+      '[API] GET /api/calibration-library',
+      source: 'CalibrationLibraryHandlers',
+    );
     final q = request.url.queryParameters;
 
     final filter = CalibrationLibraryFilter(
@@ -63,8 +65,10 @@ class CalibrationLibraryHandlers {
   /// light-frame context. Body: `{gain, offset, exposureSeconds, temperature?,
   /// filter?, binX?, binY?, cameraId?, opticalTrainId?}`.
   Future<Response> handleMatch(Request request) async {
-    _logger.info('[API] POST /api/calibration-library/match',
-        source: 'CalibrationLibraryHandlers');
+    _logger.info(
+      '[API] POST /api/calibration-library/match',
+      source: 'CalibrationLibraryHandlers',
+    );
     final body = await readJsonObject(request);
 
     final context = LightFrameContext(
@@ -86,11 +90,16 @@ class CalibrationLibraryHandlers {
   /// PUT `/api/calibration-library/<type>/<id>/tags` — replace tags/notes.
   /// Body: `{tags?: string[], notes?: string|null}`.
   Future<Response> handleSetTags(
-      Request request, String typeRaw, String idRaw) async {
+    Request request,
+    String typeRaw,
+    String idRaw,
+  ) async {
     final type = _requireType(typeRaw);
     final id = _requireId(idRaw);
-    _logger.info('[API] PUT /api/calibration-library/$typeRaw/$id/tags',
-        source: 'CalibrationLibraryHandlers');
+    _logger.info(
+      '[API] PUT /api/calibration-library/$typeRaw/$id/tags',
+      source: 'CalibrationLibraryHandlers',
+    );
     final body = await readJsonObject(request);
 
     if (body.containsKey('tags')) {
@@ -114,18 +123,25 @@ class CalibrationLibraryHandlers {
 
   /// DELETE `/api/calibration-library/<type>/<id>[?deleteFile=true]`.
   Future<Response> handleDelete(
-      Request request, String typeRaw, String idRaw) async {
+    Request request,
+    String typeRaw,
+    String idRaw,
+  ) async {
     final type = _requireType(typeRaw);
     final id = _requireId(idRaw);
     final deleteFile =
         _boolParam(request.url.queryParameters['deleteFile']) ?? false;
     _logger.info(
-        '[API] DELETE /api/calibration-library/$typeRaw/$id'
-        ' (deleteFile=$deleteFile)',
-        source: 'CalibrationLibraryHandlers');
+      '[API] DELETE /api/calibration-library/$typeRaw/$id'
+      ' (deleteFile=$deleteFile)',
+      source: 'CalibrationLibraryHandlers',
+    );
 
-    final removed =
-        await _service.deleteMaster(type, id, deleteFile: deleteFile);
+    final removed = await _service.deleteMaster(
+      type,
+      id,
+      deleteFile: deleteFile,
+    );
     if (!removed) {
       throw HandlerFailure(
         code: 'calibration_master_not_found',

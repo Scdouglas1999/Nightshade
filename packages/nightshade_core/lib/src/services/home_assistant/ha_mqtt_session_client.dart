@@ -61,23 +61,30 @@ class HaMqttSessionClient {
     this.onDisconnected,
     MqttSocketOpener? opener,
     Duration connectTimeout = const Duration(seconds: 10),
-  })  : _open = opener ?? _defaultOpener,
-        _connectTimeout = connectTimeout;
+  }) : _open = opener ?? _defaultOpener,
+       _connectTimeout = connectTimeout;
 
   bool get isConnected => _connected;
 
   Future<void> connect() async {
     if (_connected) return;
     _closing = false;
-    final socket = await _open(broker.host, broker.port, broker.useTls)
-        .timeout(_connectTimeout);
+    final socket = await _open(
+      broker.host,
+      broker.port,
+      broker.useTls,
+    ).timeout(_connectTimeout);
     _socket = socket;
     _buffer.clear();
-    _subscription = socket.listen(_onData, onError: (Object e) {
-      _handleDrop(e);
-    }, onDone: () {
-      _handleDrop(StateError('MQTT socket closed'));
-    });
+    _subscription = socket.listen(
+      _onData,
+      onError: (Object e) {
+        _handleDrop(e);
+      },
+      onDone: () {
+        _handleDrop(StateError('MQTT socket closed'));
+      },
+    );
 
     _handshakeWaiter = Completer<_Packet>();
     socket.add(_buildConnect());
@@ -108,8 +115,13 @@ class HaMqttSessionClient {
     // HA restarts pick everything back up without a republish cycle.
     final variable = BytesBuilder()..add(_encodeString(topic));
     final headerByte = (3 << 4) | (retain ? 1 : 0);
-    socket.add(_frame(
-        headerByte, variable.toBytes(), Uint8List.fromList(utf8.encode(payload))));
+    socket.add(
+      _frame(
+        headerByte,
+        variable.toBytes(),
+        Uint8List.fromList(utf8.encode(payload)),
+      ),
+    );
   }
 
   void subscribe(String topicFilter) {
@@ -147,7 +159,9 @@ class HaMqttSessionClient {
         socket.add(Uint8List.fromList([0xe0, 0x00])); // DISCONNECT
         await socket.flush();
         await socket.close();
-      } catch (_) {/* already gone */}
+      } catch (_) {
+        /* already gone */
+      }
     }
     await sub?.cancel();
   }
@@ -206,8 +220,10 @@ class HaMqttSessionClient {
     if (body.length < 2) return;
     final topicLen = (body[0] << 8) | body[1];
     if (body.length < 2 + topicLen) return;
-    final topic = utf8.decode(body.sublist(2, 2 + topicLen),
-        allowMalformed: true);
+    final topic = utf8.decode(
+      body.sublist(2, 2 + topicLen),
+      allowMalformed: true,
+    );
     var offset = 2 + topicLen;
     final qos = (firstByte >> 1) & 0x03;
     if (qos > 0) {
@@ -216,13 +232,16 @@ class HaMqttSessionClient {
       offset += 2;
     }
     if (offset > body.length) return;
-    final payload =
-        utf8.decode(body.sublist(offset), allowMalformed: true);
+    final payload = utf8.decode(body.sublist(offset), allowMalformed: true);
     try {
       onMessage?.call(topic, payload);
     } catch (e) {
-      developer.log('[HomeAssistant/MQTT] Command handler failed: $e',
-          name: 'HaMqttSessionClient', level: 900, error: e);
+      developer.log(
+        '[HomeAssistant/MQTT] Command handler failed: $e',
+        name: 'HaMqttSessionClient',
+        level: 900,
+        error: e,
+      );
     }
   }
 
@@ -251,11 +270,16 @@ class HaMqttSessionClient {
     if (socket != null) {
       try {
         socket.destroy();
-      } catch (_) {/* best effort */}
+      } catch (_) {
+        /* best effort */
+      }
     }
     if (wasConnected) {
-      developer.log('[HomeAssistant/MQTT] Session dropped: $error',
-          name: 'HaMqttSessionClient', level: 900);
+      developer.log(
+        '[HomeAssistant/MQTT] Session dropped: $error',
+        name: 'HaMqttSessionClient',
+        level: 900,
+      );
       onDisconnected?.call();
     }
   }
@@ -292,7 +316,10 @@ class HaMqttSessionClient {
   }
 
   static Uint8List _frame(
-      int firstByte, Uint8List variableHeader, Uint8List payload) {
+    int firstByte,
+    Uint8List variableHeader,
+    Uint8List payload,
+  ) {
     final out = BytesBuilder()..addByte(firstByte);
     out.add(_encodeRemainingLength(variableHeader.length + payload.length));
     out.add(variableHeader);

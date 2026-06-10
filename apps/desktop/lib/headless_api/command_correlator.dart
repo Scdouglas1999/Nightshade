@@ -40,107 +40,41 @@ const Map<String, Set<String>> commandCompletionEventTypes = {
     'FrameRejected',
     'ImageCaptured',
   },
-  'camera.abort': {
-    'ExposureAborted',
-  },
-  'mount.slew': {
-    'SlewComplete',
-    'SlewCompleted',
-    'SlewFailed',
-    'SlewAborted',
-  },
+  'camera.abort': {'ExposureAborted'},
+  'mount.slew': {'SlewComplete', 'SlewCompleted', 'SlewFailed', 'SlewAborted'},
   'mount.slew-alt-az': {
     'SlewComplete',
     'SlewCompleted',
     'SlewFailed',
     'SlewAborted',
   },
-  'mount.park': {
-    'MountParked',
-    'ParkComplete',
-  },
-  'mount.unpark': {
-    'MountUnparked',
-    'UnparkComplete',
-  },
-  'focuser.move-to': {
-    'FocuserMoveComplete',
-    'FocuserMoved',
-  },
-  'focuser.move-relative': {
-    'FocuserMoveComplete',
-    'FocuserMoved',
-  },
+  'mount.park': {'MountParked', 'ParkComplete'},
+  'mount.unpark': {'MountUnparked', 'UnparkComplete'},
+  'focuser.move-to': {'FocuserMoveComplete', 'FocuserMoved'},
+  'focuser.move-relative': {'FocuserMoveComplete', 'FocuserMoved'},
   'focuser.autofocus.start': {
     'AutofocusComplete',
     'AutofocusCompleted',
     'AutofocusFailed',
     'AutofocusCancelled',
   },
-  'focuser.autofocus.cancel': {
-    'AutofocusCancelled',
-  },
-  'filter-wheel.set-position': {
-    'FilterWheelMoveComplete',
-    'FilterChanged',
-  },
-  'rotator.move-to': {
-    'RotatorMoveComplete',
-    'RotatorMoved',
-  },
-  'sequencer.start': {
-    'SequenceStarted',
-    'SequenceCompleted',
-    'SequenceFailed',
-  },
-  'sequencer.stop': {
-    'SequenceStopped',
-    'SequenceCompleted',
-  },
-  'sequencer.pause': {
-    'SequencePaused',
-  },
-  'sequencer.resume': {
-    'SequenceResumed',
-  },
-  'sequencer.skip': {
-    'NodeSkipped',
-  },
-  'framing.slew-to-target': {
-    'SlewComplete',
-    'SlewCompleted',
-    'SlewFailed',
-  },
-  'framing.center-on-target': {
-    'CenteringComplete',
-    'CenteringFailed',
-  },
-  'framing.sync': {
-    'MountSynced',
-  },
-  'dome.open': {
-    'DomeOpened',
-    'ShutterOpened',
-  },
-  'dome.close': {
-    'DomeClosed',
-    'ShutterClosed',
-  },
-  'dome.slew': {
-    'DomeSlewComplete',
-  },
-  'dome.park': {
-    'DomeParked',
-  },
-  'plate-solve': {
-    'PlateSolveComplete',
-    'PlateSolveFailed',
-  },
-  'phd2.dither': {
-    'DitherComplete',
-    'DitherFailed',
-    'SettleDone',
-  },
+  'focuser.autofocus.cancel': {'AutofocusCancelled'},
+  'filter-wheel.set-position': {'FilterWheelMoveComplete', 'FilterChanged'},
+  'rotator.move-to': {'RotatorMoveComplete', 'RotatorMoved'},
+  'sequencer.start': {'SequenceStarted', 'SequenceCompleted', 'SequenceFailed'},
+  'sequencer.stop': {'SequenceStopped', 'SequenceCompleted'},
+  'sequencer.pause': {'SequencePaused'},
+  'sequencer.resume': {'SequenceResumed'},
+  'sequencer.skip': {'NodeSkipped'},
+  'framing.slew-to-target': {'SlewComplete', 'SlewCompleted', 'SlewFailed'},
+  'framing.center-on-target': {'CenteringComplete', 'CenteringFailed'},
+  'framing.sync': {'MountSynced'},
+  'dome.open': {'DomeOpened', 'ShutterOpened'},
+  'dome.close': {'DomeClosed', 'ShutterClosed'},
+  'dome.slew': {'DomeSlewComplete'},
+  'dome.park': {'DomeParked'},
+  'plate-solve': {'PlateSolveComplete', 'PlateSolveFailed'},
+  'phd2.dither': {'DitherComplete', 'DitherFailed', 'SettleDone'},
 };
 
 /// A registered command awaiting its completion event.
@@ -193,8 +127,8 @@ class CommandCorrelator {
     this.ttl = const Duration(minutes: 30),
     DateTime Function()? now,
     Random? random,
-  })  : _now = now ?? DateTime.now,
-        _rng = random ?? Random.secure();
+  }) : _now = now ?? DateTime.now,
+       _rng = random ?? Random.secure();
 
   /// Register a new command and return its UUID v4 string. Callers
   /// should embed the returned id in the action POST response body so
@@ -204,10 +138,7 @@ class CommandCorrelator {
   /// `mount.slew`, etc.) listed in [commandCompletionEventTypes]. Unknown
   /// operations are accepted (the id will still be returned to the
   /// caller) but [stampEvent] will never match them.
-  String beginCommand({
-    required String operation,
-    String? deviceId,
-  }) {
+  String beginCommand({required String operation, String? deviceId}) {
     final commandId = _generateUuidV4();
     final key = _key(operation, deviceId);
     final command = _PendingCommand(
@@ -227,10 +158,7 @@ class CommandCorrelator {
   ///
   /// "Matching" means: the oldest un-stamped pending command for the
   /// key, modulo TTL eviction.
-  String? stampEvent({
-    required String operation,
-    String? deviceId,
-  }) {
+  String? stampEvent({required String operation, String? deviceId}) {
     final now = _now();
     final key = _key(operation, deviceId);
     final list = _pendingByKey[key];
@@ -240,8 +168,7 @@ class CommandCorrelator {
     // Evict expired entries from the head. The list is ordered by
     // registration time so the first non-expired entry is the oldest
     // eligible match.
-    while (list.isNotEmpty &&
-        now.difference(list.first.registeredAt) > ttl) {
+    while (list.isNotEmpty && now.difference(list.first.registeredAt) > ttl) {
       list.removeAt(0);
     }
     if (list.isEmpty) {

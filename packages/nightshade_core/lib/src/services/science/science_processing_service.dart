@@ -50,8 +50,10 @@ class ScienceProcessingService {
   }) async {
     _queueDepth++;
     _status.enqueue();
-    _logger.debug('science.queue_depth=$_queueDepth',
-        source: 'ScienceProcessingService');
+    _logger.debug(
+      'science.queue_depth=$_queueDepth',
+      source: 'ScienceProcessingService',
+    );
 
     bool frameBegun = false;
     // Snapshots gathered during processing and consumed by the FITS
@@ -82,9 +84,9 @@ class ScienceProcessingService {
       final sessionConfig = sessionId == null
           ? const ScienceSessionConfig()
           : await _ref
-                  .read(scienceSessionConfigProvider(sessionId).future)
-                  .catchError((_) => null) ??
-              const ScienceSessionConfig();
+                    .read(scienceSessionConfigProvider(sessionId).future)
+                    .catchError((_) => null) ??
+                const ScienceSessionConfig();
       final frameTimestamp = await _resolveFrameTimestamp(
         imagePath: imagePath,
         capturedImage: capturedImage,
@@ -166,18 +168,18 @@ class ScienceProcessingService {
           if (calibration != null) {
             final calibrationRow =
                 db.FramePhotometricCalibrationCompanion.insert(
-              capturedImageId: drift.Value(capturedImageId),
-              sessionId: drift.Value(sessionId),
-              isCalibrated: drift.Value(calibration.isCalibrated),
-              zeroPoint: drift.Value(calibration.zeroPoint),
-              limitingMag3Sigma: drift.Value(calibration.limitingMag3Sigma),
-              limitingMag5Sigma: drift.Value(calibration.limitingMag5Sigma),
-              matchedStarCount: drift.Value(calibration.matchedStarCount),
-              calibrationRms: drift.Value(calibration.calibrationRms),
-              catalogSource: drift.Value(calibration.catalogSource.name),
-              solverId: drift.Value(calibration.solverId),
-              timestamp: drift.Value(frameContext.capturedAt),
-            );
+                  capturedImageId: drift.Value(capturedImageId),
+                  sessionId: drift.Value(sessionId),
+                  isCalibrated: drift.Value(calibration.isCalibrated),
+                  zeroPoint: drift.Value(calibration.zeroPoint),
+                  limitingMag3Sigma: drift.Value(calibration.limitingMag3Sigma),
+                  limitingMag5Sigma: drift.Value(calibration.limitingMag5Sigma),
+                  matchedStarCount: drift.Value(calibration.matchedStarCount),
+                  calibrationRms: drift.Value(calibration.calibrationRms),
+                  catalogSource: drift.Value(calibration.catalogSource.name),
+                  solverId: drift.Value(calibration.solverId),
+                  timestamp: drift.Value(frameContext.capturedAt),
+                );
             if (capturedImageId != null) {
               await _scienceDao.replaceFrameCalibrationForImage(
                 capturedImageId,
@@ -193,7 +195,8 @@ class ScienceProcessingService {
               ScienceStage.calibration,
               ScienceStageOutcome.ok,
               stopwatch: sw,
-              note: 'ZP ${calibration.zeroPoint?.toStringAsFixed(2) ?? "—"}, '
+              note:
+                  'ZP ${calibration.zeroPoint?.toStringAsFixed(2) ?? "—"}, '
                   '${calibration.matchedStarCount} stars',
             );
           } else {
@@ -227,8 +230,10 @@ class ScienceProcessingService {
           sessionId != null) {
         final transparencySw = _status.beginStage(ScienceStage.transparency);
         try {
-          final recentRows =
-              await _scienceDao.getRecentCalibrations(sessionId, limit: 20);
+          final recentRows = await _scienceDao.getRecentCalibrations(
+            sessionId,
+            limit: 20,
+          );
           final recent = <FramePhotometricCalibration>[];
           for (final row in recentRows) {
             db.CapturedImage? rowImage;
@@ -433,7 +438,8 @@ class ScienceProcessingService {
               ScienceStage.psfMap,
               ScienceStageOutcome.ok,
               stopwatch: sw,
-              note: '${psfMap.tiles.length} tiles, '
+              note:
+                  '${psfMap.tiles.length} tiles, '
                   '${sessionConfig.psfGridRows}×${sessionConfig.psfGridCols} grid',
             );
           } else {
@@ -488,7 +494,9 @@ class ScienceProcessingService {
                 )
                 .toList(growable: false);
             await _scienceDao.replaceResidualVectorsForImage(
-                capturedImageId, rows);
+              capturedImageId,
+              rows,
+            );
             _status.endStage(
               ScienceStage.residuals,
               ScienceStageOutcome.ok,
@@ -518,8 +526,8 @@ class ScienceProcessingService {
           note: wcs == null
               ? 'Residuals need a plate solve'
               : capturedImageId == null
-                  ? 'Residuals need a captured-image id'
-                  : 'Residuals disabled in settings',
+              ? 'Residuals need a captured-image id'
+              : 'Residuals disabled in settings',
         );
       }
 
@@ -528,9 +536,7 @@ class ScienceProcessingService {
         try {
           final photometrySelection = await _ref
               .read(sciencePhotometrySelectionProvider.future)
-              .catchError(
-                (_) => const SciencePhotometrySelection(),
-              );
+              .catchError((_) => const SciencePhotometrySelection());
           final photometryResult = await _computeAndStorePhotometry(
             imagePath: imagePath,
             capturedImageId: capturedImageId,
@@ -577,10 +583,11 @@ class ScienceProcessingService {
             sessionId,
             limit: 5,
           );
-          final recentPaths = recent
-              .where((image) => image.filePath.isNotEmpty)
-              .toList(growable: false)
-            ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+          final recentPaths =
+              recent
+                  .where((image) => image.filePath.isNotEmpty)
+                  .toList(growable: false)
+                ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
           final paths = recentPaths
               .map((image) => image.filePath)
               .toList(growable: false);
@@ -652,8 +659,8 @@ class ScienceProcessingService {
           note: wcs == null
               ? 'Moving objects need a plate solve'
               : sessionId == null
-                  ? 'Moving objects require an active session'
-                  : 'Moving objects disabled in settings',
+              ? 'Moving objects require an active session'
+              : 'Moving objects disabled in settings',
         );
       }
 
@@ -711,10 +718,9 @@ class ScienceProcessingService {
         );
         return;
       }
-      final rejected =
-          await _ref.read(frameAutoGraderProvider).gradeCapturedFrame(
-                image: fresh,
-              );
+      final rejected = await _ref
+          .read(frameAutoGraderProvider)
+          .gradeCapturedFrame(image: fresh);
       if (rejected == null) {
         _status.skipStage(ScienceStage.autoGrade, note: 'Not a light frame');
       } else if (rejected) {
@@ -831,50 +837,64 @@ class ScienceProcessingService {
     final updates = <FitsKeywordWrite>[];
     if (calibration != null) {
       if (calibration.zeroPoint != null && calibration.zeroPoint!.isFinite) {
-        updates.add(FitsKeywordWrite.floating(
-          'MAGZP',
-          calibration.zeroPoint!,
-          comment: 'Photometric zero point [mag]',
-        ));
+        updates.add(
+          FitsKeywordWrite.floating(
+            'MAGZP',
+            calibration.zeroPoint!,
+            comment: 'Photometric zero point [mag]',
+          ),
+        );
       }
       if (calibration.calibrationRms.isFinite) {
-        updates.add(FitsKeywordWrite.floating(
-          'MAGZPERR',
-          calibration.calibrationRms,
-          comment: 'MAGZP 1-sigma uncertainty [mag]',
-        ));
+        updates.add(
+          FitsKeywordWrite.floating(
+            'MAGZPERR',
+            calibration.calibrationRms,
+            comment: 'MAGZP 1-sigma uncertainty [mag]',
+          ),
+        );
       }
-      updates.add(FitsKeywordWrite.string(
-        'MAGZPSRC',
-        calibration.catalogSource.name.toUpperCase(),
-        comment: 'Catalog used for MAGZP',
-      ));
-      updates.add(FitsKeywordWrite.integer(
-        'MAGZPNST',
-        calibration.matchedStarCount,
-        comment: 'Stars matched in MAGZP fit',
-      ));
+      updates.add(
+        FitsKeywordWrite.string(
+          'MAGZPSRC',
+          calibration.catalogSource.name.toUpperCase(),
+          comment: 'Catalog used for MAGZP',
+        ),
+      );
+      updates.add(
+        FitsKeywordWrite.integer(
+          'MAGZPNST',
+          calibration.matchedStarCount,
+          comment: 'Stars matched in MAGZP fit',
+        ),
+      );
       if (calibration.limitingMag5Sigma != null &&
           calibration.limitingMag5Sigma!.isFinite) {
-        updates.add(FitsKeywordWrite.floating(
-          'MAGLIM5',
-          calibration.limitingMag5Sigma!,
-          comment: 'Limiting mag at 5-sigma',
-        ));
+        updates.add(
+          FitsKeywordWrite.floating(
+            'MAGLIM5',
+            calibration.limitingMag5Sigma!,
+            comment: 'Limiting mag at 5-sigma',
+          ),
+        );
       }
     }
     if (transparency != null && transparency.transparencyPercent.isFinite) {
-      updates.add(FitsKeywordWrite.floating(
-        'TRANSPAR',
-        transparency.transparencyPercent,
-        comment: 'Atmospheric transparency [percent]',
-      ));
+      updates.add(
+        FitsKeywordWrite.floating(
+          'TRANSPAR',
+          transparency.transparencyPercent,
+          comment: 'Atmospheric transparency [percent]',
+        ),
+      );
       if (transparency.extinctionCoefficient.isFinite) {
-        updates.add(FitsKeywordWrite.floating(
-          'EXTINCT',
-          transparency.extinctionCoefficient,
-          comment: 'Extinction coeff [mag/airmass]',
-        ));
+        updates.add(
+          FitsKeywordWrite.floating(
+            'EXTINCT',
+            transparency.extinctionCoefficient,
+            comment: 'Extinction coeff [mag/airmass]',
+          ),
+        );
       }
     }
     if (updates.isEmpty) {
@@ -882,11 +902,13 @@ class ScienceProcessingService {
     }
     // Always stamp the producing tool so downstream observers can tell
     // which Nightshade build emitted these values.
-    updates.add(FitsKeywordWrite.string(
-      'NSHA_VER',
-      buildTag,
-      comment: 'Nightshade build that stamped MAGZP*/TRANSPAR',
-    ));
+    updates.add(
+      FitsKeywordWrite.string(
+        'NSHA_VER',
+        buildTag,
+        comment: 'Nightshade build that stamped MAGZP*/TRANSPAR',
+      ),
+    );
     return updates;
   }
 

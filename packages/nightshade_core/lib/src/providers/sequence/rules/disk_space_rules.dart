@@ -17,7 +17,9 @@ class DiskSpaceProjectionRule implements AsyncSequenceValidator {
 
   @override
   Future<List<ValidationIssue>> validate(
-      Sequence sequence, ValidationContext ctx) async {
+    Sequence sequence,
+    ValidationContext ctx,
+  ) async {
     try {
       final projection = await projectCurrentSequence(ctx.ref);
       if (projection == null) {

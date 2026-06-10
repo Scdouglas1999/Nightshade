@@ -12,9 +12,11 @@ class PolarAlignmentHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// Reference to equipment profile used (nullable for unassociated sessions)
-  IntColumn get equipmentProfileId => integer()
-      .nullable()
-      .references(EquipmentProfiles, #id, onDelete: KeyAction.cascade)();
+  IntColumn get equipmentProfileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
 
   // === Initial Error Values ===
 

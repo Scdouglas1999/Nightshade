@@ -10,20 +10,22 @@ ProviderContainer _container({
   required Sequence sequence,
   SequenceProgress progress = const SequenceProgress(),
 }) {
-  final container = ProviderContainer(overrides: [
-    currentSequenceProvider.overrideWith((ref) {
-      final notifier = CurrentSequenceNotifier();
-      // ignore: invalid_use_of_protected_member
-      notifier.state = sequence;
-      return notifier;
-    }),
-    sequenceProgressProvider.overrideWith((ref) {
-      final n = SequenceProgressNotifier();
-      // ignore: invalid_use_of_protected_member
-      n.state = progress;
-      return n;
-    }),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      currentSequenceProvider.overrideWith((ref) {
+        final notifier = CurrentSequenceNotifier();
+        // ignore: invalid_use_of_protected_member
+        notifier.state = sequence;
+        return notifier;
+      }),
+      sequenceProgressProvider.overrideWith((ref) {
+        final n = SequenceProgressNotifier();
+        // ignore: invalid_use_of_protected_member
+        n.state = progress;
+        return n;
+      }),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }
@@ -32,20 +34,18 @@ ProviderContainer _container({
 /// totals are 12 frames (8+4) and 8·60+4·120 = 480+480 = 960s
 /// integration. Returns the target id for the assertions.
 ({Sequence sequence, String targetId, String firstExpoId, String secondExpoId})
-    _buildTwoExposureTarget() {
+_buildTwoExposureTarget() {
   final expo1 = ExposureNode(durationSecs: 60, count: 8, name: 'a');
   final expo2 = ExposureNode(durationSecs: 120, count: 4, name: 'b');
-  final target = TargetHeaderNode(
-    targetName: 'M31',
-    raHours: 0,
-    decDegrees: 0,
-  );
+  final target = TargetHeaderNode(targetName: 'M31', raHours: 0, decDegrees: 0);
   final root = InstructionSetNode(name: 'Root');
   final tree = <String, SequenceNode>{
     expo1.id: expo1.copyWith(parentId: target.id),
     expo2.id: expo2.copyWith(parentId: target.id),
-    target.id:
-        target.copyWith(parentId: root.id, childIds: [expo1.id, expo2.id]),
+    target.id: target.copyWith(
+      parentId: root.id,
+      childIds: [expo1.id, expo2.id],
+    ),
     root.id: root.copyWith(childIds: [target.id]),
   };
   return (

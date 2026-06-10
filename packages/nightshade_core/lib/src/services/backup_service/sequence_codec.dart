@@ -7,8 +7,9 @@ extension _BackupSequenceCodec on BackupService {
       'description': sequence.description,
       'rootNodeId': sequence.rootNodeId,
       'isTemplate': sequence.isTemplate,
-      'nodes':
-          sequence.nodes.map((id, node) => MapEntry(id, _nodeToJson(node))),
+      'nodes': sequence.nodes.map(
+        (id, node) => MapEntry(id, _nodeToJson(node)),
+      ),
       'createdAt': sequence.createdAt.toIso8601String(),
       'modifiedAt': sequence.modifiedAt.toIso8601String(),
     };
@@ -90,8 +91,10 @@ extension _BackupSequenceCodec on BackupService {
   // Private import methods
   // =========================================================================
 
-  Future<int> _importSettings(Map<String, dynamic> settingsMap,
-      {bool replace = false}) async {
+  Future<int> _importSettings(
+    Map<String, dynamic> settingsMap, {
+    bool replace = false,
+  }) async {
     final settingsDao = SettingsDao(database);
     int count = 0;
 
@@ -103,14 +106,18 @@ extension _BackupSequenceCodec on BackupService {
     return count;
   }
 
-  Future<int> _importProfiles(List<dynamic> profilesList,
-      {bool replace = false}) async {
+  Future<int> _importProfiles(
+    List<dynamic> profilesList, {
+    bool replace = false,
+  }) async {
     int count = 0;
 
     for (final profileJson in profilesList) {
       final profile = profileJson as Map<String, dynamic>;
 
-      await database.into(database.equipmentProfiles).insert(
+      await database
+          .into(database.equipmentProfiles)
+          .insert(
             EquipmentProfilesCompanion.insert(
               name: profile['name'] as String,
               description: Value(_stringOrNull(profile['description'])),
@@ -130,11 +137,13 @@ extension _BackupSequenceCodec on BackupService {
               defaultOffset: Value(_intOrNull(profile['defaultOffset'])),
               defaultBinX: Value(_intOrDefault(profile['defaultBinX'], 1)),
               defaultBinY: Value(_intOrDefault(profile['defaultBinY'], 1)),
-              defaultCoolingTemp:
-                  Value(_doubleOrNull(profile['defaultCoolingTemp'])),
+              defaultCoolingTemp: Value(
+                _doubleOrNull(profile['defaultCoolingTemp']),
+              ),
               filterNames: Value(_stringOrNull(profile['filterNames'])),
-              filterFocusOffsets:
-                  Value(_stringOrNull(profile['filterFocusOffsets'])),
+              filterFocusOffsets: Value(
+                _stringOrNull(profile['filterFocusOffsets']),
+              ),
             ),
             mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
           );
@@ -144,14 +153,18 @@ extension _BackupSequenceCodec on BackupService {
     return count;
   }
 
-  Future<int> _importTargets(List<dynamic> targetsList,
-      {bool replace = false}) async {
+  Future<int> _importTargets(
+    List<dynamic> targetsList, {
+    bool replace = false,
+  }) async {
     int count = 0;
 
     for (final targetJson in targetsList) {
       final target = targetJson as Map<String, dynamic>;
 
-      await database.into(database.targets).insert(
+      await database
+          .into(database.targets)
+          .insert(
             TargetsCompanion.insert(
               name: target['name'] as String,
               catalogId: Value(_stringOrNull(target['catalogId'])),
@@ -207,8 +220,10 @@ extension _BackupSequenceCodec on BackupService {
   SequenceNode? _jsonToNode(Map<String, dynamic> json) {
     try {
       final rawNodeType = json['nodeType'] as String;
-      final nodeType =
-          rawNodeType.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final nodeType = rawNodeType.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
 
       switch (nodeType) {
         case 'takeexposure':
@@ -282,8 +297,8 @@ extension _BackupSequenceCodec on BackupService {
             repeatUntil: json['repeatUntil'] != null
                 ? DateTime.parse(json['repeatUntil'] as String)
                 : null,
-            repeatUntilAltitude:
-                (json['repeatUntilAltitude'] as num?)?.toDouble(),
+            repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)
+                ?.toDouble(),
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
@@ -312,19 +327,19 @@ extension _BackupSequenceCodec on BackupService {
                 json['finishIterationOnSwitch'] as bool? ?? true,
             swapOnConditionsBelow:
                 (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
-                    (json['swap_on_conditions_below'] as num?)?.toDouble(),
+                (json['swap_on_conditions_below'] as num?)?.toDouble(),
             swapHysteresisSecs:
                 (json['swapHysteresisSecs'] as num?)?.toDouble() ??
-                    (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
-                    180.0,
+                (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+                180.0,
             brightnessTierPreferences: _parseBrightnessTierPreferences(
               json['brightnessTierPreferences'] ??
                   json['brightness_tier_preferences'],
             ),
             maxConditionsScoreAgeSecs:
                 (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
-                    (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
-                    300,
+                (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+                300,
             horizonProfile: _backupHorizonFromJson(
               json['horizonProfile'] ?? json['horizon_profile'],
             ),
@@ -342,9 +357,9 @@ extension _BackupSequenceCodec on BackupService {
             name: json['name'] as String,
             plans: ((json['plans'] as List?) ?? const [])
                 .whereType<Map>()
-                .map((plan) => FilterPlan.fromJson(
-                      plan.cast<String, dynamic>(),
-                    ))
+                .map(
+                  (plan) => FilterPlan.fromJson(plan.cast<String, dynamic>()),
+                )
                 .toList(growable: false),
             rotateFilters: json['rotateFilters'] as bool? ?? true,
             ditherOnFilterChange:

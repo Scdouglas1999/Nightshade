@@ -96,18 +96,23 @@ void main() {
         now: () => DateTime.utc(2026, 6, 8),
       );
       final result = await failing.refresh();
-      expect(result.asteroids, isNotEmpty,
-          reason: 'stale cache should survive a failed refresh');
+      expect(
+        result.asteroids,
+        isNotEmpty,
+        reason: 'stale cache should survive a failed refresh',
+      );
     });
 
-    test('refresh throws only when network fails AND nothing is cached',
-        () async {
-      final service = ElementRefreshService(
-        cacheDirectory: tempDir.path,
-        clientFactory: () => MockClient((_) async => http.Response('', 503)),
-      );
-      expect(service.refresh(), throwsA(isA<Exception>()));
-    });
+    test(
+      'refresh throws only when network fails AND nothing is cached',
+      () async {
+        final service = ElementRefreshService(
+          cacheDirectory: tempDir.path,
+          clientFactory: () => MockClient((_) async => http.Response('', 503)),
+        );
+        expect(service.refresh(), throwsA(isA<Exception>()));
+      },
+    );
 
     test('isStale respects the schedule', () {
       final service = ElementRefreshService(
@@ -128,7 +133,8 @@ void main() {
       expect(service.isStale(old, weekly), isTrue);
 
       const manual = ElementRefreshConfig(
-          schedule: ElementRefreshSchedule.manual);
+        schedule: ElementRefreshSchedule.manual,
+      );
       expect(service.isStale(old, manual), isFalse);
     });
 

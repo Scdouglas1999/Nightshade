@@ -146,11 +146,11 @@ class PlateSolverPreference {
   }
 
   Map<String, dynamic> toJson() => {
-        'astapPath': astapPath,
-        'astrometryPath': astrometryPath,
-        'catalogPath': catalogPath,
-        'solverChoice': choice.serialized,
-      };
+    'astapPath': astapPath,
+    'astrometryPath': astrometryPath,
+    'catalogPath': catalogPath,
+    'solverChoice': choice.serialized,
+  };
 
   factory PlateSolverPreference.fromJson(Map<String, dynamic> json) {
     return PlateSolverPreference(

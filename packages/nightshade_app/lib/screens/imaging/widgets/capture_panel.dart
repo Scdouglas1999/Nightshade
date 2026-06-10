@@ -182,13 +182,15 @@ class CapturePanel extends ConsumerWidget {
                   children: [
                     Text('Captured',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textSecondary)),
                     Flexible(
                       child: Text(
                         '${sessionImages.length} frames',
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -199,13 +201,15 @@ class CapturePanel extends ConsumerWidget {
                   children: [
                     Text('Integration',
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textSecondary)),
                     Flexible(
                       child: Text(
                         _formatDuration(sessionState.totalIntegrationSecs),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
-                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -218,7 +222,8 @@ class CapturePanel extends ConsumerWidget {
                     children: [
                       Text('Status',
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textSecondary)),
                       Row(
                         children: [
                           Container(
@@ -232,7 +237,8 @@ class CapturePanel extends ConsumerWidget {
                           const SizedBox(width: 6),
                           Text(
                             'Active',
-                            style: NightshadeTypography.labelSm.copyWith(color: colors.success),
+                            style: NightshadeTypography.labelSm
+                                .copyWith(color: colors.success),
                           ),
                         ],
                       ),
@@ -244,12 +250,14 @@ class CapturePanel extends ConsumerWidget {
                     children: [
                       Text('Duration',
                           style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textSecondary)),
                       Text(
                         sessionState.duration != null
                             ? _formatSessionDuration(sessionState.duration!)
                             : '--:--:--',
-                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
                       ),
                     ],
                   ),

@@ -1,4 +1,4 @@
-﻿part of '../sequence_executor.dart';
+part of '../sequence_executor.dart';
 
 extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   Future<void> _startNativeExecution(Sequence sequence) async {
@@ -9,26 +9,34 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     final settingsAsync = _ref.read(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
     _logger.debug(
-        '_startNativeExecution: settings=${settings != null ? "loaded" : "null"}',
-        source: 'SequenceExecutor');
+      '_startNativeExecution: settings=${settings != null ? "loaded" : "null"}',
+      source: 'SequenceExecutor',
+    );
     if (settings != null) {
       _logger.debug(
-          'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
-          source: 'SequenceExecutor');
+        'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
+        source: 'SequenceExecutor',
+      );
     }
     if (settings != null &&
         (settings.latitude != 0.0 || settings.longitude != 0.0)) {
-      _logger.debug('Syncing location to backend...',
-          source: 'SequenceExecutor');
-      await backend.setLocation(ObserverLocation(
-        latitude: settings.latitude,
-        longitude: settings.longitude,
-        elevation: settings.elevation,
-      ));
+      _logger.debug(
+        'Syncing location to backend...',
+        source: 'SequenceExecutor',
+      );
+      await backend.setLocation(
+        ObserverLocation(
+          latitude: settings.latitude,
+          longitude: settings.longitude,
+          elevation: settings.elevation,
+        ),
+      );
       _logger.debug('Location sync complete', source: 'SequenceExecutor');
     } else {
-      _logger.debug('Skipping location sync: settings null or location is 0,0',
-          source: 'SequenceExecutor');
+      _logger.debug(
+        'Skipping location sync: settings null or location is 0,0',
+        source: 'SequenceExecutor',
+      );
     }
 
     // Simulation is disabled in release builds.
@@ -39,11 +47,14 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     }
 
     if (settings != null) {
-      final safetyFailMode =
-          _safetyFailModeToBackendString(settings.safetyFailMode);
+      final safetyFailMode = _safetyFailModeToBackendString(
+        settings.safetyFailMode,
+      );
       await backend.sequencerSetSafetyFailMode(safetyFailMode);
-      _logger.debug('Safety fail mode set to: $safetyFailMode',
-          source: 'SequenceExecutor');
+      _logger.debug(
+        'Safety fail mode set to: $safetyFailMode',
+        source: 'SequenceExecutor',
+      );
     }
 
     final savePath = settings?.imageOutputPath;
@@ -53,8 +64,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     } else {
       await backend.sequencerSetSavePath(null);
       _logger.warning(
-          'No save path configured - images will NOT be saved to disk!',
-          source: 'SequenceExecutor');
+        'No save path configured - images will NOT be saved to disk!',
+        source: 'SequenceExecutor',
+      );
     }
 
     final cameraState = _ref.read(cameraStateProvider);
@@ -65,24 +77,24 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
     final cameraId =
         cameraState.connectionState == DeviceConnectionState.connected
-            ? cameraState.deviceId
-            : null;
+        ? cameraState.deviceId
+        : null;
     final mountId =
         mountState.connectionState == DeviceConnectionState.connected
-            ? mountState.deviceId
-            : null;
+        ? mountState.deviceId
+        : null;
     final focuserId =
         focuserState.connectionState == DeviceConnectionState.connected
-            ? focuserState.deviceId
-            : null;
+        ? focuserState.deviceId
+        : null;
     final filterwheelId =
         filterwheelState.connectionState == DeviceConnectionState.connected
-            ? filterwheelState.deviceId
-            : null;
+        ? filterwheelState.deviceId
+        : null;
     final rotatorId =
         rotatorState.connectionState == DeviceConnectionState.connected
-            ? rotatorState.deviceId
-            : null;
+        ? rotatorState.deviceId
+        : null;
 
     await backend.sequencerSetDevices(
       cameraId: cameraId,
@@ -484,10 +496,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         // not image. Skip; the operator can't have meant to seed it.
         continue;
       }
-      final key = (
-        sequenceId: sequence.databaseId,
-        targetId: entry.targetId,
-      );
+      final key = (sequenceId: sequence.databaseId, targetId: entry.targetId);
       final decision = _ref.read(sessionHandoffDecisionProvider(key));
       if (decision == null) {
         // No pre-flight decision recorded (dialog dismissed) — leave
@@ -499,8 +508,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           // Copy the per-filter totals verbatim. The Rust side filters
           // non-finite / non-positive values defensively; we still
           // forward the operator's measurement honestly.
-          carryOverPayload[header.id] =
-              Map<String, double>.from(entry.perFilterIntegrationSecs);
+          carryOverPayload[header.id] = Map<String, double>.from(
+            entry.perFilterIntegrationSecs,
+          );
           break;
         case SessionHandoffDecision.restart:
           // Empty map → Rust zeroes any prior per-target state. This is
@@ -516,8 +526,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
     if (carryOverPayload.isEmpty) return;
     try {
-      await backend
-          .sequencerUpdatePendingIntegrationCarryOver(carryOverPayload);
+      await backend.sequencerUpdatePendingIntegrationCarryOver(
+        carryOverPayload,
+      );
       _logger.info(
         'Staged integration carry-over for ${carryOverPayload.length} '
         'target(s) (handoff decisions applied)',
@@ -595,7 +606,8 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
         // Pack G — propagate image-grading changes mid-run so the next
         // exposure honours the user's new thresholds.
-        final gradingChanged = prevSettings.enableImageGrading !=
+        final gradingChanged =
+            prevSettings.enableImageGrading !=
                 nextSettings.enableImageGrading ||
             prevSettings.imageGradingHfrThresholdPx !=
                 nextSettings.imageGradingHfrThresholdPx ||
@@ -649,7 +661,8 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         // changes so the next exposure honours the user's edit. We
         // compare all eight inputs in one pass because the executor
         // expects the full config object on every push.
-        final adaptiveChanged = prevSettings.adaptiveExposureEnabled !=
+        final adaptiveChanged =
+            prevSettings.adaptiveExposureEnabled !=
                 nextSettings.adaptiveExposureEnabled ||
             prevSettings.adaptiveExposureTargetSnr !=
                 nextSettings.adaptiveExposureTargetSnr ||
@@ -659,12 +672,18 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
                 nextSettings.adaptiveExposureMinSecs ||
             prevSettings.adaptiveExposureMaxSecs !=
                 nextSettings.adaptiveExposureMaxSecs ||
-            !mapEquals(prevSettings.adaptiveExposurePerFilterEnabled,
-                nextSettings.adaptiveExposurePerFilterEnabled) ||
-            !mapEquals(prevSettings.adaptiveExposurePerFilterMinSecs,
-                nextSettings.adaptiveExposurePerFilterMinSecs) ||
-            !mapEquals(prevSettings.adaptiveExposurePerFilterMaxSecs,
-                nextSettings.adaptiveExposurePerFilterMaxSecs);
+            !mapEquals(
+              prevSettings.adaptiveExposurePerFilterEnabled,
+              nextSettings.adaptiveExposurePerFilterEnabled,
+            ) ||
+            !mapEquals(
+              prevSettings.adaptiveExposurePerFilterMinSecs,
+              nextSettings.adaptiveExposurePerFilterMinSecs,
+            ) ||
+            !mapEquals(
+              prevSettings.adaptiveExposurePerFilterMaxSecs,
+              nextSettings.adaptiveExposurePerFilterMaxSecs,
+            );
         if (adaptiveChanged) {
           _logger.debug(
             'Adaptive-exposure settings changed during execution, propagating to backend',
@@ -812,7 +831,8 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         // wobble is observational noise that the adapter doesn't need
         // to see on every tick.
         if (mag != _lastPushedSkyMag) {
-          final changed = _lastPushedSkyMag == null ||
+          final changed =
+              _lastPushedSkyMag == null ||
               mag == null ||
               (mag - (_lastPushedSkyMag ?? 0)).abs() > 0.05;
           if (changed) {

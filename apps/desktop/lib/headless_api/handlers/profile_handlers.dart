@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/database_entities.dart' as settings_models;
@@ -65,7 +65,9 @@ class ProfileHandlers {
   }
 
   Future<Response> handleDeleteProfile(
-      Request request, String profileId) async {
+    Request request,
+    String profileId,
+  ) async {
     _logInfo('[API] DELETE /api/profiles/$profileId');
     final backend = container.read(profileSettingsBackendProvider);
     await backend.deleteProfile(profileId);
@@ -128,7 +130,7 @@ class ProfileHandlers {
     settings_models.AppSettings? previous;
     try {
       previous = await backend.getSettings();
-    } catch (_, __) {
+    } catch (_) {
       // Why: `previous` only feeds an optional change-diff/notification below;
       // if the prior settings can't be read we proceed without the diff
       // rather than failing the update itself.
@@ -174,20 +176,13 @@ class ProfileHandlers {
     final changedAt = DateTime.now().toUtc().toIso8601String();
     final nowMillis = DateTime.now().millisecondsSinceEpoch;
 
-    NightshadeEvent buildEvent({
-      required String key,
-      required dynamic value,
-    }) {
+    NightshadeEvent buildEvent({required String key, required dynamic value}) {
       return NightshadeEvent(
         timestamp: nowMillis,
         severity: EventSeverity.info,
         category: EventCategory.system,
         eventType: settingsChangedEventType,
-        data: {
-          'key': key,
-          'value': value,
-          'changedAt': changedAt,
-        },
+        data: {'key': key, 'value': value, 'changedAt': changedAt},
         correlatingCommandId: commandId,
       );
     }

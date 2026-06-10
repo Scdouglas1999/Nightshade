@@ -53,7 +53,8 @@ const _mimeTypes = <String, String>{
 /// the SPAs need to reach localhost/LAN backends; `object-src 'none'`
 /// and `frame-ancestors 'none'` shut the typical XSS escalation paths.
 const _staticFileSecurityHeaders = {
-  'content-security-policy': "default-src 'self'; script-src 'self'; "
+  'content-security-policy':
+      "default-src 'self'; script-src 'self'; "
       "style-src 'self'; img-src 'self' data: blob:; connect-src 'self' "
       "http://*:* https://*:* ws://*:* wss://*:*; object-src 'none'; "
       "base-uri 'none'; frame-ancestors 'none'",
@@ -143,12 +144,13 @@ class StaticFileHandlers {
     if (rootDir == null) {
       _logWarning('[$surface] static directory not found');
       return jsonNotFound({
-        'error': '${surface == 'dashboard' ? 'Dashboard' : 'Run-watch SPA'} '
+        'error':
+            '${surface == 'dashboard' ? 'Dashboard' : 'Run-watch SPA'} '
             'not found',
         'message':
             'The ${surface == 'dashboard' ? 'web_dashboard' : 'web_run_watch'} '
-                'directory could not be located. Ensure it is deployed '
-                'alongside the application.',
+            'directory could not be located. Ensure it is deployed '
+            'alongside the application.',
       });
     }
 
@@ -177,8 +179,9 @@ class StaticFileHandlers {
     // script must always reload to honour updates. Every other asset
     // can be cached aggressively by the browser within a single
     // session.
-    final cacheControl =
-        isServiceWorker ? 'no-cache, no-store, must-revalidate' : 'no-cache';
+    final cacheControl = isServiceWorker
+        ? 'no-cache, no-store, must-revalidate'
+        : 'no-cache';
 
     return contentResponse(
       bytes,
@@ -211,8 +214,9 @@ class StaticFileHandlers {
     final exeDir = p.dirname(Platform.resolvedExecutable);
 
     // 1. Next to the executable inside the Flutter assets bundle.
-    final releaseAssets =
-        Directory(p.join(exeDir, 'data', 'flutter_assets', name));
+    final releaseAssets = Directory(
+      p.join(exeDir, 'data', 'flutter_assets', name),
+    );
     if (releaseAssets.existsSync()) return releaseAssets;
 
     // 2. Next to the executable directly (some installer layouts).

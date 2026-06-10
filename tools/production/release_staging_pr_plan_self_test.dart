@@ -11,7 +11,8 @@ Future<void> main() async {
   );
   if (!stagingAuditor.existsSync()) {
     throw StateError(
-        'Release staging auditor not found: ${stagingAuditor.path}');
+      'Release staging auditor not found: ${stagingAuditor.path}',
+    );
   }
   if (!prPlanner.existsSync()) {
     throw StateError('Release PR planner not found: ${prPlanner.path}');
@@ -30,18 +31,30 @@ Future<void> main() async {
       'docs/production-readiness/release-staging-audit.json',
     );
     _expect(staging['entryCount'] == 8, 'staging audit should find 8 entries');
-    _expect(staging['modifiedCount'] == 2,
-        'staging audit should find 2 tracked changes');
-    _expect(staging['deletedCount'] == 1,
-        'staging audit should find 1 deleted tracked file');
-    _expect(staging['untrackedCount'] == 6,
-        'staging audit should find 6 untracked entries');
-    _expect(staging['binaryCount'] == 1,
-        'staging audit should find 1 binary entry');
-    _expect(staging['generatedCount'] == 1,
-        'staging audit should find 1 generated entry');
-    _expect(staging['untrackedReleaseCriticalCount'] == 5,
-        'staging audit should find 5 untracked release-critical entries');
+    _expect(
+      staging['modifiedCount'] == 2,
+      'staging audit should find 2 tracked changes',
+    );
+    _expect(
+      staging['deletedCount'] == 1,
+      'staging audit should find 1 deleted tracked file',
+    );
+    _expect(
+      staging['untrackedCount'] == 6,
+      'staging audit should find 6 untracked entries',
+    );
+    _expect(
+      staging['binaryCount'] == 1,
+      'staging audit should find 1 binary entry',
+    );
+    _expect(
+      staging['generatedCount'] == 1,
+      'staging audit should find 1 generated entry',
+    );
+    _expect(
+      staging['untrackedReleaseCriticalCount'] == 5,
+      'staging audit should find 5 untracked release-critical entries',
+    );
     _expectCategory(staging, 'release-tooling', 1);
     _expectCategory(staging, 'headless-remote', 1);
     _expectCategory(staging, 'generated', 1);
@@ -71,17 +84,27 @@ Future<void> main() async {
       temp,
       'docs/production-readiness/release-pr-split-plan.json',
     );
-    _expect(plan['entryCount'] == staging['entryCount'],
-        'PR plan entry count should match staging audit');
-    _expect(plan['untrackedReleaseCriticalCount'] == 5,
-        'PR plan should preserve untracked release-critical count');
+    _expect(
+      plan['entryCount'] == staging['entryCount'],
+      'PR plan entry count should match staging audit',
+    );
+    _expect(
+      plan['untrackedReleaseCriticalCount'] == 5,
+      'PR plan should preserve untracked release-critical count',
+    );
     _expect(plan['bucketCount'] == 7, 'PR plan should create 7 buckets');
     _expect(
-        !stalePathspec.existsSync(), 'planner should remove stale pathspecs');
-    _expect(!staleDraft.existsSync(),
-        'planner should remove stale draft descriptions');
-    _expect(!staleReleaseList.existsSync(),
-        'planner should remove stale release decision lists');
+      !stalePathspec.existsSync(),
+      'planner should remove stale pathspecs',
+    );
+    _expect(
+      !staleDraft.existsSync(),
+      'planner should remove stale draft descriptions',
+    );
+    _expect(
+      !staleReleaseList.existsSync(),
+      'planner should remove stale release decision lists',
+    );
 
     final stagedPaths = _pathsFromStaging(staging);
     final plannedPaths = _pathsFromPlan(plan);
@@ -90,18 +113,24 @@ Future<void> main() async {
       plannedPaths,
       'PR plan should assign every staged audit path exactly once',
     );
-    _expectBucket(plan, 'generated-files',
-        ['packages/nightshade_core/lib/src/database/database.g.dart']);
-    _expectBucket(plan, 'binary-and-evidence-artifacts',
-        ['docs/production-readiness/smoke.png']);
-    _expectBucket(plan, 'release-infra-evidence',
-        ['tools/production/release_gate_fixture.dart']);
-    _expectBucket(
-        plan, 'headless-remote-api', ['apps/desktop/web_dashboard/js/api.js']);
-    _expectBucket(plan, 'native-driver-bridge',
-        ['packages/nightshade_bridge/lib/src/api.dart']);
-    _expectBucket(
-        plan, 'tests-and-support-tooling', ['scripts/deleted_tool.ps1']);
+    _expectBucket(plan, 'generated-files', [
+      'packages/nightshade_core/lib/src/database/database.g.dart',
+    ]);
+    _expectBucket(plan, 'binary-and-evidence-artifacts', [
+      'docs/production-readiness/smoke.png',
+    ]);
+    _expectBucket(plan, 'release-infra-evidence', [
+      'tools/production/release_gate_fixture.dart',
+    ]);
+    _expectBucket(plan, 'headless-remote-api', [
+      'apps/desktop/web_dashboard/js/api.js',
+    ]);
+    _expectBucket(plan, 'native-driver-bridge', [
+      'packages/nightshade_bridge/lib/src/api.dart',
+    ]);
+    _expectBucket(plan, 'tests-and-support-tooling', [
+      'scripts/deleted_tool.ps1',
+    ]);
     _expectBucket(plan, 'out-of-release-scope-review', [
       'README.md',
       'scratch/research.txt',
@@ -139,16 +168,19 @@ Future<void> main() async {
 
 Future<void> _prepareGitWorkspace(Directory root) async {
   await _runGit(root, ['init']);
-  await _runGit(
-      root, ['config', 'user.email', 'release-self-test@example.com']);
+  await _runGit(root, [
+    'config',
+    'user.email',
+    'release-self-test@example.com',
+  ]);
   await _runGit(root, ['config', 'user.name', 'Release Self Test']);
   await File('${root.path}/README.md').writeAsString('base\n');
   await File('${root.path}/scripts/deleted_tool.ps1')
       .create(recursive: true)
       .then((file) => file.writeAsString('Write-Host base\n'));
-  await Directory('${root.path}/docs/production-readiness').create(
-    recursive: true,
-  );
+  await Directory(
+    '${root.path}/docs/production-readiness',
+  ).create(recursive: true);
   await _runGit(root, ['add', 'README.md', 'scripts/deleted_tool.ps1']);
   await _runGit(root, ['commit', '-m', 'seed fixture']);
 }
@@ -164,11 +196,10 @@ Future<void> _writeDirtyFixture(Directory root) async {
       .then((file) => file.writeAsString('console.log("fixture");\n'));
   await File(
     '${root.path}/packages/nightshade_core/lib/src/database/database.g.dart',
-  )
-      .create(recursive: true)
-      .then((file) => file.writeAsString('// generated\n'));
-  await File('${root.path}/docs/production-readiness/smoke.png')
-      .writeAsBytes([1, 2, 3]);
+  ).create(recursive: true).then((file) => file.writeAsString('// generated\n'));
+  await File(
+    '${root.path}/docs/production-readiness/smoke.png',
+  ).writeAsBytes([1, 2, 3]);
   await File('${root.path}/packages/nightshade_bridge/lib/src/api.dart')
       .create(recursive: true)
       .then((file) => file.writeAsString('class Fixture {}\n'));
@@ -283,11 +314,13 @@ void _expectPathspecsMatchBuckets(Directory root, Map<String, dynamic> plan) {
   for (final rawBucket in plan['buckets'] as List? ?? const []) {
     final bucket = rawBucket as Map<String, dynamic>;
     final pathspecFile = File('${root.path}/${bucket['pathspecFile']}');
-    _expect(pathspecFile.existsSync(),
-        'pathspec should exist for bucket ${bucket['id']}');
-    final pathspecPaths = LineSplitter.split(pathspecFile.readAsStringSync())
-        .where((line) => line.isNotEmpty)
-        .toSet();
+    _expect(
+      pathspecFile.existsSync(),
+      'pathspec should exist for bucket ${bucket['id']}',
+    );
+    final pathspecPaths = LineSplitter.split(
+      pathspecFile.readAsStringSync(),
+    ).where((line) => line.isNotEmpty).toSet();
     final bucketPaths = {
       for (final entry in bucket['paths'] as List? ?? const [])
         (entry as Map<String, dynamic>)['path'] as String,
@@ -313,9 +346,9 @@ void _expectReleaseListsMatchPlan(Directory root, Map<String, dynamic> plan) {
       listFile.existsSync(),
       'release list should exist for ${list['id']}',
     );
-    final pathspecPaths = LineSplitter.split(listFile.readAsStringSync())
-        .where((line) => line.isNotEmpty)
-        .toSet();
+    final pathspecPaths = LineSplitter.split(
+      listFile.readAsStringSync(),
+    ).where((line) => line.isNotEmpty).toSet();
     _expect(
       pathspecPaths.length == list['count'],
       'release list count should match pathspec for ${list['id']}',
@@ -361,8 +394,10 @@ void _expectReleaseListContains(
       for (final rawPath in list['paths'] as List? ?? const [])
         (rawPath as Map<String, dynamic>)['path'] as String,
     };
-    _expect(paths.contains(expectedPath),
-        'release list $id should contain $expectedPath');
+    _expect(
+      paths.contains(expectedPath),
+      'release list $id should contain $expectedPath',
+    );
     return;
   }
   throw StateError('missing release list: $id');
@@ -375,8 +410,10 @@ void _expectDraftDescriptionsMatchBuckets(
   for (final rawBucket in plan['buckets'] as List? ?? const []) {
     final bucket = rawBucket as Map<String, dynamic>;
     final draftFile = File('${root.path}/${bucket['draftDescriptionFile']}');
-    _expect(draftFile.existsSync(),
-        'draft description should exist for bucket ${bucket['id']}');
+    _expect(
+      draftFile.existsSync(),
+      'draft description should exist for bucket ${bucket['id']}',
+    );
     final draft = draftFile.readAsStringSync();
     _expect(
       draft.contains('# PR '),
@@ -408,7 +445,10 @@ Map<String, dynamic>? _bucketById(Map<String, dynamic> plan, String id) {
 }
 
 void _expectSetEquals(
-    Set<String> expected, Set<String> actual, String message) {
+  Set<String> expected,
+  Set<String> actual,
+  String message,
+) {
   final missing = expected.difference(actual);
   final unexpected = actual.difference(expected);
   _expect(

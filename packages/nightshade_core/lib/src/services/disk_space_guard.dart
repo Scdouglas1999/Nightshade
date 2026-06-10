@@ -86,8 +86,8 @@ class DiskSpaceGuardService {
   DiskSpaceGuardService({
     required DiskSpaceService diskService,
     LoggingService? logger,
-  })  : _diskService = diskService,
-        _logger = logger;
+  }) : _diskService = diskService,
+       _logger = logger;
 
   /// Compute the per-frame byte cost for an [ExposureNode] given camera
   /// [capabilities]. Returns null when capabilities are missing (caller
@@ -216,7 +216,8 @@ class DiskSpaceGuardService {
 
   /// Sample the disk once at a fixed point in time (e.g. for the Storage
   /// tile). Propagates [DiskSpaceException].
-  Future<DiskSpaceInfo> sample(String capturePath) => _diskService.query(capturePath);
+  Future<DiskSpaceInfo> sample(String capturePath) =>
+      _diskService.query(capturePath);
 
   /// Whether a watchdog is currently active.
   bool get isRunning => _watchdogTimer?.isActive == true;
@@ -248,22 +249,26 @@ class DiskSpaceGuardService {
         final snapshot = await _diskService.query(capturePath);
         if (snapshot.freeBytes < abortBytes && !_hasEmittedAbort) {
           _hasEmittedAbort = true;
-          _emit(DiskSpaceWatchdogEvent(
-            snapshot: snapshot,
-            severity: DiskSpaceSeverity.blocking,
-            message:
-                'Critical: only ${_gb(snapshot.freeBytes)} GB free on ${snapshot.path}. '
-                'Pause and free up space before continuing.',
-          ));
+          _emit(
+            DiskSpaceWatchdogEvent(
+              snapshot: snapshot,
+              severity: DiskSpaceSeverity.blocking,
+              message:
+                  'Critical: only ${_gb(snapshot.freeBytes)} GB free on ${snapshot.path}. '
+                  'Pause and free up space before continuing.',
+            ),
+          );
         } else if (snapshot.freeBytes < warningBytes && !_hasEmittedWarning) {
           _hasEmittedWarning = true;
-          _emit(DiskSpaceWatchdogEvent(
-            snapshot: snapshot,
-            severity: DiskSpaceSeverity.warning,
-            message:
-                'Low disk space: ${_gb(snapshot.freeBytes)} GB free on ${snapshot.path}. '
-                'Consider stopping after the current target.',
-          ));
+          _emit(
+            DiskSpaceWatchdogEvent(
+              snapshot: snapshot,
+              severity: DiskSpaceSeverity.warning,
+              message:
+                  'Low disk space: ${_gb(snapshot.freeBytes)} GB free on ${snapshot.path}. '
+                  'Consider stopping after the current target.',
+            ),
+          );
         }
 
         // Reset hysteresis if space comes back (e.g. user archived mid-run).
@@ -281,16 +286,18 @@ class DiskSpaceGuardService {
         // We propagate failure as a watchdog event so the UI can show the user
         // that monitoring is degraded. We do NOT silently continue — silent
         // failure here would defeat the whole point of the watchdog.
-        _emit(DiskSpaceWatchdogEvent(
-          snapshot: DiskSpaceInfo(
-            path: capturePath,
-            totalBytes: 0,
-            freeBytes: 0,
-            sampledAt: DateTime.now(),
+        _emit(
+          DiskSpaceWatchdogEvent(
+            snapshot: DiskSpaceInfo(
+              path: capturePath,
+              totalBytes: 0,
+              freeBytes: 0,
+              sampledAt: DateTime.now(),
+            ),
+            severity: DiskSpaceSeverity.warning,
+            message: 'Disk-space monitoring failed: $e',
           ),
-          severity: DiskSpaceSeverity.warning,
-          message: 'Disk-space monitoring failed: $e',
-        ));
+        );
       }
     }
 
@@ -327,10 +334,10 @@ class DiskSpaceGuardService {
 /// enum itself) so the model file stays free of behavioural code.
 extension _BinningFactors on BinningMode {
   int get xFactor => switch (this) {
-        BinningMode.one => 1,
-        BinningMode.two => 2,
-        BinningMode.three => 3,
-        BinningMode.four => 4,
-      };
+    BinningMode.one => 1,
+    BinningMode.two => 2,
+    BinningMode.three => 3,
+    BinningMode.four => 4,
+  };
   int get yFactor => xFactor; // No asymmetric binning in the model layer.
 }

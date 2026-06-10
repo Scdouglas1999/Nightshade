@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:nightshade_bridge/nightshade_bridge.dart'
-    show PlateSolveResult;
+import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
 
 import '../../models/autofocus_progress.dart' show StarCrop;
 import '../../models/backend/backend_types.dart';
@@ -86,8 +85,10 @@ abstract class ImagingBackend {
   // =========================================================================
 
   /// Get star crops from the last captured image for autofocus UI
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
-      {int maxCrops = 5});
+  Future<List<StarCrop>> getStarCropsFromLastImage(
+    String deviceId, {
+    int maxCrops = 5,
+  });
 
   /// Calibrate a light frame file on the host filesystem using optional
   /// master dark/flat/bias paths (also host-local when remote).
@@ -170,6 +171,9 @@ abstract class ImagingBackend {
   /// Download full image data with progress tracking
   /// Downloads the full FITS file and saves to localPath
   /// Optionally calls onProgress with download percentage (0.0 to 1.0)
-  Future<void> downloadImage(int imageId, String localPath,
-      {void Function(double)? onProgress});
+  Future<void> downloadImage(
+    int imageId,
+    String localPath, {
+    void Function(double)? onProgress,
+  });
 }

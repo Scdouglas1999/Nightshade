@@ -85,7 +85,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   'Apply dark, flat, and bias correction to captured images automatically',
               trailing: SettingsSwitch(
                 value: calSettings.autoCalibrate,
-                  onChanged: (value) {
+                onChanged: (value) {
                   ref
                       .read(calibrationSettingsProvider.notifier)
                       .setAutoCalibrate(value);
@@ -155,7 +155,7 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   'Find the best matching dark frame based on exposure parameters',
               trailing: SettingsSwitch(
                 value: calSettings.autoDarkFromLibrary,
-                  onChanged: (value) {
+                onChanged: (value) {
                   ref
                       .read(calibrationSettingsProvider.notifier)
                       .setAutoDarkFromLibrary(value);
@@ -373,7 +373,7 @@ class _CalStatusCard extends StatelessWidget {
     required this.available,
     required this.detail,
     required this.icon,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -384,11 +384,13 @@ class _CalStatusCard extends StatelessWidget {
         decoration: available
             ? NightshadeDecorations.emphasisSurface(
                 colors.success,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
         child: Column(
@@ -411,7 +413,8 @@ class _CalStatusCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: NightshadeTypography.labelStrong.copyWith(color: available ? colors.success : colors.textSecondary),
+                  style: NightshadeTypography.labelStrong.copyWith(
+                      color: available ? colors.success : colors.textSecondary),
                 ),
               ],
             ),
@@ -439,7 +442,7 @@ class _FileValidationRow extends ConsumerWidget {
 
   const _FileValidationRow({
     required this.filePath,
-    });
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

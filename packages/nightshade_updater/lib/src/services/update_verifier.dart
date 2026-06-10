@@ -17,8 +17,8 @@ class UpdateVerifier {
       'NIGHTSHADE_UPDATE_PUBLIC_KEY',
     ),
     Ed25519? signatureAlgorithm,
-  })  : _trustedPublicKeyBase64 = trustedPublicKeyBase64,
-        _signatureAlgorithm = signatureAlgorithm ?? Ed25519();
+  }) : _trustedPublicKeyBase64 = trustedPublicKeyBase64,
+       _signatureAlgorithm = signatureAlgorithm ?? Ed25519();
 
   /// Whether this verifier has a trusted Ed25519 public key compiled in.
   ///
@@ -122,8 +122,9 @@ class UpdateVerifier {
 
   bool _isWithinDirectory(String root, String candidate) {
     final normalizedRoot = _normalizeForComparison(path.normalize(root));
-    final normalizedCandidate =
-        _normalizeForComparison(path.normalize(candidate));
+    final normalizedCandidate = _normalizeForComparison(
+      path.normalize(candidate),
+    );
     if (normalizedCandidate == normalizedRoot) {
       return true;
     }
@@ -138,10 +139,7 @@ class UpdateVerifier {
   }
 
   /// Verify a downloaded package (ZIP file) before extraction
-  Future<bool> verifyPackage(
-    File packageFile,
-    UpdateManifest manifest,
-  ) async {
+  Future<bool> verifyPackage(File packageFile, UpdateManifest manifest) async {
     if (!await packageFile.exists()) {
       return false;
     }
@@ -185,8 +183,10 @@ class UpdateVerifier {
         base64Decode(manifest.signature!),
         publicKey: publicKey,
       );
-      return await _signatureAlgorithm.verify(payloadBytes,
-          signature: signature);
+      return await _signatureAlgorithm.verify(
+        payloadBytes,
+        signature: signature,
+      );
     } catch (e) {
       developer.log(
         'Signature verification error: $e',

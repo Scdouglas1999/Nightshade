@@ -4,14 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 Future<
-    ({
-      bool isPhone,
-      bool isCompactPhone,
-      bool isMobile,
-      bool isLandscape,
-      bool isPhoneLandscape,
-      bool isPhonePortrait,
-    })> _probe(
+  ({
+    bool isPhone,
+    bool isCompactPhone,
+    bool isMobile,
+    bool isLandscape,
+    bool isPhoneLandscape,
+    bool isPhonePortrait,
+  })
+>
+_probe(
   WidgetTester tester,
   Size size, {
   TargetPlatform platform = TargetPlatform.android,
@@ -91,8 +93,9 @@ void main() {
     // edge (>= 600), so the old width-based isPhone returned false and the
     // screen fell through to the tablet/desktop layout. Device-class detection
     // keeps it a phone.
-    testWidgets('844x390 rotated phone IS a phone in landscape',
-        (tester) async {
+    testWidgets('844x390 rotated phone IS a phone in landscape', (
+      tester,
+    ) async {
       final r = await _probe(tester, const Size(844, 390));
       expect(r.isPhone, isTrue);
       expect(r.isLandscape, isTrue);
@@ -108,15 +111,17 @@ void main() {
       expect(r.isPhoneLandscape, isTrue);
     });
 
-    testWidgets('932x430 (iPhone Pro Max) landscape IS a phone',
-        (tester) async {
+    testWidgets('932x430 (iPhone Pro Max) landscape IS a phone', (
+      tester,
+    ) async {
       final r = await _probe(tester, const Size(932, 430));
       expect(r.isPhone, isTrue);
       expect(r.isPhoneLandscape, isTrue);
     });
 
-    testWidgets('768x1024 tablet is NOT a phone (either orientation)',
-        (tester) async {
+    testWidgets('768x1024 tablet is NOT a phone (either orientation)', (
+      tester,
+    ) async {
       final portrait = await _probe(tester, const Size(768, 1024));
       expect(portrait.isPhone, isFalse);
       final landscape = await _probe(tester, const Size(1024, 768));
@@ -125,24 +130,34 @@ void main() {
   });
 
   group('desktop window-size detection (width-driven reflow preserved)', () {
-    testWidgets('590-wide desktop window is a phone (narrow reflow)',
-        (tester) async {
-      final r = await _probe(tester, const Size(590, 900),
-          platform: TargetPlatform.windows);
+    testWidgets('590-wide desktop window is a phone (narrow reflow)', (
+      tester,
+    ) async {
+      final r = await _probe(
+        tester,
+        const Size(590, 900),
+        platform: TargetPlatform.windows,
+      );
       expect(r.isPhone, isTrue);
     });
 
     testWidgets('844-wide desktop window is NOT a phone', (tester) async {
-      final r = await _probe(tester, const Size(844, 390),
-          platform: TargetPlatform.windows);
+      final r = await _probe(
+        tester,
+        const Size(844, 390),
+        platform: TargetPlatform.windows,
+      );
       // On desktop, width drives the tier — a wide window is not a phone even
       // when short. (Contrast the mobile 844x390 case above.)
       expect(r.isPhone, isFalse);
     });
 
     testWidgets('maximized desktop is not a phone', (tester) async {
-      final r = await _probe(tester, const Size(1920, 1080),
-          platform: TargetPlatform.macOS);
+      final r = await _probe(
+        tester,
+        const Size(1920, 1080),
+        platform: TargetPlatform.macOS,
+      );
       expect(r.isPhone, isFalse);
     });
   });

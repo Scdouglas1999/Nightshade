@@ -24,11 +24,10 @@ const _requiredDefaultSettings = [
 
 void main() {
   test('records manual older-profile migration evidence', () async {
-    const defineDatabasePath =
-        String.fromEnvironment('NIGHTSHADE_OLD_DATABASE');
-    const requireArtifact = bool.fromEnvironment(
-      'REQUIRE_MIGRATION_ARTIFACT',
+    const defineDatabasePath = String.fromEnvironment(
+      'NIGHTSHADE_OLD_DATABASE',
     );
+    const requireArtifact = bool.fromEnvironment('REQUIRE_MIGRATION_ARTIFACT');
     final databaseArg = defineDatabasePath.trim().isNotEmpty
         ? defineDatabasePath
         : Platform.environment['NIGHTSHADE_OLD_DATABASE'];
@@ -74,8 +73,9 @@ void main() {
       fail('Supplied database path does not exist: $sourcePath');
     }
 
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_manual_migration_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_manual_migration_',
+    );
     final copy = File('${tempDir.path}/nightshade_migration_probe.db');
 
     try {
@@ -88,14 +88,16 @@ void main() {
       final sourceUserVersion = await _readSqliteUserVersion(source);
       final db = NightshadeDatabase.forTesting(NativeDatabase(copy));
       try {
-        final finalVersionRow =
-            await db.customSelect('PRAGMA user_version').getSingle();
-        final finalUserVersion =
-            (finalVersionRow.data['user_version'] as num?)?.toInt();
+        final finalVersionRow = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        final finalUserVersion = (finalVersionRow.data['user_version'] as num?)
+            ?.toInt();
         final schemaVersion = db.schemaVersion;
         final tableNames = await _sqliteTableNames(db);
-        final expectedTables =
-            db.allTables.map((table) => table.actualTableName).toSet();
+        final expectedTables = db.allTables
+            .map((table) => table.actualTableName)
+            .toSet();
         final expectedTableCount = expectedTables.length;
         final migratedTableCount = tableNames.length;
         final missingTables = expectedTables.difference(tableNames).toList()
@@ -107,7 +109,8 @@ void main() {
             .toList();
         final qualifiesAsOlderProfile =
             sourceUserVersion != null && sourceUserVersion < schemaVersion;
-        final migrationVerified = qualifiesAsOlderProfile &&
+        final migrationVerified =
+            qualifiesAsOlderProfile &&
             finalUserVersion == schemaVersion &&
             missingTables.isEmpty &&
             missingSettings.isEmpty;
@@ -238,8 +241,9 @@ String _migrationBlocker({
 }
 
 Future<void> _writeReport(_ProbeReport report) async {
-  await File(_jsonOutputPath).writeAsString(
-      const JsonEncoder.withIndent('  ').convert(report.toJson()));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report.toJson()));
   await File(_markdownOutputPath).writeAsString(report.toMarkdown());
 }
 
@@ -291,31 +295,31 @@ class _ProbeReport {
   });
 
   Map<String, Object?> toJson() => {
-        'generatedAt': DateTime.now().toUtc().toIso8601String(),
-        'artifactProvided': artifactProvided,
-        'sourcePath': sourcePath,
-        'sourceExists': sourceExists,
-        'sourceSizeBytes': sourceSizeBytes,
-        'sourceSha256': sourceSha256,
-        'copiedPath': copiedPath,
-        'copiedSourceSha256': copiedSourceSha256,
-        'copiedSourceSha256Matches': copiedSourceSha256Matches,
-        'sourceUserVersion': sourceUserVersion,
-        'finalUserVersion': finalUserVersion,
-        'currentSchemaVersion': currentSchemaVersion,
-        'expectedTableCount': expectedTableCount,
-        'migratedTableCount': migratedTableCount,
-        'defaultSettingCount': defaultSettingCount,
-        'qualifiesAsOlderProfile': qualifiesAsOlderProfile,
-        'migrationVerified': migrationVerified,
-        'missingTables': missingTables,
-        'missingDefaultSettings': missingDefaultSettings,
-        'blocker': blocker,
-        'error': error,
-        'stackTrace': stackTrace,
-        'scope':
-            'Manual older-profile migration evidence probe. Synthetic migration tests remain separate.',
-      };
+    'generatedAt': DateTime.now().toUtc().toIso8601String(),
+    'artifactProvided': artifactProvided,
+    'sourcePath': sourcePath,
+    'sourceExists': sourceExists,
+    'sourceSizeBytes': sourceSizeBytes,
+    'sourceSha256': sourceSha256,
+    'copiedPath': copiedPath,
+    'copiedSourceSha256': copiedSourceSha256,
+    'copiedSourceSha256Matches': copiedSourceSha256Matches,
+    'sourceUserVersion': sourceUserVersion,
+    'finalUserVersion': finalUserVersion,
+    'currentSchemaVersion': currentSchemaVersion,
+    'expectedTableCount': expectedTableCount,
+    'migratedTableCount': migratedTableCount,
+    'defaultSettingCount': defaultSettingCount,
+    'qualifiesAsOlderProfile': qualifiesAsOlderProfile,
+    'migrationVerified': migrationVerified,
+    'missingTables': missingTables,
+    'missingDefaultSettings': missingDefaultSettings,
+    'blocker': blocker,
+    'error': error,
+    'stackTrace': stackTrace,
+    'scope':
+        'Manual older-profile migration evidence probe. Synthetic migration tests remain separate.',
+  };
 
   String toMarkdown() {
     final buffer = StringBuffer()
@@ -331,11 +335,13 @@ class _ProbeReport {
       ..writeln('- Source user_version: `${sourceUserVersion ?? 'unknown'}`')
       ..writeln('- Final user_version: `${finalUserVersion ?? 'unknown'}`')
       ..writeln(
-          '- Current schema version: `${currentSchemaVersion ?? 'unknown'}`')
+        '- Current schema version: `${currentSchemaVersion ?? 'unknown'}`',
+      )
       ..writeln('- Expected table count: `${expectedTableCount ?? 'unknown'}`')
       ..writeln('- Migrated table count: `${migratedTableCount ?? 'unknown'}`')
       ..writeln(
-          '- Default setting count: `${defaultSettingCount ?? 'unknown'}`')
+        '- Default setting count: `${defaultSettingCount ?? 'unknown'}`',
+      )
       ..writeln('- Older profile artifact: `$qualifiesAsOlderProfile`')
       ..writeln('- Migration verified: `$migrationVerified`')
       ..writeln()

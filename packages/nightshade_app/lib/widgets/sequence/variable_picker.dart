@@ -170,8 +170,7 @@ class _VariablePickerFieldState extends State<VariablePickerField> {
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                Icon(Icons.visibility,
-                    size: 14, color: theme.hintColor),
+                Icon(Icons.visibility, size: 14, color: theme.hintColor),
                 const SizedBox(width: 6),
                 Expanded(
                   child: SelectableText(
@@ -237,7 +236,8 @@ class _VariablePickerDialogState extends State<_VariablePickerDialog> {
           ),
         ],
       ),
-      contentPadding: const EdgeInsets.only(left: 24, right: 24, top: 8, bottom: 8),
+      contentPadding:
+          const EdgeInsets.only(left: 24, right: 24, top: 8, bottom: 8),
       content: SizedBox(
         width: dialogSize.width,
         height: dialogSize.height,
@@ -264,8 +264,7 @@ class _VariablePickerDialogState extends State<_VariablePickerDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.visibility,
-                          size: 14, color: theme.hintColor),
+                      Icon(Icons.visibility, size: 14, color: theme.hintColor),
                       const SizedBox(width: 6),
                       const Text('Preview:'),
                       const SizedBox(width: 6),
@@ -331,8 +330,7 @@ class _GroupSection extends StatelessWidget {
             ),
           ),
         ),
-        for (final entry in entries)
-          _VariableRow(entry: entry, onPick: onPick),
+        for (final entry in entries) _VariableRow(entry: entry, onPick: onPick),
       ],
     );
   }

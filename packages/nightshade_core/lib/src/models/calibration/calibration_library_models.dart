@@ -30,7 +30,9 @@ CalibrationMasterType? calibrationMasterTypeFromWire(String raw) {
     'dark' => CalibrationMasterType.dark,
     'bias' => CalibrationMasterType.bias,
     'flat' => CalibrationMasterType.flat,
-    'defectMap' || 'defect_map' || 'defect-map' => CalibrationMasterType.defectMap,
+    'defectMap' ||
+    'defect_map' ||
+    'defect-map' => CalibrationMasterType.defectMap,
     _ => null,
   };
 }
@@ -276,16 +278,16 @@ class LightFrameContext {
   });
 
   Map<String, dynamic> toJson() => {
-        if (cameraId != null) 'cameraId': cameraId,
-        'gain': gain,
-        'offset': offset,
-        'exposureSeconds': exposureSeconds,
-        if (temperature != null) 'temperature': temperature,
-        if (filter != null) 'filter': filter,
-        'binX': binX,
-        'binY': binY,
-        if (opticalTrainId != null) 'opticalTrainId': opticalTrainId,
-      };
+    if (cameraId != null) 'cameraId': cameraId,
+    'gain': gain,
+    'offset': offset,
+    'exposureSeconds': exposureSeconds,
+    if (temperature != null) 'temperature': temperature,
+    if (filter != null) 'filter': filter,
+    'binX': binX,
+    'binY': binY,
+    if (opticalTrainId != null) 'opticalTrainId': opticalTrainId,
+  };
 }
 
 /// Tolerances consulted by [CalibrationLibraryService.match]. Dark exposure /
@@ -336,14 +338,13 @@ class CalibrationMatch {
   });
 
   Map<String, dynamic> toJson({DateTime? now}) => {
-        'record': record.toJson(now: now),
-        'score': score,
-        'reasons': reasons,
-        'warnings': warnings,
-        'exposureScaled': exposureScaled,
-        if (exposureScaleFactor != null)
-          'exposureScaleFactor': exposureScaleFactor,
-      };
+    'record': record.toJson(now: now),
+    'score': score,
+    'reasons': reasons,
+    'warnings': warnings,
+    'exposureScaled': exposureScaled,
+    if (exposureScaleFactor != null) 'exposureScaleFactor': exposureScaleFactor,
+  };
 }
 
 /// The best master per type for one [LightFrameContext], plus the warnings
@@ -369,19 +370,19 @@ class CalibrationMatchSet {
 
   /// Every warning in the set: per-match warnings plus the set-level ones.
   List<String> get allWarnings => [
-        ...warnings,
-        ...?dark?.warnings,
-        ...?bias?.warnings,
-        ...?flat?.warnings,
-        ...?defectMap?.warnings,
-      ];
+    ...warnings,
+    ...?dark?.warnings,
+    ...?bias?.warnings,
+    ...?flat?.warnings,
+    ...?defectMap?.warnings,
+  ];
 
   Map<String, dynamic> toJson({DateTime? now}) => {
-        'context': context.toJson(),
-        if (dark != null) 'dark': dark!.toJson(now: now),
-        if (bias != null) 'bias': bias!.toJson(now: now),
-        if (flat != null) 'flat': flat!.toJson(now: now),
-        if (defectMap != null) 'defectMap': defectMap!.toJson(now: now),
-        'warnings': warnings,
-      };
+    'context': context.toJson(),
+    if (dark != null) 'dark': dark!.toJson(now: now),
+    if (bias != null) 'bias': bias!.toJson(now: now),
+    if (flat != null) 'flat': flat!.toJson(now: now),
+    if (defectMap != null) 'defectMap': defectMap!.toJson(now: now),
+    'warnings': warnings,
+  };
 }

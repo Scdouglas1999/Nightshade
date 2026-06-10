@@ -5,13 +5,7 @@ part of '../planetarium_providers.dart';
 // ============================================================================
 
 /// Object type filter for search
-enum SearchObjectTypeFilter {
-  all,
-  stars,
-  galaxies,
-  nebulae,
-  clusters,
-}
+enum SearchObjectTypeFilter { all, stars, galaxies, nebulae, clusters }
 
 /// Search filter configuration
 class SearchFilters {
@@ -41,10 +35,16 @@ class SearchFilters {
   }) {
     return SearchFilters(
       typeFilter: typeFilter ?? this.typeFilter,
-      minMagnitude: clearMinMagnitude ? null : (minMagnitude ?? this.minMagnitude),
-      maxMagnitude: clearMaxMagnitude ? null : (maxMagnitude ?? this.maxMagnitude),
+      minMagnitude: clearMinMagnitude
+          ? null
+          : (minMagnitude ?? this.minMagnitude),
+      maxMagnitude: clearMaxMagnitude
+          ? null
+          : (maxMagnitude ?? this.maxMagnitude),
       observableNow: observableNow ?? this.observableNow,
-      constellationFilter: clearConstellation ? null : (constellationFilter ?? this.constellationFilter),
+      constellationFilter: clearConstellation
+          ? null
+          : (constellationFilter ?? this.constellationFilter),
     );
   }
 
@@ -59,8 +59,10 @@ class SearchFilters {
 /// A scored search result with match quality information
 class ScoredSearchResult {
   final CelestialObject object;
+
   /// 0 = best (exact match), higher = worse match quality
   final int score;
+
   /// Which field matched (for display purposes)
   final String matchSource;
 
@@ -269,12 +271,14 @@ final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
   final objects = <CelestialObject>[];
 
   for (final planet in PlanetaryPositions.getAllPlanetPositions(time)) {
-    objects.add(Star(
-      id: 'PLANET_${planet.name}',
-      name: planet.name,
-      coordinates: CelestialCoordinate(ra: planet.ra, dec: planet.dec),
-      magnitude: planet.magnitude,
-    ));
+    objects.add(
+      Star(
+        id: 'PLANET_${planet.name}',
+        name: planet.name,
+        coordinates: CelestialCoordinate(ra: planet.ra, dec: planet.dec),
+        magnitude: planet.magnitude,
+      ),
+    );
   }
 
   final minorBodies = KeplerianPropagator.computePositions(
@@ -282,12 +286,14 @@ final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
     time: time,
   );
   for (final body in minorBodies) {
-    objects.add(Star(
-      id: 'MINORBODY_${body.name}',
-      name: body.name,
-      coordinates: body.coordinates,
-      magnitude: body.visualMag,
-    ));
+    objects.add(
+      Star(
+        id: 'MINORBODY_${body.name}',
+        name: body.name,
+        coordinates: body.coordinates,
+        magnitude: body.visualMag,
+      ),
+    );
   }
 
   return objects;
@@ -325,7 +331,9 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
       for (final entry in _wellKnownDsoNames.entries) {
         final score = _scoreMatch(qLower, entry.key);
         if (score != null) {
-          wellKnownIds.addAll(entry.value.map((v) => v.toLowerCase().replaceAll(' ', '')));
+          wellKnownIds.addAll(
+            entry.value.map((v) => v.toLowerCase().replaceAll(' ', '')),
+          );
         }
       }
 
@@ -350,51 +358,63 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             // Check proper name
             final nameScore = _scoreMatch(qLower, star.name);
             if (nameScore != null) {
-              scored.add(ScoredSearchResult(
-                object: star,
-                score: nameScore,
-                matchSource: 'name',
-              ));
+              scored.add(
+                ScoredSearchResult(
+                  object: star,
+                  score: nameScore,
+                  matchSource: 'name',
+                ),
+              );
               continue;
             }
 
             // Check star name alias
             if (starNameAlias != null &&
                 star.name.toLowerCase().contains(starNameAlias)) {
-              scored.add(ScoredSearchResult(
-                object: star,
-                score: 2,
-                matchSource: 'alias',
-              ));
+              scored.add(
+                ScoredSearchResult(
+                  object: star,
+                  score: 2,
+                  matchSource: 'alias',
+                ),
+              );
               continue;
             }
 
             // Check catalog IDs (HIP, HD, HR)
             final idScore = _scoreMatch(qLower, star.id);
             if (idScore != null) {
-              scored.add(ScoredSearchResult(
-                object: star,
-                score: idScore + 1, // Slightly lower priority than name
-                matchSource: 'id',
-              ));
+              scored.add(
+                ScoredSearchResult(
+                  object: star,
+                  score: idScore + 1, // Slightly lower priority than name
+                  matchSource: 'id',
+                ),
+              );
               continue;
             }
 
             for (final catId in star.catalogIds) {
               final catScore = _scoreMatch(qLower, catId);
               if (catScore != null) {
-                scored.add(ScoredSearchResult(
-                  object: star,
-                  score: catScore + 1,
-                  matchSource: 'catalog',
-                ));
+                scored.add(
+                  ScoredSearchResult(
+                    object: star,
+                    score: catScore + 1,
+                    matchSource: 'catalog',
+                  ),
+                );
                 break;
               }
             }
           }
         } catch (e) {
-          developer.log('[Planetarium] Star search error: $e',
-              name: 'PlanetariumProviders', level: 900, error: e);
+          developer.log(
+            '[Planetarium] Star search error: $e',
+            name: 'PlanetariumProviders',
+            level: 900,
+            error: e,
+          );
         }
       }
 
@@ -438,7 +458,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
                 final trimmed = cn.trim();
                 if (trimmed.isEmpty) continue;
                 final cnScore = _scoreMatch(qLower, trimmed);
-                if (cnScore != null && (bestScore == null || cnScore < bestScore)) {
+                if (cnScore != null &&
+                    (bestScore == null || cnScore < bestScore)) {
                   bestScore = cnScore;
                   matchSource = 'common name';
                 }
@@ -448,7 +469,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             // Check display name
             final (displayName, _) = _getDsoDisplayInfoForSearch(dso);
             final displayScore = _scoreMatch(qLower, displayName);
-            if (displayScore != null && (bestScore == null || displayScore < bestScore)) {
+            if (displayScore != null &&
+                (bestScore == null || displayScore < bestScore)) {
               bestScore = displayScore;
               matchSource = 'name';
             }
@@ -463,7 +485,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             // Check catalog IDs
             for (final catId in dso.catalogIds) {
               final catScore = _scoreMatch(qLower, catId);
-              if (catScore != null && (bestScore == null || catScore < bestScore)) {
+              if (catScore != null &&
+                  (bestScore == null || catScore < bestScore)) {
                 bestScore = catScore;
                 matchSource = 'catalog';
               }
@@ -473,24 +496,32 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             final constellation = dso.constellation;
             if (constellation != null) {
               final conScore = _scoreMatch(qLower, constellation);
-              if (conScore != null && conScore <= 1 &&
+              if (conScore != null &&
+                  conScore <= 1 &&
                   (bestScore == null || conScore + 5 < bestScore)) {
-                bestScore = conScore + 5; // Lower priority for constellation matches
+                bestScore =
+                    conScore + 5; // Lower priority for constellation matches
                 matchSource = 'constellation';
               }
             }
 
             if (bestScore != null) {
-              scored.add(ScoredSearchResult(
-                object: dso,
-                score: bestScore,
-                matchSource: matchSource,
-              ));
+              scored.add(
+                ScoredSearchResult(
+                  object: dso,
+                  score: bestScore,
+                  matchSource: matchSource,
+                ),
+              );
             }
           }
         } catch (e) {
-          developer.log('[Planetarium] DSO search error: $e',
-              name: 'PlanetariumProviders', level: 900, error: e);
+          developer.log(
+            '[Planetarium] DSO search error: $e',
+            name: 'PlanetariumProviders',
+            level: 900,
+            error: e,
+          );
         }
       }
 
@@ -505,16 +536,22 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             if (!_passesFilters(body, filters)) continue;
             final nameScore = _scoreMatch(qLower, body.name);
             if (nameScore != null) {
-              scored.add(ScoredSearchResult(
-                object: body,
-                score: nameScore,
-                matchSource: 'name',
-              ));
+              scored.add(
+                ScoredSearchResult(
+                  object: body,
+                  score: nameScore,
+                  matchSource: 'name',
+                ),
+              );
             }
           }
         } catch (e) {
-          developer.log('[Planetarium] Solar-system search error: $e',
-              name: 'PlanetariumProviders', level: 900, error: e);
+          developer.log(
+            '[Planetarium] Solar-system search error: $e',
+            name: 'PlanetariumProviders',
+            level: 900,
+            error: e,
+          );
         }
       }
 
@@ -574,7 +611,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
       }
       if (objConstellation == null) return false;
       if (!objConstellation.toLowerCase().contains(
-          filters.constellationFilter!.toLowerCase())) {
+        filters.constellationFilter!.toLowerCase(),
+      )) {
         return false;
       }
     }
@@ -618,5 +656,5 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
 
 final objectSearchProvider =
     StateNotifierProvider<ObjectSearchNotifier, ObjectSearchState>((ref) {
-  return ObjectSearchNotifier(ref);
-});
+      return ObjectSearchNotifier(ref);
+    });

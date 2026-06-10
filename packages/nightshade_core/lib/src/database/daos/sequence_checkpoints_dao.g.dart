@@ -18,5 +18,7 @@ class SequenceCheckpointsDaoManager {
       $$SequencesTableTableManager(_db.attachedDatabase, _db.sequences);
   $$SequenceCheckpointsTableTableManager get sequenceCheckpoints =>
       $$SequenceCheckpointsTableTableManager(
-          _db.attachedDatabase, _db.sequenceCheckpoints);
+        _db.attachedDatabase,
+        _db.sequenceCheckpoints,
+      );
 }

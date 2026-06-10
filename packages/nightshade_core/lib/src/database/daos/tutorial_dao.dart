@@ -15,8 +15,7 @@ class TutorialDao {
   /// Stable identity of the first-night wizard category as stored in the
   /// `tutorial_progress` table. Derived from the enum so a rename here and
   /// a rename of the enum stay in lock-step.
-  static final String firstNightCategoryName =
-      TutorialCategory.firstNight.name;
+  static final String firstNightCategoryName = TutorialCategory.firstNight.name;
 
   final TutorialProgressDao _progressDao;
 

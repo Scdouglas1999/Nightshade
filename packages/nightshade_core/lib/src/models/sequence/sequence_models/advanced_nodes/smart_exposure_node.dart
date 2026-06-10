@@ -72,8 +72,10 @@ class SmartExposureNode extends SequenceNode {
   NodeCategory get category => NodeCategory.instruction;
 
   @override
-  Set<DeviceType> get requiredDevices =>
-      {DeviceType.camera, DeviceType.filterWheel};
+  Set<DeviceType> get requiredDevices => {
+    DeviceType.camera,
+    DeviceType.filterWheel,
+  };
 
   /// Sum of per-plan integration time across all filter rows (count *
   /// duration), in seconds. The dashboard's "estimated total" indicator
@@ -128,12 +130,12 @@ class SmartExposureNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        plans,
-        rotateFilters,
-        ditherOnFilterChange,
-        integrationBudgetSecs,
-        batchSize,
-        loopUntilStopped,
-      ];
+    ...super.props,
+    plans,
+    rotateFilters,
+    ditherOnFilterChange,
+    integrationBudgetSecs,
+    batchSize,
+    loopUntilStopped,
+  ];
 }

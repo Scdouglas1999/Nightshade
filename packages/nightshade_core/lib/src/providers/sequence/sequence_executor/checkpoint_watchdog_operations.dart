@@ -1,4 +1,4 @@
-﻿part of '../sequence_executor.dart';
+part of '../sequence_executor.dart';
 
 extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
   void _startCheckpointTimer() {
@@ -12,8 +12,10 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
         } catch (e) {
           // Checkpoint write failure must not interrupt the running sequence;
           // the next tick will retry.
-          _logger.warning('Failed to save checkpoint: $e',
-              source: 'SequenceExecutor');
+          _logger.warning(
+            'Failed to save checkpoint: $e',
+            source: 'SequenceExecutor',
+          );
         }
       }
     });
@@ -62,7 +64,9 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
         // fails loud: it throws on partial failure and we log it, but the
         // watchdog keeps running.
         try {
-          await _ref.read(safeRigServiceProvider).safeTheRig(
+          await _ref
+              .read(safeRigServiceProvider)
+              .safeTheRig(
                 reason: 'Disk space critically low: ${event.message}',
                 park: true,
               );

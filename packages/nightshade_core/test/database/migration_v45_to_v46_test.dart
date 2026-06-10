@@ -55,8 +55,9 @@ void main() {
     }
 
     test('creates calibration_tags table and its index', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v45_v46_create_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v45_v46_create_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -65,16 +66,19 @@ void main() {
       final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
       try {
         expect(await tableNames(upgraded), contains('calibration_tags'));
-        expect(await indexNames(upgraded),
-            contains('idx_calibration_tags_camera'));
+        expect(
+          await indexNames(upgraded),
+          contains('idx_calibration_tags_camera'),
+        );
       } finally {
         await upgraded.close();
       }
     });
 
     test('tags / notes / camera-id round-trip with merge semantics', () async {
-      final tempDir = await Directory.systemTemp
-          .createTemp('nightshade_v45_v46_roundtrip_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v45_v46_roundtrip_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
@@ -87,8 +91,11 @@ void main() {
         // Cache a camera id (FITS enrichment path), then add tags later. The
         // merge must not clobber the camera id.
         await dao.upsert(CalibrationMasterType.dark, 7, cameraId: 'ASI2600MC');
-        await dao.upsert(CalibrationMasterType.dark, 7,
-            tags: ['keeper', 'best']);
+        await dao.upsert(
+          CalibrationMasterType.dark,
+          7,
+          tags: ['keeper', 'best'],
+        );
         await dao.upsert(CalibrationMasterType.dark, 7, notes: 'shot at -10C');
 
         final entry = await dao.getForMaster(CalibrationMasterType.dark, 7);
@@ -106,43 +113,48 @@ void main() {
       }
     });
 
-    test('upsert keys on (master_type, master_id) — no duplicate rows',
-        () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v45_v46_upsert_');
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV45Database(tempDir);
+    test(
+      'upsert keys on (master_type, master_id) — no duplicate rows',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v45_v46_upsert_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV45Database(tempDir);
 
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final dao = CalibrationTagsDao(upgraded);
-        await dao.upsert(CalibrationMasterType.flat, 3, tags: ['a']);
-        await dao.upsert(CalibrationMasterType.flat, 3, tags: ['b']);
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final dao = CalibrationTagsDao(upgraded);
+          await dao.upsert(CalibrationMasterType.flat, 3, tags: ['a']);
+          await dao.upsert(CalibrationMasterType.flat, 3, tags: ['b']);
 
-        final count = await upgraded
-            .customSelect('SELECT COUNT(*) AS c FROM calibration_tags')
-            .getSingle();
-        expect(count.read<int>('c'), 1);
-        final entry = await dao.getForMaster(CalibrationMasterType.flat, 3);
-        expect(entry!.tags, ['b']);
-      } finally {
-        await upgraded.close();
-      }
-    });
+          final count = await upgraded
+              .customSelect('SELECT COUNT(*) AS c FROM calibration_tags')
+              .getSingle();
+          expect(count.read<int>('c'), 1);
+          final entry = await dao.getForMaster(CalibrationMasterType.flat, 3);
+          expect(entry!.tags, ['b']);
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test('re-running the v46 migration block is idempotent (no-op)', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('nightshade_v45_v46_idem_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v45_v46_idem_',
+      );
       addTearDown(() async {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
       final dbFile = await createV45Database(tempDir);
 
       final first = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      await CalibrationTagsDao(first)
-          .upsert(CalibrationMasterType.bias, 1, tags: ['keep']);
+      await CalibrationTagsDao(
+        first,
+      ).upsert(CalibrationMasterType.bias, 1, tags: ['keep']);
       await first.close();
 
       // Rewind to v45 WITHOUT dropping; the helper is all IF NOT EXISTS, so
@@ -157,8 +169,11 @@ void main() {
         final count = await second
             .customSelect('SELECT COUNT(*) AS c FROM calibration_tags')
             .getSingle();
-        expect(count.read<int>('c'), 1,
-            reason: 'The idempotent helper must NOT clobber the existing row.');
+        expect(
+          count.read<int>('c'),
+          1,
+          reason: 'The idempotent helper must NOT clobber the existing row.',
+        );
       } finally {
         await second.close();
       }

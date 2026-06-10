@@ -30,8 +30,7 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp('ns_log_handlers_test_');
       // Use a fake current-log file path so clearLogs preserves it.
       logsDir = '${tempDir.path}${Platform.pathSeparator}logs';
-      final currentLogPath =
-          '$logsDir${Platform.pathSeparator}nightshade.log';
+      final currentLogPath = '$logsDir${Platform.pathSeparator}nightshade.log';
       logger = LoggingService(
         applicationSupportDirectoryProvider: () async => tempDir,
         nativeInitWithLogging: ({logDirectory}) {},
@@ -41,9 +40,7 @@ void main() {
       await logger.ensureInitialized();
 
       container = ProviderContainer(
-        overrides: [
-          loggingServiceProvider.overrideWithValue(logger),
-        ],
+        overrides: [loggingServiceProvider.overrideWithValue(logger)],
       );
       handlers = LogHandlers(container);
     });
@@ -61,13 +58,16 @@ void main() {
     // -------------------------------------------------------------------
     group('GET /api/logs', () {
       test('returns list of log files with size and modifiedAt', () async {
-        await File('$logsDir/nightshade.log.2026-05-22')
-            .writeAsString('first-day');
+        await File(
+          '$logsDir/nightshade.log.2026-05-22',
+        ).writeAsString('first-day');
         await File('$logsDir/nightshade.log').writeAsString('current');
 
-        final response = await translateHandlerErrors(handlers.handleListFiles(
-          Request('GET', Uri.parse('http://localhost/api/logs')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleListFiles(
+            Request('GET', Uri.parse('http://localhost/api/logs')),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.ok);
         final body = jsonDecode(await response.readAsString()) as Map;
@@ -95,10 +95,14 @@ void main() {
           logger.info('test-$i', source: 'TestSrc');
         }
 
-        final response = await translateHandlerErrors(handlers.handleRecent(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/recent?limit=10')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/logs/recent?limit=10'),
+            ),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.ok);
         final body = jsonDecode(await response.readAsString()) as Map;
@@ -107,19 +111,27 @@ void main() {
       });
 
       test('clamps limit to ring buffer capacity', () async {
-        final response = await translateHandlerErrors(handlers.handleRecent(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/recent?limit=999999')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/logs/recent?limit=999999'),
+            ),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.ok);
       });
 
       test('400 on non-positive limit', () async {
-        final response = await translateHandlerErrors(handlers.handleRecent(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/recent?limit=0')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/logs/recent?limit=0'),
+            ),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.badRequest);
       });
@@ -132,12 +144,14 @@ void main() {
         logger.warning('warn-line');
         logger.error('err-line');
 
-        final response = await translateHandlerErrors(handlers.handleRecent(
-          Request(
+        final response = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
               'GET',
-              Uri.parse(
-                  'http://localhost/api/logs/recent?minSeverity=warning')),
-        ));
+              Uri.parse('http://localhost/api/logs/recent?minSeverity=warning'),
+            ),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.ok);
         final body = jsonDecode(await response.readAsString()) as Map;
@@ -157,10 +171,14 @@ void main() {
       });
 
       test('400 on bad minSeverity', () async {
-        final response = await translateHandlerErrors(handlers.handleRecent(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/recent?minSeverity=panic')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/logs/recent?minSeverity=panic'),
+            ),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.badRequest);
       });
@@ -172,8 +190,10 @@ void main() {
     group('GET /api/logs/files/{filename}/download', () {
       late File targetFile;
       late int fileLength;
-      final payload =
-          List<int>.generate(200, (i) => 0x41 + (i % 26)); // ASCII A..Z repeat
+      final payload = List<int>.generate(
+        200,
+        (i) => 0x41 + (i % 26),
+      ); // ASCII A..Z repeat
 
       setUp(() async {
         targetFile = File('$logsDir/nightshade.log.2026-05-22');
@@ -185,16 +205,20 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleDownloadFile(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/logs/files/nightshade.log.2026-05-22/download')),
+              'GET',
+              Uri.parse(
+                'http://localhost/api/logs/files/nightshade.log.2026-05-22/download',
+              ),
+            ),
             'nightshade.log.2026-05-22',
           ),
         );
 
         expect(response.statusCode, HttpStatus.ok);
-        expect(response.headers['content-disposition'],
-            contains('nightshade.log.2026-05-22'));
+        expect(
+          response.headers['content-disposition'],
+          contains('nightshade.log.2026-05-22'),
+        );
         expect(response.headers['accept-ranges'], 'bytes');
         expect(response.headers['etag'], isNotNull);
         expect(response.headers['content-length'], fileLength.toString());
@@ -208,7 +232,8 @@ void main() {
             Request(
               'GET',
               Uri.parse(
-                  'http://localhost/api/logs/files/nightshade.log.2026-05-22/download'),
+                'http://localhost/api/logs/files/nightshade.log.2026-05-22/download',
+              ),
               headers: {'range': 'bytes=10-19'},
             ),
             'nightshade.log.2026-05-22',
@@ -216,8 +241,7 @@ void main() {
         );
 
         expect(response.statusCode, HttpStatus.partialContent);
-        expect(response.headers['content-range'],
-            'bytes 10-19/$fileLength');
+        expect(response.headers['content-range'], 'bytes 10-19/$fileLength');
         final body = await response.read().expand((c) => c).toList();
         expect(body, payload.sublist(10, 20));
       });
@@ -228,7 +252,8 @@ void main() {
             Request(
               'GET',
               Uri.parse(
-                  'http://localhost/api/logs/files/nightshade.log.2026-05-22/download'),
+                'http://localhost/api/logs/files/nightshade.log.2026-05-22/download',
+              ),
               headers: {'range': 'lines=0-10'},
             ),
             'nightshade.log.2026-05-22',
@@ -242,9 +267,11 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleDownloadFile(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/logs/files/..%2Fetc%2Fpasswd/download')),
+              'GET',
+              Uri.parse(
+                'http://localhost/api/logs/files/..%2Fetc%2Fpasswd/download',
+              ),
+            ),
             '../etc/passwd',
           ),
         );
@@ -258,9 +285,9 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleDownloadFile(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/logs/files/random.txt/download')),
+              'GET',
+              Uri.parse('http://localhost/api/logs/files/random.txt/download'),
+            ),
             'random.txt',
           ),
         );
@@ -272,9 +299,11 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleDownloadFile(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/logs/files/nightshade.log.2099-12-31/download')),
+              'GET',
+              Uri.parse(
+                'http://localhost/api/logs/files/nightshade.log.2099-12-31/download',
+              ),
+            ),
             'nightshade.log.2099-12-31',
           ),
         );
@@ -291,14 +320,18 @@ void main() {
         // Plant the active log file AND a rotated one.
         final currentLog = logger.currentLogFile!;
         await File(currentLog).writeAsString('current-data');
-        await File('$logsDir/nightshade.log.2026-05-20')
-            .writeAsString('rotated-1');
-        await File('$logsDir/nightshade.log.2026-05-21')
-            .writeAsString('rotated-2-longer');
+        await File(
+          '$logsDir/nightshade.log.2026-05-20',
+        ).writeAsString('rotated-1');
+        await File(
+          '$logsDir/nightshade.log.2026-05-21',
+        ).writeAsString('rotated-2-longer');
 
-        final response = await translateHandlerErrors(handlers.handleClear(
-          Request('POST', Uri.parse('http://localhost/api/logs/clear')),
-        ));
+        final response = await translateHandlerErrors(
+          handlers.handleClear(
+            Request('POST', Uri.parse('http://localhost/api/logs/clear')),
+          ),
+        );
 
         expect(response.statusCode, HttpStatus.ok);
         final body = jsonDecode(await response.readAsString()) as Map;
@@ -309,8 +342,10 @@ void main() {
 
         // Current log preserved.
         expect(await File(currentLog).exists(), isTrue);
-        expect(await File('$logsDir/nightshade.log.2026-05-20').exists(),
-            isFalse);
+        expect(
+          await File('$logsDir/nightshade.log.2026-05-20').exists(),
+          isFalse,
+        );
       });
     });
 
@@ -319,19 +354,20 @@ void main() {
     // -------------------------------------------------------------------
     group('POST /api/logs/test-entry', () {
       test('writes the entry and appears in recent', () async {
-        final response =
-            await translateHandlerErrors(handlers.handleTestEntry(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/logs/test-entry'),
-            body: jsonEncode({
-              'severity': 'error',
-              'message': 'synthetic test entry',
-              'source': 'MobileTest',
-              'fields': {'foo': 'bar'},
-            }),
+        final response = await translateHandlerErrors(
+          handlers.handleTestEntry(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/logs/test-entry'),
+              body: jsonEncode({
+                'severity': 'error',
+                'message': 'synthetic test entry',
+                'source': 'MobileTest',
+                'fields': {'foo': 'bar'},
+              }),
+            ),
           ),
-        ));
+        );
 
         expect(response.statusCode, HttpStatus.ok);
         final body = jsonDecode(await response.readAsString()) as Map;
@@ -343,11 +379,14 @@ void main() {
         expect((entry['fields'] as Map)['foo'], 'bar');
 
         // Verify it shows up via the recent endpoint.
-        final recentResponse =
-            await translateHandlerErrors(handlers.handleRecent(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/recent?minSeverity=error')),
-        ));
+        final recentResponse = await translateHandlerErrors(
+          handlers.handleRecent(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/logs/recent?minSeverity=error'),
+            ),
+          ),
+        );
         final recentBody =
             jsonDecode(await recentResponse.readAsString()) as Map;
         final entries = (recentBody['entries'] as List)
@@ -360,27 +399,29 @@ void main() {
       });
 
       test('400 on bad severity', () async {
-        final response =
-            await translateHandlerErrors(handlers.handleTestEntry(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/logs/test-entry'),
-            body: jsonEncode({'severity': 'panic', 'message': 'x'}),
+        final response = await translateHandlerErrors(
+          handlers.handleTestEntry(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/logs/test-entry'),
+              body: jsonEncode({'severity': 'panic', 'message': 'x'}),
+            ),
           ),
-        ));
+        );
 
         expect(response.statusCode, HttpStatus.badRequest);
       });
 
       test('400 on missing message', () async {
-        final response =
-            await translateHandlerErrors(handlers.handleTestEntry(
-          Request(
-            'POST',
-            Uri.parse('http://localhost/api/logs/test-entry'),
-            body: jsonEncode({'severity': 'info'}),
+        final response = await translateHandlerErrors(
+          handlers.handleTestEntry(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/logs/test-entry'),
+              body: jsonEncode({'severity': 'info'}),
+            ),
           ),
-        ));
+        );
 
         expect(response.statusCode, HttpStatus.badRequest);
       });
@@ -401,8 +442,10 @@ void main() {
         );
 
         expect(response.statusCode, HttpStatus.ok);
-        expect(response.headers['content-type'],
-            startsWith('text/event-stream'));
+        expect(
+          response.headers['content-type'],
+          startsWith('text/event-stream'),
+        );
 
         final buffer = StringBuffer();
         final liveReceived = Completer<void>();
@@ -434,8 +477,10 @@ void main() {
 
       test('severity filter drops non-matching live entries', () async {
         final response = handlers.handleTail(
-          Request('GET',
-              Uri.parse('http://localhost/api/logs/tail?severity=error')),
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/logs/tail?severity=error'),
+          ),
         );
 
         final buffer = StringBuffer();
@@ -497,8 +542,11 @@ void main() {
         final raw = buffer.toString();
         expect(raw, contains('post-cutoff-A'));
         expect(raw, contains('post-cutoff-B'));
-        expect(raw.contains('pre-cutoff-A'), isFalse,
-            reason: 'entries at/before Last-Event-ID must be skipped');
+        expect(
+          raw.contains('pre-cutoff-A'),
+          isFalse,
+          reason: 'entries at/before Last-Event-ID must be skipped',
+        );
       });
 
       test('400 on unrecognised severity in query', () async {
@@ -506,14 +554,18 @@ void main() {
         // is unparseable. Wrap the call in an async future so the test
         // helper can translate the exception into a structured 400 the
         // same way the request-pipeline middleware would.
-        final response = await translateHandlerErrors(Future.sync(() async {
-          // Calling handleTail synchronously throws — wrap to surface as
-          // an async failure that translateHandlerErrors can capture.
-          return handlers.handleTail(
-            Request('GET',
-                Uri.parse('http://localhost/api/logs/tail?severity=panic')),
-          );
-        }));
+        final response = await translateHandlerErrors(
+          Future.sync(() async {
+            // Calling handleTail synchronously throws — wrap to surface as
+            // an async failure that translateHandlerErrors can capture.
+            return handlers.handleTail(
+              Request(
+                'GET',
+                Uri.parse('http://localhost/api/logs/tail?severity=panic'),
+              ),
+            );
+          }),
+        );
         expect(response.statusCode, HttpStatus.badRequest);
       });
 

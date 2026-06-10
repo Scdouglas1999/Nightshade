@@ -27,14 +27,15 @@ import 'database_provider.dart';
 /// `isBuiltIn: false` override copy under its (stable) id, which the service's
 /// merge then prefers over the catalog entry. Built-ins can never be deleted.
 final hardwarePresetsServiceProvider =
-    StateNotifierProvider<HardwarePresetsNotifier, HardwarePresetsService>(
-        (ref) {
-  final notifier = HardwarePresetsNotifier(ref);
-  // Kick off hydration immediately. State starts at the built-ins-only base
-  // service; once `_load()` resolves the persisted overrides are merged in.
-  notifier._load();
-  return notifier;
-});
+    StateNotifierProvider<HardwarePresetsNotifier, HardwarePresetsService>((
+      ref,
+    ) {
+      final notifier = HardwarePresetsNotifier(ref);
+      // Kick off hydration immediately. State starts at the built-ins-only base
+      // service; once `_load()` resolves the persisted overrides are merged in.
+      notifier._load();
+      return notifier;
+    });
 
 /// All telescope presets (overrides merged over built-ins). Convenience read
 /// for the preset-picker UI so it doesn't reach through the notifier.
@@ -55,8 +56,8 @@ final cameraDefaultsPresetsProvider = Provider<List<CameraDefaultsPreset>>(
 
 class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
   HardwarePresetsNotifier(this._ref)
-      : _base = const HardwarePresetsService(),
-        super(const HardwarePresetsService());
+    : _base = const HardwarePresetsService(),
+      super(const HardwarePresetsService());
 
   final Ref _ref;
 
@@ -95,16 +96,18 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
   Future<void> _load() async {
     try {
       final settingsDao = _ref.read(settingsDaoProvider);
-      final telescopeRaw = await settingsDao
-          .getSetting(HardwarePresetsService.telescopeOverridesSettingKey);
-      final cameraRaw = await settingsDao
-          .getSetting(HardwarePresetsService.cameraOverridesSettingKey);
+      final telescopeRaw = await settingsDao.getSetting(
+        HardwarePresetsService.telescopeOverridesSettingKey,
+      );
+      final cameraRaw = await settingsDao.getSetting(
+        HardwarePresetsService.cameraOverridesSettingKey,
+      );
 
       // A malformed blob throws FormatException here — surfaced, not swallowed.
       final telescopeOverrides =
           HardwarePresetsService.telescopeOverridesFromJson(
-        telescopeRaw == null ? null : jsonDecode(telescopeRaw),
-      );
+            telescopeRaw == null ? null : jsonDecode(telescopeRaw),
+          );
       final cameraOverrides = HardwarePresetsService.cameraOverridesFromJson(
         cameraRaw == null ? null : jsonDecode(cameraRaw),
       );
@@ -187,8 +190,9 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
         'Cannot delete built-in camera preset "$id"; built-ins are immutable',
       );
     }
-    final next =
-        _currentCameraOverrides().where((preset) => preset.id != id).toList();
+    final next = _currentCameraOverrides()
+        .where((preset) => preset.id != id)
+        .toList();
     await _persistCameraOverrides(next);
     if (!mounted) return;
     state = state.withOverrides(cameraOverrides: next);
@@ -219,7 +223,8 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
       builtInCameraDefaultsPresets.any((preset) => preset.id == id);
 
   Future<void> _persistTelescopeOverrides(
-      List<TelescopePreset> overrides) async {
+    List<TelescopePreset> overrides,
+  ) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     await settingsDao.setSetting(
       HardwarePresetsService.telescopeOverridesSettingKey,
@@ -228,7 +233,8 @@ class HardwarePresetsNotifier extends StateNotifier<HardwarePresetsService> {
   }
 
   Future<void> _persistCameraOverrides(
-      List<CameraDefaultsPreset> overrides) async {
+    List<CameraDefaultsPreset> overrides,
+  ) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     await settingsDao.setSetting(
       HardwarePresetsService.cameraOverridesSettingKey,

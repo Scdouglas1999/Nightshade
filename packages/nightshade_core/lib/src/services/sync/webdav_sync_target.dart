@@ -35,8 +35,8 @@ class WebDavSyncTarget implements SyncTarget {
     required this.username,
     required this.password,
     http.Client? client,
-  })  : _client = client ?? http.Client(),
-        _ownsClient = client == null;
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null;
 
   void close() {
     if (_ownsClient) _client.close();
@@ -134,8 +134,7 @@ class WebDavSyncTarget implements SyncTarget {
     var prefix = '';
     for (final segment in segments) {
       prefix = prefix.isEmpty ? segment : '$prefix/$segment';
-      final response =
-          await _send('MKCOL', _uriFor(prefix, directory: true));
+      final response = await _send('MKCOL', _uriFor(prefix, directory: true));
       final status = response.statusCode;
       // 201 = created, 405 = already exists. Some servers answer 200/204.
       if (status == 201 || status == 405 || status == 200 || status == 204) {
@@ -189,7 +188,8 @@ class WebDavSyncTarget implements SyncTarget {
     return _parseMultistatus(response.body, requestUri: uri);
   }
 
-  static const String _propfindBody = '<?xml version="1.0"?>'
+  static const String _propfindBody =
+      '<?xml version="1.0"?>'
       '<d:propfind xmlns:d="DAV:"><d:prop>'
       '<d:resourcetype/><d:getcontentlength/><d:getlastmodified/>'
       '</d:prop></d:propfind>';
@@ -212,11 +212,11 @@ class WebDavSyncTarget implements SyncTarget {
   );
 
   static RegExp _elementText(String localName) => RegExp(
-        '<(?:[A-Za-z0-9_-]+:)?$localName[^>]*>(.*?)'
-        '</(?:[A-Za-z0-9_-]+:)?$localName>',
-        dotAll: true,
-        caseSensitive: false,
-      );
+    '<(?:[A-Za-z0-9_-]+:)?$localName[^>]*>(.*?)'
+    '</(?:[A-Za-z0-9_-]+:)?$localName>',
+    dotAll: true,
+    caseSensitive: false,
+  );
 
   static String _xmlUnescape(String value) => value
       .replaceAll('&lt;', '<')
@@ -277,8 +277,8 @@ class WebDavSyncTarget implements SyncTarget {
       }
 
       final name = decodedPath.split('/').where((s) => s.isNotEmpty).last;
-      final isDirectory = _collectionPattern.hasMatch(block) ||
-          hrefPath.endsWith('/');
+      final isDirectory =
+          _collectionPattern.hasMatch(block) || hrefPath.endsWith('/');
 
       int? sizeBytes;
       final lengthMatch = _lengthPattern.firstMatch(block);
@@ -296,12 +296,14 @@ class WebDavSyncTarget implements SyncTarget {
         }
       }
 
-      entries.add(SyncRemoteEntry(
-        name: name,
-        isDirectory: isDirectory,
-        sizeBytes: sizeBytes,
-        modified: modified,
-      ));
+      entries.add(
+        SyncRemoteEntry(
+          name: name,
+          isDirectory: isDirectory,
+          sizeBytes: sizeBytes,
+          modified: modified,
+        ),
+      );
     }
     return entries;
   }

@@ -17,8 +17,11 @@ void main() {
       );
 
       expect(id, isNotEmpty);
-      expect(_uuidV4Regex.hasMatch(id), isTrue,
-          reason: 'generated id "$id" is not a canonical RFC 4122 UUID v4');
+      expect(
+        _uuidV4Regex.hasMatch(id),
+        isTrue,
+        reason: 'generated id "$id" is not a canonical RFC 4122 UUID v4',
+      );
     });
 
     test('two consecutive calls return distinct UUIDs', () {
@@ -69,8 +72,7 @@ void main() {
   });
 
   group('CommandCorrelator.stampEvent', () {
-    test('matches by (operation, deviceId) and returns the registered id',
-        () {
+    test('matches by (operation, deviceId) and returns the registered id', () {
       final correlator = CommandCorrelator();
       final commandId = correlator.beginCommand(
         operation: 'mount.slew',
@@ -123,37 +125,24 @@ void main() {
       );
     });
 
-    test(
-        'does not match across different (operation, deviceId) pairs '
+    test('does not match across different (operation, deviceId) pairs '
         '(operation-or-device asymmetry)', () {
       final correlator = CommandCorrelator();
-      correlator.beginCommand(
-        operation: 'camera.expose',
-        deviceId: 'camera:0',
-      );
+      correlator.beginCommand(operation: 'camera.expose', deviceId: 'camera:0');
 
       // Same op, different device — no match.
       expect(
-        correlator.stampEvent(
-          operation: 'camera.expose',
-          deviceId: 'camera:1',
-        ),
+        correlator.stampEvent(operation: 'camera.expose', deviceId: 'camera:1'),
         isNull,
       );
       // Different op, same device — no match.
       expect(
-        correlator.stampEvent(
-          operation: 'mount.slew',
-          deviceId: 'camera:0',
-        ),
+        correlator.stampEvent(operation: 'mount.slew', deviceId: 'camera:0'),
         isNull,
       );
       // Completely different — no match.
       expect(
-        correlator.stampEvent(
-          operation: 'mount.slew',
-          deviceId: 'mount:0',
-        ),
+        correlator.stampEvent(operation: 'mount.slew', deviceId: 'mount:0'),
         isNull,
       );
 
@@ -191,10 +180,7 @@ void main() {
       final correlator = CommandCorrelator();
       final id = correlator.beginCommand(operation: 'sequencer.start');
 
-      expect(
-        correlator.stampEvent(operation: 'sequencer.start'),
-        equals(id),
-      );
+      expect(correlator.stampEvent(operation: 'sequencer.start'), equals(id));
 
       final id2 = correlator.beginCommand(
         operation: 'sequencer.start',
@@ -266,8 +252,7 @@ void main() {
       expect(stamped, isNotNull);
     });
 
-    test(
-        'expired entries at the head are evicted when a fresh stamp arrives '
+    test('expired entries at the head are evicted when a fresh stamp arrives '
         'and the next-oldest entry matches', () {
       var now = DateTime.utc(2026, 1, 1, 12, 0, 0);
       final correlator = CommandCorrelator(
@@ -308,10 +293,7 @@ void main() {
       correlator.clear();
       expect(correlator.pendingCount, 0);
       expect(
-        correlator.stampEvent(
-          operation: 'mount.slew',
-          deviceId: 'mount:0',
-        ),
+        correlator.stampEvent(operation: 'mount.slew', deviceId: 'mount:0'),
         isNull,
       );
     });
@@ -325,8 +307,7 @@ void main() {
     });
 
     test('ExposureCompleted maps back to camera.expose', () {
-      expect(operationForCompletionEvent('ExposureCompleted'),
-          'camera.expose');
+      expect(operationForCompletionEvent('ExposureCompleted'), 'camera.expose');
     });
 
     test('unknown event types return null', () {
@@ -334,16 +315,19 @@ void main() {
       expect(operationForCompletionEvent(''), isNull);
     });
 
-    test('every key in commandCompletionEventTypes is reverse-resolvable',
-        () {
+    test('every key in commandCompletionEventTypes is reverse-resolvable', () {
       // For each (operation, eventTypes) entry, every eventType must
       // resolve to SOMETHING (the first key registering it, per the impl).
       for (final entry in commandCompletionEventTypes.entries) {
         for (final eventType in entry.value) {
           final resolved = operationForCompletionEvent(eventType);
-          expect(resolved, isNotNull,
-              reason: 'eventType "$eventType" (declared by operation '
-                  '"${entry.key}") did not reverse-resolve');
+          expect(
+            resolved,
+            isNotNull,
+            reason:
+                'eventType "$eventType" (declared by operation '
+                '"${entry.key}") did not reverse-resolve',
+          );
         }
       }
     });

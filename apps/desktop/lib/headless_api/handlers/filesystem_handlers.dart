@@ -40,10 +40,7 @@ class FileSystemHandlers {
           'currentPath': null,
           'parentPath': null,
           'directories': roots
-              .map((r) => {
-                    'name': r.label,
-                    'path': r.canonicalPath,
-                  })
+              .map((r) => {'name': r.label, 'path': r.canonicalPath})
               .toList(),
         });
       }
@@ -70,10 +67,7 @@ class FileSystemHandlers {
           'message':
               'The requested path is not under an allow-listed browse root',
           'allowedRoots': roots
-              .map((r) => {
-                    'name': r.label,
-                    'path': r.canonicalPath,
-                  })
+              .map((r) => {'name': r.label, 'path': r.canonicalPath})
               .toList(),
         });
       }
@@ -83,10 +77,12 @@ class FileSystemHandlers {
           .where((entity) => entity is Directory)
           .cast<Directory>()
           .toList();
-      entries.sort((a, b) => p
-          .basename(a.path)
-          .toLowerCase()
-          .compareTo(p.basename(b.path).toLowerCase()));
+      entries.sort(
+        (a, b) => p
+            .basename(a.path)
+            .toLowerCase()
+            .compareTo(p.basename(b.path).toLowerCase()),
+      );
 
       // Use the canonicalized path so the client sees the same shape we
       // verified against the allow-list, not whatever they passed in.
@@ -96,7 +92,7 @@ class FileSystemHandlers {
       // a "browse up out of the allow-list" hop after reaching an allowed dir.
       final parentAllowed =
           parentCanonical != normalizedPath &&
-              _isPathUnderAnyRoot(parentCanonical, roots);
+          _isPathUnderAnyRoot(parentCanonical, roots);
       // Listed children must each be canonicalized + checked. A symlink in an
       // allowed root that targets /etc must not let the caller hop out.
       final children = <Map<String, dynamic>>[];
@@ -105,10 +101,7 @@ class FileSystemHandlers {
         if (!_isPathUnderAnyRoot(childCanonical, roots)) {
           continue;
         }
-        children.add({
-          'name': p.basename(entry.path),
-          'path': childCanonical,
-        });
+        children.add({'name': p.basename(entry.path), 'path': childCanonical});
       }
 
       return jsonOk({
@@ -230,7 +223,9 @@ class FileSystemHandlers {
   bool _isPathUnderAnyRoot(String canonicalPath, List<_BrowseRoot> roots) {
     for (final root in roots) {
       final rootPath = root.canonicalPath;
-      final a = Platform.isWindows ? canonicalPath.toLowerCase() : canonicalPath;
+      final a = Platform.isWindows
+          ? canonicalPath.toLowerCase()
+          : canonicalPath;
       final b = Platform.isWindows ? rootPath.toLowerCase() : rootPath;
       if (a == b) return true;
       // Append a separator before the prefix check so "/foo/bar" doesn't

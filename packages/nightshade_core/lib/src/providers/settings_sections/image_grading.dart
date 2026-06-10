@@ -86,10 +86,7 @@ extension ImageGradingSettingsSection on AppSettingsNotifier {
   /// save_path; absolute paths are honoured verbatim.
   Future<void> setImageGradingRejectFolderPath(String? value) async {
     final normalised = (value == null || value.trim().isEmpty) ? null : value;
-    await _saveSetting(
-      'image_grading_reject_folder_path',
-      normalised ?? '',
-    );
+    await _saveSetting('image_grading_reject_folder_path', normalised ?? '');
     _patchState((s) => s.copyWith(imageGradingRejectFolderPath: normalised));
   }
 }

@@ -358,8 +358,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
             'auto-match',
             'tags',
           ],
-          build: (isMobile) =>
-              CalibrationLibrarySettings(isMobile: isMobile),
+          build: (isMobile) => CalibrationLibrarySettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
           key: 'annotations',

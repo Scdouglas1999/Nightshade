@@ -24,8 +24,8 @@ class PaginatedImageLoader {
     required ImagesDao imagesDao,
     int? sessionId,
     this.pageSize = defaultPageSize,
-  })  : _imagesDao = imagesDao,
-        _sessionId = sessionId;
+  }) : _imagesDao = imagesDao,
+       _sessionId = sessionId;
 
   /// Load the next page of images
   Future<List<CapturedImage>> loadNextPage() async {
@@ -38,7 +38,7 @@ class PaginatedImageLoader {
     final List<CapturedImage> page;
     if (_sessionId != null) {
       page = await _imagesDao.getImagesForSessionPaginated(
-        sessionId: _sessionId!,
+        sessionId: _sessionId,
         limit: pageSize,
         offset: offset,
       );
@@ -70,7 +70,7 @@ class PaginatedImageLoader {
 
     final pageImages = _sessionId != null
         ? await _imagesDao.getImagesForSessionPaginated(
-            sessionId: _sessionId!,
+            sessionId: _sessionId,
             limit: pageSize,
             offset: offset,
           )
@@ -109,7 +109,7 @@ class PaginatedImageLoader {
   /// Get total image count
   Future<int> getTotalCount() async {
     if (_sessionId != null) {
-      return _imagesDao.getImageCountForSession(_sessionId!);
+      return _imagesDao.getImageCountForSession(_sessionId);
     } else {
       return _imagesDao.getImageCount();
     }
@@ -141,12 +141,12 @@ class PaginatedImageState {
   });
 
   factory PaginatedImageState.initial() => const PaginatedImageState(
-        images: [],
-        isLoading: false,
-        hasMore: true,
-        currentPage: 0,
-        totalCount: 0,
-      );
+    images: [],
+    isLoading: false,
+    hasMore: true,
+    currentPage: 0,
+    totalCount: 0,
+  );
 
   PaginatedImageState copyWith({
     List<CapturedImage>? images,
@@ -198,10 +198,7 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
         currentPage: _loader.currentPage,
       );
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -223,10 +220,7 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
         currentPage: page,
       );
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -246,12 +240,16 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
 }
 
 /// Provider for paginated session images
-final paginatedSessionImagesProvider = StateNotifierProvider.family<
-    PaginatedImageNotifier, PaginatedImageState, int?>((ref, sessionId) {
-  final database = ref.watch(databaseProvider);
-  final loader = PaginatedImageLoader(
-    imagesDao: database.imagesDao,
-    sessionId: sessionId,
-  );
-  return PaginatedImageNotifier(loader);
-});
+final paginatedSessionImagesProvider =
+    StateNotifierProvider.family<
+      PaginatedImageNotifier,
+      PaginatedImageState,
+      int?
+    >((ref, sessionId) {
+      final database = ref.watch(databaseProvider);
+      final loader = PaginatedImageLoader(
+        imagesDao: database.imagesDao,
+        sessionId: sessionId,
+      );
+      return PaginatedImageNotifier(loader);
+    });

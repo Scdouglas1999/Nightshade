@@ -81,8 +81,9 @@ class JournalNote extends Equatable {
     return JournalNote(
       id: id ?? this.id,
       targetId: targetId ?? this.targetId,
-      sequenceRunId:
-          clearSequenceRunId ? null : (sequenceRunId ?? this.sequenceRunId),
+      sequenceRunId: clearSequenceRunId
+          ? null
+          : (sequenceRunId ?? this.sequenceRunId),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       title: clearTitle ? null : (title ?? this.title),
@@ -94,17 +95,17 @@ class JournalNote extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'targetId': targetId,
-        'sequenceRunId': sequenceRunId,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'title': title,
-        'body': body,
-        'tags': tags,
-        'attachments': attachments,
-        'sentiment': sentiment,
-      };
+    'id': id,
+    'targetId': targetId,
+    'sequenceRunId': sequenceRunId,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'title': title,
+    'body': body,
+    'tags': tags,
+    'attachments': attachments,
+    'sentiment': sentiment,
+  };
 
   /// Decode the JSON-encoded `tags_json` / `attachments_json` columns into
   /// a list of strings. Tolerates malformed payloads by returning an empty
@@ -130,15 +131,15 @@ class JournalNote extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        targetId,
-        sequenceRunId,
-        createdAt,
-        updatedAt,
-        title,
-        body,
-        tags,
-        attachments,
-        sentiment,
-      ];
+    id,
+    targetId,
+    sequenceRunId,
+    createdAt,
+    updatedAt,
+    title,
+    body,
+    tags,
+    attachments,
+    sentiment,
+  ];
 }

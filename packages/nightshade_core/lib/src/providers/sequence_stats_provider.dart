@@ -36,17 +36,17 @@ class SequenceRunStats {
   final List<String> warningMessages;
 
   SequenceRunStats()
-      : startTime = DateTime.now(),
-        framesCaptured = 0,
-        framesRejected = 0,
-        integrationSecs = 0,
-        triggerFires = 0,
-        autofocusRuns = 0,
-        meridianFlips = 0,
-        ditherCount = 0,
-        targetBreakdown = {},
-        errorMessages = [],
-        warningMessages = [];
+    : startTime = DateTime.now(),
+      framesCaptured = 0,
+      framesRejected = 0,
+      integrationSecs = 0,
+      triggerFires = 0,
+      autofocusRuns = 0,
+      meridianFlips = 0,
+      ditherCount = 0,
+      targetBreakdown = {},
+      errorMessages = [],
+      warningMessages = [];
 
   double get wallClockSecs {
     final end = endTime ?? DateTime.now();
@@ -66,8 +66,10 @@ class SequenceRunStats {
     integrationSecs += exposureSecs;
 
     targetBreakdown.putIfAbsent(target, () => {});
-    final filterStats =
-        targetBreakdown[target]!.putIfAbsent(filter, () => _FilterStats());
+    final filterStats = targetBreakdown[target]!.putIfAbsent(
+      filter,
+      () => _FilterStats(),
+    );
     filterStats.captured++;
     if (!accepted) filterStats.rejected++;
     filterStats.integrationSecs += exposureSecs;
@@ -126,8 +128,7 @@ class SequenceRunStats {
     final stats = SequenceRunStats();
     stats.framesCaptured = (map['framesCaptured'] as num?)?.toInt() ?? 0;
     stats.framesRejected = (map['framesRejected'] as num?)?.toInt() ?? 0;
-    stats.integrationSecs =
-        (map['integrationSecs'] as num?)?.toDouble() ?? 0.0;
+    stats.integrationSecs = (map['integrationSecs'] as num?)?.toDouble() ?? 0.0;
     stats.triggerFires = (map['triggerFires'] as num?)?.toInt() ?? 0;
     stats.autofocusRuns = (map['autofocusRuns'] as num?)?.toInt() ?? 0;
     stats.meridianFlips = (map['meridianFlips'] as num?)?.toInt() ?? 0;
@@ -259,8 +260,9 @@ final sequenceRunsDaoProvider = Provider<SequenceRunsDao>((ref) {
 
 /// Live stats tracker for the currently running sequence.
 /// Null when no sequence is running.
-final liveSequenceStatsProvider =
-    StateProvider<SequenceRunStats?>((ref) => null);
+final liveSequenceStatsProvider = StateProvider<SequenceRunStats?>(
+  (ref) => null,
+);
 
 /// The database row ID of the current run (for updating on completion).
 final currentRunIdProvider = StateProvider<int?>((ref) => null);
@@ -274,6 +276,6 @@ final sequenceRunsProvider = StreamProvider<List<SequenceRun>>((ref) {
 /// Watch runs for a specific sequence.
 final sequenceRunsForSequenceProvider =
     StreamProvider.family<List<SequenceRun>, int>((ref, sequenceId) {
-  final dao = ref.watch(sequenceRunsDaoProvider);
-  return dao.watchRunsForSequence(sequenceId);
-});
+      final dao = ref.watch(sequenceRunsDaoProvider);
+      return dao.watchRunsForSequence(sequenceId);
+    });

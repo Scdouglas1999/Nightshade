@@ -19,8 +19,11 @@ void main() {
     test('variable names are unique', () {
       final names = interpolationCatalog.map((v) => v.name).toList();
       final unique = names.toSet();
-      expect(unique.length, names.length,
-          reason: 'duplicate variable names in catalog');
+      expect(
+        unique.length,
+        names.length,
+        reason: 'duplicate variable names in catalog',
+      );
     });
 
     test('placeholder is \${name}', () {
@@ -32,8 +35,11 @@ void main() {
     test('every group has at least one entry', () {
       final groups = interpolationCatalog.map((v) => v.group).toSet();
       for (final g in InterpolationVariableGroup.values) {
-        expect(groups, contains(g),
-            reason: 'group ${g.name} has no catalog entries');
+        expect(
+          groups,
+          contains(g),
+          reason: 'group ${g.name} has no catalog entries',
+        );
       }
     });
   });
@@ -46,7 +52,8 @@ void main() {
 
     test('substitutes multiple variables', () {
       final result = previewInterpolation(
-          r'${target.name} on ${filter} (frame ${frame})');
+        r'${target.name} on ${filter} (frame ${frame})',
+      );
       expect(result, 'M42 on Ha (frame 8)');
     });
 

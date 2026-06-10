@@ -122,17 +122,12 @@ class GuideStarCandidate {
   }
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        name,
-        raHours,
-        decDegrees,
-        magnitude,
-        screenPosition,
-      );
+  int get hashCode =>
+      Object.hash(id, name, raHours, decDegrees, magnitude, screenPosition);
 
   @override
-  String toString() => 'GuideStarCandidate(id: $id, name: $name, '
+  String toString() =>
+      'GuideStarCandidate(id: $id, name: $name, '
       'mag: $magnitude, screen: $screenPosition)';
 }
 
@@ -166,8 +161,9 @@ List<GuideStarCandidate> findGuideStarCandidates({
   final centerDecDeg = projection.centerDecDegrees;
   final cosDec = math.cos(centerDecDeg * math.pi / 180.0);
   // Match the projection's pole clamp so RA-folding stays finite near the poles.
-  final safeCosDec =
-      cosDec.abs() > 0.01 ? cosDec : (cosDec.isNegative ? -0.01 : 0.01);
+  final safeCosDec = cosDec.abs() > 0.01
+      ? cosDec
+      : (cosDec.isNegative ? -0.01 : 0.01);
 
   final seen = <String>{};
   final candidates = <GuideStarCandidate>[];

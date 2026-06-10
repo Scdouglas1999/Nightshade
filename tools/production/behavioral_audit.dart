@@ -10,10 +10,7 @@ const _defaultReportPath = '.behavioral_audit_hits.txt';
 // shipped product.
 const _scanRoots = <String>['apps', 'packages', 'native/nightshade_native'];
 
-const _allowedExtensions = <String>{
-  '.dart',
-  '.rs',
-};
+const _allowedExtensions = <String>{'.dart', '.rs'};
 
 // Excluded directory NAMES (anchored as path segments). A bare ".test" file
 // would not be excluded; a path containing /test/ would. This is intentional
@@ -34,9 +31,7 @@ const _excludedDirectoryNames = <String>{
   'samples',
 };
 
-const _excludedSubstrings = <String>[
-  '/frb_generated.',
-];
+const _excludedSubstrings = <String>['/frb_generated.'];
 
 final _runtimePathPatterns = <RegExp>[
   RegExp(r'^apps/[^/]+/lib/'),
@@ -137,7 +132,8 @@ final _rules = <_Rule>[
   _Rule(
     id: 'simulated_runtime_path',
     regex: RegExp(
-        r'NullDeviceOps|simulated devices|useSimulationMode|sequencerSetSimulationMode'),
+      r'NullDeviceOps|simulated devices|useSimulationMode|sequencerSetSimulationMode',
+    ),
     summary: 'Simulation path present in runtime code.',
     highRisk: false,
   ),
@@ -168,7 +164,8 @@ void main(List<String> args) {
   // §7B.4 regression-pin: CI passes either --min-files <N> or the older
   // --assert-at-least-files-scanned <N>. Both names point at the same check;
   // the short form is preferred in new YAML.
-  final assertMinFiles = _argValue(args, '--min-files') ??
+  final assertMinFiles =
+      _argValue(args, '--min-files') ??
       _argValue(args, '--assert-at-least-files-scanned');
 
   final findings = <String, String>{};
@@ -182,8 +179,10 @@ void main(List<String> args) {
       continue;
     }
 
-    for (final entity
-        in rootDir.listSync(recursive: true, followLinks: false)) {
+    for (final entity in rootDir.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) {
         continue;
       }
@@ -241,13 +240,13 @@ void main(List<String> args) {
   if (assertMinFiles != null) {
     final required = int.tryParse(assertMinFiles);
     if (required == null) {
-      stderr.writeln(
-          'Invalid --min-files value: $assertMinFiles');
+      stderr.writeln('Invalid --min-files value: $assertMinFiles');
       exit(2);
     }
     if (filesScanned < required) {
       stderr.writeln(
-          'Behavioral audit scanned $filesScanned files; required >= $required');
+        'Behavioral audit scanned $filesScanned files; required >= $required',
+      );
       exit(1);
     }
   }
@@ -274,7 +273,9 @@ void main(List<String> args) {
   }
 
   if (unregistered.isNotEmpty) {
-    stderr.writeln('Unregistered behavioral findings (${unregistered.length}):');
+    stderr.writeln(
+      'Unregistered behavioral findings (${unregistered.length}):',
+    );
     for (final entry in unregistered) {
       stderr.writeln('  $entry');
     }
@@ -383,8 +384,9 @@ List<String> _readLinesSafe(File file) {
   } catch (_) {
     try {
       final bytes = file.readAsBytesSync();
-      return const LineSplitter()
-          .convert(utf8.decode(bytes, allowMalformed: true));
+      return const LineSplitter().convert(
+        utf8.decode(bytes, allowMalformed: true),
+      );
     } catch (_) {
       return const <String>[];
     }

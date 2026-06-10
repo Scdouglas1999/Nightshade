@@ -10,32 +10,34 @@ import 'package:nightshade_core/src/providers/sequence/sequence_executor/frame_a
 /// and the sequence tree.
 void main() {
   group('resolveFrameAttribution', () {
-    test('scheduler-shaped tree (childIds only) resolves target id + duration',
-        () {
-      // Mirrors SchedulerEngine.buildSequenceForCandidate: a TargetHeader that
-      // carries the DB target id and lists its children, with NO explicit
-      // parentId on the children (parentOf is derived from childIds).
-      final seq = Sequence.create(
-        name: 'sched',
-        rootNodeId: 't',
-        nodes: {
-          't': TargetHeaderNode(
-            id: 't',
-            targetName: 'M31',
-            raHours: 0.71,
-            decDegrees: 41.27,
-            catalogTargetId: 42,
-            childIds: const ['slew', 'exp'],
-          ),
-          'slew': SlewNode(id: 'slew', useTargetCoords: true),
-          'exp': ExposureNode(id: 'exp', durationSecs: 300.0, count: 20),
-        },
-      );
+    test(
+      'scheduler-shaped tree (childIds only) resolves target id + duration',
+      () {
+        // Mirrors SchedulerEngine.buildSequenceForCandidate: a TargetHeader that
+        // carries the DB target id and lists its children, with NO explicit
+        // parentId on the children (parentOf is derived from childIds).
+        final seq = Sequence.create(
+          name: 'sched',
+          rootNodeId: 't',
+          nodes: {
+            't': TargetHeaderNode(
+              id: 't',
+              targetName: 'M31',
+              raHours: 0.71,
+              decDegrees: 41.27,
+              catalogTargetId: 42,
+              childIds: const ['slew', 'exp'],
+            ),
+            'slew': SlewNode(id: 'slew', useTargetCoords: true),
+            'exp': ExposureNode(id: 'exp', durationSecs: 300.0, count: 20),
+          },
+        );
 
-      final a = resolveFrameAttribution(seq, 'exp');
-      expect(a.targetId, 42);
-      expect(a.exposureSecs, 300.0);
-    });
+        final a = resolveFrameAttribution(seq, 'exp');
+        expect(a.targetId, 42);
+        expect(a.exposureSecs, 300.0);
+      },
+    );
 
     test('resolves target id through an intervening container node', () {
       final seq = Sequence.create(
@@ -50,8 +52,10 @@ void main() {
             catalogTargetId: 7,
             childIds: const ['loop'],
           ),
-          'loop': InstructionSetNode(id: 'loop', name: 'Loop')
-              .copyWith(childIds: const ['exp']),
+          'loop': InstructionSetNode(
+            id: 'loop',
+            name: 'Loop',
+          ).copyWith(childIds: const ['exp']),
           'exp': ExposureNode(id: 'exp', durationSecs: 120.0),
         },
       );
@@ -84,73 +88,89 @@ void main() {
       expect(a.exposureSecs, 60.0);
     });
 
-    test('SmartExposure resolves duration from the currently-exposing filter',
-        () {
-      final seq = Sequence.create(
-        name: 'smart',
-        rootNodeId: 't',
-        nodes: {
-          't': TargetHeaderNode(
-            id: 't',
-            targetName: 'M42',
-            raHours: 5.59,
-            decDegrees: -5.39,
-            catalogTargetId: 3,
-            childIds: const ['smart'],
-          ),
-          'smart': SmartExposureNode(
-            id: 'smart',
-            plans: const [
-              FilterPlan(filterName: 'Ha', durationSecs: 600.0),
-              FilterPlan(filterName: 'OIII', durationSecs: 300.0),
-            ],
-          ),
-        },
-      );
+    test(
+      'SmartExposure resolves duration from the currently-exposing filter',
+      () {
+        final seq = Sequence.create(
+          name: 'smart',
+          rootNodeId: 't',
+          nodes: {
+            't': TargetHeaderNode(
+              id: 't',
+              targetName: 'M42',
+              raHours: 5.59,
+              decDegrees: -5.39,
+              catalogTargetId: 3,
+              childIds: const ['smart'],
+            ),
+            'smart': SmartExposureNode(
+              id: 'smart',
+              plans: const [
+                FilterPlan(filterName: 'Ha', durationSecs: 600.0),
+                FilterPlan(filterName: 'OIII', durationSecs: 300.0),
+              ],
+            ),
+          },
+        );
 
-      expect(
-        resolveFrameAttribution(seq, 'smart', currentFilter: 'OIII').exposureSecs,
-        300.0,
-      );
-      expect(
-        resolveFrameAttribution(seq, 'smart', currentFilter: 'Ha').exposureSecs,
-        600.0,
-      );
-      // Target id still resolves regardless of filter.
-      expect(
-        resolveFrameAttribution(seq, 'smart', currentFilter: 'Ha').targetId,
-        3,
-      );
-      // Unknown / absent filter -> null duration, not a fabricated value.
-      expect(
-        resolveFrameAttribution(seq, 'smart', currentFilter: 'SII').exposureSecs,
-        isNull,
-      );
-      expect(resolveFrameAttribution(seq, 'smart').exposureSecs, isNull);
-    });
+        expect(
+          resolveFrameAttribution(
+            seq,
+            'smart',
+            currentFilter: 'OIII',
+          ).exposureSecs,
+          300.0,
+        );
+        expect(
+          resolveFrameAttribution(
+            seq,
+            'smart',
+            currentFilter: 'Ha',
+          ).exposureSecs,
+          600.0,
+        );
+        // Target id still resolves regardless of filter.
+        expect(
+          resolveFrameAttribution(seq, 'smart', currentFilter: 'Ha').targetId,
+          3,
+        );
+        // Unknown / absent filter -> null duration, not a fabricated value.
+        expect(
+          resolveFrameAttribution(
+            seq,
+            'smart',
+            currentFilter: 'SII',
+          ).exposureSecs,
+          isNull,
+        );
+        expect(resolveFrameAttribution(seq, 'smart').exposureSecs, isNull);
+      },
+    );
 
-    test('non-exposure producing node yields null duration (not a fake value)',
-        () {
-      final seq = Sequence.create(
-        name: 'mixed',
-        rootNodeId: 't',
-        nodes: {
-          't': TargetHeaderNode(
-            id: 't',
-            targetName: 'X',
-            raHours: 1.0,
-            decDegrees: 1.0,
-            catalogTargetId: 9,
-            childIds: const ['delay'],
-          ),
-          'delay': DelayNode(id: 'delay'),
-        },
-      );
+    test(
+      'non-exposure producing node yields null duration (not a fake value)',
+      () {
+        final seq = Sequence.create(
+          name: 'mixed',
+          rootNodeId: 't',
+          nodes: {
+            't': TargetHeaderNode(
+              id: 't',
+              targetName: 'X',
+              raHours: 1.0,
+              decDegrees: 1.0,
+              catalogTargetId: 9,
+              childIds: const ['delay'],
+            ),
+            'delay': DelayNode(id: 'delay'),
+          },
+        );
 
-      final a = resolveFrameAttribution(seq, 'delay');
-      expect(a.targetId, 9);
-      expect(a.exposureSecs, isNull);
-    });
+        final a = resolveFrameAttribution(seq, 'delay');
+        expect(a.targetId, 9);
+        expect(a.exposureSecs, isNull);
+      },
+    );
 
     test('unknown node id resolves to nulls without throwing', () {
       final seq = Sequence.create(

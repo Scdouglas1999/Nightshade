@@ -208,8 +208,9 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// user toggling (say) "park on unsafe weather" from their phone believes
   /// it stuck when it never reached the host. Loud failure surfaces the gap.
   void _assertKeysRemotable(Iterable<String> keys) {
-    final unsupported =
-        keys.where((k) => !_remotableSettingKeys.contains(k)).toList();
+    final unsupported = keys
+        .where((k) => !_remotableSettingKeys.contains(k))
+        .toList();
     if (unsupported.isNotEmpty) {
       throw UnsupportedError(
         'Cannot persist setting(s) over a remote/network backend: '
@@ -307,11 +308,11 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       autoFocusOnFilterChange:
           settings.containsKey('auto_focus_on_filter_change')
-              ? _parseBool(
-                  settings['auto_focus_on_filter_change'],
-                  current.autoFocusOnFilterChange,
-                )
-              : null,
+          ? _parseBool(
+              settings['auto_focus_on_filter_change'],
+              current.autoFocusOnFilterChange,
+            )
+          : null,
       useFilterFocusOffsets: settings.containsKey('use_filter_focus_offsets')
           ? _parseBool(
               settings['use_filter_focus_offsets'],
@@ -370,11 +371,11 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       pushoverUser: settings['pushover_user'],
       notifyOnSequenceComplete:
           settings.containsKey('notify_on_sequence_complete')
-              ? _parseBool(
-                  settings['notify_on_sequence_complete'],
-                  current.notifyOnSequenceComplete,
-                )
-              : null,
+          ? _parseBool(
+              settings['notify_on_sequence_complete'],
+              current.notifyOnSequenceComplete,
+            )
+          : null,
       notifyOnError: settings.containsKey('notify_on_error')
           ? _parseBool(settings['notify_on_error'], current.notifyOnError)
           : null,
@@ -440,16 +441,10 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
             )
           : null,
       tempCompensation: settings.containsKey('temp_compensation')
-          ? _parseBool(
-              settings['temp_compensation'],
-              current.tempCompensation,
-            )
+          ? _parseBool(settings['temp_compensation'], current.tempCompensation)
           : null,
       tempCoefficient: settings.containsKey('temp_coefficient')
-          ? _parseDouble(
-              settings['temp_coefficient'],
-              current.tempCoefficient,
-            )
+          ? _parseDouble(settings['temp_coefficient'], current.tempCoefficient)
           : null,
       backlashCompensation: settings.containsKey('backlash_compensation')
           ? _parseInt(
@@ -476,11 +471,11 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       audibleAlertsOnCritical:
           settings.containsKey('audible_alerts_on_critical')
-              ? _parseBool(
-                  settings['audible_alerts_on_critical'],
-                  current.audibleAlertsOnCritical,
-                )
-              : null,
+          ? _parseBool(
+              settings['audible_alerts_on_critical'],
+              current.audibleAlertsOnCritical,
+            )
+          : null,
       criticalAlertSound: settings.containsKey('critical_alert_sound')
           ? _normaliseCriticalAlertSound(settings['critical_alert_sound'])
           : null,
@@ -495,39 +490,39 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       // helper.
       recoveryDefaultRetryIntervalMins:
           settings.containsKey('recovery_default_retry_interval_mins')
-              ? _parseDouble(
-                  settings['recovery_default_retry_interval_mins'],
-                  current.recoveryDefaultRetryIntervalMins,
-                )
-              : null,
+          ? _parseDouble(
+              settings['recovery_default_retry_interval_mins'],
+              current.recoveryDefaultRetryIntervalMins,
+            )
+          : null,
       recoveryDefaultMaxDurationMins:
           settings.containsKey('recovery_default_max_duration_mins')
-              ? _parseDouble(
-                  settings['recovery_default_max_duration_mins'],
-                  current.recoveryDefaultMaxDurationMins,
-                )
-              : null,
+          ? _parseDouble(
+              settings['recovery_default_max_duration_mins'],
+              current.recoveryDefaultMaxDurationMins,
+            )
+          : null,
       recoveryStopTrackingDuringRecovery:
           settings.containsKey('recovery_stop_tracking_during_recovery')
-              ? _parseBool(
-                  settings['recovery_stop_tracking_during_recovery'],
-                  current.recoveryStopTrackingDuringRecovery,
-                )
-              : null,
+          ? _parseBool(
+              settings['recovery_stop_tracking_during_recovery'],
+              current.recoveryStopTrackingDuringRecovery,
+            )
+          : null,
       recoveryAbortOnMeridian:
           settings.containsKey('recovery_abort_on_meridian')
-              ? _parseBool(
-                  settings['recovery_abort_on_meridian'],
-                  current.recoveryAbortOnMeridian,
-                )
-              : null,
+          ? _parseBool(
+              settings['recovery_abort_on_meridian'],
+              current.recoveryAbortOnMeridian,
+            )
+          : null,
       recoveryAudibleAlertWhenEntered:
           settings.containsKey('recovery_audible_alert_when_entered')
-              ? _parseBool(
-                  settings['recovery_audible_alert_when_entered'],
-                  current.recoveryAudibleAlertWhenEntered,
-                )
-              : null,
+          ? _parseBool(
+              settings['recovery_audible_alert_when_entered'],
+              current.recoveryAudibleAlertWhenEntered,
+            )
+          : null,
       afMethod: settings['af_method'],
       afCurveFitting: settings['af_curve_fitting'],
       afStepSize: settings.containsKey('af_step_size')
@@ -621,45 +616,45 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       imageGradingHfrThresholdPx:
           settings.containsKey('image_grading_hfr_threshold_px')
-              ? _parseNullableDouble(
-                  settings['image_grading_hfr_threshold_px'],
-                  current.imageGradingHfrThresholdPx,
-                )
-              : _unset,
+          ? _parseNullableDouble(
+              settings['image_grading_hfr_threshold_px'],
+              current.imageGradingHfrThresholdPx,
+            )
+          : _unset,
       imageGradingHfrBaselinePercent:
           settings.containsKey('image_grading_hfr_baseline_percent')
-              ? _parseNullableDouble(
-                  settings['image_grading_hfr_baseline_percent'],
-                  current.imageGradingHfrBaselinePercent,
-                )
-              : _unset,
+          ? _parseNullableDouble(
+              settings['image_grading_hfr_baseline_percent'],
+              current.imageGradingHfrBaselinePercent,
+            )
+          : _unset,
       imageGradingEccentricityThreshold:
           settings.containsKey('image_grading_eccentricity_threshold')
-              ? _parseNullableDouble(
-                  settings['image_grading_eccentricity_threshold'],
-                  current.imageGradingEccentricityThreshold,
-                )
-              : _unset,
+          ? _parseNullableDouble(
+              settings['image_grading_eccentricity_threshold'],
+              current.imageGradingEccentricityThreshold,
+            )
+          : _unset,
       imageGradingStarCountMin:
           settings.containsKey('image_grading_star_count_min')
-              ? _parseNullableInt(
-                  settings['image_grading_star_count_min'],
-                  current.imageGradingStarCountMin,
-                )
-              : _unset,
+          ? _parseNullableInt(
+              settings['image_grading_star_count_min'],
+              current.imageGradingStarCountMin,
+            )
+          : _unset,
       imageGradingMaxConsecutiveRejects:
           settings.containsKey('image_grading_max_consecutive_rejects')
-              ? _parseInt(
-                  settings['image_grading_max_consecutive_rejects'],
-                  current.imageGradingMaxConsecutiveRejects,
-                )
-              : null,
+          ? _parseInt(
+              settings['image_grading_max_consecutive_rejects'],
+              current.imageGradingMaxConsecutiveRejects,
+            )
+          : null,
       imageGradingRejectFolderPath:
           settings.containsKey('image_grading_reject_folder_path')
-              ? (settings['image_grading_reject_folder_path']?.isEmpty ?? true
-                  ? null
-                  : settings['image_grading_reject_folder_path'])
-              : _unset,
+          ? (settings['image_grading_reject_folder_path']?.isEmpty ?? true
+                ? null
+                : settings['image_grading_reject_folder_path'])
+          : _unset,
       // Wave 5 Agent 2 — Sky-brightness adaptive exposure partial-update
       // wire-up. Required so a remote save of an adaptive-exposure knob
       // (which is carried by the wire model) actually reaches state and is
@@ -672,25 +667,27 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       adaptiveExposureTargetSnr:
           settings.containsKey('adaptive_exposure_target_snr')
-              ? _parseDouble(
-                  settings['adaptive_exposure_target_snr'],
-                  current.adaptiveExposureTargetSnr,
-                )
-              : null,
+          ? _parseDouble(
+              settings['adaptive_exposure_target_snr'],
+              current.adaptiveExposureTargetSnr,
+            )
+          : null,
       adaptiveExposureReferenceMag:
           settings.containsKey('adaptive_exposure_reference_mag')
-              ? _parseDouble(
-                  settings['adaptive_exposure_reference_mag'],
-                  current.adaptiveExposureReferenceMag,
-                )
-              : null,
-      adaptiveExposureMinSecs: settings.containsKey('adaptive_exposure_min_secs')
+          ? _parseDouble(
+              settings['adaptive_exposure_reference_mag'],
+              current.adaptiveExposureReferenceMag,
+            )
+          : null,
+      adaptiveExposureMinSecs:
+          settings.containsKey('adaptive_exposure_min_secs')
           ? _parseDouble(
               settings['adaptive_exposure_min_secs'],
               current.adaptiveExposureMinSecs,
             )
           : null,
-      adaptiveExposureMaxSecs: settings.containsKey('adaptive_exposure_max_secs')
+      adaptiveExposureMaxSecs:
+          settings.containsKey('adaptive_exposure_max_secs')
           ? _parseDouble(
               settings['adaptive_exposure_max_secs'],
               current.adaptiveExposureMaxSecs,
@@ -698,30 +695,33 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       adaptiveExposurePerFilterEnabled:
           settings.containsKey('adaptive_exposure_per_filter_enabled')
-              ? _parseFilterBoolMap(
-                  settings['adaptive_exposure_per_filter_enabled'])
-              : null,
+          ? _parseFilterBoolMap(
+              settings['adaptive_exposure_per_filter_enabled'],
+            )
+          : null,
       adaptiveExposurePerFilterMinSecs:
           settings.containsKey('adaptive_exposure_per_filter_min_secs')
-              ? _parseFilterDoubleMap(
-                  settings['adaptive_exposure_per_filter_min_secs'])
-              : null,
+          ? _parseFilterDoubleMap(
+              settings['adaptive_exposure_per_filter_min_secs'],
+            )
+          : null,
       adaptiveExposurePerFilterMaxSecs:
           settings.containsKey('adaptive_exposure_per_filter_max_secs')
-              ? _parseFilterDoubleMap(
-                  settings['adaptive_exposure_per_filter_max_secs'])
-              : null,
+          ? _parseFilterDoubleMap(
+              settings['adaptive_exposure_per_filter_max_secs'],
+            )
+          : null,
       // Wave 5 Agent 3 — Pre-flight partial-update wire-up.
       preflightStrictness: settings.containsKey('preflight_strictness')
           ? _parsePreflightStrictness(settings['preflight_strictness'])
           : null,
       polarAlignmentMaxAgeDays:
           settings.containsKey('polar_alignment_max_age_days')
-              ? _parseInt(
-                  settings['polar_alignment_max_age_days'],
-                  current.polarAlignmentMaxAgeDays,
-                )
-              : null,
+          ? _parseInt(
+              settings['polar_alignment_max_age_days'],
+              current.polarAlignmentMaxAgeDays,
+            )
+          : null,
       darkLibraryMinCoverage: settings.containsKey('dark_library_min_coverage')
           ? _parseInt(
               settings['dark_library_min_coverage'],
@@ -730,81 +730,82 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       opticalTrainDriftThreshold:
           settings.containsKey('optical_train_drift_threshold')
-              ? _parseDouble(
-                  settings['optical_train_drift_threshold'],
-                  current.opticalTrainDriftThreshold,
-                )
-              : null,
+          ? _parseDouble(
+              settings['optical_train_drift_threshold'],
+              current.opticalTrainDriftThreshold,
+            )
+          : null,
       // Wave 6 Agent 1 — Smart Night partial-update wiring. The nullable
       // session-hours knob uses the `_unset` sentinel so a patch can
       // either leave it alone (omit the key) or clear it back to
       // "use full dark window" (pass the literal string "null").
       smartNightMaxSessionHours:
           settings.containsKey('smart_night_max_session_hours')
-              ? _parseNullableDouble(
-                  settings['smart_night_max_session_hours'],
-                  current.smartNightMaxSessionHours,
-                )
-              : _unset,
+          ? _parseNullableDouble(
+              settings['smart_night_max_session_hours'],
+              current.smartNightMaxSessionHours,
+            )
+          : _unset,
       smartNightDefaultAfCadenceFrames:
           settings.containsKey('smart_night_default_af_cadence_frames')
-              ? _parseInt(
-                  settings['smart_night_default_af_cadence_frames'],
-                  current.smartNightDefaultAfCadenceFrames,
-                )
-              : null,
-      smartNightDefaultIntegrationBudgetMinsPerTarget: settings.containsKey(
-              'smart_night_default_integration_budget_mins_per_target')
           ? _parseInt(
-              settings[
-                  'smart_night_default_integration_budget_mins_per_target'],
+              settings['smart_night_default_af_cadence_frames'],
+              current.smartNightDefaultAfCadenceFrames,
+            )
+          : null,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          settings.containsKey(
+            'smart_night_default_integration_budget_mins_per_target',
+          )
+          ? _parseInt(
+              settings['smart_night_default_integration_budget_mins_per_target'],
               current.smartNightDefaultIntegrationBudgetMinsPerTarget,
             )
           : null,
       smartNightIncludeFlatsAtEnd:
           settings.containsKey('smart_night_include_flats_at_end')
-              ? _parseBool(
-                  settings['smart_night_include_flats_at_end'],
-                  current.smartNightIncludeFlatsAtEnd,
-                )
-              : null,
+          ? _parseBool(
+              settings['smart_night_include_flats_at_end'],
+              current.smartNightIncludeFlatsAtEnd,
+            )
+          : null,
       smartNightUseSchedulerForMultiTarget:
           settings.containsKey('smart_night_use_scheduler_for_multi_target')
-              ? _parseBool(
-                  settings['smart_night_use_scheduler_for_multi_target'],
-                  current.smartNightUseSchedulerForMultiTarget,
-                )
-              : null,
+          ? _parseBool(
+              settings['smart_night_use_scheduler_for_multi_target'],
+              current.smartNightUseSchedulerForMultiTarget,
+            )
+          : null,
       smartNightSchedulerTargetThreshold:
           settings.containsKey('smart_night_scheduler_target_threshold')
-              ? _parseInt(
-                  settings['smart_night_scheduler_target_threshold'],
-                  current.smartNightSchedulerTargetThreshold,
-                )
-              : null,
+          ? _parseInt(
+              settings['smart_night_scheduler_target_threshold'],
+              current.smartNightSchedulerTargetThreshold,
+            )
+          : null,
       smartNightDefaultStrategy: settings['smart_night_default_strategy'],
       smartNightPolarAlignmentStaleAfterDays:
           settings.containsKey('smart_night_polar_alignment_stale_after_days')
-              ? _parseInt(
-                  settings['smart_night_polar_alignment_stale_after_days'],
-                  current.smartNightPolarAlignmentStaleAfterDays,
-                )
-              : null,
+          ? _parseInt(
+              settings['smart_night_polar_alignment_stale_after_days'],
+              current.smartNightPolarAlignmentStaleAfterDays,
+            )
+          : null,
       // Wave 6 Agent 5 — Notes prompt opt-out.
       smartNightSubExposureFloorSecs:
           settings.containsKey('smart_night_sub_exposure_floor_secs')
-              ? _parseDouble(
-                  settings['smart_night_sub_exposure_floor_secs'],
-                  current.smartNightSubExposureFloorSecs,
-                )
-              : null,
+          ? _parseDouble(
+              settings['smart_night_sub_exposure_floor_secs'],
+              current.smartNightSubExposureFloorSecs,
+            )
+          : null,
       smartNightSubExposureCeilingSecs:
           settings.containsKey('smart_night_sub_exposure_ceiling_secs')
-              ? _parseDouble(
-                  settings['smart_night_sub_exposure_ceiling_secs'],
-                  current.smartNightSubExposureCeilingSecs,
-                )
-              : null,
+          ? _parseDouble(
+              settings['smart_night_sub_exposure_ceiling_secs'],
+              current.smartNightSubExposureCeilingSecs,
+            )
+          : null,
       smartNightTargetSnr: settings.containsKey('smart_night_target_snr')
           ? _parseDouble(
               settings['smart_night_target_snr'],
@@ -813,11 +814,11 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       smartNightAutoPromptEnabled:
           settings.containsKey('smart_night.auto_prompt_enabled')
-              ? _parseBool(
-                  settings['smart_night.auto_prompt_enabled'],
-                  current.smartNightAutoPromptEnabled,
-                )
-              : null,
+          ? _parseBool(
+              settings['smart_night.auto_prompt_enabled'],
+              current.smartNightAutoPromptEnabled,
+            )
+          : null,
       promptForNotesAfterRun: settings.containsKey('notes.prompt_after_run')
           ? _parseBool(
               settings['notes.prompt_after_run'],
@@ -828,23 +829,24 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       // partial patch can update one knob without resetting the others.
       sessionHandoffAutoPrompt:
           settings.containsKey('session.handoff_auto_prompt')
-              ? _parseBool(
-                  settings['session.handoff_auto_prompt'],
-                  current.sessionHandoffAutoPrompt,
-                )
-              : null,
+          ? _parseBool(
+              settings['session.handoff_auto_prompt'],
+              current.sessionHandoffAutoPrompt,
+            )
+          : null,
       campaignRollupSurfaceTargetsTab:
           settings.containsKey('campaign_rollup.surface_targets_tab')
-              ? _parseBool(
-                  settings['campaign_rollup.surface_targets_tab'],
-                  current.campaignRollupSurfaceTargetsTab,
-                )
-              : null,
+          ? _parseBool(
+              settings['campaign_rollup.surface_targets_tab'],
+              current.campaignRollupSurfaceTargetsTab,
+            )
+          : null,
       campaignRollupGroupingMode:
           settings.containsKey('campaign_rollup.grouping_mode')
-              ? _parseCampaignGroupingMode(
-                  settings['campaign_rollup.grouping_mode'])
-              : null,
+          ? _parseCampaignGroupingMode(
+              settings['campaign_rollup.grouping_mode'],
+            )
+          : null,
     );
   }
 

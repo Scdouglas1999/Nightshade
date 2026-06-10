@@ -45,11 +45,11 @@ class ResolvedCalibration {
   });
 
   Map<String, dynamic> toBridgeJson() => {
-        if (darkPath != null) 'dark': darkPath,
-        if (flatPath != null) 'flat': flatPath,
-        if (biasPath != null) 'bias': biasPath,
-        'cosmeticCorrection': cosmeticCorrection,
-      };
+    if (darkPath != null) 'dark': darkPath,
+    if (flatPath != null) 'flat': flatPath,
+    if (biasPath != null) 'bias': biasPath,
+    'cosmeticCorrection': cosmeticCorrection,
+  };
 }
 
 /// The eight plate-solved WCS scalars in the CD-matrix form ASTAP /
@@ -88,13 +88,14 @@ class MasterWcsSolution {
 /// [hintRaHours] / [hintDecDegrees] are the target's catalog coordinates when
 /// known, to make the solve fast/robust (`apiPlateSolveNear`); a blind solve is
 /// the fallback otherwise.
-typedef MasterPlateSolver = Future<MasterWcsSolution?> Function({
-  required String imagePath,
-  required int imageWidth,
-  required int imageHeight,
-  double? hintRaHours,
-  double? hintDecDegrees,
-});
+typedef MasterPlateSolver =
+    Future<MasterWcsSolution?> Function({
+      required String imagePath,
+      required int imageWidth,
+      required int imageHeight,
+      double? hintRaHours,
+      double? hintDecDegrees,
+    });
 
 /// A fail-soft catalog colour calibration of a finished master FITS.
 /// Implementations wrap [ColorCalibrationService.calibrate] (at the provider
@@ -106,12 +107,13 @@ typedef MasterPlateSolver = Future<MasterWcsSolution?> Function({
 /// Returns the written calibrated path on success, or null when no calibrator is
 /// installed, the field cross-matched too few stars (a *skipped* result), or the
 /// solve failed — the master persist is never aborted by colour calibration.
-typedef MasterColorCalibrator = Future<String?> Function({
-  required String masterFits,
-  required String outputFits,
-  required WcsOverlay wcs,
-  required int channels,
-});
+typedef MasterColorCalibrator =
+    Future<String?> Function({
+      required String masterFits,
+      required String outputFits,
+      required WcsOverlay wcs,
+      required int channels,
+    });
 
 /// The outcome of one post-session integration run for a single filter group.
 class PostSessionIntegrationOutcome {
@@ -168,13 +170,13 @@ class PostSessionIntegrationService {
     CalibrationLibraryService? calibrationLibrary,
     MasterPlateSolver? plateSolver,
     MasterColorCalibrator? colorCalibrator,
-  })  : _mastersDao = mastersDao,
-        _darkLibrary = darkLibrary,
-        _flatLibrary = flatLibrary,
-        _seam = seam,
-        _calibrationLibrary = calibrationLibrary,
-        _plateSolver = plateSolver,
-        _colorCalibrator = colorCalibrator;
+  }) : _mastersDao = mastersDao,
+       _darkLibrary = darkLibrary,
+       _flatLibrary = flatLibrary,
+       _seam = seam,
+       _calibrationLibrary = calibrationLibrary,
+       _plateSolver = plateSolver,
+       _colorCalibrator = colorCalibrator;
 
   final IntegratedMastersDao _mastersDao;
   final DarkLibraryService _darkLibrary;
@@ -238,13 +240,13 @@ class PostSessionIntegrationService {
     for (final entry in groups.entries) {
       final filterBucket = entry.key;
       final groupSubs = entry.value;
-      final filterValue =
-          filterBucket == noFilterBucket ? null : filterBucket;
+      final filterValue = filterBucket == noFilterBucket ? null : filterBucket;
 
       // A user-pinned calibration set bypasses auto-matching entirely (it is
       // applied verbatim to every filter group); otherwise the Calibration
       // Library / legacy DAOs pick the masters.
-      final calibration = pinnedCalibration ??
+      final calibration =
+          pinnedCalibration ??
           await _resolveCalibration(
             subs: groupSubs,
             biasPath: biasPath,
@@ -252,15 +254,17 @@ class PostSessionIntegrationService {
           );
 
       final masterFitsPath = outputFitsPathBuilder(filterBucket);
-      final previewPath =
-          generatePreview ? _swapExtension(masterFitsPath, '.png') : null;
+      final previewPath = generatePreview
+          ? _swapExtension(masterFitsPath, '.png')
+          : null;
       final rejectionMapPath = settings.generateRejectionMap
           ? _suffixBeforeExtension(masterFitsPath, '_rejmap')
           : null;
 
       final reference = _chooseReferencePath(groupSubs);
-      final exposures =
-          groupSubs.map((s) => s.exposureDuration).toList(growable: false);
+      final exposures = groupSubs
+          .map((s) => s.exposureDuration)
+          .toList(growable: false);
 
       final args = <String, dynamic>{
         'lightPaths': groupSubs.map((s) => s.filePath).toList(),
@@ -327,12 +331,14 @@ class PostSessionIntegrationService {
         wcs: wcs,
       );
 
-      outcomes.add(PostSessionIntegrationOutcome(
-        masterId: masterId,
-        filter: filterValue,
-        result: result,
-        calibrationWarnings: calibration.warnings,
-      ));
+      outcomes.add(
+        PostSessionIntegrationOutcome(
+          masterId: masterId,
+          filter: filterValue,
+          result: result,
+          calibrationWarnings: calibration.warnings,
+        ),
+      );
     }
 
     return outcomes;
@@ -370,15 +376,17 @@ class PostSessionIntegrationService {
     final tempDir = await Directory.systemTemp.createTemp('ns_ab_preview');
     final stamp = DateTime.now().microsecondsSinceEpoch;
     final masterFitsPath = '${tempDir.path}/ab_preview_$stamp.fits';
-    final previewPath =
-        generatePreview ? _swapExtension(masterFitsPath, '.png') : null;
+    final previewPath = generatePreview
+        ? _swapExtension(masterFitsPath, '.png')
+        : null;
     final rejectionMapPath = settings.generateRejectionMap
         ? _suffixBeforeExtension(masterFitsPath, '_rejmap')
         : null;
 
     final reference = _chooseReferencePath(groupSubs);
-    final exposures =
-        groupSubs.map((s) => s.exposureDuration).toList(growable: false);
+    final exposures = groupSubs
+        .map((s) => s.exposureDuration)
+        .toList(growable: false);
 
     final args = <String, dynamic>{
       'lightPaths': groupSubs.map((s) => s.filePath).toList(),
@@ -452,8 +460,7 @@ class PostSessionIntegrationService {
       // Store the curve JSON with the population identity as a sibling key so
       // the typed [IntegrationCurve] stays pure (it round-trips its own keys and
       // ignores the extra one) while the cull path can recover the ordering.
-      final stored = curve.toJson()
-        ..['population'] = population;
+      final stored = curve.toJson()..['population'] = population;
 
       final anchor = curve.points.isNotEmpty ? curve.points.last : null;
       await _mastersDao.updateSmartFields(
@@ -523,8 +530,9 @@ class PostSessionIntegrationService {
   /// `_resolveMasterWcs` uses to read the persisted v44 columns. The colour
   /// calibrator needs this overlay to project detections onto the sky.
   static WcsOverlay _overlayFromSolution(MasterWcsSolution wcs) {
-    final cdelt1 =
-        -math.sqrt(wcs.cd1_1 * wcs.cd1_1 + wcs.cd2_1 * wcs.cd2_1); // RA: neg.
+    final cdelt1 = -math.sqrt(
+      wcs.cd1_1 * wcs.cd1_1 + wcs.cd2_1 * wcs.cd2_1,
+    ); // RA: neg.
     final cdelt2 = math.sqrt(wcs.cd1_2 * wcs.cd1_2 + wcs.cd2_2 * wcs.cd2_2);
     final crota2 = math.atan2(wcs.cd2_1, wcs.cd2_2) * 180.0 / math.pi;
     return WcsOverlay(
@@ -704,15 +712,19 @@ class PostSessionIntegrationService {
       if (frames.isEmpty) {
         _logSoftFailure(
           'drizzleIntegrate',
-          StateError('drizzle skipped: no accepted sub carried a registration '
-              'transform'),
+          StateError(
+            'drizzle skipped: no accepted sub carried a registration '
+            'transform',
+          ),
           StackTrace.current,
         );
         return result;
       }
 
-      final outputFits =
-          _suffixBeforeExtension(result.masterFitsPath, '_drizzle');
+      final outputFits = _suffixBeforeExtension(
+        result.masterFitsPath,
+        '_drizzle',
+      );
       final coverageFits = _suffixBeforeExtension(outputFits, '_cov');
       // A stretched preview PNG sibling for the drizzled master, so the hero
       // shows the (scaled) drizzled image rather than the standard 1× preview.
@@ -802,10 +814,7 @@ class PostSessionIntegrationService {
 
   /// Run a fail-soft finishing step: log any throw and swallow it so the master
   /// persist is never aborted by an optional pass.
-  Future<void> _softStep(
-    String name,
-    Future<String> Function() step,
-  ) async {
+  Future<void> _softStep(String name, Future<String> Function() step) async {
     try {
       await step();
     } catch (e, st) {
@@ -901,24 +910,28 @@ class PostSessionIntegrationService {
     // for callers constructed without the library service.
     final library = _calibrationLibrary;
     if (library != null) {
-      final matchSet = await library.match(LightFrameContext(
-        gain: gain,
-        offset: offset,
-        exposureSeconds: anchor.exposureDuration,
-        temperature: temperature,
-        filter: anchor.filter,
-        binX: binX,
-        binY: binY,
-      ));
-      final explicitBias =
-          (biasPath != null && biasPath.trim().isNotEmpty) ? biasPath : null;
+      final matchSet = await library.match(
+        LightFrameContext(
+          gain: gain,
+          offset: offset,
+          exposureSeconds: anchor.exposureDuration,
+          temperature: temperature,
+          filter: anchor.filter,
+          binX: binX,
+          binY: binY,
+        ),
+      );
+      final explicitBias = (biasPath != null && biasPath.trim().isNotEmpty)
+          ? biasPath
+          : null;
       return ResolvedCalibration(
         darkPath: matchSet.dark?.record.filePath,
         flatPath: matchSet.flat?.record.filePath,
         // An explicit bias override wins; otherwise only auto-fill the bias
         // when no dark matched (a matched dark already carries the bias
         // signal — supplying both would double-subtract the pedestal).
-        biasPath: explicitBias ??
+        biasPath:
+            explicitBias ??
             (matchSet.dark == null ? matchSet.bias?.record.filePath : null),
         cosmeticCorrection: cosmeticCorrection,
         warnings: matchSet.allWarnings,
@@ -946,8 +959,9 @@ class PostSessionIntegrationService {
     return ResolvedCalibration(
       darkPath: dark?.masterDarkPath ?? dark?.filePath,
       flatPath: flat?.filePath,
-      biasPath:
-          (biasPath != null && biasPath.trim().isNotEmpty) ? biasPath : null,
+      biasPath: (biasPath != null && biasPath.trim().isNotEmpty)
+          ? biasPath
+          : null,
       cosmeticCorrection: cosmeticCorrection,
     );
   }
@@ -1053,8 +1067,9 @@ class PostSessionIntegrationService {
 /// image centre. Fail-soft: a non-success solve (no solver installed, solve
 /// failure) yields null, so WCS persistence is skipped without aborting the
 /// master persist.
-final postSessionIntegrationServiceProvider =
-    Provider<PostSessionIntegrationService>((ref) {
+final postSessionIntegrationServiceProvider = Provider<PostSessionIntegrationService>((
+  ref,
+) {
   return PostSessionIntegrationService(
     mastersDao: ref.watch(integratedMastersDaoProvider),
     darkLibrary: ref.watch(darkLibraryServiceProvider),
@@ -1071,59 +1086,62 @@ final postSessionIntegrationServiceProvider =
     // WCS, solves the per-channel white balance, and writes the rebalanced
     // master. Returns null on the fail-soft *skipped* result (too few matches /
     // no catalog) so the gate persists nothing rather than a phantom path.
-    colorCalibrator: ({
-      required String masterFits,
-      required String outputFits,
-      required WcsOverlay wcs,
-      required int channels,
-    }) async {
-      final service = ref.read(colorCalibrationServiceProvider);
-      final result = await service.calibrate(
-        masterFits: masterFits,
-        outputFits: outputFits,
-        wcs: wcs,
-        channels: channels,
-      );
-      if (ColorCalibrationService.wasSkipped(result)) return null;
-      return result.outputPath;
-    },
-    plateSolver: ({
-      required String imagePath,
-      required int imageWidth,
-      required int imageHeight,
-      double? hintRaHours,
-      double? hintDecDegrees,
-    }) async {
-      final solveService = ref.read(plateSolveServiceProvider);
-      final PlateSolveResult solve;
-      try {
-        solve = await solveService.solveWithFallback(
-          imagePath: imagePath,
-          hintRaHours: hintRaHours,
-          hintDecDegrees: hintDecDegrees,
-        );
-      } on SolverNotAvailableError {
-        // No configured solver — stay un-annotated, never throw out of the
-        // optional WCS step.
-        return null;
-      }
-      if (!solve.success) return null;
+    colorCalibrator:
+        ({
+          required String masterFits,
+          required String outputFits,
+          required WcsOverlay wcs,
+          required int channels,
+        }) async {
+          final service = ref.read(colorCalibrationServiceProvider);
+          final result = await service.calibrate(
+            masterFits: masterFits,
+            outputFits: outputFits,
+            wcs: wcs,
+            channels: channels,
+          );
+          if (ColorCalibrationService.wasSkipped(result)) return null;
+          return result.outputPath;
+        },
+    plateSolver:
+        ({
+          required String imagePath,
+          required int imageWidth,
+          required int imageHeight,
+          double? hintRaHours,
+          double? hintDecDegrees,
+        }) async {
+          final solveService = ref.read(plateSolveServiceProvider);
+          final PlateSolveResult solve;
+          try {
+            solve = await solveService.solveWithFallback(
+              imagePath: imagePath,
+              hintRaHours: hintRaHours,
+              hintDecDegrees: hintDecDegrees,
+            );
+          } on SolverNotAvailableError {
+            // No configured solver — stay un-annotated, never throw out of the
+            // optional WCS step.
+            return null;
+          }
+          if (!solve.success) return null;
 
-      // Convert (ra°, dec°, pixelScale arcsec/px, rotation°) to the CD matrix.
-      final scaleDeg = solve.pixelScale / 3600.0;
-      final rotRad = solve.rotation * math.pi / 180.0;
-      final cosRot = math.cos(rotRad);
-      final sinRot = math.sin(rotRad);
-      return MasterWcsSolution(
-        crval1: solve.ra,
-        crval2: solve.dec,
-        crpix1: imageWidth / 2.0,
-        crpix2: imageHeight / 2.0,
-        cd1_1: -scaleDeg * cosRot, // Negative for RA increasing to the left.
-        cd1_2: scaleDeg * sinRot,
-        cd2_1: scaleDeg * sinRot,
-        cd2_2: scaleDeg * cosRot,
-      );
-    },
+          // Convert (ra°, dec°, pixelScale arcsec/px, rotation°) to the CD matrix.
+          final scaleDeg = solve.pixelScale / 3600.0;
+          final rotRad = solve.rotation * math.pi / 180.0;
+          final cosRot = math.cos(rotRad);
+          final sinRot = math.sin(rotRad);
+          return MasterWcsSolution(
+            crval1: solve.ra,
+            crval2: solve.dec,
+            crpix1: imageWidth / 2.0,
+            crpix2: imageHeight / 2.0,
+            cd1_1:
+                -scaleDeg * cosRot, // Negative for RA increasing to the left.
+            cd1_2: scaleDeg * sinRot,
+            cd2_1: scaleDeg * sinRot,
+            cd2_2: scaleDeg * cosRot,
+          );
+        },
   );
 });

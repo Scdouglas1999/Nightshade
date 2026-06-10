@@ -19,11 +19,7 @@ class BadRequestError implements Exception {
   final String expected;
   final String? message;
 
-  BadRequestError({
-    required this.field,
-    required this.expected,
-    this.message,
-  });
+  BadRequestError({required this.field, required this.expected, this.message});
 
   @override
   String toString() => 'BadRequestError(field=$field, expected=$expected)';
@@ -41,12 +37,12 @@ class BadRequestError implements Exception {
   }
 
   Map<String, Object?> toJsonBody() => {
-        'error': displayMessage,
-        'code': 'invalid_request',
-        'field': field,
-        'expected': expected,
-        if (message != null) 'message': message,
-      };
+    'error': displayMessage,
+    'code': 'invalid_request',
+    'field': field,
+    'expected': expected,
+    if (message != null) 'message': message,
+  };
 }
 
 /// Handler-level structured failure for fail-closed responses.
@@ -97,11 +93,11 @@ class HandlerFailure implements Exception {
   String toString() => 'HandlerFailure(code=$code, status=$statusCode)';
 
   Map<String, Object?> toJsonBody({String? requestId}) => {
-        'error': code,
-        'message': message,
-        if (requestId != null) 'requestId': requestId,
-        if (details != null) ...details!,
-      };
+    'error': code,
+    'message': message,
+    if (requestId != null) 'requestId': requestId,
+    if (details != null) ...details!,
+  };
 }
 
 /// Reads the request body as a JSON object.
@@ -288,10 +284,7 @@ bool? optionalBool(Map<String, dynamic> payload, String field) {
   return requireBool(payload, field);
 }
 
-Map<String, dynamic> requireObject(
-  Map<String, dynamic> payload,
-  String field,
-) {
+Map<String, dynamic> requireObject(Map<String, dynamic> payload, String field) {
   final value = payload[field];
   if (value == null) {
     throw BadRequestError(field: field, expected: 'object');
@@ -314,10 +307,7 @@ Map<String, dynamic>? optionalObject(
   return value;
 }
 
-List<T> requireList<T>(
-  Map<String, dynamic> payload,
-  String field,
-) {
+List<T> requireList<T>(Map<String, dynamic> payload, String field) {
   final value = payload[field];
   if (value == null) {
     throw BadRequestError(field: field, expected: 'array');
@@ -327,19 +317,13 @@ List<T> requireList<T>(
   }
   for (final element in value) {
     if (element is! T) {
-      throw BadRequestError(
-        field: field,
-        expected: 'array<${T.toString()}>',
-      );
+      throw BadRequestError(field: field, expected: 'array<${T.toString()}>');
     }
   }
   return value.cast<T>();
 }
 
-List<T>? optionalList<T>(
-  Map<String, dynamic> payload,
-  String field,
-) {
+List<T>? optionalList<T>(Map<String, dynamic> payload, String field) {
   if (payload[field] == null) return null;
   return requireList<T>(payload, field);
 }
@@ -370,7 +354,7 @@ void _checkRange(String field, double value, double? min, double? max) {
 /// exception detail goes to the structured log only.
 Middleware errorTranslationMiddleware({
   required void Function(String message, {Map<String, Object?>? fields})
-      logError,
+  logError,
   required String Function(Request request) requestIdFor,
   bool Function(Request request)? shouldBypass,
 }) {

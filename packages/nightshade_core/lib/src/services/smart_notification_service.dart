@@ -104,6 +104,8 @@ class SmartNotificationService {
 }
 
 /// Provider for the smart notification service.
-final smartNotificationServiceProvider = Provider<SmartNotificationService>((ref) {
+final smartNotificationServiceProvider = Provider<SmartNotificationService>((
+  ref,
+) {
   return SmartNotificationService(ref);
 });

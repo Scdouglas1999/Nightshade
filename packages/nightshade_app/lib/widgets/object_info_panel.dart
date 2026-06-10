@@ -52,10 +52,10 @@ class ObjectInfoPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        data.catalogIds?['Name'] ?? 
-                        data.catalogIds?['NGC'] ?? 
-                        data.catalogIds?['IC'] ?? 
-                        'Unknown Object',
+                        data.catalogIds?['Name'] ??
+                            data.catalogIds?['NGC'] ??
+                            data.catalogIds?['IC'] ??
+                            'Unknown Object',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -117,7 +117,8 @@ class ObjectInfoPanel extends StatelessWidget {
                     runSpacing: 8,
                     children: data.catalogIds!.entries.map((e) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
                           borderRadius: BorderRadius.circular(4),
@@ -141,20 +142,39 @@ class ObjectInfoPanel extends StatelessWidget {
                 if (data.spectralType != null || data.temperature != null) ...[
                   _SectionHeader(title: 'Stellar Properties', colors: colors),
                   if (data.spectralType != null)
-                    _InfoRow(label: 'Spectral Type', value: data.spectralType.toString().split('.').last.toUpperCase(), colors: colors),
+                    _InfoRow(
+                        label: 'Spectral Type',
+                        value: data.spectralType
+                            .toString()
+                            .split('.')
+                            .last
+                            .toUpperCase(),
+                        colors: colors),
                   if (data.temperature != null)
-                    _InfoRow(label: 'Temperature', value: '${data.temperature!.toStringAsFixed(0)} K', colors: colors),
+                    _InfoRow(
+                        label: 'Temperature',
+                        value: '${data.temperature!.toStringAsFixed(0)} K',
+                        colors: colors),
                   if (data.mass != null)
-                    _InfoRow(label: 'Mass', value: '${data.mass!.toStringAsFixed(2)} M☉', colors: colors),
+                    _InfoRow(
+                        label: 'Mass',
+                        value: '${data.mass!.toStringAsFixed(2)} M☉',
+                        colors: colors),
                   if (data.distance != null)
-                    _InfoRow(label: 'Distance', value: '${data.distance!.toStringAsFixed(1)} pc', colors: colors),
+                    _InfoRow(
+                        label: 'Distance',
+                        value: '${data.distance!.toStringAsFixed(1)} pc',
+                        colors: colors),
                   const SizedBox(height: 24),
                 ],
 
                 // Exoplanets
                 if (data.exoplanets != null && data.exoplanets!.isNotEmpty) ...[
-                  _SectionHeader(title: 'Exoplanets (${data.exoplanets!.length})', colors: colors),
-                  ...data.exoplanets!.map((planet) => _ExoplanetCard(planet: planet, colors: colors)),
+                  _SectionHeader(
+                      title: 'Exoplanets (${data.exoplanets!.length})',
+                      colors: colors),
+                  ...data.exoplanets!.map((planet) =>
+                      _ExoplanetCard(planet: planet, colors: colors)),
                 ],
               ],
             ),
@@ -193,7 +213,8 @@ class _InfoRow extends StatelessWidget {
   final String value;
   final NightshadeColors colors;
 
-  const _InfoRow({required this.label, required this.value, required this.colors});
+  const _InfoRow(
+      {required this.label, required this.value, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +229,10 @@ class _InfoRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 13, color: colors.textPrimary, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                fontSize: 13,
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -255,11 +279,18 @@ class _ExoplanetCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           if (planet.mass != null)
-            _InfoRow(label: 'Mass', value: '${planet.mass} Mjup', colors: colors),
+            _InfoRow(
+                label: 'Mass', value: '${planet.mass} Mjup', colors: colors),
           if (planet.orbitalPeriod != null)
-            _InfoRow(label: 'Period', value: '${planet.orbitalPeriod} days', colors: colors),
+            _InfoRow(
+                label: 'Period',
+                value: '${planet.orbitalPeriod} days',
+                colors: colors),
           if (planet.equilibriumTemp != null)
-            _InfoRow(label: 'Temp', value: '${planet.equilibriumTemp} K', colors: colors),
+            _InfoRow(
+                label: 'Temp',
+                value: '${planet.equilibriumTemp} K',
+                colors: colors),
         ],
       ),
     );

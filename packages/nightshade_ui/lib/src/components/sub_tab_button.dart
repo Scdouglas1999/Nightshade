@@ -32,14 +32,14 @@ class _SubTabButtonState extends State<SubTabButton> {
             colors.surfaceAlt,
           )
         : _isHovered
-            ? colors.surfaceHover
-            : Colors.transparent;
+        ? colors.surfaceHover
+        : Colors.transparent;
 
     final borderColor = widget.isSelected
         ? colors.primary.withValues(alpha: 0.45)
         : _isHovered
-            ? colors.borderHighlight.withValues(alpha: 0.85)
-            : Colors.transparent;
+        ? colors.borderHighlight.withValues(alpha: 0.85)
+        : Colors.transparent;
 
     return Semantics(
       button: true,
@@ -79,8 +79,8 @@ class _SubTabButtonState extends State<SubTabButton> {
                     color: widget.isSelected
                         ? colors.primary
                         : _isHovered
-                            ? colors.textPrimary
-                            : colors.textSecondary,
+                        ? colors.textPrimary
+                        : colors.textSecondary,
                   ),
                 ),
               ),

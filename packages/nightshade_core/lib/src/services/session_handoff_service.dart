@@ -81,17 +81,16 @@ class SessionCarryOver {
   bool get hasCarryOver => previousAcceptedFrames > 0;
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'previousSessionId': previousSessionId,
-        'previousSessionStartedAt':
-            previousSessionStartedAt?.toIso8601String(),
-        'previousAcceptedFrames': previousAcceptedFrames,
-        'previousIntegrationSecs': previousIntegrationSecs,
-        'campaignIntegrationSecs': campaignIntegrationSecs,
-        'budgetSecs': budgetSecs,
-        'perFilterIntegrationSecs': perFilterIntegrationSecs,
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'previousSessionId': previousSessionId,
+    'previousSessionStartedAt': previousSessionStartedAt?.toIso8601String(),
+    'previousAcceptedFrames': previousAcceptedFrames,
+    'previousIntegrationSecs': previousIntegrationSecs,
+    'campaignIntegrationSecs': campaignIntegrationSecs,
+    'budgetSecs': budgetSecs,
+    'perFilterIntegrationSecs': perFilterIntegrationSecs,
+  };
 }
 
 /// Three-way operator choice for the carry-over banner.
@@ -167,9 +166,12 @@ class SessionHandoffBundle {
       targetDec: (json['targetDec'] as num?)?.toDouble(),
       completedFrames: json['completedFrames'] as int? ?? 0,
       totalFrames: json['totalFrames'] as int? ?? 0,
-      totalIntegrationHours: (json['totalIntegrationHours'] as num?)?.toDouble() ?? 0,
+      totalIntegrationHours:
+          (json['totalIntegrationHours'] as num?)?.toDouble() ?? 0,
       equipmentSnapshot: json['equipmentSnapshot'] is Map<String, dynamic>
-          ? EquipmentSnapshot.fromJson(json['equipmentSnapshot'] as Map<String, dynamic>)
+          ? EquipmentSnapshot.fromJson(
+              json['equipmentSnapshot'] as Map<String, dynamic>,
+            )
           : null,
       sequenceName: json['sequenceName'] as String?,
     );
@@ -178,7 +180,9 @@ class SessionHandoffBundle {
   String encode() => jsonEncode(toJson());
 
   factory SessionHandoffBundle.decode(String jsonText) {
-    return SessionHandoffBundle.fromJson(jsonDecode(jsonText) as Map<String, dynamic>);
+    return SessionHandoffBundle.fromJson(
+      jsonDecode(jsonText) as Map<String, dynamic>,
+    );
   }
 }
 
@@ -196,9 +200,9 @@ class SessionHandoffService {
     SessionsDao? sessionsDao,
     ImagesDao? imagesDao,
     TargetsDao? targetsDao,
-  })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao,
-        _targetsDao = targetsDao;
+  }) : _sessionsDao = sessionsDao,
+       _imagesDao = imagesDao,
+       _targetsDao = targetsDao;
 
   /// Wave 7 — Build a list of [SessionCarryOver] entries for the
   /// targets referenced by the supplied sequence.
@@ -226,21 +230,17 @@ class SessionHandoffService {
     DateTime? now,
     int recentSessionWithinDays = 14,
   }) async {
-    final useHostSnapshot = libraryTargets != null &&
-        capturedImages != null &&
-        sessions != null;
+    final useHostSnapshot =
+        libraryTargets != null && capturedImages != null && sessions != null;
     if (!useHostSnapshot &&
-        (_sessionsDao == null ||
-            _imagesDao == null ||
-            _targetsDao == null)) {
+        (_sessionsDao == null || _imagesDao == null || _targetsDao == null)) {
       return const <SessionCarryOver>[];
     }
 
     final headers = sequence.targetHeaders;
     if (headers.isEmpty) return const <SessionCarryOver>[];
 
-    final allTargets =
-        libraryTargets ?? await _targetsDao!.getAllTargets();
+    final allTargets = libraryTargets ?? await _targetsDao!.getAllTargets();
     final byCatalog = <String, Target>{};
     final byName = <String, Target>{};
     for (final t in allTargets) {
@@ -264,8 +264,8 @@ class SessionHandoffService {
 
       final sessionsForTarget = useHostSnapshot
           ? sessions
-              .where((s) => s.targetId == target.id)
-              .toList(growable: false)
+                .where((s) => s.targetId == target.id)
+                .toList(growable: false)
           : await _sessionsDao!.getSessionsForTarget(target.id);
       // Find the most recent session, regardless of cutoff — the
       // campaign integration still counts pre-cutoff frames; we only
@@ -273,16 +273,15 @@ class SessionHandoffService {
       // session falls inside the recency window.
       ImagingSession? mostRecent;
       for (final s in sessionsForTarget) {
-        if (mostRecent == null ||
-            s.startTime.isAfter(mostRecent.startTime)) {
+        if (mostRecent == null || s.startTime.isAfter(mostRecent.startTime)) {
           mostRecent = s;
         }
       }
 
       final images = useHostSnapshot
           ? capturedImages
-              .where((i) => i.targetId == target.id)
-              .toList(growable: false)
+                .where((i) => i.targetId == target.id)
+                .toList(growable: false)
           : await _imagesDao!.getImagesForTarget(target.id);
       final lightFrames = images
           .where((i) => i.frameType == 'light' && i.isAccepted)
@@ -318,24 +317,24 @@ class SessionHandoffService {
       // Surface the banner only when the most recent session falls
       // within the lookback window. Older campaigns still feed the
       // campaign rollup but don't fire the resume prompt.
-      final recent =
-          mostRecent != null && mostRecent.startTime.isAfter(cutoff);
+      final recent = mostRecent != null && mostRecent.startTime.isAfter(cutoff);
       if (!recent) continue;
 
-      out.add(SessionCarryOver(
-        targetId: target.id,
-        targetName: target.name,
-        previousSessionId: mostRecent.id,
-        previousSessionStartedAt: mostRecent.startTime,
-        previousAcceptedFrames: prevFrames,
-        previousIntegrationSecs: prevSecs,
-        campaignIntegrationSecs: campaignSecs,
-        budgetSecs:
-            (header.integrationBudget?.totalSecs ?? 0) > 0
-                ? header.integrationBudget!.totalSecs
-                : null,
-        perFilterIntegrationSecs: perFilter,
-      ));
+      out.add(
+        SessionCarryOver(
+          targetId: target.id,
+          targetName: target.name,
+          previousSessionId: mostRecent.id,
+          previousSessionStartedAt: mostRecent.startTime,
+          previousAcceptedFrames: prevFrames,
+          previousIntegrationSecs: prevSecs,
+          campaignIntegrationSecs: campaignSecs,
+          budgetSecs: (header.integrationBudget?.totalSecs ?? 0) > 0
+              ? header.integrationBudget!.totalSecs
+              : null,
+          perFilterIntegrationSecs: perFilter,
+        ),
+      );
     }
 
     return out;
@@ -368,7 +367,9 @@ class SessionHandoffService {
       buffer.write(' (${bundle.completedFrames}/${bundle.totalFrames} frames)');
     }
     if (bundle.totalIntegrationHours > 0) {
-      buffer.write(' ${bundle.totalIntegrationHours.toStringAsFixed(1)}h integrated');
+      buffer.write(
+        ' ${bundle.totalIntegrationHours.toStringAsFixed(1)}h integrated',
+      );
     }
     return buffer.toString();
   }

@@ -45,13 +45,11 @@ class OnboardingDriverStep extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 20),
-        ...displayOrder
-            .where(available.contains)
-            .map((driver) => _DriverTile(
-                  driver: driver,
-                  selected: draft.selectedDrivers.contains(driver),
-                  onToggle: () => notifier.toggleDriver(driver),
-                )),
+        ...displayOrder.where(available.contains).map((driver) => _DriverTile(
+              driver: driver,
+              selected: draft.selectedDrivers.contains(driver),
+              onToggle: () => notifier.toggleDriver(driver),
+            )),
         const SizedBox(height: 12),
         if (!available.contains(DriverType.ascom))
           Padding(

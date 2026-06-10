@@ -113,10 +113,12 @@ class CampaignsDao {
 
   /// All campaigns for a target, ordered by filter.
   Future<List<Campaign>> getForTarget(int targetId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM campaigns WHERE target_id = ? ORDER BY filter ASC',
-      variables: [Variable<int>(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM campaigns WHERE target_id = ? ORDER BY filter ASC',
+          variables: [Variable<int>(targetId)],
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
@@ -139,11 +141,13 @@ class CampaignsDao {
   }
 
   Future<QueryRow?> _findRow(int targetId, String filter) {
-    return _db.customSelect(
-      'SELECT $_columns FROM campaigns '
-      'WHERE target_id = ? AND LOWER(filter) = LOWER(?) LIMIT 1',
-      variables: [Variable<int>(targetId), Variable<String>(filter)],
-    ).getSingleOrNull();
+    return _db
+        .customSelect(
+          'SELECT $_columns FROM campaigns '
+          'WHERE target_id = ? AND LOWER(filter) = LOWER(?) LIMIT 1',
+          variables: [Variable<int>(targetId), Variable<String>(filter)],
+        )
+        .getSingleOrNull();
   }
 
   Campaign _map(QueryRow row) {

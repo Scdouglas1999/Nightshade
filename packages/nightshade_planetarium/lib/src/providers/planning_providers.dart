@@ -30,8 +30,9 @@ final selectedTargetScoreProvider = Provider<TargetScore?>((ref) {
 });
 
 /// Provider for the best targets for tonight
-final tonightsBestTargetsProvider =
-    FutureProvider<List<TargetScore>>((ref) async {
+final tonightsBestTargetsProvider = FutureProvider<List<TargetScore>>((
+  ref,
+) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final scoringService = ref.watch(targetScoringServiceProvider);
 
@@ -56,8 +57,7 @@ class TargetAlertState {
     this.hasSettingAlert = false,
   });
 
-  bool get hasAnyAlert =>
-      hasAltitudeAlert || hasMoonAlert || hasSettingAlert;
+  bool get hasAnyAlert => hasAltitudeAlert || hasMoonAlert || hasSettingAlert;
 
   int get alertCount =>
       (hasAltitudeAlert ? 1 : 0) +
@@ -74,9 +74,11 @@ final targetAlertProvider = Provider<TargetAlertState>((ref) {
 
   return TargetAlertState(
     activeWarnings: warnings,
-    hasAltitudeAlert: warnings.any((w) =>
-        w.type == WarningType.lowAltitude ||
-        w.type == WarningType.belowHorizon),
+    hasAltitudeAlert: warnings.any(
+      (w) =>
+          w.type == WarningType.lowAltitude ||
+          w.type == WarningType.belowHorizon,
+    ),
     hasMoonAlert: warnings.any((w) => w.type == WarningType.moonProximity),
     hasSettingAlert: warnings.any((w) => w.type == WarningType.settingSoon),
   );
@@ -153,11 +155,9 @@ class AltitudeInfo {
     required this.airmass,
   });
 
-  bool get isGoodForImaging =>
-      currentAltitude >= 30 && airmass <= 2.0;
+  bool get isGoodForImaging => currentAltitude >= 30 && airmass <= 2.0;
 
-  bool get isAcceptable =>
-      currentAltitude >= 15 && airmass <= 3.0;
+  bool get isAcceptable => currentAltitude >= 15 && airmass <= 3.0;
 }
 
 /// Provider for altitude information for the selected target

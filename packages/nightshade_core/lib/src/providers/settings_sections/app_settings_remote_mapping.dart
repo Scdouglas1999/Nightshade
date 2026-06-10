@@ -56,12 +56,15 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       adaptiveExposureReferenceMag: remote.adaptiveExposureReferenceMag,
       adaptiveExposureMinSecs: remote.adaptiveExposureMinSecs,
       adaptiveExposureMaxSecs: remote.adaptiveExposureMaxSecs,
-      adaptiveExposurePerFilterEnabled:
-          Map<String, bool>.from(remote.adaptiveExposurePerFilterEnabled),
-      adaptiveExposurePerFilterMinSecs:
-          Map<String, double>.from(remote.adaptiveExposurePerFilterMinSecs),
-      adaptiveExposurePerFilterMaxSecs:
-          Map<String, double>.from(remote.adaptiveExposurePerFilterMaxSecs),
+      adaptiveExposurePerFilterEnabled: Map<String, bool>.from(
+        remote.adaptiveExposurePerFilterEnabled,
+      ),
+      adaptiveExposurePerFilterMinSecs: Map<String, double>.from(
+        remote.adaptiveExposurePerFilterMinSecs,
+      ),
+      adaptiveExposurePerFilterMaxSecs: Map<String, double>.from(
+        remote.adaptiveExposurePerFilterMaxSecs,
+      ),
       // Full-night audit 2026-06-04 follow-up — high-value unattended-night
       // knobs (autofocus / dither / weather-safety / recovery) now carried by
       // the wire model so a phone-driven night keeps them.
@@ -88,14 +91,14 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       blindSolve: remote.blindSolve,
       bortleClass: remote.bortleClass,
       effectiveHorizonDeg: remote.effectiveHorizonDeg,
-      preflightStrictness:
-          _parsePreflightStrictness(remote.preflightStrictness),
+      preflightStrictness: _parsePreflightStrictness(
+        remote.preflightStrictness,
+      ),
       polarAlignmentMaxAgeDays: remote.polarAlignmentMaxAgeDays,
       opticalTrainDriftThreshold: remote.opticalTrainDriftThreshold,
       darkLibraryMinCoverage: remote.darkLibraryMinCoverage,
       smartNightMaxSessionHours: remote.smartNightMaxSessionHours,
-      smartNightDefaultAfCadenceFrames:
-          remote.smartNightDefaultAfCadenceFrames,
+      smartNightDefaultAfCadenceFrames: remote.smartNightDefaultAfCadenceFrames,
       smartNightDefaultIntegrationBudgetMinsPerTarget:
           remote.smartNightDefaultIntegrationBudgetMinsPerTarget,
       smartNightIncludeFlatsAtEnd: remote.smartNightIncludeFlatsAtEnd,
@@ -107,8 +110,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       smartNightPolarAlignmentStaleAfterDays:
           remote.smartNightPolarAlignmentStaleAfterDays,
       smartNightSubExposureFloorSecs: remote.smartNightSubExposureFloorSecs,
-      smartNightSubExposureCeilingSecs:
-          remote.smartNightSubExposureCeilingSecs,
+      smartNightSubExposureCeilingSecs: remote.smartNightSubExposureCeilingSecs,
       smartNightTargetSnr: remote.smartNightTargetSnr,
       // Full remote-settings parity 2026-06-05 — remaining unattended-night
       // knobs (equipment defaults / web-server / PHD2 / notifications /
@@ -226,12 +228,15 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       adaptiveExposureReferenceMag: settings.adaptiveExposureReferenceMag,
       adaptiveExposureMinSecs: settings.adaptiveExposureMinSecs,
       adaptiveExposureMaxSecs: settings.adaptiveExposureMaxSecs,
-      adaptiveExposurePerFilterEnabled:
-          Map<String, bool>.from(settings.adaptiveExposurePerFilterEnabled),
-      adaptiveExposurePerFilterMinSecs:
-          Map<String, double>.from(settings.adaptiveExposurePerFilterMinSecs),
-      adaptiveExposurePerFilterMaxSecs:
-          Map<String, double>.from(settings.adaptiveExposurePerFilterMaxSecs),
+      adaptiveExposurePerFilterEnabled: Map<String, bool>.from(
+        settings.adaptiveExposurePerFilterEnabled,
+      ),
+      adaptiveExposurePerFilterMinSecs: Map<String, double>.from(
+        settings.adaptiveExposurePerFilterMinSecs,
+      ),
+      adaptiveExposurePerFilterMaxSecs: Map<String, double>.from(
+        settings.adaptiveExposurePerFilterMaxSecs,
+      ),
       // Full-night audit 2026-06-04 follow-up — push the live unattended-night
       // knobs to the host so a remote save doesn't silently drop them.
       parkOnUnsafeWeather: settings.parkOnUnsafeWeather,
@@ -304,8 +309,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       smartNightAutoPromptEnabled: settings.smartNightAutoPromptEnabled,
       promptForNotesAfterRun: settings.promptForNotesAfterRun,
       sessionHandoffAutoPrompt: settings.sessionHandoffAutoPrompt,
-      campaignRollupSurfaceTargetsTab:
-          settings.campaignRollupSurfaceTargetsTab,
+      campaignRollupSurfaceTargetsTab: settings.campaignRollupSurfaceTargetsTab,
       campaignRollupGroupingMode: settings.campaignRollupGroupingMode,
       afMethod: settings.afMethod,
       afCurveFitting: settings.afCurveFitting,
@@ -448,9 +452,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             : null;
       case 'safetyFailMode':
         if (value is String) {
-          return current.copyWith(
-            safetyFailMode: _parseSafetyFailMode(value),
-          );
+          return current.copyWith(safetyFailMode: _parseSafetyFailMode(value));
         }
         return null;
       // Wave 3 Image Grading — keys mirror models.AppSettings.toJson().
@@ -472,8 +474,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           return current.copyWith(imageGradingHfrBaselinePercent: null);
         }
         return value is num
-            ? current.copyWith(
-                imageGradingHfrBaselinePercent: value.toDouble())
+            ? current.copyWith(imageGradingHfrBaselinePercent: value.toDouble())
             : null;
       case 'imageGradingEccentricityThreshold':
         if (value == null) {
@@ -481,7 +482,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         }
         return value is num
             ? current.copyWith(
-                imageGradingEccentricityThreshold: value.toDouble())
+                imageGradingEccentricityThreshold: value.toDouble(),
+              )
             : null;
       case 'imageGradingStarCountMin':
         if (value == null) {
@@ -492,8 +494,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             : null;
       case 'imageGradingMaxConsecutiveRejects':
         return value is num
-            ? current.copyWith(
-                imageGradingMaxConsecutiveRejects: value.toInt())
+            ? current.copyWith(imageGradingMaxConsecutiveRejects: value.toInt())
             : null;
       case 'imageGradingRejectFolderPath':
         if (value == null) {
@@ -569,7 +570,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'recoveryDefaultRetryIntervalMins':
         return value is num
             ? current.copyWith(
-                recoveryDefaultRetryIntervalMins: value.toDouble())
+                recoveryDefaultRetryIntervalMins: value.toDouble(),
+              )
             : null;
       case 'recoveryDefaultMaxDurationMins':
         return value is num
@@ -596,9 +598,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             ? current.copyWith(enableMeridianFlip: value)
             : null;
       case 'tempCompensation':
-        return value is bool
-            ? current.copyWith(tempCompensation: value)
-            : null;
+        return value is bool ? current.copyWith(tempCompensation: value) : null;
       case 'tempCoefficient':
         return value is num
             ? current.copyWith(tempCoefficient: value.toDouble())
@@ -639,8 +639,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             : null;
       case 'opticalTrainDriftThreshold':
         return value is num
-            ? current.copyWith(
-                opticalTrainDriftThreshold: value.toDouble())
+            ? current.copyWith(opticalTrainDriftThreshold: value.toDouble())
             : null;
       case 'darkLibraryMinCoverage':
         return value is num
@@ -651,19 +650,17 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           return current.copyWith(smartNightMaxSessionHours: null);
         }
         return value is num
-            ? current.copyWith(
-                smartNightMaxSessionHours: value.toDouble())
+            ? current.copyWith(smartNightMaxSessionHours: value.toDouble())
             : null;
       case 'smartNightDefaultAfCadenceFrames':
         return value is num
-            ? current.copyWith(
-                smartNightDefaultAfCadenceFrames: value.toInt())
+            ? current.copyWith(smartNightDefaultAfCadenceFrames: value.toInt())
             : null;
       case 'smartNightDefaultIntegrationBudgetMinsPerTarget':
         return value is num
             ? current.copyWith(
-                smartNightDefaultIntegrationBudgetMinsPerTarget:
-                    value.toInt())
+                smartNightDefaultIntegrationBudgetMinsPerTarget: value.toInt(),
+              )
             : null;
       case 'smartNightIncludeFlatsAtEnd':
         return value is bool
@@ -676,7 +673,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'smartNightSchedulerTargetThreshold':
         return value is num
             ? current.copyWith(
-                smartNightSchedulerTargetThreshold: value.toInt())
+                smartNightSchedulerTargetThreshold: value.toInt(),
+              )
             : null;
       case 'smartNightDefaultStrategy':
         return value is String
@@ -685,17 +683,18 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'smartNightPolarAlignmentStaleAfterDays':
         return value is num
             ? current.copyWith(
-                smartNightPolarAlignmentStaleAfterDays: value.toInt())
+                smartNightPolarAlignmentStaleAfterDays: value.toInt(),
+              )
             : null;
       case 'smartNightSubExposureFloorSecs':
         return value is num
-            ? current.copyWith(
-                smartNightSubExposureFloorSecs: value.toDouble())
+            ? current.copyWith(smartNightSubExposureFloorSecs: value.toDouble())
             : null;
       case 'smartNightSubExposureCeilingSecs':
         return value is num
             ? current.copyWith(
-                smartNightSubExposureCeilingSecs: value.toDouble())
+                smartNightSubExposureCeilingSecs: value.toDouble(),
+              )
             : null;
       case 'smartNightTargetSnr':
         return value is num
@@ -717,9 +716,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             ? current.copyWith(defaultOffset: value.toInt())
             : null;
       case 'webServerEnabled':
-        return value is bool
-            ? current.copyWith(webServerEnabled: value)
-            : null;
+        return value is bool ? current.copyWith(webServerEnabled: value) : null;
       case 'webServerPort':
         return value is num
             ? current.copyWith(webServerPort: value.toInt())
@@ -729,9 +726,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'phd2Host':
         return value is String ? current.copyWith(phd2Host: value) : null;
       case 'phd2Port':
-        return value is num
-            ? current.copyWith(phd2Port: value.toInt())
-            : null;
+        return value is num ? current.copyWith(phd2Port: value.toInt()) : null;
       case 'notificationsEnabled':
         return value is bool
             ? current.copyWith(notificationsEnabled: value)
@@ -783,9 +778,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'afMethod':
         return value is String ? current.copyWith(afMethod: value) : null;
       case 'afCurveFitting':
-        return value is String
-            ? current.copyWith(afCurveFitting: value)
-            : null;
+        return value is String ? current.copyWith(afCurveFitting: value) : null;
       case 'afStepSize':
         return value is num
             ? current.copyWith(afStepSize: value.toInt())
@@ -815,9 +808,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             ? current.copyWith(afInnerCropRatio: value.toDouble())
             : null;
       case 'afBinning':
-        return value is num
-            ? current.copyWith(afBinning: value.toInt())
-            : null;
+        return value is num ? current.copyWith(afBinning: value.toInt()) : null;
       case 'afRSquaredThreshold':
         return value is num
             ? current.copyWith(afRSquaredThreshold: value.toDouble())
@@ -855,9 +846,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             ? current.copyWith(useFilterFocusOffsets: value)
             : null;
       case 'astrometryPath':
-        return value is String
-            ? current.copyWith(astrometryPath: value)
-            : null;
+        return value is String ? current.copyWith(astrometryPath: value) : null;
       case 'observerName':
         return value is String ? current.copyWith(observerName: value) : null;
       case 'imageFormat':

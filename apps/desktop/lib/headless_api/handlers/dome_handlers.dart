@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -36,10 +36,7 @@ class DomeHandlers {
       statusCode: 400,
       message:
           'Dome $deviceId does not support $operation ($capability is false)',
-      details: {
-        'deviceId': deviceId,
-        'capability': capability,
-      },
+      details: {'deviceId': deviceId, 'capability': capability},
     );
   }
 
@@ -227,13 +224,11 @@ class DomeHandlers {
       );
     }
     if (!await _isConnectedDome(deviceId)) {
-      return jsonNotFound(
-        {
-          'connected': false,
-          'deviceId': deviceId,
-          'error': 'Dome not connected'
-        },
-      );
+      return jsonNotFound({
+        'connected': false,
+        'deviceId': deviceId,
+        'error': 'Dome not connected',
+      });
     }
 
     final status = await bridge.apiGetDomeStatus(deviceId: deviceId);
@@ -265,9 +260,10 @@ class DomeHandlers {
       );
     }
     if (!await _isConnectedDome(deviceId)) {
-      return jsonNotFound(
-        {'error': 'Dome not found or not connected', 'deviceId': deviceId},
-      );
+      return jsonNotFound({
+        'error': 'Dome not found or not connected',
+        'deviceId': deviceId,
+      });
     }
 
     final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);

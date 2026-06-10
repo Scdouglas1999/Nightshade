@@ -79,9 +79,9 @@ class DeviceHeartbeatHealthState {
   /// Convenience: known-empty state. Used as the default when a card
   /// asks for a device that hasn't reported in.
   factory DeviceHeartbeatHealthState.unknown() => DeviceHeartbeatHealthState(
-        health: HeartbeatHealth.unknown,
-        lastChange: DateTime.fromMillisecondsSinceEpoch(0),
-      );
+    health: HeartbeatHealth.unknown,
+    lastChange: DateTime.fromMillisecondsSinceEpoch(0),
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -119,8 +119,8 @@ class DeviceHeartbeatHealthNotifier
   final DateTime Function() _now;
 
   DeviceHeartbeatHealthNotifier({DateTime Function()? now})
-      : _now = now ?? DateTime.now,
-        super(const <String, DeviceHeartbeatHealthState>{});
+    : _now = now ?? DateTime.now,
+      super(const <String, DeviceHeartbeatHealthState>{});
 
   /// Lookup helper. Returns a stable `unknown` state when the device
   /// id is missing so the UI never has to handle null.
@@ -241,7 +241,8 @@ class DeviceHeartbeatHealthNotifier
     final existing = state[deviceId];
     // Preserve lastChange when the meaningful fields are unchanged so
     // the widget doesn't pulse on every redundant healthy event.
-    final isChanged = existing == null ||
+    final isChanged =
+        existing == null ||
         existing.health != health ||
         existing.reason != reason ||
         existing.consecutiveFailures != consecutiveFailures ||
@@ -270,8 +271,10 @@ class DeviceHeartbeatHealthNotifier
       case 'degraded':
         final buf = StringBuffer();
         if (consecutiveFailures > 0) {
-          buf.write('$consecutiveFailures consecutive heartbeat '
-              'failure${consecutiveFailures == 1 ? '' : 's'}');
+          buf.write(
+            '$consecutiveFailures consecutive heartbeat '
+            'failure${consecutiveFailures == 1 ? '' : 's'}',
+          );
         } else {
           buf.write('Heartbeat degraded');
         }
@@ -297,20 +300,14 @@ class DeviceHeartbeatHealthNotifier
               : 'Device unresponsive',
         );
       case 'reconnecting':
-        return (
-          HeartbeatHealth.reconnecting,
-          'Heartbeat reconnecting',
-        );
+        return (HeartbeatHealth.reconnecting, 'Heartbeat reconnecting');
       case 'reconnected':
         return (HeartbeatHealth.healthy, null);
       default:
         // Unknown status string — surface the raw value on the tooltip
         // so a future Rust enum addition still tells the user something
         // useful rather than silently swallowing it.
-        return (
-          HeartbeatHealth.degraded,
-          'Unknown heartbeat status "$status"',
-        );
+        return (HeartbeatHealth.degraded, 'Unknown heartbeat status "$status"');
     }
   }
 }
@@ -321,8 +318,8 @@ class DeviceHeartbeatHealthNotifier
 /// with a device id to retrieve a single device's state; consumers that
 /// only care about a specific device should use a `select` to avoid
 /// rebuilding on unrelated changes.
-final deviceHeartbeatHealthProvider = StateNotifierProvider<
-    DeviceHeartbeatHealthNotifier,
-    Map<String, DeviceHeartbeatHealthState>>(
-  (ref) => DeviceHeartbeatHealthNotifier(),
-);
+final deviceHeartbeatHealthProvider =
+    StateNotifierProvider<
+      DeviceHeartbeatHealthNotifier,
+      Map<String, DeviceHeartbeatHealthState>
+    >((ref) => DeviceHeartbeatHealthNotifier());

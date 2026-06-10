@@ -44,7 +44,8 @@ class _SnippetSummaryCard extends ConsumerWidget {
               children: [
                 Text(
                   'Reusable Snippets',
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -239,7 +240,8 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: Row(
@@ -446,9 +448,10 @@ class _ActionButtonState extends State<_ActionButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: NightshadeTypography.labelSm.copyWith(color: widget.isPrimary
-                      ? onPrimary
-                      : widget.colors.textSecondary),
+                style: NightshadeTypography.labelSm.copyWith(
+                    color: widget.isPrimary
+                        ? onPrimary
+                        : widget.colors.textSecondary),
               ),
             ],
           ),

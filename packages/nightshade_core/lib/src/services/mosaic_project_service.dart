@@ -10,7 +10,8 @@ import '../database/daos/integrated_masters_dao.dart';
 import '../database/daos/mosaic_panels_dao.dart';
 import '../database/daos/mosaic_projects_dao.dart';
 import '../database/daos/targets_dao.dart';
-import '../database/database.dart' show CapturedImage, NightshadeDatabase, TargetsCompanion;
+import '../database/database.dart'
+    show CapturedImage, NightshadeDatabase, TargetsCompanion;
 import '../models/imaging/integrated_master.dart';
 import '../models/imaging/integration_settings.dart';
 import '../models/imaging/mosaic_project.dart';
@@ -29,9 +30,8 @@ import 'post_session_seam.dart';
 /// then hands them to this launcher — the app controller wires the real
 /// [MosaicService.createMosaicSequence] (stamping each panel's
 /// `TargetHeaderNode.catalogTargetId` from [panelTargetIds]) and starts the run.
-typedef MosaicCaptureLauncher = Future<void> Function(
-  MosaicCaptureRequest request,
-);
+typedef MosaicCaptureLauncher =
+    Future<void> Function(MosaicCaptureRequest request);
 
 /// The durable inputs [MosaicProjectService.startCapture] resolved for one
 /// capture run — everything the launcher needs to build a per-panel-target
@@ -155,15 +155,15 @@ class MosaicProjectService {
     required PostSessionIntegrationService integrationService,
     required PostSessionSeam seam,
     MosaicService geometry = const MosaicService(),
-  })  : _db = db,
-        _projectsDao = projectsDao,
-        _panelsDao = panelsDao,
-        _targetsDao = targetsDao,
-        _imagesDao = imagesDao,
-        _mastersDao = mastersDao,
-        _integration = integrationService,
-        _seam = seam,
-        _geometry = geometry;
+  }) : _db = db,
+       _projectsDao = projectsDao,
+       _panelsDao = panelsDao,
+       _targetsDao = targetsDao,
+       _imagesDao = imagesDao,
+       _mastersDao = mastersDao,
+       _integration = integrationService,
+       _seam = seam,
+       _geometry = geometry;
 
   final NightshadeDatabase _db;
   final MosaicProjectsDao _projectsDao;
@@ -224,11 +224,14 @@ class MosaicProjectService {
     int? Function(int panelIndex)? panelTargetId,
   }) async {
     if (rows < 1 || cols < 1) {
-      throw ArgumentError('mosaic grid must be at least 1x1 (got ${rows}x$cols)');
+      throw ArgumentError(
+        'mosaic grid must be at least 1x1 (got ${rows}x$cols)',
+      );
     }
-    final widthArcmin = panelWidthArcmin ??
-        (fovWidthDeg != null ? fovWidthDeg * 60.0 : null);
-    final heightArcmin = panelHeightArcmin ??
+    final widthArcmin =
+        panelWidthArcmin ?? (fovWidthDeg != null ? fovWidthDeg * 60.0 : null);
+    final heightArcmin =
+        panelHeightArcmin ??
         (fovHeightDeg != null ? fovHeightDeg * 60.0 : null);
     if (widthArcmin == null || heightArcmin == null) {
       throw ArgumentError(
@@ -274,11 +277,9 @@ class MosaicProjectService {
         // it returns a non-null id; otherwise create a fresh per-panel target
         // centered on the panel so its subs are isolated for integration.
         final overrideId = panelTargetId?.call(panel.panelIndex);
-        final panelTarget = overrideId ??
-            await _createPanelTarget(
-              projectName: name,
-              panel: panel,
-            );
+        final panelTarget =
+            overrideId ??
+            await _createPanelTarget(projectName: name, panel: panel);
         await _panelsDao.upsert(
           projectId: projectId,
           panelIndex: panel.panelIndex,
@@ -450,17 +451,18 @@ class MosaicProjectService {
     // _integratePanel); only an ACTUAL collision among set targets is fatal.
     _assertNoSharedPanelTargets(projectId, panels);
 
-    await _projectsDao.updateStatus(
-        projectId, MosaicProjectStatus.integrating);
+    await _projectsDao.updateStatus(projectId, MosaicProjectStatus.integrating);
 
     final outcomes = <MosaicPanelIntegrationOutcome>[];
     for (final panel in panels) {
-      outcomes.add(await _integratePanel(
-        project: project,
-        panel: panel,
-        settings: settings,
-        outputFitsPathBuilder: outputFitsPathBuilder,
-      ));
+      outcomes.add(
+        await _integratePanel(
+          project: project,
+          panel: panel,
+          settings: settings,
+          outputFitsPathBuilder: outputFitsPathBuilder,
+        ),
+      );
     }
     return outcomes;
   }
@@ -558,8 +560,8 @@ class MosaicProjectService {
         // keeps the bare base path so the single-filter path is unchanged.
         outputFitsPathBuilder: (bucket) =>
             bucket == PostSessionIntegrationService.noFilterBucket
-                ? panelBase
-                : _suffixBeforeExtension(panelBase, '_$bucket'),
+            ? panelBase
+            : _suffixBeforeExtension(panelBase, '_$bucket'),
         hintRaHours: panel.centerRa,
         hintDecDegrees: panel.centerDec,
       );
@@ -757,11 +759,13 @@ class MosaicProjectService {
       final master = await _mastersDao.getById(masterId);
       final fitsPath = master?.masterFitsPath;
       if (master == null || fitsPath == null || fitsPath.trim().isEmpty) {
-        skips.add(MosaicPanelStitchSkip(
-          panelIndex: panel.panelIndex,
-          integratedMasterId: masterId,
-          reason: 'panel master has no FITS path on disk',
-        ));
+        skips.add(
+          MosaicPanelStitchSkip(
+            panelIndex: panel.panelIndex,
+            integratedMasterId: masterId,
+            reason: 'panel master has no FITS path on disk',
+          ),
+        );
         continue;
       }
 
@@ -773,12 +777,15 @@ class MosaicProjectService {
       // (best-effort, like the WCS probe) and degrade a missing file to a
       // skipped panel so one bad panel never poisons the stitch.
       if (!await _safeFitsExists(fitsPath)) {
-        skips.add(MosaicPanelStitchSkip(
-          panelIndex: panel.panelIndex,
-          integratedMasterId: masterId,
-          reason: 'panel master FITS missing on disk — skipped so it does not '
-              'abort the whole mosaic',
-        ));
+        skips.add(
+          MosaicPanelStitchSkip(
+            panelIndex: panel.panelIndex,
+            integratedMasterId: masterId,
+            reason:
+                'panel master FITS missing on disk — skipped so it does not '
+                'abort the whole mosaic',
+          ),
+        );
         continue;
       }
 
@@ -788,16 +795,20 @@ class MosaicProjectService {
       // either, skip + report instead of poisoning the mosaic.
       final wcs = _wcsArgs(master);
       if (wcs == null) {
-        final headerHasWcs =
-            fitsHasWcs == null ? false : await _safeFitsHasWcs(fitsHasWcs, fitsPath);
+        final headerHasWcs = fitsHasWcs == null
+            ? false
+            : await _safeFitsHasWcs(fitsHasWcs, fitsPath);
         if (!headerHasWcs) {
-          skips.add(MosaicPanelStitchSkip(
-            panelIndex: panel.panelIndex,
-            integratedMasterId: masterId,
-            reason: 'panel master has no WCS (no persisted CD-matrix and no '
-                'WCS in the FITS header) — skipped so it does not abort the '
-                'whole mosaic',
-          ));
+          skips.add(
+            MosaicPanelStitchSkip(
+              panelIndex: panel.panelIndex,
+              integratedMasterId: masterId,
+              reason:
+                  'panel master has no WCS (no persisted CD-matrix and no '
+                  'WCS in the FITS header) — skipped so it does not abort the '
+                  'whole mosaic',
+            ),
+          );
           continue;
         }
       }
@@ -814,7 +825,7 @@ class MosaicProjectService {
         'mosaic project $projectId needs >= 2 panels with integrated masters '
         'AND a usable WCS to stitch (found $contributingMasters'
         '${skips.isEmpty ? '' : '; skipped ${skips.length} WCS-less/'
-            'pathless panel(s)'})',
+                  'pathless panel(s)'})',
       );
     }
 
@@ -872,10 +883,15 @@ class MosaicProjectService {
       _logSoftFailure('stitchProject[$projectId]', e, st);
       try {
         await _projectsDao.updateStatus(
-            projectId, MosaicProjectStatus.integrating);
+          projectId,
+          MosaicProjectStatus.integrating,
+        );
       } catch (revertError, revertSt) {
         _logSoftFailure(
-            'stitchProject[$projectId] status revert', revertError, revertSt);
+          'stitchProject[$projectId] status revert',
+          revertError,
+          revertSt,
+        );
       }
       rethrow;
     }

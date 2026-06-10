@@ -46,23 +46,23 @@ void main() {
   // ============================================================
   group('TargetHeaderNode', () {
     TargetHeaderNode makeM31() => TargetHeaderNode(
-          id: 'th-m31',
-          targetName: 'M31',
-          // Realistic — Andromeda: 0h 42m 44.3s, +41° 16' 9"
-          raHours: 0.712303,
-          decDegrees: 41.269167,
-          rotation: 0.0,
-          priority: 1,
-          minAltitude: 30.0,
-          maxAltitude: 80.0,
-          startAfter: DateTime.utc(2026, 9, 1, 22, 0),
-          endBefore: DateTime.utc(2026, 9, 2, 5, 0),
-          integrationBudget: const IntegrationBudget(totalSecs: 14400),
-          startWhen: const AltitudeAboveTrigger(35.0),
-          endWhen: const AltitudeBelowTrigger(30.0),
-          triggerPollIntervalSecs: 60,
-          brightnessTierHint: BrightnessTier.faint,
-        );
+      id: 'th-m31',
+      targetName: 'M31',
+      // Realistic — Andromeda: 0h 42m 44.3s, +41° 16' 9"
+      raHours: 0.712303,
+      decDegrees: 41.269167,
+      rotation: 0.0,
+      priority: 1,
+      minAltitude: 30.0,
+      maxAltitude: 80.0,
+      startAfter: DateTime.utc(2026, 9, 1, 22, 0),
+      endBefore: DateTime.utc(2026, 9, 2, 5, 0),
+      integrationBudget: const IntegrationBudget(totalSecs: 14400),
+      startWhen: const AltitudeAboveTrigger(35.0),
+      endWhen: const AltitudeBelowTrigger(30.0),
+      triggerPollIntervalSecs: 60,
+      brightnessTierHint: BrightnessTier.faint,
+    );
 
     test('node_type_and_required_devices_pin', () {
       final n = makeM31();
@@ -143,8 +143,10 @@ void main() {
       expect(n.copyWith(priority: 5).priority, equals(5));
       expect(n.copyWith(minAltitude: 25.0).minAltitude, equals(25.0));
       expect(n.copyWith(maxAltitude: 85.0).maxAltitude, equals(85.0));
-      expect(n.copyWith(triggerPollIntervalSecs: 10).triggerPollIntervalSecs,
-          equals(10));
+      expect(
+        n.copyWith(triggerPollIntervalSecs: 10).triggerPollIntervalSecs,
+        equals(10),
+      );
     });
 
     test('display_name_includes_mosaic_panel_when_present', () {
@@ -173,10 +175,14 @@ void main() {
         decDegrees: 41.27,
       );
       expect(base.hasTimeConstraints, isFalse);
-      expect(base.copyWith(startAfter: DateTime(2026)).hasTimeConstraints,
-          isTrue);
-      expect(base.copyWith(endBefore: DateTime(2026)).hasTimeConstraints,
-          isTrue);
+      expect(
+        base.copyWith(startAfter: DateTime(2026)).hasTimeConstraints,
+        isTrue,
+      );
+      expect(
+        base.copyWith(endBefore: DateTime(2026)).hasTimeConstraints,
+        isTrue,
+      );
     });
 
     test('has_altitude_constraints_when_min_or_max_set', () {
@@ -225,8 +231,7 @@ void main() {
       );
       expect(
         base
-            .copyWith(
-                integrationBudget: const IntegrationBudget(totalSecs: 60))
+            .copyWith(integrationBudget: const IntegrationBudget(totalSecs: 60))
             .hasActiveIntegrationBudget,
         isTrue,
       );
@@ -240,8 +245,10 @@ void main() {
       // Different field => not equal.
       expect(a, isNot(equals(b.copyWith(priority: 999))));
       expect(a, isNot(equals(b.copyWith(targetName: 'X'))));
-      expect(a,
-          isNot(equals(b.copyWith(brightnessTierHint: BrightnessTier.bright))));
+      expect(
+        a,
+        isNot(equals(b.copyWith(brightnessTierHint: BrightnessTier.bright))),
+      );
     });
   });
 
@@ -257,35 +264,47 @@ void main() {
     });
 
     test('is_unbounded_true_for_forever_and_while_dark', () {
-      expect(LoopNode(conditionType: LoopConditionType.forever).isUnbounded,
-          isTrue);
-      expect(LoopNode(conditionType: LoopConditionType.whileDark).isUnbounded,
-          isTrue);
-      expect(LoopNode(conditionType: LoopConditionType.count).isUnbounded,
-          isFalse);
-      expect(LoopNode(conditionType: LoopConditionType.integrationTime)
-          .isUnbounded,
-          isFalse,
-          reason:
-              'integrationTime is bounded by the target integration value, not by isUnbounded');
+      expect(
+        LoopNode(conditionType: LoopConditionType.forever).isUnbounded,
+        isTrue,
+      );
+      expect(
+        LoopNode(conditionType: LoopConditionType.whileDark).isUnbounded,
+        isTrue,
+      );
+      expect(
+        LoopNode(conditionType: LoopConditionType.count).isUnbounded,
+        isFalse,
+      );
+      expect(
+        LoopNode(conditionType: LoopConditionType.integrationTime).isUnbounded,
+        isFalse,
+        reason:
+            'integrationTime is bounded by the target integration value, not by isUnbounded',
+      );
     });
 
     test('copyWith_each_field', () {
       final n = LoopNode();
       expect(
-          n
-              .copyWith(conditionType: LoopConditionType.untilTime)
-              .conditionType,
-          equals(LoopConditionType.untilTime));
+        n.copyWith(conditionType: LoopConditionType.untilTime).conditionType,
+        equals(LoopConditionType.untilTime),
+      );
       expect(n.copyWith(repeatCount: 5).repeatCount, equals(5));
       final dt = DateTime.utc(2026, 1, 1);
       expect(n.copyWith(repeatUntil: dt).repeatUntil, equals(dt));
-      expect(n.copyWith(repeatUntilAltitude: 30.0).repeatUntilAltitude,
-          equals(30.0));
-      expect(n.copyWith(integrationTimeTarget: 3600.0).integrationTimeTarget,
-          equals(3600.0));
-      expect(n.copyWith(maxSafetyIterations: 100).maxSafetyIterations,
-          equals(100));
+      expect(
+        n.copyWith(repeatUntilAltitude: 30.0).repeatUntilAltitude,
+        equals(30.0),
+      );
+      expect(
+        n.copyWith(integrationTimeTarget: 3600.0).integrationTimeTarget,
+        equals(3600.0),
+      );
+      expect(
+        n.copyWith(maxSafetyIterations: 100).maxSafetyIterations,
+        equals(100),
+      );
       expect(n.copyWith(), equals(n));
     });
   });
@@ -308,7 +327,10 @@ void main() {
       final n = ConditionalNode(safetyMonitorId: 'mon-1');
       expect(n.copyWith().safetyMonitorId, equals('mon-1'));
       // Plain `?? this.X`: null arg keeps current.
-      expect(n.copyWith(safetyMonitorId: null).safetyMonitorId, equals('mon-1'));
+      expect(
+        n.copyWith(safetyMonitorId: null).safetyMonitorId,
+        equals('mon-1'),
+      );
       // Non-null replaces.
       expect(
         n.copyWith(safetyMonitorId: 'mon-2').safetyMonitorId,
@@ -337,9 +359,7 @@ void main() {
     test('copyWith_each_non_sentinel_field', () {
       final n = ConditionalNode();
       expect(
-        n
-            .copyWith(conditionType: ConditionalType.altitudeAbove)
-            .conditionType,
+        n.copyWith(conditionType: ConditionalType.altitudeAbove).conditionType,
         equals(ConditionalType.altitudeAbove),
       );
       expect(n.copyWith(thresholdValue: 30.0).thresholdValue, equals(30.0));
@@ -397,29 +417,45 @@ void main() {
         equals(RecoveryActionType.parkAndAbort),
       );
       expect(n.copyWith(maxRetries: 10).maxRetries, equals(10));
-      expect(n.copyWith(triggerType: TriggerType.hfrDegraded).triggerType,
-          equals(TriggerType.hfrDegraded));
-      expect(n.copyWith(triggerThreshold: 4.5).triggerThreshold, equals(4.5));
-      expect(n.copyWith(hfrThresholdPercent: 50.0).hfrThresholdPercent,
-          equals(50.0));
-      expect(n.copyWith(hfrConsecutiveFrames: 7).hfrConsecutiveFrames,
-          equals(7));
-      expect(n.copyWith(triggerEveryNFrames: 50).triggerEveryNFrames,
-          equals(50));
-      expect(n.copyWith(focusDriftWindowSize: 30).focusDriftWindowSize,
-          equals(30));
       expect(
-        n.copyWith(focusDriftMinIncreasingCount: 8).focusDriftMinIncreasingCount,
+        n.copyWith(triggerType: TriggerType.hfrDegraded).triggerType,
+        equals(TriggerType.hfrDegraded),
+      );
+      expect(n.copyWith(triggerThreshold: 4.5).triggerThreshold, equals(4.5));
+      expect(
+        n.copyWith(hfrThresholdPercent: 50.0).hfrThresholdPercent,
+        equals(50.0),
+      );
+      expect(
+        n.copyWith(hfrConsecutiveFrames: 7).hfrConsecutiveFrames,
+        equals(7),
+      );
+      expect(
+        n.copyWith(triggerEveryNFrames: 50).triggerEveryNFrames,
+        equals(50),
+      );
+      expect(
+        n.copyWith(focusDriftWindowSize: 30).focusDriftWindowSize,
+        equals(30),
+      );
+      expect(
+        n
+            .copyWith(focusDriftMinIncreasingCount: 8)
+            .focusDriftMinIncreasingCount,
         equals(8),
       );
       expect(
         n.copyWith(focusDriftMinTotalIncrease: 0.9).focusDriftMinTotalIncrease,
         equals(0.9),
       );
-      expect(n.copyWith(guidingFailedDurationSecs: 45.0)
-          .guidingFailedDurationSecs, equals(45.0));
-      expect(n.copyWith(cloudMinutesBefore: 15.0).cloudMinutesBefore,
-          equals(15.0));
+      expect(
+        n.copyWith(guidingFailedDurationSecs: 45.0).guidingFailedDurationSecs,
+        equals(45.0),
+      );
+      expect(
+        n.copyWith(cloudMinutesBefore: 15.0).cloudMinutesBefore,
+        equals(15.0),
+      );
       expect(
         n
             .copyWith(cloudCoverageThresholdPercent: 60.0)
@@ -427,14 +463,19 @@ void main() {
         equals(60.0),
       );
       expect(
-        n.copyWith(cloudOpeningMinDurationSecs: 100.0)
+        n
+            .copyWith(cloudOpeningMinDurationSecs: 100.0)
             .cloudOpeningMinDurationSecs,
         equals(100.0),
       );
-      expect(n.copyWith(cloudCoverMaxPercent: 90.0).cloudCoverMaxPercent,
-          equals(90.0));
-      expect(n.copyWith(cloudCoverDurationSecs: 30.0).cloudCoverDurationSecs,
-          equals(30.0));
+      expect(
+        n.copyWith(cloudCoverMaxPercent: 90.0).cloudCoverMaxPercent,
+        equals(90.0),
+      );
+      expect(
+        n.copyWith(cloudCoverDurationSecs: 30.0).cloudCoverDurationSecs,
+        equals(30.0),
+      );
       expect(
         n.copyWith(transparencyBelowThreshold: 0.5).transparencyBelowThreshold,
         equals(0.5),
@@ -467,8 +508,7 @@ void main() {
       expect(n3.toRustTriggerConfig(), equals('MountTrackingLost'));
     });
 
-    test('to_rust_trigger_config_emits_struct_object_for_payload_variants',
-        () {
+    test('to_rust_trigger_config_emits_struct_object_for_payload_variants', () {
       final n = RecoveryNode(
         triggerType: TriggerType.transparencyDropped,
         transparencyBelowThreshold: 0.5,
@@ -528,9 +568,7 @@ void main() {
       // The "clear back to inherit-global" path is rebuild-explicit
       // at the editor layer; see _AdaptiveExposureSectionState
       // ._clearOverride. We pin BOTH halves of the new contract.
-      final n = ExposureNode(
-        adaptiveExposure: const AdaptiveExposureConfig(),
-      );
+      final n = ExposureNode(adaptiveExposure: const AdaptiveExposureConfig());
       // Omitted → keep
       expect(n.copyWith().adaptiveExposure, isNotNull);
       // Explicit null → still keeps (plain `??` semantics)
@@ -580,21 +618,29 @@ void main() {
       final n = ExposureNode();
       expect(n.copyWith(durationSecs: 120.0).durationSecs, equals(120.0));
       expect(n.copyWith(count: 5).count, equals(5));
-      expect(n.copyWith(frameType: FrameType.dark).frameType,
-          equals(FrameType.dark));
+      expect(
+        n.copyWith(frameType: FrameType.dark).frameType,
+        equals(FrameType.dark),
+      );
       expect(n.copyWith(filter: 'L').filter, equals('L'));
       expect(n.copyWith(filterIndex: 2).filterIndex, equals(2));
       expect(n.copyWith(gain: 100).gain, equals(100));
       expect(n.copyWith(offset: 30).offset, equals(30));
-      expect(n.copyWith(binning: BinningMode.two).binning,
-          equals(BinningMode.two));
+      expect(
+        n.copyWith(binning: BinningMode.two).binning,
+        equals(BinningMode.two),
+      );
       expect(n.copyWith(ditherEvery: 3).ditherEvery, equals(3));
       expect(
-        n.copyWith(triggers: [
-          {'kind': 'hfr', 'threshold': 5.0}
-        ]).triggers,
+        n
+            .copyWith(
+              triggers: [
+                {'kind': 'hfr', 'threshold': 5.0},
+              ],
+            )
+            .triggers,
         equals([
-          {'kind': 'hfr', 'threshold': 5.0}
+          {'kind': 'hfr', 'threshold': 5.0},
         ]),
       );
       const ae = AdaptiveExposureConfig(targetSnr: 100);
@@ -609,19 +655,29 @@ void main() {
     });
 
     test('equality_via_props_includes_triggers_list', () {
-      final a = ExposureNode(id: 'e', triggers: const [
-        {'kind': 'hfr', 'threshold': 5.0}
-      ]);
-      final b = ExposureNode(id: 'e', triggers: const [
-        {'kind': 'hfr', 'threshold': 5.0}
-      ]);
+      final a = ExposureNode(
+        id: 'e',
+        triggers: const [
+          {'kind': 'hfr', 'threshold': 5.0},
+        ],
+      );
+      final b = ExposureNode(
+        id: 'e',
+        triggers: const [
+          {'kind': 'hfr', 'threshold': 5.0},
+        ],
+      );
       expect(a, equals(b));
       expect(
         a,
         isNot(
-          equals(b.copyWith(triggers: const [
-            {'kind': 'hfr', 'threshold': 7.0}
-          ])),
+          equals(
+            b.copyWith(
+              triggers: const [
+                {'kind': 'hfr', 'threshold': 7.0},
+              ],
+            ),
+          ),
         ),
       );
     });
@@ -642,8 +698,10 @@ void main() {
       final n = NotificationNode();
       expect(n.copyWith(title: 'T').title, equals('T'));
       expect(n.copyWith(message: 'M').message, equals('M'));
-      expect(n.copyWith(level: NotificationLevel.warning).level,
-          equals(NotificationLevel.warning));
+      expect(
+        n.copyWith(level: NotificationLevel.warning).level,
+        equals(NotificationLevel.warning),
+      );
       expect(n.copyWith(), equals(n));
     });
 
@@ -671,9 +729,9 @@ void main() {
       // Non-null replaces.
       expect(
         n
-            .copyWith(explicitTransports: const [
-              NotificationTransportKind.telegram,
-            ])
+            .copyWith(
+              explicitTransports: const [NotificationTransportKind.telegram],
+            )
             .explicitTransports,
         equals(const [NotificationTransportKind.telegram]),
       );
@@ -830,8 +888,10 @@ void main() {
       // path moved to rebuild-explicit at the editor (covered below).
       final n = TargetSchedulerNode(swapOnConditionsBelow: 60.0);
       expect(n.copyWith().swapOnConditionsBelow, equals(60.0));
-      expect(n.copyWith(swapOnConditionsBelow: null).swapOnConditionsBelow,
-          equals(60.0));
+      expect(
+        n.copyWith(swapOnConditionsBelow: null).swapOnConditionsBelow,
+        equals(60.0),
+      );
       expect(
         n.copyWith(swapOnConditionsBelow: 40.0).swapOnConditionsBelow,
         equals(40.0),
@@ -868,8 +928,10 @@ void main() {
     test('copyWith_each_field', () {
       final n = TargetSchedulerNode();
       expect(n.copyWith(altitudeWeight: 0.3).altitudeWeight, equals(0.3));
-      expect(n.copyWith(moonDistanceWeight: 0.3).moonDistanceWeight,
-          equals(0.3));
+      expect(
+        n.copyWith(moonDistanceWeight: 0.3).moonDistanceWeight,
+        equals(0.3),
+      );
       expect(
         n.copyWith(transitProximityWeight: 0.3).transitProximityWeight,
         equals(0.3),
@@ -903,28 +965,35 @@ void main() {
 
     // Phase B (scheduler-activation): the azimuth horizon mask carried into
     // the in-sequence scheduler from the operator's site profile.
-    test('horizon_profile_copyWith_keeps_or_replaces_and_participates_in_props',
-        () {
-      const horizon = HorizonProfile(
-        name: 'Site',
-        samples: [HorizonSample(0.0, 20.0), HorizonSample(180.0, 30.0)],
-      );
-      final n = TargetSchedulerNode(horizonProfile: horizon);
-      // copyWith with no arg keeps; null keeps; non-null replaces.
-      expect(n.copyWith().horizonProfile, equals(horizon));
-      expect(n.copyWith(horizonProfile: null).horizonProfile, equals(horizon));
-      const other = HorizonProfile(
-        name: 'Other',
-        samples: [HorizonSample(0.0, 10.0)],
-      );
-      expect(n.copyWith(horizonProfile: other).horizonProfile, equals(other));
-      // Equatable: the horizon participates so two nodes differing only by
-      // their mask are not equal.
-      expect(TargetSchedulerNode(id: 'x'),
-          isNot(equals(TargetSchedulerNode(id: 'x', horizonProfile: horizon))));
-      // Default is null (flat floor).
-      expect(TargetSchedulerNode().horizonProfile, isNull);
-    });
+    test(
+      'horizon_profile_copyWith_keeps_or_replaces_and_participates_in_props',
+      () {
+        const horizon = HorizonProfile(
+          name: 'Site',
+          samples: [HorizonSample(0.0, 20.0), HorizonSample(180.0, 30.0)],
+        );
+        final n = TargetSchedulerNode(horizonProfile: horizon);
+        // copyWith with no arg keeps; null keeps; non-null replaces.
+        expect(n.copyWith().horizonProfile, equals(horizon));
+        expect(
+          n.copyWith(horizonProfile: null).horizonProfile,
+          equals(horizon),
+        );
+        const other = HorizonProfile(
+          name: 'Other',
+          samples: [HorizonSample(0.0, 10.0)],
+        );
+        expect(n.copyWith(horizonProfile: other).horizonProfile, equals(other));
+        // Equatable: the horizon participates so two nodes differing only by
+        // their mask are not equal.
+        expect(
+          TargetSchedulerNode(id: 'x'),
+          isNot(equals(TargetSchedulerNode(id: 'x', horizonProfile: horizon))),
+        );
+        // Default is null (flat floor).
+        expect(TargetSchedulerNode().horizonProfile, isNull);
+      },
+    );
   });
 
   // ============================================================
@@ -935,30 +1004,38 @@ void main() {
       final n = SmartExposureNode();
       expect(n.nodeType, equals('SmartExposure'));
       expect(n.iconName, equals('layers'));
-      expect(n.requiredDevices,
-          equals({DeviceType.camera, DeviceType.filterWheel}));
+      expect(
+        n.requiredDevices,
+        equals({DeviceType.camera, DeviceType.filterWheel}),
+      );
     });
 
     test('total_integration_secs_sums_filter_plans', () {
-      final n = SmartExposureNode(plans: const [
-        FilterPlan(filterName: 'L', count: 10, durationSecs: 60.0),
-        FilterPlan(filterName: 'R', count: 5, durationSecs: 120.0),
-      ]);
+      final n = SmartExposureNode(
+        plans: const [
+          FilterPlan(filterName: 'L', count: 10, durationSecs: 60.0),
+          FilterPlan(filterName: 'R', count: 5, durationSecs: 120.0),
+        ],
+      );
       expect(n.totalIntegrationSecs, equals(10 * 60.0 + 5 * 120.0));
     });
 
     test('distinct_filter_count_and_duplicate_detection', () {
-      final unique = SmartExposureNode(plans: const [
-        FilterPlan(filterName: 'L'),
-        FilterPlan(filterName: 'R'),
-      ]);
+      final unique = SmartExposureNode(
+        plans: const [
+          FilterPlan(filterName: 'L'),
+          FilterPlan(filterName: 'R'),
+        ],
+      );
       expect(unique.distinctFilterCount, equals(2));
       expect(unique.hasDuplicateFilter, isFalse);
 
-      final dupe = SmartExposureNode(plans: const [
-        FilterPlan(filterName: 'L', durationSecs: 30),
-        FilterPlan(filterName: 'L', durationSecs: 60),
-      ]);
+      final dupe = SmartExposureNode(
+        plans: const [
+          FilterPlan(filterName: 'L', durationSecs: 30),
+          FilterPlan(filterName: 'L', durationSecs: 60),
+        ],
+      );
       expect(dupe.distinctFilterCount, equals(1));
       expect(dupe.hasDuplicateFilter, isTrue);
     });
@@ -968,15 +1045,16 @@ void main() {
       const plans = [FilterPlan(filterName: 'L')];
       expect(n.copyWith(plans: plans).plans, equals(plans));
       expect(n.copyWith(rotateFilters: false).rotateFilters, isFalse);
-      expect(n.copyWith(ditherOnFilterChange: true).ditherOnFilterChange,
-          isTrue);
+      expect(
+        n.copyWith(ditherOnFilterChange: true).ditherOnFilterChange,
+        isTrue,
+      );
       expect(
         n.copyWith(integrationBudgetSecs: 1000.0).integrationBudgetSecs,
         equals(1000.0),
       );
       expect(n.copyWith(batchSize: 5).batchSize, equals(5));
-      expect(
-          n.copyWith(loopUntilStopped: true).loopUntilStopped, isTrue);
+      expect(n.copyWith(loopUntilStopped: true).loopUntilStopped, isTrue);
       expect(n.copyWith(), equals(n));
     });
 
@@ -991,19 +1069,28 @@ void main() {
     });
 
     test('equality_includes_plans_list_order', () {
-      final a = SmartExposureNode(id: 's', plans: const [
-        FilterPlan(filterName: 'L'),
-        FilterPlan(filterName: 'R'),
-      ]);
-      final b = SmartExposureNode(id: 's', plans: const [
-        FilterPlan(filterName: 'L'),
-        FilterPlan(filterName: 'R'),
-      ]);
+      final a = SmartExposureNode(
+        id: 's',
+        plans: const [
+          FilterPlan(filterName: 'L'),
+          FilterPlan(filterName: 'R'),
+        ],
+      );
+      final b = SmartExposureNode(
+        id: 's',
+        plans: const [
+          FilterPlan(filterName: 'L'),
+          FilterPlan(filterName: 'R'),
+        ],
+      );
       expect(a, equals(b));
-      final reordered = SmartExposureNode(id: 's', plans: const [
-        FilterPlan(filterName: 'R'),
-        FilterPlan(filterName: 'L'),
-      ]);
+      final reordered = SmartExposureNode(
+        id: 's',
+        plans: const [
+          FilterPlan(filterName: 'R'),
+          FilterPlan(filterName: 'L'),
+        ],
+      );
       expect(a, isNot(equals(reordered)));
     });
   });
@@ -1036,10 +1123,7 @@ void main() {
       // PHASE-5: plain `?? this.X` for both fields. Omitted or null
       // keeps; non-null replaces. Clearing back to "public + no
       // watermark" is rebuild-explicit at the editor.
-      final n = LiveStackingNode(
-        authToken: 'secret',
-        watermarkText: 'M42',
-      );
+      final n = LiveStackingNode(authToken: 'secret', watermarkText: 'M42');
       expect(n.copyWith().authToken, equals('secret'));
       expect(n.copyWith().watermarkText, equals('M42'));
       // Explicit null keeps under plain semantics.
@@ -1052,10 +1136,7 @@ void main() {
     test('auth_token_and_watermark_cleared_via_rebuild_explicit', () {
       // PHASE-5: pin the rebuild-explicit recipe used by the editor's
       // empty-text-submit handlers for both fields.
-      final n = LiveStackingNode(
-        authToken: 'secret',
-        watermarkText: 'M42',
-      );
+      final n = LiveStackingNode(authToken: 'secret', watermarkText: 'M42');
       final cleared = LiveStackingNode(
         id: n.id,
         name: n.name,
@@ -1103,17 +1184,25 @@ void main() {
   // ============================================================
   group('LiveStackingMode enum', () {
     test('storage_key_matches_snake_case_rust_form', () {
-      expect(LiveStackingMode.broadcastOnly.storageKey,
-          equals('broadcast_only'));
-      expect(LiveStackingMode.recordAndBroadcast.storageKey,
-          equals('record_and_broadcast'));
+      expect(
+        LiveStackingMode.broadcastOnly.storageKey,
+        equals('broadcast_only'),
+      );
+      expect(
+        LiveStackingMode.recordAndBroadcast.storageKey,
+        equals('record_and_broadcast'),
+      );
     });
 
     test('from_storage_key_round_trip', () {
-      expect(LiveStackingMode.fromStorageKey('broadcast_only'),
-          equals(LiveStackingMode.broadcastOnly));
-      expect(LiveStackingMode.fromStorageKey('record_and_broadcast'),
-          equals(LiveStackingMode.recordAndBroadcast));
+      expect(
+        LiveStackingMode.fromStorageKey('broadcast_only'),
+        equals(LiveStackingMode.broadcastOnly),
+      );
+      expect(
+        LiveStackingMode.fromStorageKey('record_and_broadcast'),
+        equals(LiveStackingMode.recordAndBroadcast),
+      );
     });
 
     test('from_storage_key_unknown_defaults_to_broadcast_only', () {
@@ -1130,8 +1219,10 @@ void main() {
         LiveStackingMode.fromStorageKey('bogus'),
         equals(LiveStackingMode.broadcastOnly),
       );
-      expect(LiveStackingMode.fromStorageKey(null),
-          equals(LiveStackingMode.broadcastOnly));
+      expect(
+        LiveStackingMode.fromStorageKey(null),
+        equals(LiveStackingMode.broadcastOnly),
+      );
     });
   });
 
@@ -1143,22 +1234,32 @@ void main() {
     });
 
     test('from_storage_key_round_trip', () {
-      expect(LiveStackingMethod.fromStorageKey('average'),
-          equals(LiveStackingMethod.average));
-      expect(LiveStackingMethod.fromStorageKey('median_rej'),
-          equals(LiveStackingMethod.medianRej));
-      expect(LiveStackingMethod.fromStorageKey('sigma'),
-          equals(LiveStackingMethod.sigma));
+      expect(
+        LiveStackingMethod.fromStorageKey('average'),
+        equals(LiveStackingMethod.average),
+      );
+      expect(
+        LiveStackingMethod.fromStorageKey('median_rej'),
+        equals(LiveStackingMethod.medianRej),
+      );
+      expect(
+        LiveStackingMethod.fromStorageKey('sigma'),
+        equals(LiveStackingMethod.sigma),
+      );
     });
 
     test('from_storage_key_unknown_defaults_to_average', () {
       // BUG (same as LiveStackingMode): silent fallback to `average`
       // hides storage-format corruption. PHASE-2-NOTE: preserve current
       // behaviour by default.
-      expect(LiveStackingMethod.fromStorageKey('bogus'),
-          equals(LiveStackingMethod.average));
-      expect(LiveStackingMethod.fromStorageKey(null),
-          equals(LiveStackingMethod.average));
+      expect(
+        LiveStackingMethod.fromStorageKey('bogus'),
+        equals(LiveStackingMethod.average),
+      );
+      expect(
+        LiveStackingMethod.fromStorageKey(null),
+        equals(LiveStackingMethod.average),
+      );
     });
   });
 
@@ -1167,35 +1268,34 @@ void main() {
   // ============================================================
   group('SciencePhotometryNode', () {
     SciencePhotometryNode sample() => SciencePhotometryNode(
-          id: 'sp1',
-          targetDesignation: 'V0376 Per',
-          referenceStars: const ['ref1', 'ref2', 'ref3'],
-          maxCadenceGapSecs: 3.5,
-          filter: 'V',
-          exposureSecs: 30.0,
-          count: 120,
-          reduceLive: true,
-          applyDifferential: true,
-          quality: const PhotometryQualityGates(minSnr: 100.0),
-          gain: 100,
-          offset: 30,
-          binning: BinningMode.two,
-        );
+      id: 'sp1',
+      targetDesignation: 'V0376 Per',
+      referenceStars: const ['ref1', 'ref2', 'ref3'],
+      maxCadenceGapSecs: 3.5,
+      filter: 'V',
+      exposureSecs: 30.0,
+      count: 120,
+      reduceLive: true,
+      applyDifferential: true,
+      quality: const PhotometryQualityGates(minSnr: 100.0),
+      gain: 100,
+      offset: 30,
+      binning: BinningMode.two,
+    );
 
     test('node_type_and_required_devices_pin', () {
       final n = sample();
       expect(n.nodeType, equals('SciencePhotometry'));
       expect(n.iconName, equals('analytics'));
-      expect(n.requiredDevices,
-          equals({DeviceType.camera, DeviceType.filterWheel}));
+      expect(
+        n.requiredDevices,
+        equals({DeviceType.camera, DeviceType.filterWheel}),
+      );
     });
 
     test('is_photometric_filter_recognises_standard_bands', () {
       expect(sample().isPhotometricFilter, isTrue);
-      expect(
-        sample().copyWith(filter: 'Bogus').isPhotometricFilter,
-        isFalse,
-      );
+      expect(sample().copyWith(filter: 'Bogus').isPhotometricFilter, isFalse);
     });
 
     test('has_impossible_cadence_negative_gap', () {
@@ -1266,31 +1366,23 @@ void main() {
 
     test('copyWith_each_field', () {
       final n = sample();
-      expect(
-        n.copyWith(targetDesignation: 'X').targetDesignation,
-        equals('X'),
-      );
+      expect(n.copyWith(targetDesignation: 'X').targetDesignation, equals('X'));
       expect(
         n.copyWith(referenceStars: const ['only']).referenceStars,
         equals(const ['only']),
       );
-      expect(
-        n.copyWith(maxCadenceGapSecs: 5.0).maxCadenceGapSecs,
-        equals(5.0),
-      );
+      expect(n.copyWith(maxCadenceGapSecs: 5.0).maxCadenceGapSecs, equals(5.0));
       expect(n.copyWith(filter: 'B').filter, equals('B'));
       expect(n.copyWith(exposureSecs: 90.0).exposureSecs, equals(90.0));
       expect(n.copyWith(count: 10).count, equals(10));
       expect(n.copyWith(reduceLive: false).reduceLive, isFalse);
-      expect(
-        n.copyWith(applyDifferential: false).applyDifferential,
-        isFalse,
-      );
+      expect(n.copyWith(applyDifferential: false).applyDifferential, isFalse);
       const q = PhotometryQualityGates(minSnr: 200.0);
       expect(n.copyWith(quality: q).quality, equals(q));
       expect(
-          n.copyWith(binning: BinningMode.four).binning,
-          equals(BinningMode.four));
+        n.copyWith(binning: BinningMode.four).binning,
+        equals(BinningMode.four),
+      );
     });
 
     test('copyWith_gain_and_offset_keep_or_replace', () {
@@ -1342,8 +1434,9 @@ void main() {
       expect(a, equals(b));
       expect(
         a,
-        isNot(equals(
-            a.copyWith(referenceStars: const ['ref2', 'ref1', 'ref3']))),
+        isNot(
+          equals(a.copyWith(referenceStars: const ['ref2', 'ref1', 'ref3'])),
+        ),
       );
     });
   });

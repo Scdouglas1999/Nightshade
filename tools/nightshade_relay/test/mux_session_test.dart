@@ -17,7 +17,10 @@ import 'package:test/test.dart';
   final bToA = StreamController<Uint8List>();
   a = MuxSession(send: aToB.add);
   b = MuxSession(
-      send: bToA.add, onStream: onStream, onControl: onAcceptorControl);
+    send: bToA.add,
+    onStream: onStream,
+    onControl: onAcceptorControl,
+  );
   aToB.stream.listen(b.handleMessage);
   bToA.stream.listen(a.handleMessage);
   return (initiator: a, acceptor: b);
@@ -32,16 +35,17 @@ Future<Uint8List> collect(Stream<Uint8List> stream) async {
 }
 
 void main() {
-  test('single stream round trip with half-close in both directions',
-      () async {
+  test('single stream round trip with half-close in both directions', () async {
     final echoed = Completer<Uint8List>();
-    final pair = connectedPair(onStream: (stream) async {
-      // Acceptor echoes everything back, then half-closes.
-      final received = await collect(stream.incoming);
-      stream.add(received);
-      stream.finish();
-      echoed.complete(received);
-    });
+    final pair = connectedPair(
+      onStream: (stream) async {
+        // Acceptor echoes everything back, then half-closes.
+        final received = await collect(stream.incoming);
+        stream.add(received);
+        stream.finish();
+        echoed.complete(received);
+      },
+    );
 
     final stream = pair.initiator.openStream();
     stream.add([1, 2, 3]);
@@ -58,19 +62,24 @@ void main() {
   });
 
   test('interleaved concurrent streams stay isolated and ordered', () async {
-    final pair = connectedPair(onStream: (stream) async {
-      final received = await collect(stream.incoming);
-      stream.add(received);
-      stream.finish();
-    });
+    final pair = connectedPair(
+      onStream: (stream) async {
+        final received = await collect(stream.incoming);
+        stream.add(received);
+        stream.finish();
+      },
+    );
 
     const streamCount = 10;
-    final streams =
-        List.generate(streamCount, (_) => pair.initiator.openStream());
+    final streams = List.generate(
+      streamCount,
+      (_) => pair.initiator.openStream(),
+    );
     final payloads = List.generate(
       streamCount,
       (s) => Uint8List.fromList(
-          List.generate(20_000 + s * 137, (i) => (i * (s + 1)) % 256)),
+        List.generate(20_000 + s * 137, (i) => (i * (s + 1)) % 256),
+      ),
     );
 
     // Interleave writes across all streams in small slices.
@@ -94,46 +103,54 @@ void main() {
       s.finish();
     }
 
-    final replies =
-        await Future.wait(streams.map((s) => collect(s.incoming)));
+    final replies = await Future.wait(streams.map((s) => collect(s.incoming)));
     for (var s = 0; s < streamCount; s++) {
       expect(replies[s], payloads[s], reason: 'stream $s corrupted');
     }
   });
 
-  test('writes larger than the frame cap are chunked and reassembled in order',
-      () async {
-    // Backpressure-basics: a 5 MiB single add() must arrive intact and
-    // ordered even though it crosses the 1 MiB frame cap.
-    final pair = connectedPair(onStream: (stream) async {
-      final received = await collect(stream.incoming);
-      stream.add([received.length & 0xff]);
+  test(
+    'writes larger than the frame cap are chunked and reassembled in order',
+    () async {
+      // Backpressure-basics: a 5 MiB single add() must arrive intact and
+      // ordered even though it crosses the 1 MiB frame cap.
+      final pair = connectedPair(
+        onStream: (stream) async {
+          final received = await collect(stream.incoming);
+          stream.add([received.length & 0xff]);
+          stream.finish();
+        },
+      );
+
+      final big = Uint8List.fromList(
+        List.generate(5 * 1024 * 1024 + 17, (i) => (i * 31) % 256),
+      );
+      final receivedOnAcceptor = Completer<Uint8List>();
+      final pair2 = connectedPair(
+        onStream: (stream) async {
+          receivedOnAcceptor.complete(await collect(stream.incoming));
+        },
+      );
+
+      final stream = pair2.initiator.openStream();
+      stream.add(big);
       stream.finish();
-    });
+      expect(await receivedOnAcceptor.future, big);
 
-    final big = Uint8List.fromList(
-        List.generate(5 * 1024 * 1024 + 17, (i) => (i * 31) % 256));
-    final receivedOnAcceptor = Completer<Uint8List>();
-    final pair2 = connectedPair(onStream: (stream) async {
-      receivedOnAcceptor.complete(await collect(stream.incoming));
-    });
-
-    final stream = pair2.initiator.openStream();
-    stream.add(big);
-    stream.finish();
-    expect(await receivedOnAcceptor.future, big);
-
-    // Keep the analyzer honest about the unused first pair.
-    expect(pair.initiator.isClosed, isFalse);
-  });
+      // Keep the analyzer honest about the unused first pair.
+      expect(pair.initiator.isClosed, isFalse);
+    },
+  );
 
   test('half-close lets the peer keep sending after local finish', () async {
-    final pair = connectedPair(onStream: (stream) async {
-      // Wait for the initiator's finish FIRST, then respond.
-      await collect(stream.incoming);
-      stream.add([9, 9, 9]);
-      stream.finish();
-    });
+    final pair = connectedPair(
+      onStream: (stream) async {
+        // Wait for the initiator's finish FIRST, then respond.
+        await collect(stream.incoming);
+        stream.add([9, 9, 9]);
+        stream.finish();
+      },
+    );
 
     final stream = pair.initiator.openStream();
     stream.finish(); // immediately half-close, no request body
@@ -150,10 +167,15 @@ void main() {
 
   test('reset surfaces as MuxStreamResetException on the peer', () async {
     final peerError = Completer<Object>();
-    final pair = connectedPair(onStream: (stream) {
-      stream.incoming.listen((_) {},
-          onError: peerError.complete, onDone: () {});
-    });
+    final pair = connectedPair(
+      onStream: (stream) {
+        stream.incoming.listen(
+          (_) {},
+          onError: peerError.complete,
+          onDone: () {},
+        );
+      },
+    );
 
     final stream = pair.initiator.openStream();
     stream.add([1]);
@@ -209,10 +231,15 @@ void main() {
 
   test('malformed control payload is a protocol error', () {
     final session = MuxSession(send: (_) {});
-    final frame = MuxFrame(0, MuxFrameType.control,
-        Uint8List.fromList('[1,2,3]'.codeUnits));
-    expect(() => session.handleMessage(frame.encode()),
-        throwsA(isA<MuxProtocolException>()));
+    final frame = MuxFrame(
+      0,
+      MuxFrameType.control,
+      Uint8List.fromList('[1,2,3]'.codeUnits),
+    );
+    expect(
+      () => session.handleMessage(frame.encode()),
+      throwsA(isA<MuxProtocolException>()),
+    );
   });
 
   test('open on the control stream id is a protocol error', () {

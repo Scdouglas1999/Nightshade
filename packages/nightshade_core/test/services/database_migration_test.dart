@@ -9,8 +9,9 @@ import '../fixtures/synthetic_old_profile_fixtures.dart';
 
 void main() {
   test('migrates captured_images to include quality_score', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_migration_test_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_migration_test_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
 
     final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
@@ -68,10 +69,12 @@ CREATE TABLE captured_images (
 
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
-      final columns =
-          await db.customSelect("PRAGMA table_info('captured_images')").get();
-      final hasQualityScore =
-          columns.any((row) => row.data['name'] == 'quality_score');
+      final columns = await db
+          .customSelect("PRAGMA table_info('captured_images')")
+          .get();
+      final hasQualityScore = columns.any(
+        (row) => row.data['name'] == 'quality_score',
+      );
 
       expect(
         hasQualityScore,
@@ -92,8 +95,9 @@ CREATE TABLE captured_images (
       final tables = await db
           .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
           .get();
-      final tableNames =
-          tables.map((row) => row.data['name']?.toString() ?? '').toSet();
+      final tableNames = tables
+          .map((row) => row.data['name']?.toString() ?? '')
+          .toSet();
 
       expect(tableNames.contains('science_frame_quality_metrics'), isTrue);
       expect(tableNames.contains('science_tile_metrics'), isTrue);
@@ -108,41 +112,48 @@ CREATE TABLE captured_images (
     }
   });
 
-  test('latest schema keeps imaging sessions when sequences are deleted',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    try {
-      final sequenceId = await db.into(db.sequences).insert(
-            SequencesCompanion.insert(name: 'Sequence A'),
-          );
-      final sessionId = await db.into(db.imagingSessions).insert(
-            ImagingSessionsCompanion.insert(
-              startTime: DateTime.now(),
-              status: const Value('active'),
-              sequenceId: Value(sequenceId),
-            ),
-          );
+  test(
+    'latest schema keeps imaging sessions when sequences are deleted',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      try {
+        final sequenceId = await db
+            .into(db.sequences)
+            .insert(SequencesCompanion.insert(name: 'Sequence A'));
+        final sessionId = await db
+            .into(db.imagingSessions)
+            .insert(
+              ImagingSessionsCompanion.insert(
+                startTime: DateTime.now(),
+                status: const Value('active'),
+                sequenceId: Value(sequenceId),
+              ),
+            );
 
-      await (db.delete(db.sequences)..where((t) => t.id.equals(sequenceId)))
-          .go();
+        await (db.delete(
+          db.sequences,
+        )..where((t) => t.id.equals(sequenceId))).go();
 
-      final session = await (db.select(db.imagingSessions)
-            ..where((t) => t.id.equals(sessionId)))
-          .getSingle();
-      expect(session.sequenceId, equals(null));
-    } finally {
-      await db.close();
-    }
-  });
+        final session = await (db.select(
+          db.imagingSessions,
+        )..where((t) => t.id.equals(sessionId))).getSingle();
+        expect(session.sequenceId, equals(null));
+      } finally {
+        await db.close();
+      }
+    },
+  );
 
   test('latest schema cascades polar history on profile delete', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      final profileId = await db.into(db.equipmentProfiles).insert(
-            EquipmentProfilesCompanion.insert(name: 'Profile A'),
-          );
+      final profileId = await db
+          .into(db.equipmentProfiles)
+          .insert(EquipmentProfilesCompanion.insert(name: 'Profile A'));
 
-      await db.into(db.polarAlignmentHistory).insert(
+      await db
+          .into(db.polarAlignmentHistory)
+          .insert(
             PolarAlignmentHistoryCompanion.insert(
               equipmentProfileId: Value(profileId),
               initialAzimuthError: 10,
@@ -157,9 +168,9 @@ CREATE TABLE captured_images (
             ),
           );
 
-      await (db.delete(db.equipmentProfiles)
-            ..where((t) => t.id.equals(profileId)))
-          .go();
+      await (db.delete(
+        db.equipmentProfiles,
+      )..where((t) => t.id.equals(profileId))).go();
 
       final remaining = await db.select(db.polarAlignmentHistory).get();
       expect(remaining, isEmpty);
@@ -168,123 +179,142 @@ CREATE TABLE captured_images (
     }
   });
 
-  test('latest schema enforces single science config row per session',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    try {
-      final sessionId = await db.into(db.imagingSessions).insert(
-            ImagingSessionsCompanion.insert(
-              startTime: DateTime.now(),
-            ),
-          );
+  test(
+    'latest schema enforces single science config row per session',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      try {
+        final sessionId = await db
+            .into(db.imagingSessions)
+            .insert(ImagingSessionsCompanion.insert(startTime: DateTime.now()));
 
-      await db.into(db.scienceSessionConfig).insert(
-            ScienceSessionConfigCompanion.insert(sessionId: Value(sessionId)),
-          );
-
-      await expectLater(
-        db.into(db.scienceSessionConfig).insert(
+        await db
+            .into(db.scienceSessionConfig)
+            .insert(
               ScienceSessionConfigCompanion.insert(sessionId: Value(sessionId)),
-            ),
-        throwsA(isA<SqliteException>()),
-      );
-    } finally {
-      await db.close();
-    }
-  });
+            );
 
-  test('schema 35 database upgrades to add switch_id column (DEV-P2-1)',
-      () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_v35_to_v36_');
-    final dbFile = File('${tempDir.path}/nightshade.db');
-
-    // Set up a database at schema version 35 (the version that introduced
-    // safety_monitor_id but predates the switch_id column).
-    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    try {
-      // Drop the switch_id column (and recreate the table) so we look like
-      // a real v35 database that never had this column.
-      await setupDb.customStatement('PRAGMA foreign_keys = OFF');
-      // The freshly-created Drift schema already has switch_id at v36, so
-      // we strip it back to simulate an older install.
-      await setupDb.customStatement(
-          'ALTER TABLE equipment_profiles DROP COLUMN switch_id');
-      await setupDb.customStatement('PRAGMA user_version = 35');
-    } finally {
-      await setupDb.close();
-    }
-
-    // Re-open at the current schema version — onUpgrade should add the
-    // switch_id column back via the v36 migration.
-    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
-      expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-
-      final columns = await db
-          .customSelect("PRAGMA table_info('equipment_profiles')")
-          .get();
-      final hasSwitchId =
-          columns.any((row) => row.data['name'] == 'switch_id');
-
-      expect(
-        hasSwitchId,
-        isTrue,
-        reason: 'equipment_profiles should include switch_id after '
-            'v36 migration (DEV-P2-1)',
-      );
-
-      // Existing profiles upgrade cleanly with switch_id = null.
-      final profileId = await db.into(db.equipmentProfiles).insert(
-            EquipmentProfilesCompanion.insert(name: 'Migrated Profile'),
-          );
-      final row = await (db.select(db.equipmentProfiles)
-            ..where((t) => t.id.equals(profileId)))
-          .getSingle();
-      expect(row.switchId, equals(null));
-    } finally {
-      await db.close();
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
+        await expectLater(
+          db
+              .into(db.scienceSessionConfig)
+              .insert(
+                ScienceSessionConfigCompanion.insert(
+                  sessionId: Value(sessionId),
+                ),
+              ),
+          throwsA(isA<SqliteException>()),
+        );
+      } finally {
+        await db.close();
       }
-    }
-  });
+    },
+  );
+
+  test(
+    'schema 35 database upgrades to add switch_id column (DEV-P2-1)',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_v35_to_v36_',
+      );
+      final dbFile = File('${tempDir.path}/nightshade.db');
+
+      // Set up a database at schema version 35 (the version that introduced
+      // safety_monitor_id but predates the switch_id column).
+      final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      try {
+        // Drop the switch_id column (and recreate the table) so we look like
+        // a real v35 database that never had this column.
+        await setupDb.customStatement('PRAGMA foreign_keys = OFF');
+        // The freshly-created Drift schema already has switch_id at v36, so
+        // we strip it back to simulate an older install.
+        await setupDb.customStatement(
+          'ALTER TABLE equipment_profiles DROP COLUMN switch_id',
+        );
+        await setupDb.customStatement('PRAGMA user_version = 35');
+      } finally {
+        await setupDb.close();
+      }
+
+      // Re-open at the current schema version — onUpgrade should add the
+      // switch_id column back via the v36 migration.
+      final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      try {
+        final upgradedVersion = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
+
+        final columns = await db
+            .customSelect("PRAGMA table_info('equipment_profiles')")
+            .get();
+        final hasSwitchId = columns.any(
+          (row) => row.data['name'] == 'switch_id',
+        );
+
+        expect(
+          hasSwitchId,
+          isTrue,
+          reason:
+              'equipment_profiles should include switch_id after '
+              'v36 migration (DEV-P2-1)',
+        );
+
+        // Existing profiles upgrade cleanly with switch_id = null.
+        final profileId = await db
+            .into(db.equipmentProfiles)
+            .insert(
+              EquipmentProfilesCompanion.insert(name: 'Migrated Profile'),
+            );
+        final row = await (db.select(
+          db.equipmentProfiles,
+        )..where((t) => t.id.equals(profileId))).getSingle();
+        expect(row.switchId, equals(null));
+      } finally {
+        await db.close();
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      }
+    },
+  );
 
   test('equipment profile round-trips switchId through Drift companion '
       '(DEV-P2-1)', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
       const switchId = 'native:zwo-eaf:switch:0';
-      final id = await db.into(db.equipmentProfiles).insert(
+      final id = await db
+          .into(db.equipmentProfiles)
+          .insert(
             EquipmentProfilesCompanion.insert(
               name: 'Switch Profile',
               switchId: const Value(switchId),
             ),
           );
 
-      final fetched = await (db.select(db.equipmentProfiles)
-            ..where((t) => t.id.equals(id)))
-          .getSingle();
+      final fetched = await (db.select(
+        db.equipmentProfiles,
+      )..where((t) => t.id.equals(id))).getSingle();
       expect(fetched.switchId, equals(switchId));
 
       // copyWith with absent leaves the value intact, present overwrites.
-      await db.update(db.equipmentProfiles).replace(
+      await db
+          .update(db.equipmentProfiles)
+          .replace(
             fetched.copyWith(switchId: const Value('alpaca:host:11111:0')),
           );
-      final updated = await (db.select(db.equipmentProfiles)
-            ..where((t) => t.id.equals(id)))
-          .getSingle();
+      final updated = await (db.select(
+        db.equipmentProfiles,
+      )..where((t) => t.id.equals(id))).getSingle();
       expect(updated.switchId, equals('alpaca:host:11111:0'));
 
       // Clearing the column.
-      await db.update(db.equipmentProfiles).replace(
-            updated.copyWith(switchId: const Value(null)),
-          );
-      final cleared = await (db.select(db.equipmentProfiles)
-            ..where((t) => t.id.equals(id)))
-          .getSingle();
+      await db
+          .update(db.equipmentProfiles)
+          .replace(updated.copyWith(switchId: const Value(null)));
+      final cleared = await (db.select(
+        db.equipmentProfiles,
+      )..where((t) => t.id.equals(id))).getSingle();
       expect(cleared.switchId, equals(null));
     } finally {
       await db.close();
@@ -294,7 +324,9 @@ CREATE TABLE captured_images (
   test('latest schema enforces at most one active equipment profile', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      await db.into(db.equipmentProfiles).insert(
+      await db
+          .into(db.equipmentProfiles)
+          .insert(
             EquipmentProfilesCompanion.insert(
               name: 'Profile A',
               isActive: const Value(true),
@@ -302,7 +334,9 @@ CREATE TABLE captured_images (
           );
 
       await expectLater(
-        db.into(db.equipmentProfiles).insert(
+        db
+            .into(db.equipmentProfiles)
+            .insert(
               EquipmentProfilesCompanion.insert(
                 name: 'Profile B',
                 isActive: const Value(true),
@@ -315,79 +349,85 @@ CREATE TABLE captured_images (
     }
   });
 
-  test('fresh and upgraded databases converge on the same default settings',
-      () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_settings_migration_');
-    final dbFile = File('${tempDir.path}/nightshade.db');
-
-    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    try {
-      await setupDb.customStatement('DELETE FROM app_settings');
-      await setupDb.customStatement('PRAGMA user_version = 21');
-    } finally {
-      await setupDb.close();
-    }
-
-    final upgradedDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    final freshDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    try {
-      final upgradedSettings = await upgradedDb.settingsDao.getAllSettings();
-      final freshSettings = await freshDb.settingsDao.getAllSettings();
-
-      for (final key in const [
-        'theme',
-        'auto_connect_equipment',
-        'notifications_enabled',
-        'af_filter_settings',
-        'science.overlay.live_grid_rows',
-        'dark_library.temp_tolerance',
-      ]) {
-        expect(upgradedSettings[key], equals(freshSettings[key]));
-      }
-
-      final upgradedTables = await upgradedDb
-          .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
-          .get();
-      final upgradedTableNames = upgradedTables
-          .map((row) => row.data['name']?.toString() ?? '')
-          .toSet();
-      for (final tableName in const [
-        'observation_logs',
-        'observing_lists',
-        'sequence_runs',
-      ]) {
-        expect(upgradedTableNames.contains(tableName), isTrue);
-      }
-
-      final targetsColumns =
-          await upgradedDb.customSelect("PRAGMA table_info('targets')").get();
-      final photometryColumns = await upgradedDb
-          .customSelect("PRAGMA table_info('photometry_measurements')")
-          .get();
-      expect(
-        targetsColumns
-            .any((row) => row.data['name'] == 'goal_integration_secs'),
-        isTrue,
+  test(
+    'fresh and upgraded databases converge on the same default settings',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_settings_migration_',
       );
-      expect(
-        photometryColumns
-            .any((row) => row.data['name'] == 'standard_magnitude'),
-        isTrue,
-      );
-    } finally {
-      await upgradedDb.close();
-      await freshDb.close();
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-      }
-    }
-  });
+      final dbFile = File('${tempDir.path}/nightshade.db');
 
-  test('schema 12 database upgrades to the complete current table set',
-      () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema12_upgrade_');
+      final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      try {
+        await setupDb.customStatement('DELETE FROM app_settings');
+        await setupDb.customStatement('PRAGMA user_version = 21');
+      } finally {
+        await setupDb.close();
+      }
+
+      final upgradedDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      final freshDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      try {
+        final upgradedSettings = await upgradedDb.settingsDao.getAllSettings();
+        final freshSettings = await freshDb.settingsDao.getAllSettings();
+
+        for (final key in const [
+          'theme',
+          'auto_connect_equipment',
+          'notifications_enabled',
+          'af_filter_settings',
+          'science.overlay.live_grid_rows',
+          'dark_library.temp_tolerance',
+        ]) {
+          expect(upgradedSettings[key], equals(freshSettings[key]));
+        }
+
+        final upgradedTables = await upgradedDb
+            .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
+            .get();
+        final upgradedTableNames = upgradedTables
+            .map((row) => row.data['name']?.toString() ?? '')
+            .toSet();
+        for (final tableName in const [
+          'observation_logs',
+          'observing_lists',
+          'sequence_runs',
+        ]) {
+          expect(upgradedTableNames.contains(tableName), isTrue);
+        }
+
+        final targetsColumns = await upgradedDb
+            .customSelect("PRAGMA table_info('targets')")
+            .get();
+        final photometryColumns = await upgradedDb
+            .customSelect("PRAGMA table_info('photometry_measurements')")
+            .get();
+        expect(
+          targetsColumns.any(
+            (row) => row.data['name'] == 'goal_integration_secs',
+          ),
+          isTrue,
+        );
+        expect(
+          photometryColumns.any(
+            (row) => row.data['name'] == 'standard_magnitude',
+          ),
+          isTrue,
+        );
+      } finally {
+        await upgradedDb.close();
+        await freshDb.close();
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      }
+    },
+  );
+
+  test('schema 12 database upgrades to the complete current table set', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema12_upgrade_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
 
     final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
@@ -406,21 +446,24 @@ CREATE TABLE captured_images (
     final upgradedDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     final freshDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      final upgradedVersion =
-          await upgradedDb.customSelect('PRAGMA user_version').getSingle();
+      final upgradedVersion = await upgradedDb
+          .customSelect('PRAGMA user_version')
+          .getSingle();
       expect(
         upgradedVersion.data['user_version'],
         equals(upgradedDb.schemaVersion),
       );
 
       final upgradedTables = await _sqliteTableNames(upgradedDb);
-      final freshDriftTables =
-          freshDb.allTables.map((table) => table.actualTableName).toSet();
+      final freshDriftTables = freshDb.allTables
+          .map((table) => table.actualTableName)
+          .toSet();
 
       expect(
         upgradedTables,
         containsAll(freshDriftTables),
-        reason: 'Upgraded schema 12 databases must contain every current '
+        reason:
+            'Upgraded schema 12 databases must contain every current '
             'Drift-managed table.',
       );
 
@@ -443,8 +486,9 @@ CREATE TABLE captured_images (
           .customSelect("PRAGMA table_info('photometry_measurements')")
           .get();
       expect(
-        photometryColumns
-            .any((row) => row.data['name'] == 'standard_magnitude'),
+        photometryColumns.any(
+          (row) => row.data['name'] == 'standard_magnitude',
+        ),
         isTrue,
       );
     } finally {
@@ -456,250 +500,261 @@ CREATE TABLE captured_images (
     }
   });
 
-  test('synthetic schema 20 profile fixture normalizes active and optics',
-      () async {
-    final fixture =
-        await SyntheticOldProfileFixture.schema20WithDuplicateActiveProfiles();
-    final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
-    try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
-      expect(
-        upgradedVersion.data['user_version'],
-        equals(db.schemaVersion),
-      );
+  test(
+    'synthetic schema 20 profile fixture normalizes active and optics',
+    () async {
+      final fixture =
+          await SyntheticOldProfileFixture.schema20WithDuplicateActiveProfiles();
+      final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
+      try {
+        final upgradedVersion = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
 
-      final profiles = await db.select(db.equipmentProfiles).get();
-      expect(profiles, hasLength(2));
+        final profiles = await db.select(db.equipmentProfiles).get();
+        expect(profiles, hasLength(2));
 
-      final activeProfiles =
-          profiles.where((profile) => profile.isActive).toList();
-      expect(
-        activeProfiles.map((profile) => profile.name),
-        equals(['Legacy Observatory']),
-        reason: 'Migration v21 should keep only the newest active profile.',
-      );
+        final activeProfiles = profiles
+            .where((profile) => profile.isActive)
+            .toList();
+        expect(
+          activeProfiles.map((profile) => profile.name),
+          equals(['Legacy Observatory']),
+          reason: 'Migration v21 should keep only the newest active profile.',
+        );
 
-      final indexes = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE type = 'index'",
-          )
-          .get();
-      expect(
-        indexes.map((row) => row.data['name']).toSet(),
-        contains('idx_profiles_single_active'),
-        reason: 'The partial unique active-profile index should be restored.',
-      );
-      await expectLater(
-        db.into(db.equipmentProfiles).insert(
-              EquipmentProfilesCompanion.insert(
-                name: 'Duplicate Active Profile',
-                isActive: const Value(true),
+        final indexes = await db
+            .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .get();
+        expect(
+          indexes.map((row) => row.data['name']).toSet(),
+          contains('idx_profiles_single_active'),
+          reason: 'The partial unique active-profile index should be restored.',
+        );
+        await expectLater(
+          db
+              .into(db.equipmentProfiles)
+              .insert(
+                EquipmentProfilesCompanion.insert(
+                  name: 'Duplicate Active Profile',
+                  isActive: const Value(true),
+                ),
               ),
-            ),
-        throwsA(isA<SqliteException>()),
-        reason: 'Upgraded legacy databases should reject another active '
-            'profile after migration.',
-      );
+          throwsA(isA<SqliteException>()),
+          reason:
+              'Upgraded legacy databases should reject another active '
+              'profile after migration.',
+        );
 
-      final widefield =
-          profiles.singleWhere((profile) => profile.name == 'Legacy Widefield');
-      expect(widefield.telescopeFocalLength, equals(250.0));
-      expect(widefield.telescopeAperture, equals(60.0));
+        final widefield = profiles.singleWhere(
+          (profile) => profile.name == 'Legacy Widefield',
+        );
+        expect(widefield.telescopeFocalLength, equals(250.0));
+        expect(widefield.telescopeAperture, equals(60.0));
 
-      final observatory = profiles
-          .singleWhere((profile) => profile.name == 'Legacy Observatory');
-      expect(observatory.focalLength, equals(900.0));
-      expect(observatory.aperture, equals(120.0));
-    } finally {
-      await db.close();
-      await fixture.dispose();
-    }
-  });
+        final observatory = profiles.singleWhere(
+          (profile) => profile.name == 'Legacy Observatory',
+        );
+        expect(observatory.focalLength, equals(900.0));
+        expect(observatory.aperture, equals(120.0));
+      } finally {
+        await db.close();
+        await fixture.dispose();
+      }
+    },
+  );
 
-  test('synthetic schema 20 science fixture deduplicates session configs',
-      () async {
-    final fixture = await SyntheticOldProfileFixture
-        .schema20WithDuplicateScienceSessionConfigs();
-    final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
-    try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
-      expect(
-        upgradedVersion.data['user_version'],
-        equals(db.schemaVersion),
-      );
+  test(
+    'synthetic schema 20 science fixture deduplicates session configs',
+    () async {
+      final fixture =
+          await SyntheticOldProfileFixture.schema20WithDuplicateScienceSessionConfigs();
+      final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
+      try {
+        final upgradedVersion = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
 
-      final configs = await db
-          .customSelect(
-            'SELECT id, session_id, photometry_enabled, psf_grid_rows '
-            'FROM science_session_config WHERE session_id = 1',
-          )
-          .get();
-      expect(
-        configs,
-        hasLength(1),
-        reason: 'Migration v21 should dedupe science session configs.',
-      );
-      expect(configs.single.data['id'], equals(2));
-      expect(configs.single.data['photometry_enabled'], equals(0));
-      expect(configs.single.data['psf_grid_rows'], equals(8));
+        final configs = await db
+            .customSelect(
+              'SELECT id, session_id, photometry_enabled, psf_grid_rows '
+              'FROM science_session_config WHERE session_id = 1',
+            )
+            .get();
+        expect(
+          configs,
+          hasLength(1),
+          reason: 'Migration v21 should dedupe science session configs.',
+        );
+        expect(configs.single.data['id'], equals(2));
+        expect(configs.single.data['photometry_enabled'], equals(0));
+        expect(configs.single.data['psf_grid_rows'], equals(8));
 
-      final indexes = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE type = 'index'",
-          )
-          .get();
-      expect(
-        indexes.map((row) => row.data['name']).toSet(),
-        contains('idx_science_session_config_session_unique'),
-        reason: 'The partial unique science-session config index should be '
-            'restored after dedupe.',
-      );
+        final indexes = await db
+            .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .get();
+        expect(
+          indexes.map((row) => row.data['name']).toSet(),
+          contains('idx_science_session_config_session_unique'),
+          reason:
+              'The partial unique science-session config index should be '
+              'restored after dedupe.',
+        );
 
-      await expectLater(
-        db.into(db.scienceSessionConfig).insert(
-              ScienceSessionConfigCompanion.insert(
-                sessionId: const Value(1),
+        await expectLater(
+          db
+              .into(db.scienceSessionConfig)
+              .insert(
+                ScienceSessionConfigCompanion.insert(sessionId: const Value(1)),
               ),
-            ),
-        throwsA(isA<SqliteException>()),
-        reason: 'Upgraded legacy databases should reject another config for '
-            'the same session after migration.',
-      );
-    } finally {
-      await db.close();
-      await fixture.dispose();
-    }
-  });
+          throwsA(isA<SqliteException>()),
+          reason:
+              'Upgraded legacy databases should reject another config for '
+              'the same session after migration.',
+        );
+      } finally {
+        await db.close();
+        await fixture.dispose();
+      }
+    },
+  );
 
-  test('synthetic schema 20 weather fixture deduplicates singleton settings',
-      () async {
-    final fixture =
-        await SyntheticOldProfileFixture.schema20WithDuplicateWeatherSettings();
-    final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
-    try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
-      expect(
-        upgradedVersion.data['user_version'],
-        equals(db.schemaVersion),
-      );
+  test(
+    'synthetic schema 20 weather fixture deduplicates singleton settings',
+    () async {
+      final fixture =
+          await SyntheticOldProfileFixture.schema20WithDuplicateWeatherSettings();
+      final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
+      try {
+        final upgradedVersion = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
 
-      final settings = await db.weatherSettingsDao.getOrCreateSettings();
-      expect(settings.id, equals(1));
-      expect(settings.preferredProvider, equals('legacy_primary'));
-      expect(settings.triggerDistanceKm, equals(25.0));
-      expect(settings.weatherSafetyEnabled, isTrue);
+        final settings = await db.weatherSettingsDao.getOrCreateSettings();
+        expect(settings.id, equals(1));
+        expect(settings.preferredProvider, equals('legacy_primary'));
+        expect(settings.triggerDistanceKm, equals(25.0));
+        expect(settings.weatherSafetyEnabled, isTrue);
 
-      final rows =
-          await db.customSelect('SELECT id FROM weather_settings').get();
-      expect(
-        rows,
-        hasLength(1),
-        reason: 'Upgraded legacy weather settings should collapse to the '
-            'primary singleton row on first settings access.',
-      );
+        final rows = await db
+            .customSelect('SELECT id FROM weather_settings')
+            .get();
+        expect(
+          rows,
+          hasLength(1),
+          reason:
+              'Upgraded legacy weather settings should collapse to the '
+              'primary singleton row on first settings access.',
+        );
 
-      await db.weatherSettingsDao.updateSettings(preferredProvider: 'updated');
-      final updated = await db.weatherSettingsDao.getSettings();
-      expect(updated?.id, equals(1));
-      expect(updated?.preferredProvider, equals('updated'));
-    } finally {
-      await db.close();
-      await fixture.dispose();
-    }
-  });
+        await db.weatherSettingsDao.updateSettings(
+          preferredProvider: 'updated',
+        );
+        final updated = await db.weatherSettingsDao.getSettings();
+        expect(updated?.id, equals(1));
+        expect(updated?.preferredProvider, equals('updated'));
+      } finally {
+        await db.close();
+        await fixture.dispose();
+      }
+    },
+  );
 
-  test('synthetic schema 17 image fixture preserves metadata cascade',
-      () async {
-    final fixture =
-        await SyntheticOldProfileFixture.schema17WithCapturedImageMetadata();
-    final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
-    try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
-      expect(
-        upgradedVersion.data['user_version'],
-        equals(db.schemaVersion),
-      );
+  test(
+    'synthetic schema 17 image fixture preserves metadata cascade',
+    () async {
+      final fixture =
+          await SyntheticOldProfileFixture.schema17WithCapturedImageMetadata();
+      final db = NightshadeDatabase.forTesting(NativeDatabase(fixture.dbFile));
+      try {
+        final upgradedVersion = await db
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
 
-      final imageRows = await db
-          .customSelect('SELECT id, file_name FROM captured_images')
-          .get();
-      expect(imageRows, hasLength(1));
-      expect(imageRows.single.data['file_name'], equals('light-001.fits'));
+        final imageRows = await db
+            .customSelect('SELECT id, file_name FROM captured_images')
+            .get();
+        expect(imageRows, hasLength(1));
+        expect(imageRows.single.data['file_name'], equals('light-001.fits'));
 
-      final metadataRows = await db
-          .customSelect('SELECT "key", value FROM image_metadata')
-          .get();
-      expect(metadataRows, hasLength(1));
-      expect(metadataRows.single.data['key'], equals('FILTER'));
-      expect(metadataRows.single.data['value'], equals('L'));
+        final metadataRows = await db
+            .customSelect('SELECT "key", value FROM image_metadata')
+            .get();
+        expect(metadataRows, hasLength(1));
+        expect(metadataRows.single.data['key'], equals('FILTER'));
+        expect(metadataRows.single.data['value'], equals('L'));
 
-      final foreignKeys = await db
-          .customSelect("PRAGMA foreign_key_list('image_metadata')")
-          .get();
-      expect(
-        foreignKeys.any((row) => row.data['on_delete'] == 'CASCADE'),
-        isTrue,
-        reason: 'Migration v18 should restore image metadata cascade delete.',
-      );
+        final foreignKeys = await db
+            .customSelect("PRAGMA foreign_key_list('image_metadata')")
+            .get();
+        expect(
+          foreignKeys.any((row) => row.data['on_delete'] == 'CASCADE'),
+          isTrue,
+          reason: 'Migration v18 should restore image metadata cascade delete.',
+        );
 
-      await db.customStatement('DELETE FROM captured_images WHERE id = 1');
-      final remainingMetadata = await db
-          .customSelect('SELECT COUNT(*) AS count FROM image_metadata')
-          .getSingle();
-      expect(
-        remainingMetadata.data['count'],
-        equals(0),
-        reason:
-            'Upgraded legacy image metadata should cascade on image delete.',
-      );
-    } finally {
-      await db.close();
-      await fixture.dispose();
-    }
-  });
+        await db.customStatement('DELETE FROM captured_images WHERE id = 1');
+        final remainingMetadata = await db
+            .customSelect('SELECT COUNT(*) AS count FROM image_metadata')
+            .getSingle();
+        expect(
+          remainingMetadata.data['count'],
+          equals(0),
+          reason:
+              'Upgraded legacy image metadata should cascade on image delete.',
+        );
+      } finally {
+        await db.close();
+        await fixture.dispose();
+      }
+    },
+  );
 
-  test('fresh database is at schema 46 with stacked_results table (C3)',
-      () async {
-    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-    try {
-      expect(db.schemaVersion, equals(46));
+  test(
+    'fresh database is at schema 46 with stacked_results table (C3)',
+    () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      try {
+        expect(db.schemaVersion, equals(46));
 
-      final tableRow = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master "
-            "WHERE type='table' AND name='stacked_results'",
-          )
-          .getSingleOrNull();
-      expect(
-        tableRow != null,
-        isTrue,
-        reason: 'onCreate must create the stacked_results table for fresh '
-            'installs (Stack-and-Share Loop C3).',
-      );
-      expect(tableRow!.data['name'], equals('stacked_results'));
+        final tableRow = await db
+            .customSelect(
+              "SELECT name FROM sqlite_master "
+              "WHERE type='table' AND name='stacked_results'",
+            )
+            .getSingleOrNull();
+        expect(
+          tableRow != null,
+          isTrue,
+          reason:
+              'onCreate must create the stacked_results table for fresh '
+              'installs (Stack-and-Share Loop C3).',
+        );
+        expect(tableRow!.data['name'], equals('stacked_results'));
 
-      // The provenance indexes must exist so session/target lookups stay fast.
-      final indexes = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE type='index'",
-          )
-          .get();
-      final indexNames =
-          indexes.map((row) => row.data['name']?.toString() ?? '').toSet();
-      expect(indexNames, contains('idx_stacked_results_session'));
-      expect(indexNames, contains('idx_stacked_results_target'));
-    } finally {
-      await db.close();
-    }
-  });
+        // The provenance indexes must exist so session/target lookups stay fast.
+        final indexes = await db
+            .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
+            .get();
+        final indexNames = indexes
+            .map((row) => row.data['name']?.toString() ?? '')
+            .toSet();
+        expect(indexNames, contains('idx_stacked_results_session'));
+        expect(indexNames, contains('idx_stacked_results_target'));
+      } finally {
+        await db.close();
+      }
+    },
+  );
 
   test('pre-v38 database upgrades to add stacked_results table (C3)', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_v37_to_v38_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_v37_to_v38_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
 
     // Set up a database that looks like a real v37 install: the
@@ -717,8 +772,9 @@ CREATE TABLE captured_images (
     // branch and create stacked_results.
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
-      final upgradedVersion =
-          await db.customSelect('PRAGMA user_version').getSingle();
+      final upgradedVersion = await db
+          .customSelect('PRAGMA user_version')
+          .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
       expect(db.schemaVersion, equals(46));
 
@@ -731,7 +787,8 @@ CREATE TABLE captured_images (
       expect(
         tableRow != null,
         isTrue,
-        reason: 'The v38 migration must create the stacked_results table for '
+        reason:
+            'The v38 migration must create the stacked_results table for '
             'in-place upgrades (Stack-and-Share Loop C3).',
       );
       expect(tableRow!.data['name'], equals('stacked_results'));
@@ -782,8 +839,9 @@ CREATE TABLE captured_images (
   });
 
   test('schema 17 captured_images without quality_score migrates', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema17_no_qs_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema17_no_qs_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
 
     final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
@@ -920,49 +978,58 @@ INSERT INTO photometry_measurements (
   });
 
   test(
-      'pre-v30 database lacking guide_rms_history migrates to 38 without crashing '
-      '(regression: idx_guide_rms_mount_recent on a missing table)', () async {
-    final tempDir = await Directory.systemTemp
-        .createTemp('nightshade_guide_rms_migration_test_');
-    final dbFile = File('${tempDir.path}/nightshade.db');
+    'pre-v30 database lacking guide_rms_history migrates to 38 without crashing '
+    '(regression: idx_guide_rms_mount_recent on a missing table)',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_guide_rms_migration_test_',
+      );
+      final dbFile = File('${tempDir.path}/nightshade.db');
 
-    // Force the DB into the exact shape that crashed on the imaging laptop:
-    // schema < 30 with NO guide_rms_history table. The v30 migration step used
-    // to create idx_guide_rms_mount_recent unconditionally, throwing
-    // "no such table: guide_rms_history" (the table is not created until the
-    // v34 step) and aborting the entire migration so the app could not open.
-    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    try {
-      await setupDb.customStatement('DROP TABLE IF EXISTS guide_rms_history');
-      await setupDb.customStatement('PRAGMA user_version = 25');
-    } finally {
-      await setupDb.close();
-    }
-
-    // Re-open and force the migration ladder to run from 25. Must NOT throw.
-    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-    try {
-      await db.customSelect('SELECT 1').get();
-
-      final tables = await _sqliteTableNames(db);
-      expect(tables, contains('guide_rms_history'),
-          reason: 'guide_rms_history must be (re)created by the v34 step');
-
-      final indexes = await db
-          .customSelect(
-            "SELECT name FROM sqlite_master WHERE type = 'index' "
-            "AND name = 'idx_guide_rms_mount_recent'",
-          )
-          .get();
-      expect(indexes, isNotEmpty,
-          reason: 'the mount-recent lookup index must exist after migration');
-    } finally {
-      await db.close();
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
+      // Force the DB into the exact shape that crashed on the imaging laptop:
+      // schema < 30 with NO guide_rms_history table. The v30 migration step used
+      // to create idx_guide_rms_mount_recent unconditionally, throwing
+      // "no such table: guide_rms_history" (the table is not created until the
+      // v34 step) and aborting the entire migration so the app could not open.
+      final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      try {
+        await setupDb.customStatement('DROP TABLE IF EXISTS guide_rms_history');
+        await setupDb.customStatement('PRAGMA user_version = 25');
+      } finally {
+        await setupDb.close();
       }
-    }
-  });
+
+      // Re-open and force the migration ladder to run from 25. Must NOT throw.
+      final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+      try {
+        await db.customSelect('SELECT 1').get();
+
+        final tables = await _sqliteTableNames(db);
+        expect(
+          tables,
+          contains('guide_rms_history'),
+          reason: 'guide_rms_history must be (re)created by the v34 step',
+        );
+
+        final indexes = await db
+            .customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'index' "
+              "AND name = 'idx_guide_rms_mount_recent'",
+            )
+            .get();
+        expect(
+          indexes,
+          isNotEmpty,
+          reason: 'the mount-recent lookup index must exist after migration',
+        );
+      } finally {
+        await db.close();
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      }
+    },
+  );
 }
 
 const _tablesIntroducedAfterSchema12 = [

@@ -75,10 +75,7 @@ enum _CombinedConnectionStatus {
 class NetworkStatusIndicator extends ConsumerStatefulWidget {
   final bool compact;
 
-  const NetworkStatusIndicator({
-    super.key,
-    this.compact = false,
-  });
+  const NetworkStatusIndicator({super.key, this.compact = false});
 
   @override
   ConsumerState<NetworkStatusIndicator> createState() =>
@@ -168,12 +165,7 @@ class _NetworkStatusIndicatorState
         builder: (context, wsSnap) {
           final wsState = wsSnap.data ?? backend.connectionState;
           final combined = _combine(wsState, osState);
-          return _renderIndicator(
-            context,
-            combined,
-            osState,
-            backend: backend,
-          );
+          return _renderIndicator(context, combined, osState, backend: backend);
         },
       );
     }
@@ -250,11 +242,7 @@ class _NetworkStatusIndicatorState
         borderRadius: BorderRadius.circular(8),
         bordered: false,
       ),
-      child: Icon(
-        icon,
-        size: 20,
-        color: color,
-      ),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 
@@ -292,8 +280,7 @@ class _NetworkStatusIndicatorState
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (osState.connectedServer != null ||
-                  _shouldShowLatency(status))
+              if (osState.connectedServer != null || _shouldShowLatency(status))
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -312,10 +299,7 @@ class _NetworkStatusIndicatorState
                             color: color.withValues(alpha: 0.6),
                           ),
                         ),
-                      _LatencyBadge(
-                        latency: _latency!,
-                        baseColor: color,
-                      ),
+                      _LatencyBadge(latency: _latency!, baseColor: color),
                     ],
                   ],
                 ),
@@ -447,10 +431,7 @@ class _LatencyBadge extends StatelessWidget {
   final Duration latency;
   final Color baseColor;
 
-  const _LatencyBadge({
-    required this.latency,
-    required this.baseColor,
-  });
+  const _LatencyBadge({required this.latency, required this.baseColor});
 
   @override
   Widget build(BuildContext context) {
@@ -607,8 +588,7 @@ class _ConnectionDetailsSheetState
               status == _CombinedConnectionStatus.connected)
             _DetailRow(
               label: 'Latency',
-              value:
-                  '${(widget.latency!.inMicroseconds / 1000.0).round()} ms',
+              value: '${(widget.latency!.inMicroseconds / 1000.0).round()} ms',
             ),
 
           if (osState.statusMessage != null) ...[
@@ -622,11 +602,7 @@ class _ConnectionDetailsSheetState
               ),
               child: Row(
                 children: [
-                  Icon(
-                    LucideIcons.info,
-                    size: 16,
-                    color: colors.textSecondary,
-                  ),
+                  Icon(LucideIcons.info, size: 16, color: colors.textSecondary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -783,10 +759,7 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
-  });
+  const _DetailRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

@@ -20,17 +20,19 @@ void main() {
       expect(state.tailscaleUrl, '');
     });
 
-    test('tailscaleUrl stays empty when an address is known but unreachable',
-        () {
-      // Address present but reachable flag false (e.g. bound loopback-only):
-      // fail-closed means we must NOT advertise a URL.
-      const state = WebServerState(
-        tailscaleIp: '100.96.0.7',
-        tailscaleReachable: false,
-        actualPort: 8080,
-      );
-      expect(state.tailscaleUrl, '');
-    });
+    test(
+      'tailscaleUrl stays empty when an address is known but unreachable',
+      () {
+        // Address present but reachable flag false (e.g. bound loopback-only):
+        // fail-closed means we must NOT advertise a URL.
+        const state = WebServerState(
+          tailscaleIp: '100.96.0.7',
+          tailscaleReachable: false,
+          actualPort: 8080,
+        );
+        expect(state.tailscaleUrl, '');
+      },
+    );
 
     test('tailscaleUrl stays empty when reachable but no address resolved', () {
       const state = WebServerState(

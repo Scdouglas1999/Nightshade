@@ -1,9 +1,9 @@
 part of '../device_service.dart';
 
 extension _DeviceServiceFocuserRotatorControls on DeviceService {
-// ===========================================================================
-// Device ID Helpers
-// ===========================================================================
+  // ===========================================================================
+  // Device ID Helpers
+  // ===========================================================================
 
   /// Get the connected camera device ID
   /// First checks the currently connected camera state, then falls back to active profile
@@ -19,9 +19,9 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
     return _activeProfileDeviceId((profile) => profile.cameraId);
   }
 
-// ===========================================================================
-// Focuser Control
-// ===========================================================================
+  // ===========================================================================
+  // Focuser Control
+  // ===========================================================================
 
   /// Get the connected focuser device ID
   /// First checks the currently connected focuser state, then falls back to active profile
@@ -124,9 +124,9 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
     }
   }
 
-// ===========================================================================
-// Rotator Control
-// ===========================================================================
+  // ===========================================================================
+  // Rotator Control
+  // ===========================================================================
 
   /// Get the connected rotator device ID.
   /// First checks the currently connected rotator state, then falls back to active profile.
@@ -251,8 +251,10 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
       if (_disposed || generation != _rotatorVerifyGeneration) {
         throw StateError('Rotator verification was cancelled.');
       }
-      rotatorNotifier.updatePosition(status.position,
-          mechanicalPosition: status.mechanicalPosition);
+      rotatorNotifier.updatePosition(
+        status.position,
+        mechanicalPosition: status.mechanicalPosition,
+      );
       rotatorNotifier.setMoving(status.moving);
 
       // Check if we're within tolerance (handle wraparound at 0/360)

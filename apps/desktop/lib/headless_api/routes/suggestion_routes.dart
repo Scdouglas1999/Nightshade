@@ -9,12 +9,18 @@ import '../handlers/suggestion_handlers.dart';
 import 'headless_route.dart';
 
 /// Build the declarative route table for [SuggestionHandlers].
-List<HeadlessRoute> buildSuggestionRoutes(SuggestionHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(HttpMethod.get, '/api/suggestions/tonight',
-          h.handleGetSuggestionsForTonight),
-      HeadlessRoute(
-          HttpMethod.get, '/api/suggestions/config', h.handleGetConfig),
-      HeadlessRoute(HttpMethod.get, '/api/suggestions/score/<targetId>',
-          h.handleGetTargetScore),
-    ];
+List<HeadlessRoute> buildSuggestionRoutes(
+  SuggestionHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/suggestions/tonight',
+    h.handleGetSuggestionsForTonight,
+  ),
+  HeadlessRoute(HttpMethod.get, '/api/suggestions/config', h.handleGetConfig),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/suggestions/score/<targetId>',
+    h.handleGetTargetScore,
+  ),
+];

@@ -25,15 +25,20 @@ void main() {
     await db.close();
   });
 
-  test('LikelyCauseExt.fromLabel maps every wire label and rejects unknowns',
-      () {
-    for (final cause in LikelyCause.values) {
-      expect(LikelyCauseExt.fromLabel(cause.label), cause,
-          reason: 'round-trip label "${cause.label}"');
-    }
-    expect(LikelyCauseExt.fromLabel('not_a_real_cause'), isNull);
-    expect(LikelyCauseExt.fromLabel(null), isNull);
-  });
+  test(
+    'LikelyCauseExt.fromLabel maps every wire label and rejects unknowns',
+    () {
+      for (final cause in LikelyCause.values) {
+        expect(
+          LikelyCauseExt.fromLabel(cause.label),
+          cause,
+          reason: 'round-trip label "${cause.label}"',
+        );
+      }
+      expect(LikelyCauseExt.fromLabel('not_a_real_cause'), isNull);
+      expect(LikelyCauseExt.fromLabel(null), isNull);
+    },
+  );
 
   test('record + load round-trip preserves every forensic field', () async {
     final inserted = await service.recordRejection(
@@ -120,14 +125,20 @@ void main() {
         causeLabel: cause.label,
       );
     }
-    final cloud =
-        await service.loadByCause(LikelyCause.cloudPassage, sequenceRunId: 1);
+    final cloud = await service.loadByCause(
+      LikelyCause.cloudPassage,
+      sequenceRunId: 1,
+    );
     expect(cloud, hasLength(2));
-    final seeing =
-        await service.loadByCause(LikelyCause.seeingSpike, sequenceRunId: 1);
+    final seeing = await service.loadByCause(
+      LikelyCause.seeingSpike,
+      sequenceRunId: 1,
+    );
     expect(seeing, hasLength(1));
-    final focus =
-        await service.loadByCause(LikelyCause.focusDrift, sequenceRunId: 1);
+    final focus = await service.loadByCause(
+      LikelyCause.focusDrift,
+      sequenceRunId: 1,
+    );
     expect(focus, hasLength(1));
   });
 
@@ -141,15 +152,17 @@ void main() {
       LikelyCause.focusDrift,
       LikelyCause.focusDrift,
     ]) {
-      records.add(await service.recordRejection(
-        sessionId: 's',
-        sequenceRunId: 9,
-        frameIndex: 1,
-        totalFrames: 10,
-        rejectPath: '/x',
-        reason: 'r',
-        causeLabel: cause.label,
-      ));
+      records.add(
+        await service.recordRejection(
+          sessionId: 's',
+          sequenceRunId: 9,
+          frameIndex: 1,
+          totalFrames: 10,
+          rejectPath: '/x',
+          reason: 'r',
+          causeLabel: cause.label,
+        ),
+      );
     }
     final summary = ForensicsService.summarize(records);
     expect(summary.total, 6);
@@ -195,23 +208,25 @@ void main() {
     expect(loaded.first.environment.isEmpty, isTrue);
   });
 
-  test('cause column stores the wire-stable label, not the display name',
-      () async {
-    await service.recordRejection(
-      sessionId: 's',
-      frameIndex: 1,
-      totalFrames: 1,
-      rejectPath: '/x',
-      reason: 'r',
-      causeLabel: 'wind_gust',
-    );
-    final rows = await db
-        .customSelect(
-          'SELECT likely_cause FROM frame_forensics',
-          variables: const <Variable<Object>>[],
-        )
-        .get();
-    expect(rows, hasLength(1));
-    expect(rows.first.data['likely_cause'], 'wind_gust');
-  });
+  test(
+    'cause column stores the wire-stable label, not the display name',
+    () async {
+      await service.recordRejection(
+        sessionId: 's',
+        frameIndex: 1,
+        totalFrames: 1,
+        rejectPath: '/x',
+        reason: 'r',
+        causeLabel: 'wind_gust',
+      );
+      final rows = await db
+          .customSelect(
+            'SELECT likely_cause FROM frame_forensics',
+            variables: const <Variable<Object>>[],
+          )
+          .get();
+      expect(rows, hasLength(1));
+      expect(rows.first.data['likely_cause'], 'wind_gust');
+    },
+  );
 }

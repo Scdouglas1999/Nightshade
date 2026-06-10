@@ -101,15 +101,19 @@ class CalibrationTagsDao {
 
   /// The row for one artifact, or null when never tagged/enriched.
   Future<CalibrationTagEntry?> getForMaster(
-      CalibrationMasterType type, int masterId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM calibration_tags '
-      'WHERE master_type = ? AND master_id = ? LIMIT 1',
-      variables: [
-        Variable<String>(calibrationMasterTypeWireName(type)),
-        Variable<int>(masterId),
-      ],
-    ).get();
+    CalibrationMasterType type,
+    int masterId,
+  ) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM calibration_tags '
+          'WHERE master_type = ? AND master_id = ? LIMIT 1',
+          variables: [
+            Variable<String>(calibrationMasterTypeWireName(type)),
+            Variable<int>(masterId),
+          ],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapRow(rows.first);
   }
@@ -117,14 +121,16 @@ class CalibrationTagsDao {
   /// Every row, keyed `'<wireType>:<masterId>'` for O(1) joining onto a
   /// listed library page.
   Future<Map<String, CalibrationTagEntry>> getAllKeyed() async {
-    final rows =
-        await _db.customSelect('SELECT $_columns FROM calibration_tags').get();
+    final rows = await _db
+        .customSelect('SELECT $_columns FROM calibration_tags')
+        .get();
     final out = <String, CalibrationTagEntry>{};
     for (final row in rows) {
       final entry = _mapRow(row);
       if (entry == null) continue;
       out['${calibrationMasterTypeWireName(entry.masterType)}:'
-          '${entry.masterId}'] = entry;
+              '${entry.masterId}'] =
+          entry;
     }
     return out;
   }

@@ -140,8 +140,8 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 /// - FfiBackend (default for desktop/headless)
 final backendProvider =
     StateNotifierProvider<BackendNotifier, NightshadeBackend>((ref) {
-  return BackendNotifier(ref);
-});
+      return BackendNotifier(ref);
+    });
 
 /// Provider to check if we're in remote (network) mode
 /// When true, file paths refer to the server filesystem, not local
@@ -205,24 +205,24 @@ final diagnosticsBackendProvider = Provider<DiagnosticsBackend>((ref) {
 /// on first build.
 final networkBackendConnectionStateProvider =
     StreamProvider<BackendConnectionState>((ref) {
-  final backend = ref.watch(backendProvider);
-  if (backend is! NetworkBackend) {
-    return Stream<BackendConnectionState>.value(
-      BackendConnectionState.disconnected,
-    );
-  }
-  // Prepend the current value so subscribers see the seed immediately
-  // rather than waiting for the next transition.
-  final controller = StreamController<BackendConnectionState>();
-  controller.add(backend.connectionState);
-  final sub = backend.connectionStateStream.listen(
-    controller.add,
-    onError: controller.addError,
-    onDone: controller.close,
-  );
-  ref.onDispose(() {
-    sub.cancel();
-    controller.close();
-  });
-  return controller.stream;
-});
+      final backend = ref.watch(backendProvider);
+      if (backend is! NetworkBackend) {
+        return Stream<BackendConnectionState>.value(
+          BackendConnectionState.disconnected,
+        );
+      }
+      // Prepend the current value so subscribers see the seed immediately
+      // rather than waiting for the next transition.
+      final controller = StreamController<BackendConnectionState>();
+      controller.add(backend.connectionState);
+      final sub = backend.connectionStateStream.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      ref.onDispose(() {
+        sub.cancel();
+        controller.close();
+      });
+      return controller.stream;
+    });

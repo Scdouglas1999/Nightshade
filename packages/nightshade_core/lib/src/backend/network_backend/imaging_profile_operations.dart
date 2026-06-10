@@ -33,7 +33,8 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     final response = await _get('profiles/active');
     if (response['profile'] == null) return null;
     return EquipmentProfile.fromJson(
-        response['profile'] as Map<String, dynamic>);
+      response['profile'] as Map<String, dynamic>,
+    );
   }
 
   // =========================================================================
@@ -82,7 +83,8 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     final json = await _get('settings/location');
     if (json['location'] == null) return null;
     return models.ObserverLocation.fromJson(
-        json['location'] as Map<String, dynamic>);
+      json['location'] as Map<String, dynamic>,
+    );
   }
 
   @override
@@ -95,8 +97,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   // =========================================================================
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
-      {int maxCrops = 5}) async {
+  Future<List<StarCrop>> getStarCropsFromLastImage(
+    String deviceId, {
+    int maxCrops = 5,
+  }) async {
     final response = await _get('imaging/star-crops', {
       'deviceId': deviceId,
       'maxCrops': maxCrops,
@@ -203,7 +207,8 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         id: img['image_id'].toString(),
         filePath: img['file_path'] as String,
         capturedAt: DateTime.fromMillisecondsSinceEpoch(
-            (img['captured_at'] as int) * 1000),
+          (img['captured_at'] as int) * 1000,
+        ),
         settings: ExposureSettings(
           exposureTime: (img['exposure_duration'] as num).toDouble(),
           gain: img['gain'] as int? ?? 0,
@@ -259,8 +264,11 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<void> downloadImage(int imageId, String localPath,
-      {void Function(double)? onProgress}) async {
+  Future<void> downloadImage(
+    int imageId,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) async {
     final uri = _apiUri('images/$imageId/download');
 
     // P0-5 — opportunistic resume. If a partial file already exists at
@@ -366,10 +374,11 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     }
 
     developer.log(
-        '[NetworkBackend] Downloaded image $imageId to $localPath '
-        '($bytesReceived bytes${isPartial ? ', resumed from $resumeOffset' : ''})',
-        name: 'NetworkBackend',
-        level: 800);
+      '[NetworkBackend] Downloaded image $imageId to $localPath '
+      '($bytesReceived bytes${isPartial ? ', resumed from $resumeOffset' : ''})',
+      name: 'NetworkBackend',
+      level: 800,
+    );
   }
 
   FrameType _parseFrameType(String str) {
@@ -426,9 +435,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
 
   @override
   Future<void> stopDeviceHeartbeat(String deviceId) async {
-    await _post('device/heartbeat/stop', {
-      'device_id': deviceId,
-    });
+    await _post('device/heartbeat/stop', {'device_id': deviceId});
   }
 
   @override
@@ -461,12 +468,14 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
         throw Exception(
-            'HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data');
+          'HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data',
+        );
       }
 
       if (response.statusCode != 200) {
         throw Exception(
-            'HTTP ${response.statusCode}: Failed to GET imaging/raw-data');
+          'HTTP ${response.statusCode}: Failed to GET imaging/raw-data',
+        );
       }
 
       // Read binary data
@@ -513,12 +522,14 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
         throw Exception(
-            'HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits-from-capture');
+          'HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits-from-capture',
+        );
       }
 
       if (response.statusCode != 200) {
         throw Exception(
-            'HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture');
+          'HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture',
+        );
       }
 
       // Consume response body to complete the request

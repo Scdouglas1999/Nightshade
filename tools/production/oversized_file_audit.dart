@@ -56,13 +56,11 @@ const _modularizedSourceFamilyReasons = {
 
 Future<void> main(List<String> args) async {
   final root = Directory(_argValue(args, '--root') ?? Directory.current.path);
-  final warningLineLimit = int.tryParse(
-        _argValue(args, '--warning-lines') ?? '',
-      ) ??
+  final warningLineLimit =
+      int.tryParse(_argValue(args, '--warning-lines') ?? '') ??
       _defaultWarningLineLimit;
-  final criticalLineLimit = int.tryParse(
-        _argValue(args, '--critical-lines') ?? '',
-      ) ??
+  final criticalLineLimit =
+      int.tryParse(_argValue(args, '--critical-lines') ?? '') ??
       _defaultCriticalLineLimit;
   final jsonOutputPath =
       _argValue(args, '--json-out') ?? _defaultJsonOutputPath;
@@ -86,10 +84,12 @@ Future<void> main(List<String> args) async {
   final files = _scanFiles(root);
   final entries = <_FileSizeEntry>[];
   for (final file in files) {
-    entries.add(_FileSizeEntry(
-      path: _relativePath(root, file),
-      lineCount: _lineCount(file),
-    ));
+    entries.add(
+      _FileSizeEntry(
+        path: _relativePath(root, file),
+        lineCount: _lineCount(file),
+      ),
+    );
   }
   entries.sort((a, b) {
     final lineCompare = b.lineCount.compareTo(a.lineCount);
@@ -98,12 +98,15 @@ Future<void> main(List<String> args) async {
   });
 
   final warnings = entries
-      .where((entry) =>
-          entry.lineCount >= warningLineLimit &&
-          entry.lineCount < criticalLineLimit)
+      .where(
+        (entry) =>
+            entry.lineCount >= warningLineLimit &&
+            entry.lineCount < criticalLineLimit,
+      )
       .toList();
-  final critical =
-      entries.where((entry) => entry.lineCount >= criticalLineLimit).toList();
+  final critical = entries
+      .where((entry) => entry.lineCount >= criticalLineLimit)
+      .toList();
   final prioritySplitCandidates = entries
       .where((entry) => _prioritySplitReasons.containsKey(entry.path))
       .map(
@@ -114,8 +117,9 @@ Future<void> main(List<String> args) async {
   final modularizedSourceFamilies = entries
       .where((entry) => _modularizedSourceFamilyReasons.containsKey(entry.path))
       .map(
-        (entry) => entry.toJson()
-          ..['reason'] = _modularizedSourceFamilyReasons[entry.path],
+        (entry) =>
+            entry.toJson()
+              ..['reason'] = _modularizedSourceFamilyReasons[entry.path],
       )
       .toList();
 
@@ -142,28 +146,32 @@ Future<void> main(List<String> args) async {
   };
 
   await File(jsonOutputPath).parent.create(recursive: true);
-  await File(jsonOutputPath).writeAsString(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  await File(
+    jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(markdownOutputPath).parent.create(recursive: true);
-  await File(markdownOutputPath).writeAsString(_renderMarkdown(
-    warningLineLimit: warningLineLimit,
-    criticalLineLimit: criticalLineLimit,
-    entries: entries,
-    warnings: warnings,
-    critical: critical,
-    prioritySplitCandidates: prioritySplitCandidates,
-    modularizedSourceFamilies: modularizedSourceFamilies,
-  ));
+  await File(markdownOutputPath).writeAsString(
+    _renderMarkdown(
+      warningLineLimit: warningLineLimit,
+      criticalLineLimit: criticalLineLimit,
+      entries: entries,
+      warnings: warnings,
+      critical: critical,
+      prioritySplitCandidates: prioritySplitCandidates,
+      modularizedSourceFamilies: modularizedSourceFamilies,
+    ),
+  );
 
   stdout.writeln('Oversized file audit complete.');
   stdout.writeln('Scanned files: ${entries.length}');
   stdout.writeln('Warnings: ${warnings.length}');
   stdout.writeln('Critical: ${critical.length}');
-  stdout
-      .writeln('Priority split candidates: ${prioritySplitCandidates.length}');
   stdout.writeln(
-      'Modularized source families: ${modularizedSourceFamilies.length}');
+    'Priority split candidates: ${prioritySplitCandidates.length}',
+  );
+  stdout.writeln(
+    'Modularized source families: ${modularizedSourceFamilies.length}',
+  );
   stdout.writeln('JSON: $jsonOutputPath');
   stdout.writeln('Markdown: $markdownOutputPath');
 
@@ -179,8 +187,9 @@ List<File> _scanFiles(Directory root) {
     if (pattern.contains('*')) {
       final parts = pattern.split('/');
       final wildcardIndex = parts.indexOf('*');
-      final base =
-          Directory('${root.path}/${parts.take(wildcardIndex).join('/')}');
+      final base = Directory(
+        '${root.path}/${parts.take(wildcardIndex).join('/')}',
+      );
       if (!base.existsSync()) {
         continue;
       }
@@ -206,8 +215,10 @@ List<File> _dartFilesUnder(Directory repoRoot, Directory directory) {
     return const [];
   }
   final files = <File>[];
-  for (final entity
-      in directory.listSync(recursive: true, followLinks: false)) {
+  for (final entity in directory.listSync(
+    recursive: true,
+    followLinks: false,
+  )) {
     if (entity is! File) {
       continue;
     }
@@ -274,7 +285,8 @@ String _renderMarkdown({
     ..writeln('- Warning files: `${warnings.length}`')
     ..writeln('- Critical files: `${critical.length}`')
     ..writeln(
-        '- Priority split candidates: `${prioritySplitCandidates.length}`')
+      '- Priority split candidates: `${prioritySplitCandidates.length}`',
+    )
     ..writeln()
     ..writeln(
       'This audit finds large hand-authored Dart files so refactors can be planned deliberately. Generated, vendored, build, and mock files are excluded.',
@@ -366,13 +378,7 @@ class _FileSizeEntry {
   final String path;
   final int lineCount;
 
-  const _FileSizeEntry({
-    required this.path,
-    required this.lineCount,
-  });
+  const _FileSizeEntry({required this.path, required this.lineCount});
 
-  Map<String, Object?> toJson() => {
-        'path': path,
-        'lineCount': lineCount,
-      };
+  Map<String, Object?> toJson() => {'path': path, 'lineCount': lineCount};
 }

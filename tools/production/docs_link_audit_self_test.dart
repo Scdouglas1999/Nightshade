@@ -59,10 +59,7 @@ Future<void> main() async {
 }
 
 Future<void> _writePassingFixture(Directory root) async {
-  await _writeFile(
-    root,
-    'docs/index.md',
-    '''
+  await _writeFile(root, 'docs/index.md', '''
 # Index
 
 [Guide](guide.md)
@@ -70,8 +67,7 @@ Future<void> _writePassingFixture(Directory root) async {
 [Path with spaces](nested/path%20with%20spaces.md)
 [External](https://example.invalid)
 [Anchor only](#details)
-''',
-  );
+''');
   await _writeFile(root, 'docs/guide.md', '# Guide\n');
   await _writeFile(root, 'docs/nested/topic.md', '# Topic\n');
   await _writeFile(root, 'docs/nested/path with spaces.md', '# Spaces\n');
@@ -79,16 +75,12 @@ Future<void> _writePassingFixture(Directory root) async {
 
 Future<void> _writeFailingFixture(Directory root) async {
   await _deleteDocs(root);
-  await _writeFile(
-    root,
-    'docs/index.md',
-    '''
+  await _writeFile(root, 'docs/index.md', '''
 # Index
 
 [Missing](missing.md)
 [External](https://example.invalid)
-''',
-  );
+''');
 }
 
 Future<void> _deleteDocs(Directory root) async {

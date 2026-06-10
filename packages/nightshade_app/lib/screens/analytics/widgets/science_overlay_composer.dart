@@ -184,10 +184,12 @@ class _LayerChip extends StatelessWidget {
         decoration: active
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 color: colors.surfaceElevated,
                 border: Border.all(color: colors.border),
               ),

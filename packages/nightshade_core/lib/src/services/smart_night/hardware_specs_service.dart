@@ -23,10 +23,10 @@ class CameraGainPoint {
   }
 
   Map<String, dynamic> toJson() => {
-        'gain': gain,
-        'readNoiseE': readNoiseE,
-        'fullWellE': fullWellE,
-      };
+    'gain': gain,
+    'readNoiseE': readNoiseE,
+    'fullWellE': fullWellE,
+  };
 }
 
 /// Bundled camera metadata. This is intentionally small and deterministic;
@@ -60,25 +60,30 @@ class CameraHardwareSpec {
       aliases: aliasesJson is List
           ? aliasesJson.map((value) => value.toString()).toList()
           : const [],
-      pixelSizeMicrons:
-          _doubleValue(json['pixelSizeMicrons'], 'pixelSizeMicrons'),
+      pixelSizeMicrons: _doubleValue(
+        json['pixelSizeMicrons'],
+        'pixelSizeMicrons',
+      ),
       qePeak: _doubleValue(json['qePeak'], 'qePeak'),
       defaultGain: _intValue(json['defaultGain'], 'defaultGain'),
       gainPoints: gainPointsJson
-          .map((value) =>
-              CameraGainPoint.fromJson((value as Map).cast<String, dynamic>()))
+          .map(
+            (value) => CameraGainPoint.fromJson(
+              (value as Map).cast<String, dynamic>(),
+            ),
+          )
           .toList(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'model': model,
-        'aliases': aliases,
-        'pixelSizeMicrons': pixelSizeMicrons,
-        'qePeak': qePeak,
-        'defaultGain': defaultGain,
-        'gainPoints': gainPoints.map((point) => point.toJson()).toList(),
-      };
+    'model': model,
+    'aliases': aliases,
+    'pixelSizeMicrons': pixelSizeMicrons,
+    'qePeak': qePeak,
+    'defaultGain': defaultGain,
+    'gainPoints': gainPoints.map((point) => point.toJson()).toList(),
+  };
 }
 
 class CameraHardwareMatch {
@@ -105,8 +110,8 @@ class HardwareSpecsService {
   const HardwareSpecsService({
     List<CameraHardwareSpec> cameraOverrides = const [],
     List<CameraHardwareSpec> cameraCatalog = _defaultCameraCatalog,
-  })  : _cameraOverrides = cameraOverrides,
-        _cameraCatalog = cameraCatalog;
+  }) : _cameraOverrides = cameraOverrides,
+       _cameraCatalog = cameraCatalog;
 
   HardwareSpecsService withCameraOverrides(
     List<CameraHardwareSpec> cameraOverrides,
@@ -123,8 +128,11 @@ class HardwareSpecsService {
       throw const FormatException('Camera hardware overrides must be a list');
     }
     return decoded
-        .map((value) =>
-            CameraHardwareSpec.fromJson((value as Map).cast<String, dynamic>()))
+        .map(
+          (value) => CameraHardwareSpec.fromJson(
+            (value as Map).cast<String, dynamic>(),
+          ),
+        )
         .toList();
   }
 
@@ -133,10 +141,7 @@ class HardwareSpecsService {
     String? cameraId,
     int? gain,
   }) {
-    final candidates = [
-      cameraName,
-      cameraId,
-    ]
+    final candidates = [cameraName, cameraId]
         .whereType<String>()
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
@@ -287,11 +292,7 @@ double _doubleValue(Object? value, String field) {
 const _defaultCameraCatalog = [
   CameraHardwareSpec(
     model: 'ZWO ASI2600MM Pro',
-    aliases: [
-      'ASI2600MM',
-      'ASI2600MM Pro',
-      'ZWO ASI2600MM',
-    ],
+    aliases: ['ASI2600MM', 'ASI2600MM Pro', 'ZWO ASI2600MM'],
     pixelSizeMicrons: 3.76,
     qePeak: 0.91,
     defaultGain: 100,
@@ -302,11 +303,7 @@ const _defaultCameraCatalog = [
   ),
   CameraHardwareSpec(
     model: 'ZWO ASI2600MC Pro',
-    aliases: [
-      'ASI2600MC',
-      'ASI2600MC Pro',
-      'ZWO ASI2600MC',
-    ],
+    aliases: ['ASI2600MC', 'ASI2600MC Pro', 'ZWO ASI2600MC'],
     pixelSizeMicrons: 3.76,
     qePeak: 0.80,
     defaultGain: 100,
@@ -317,11 +314,7 @@ const _defaultCameraCatalog = [
   ),
   CameraHardwareSpec(
     model: 'ZWO ASI533MM Pro',
-    aliases: [
-      'ASI533MM',
-      'ASI533MM Pro',
-      'ZWO ASI533MM',
-    ],
+    aliases: ['ASI533MM', 'ASI533MM Pro', 'ZWO ASI533MM'],
     pixelSizeMicrons: 3.76,
     qePeak: 0.91,
     defaultGain: 100,
@@ -332,11 +325,7 @@ const _defaultCameraCatalog = [
   ),
   CameraHardwareSpec(
     model: 'ZWO ASI533MC Pro',
-    aliases: [
-      'ASI533MC',
-      'ASI533MC Pro',
-      'ZWO ASI533MC',
-    ],
+    aliases: ['ASI533MC', 'ASI533MC Pro', 'ZWO ASI533MC'],
     pixelSizeMicrons: 3.76,
     qePeak: 0.80,
     defaultGain: 100,

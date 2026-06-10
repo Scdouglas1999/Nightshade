@@ -39,49 +39,75 @@ class ScienceDaoManager {
   ScienceDaoManager(this._db);
   $$EquipmentProfilesTableTableManager get equipmentProfiles =>
       $$EquipmentProfilesTableTableManager(
-          _db.attachedDatabase, _db.equipmentProfiles);
+        _db.attachedDatabase,
+        _db.equipmentProfiles,
+      );
   $$TargetsTableTableManager get targets =>
       $$TargetsTableTableManager(_db.attachedDatabase, _db.targets);
   $$SequencesTableTableManager get sequences =>
       $$SequencesTableTableManager(_db.attachedDatabase, _db.sequences);
   $$ImagingSessionsTableTableManager get imagingSessions =>
       $$ImagingSessionsTableTableManager(
-          _db.attachedDatabase, _db.imagingSessions);
+        _db.attachedDatabase,
+        _db.imagingSessions,
+      );
   $$ScienceSessionConfigTableTableManager get scienceSessionConfig =>
       $$ScienceSessionConfigTableTableManager(
-          _db.attachedDatabase, _db.scienceSessionConfig);
+        _db.attachedDatabase,
+        _db.scienceSessionConfig,
+      );
   $$CapturedImagesTableTableManager get capturedImages =>
       $$CapturedImagesTableTableManager(
-          _db.attachedDatabase, _db.capturedImages);
+        _db.attachedDatabase,
+        _db.capturedImages,
+      );
   $$PhotometryMeasurementsTableTableManager get photometryMeasurements =>
       $$PhotometryMeasurementsTableTableManager(
-          _db.attachedDatabase, _db.photometryMeasurements);
+        _db.attachedDatabase,
+        _db.photometryMeasurements,
+      );
   $$FramePhotometricCalibrationTableTableManager
-      get framePhotometricCalibration =>
-          $$FramePhotometricCalibrationTableTableManager(
-              _db.attachedDatabase, _db.framePhotometricCalibration);
+  get framePhotometricCalibration =>
+      $$FramePhotometricCalibrationTableTableManager(
+        _db.attachedDatabase,
+        _db.framePhotometricCalibration,
+      );
   $$TransparencySamplesTableTableManager get transparencySamples =>
       $$TransparencySamplesTableTableManager(
-          _db.attachedDatabase, _db.transparencySamples);
+        _db.attachedDatabase,
+        _db.transparencySamples,
+      );
   $$PsfFieldTilesTableTableManager get psfFieldTiles =>
       $$PsfFieldTilesTableTableManager(_db.attachedDatabase, _db.psfFieldTiles);
   $$ScienceFrameQualityMetricsTableTableManager
-      get scienceFrameQualityMetrics =>
-          $$ScienceFrameQualityMetricsTableTableManager(
-              _db.attachedDatabase, _db.scienceFrameQualityMetrics);
+  get scienceFrameQualityMetrics =>
+      $$ScienceFrameQualityMetricsTableTableManager(
+        _db.attachedDatabase,
+        _db.scienceFrameQualityMetrics,
+      );
   $$ScienceTileMetricsTableTableManager get scienceTileMetrics =>
       $$ScienceTileMetricsTableTableManager(
-          _db.attachedDatabase, _db.scienceTileMetrics);
+        _db.attachedDatabase,
+        _db.scienceTileMetrics,
+      );
   $$AstrometryResidualVectorsTableTableManager get astrometryResidualVectors =>
       $$AstrometryResidualVectorsTableTableManager(
-          _db.attachedDatabase, _db.astrometryResidualVectors);
+        _db.attachedDatabase,
+        _db.astrometryResidualVectors,
+      );
   $$MovingObjectCandidatesTableTableManager get movingObjectCandidates =>
       $$MovingObjectCandidatesTableTableManager(
-          _db.attachedDatabase, _db.movingObjectCandidates);
+        _db.attachedDatabase,
+        _db.movingObjectCandidates,
+      );
   $$LineRatioProductsTableTableManager get lineRatioProducts =>
       $$LineRatioProductsTableTableManager(
-          _db.attachedDatabase, _db.lineRatioProducts);
+        _db.attachedDatabase,
+        _db.lineRatioProducts,
+      );
   $$PhotometricTransformsTableTableManager get photometricTransforms =>
       $$PhotometricTransformsTableTableManager(
-          _db.attachedDatabase, _db.photometricTransforms);
+        _db.attachedDatabase,
+        _db.photometricTransforms,
+      );
 }

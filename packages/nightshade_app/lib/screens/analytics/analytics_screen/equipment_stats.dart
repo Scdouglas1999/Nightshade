@@ -90,7 +90,8 @@ class _EquipmentStatCard extends StatelessWidget {
                       Text(
                         stat.label,
                         style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textSecondary),
                       ),
                       Text(
                         stat.value,

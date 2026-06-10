@@ -79,11 +79,7 @@ void main() {
     });
 
     test('startSession posts to host API', () async {
-      fake.setResponse(
-        '/api/sessions',
-        method: 'POST',
-        body: '{"id": 42}',
-      );
+      fake.setResponse('/api/sessions', method: 'POST', body: '{"id": 42}');
 
       final id = await repository.startSession(name: 'Remote night');
       expect(id, 42);
@@ -92,11 +88,7 @@ void main() {
     });
 
     test('createImage posts metadata to host API', () async {
-      fake.setResponse(
-        '/api/images',
-        method: 'POST',
-        body: '{"id": 7}',
-      );
+      fake.setResponse('/api/images', method: 'POST', body: '{"id": 7}');
 
       final imageId = await repository.createImage(
         CapturedImagesCompanion.insert(

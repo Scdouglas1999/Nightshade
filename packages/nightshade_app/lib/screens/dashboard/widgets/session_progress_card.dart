@@ -92,7 +92,9 @@ class SessionProgressCard extends ConsumerWidget {
                 if (isActive)
                   Text(
                     currentExpText,
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textSecondary),
                   ),
                 if (isActive) const SizedBox(width: 8),
                 DashboardStatusChip(
@@ -114,7 +116,8 @@ class SessionProgressCard extends ConsumerWidget {
                   height: 4,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline2),
                   ),
                   child: FractionallySizedBox(
                     widthFactor: progressValue,
@@ -122,7 +125,8 @@ class SessionProgressCard extends ConsumerWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         color: colors.primary,
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline2),
                       ),
                     ),
                   ),
@@ -156,7 +160,8 @@ class SessionProgressCard extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
             decoration: BoxDecoration(
               color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Row(
               children: [
@@ -227,7 +232,8 @@ class _ExposureProgressRow extends StatelessWidget {
               height: 3,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
               child: FractionallySizedBox(
                 widthFactor: progressPercent,
@@ -236,7 +242,8 @@ class _ExposureProgressRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color:
                         progress.isDownloading ? colors.info : colors.primary,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline2),
                   ),
                 ),
               ),
@@ -275,7 +282,9 @@ class _CompactStat extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize9,
+                color: colors.textMuted),
           ),
         ],
       ),

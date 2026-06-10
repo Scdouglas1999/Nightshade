@@ -183,11 +183,10 @@ class _EquipmentProfilesScreenState
                   },
                 )
               : EmptyState.compact(
-                icon: LucideIcons.aperture,
-                title: 'Select a profile',
-                body:
-                    'Choose a profile from the list or create a new one',
-              ),
+                  icon: LucideIcons.aperture,
+                  title: 'Select a profile',
+                  body: 'Choose a profile from the list or create a new one',
+                ),
         ),
       ],
     );
@@ -206,44 +205,44 @@ class _EquipmentProfilesScreenState
             style: TextStyle(color: colors.textPrimary)),
         content: SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              style: TextStyle(color: colors.textPrimary),
-              decoration: InputDecoration(
-                labelText: 'Profile Name',
-                labelStyle: TextStyle(color: colors.textSecondary),
-                hintText: 'e.g., Deep Sky Rig, Planetary Setup',
-                hintStyle: TextStyle(color: colors.textMuted),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.primary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descController,
-              style: TextStyle(color: colors.textPrimary),
-              maxLines: 2,
-              decoration: InputDecoration(
-                labelText: 'Description (optional)',
-                labelStyle: TextStyle(color: colors.textSecondary),
-                hintText: 'Brief description of this setup',
-                hintStyle: TextStyle(color: colors.textMuted),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: colors.primary),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                style: TextStyle(color: colors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Profile Name',
+                  labelStyle: TextStyle(color: colors.textSecondary),
+                  hintText: 'e.g., Deep Sky Rig, Planetary Setup',
+                  hintStyle: TextStyle(color: colors.textMuted),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.primary),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: descController,
+                style: TextStyle(color: colors.textPrimary),
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Description (optional)',
+                  labelStyle: TextStyle(color: colors.textSecondary),
+                  hintText: 'Brief description of this setup',
+                  hintStyle: TextStyle(color: colors.textMuted),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.primary),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [

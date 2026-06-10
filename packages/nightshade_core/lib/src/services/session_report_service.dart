@@ -39,10 +39,10 @@ class SessionReportService {
     required SequenceRunsDao sequenceRunsDao,
     required TargetsDao targetsDao,
     ScienceDao? scienceDao,
-  })  : _records = records,
-        _sequenceRunsDao = sequenceRunsDao,
-        _targetsDao = targetsDao,
-        _scienceDao = scienceDao;
+  }) : _records = records,
+       _sequenceRunsDao = sequenceRunsDao,
+       _targetsDao = targetsDao,
+       _scienceDao = scienceDao;
 
   /// Per-frame REAL SNR from the science pipeline, keyed by captured-image
   /// id. Fail-soft to empty (science pipeline disabled / table unreadable);
@@ -79,27 +79,32 @@ class SessionReportService {
     }
 
     final images = await _records.getImagesForSession(sessionId);
-    final lightFrames =
-        images.where((i) => i.frameType == 'light').toList(growable: false);
+    final lightFrames = images
+        .where((i) => i.frameType == 'light')
+        .toList(growable: false);
 
     final scienceSnrById = await _loadScienceSnr(sessionId);
-    final targetReports =
-        await _buildTargetReports(lightFrames, scienceSnrById);
+    final targetReports = await _buildTargetReports(
+      lightFrames,
+      scienceSnrById,
+    );
     final guideStats = _buildGuideStats(lightFrames);
     final mountStats = await _buildMountStats(session);
 
     // wallClock falls back to now when the session is still open so the
     // dialog can render a partial duration while a sequence is paused.
     final endTime = session.endTime;
-    final wallClockDuration =
-        (endTime ?? DateTime.now()).difference(session.startTime);
+    final wallClockDuration = (endTime ?? DateTime.now()).difference(
+      session.startTime,
+    );
 
     final totalIntegrationSecs = targetReports.fold<double>(
       0.0,
       (sum, t) => sum + t.totalIntegrationSecs,
     );
-    final totalIntegration =
-        Duration(milliseconds: (totalIntegrationSecs * 1000).round());
+    final totalIntegration = Duration(
+      milliseconds: (totalIntegrationSecs * 1000).round(),
+    );
 
     // Effective fraction must be clamped because pathological short sessions
     // (e.g. 0-duration aborts) would otherwise divide by zero or report >100%.
@@ -108,8 +113,7 @@ class SessionReportService {
         ? 0.0
         : (totalIntegrationSecs / wallClockSecs).clamp(0.0, 1.0);
 
-    final downtimeSecs =
-        wallClockSecs - totalIntegrationSecs;
+    final downtimeSecs = wallClockSecs - totalIntegrationSecs;
     final downtime = Duration(
       milliseconds: (downtimeSecs < 0 ? 0 : downtimeSecs * 1000).round(),
     );
@@ -182,7 +186,8 @@ class SessionReportService {
       final filterReports = <SessionFilterReport>[];
       for (final fEntry in filtersMap.entries) {
         filterReports.add(
-            _filterReportFromFrames(fEntry.key, fEntry.value, scienceSnrById));
+          _filterReportFromFrames(fEntry.key, fEntry.value, scienceSnrById),
+        );
       }
       // Stable order by filter name for diffability between report runs.
       filterReports.sort((a, b) => a.filter.compareTo(b.filter));
@@ -190,11 +195,13 @@ class SessionReportService {
       final name = targetId == null
           ? 'Untargeted'
           : (targetNames[targetId] ?? 'Target $targetId');
-      reports.add(SessionTargetReport(
-        targetId: targetId,
-        targetName: name,
-        filters: filterReports,
-      ));
+      reports.add(
+        SessionTargetReport(
+          targetId: targetId,
+          targetName: name,
+          filters: filterReports,
+        ),
+      );
     }
 
     // Stable display order: targets that share a name fall back to id order.
@@ -225,10 +232,12 @@ class SessionReportService {
     // usually rejected because their metric is bad, so including them
     // would smear the headline number.
     final meanHfr = _meanNonNull(accepted.map((f) => f.hfr));
-    final meanStarCount =
-        _meanNonNull(accepted.map((f) => f.starCount?.toDouble()));
-    final meanGuidingRmsTotal =
-        _meanNonNull(accepted.map((f) => f.guidingRmsTotal));
+    final meanStarCount = _meanNonNull(
+      accepted.map((f) => f.starCount?.toDouble()),
+    );
+    final meanGuidingRmsTotal = _meanNonNull(
+      accepted.map((f) => f.guidingRmsTotal),
+    );
     final meanSensorTemp = _meanNonNull(accepted.map((f) => f.sensorTemp));
 
     // SNR: prefer the science pipeline's REAL per-frame SNR when it exists
@@ -449,14 +458,17 @@ class SessionReportService {
     final allRuns = await _sequenceRunsDao.getAllRuns();
     final start = session.startTime;
     final end = session.endTime ?? DateTime.now();
-    return allRuns.where((r) {
-      final startedIn =
-          !r.startedAt.isBefore(start) && !r.startedAt.isAfter(end);
-      final endedIn = r.endedAt != null &&
-          !r.endedAt!.isBefore(start) &&
-          !r.endedAt!.isAfter(end);
-      return startedIn || endedIn;
-    }).toList(growable: false);
+    return allRuns
+        .where((r) {
+          final startedIn =
+              !r.startedAt.isBefore(start) && !r.startedAt.isAfter(end);
+          final endedIn =
+              r.endedAt != null &&
+              !r.endedAt!.isBefore(start) &&
+              !r.endedAt!.isAfter(end);
+          return startedIn || endedIn;
+        })
+        .toList(growable: false);
   }
 
   Map<String, dynamic>? _tryDecodeStats(String raw) {
@@ -499,15 +511,17 @@ class SessionReportService {
     if (report.endTime != null) {
       buf.writeln('- Ended: ${report.endTime!.toIso8601String()}');
     }
+    buf.writeln('- Wall clock: ${formatDuration(report.wallClockDuration)}');
     buf.writeln(
-        '- Wall clock: ${formatDuration(report.wallClockDuration)}');
+      '- Total integration: ${formatDuration(report.totalIntegration)}',
+    );
     buf.writeln(
-        '- Total integration: ${formatDuration(report.totalIntegration)}');
-    buf.writeln(
-        '- Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%');
+      '- Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%',
+    );
     buf.writeln('- Downtime: ${formatDuration(report.downtime)}');
     buf.writeln(
-        '- Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)');
+      '- Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)',
+    );
     buf.writeln();
 
     // Conditions.
@@ -518,15 +532,18 @@ class SessionReportService {
       buf.writeln();
       if (report.avgTemperatureC != null) {
         buf.writeln(
-            '- Mean temperature: ${formatDouble(report.avgTemperatureC, 1)} C');
+          '- Mean temperature: ${formatDouble(report.avgTemperatureC, 1)} C',
+        );
       }
       if (report.avgHumidityPercent != null) {
         buf.writeln(
-            '- Mean humidity: ${formatDouble(report.avgHumidityPercent, 1)}%');
+          '- Mean humidity: ${formatDouble(report.avgHumidityPercent, 1)}%',
+        );
       }
       if (report.avgSeeingArcsec != null) {
         buf.writeln(
-            '- Mean seeing: ${formatDouble(report.avgSeeingArcsec, 2)} arcsec');
+          '- Mean seeing: ${formatDouble(report.avgSeeingArcsec, 2)} arcsec',
+        );
       }
       buf.writeln();
     }
@@ -548,19 +565,26 @@ class SessionReportService {
       buf.writeln('- No guide data recorded for this session.');
     } else {
       buf.writeln(
-          '- Mean RA RMS: ${formatDouble(gs.meanRmsRaArcsec, 2) ?? '-'} arcsec');
+        '- Mean RA RMS: ${formatDouble(gs.meanRmsRaArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Mean Dec RMS: ${formatDouble(gs.meanRmsDecArcsec, 2) ?? '-'} arcsec');
+        '- Mean Dec RMS: ${formatDouble(gs.meanRmsDecArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Mean total RMS: ${formatDouble(gs.meanRmsTotalArcsec, 2) ?? '-'} arcsec');
+        '- Mean total RMS: ${formatDouble(gs.meanRmsTotalArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Max RA RMS: ${formatDouble(gs.maxRmsRaArcsec, 2) ?? '-'} arcsec');
+        '- Max RA RMS: ${formatDouble(gs.maxRmsRaArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Max Dec RMS: ${formatDouble(gs.maxRmsDecArcsec, 2) ?? '-'} arcsec');
+        '- Max Dec RMS: ${formatDouble(gs.maxRmsDecArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Max total RMS: ${formatDouble(gs.maxRmsTotalArcsec, 2) ?? '-'} arcsec');
+        '- Max total RMS: ${formatDouble(gs.maxRmsTotalArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          '- Unguided frames: ${(gs.percentUnguidedFrames * 100).toStringAsFixed(1)}%');
+        '- Unguided frames: ${(gs.percentUnguidedFrames * 100).toStringAsFixed(1)}%',
+      );
     }
     buf.writeln();
 
@@ -576,26 +600,30 @@ class SessionReportService {
         buf.writeln('### ${target.targetName}');
         buf.writeln();
         buf.writeln(
-            '| Filter | Attempted | Accepted | Rejected | Integration | Mean HFR | Mean FWHM | Stars | SNR | Guide RMS |');
+          '| Filter | Attempted | Accepted | Rejected | Integration | Mean HFR | Mean FWHM | Stars | SNR | Guide RMS |',
+        );
         buf.writeln(
-            '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+          '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        );
         var anyProxySnr = false;
         for (final f in target.filters) {
           final snrCell = f.meanSnr == null
               ? '-'
               : f.snrIsProxy
-                  ? '${formatDouble(f.meanSnr, 1)} *'
-                  : formatDouble(f.meanSnr, 1)!;
+              ? '${formatDouble(f.meanSnr, 1)} *'
+              : formatDouble(f.meanSnr, 1)!;
           anyProxySnr = anyProxySnr || (f.meanSnr != null && f.snrIsProxy);
           buf.writeln(
-              '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | $snrCell | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |');
+            '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | $snrCell | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |',
+          );
         }
         buf.writeln();
         if (anyProxySnr) {
           buf.writeln(
-              '\\* background/noise proxy — the science pipeline did not '
-              'compute real SNR for these frames; not comparable to '
-              'photometric SNR values.');
+            '\\* background/noise proxy — the science pipeline did not '
+            'compute real SNR for these frames; not comparable to '
+            'photometric SNR values.',
+          );
           buf.writeln();
         }
 
@@ -676,12 +704,15 @@ class SessionReportService {
     }
     buf.writeln('Wall clock: ${formatDuration(report.wallClockDuration)}');
     buf.writeln(
-        'Total integration: ${formatDuration(report.totalIntegration)}');
+      'Total integration: ${formatDuration(report.totalIntegration)}',
+    );
     buf.writeln(
-        'Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%');
+      'Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%',
+    );
     buf.writeln('Downtime: ${formatDuration(report.downtime)}');
     buf.writeln(
-        'Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)');
+      'Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)',
+    );
     buf.writeln();
 
     buf.writeln('-- Mount / operations --');
@@ -697,19 +728,26 @@ class SessionReportService {
       buf.writeln('No guide data recorded.');
     } else {
       buf.writeln(
-          'Mean RA RMS:   ${formatDouble(gs.meanRmsRaArcsec, 2) ?? '-'} arcsec');
+        'Mean RA RMS:   ${formatDouble(gs.meanRmsRaArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Mean Dec RMS:  ${formatDouble(gs.meanRmsDecArcsec, 2) ?? '-'} arcsec');
+        'Mean Dec RMS:  ${formatDouble(gs.meanRmsDecArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Mean Tot RMS:  ${formatDouble(gs.meanRmsTotalArcsec, 2) ?? '-'} arcsec');
+        'Mean Tot RMS:  ${formatDouble(gs.meanRmsTotalArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Max RA RMS:    ${formatDouble(gs.maxRmsRaArcsec, 2) ?? '-'} arcsec');
+        'Max RA RMS:    ${formatDouble(gs.maxRmsRaArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Max Dec RMS:   ${formatDouble(gs.maxRmsDecArcsec, 2) ?? '-'} arcsec');
+        'Max Dec RMS:   ${formatDouble(gs.maxRmsDecArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Max Tot RMS:   ${formatDouble(gs.maxRmsTotalArcsec, 2) ?? '-'} arcsec');
+        'Max Tot RMS:   ${formatDouble(gs.maxRmsTotalArcsec, 2) ?? '-'} arcsec',
+      );
       buf.writeln(
-          'Unguided:      ${(gs.percentUnguidedFrames * 100).toStringAsFixed(1)}%');
+        'Unguided:      ${(gs.percentUnguidedFrames * 100).toStringAsFixed(1)}%',
+      );
     }
     buf.writeln();
 
@@ -721,13 +759,14 @@ class SessionReportService {
         buf.writeln('  ${target.targetName}:');
         for (final f in target.filters) {
           buf.writeln(
-              '    [${f.filter}] ${f.framesAccepted}/${f.framesAttempted} frames, '
-              '${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} integration, '
-              'HFR ${formatDouble(f.meanHfr, 2) ?? '-'}, '
-              'FWHM ${formatDouble(f.meanFwhm, 2) ?? '-'}, '
-              'stars ${formatDouble(f.meanStarCount, 0) ?? '-'}, '
-              'SNR ${formatDouble(f.meanSnr, 1) ?? '-'}, '
-              'guide ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'}');
+            '    [${f.filter}] ${f.framesAccepted}/${f.framesAttempted} frames, '
+            '${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} integration, '
+            'HFR ${formatDouble(f.meanHfr, 2) ?? '-'}, '
+            'FWHM ${formatDouble(f.meanFwhm, 2) ?? '-'}, '
+            'stars ${formatDouble(f.meanStarCount, 0) ?? '-'}, '
+            'SNR ${formatDouble(f.meanSnr, 1) ?? '-'}, '
+            'guide ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'}',
+          );
           if (f.rejectionReasons.isNotEmpty) {
             final reasons = f.rejectionReasons.entries
                 .map((e) => '${e.key}=${e.value}')

@@ -26,23 +26,24 @@ void main() {
 
   setUp(() {
     updateService = MockUpdateService();
-    when(() => updateService.verifyPendingInstall())
-        .thenAnswer((_) async => const PendingInstallStatus.none());
+    when(
+      () => updateService.verifyPendingInstall(),
+    ).thenAnswer((_) async => const PendingInstallStatus.none());
     when(() => updateService.getStagedUpdate()).thenAnswer((_) async => null);
     when(() => updateService.dispose()).thenReturn(null);
   });
 
   UpdateManifest manifest() => UpdateManifest(
-        version: '2.1.0',
-        buildNumber: 42,
-        releaseDate: DateTime.utc(2026, 5, 25),
-        platform: 'windows',
-        arch: 'x64',
-        files: const {},
-        totalSize: 0,
-        compressedSize: 0,
-        downloadUrl: 'https://example.invalid/nightshade.zip',
-      );
+    version: '2.1.0',
+    buildNumber: 42,
+    releaseDate: DateTime.utc(2026, 5, 25),
+    platform: 'windows',
+    arch: 'x64',
+    files: const {},
+    totalSize: 0,
+    compressedSize: 0,
+    downloadUrl: 'https://example.invalid/nightshade.zip',
+  );
 
   Future<UpdateNotifier> stagedNotifier({
     required UpdateApplySafetyCheck safetyCheck,
@@ -95,35 +96,37 @@ void main() {
     notifier.dispose();
   });
 
-  test('default safety check checkpoints then blocks active sequence',
-      () async {
-    final backend = MockNightshadeBackend();
-    when(() => backend.saveCheckpoint()).thenAnswer((_) async {});
+  test(
+    'default safety check checkpoints then blocks active sequence',
+    () async {
+      final backend = MockNightshadeBackend();
+      when(() => backend.saveCheckpoint()).thenAnswer((_) async {});
 
-    final container = ProviderContainer(
-      overrides: [
-        backendProvider.overrideWith(
-          (ref) => TestBackendNotifier(ref, backend),
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => TestBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+
+      await expectLater(
+        container.read(updateSafetyProbeProvider.future),
+        throwsA(
+          isA<UpdateException>().having(
+            (e) => e.message,
+            'message',
+            contains('running'),
+          ),
         ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    container.read(sequenceExecutionStateProvider.notifier).state =
-        SequenceExecutionState.running;
-
-    await expectLater(
-      container.read(updateSafetyProbeProvider.future),
-      throwsA(
-        isA<UpdateException>().having(
-          (e) => e.message,
-          'message',
-          contains('running'),
-        ),
-      ),
-    );
-    verify(() => backend.saveCheckpoint()).called(1);
-  });
+      );
+      verify(() => backend.saveCheckpoint()).called(1);
+    },
+  );
 
   test('default safety check blocks active camera cooler', () async {
     final backend = MockNightshadeBackend();

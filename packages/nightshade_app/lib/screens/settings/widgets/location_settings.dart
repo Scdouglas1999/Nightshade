@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/material.dart';
@@ -19,8 +19,7 @@ import 'settings_widgets.dart';
 class LocationSettingsPage extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const LocationSettingsPage(
-      {super.key, this.isMobile = false});
+  const LocationSettingsPage({super.key, this.isMobile = false});
 
   @override
   ConsumerState<LocationSettingsPage> createState() => _LocationSettingsState();
@@ -162,7 +161,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         color: NightshadeColors.of(context).primary),
                     onPressed: () async {
                       try {
-                        final backend = ref.read(profileSettingsBackendProvider);
+                        final backend =
+                            ref.read(profileSettingsBackendProvider);
                         final location = await backend.getLocation();
 
                         if (location != null) {
@@ -244,8 +244,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     items: List.generate(9, (i) => '${i + 1}'),
                     itemLabels: List.generate(
                       9,
-                      (i) =>
-                          '${i + 1} - ${BortleScale.description(i + 1)}',
+                      (i) => '${i + 1} - ${BortleScale.description(i + 1)}',
                     ),
                     onChanged: (value) {
                       if (value != null) {
@@ -262,10 +261,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 SettingRow(
                   icon: LucideIcons.eye,
                   title: 'Limiting Magnitude',
-                  subtitle: 'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
+                  subtitle:
+                      'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
                   trailing: Text(
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
-                    style: NightshadeTypography.h5.copyWith(color: NightshadeColors.of(context).textPrimary),
+                    style: NightshadeTypography.h5.copyWith(
+                        color: NightshadeColors.of(context).textPrimary),
                   ),
                   isLast: true,
                   isMobile: widget.isMobile,
@@ -277,7 +278,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
               isMobile: widget.isMobile,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                  padding:
+                      const EdgeInsets.only(left: 16, right: 16, bottom: 8),
                   child: Text(
                     'Set minimum observable altitude at each compass direction. '
                     'Objects below these altitudes are considered obstructed by terrain, '
@@ -311,23 +313,30 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   );
                 }),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 4,
                     children: [
                       TextButton.icon(
-                        icon: Icon(LucideIcons.upload, size: 14,
+                        icon: Icon(LucideIcons.upload,
+                            size: 14,
                             color: NightshadeColors.of(context).primary),
                         label: Text('Import .hor / CSV',
-                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: NightshadeTypography.fontSize12)),
+                            style: TextStyle(
+                                color: NightshadeColors.of(context).primary,
+                                fontSize: NightshadeTypography.fontSize12)),
                         onPressed: _importHorizonFile,
                       ),
                       TextButton.icon(
-                        icon: Icon(LucideIcons.rotateCcw, size: 14,
+                        icon: Icon(LucideIcons.rotateCcw,
+                            size: 14,
                             color: NightshadeColors.of(context).primary),
                         label: Text('Reset All to 0\u00B0',
-                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: NightshadeTypography.fontSize12)),
+                            style: TextStyle(
+                                color: NightshadeColors.of(context).primary,
+                                fontSize: NightshadeTypography.fontSize12)),
                         onPressed: () {
                           for (final dir in horizonDirections) {
                             _horizonControllers[dir]!.text = '0';
@@ -413,7 +422,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
           .setHorizonProfileJson(imported.toJson());
 
       if (mounted) {
-        context.showSuccessSnackBar('Horizon profile imported from ${file.name}');
+        context
+            .showSuccessSnackBar('Horizon profile imported from ${file.name}');
       }
     } on FormatException catch (e) {
       if (mounted) {

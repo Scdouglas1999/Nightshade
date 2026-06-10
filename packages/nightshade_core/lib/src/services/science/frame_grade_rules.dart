@@ -58,8 +58,9 @@ class FrameGradeRules {
     return FrameGradeRules(
       maxHfr: clearHfr ? null : (maxHfr ?? this.maxHfr),
       maxFwhm: clearFwhm ? null : (maxFwhm ?? this.maxFwhm),
-      maxEccentricity:
-          clearEccentricity ? null : (maxEccentricity ?? this.maxEccentricity),
+      maxEccentricity: clearEccentricity
+          ? null
+          : (maxEccentricity ?? this.maxEccentricity),
       minStars: clearStars ? null : (minStars ?? this.minStars),
       maxGuidingRmsTotalArcsec: clearGuiding
           ? null
@@ -107,17 +108,20 @@ class FrameGradeRules {
     final reasons = <String>[];
     if (maxHfr != null && img.hfr != null && img.hfr! > maxHfr!) {
       reasons.add(
-          'HFR ${img.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
+        'HFR ${img.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}',
+      );
     }
     if (maxFwhm != null && fwhm != null && fwhm > maxFwhm!) {
       reasons.add(
-          'FWHM ${fwhm.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
+        'FWHM ${fwhm.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}',
+      );
     }
     if (maxEccentricity != null &&
         eccentricity != null &&
         eccentricity > maxEccentricity!) {
       reasons.add(
-          'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
+        'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}',
+      );
     }
     if (minStars != null &&
         img.starCount != null &&
@@ -128,7 +132,8 @@ class FrameGradeRules {
         img.guidingRmsTotal != null &&
         img.guidingRmsTotal! > maxGuidingRmsTotalArcsec!) {
       reasons.add(
-          'Guiding ${img.guidingRmsTotal!.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"');
+        'Guiding ${img.guidingRmsTotal!.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"',
+      );
     }
     return reasons.isEmpty ? null : 'Auto-grade: ${reasons.join('; ')}';
   }
@@ -157,17 +162,20 @@ class FrameGradeRules {
     final effectiveEccentricity = eccentricity ?? stats.eccentricity;
     if (maxHfr != null && stats.hfr != null && stats.hfr! > maxHfr!) {
       reasons.add(
-          'HFR ${stats.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
+        'HFR ${stats.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}',
+      );
     }
     if (maxFwhm != null && stats.fwhm != null && stats.fwhm! > maxFwhm!) {
       reasons.add(
-          'FWHM ${stats.fwhm!.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
+        'FWHM ${stats.fwhm!.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}',
+      );
     }
     if (maxEccentricity != null &&
         effectiveEccentricity != null &&
         effectiveEccentricity > maxEccentricity!) {
       reasons.add(
-          'Eccentricity ${effectiveEccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
+        'Eccentricity ${effectiveEccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}',
+      );
     }
     if (minStars != null &&
         stats.starCount != null &&
@@ -178,19 +186,20 @@ class FrameGradeRules {
         guidingRmsTotal != null &&
         guidingRmsTotal > maxGuidingRmsTotalArcsec!) {
       reasons.add(
-          'Guiding ${guidingRmsTotal.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"');
+        'Guiding ${guidingRmsTotal.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"',
+      );
     }
     return reasons.isEmpty ? null : 'Auto-grade: ${reasons.join('; ')}';
   }
 
   Map<String, dynamic> toJson() => {
-        if (maxHfr != null) 'maxHfr': maxHfr,
-        if (maxFwhm != null) 'maxFwhm': maxFwhm,
-        if (maxEccentricity != null) 'maxEccentricity': maxEccentricity,
-        if (minStars != null) 'minStars': minStars,
-        if (maxGuidingRmsTotalArcsec != null)
-          'maxGuidingRmsTotalArcsec': maxGuidingRmsTotalArcsec,
-      };
+    if (maxHfr != null) 'maxHfr': maxHfr,
+    if (maxFwhm != null) 'maxFwhm': maxFwhm,
+    if (maxEccentricity != null) 'maxEccentricity': maxEccentricity,
+    if (minStars != null) 'minStars': minStars,
+    if (maxGuidingRmsTotalArcsec != null)
+      'maxGuidingRmsTotalArcsec': maxGuidingRmsTotalArcsec,
+  };
 
   static FrameGradeRules? fromJsonString(String? raw) {
     if (raw == null || raw.trim().isEmpty) return null;
@@ -201,8 +210,8 @@ class FrameGradeRules {
         maxFwhm: (map['maxFwhm'] as num?)?.toDouble(),
         maxEccentricity: (map['maxEccentricity'] as num?)?.toDouble(),
         minStars: (map['minStars'] as num?)?.toInt(),
-        maxGuidingRmsTotalArcsec:
-            (map['maxGuidingRmsTotalArcsec'] as num?)?.toDouble(),
+        maxGuidingRmsTotalArcsec: (map['maxGuidingRmsTotalArcsec'] as num?)
+            ?.toDouble(),
       );
     } catch (_) {
       return null;
@@ -214,20 +223,22 @@ class FrameGradeRules {
   /// Suggest thresholds from session statistics (75th percentile for max
   /// metrics, 25th for min stars).
   static FrameGradeRules suggestFrom(List<db.CapturedImage> frames) {
-    final hfrs = frames
-        .map((f) => f.hfr)
-        .whereType<double>()
-        .where((v) => v.isFinite)
-        .toList()
-      ..sort();
+    final hfrs =
+        frames
+            .map((f) => f.hfr)
+            .whereType<double>()
+            .where((v) => v.isFinite)
+            .toList()
+          ..sort();
     final stars = frames.map((f) => f.starCount).whereType<int>().toList()
       ..sort();
-    final gd = frames
-        .map((f) => f.guidingRmsTotal)
-        .whereType<double>()
-        .where((v) => v.isFinite)
-        .toList()
-      ..sort();
+    final gd =
+        frames
+            .map((f) => f.guidingRmsTotal)
+            .whereType<double>()
+            .where((v) => v.isFinite)
+            .toList()
+          ..sort();
 
     double? p75d(List<double> xs) => xs.isEmpty
         ? null

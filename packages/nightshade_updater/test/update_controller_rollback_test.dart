@@ -17,8 +17,9 @@ void main() {
     late UpdateController controller;
 
     setUp(() async {
-      tempRoot =
-          await Directory.systemTemp.createTemp('nightshade_ctrl_rollback_');
+      tempRoot = await Directory.systemTemp.createTemp(
+        'nightshade_ctrl_rollback_',
+      );
       final service = UpdateService(
         currentVersion: '2.1.0',
         currentBuildNumber: 42,
@@ -40,34 +41,40 @@ void main() {
     });
 
     File rollbackLog() => File(
-          '${tempRoot.path}${Platform.pathSeparator}updates'
-          '${Platform.pathSeparator}backup'
-          '${Platform.pathSeparator}rollback_log.json',
-        );
+      '${tempRoot.path}${Platform.pathSeparator}updates'
+      '${Platform.pathSeparator}backup'
+      '${Platform.pathSeparator}rollback_log.json',
+    );
 
     test('rollbackSupported is false with no restore point on disk', () async {
       expect(await controller.rollbackSupported(), isFalse);
     });
 
-    test('rollbackSupported flips to true once a restore point exists',
-        () async {
-      final log = rollbackLog();
-      await log.parent.create(recursive: true);
-      await log.writeAsString(jsonEncode({
-        'moved': <Map<String, String>>[],
-        'created': <String>[],
-        'created_dirs': <String>[],
-      }));
+    test(
+      'rollbackSupported flips to true once a restore point exists',
+      () async {
+        final log = rollbackLog();
+        await log.parent.create(recursive: true);
+        await log.writeAsString(
+          jsonEncode({
+            'moved': <Map<String, String>>[],
+            'created': <String>[],
+            'created_dirs': <String>[],
+          }),
+        );
 
-      expect(await controller.rollbackSupported(), isTrue);
-    });
+        expect(await controller.rollbackSupported(), isTrue);
+      },
+    );
 
-    test('rollback throws UnsupportedError when no restore point exists',
-        () async {
-      expect(
-        () => controller.rollback(jobId: 'job-1'),
-        throwsA(isA<UnsupportedError>()),
-      );
-    });
+    test(
+      'rollback throws UnsupportedError when no restore point exists',
+      () async {
+        expect(
+          () => controller.rollback(jobId: 'job-1'),
+          throwsA(isA<UnsupportedError>()),
+        );
+      },
+    );
   });
 }

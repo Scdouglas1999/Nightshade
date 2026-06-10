@@ -8,7 +8,8 @@ import '../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
 /// This eliminates duplicate connect/disconnect handler code across equipment screens.
 /// All device connection handlers should use this mixin instead of implementing
 /// their own try/catch/setState patterns.
-mixin DeviceConnectionMixin<T extends ConsumerStatefulWidget> on ConsumerState<T> {
+mixin DeviceConnectionMixin<T extends ConsumerStatefulWidget>
+    on ConsumerState<T> {
   bool _isConnecting = false;
   bool get isConnecting => _isConnecting;
 

@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _jsonOutputPath = 'docs/production-readiness/linux-environment-probe.json';
-const _markdownOutputPath = 'docs/production-readiness/linux-environment-probe.md';
+const _jsonOutputPath =
+    'docs/production-readiness/linux-environment-probe.json';
+const _markdownOutputPath =
+    'docs/production-readiness/linux-environment-probe.md';
 
 void main(List<String> args) async {
   final requireLinux = args.contains('--require-linux');
@@ -59,14 +61,17 @@ void main(List<String> args) async {
     'checks': checks.map((check) => check.toJson()).toList(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  await File(_markdownOutputPath).writeAsString(_renderMarkdown(
-    linuxBuildEnvironmentAvailable: linuxBuildEnvironmentAvailable,
-    wslUsable: wslUsable,
-    dockerUsable: dockerUsable,
-    checks: checks,
-  ));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(_markdownOutputPath).writeAsString(
+    _renderMarkdown(
+      linuxBuildEnvironmentAvailable: linuxBuildEnvironmentAvailable,
+      wslUsable: wslUsable,
+      dockerUsable: dockerUsable,
+      checks: checks,
+    ),
+  );
 
   stdout.writeln('Linux environment probe complete.');
   stdout.writeln(
@@ -202,12 +207,12 @@ class _CommandCheck {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'command': command,
-        'exitCode': exitCode,
-        'stdout': stdout,
-        'stderr': stderr,
-        'durationMs': durationMs,
-        'requiredForLinuxBuild': requiredForLinuxBuild,
-      };
+    'id': id,
+    'command': command,
+    'exitCode': exitCode,
+    'stdout': stdout,
+    'stderr': stderr,
+    'durationMs': durationMs,
+    'requiredForLinuxBuild': requiredForLinuxBuild,
+  };
 }

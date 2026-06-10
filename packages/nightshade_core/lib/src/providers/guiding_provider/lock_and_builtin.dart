@@ -7,8 +7,8 @@ part of '../guiding_provider.dart';
 /// Provider for current guide star lock position
 final lockPositionProvider =
     StateNotifierProvider<LockPositionNotifier, ({double x, double y})?>((ref) {
-  return LockPositionNotifier(ref);
-});
+      return LockPositionNotifier(ref);
+    });
 
 /// Notifier that tracks guide star lock position
 class LockPositionNotifier extends StateNotifier<({double x, double y})?> {
@@ -84,10 +84,13 @@ final isBuiltinGuiderProvider = Provider<bool>((ref) {
 
 /// Provider for the built-in guider configuration.
 /// Fetches the config from the Rust backend and allows updating it.
-final builtinGuiderConfigProvider = StateNotifierProvider<
-    BuiltinGuiderConfigNotifier, AsyncValue<BuiltinGuiderConfig>>((ref) {
-  return BuiltinGuiderConfigNotifier(ref);
-});
+final builtinGuiderConfigProvider =
+    StateNotifierProvider<
+      BuiltinGuiderConfigNotifier,
+      AsyncValue<BuiltinGuiderConfig>
+    >((ref) {
+      return BuiltinGuiderConfigNotifier(ref);
+    });
 
 class BuiltinGuiderConfigNotifier
     extends StateNotifier<AsyncValue<BuiltinGuiderConfig>> {
@@ -123,8 +126,10 @@ class BuiltinGuiderConfigNotifier
         state = AsyncValue.data(config);
       }
     } catch (e) {
-      _logger.error('Failed to fetch built-in guider config: $e',
-          source: 'BuiltinGuiderConfig');
+      _logger.error(
+        'Failed to fetch built-in guider config: $e',
+        source: 'BuiltinGuiderConfig',
+      );
       if (mounted) {
         // Fall back to defaults so the UI is still usable
         state = const AsyncValue.data(BuiltinGuiderConfig.defaults);
@@ -143,8 +148,10 @@ class BuiltinGuiderConfigNotifier
       final backend = ref.read(backendProvider);
       await backend.builtinGuiderSetConfig(newConfig);
     } catch (e) {
-      _logger.error('Failed to set built-in guider config: $e',
-          source: 'BuiltinGuiderConfig');
+      _logger.error(
+        'Failed to set built-in guider config: $e',
+        source: 'BuiltinGuiderConfig',
+      );
       // Revert on failure
       if (mounted) {
         state = previousState;

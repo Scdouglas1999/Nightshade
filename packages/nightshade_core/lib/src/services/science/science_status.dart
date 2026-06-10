@@ -144,10 +144,9 @@ class ScienceFrameStatus {
       stages.values.any((r) => r.outcome == ScienceStageOutcome.failed);
 
   /// Stages currently running for this frame.
-  Iterable<ScienceStage> get runningStages =>
-      stages.entries
-          .where((e) => e.value.outcome == ScienceStageOutcome.running)
-          .map((e) => e.key);
+  Iterable<ScienceStage> get runningStages => stages.entries
+      .where((e) => e.value.outcome == ScienceStageOutcome.running)
+      .map((e) => e.key);
 
   ScienceFrameStatus copyWith({
     DateTime? finishedAt,
@@ -213,10 +212,7 @@ class ScienceProcessingStatusTracker {
   /// Snapshot of recent frames, newest first. Includes the in-flight frame
   /// at index 0 when present.
   List<ScienceFrameStatus> snapshot() {
-    return <ScienceFrameStatus>[
-      if (_inflight != null) _inflight!,
-      ..._history,
-    ];
+    return <ScienceFrameStatus>[if (_inflight != null) _inflight!, ..._history];
   }
 
   /// Most recent completed frame (failed or successful), if any.
@@ -305,13 +301,15 @@ class ScienceProcessingStatusTracker {
         ? null
         : (stopwatch..stop()).elapsedMilliseconds;
     if (frame == null) {
-      _emit(ScienceStageResult(
-        stage: stage,
-        outcome: outcome,
-        timestamp: DateTime.now(),
-        durationMs: durationMs,
-        note: note,
-      ));
+      _emit(
+        ScienceStageResult(
+          stage: stage,
+          outcome: outcome,
+          timestamp: DateTime.now(),
+          durationMs: durationMs,
+          note: note,
+        ),
+      );
       return;
     }
     final priorRunning = frame.stages[stage];
@@ -398,10 +396,12 @@ class ScienceProcessingStatusTracker {
 
   void _emit(ScienceStageResult result, {bool frameCompleted = false}) {
     if (_controller.isClosed) return;
-    _controller.add(ScienceProcessingEvent(
-      stageResult: result,
-      queueDepth: _queueDepth + (_inflight == null ? 0 : 1),
-      frameCompleted: frameCompleted,
-    ));
+    _controller.add(
+      ScienceProcessingEvent(
+        stageResult: result,
+        queueDepth: _queueDepth + (_inflight == null ? 0 : 1),
+        frameCompleted: frameCompleted,
+      ),
+    );
   }
 }

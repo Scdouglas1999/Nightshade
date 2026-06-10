@@ -22,7 +22,8 @@ _TransientAlert _$TransientAlertFromJson(Map<String, dynamic> json) =>
       priority: (json['priority'] as num?)?.toInt() ?? 5,
       notes: json['notes'] as String?,
       classification: json['classification'] as String?,
-      state: $enumDecodeNullable(_$TransientAlertStateEnumMap, json['state']) ??
+      state:
+          $enumDecodeNullable(_$TransientAlertStateEnumMap, json['state']) ??
           TransientAlertState.newAlert,
     );
 
@@ -73,51 +74,51 @@ const _$TransientAlertStateEnumMap = {
 };
 
 _TransientAlertSettings _$TransientAlertSettingsFromJson(
-        Map<String, dynamic> json) =>
-    _TransientAlertSettings(
-      enabledSources: (json['enabledSources'] as List<dynamic>?)
-              ?.map((e) => $enumDecode(_$TransientSourceEnumMap, e))
-              .toSet() ??
-          const {
-            TransientSource.aavso,
-            TransientSource.mpec,
-            TransientSource.cbat,
-            TransientSource.manual
-          },
-      magnitudeThreshold:
-          (json['magnitudeThreshold'] as num?)?.toDouble() ?? 15.0,
-      typesToMonitor: (json['typesToMonitor'] as List<dynamic>?)
-              ?.map((e) => $enumDecode(_$TransientTypeEnumMap, e))
-              .toSet() ??
-          const {
-            TransientType.nova,
-            TransientType.supernova,
-            TransientType.cataclysmic,
-            TransientType.comet,
-            TransientType.asteroid,
-            TransientType.variableStar,
-            TransientType.gammaRayBurst,
-            TransientType.other
-          },
-      notifyOnNew: json['notifyOnNew'] as bool? ?? true,
-      autoQueueBright: json['autoQueueBright'] as bool? ?? false,
-      autoQueueMagnitude:
-          (json['autoQueueMagnitude'] as num?)?.toDouble() ?? 10.0,
-      tnsApiKey: json['tnsApiKey'] as String?,
-    );
+  Map<String, dynamic> json,
+) => _TransientAlertSettings(
+  enabledSources:
+      (json['enabledSources'] as List<dynamic>?)
+          ?.map((e) => $enumDecode(_$TransientSourceEnumMap, e))
+          .toSet() ??
+      const {
+        TransientSource.aavso,
+        TransientSource.mpec,
+        TransientSource.cbat,
+        TransientSource.manual,
+      },
+  magnitudeThreshold: (json['magnitudeThreshold'] as num?)?.toDouble() ?? 15.0,
+  typesToMonitor:
+      (json['typesToMonitor'] as List<dynamic>?)
+          ?.map((e) => $enumDecode(_$TransientTypeEnumMap, e))
+          .toSet() ??
+      const {
+        TransientType.nova,
+        TransientType.supernova,
+        TransientType.cataclysmic,
+        TransientType.comet,
+        TransientType.asteroid,
+        TransientType.variableStar,
+        TransientType.gammaRayBurst,
+        TransientType.other,
+      },
+  notifyOnNew: json['notifyOnNew'] as bool? ?? true,
+  autoQueueBright: json['autoQueueBright'] as bool? ?? false,
+  autoQueueMagnitude: (json['autoQueueMagnitude'] as num?)?.toDouble() ?? 10.0,
+  tnsApiKey: json['tnsApiKey'] as String?,
+);
 
 Map<String, dynamic> _$TransientAlertSettingsToJson(
-        _TransientAlertSettings instance) =>
-    <String, dynamic>{
-      'enabledSources': instance.enabledSources
-          .map((e) => _$TransientSourceEnumMap[e]!)
-          .toList(),
-      'magnitudeThreshold': instance.magnitudeThreshold,
-      'typesToMonitor': instance.typesToMonitor
-          .map((e) => _$TransientTypeEnumMap[e]!)
-          .toList(),
-      'notifyOnNew': instance.notifyOnNew,
-      'autoQueueBright': instance.autoQueueBright,
-      'autoQueueMagnitude': instance.autoQueueMagnitude,
-      'tnsApiKey': instance.tnsApiKey,
-    };
+  _TransientAlertSettings instance,
+) => <String, dynamic>{
+  'enabledSources': instance.enabledSources
+      .map((e) => _$TransientSourceEnumMap[e]!)
+      .toList(),
+  'magnitudeThreshold': instance.magnitudeThreshold,
+  'typesToMonitor': instance.typesToMonitor
+      .map((e) => _$TransientTypeEnumMap[e]!)
+      .toList(),
+  'notifyOnNew': instance.notifyOnNew,
+  'autoQueueBright': instance.autoQueueBright,
+  'autoQueueMagnitude': instance.autoQueueMagnitude,
+  'tnsApiKey': instance.tnsApiKey,
+};

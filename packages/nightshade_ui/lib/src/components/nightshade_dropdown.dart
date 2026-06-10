@@ -40,10 +40,7 @@ class NightshadeDropdown extends StatelessWidget {
           hint: hint != null
               ? Text(
                   hint!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.textMuted),
                 )
               : null,
           isExpanded: isExpanded,
@@ -55,10 +52,7 @@ class NightshadeDropdown extends StatelessWidget {
           ),
           dropdownColor: colors.surface,
           borderRadius: BorderRadius.circular(8),
-          style: TextStyle(
-            fontSize: 12,
-            color: colors.textPrimary,
-          ),
+          style: TextStyle(fontSize: 12, color: colors.textPrimary),
           items: List.generate(items.length, (index) {
             final item = items[index];
             final label = itemLabels != null && index < itemLabels!.length
@@ -66,10 +60,7 @@ class NightshadeDropdown extends StatelessWidget {
                 : item;
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text(label, overflow: TextOverflow.ellipsis),
             );
           }),
           onChanged: onChanged,
@@ -78,8 +69,3 @@ class NightshadeDropdown extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

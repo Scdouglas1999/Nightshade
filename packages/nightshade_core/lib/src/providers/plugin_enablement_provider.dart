@@ -142,8 +142,8 @@ final managedPluginIdsProvider = Provider<List<String>>((ref) {
 /// enabled right now.
 final pluginEnablementProvider =
     AsyncNotifierProvider<PluginEnablementNotifier, Set<String>>(
-  PluginEnablementNotifier.new,
-);
+      PluginEnablementNotifier.new,
+    );
 
 /// AsyncNotifier backing [pluginEnablementProvider].
 class PluginEnablementNotifier extends AsyncNotifier<Set<String>> {
@@ -215,10 +215,7 @@ class PluginEnablementNotifier extends AsyncNotifier<Set<String>> {
     final choices = Map<String, bool>.from(_decodeEnablementMap(raw));
     choices[pluginId] = enabled;
 
-    await _dao.setSetting(
-      kPluginEnablementSettingKey,
-      jsonEncode(choices),
-    );
+    await _dao.setSetting(kPluginEnablementSettingKey, jsonEncode(choices));
 
     // 3. Publish the new live set.
     state = AsyncData(_enabledSetFor(choices, _managedIds));
@@ -263,5 +260,5 @@ class SettingsPluginEnablementStore implements PluginEnablementStore {
 /// ```
 final settingsPluginEnablementStoreProvider =
     Provider<SettingsPluginEnablementStore>((ref) {
-  return SettingsPluginEnablementStore(ref.watch(settingsDaoProvider));
-});
+      return SettingsPluginEnablementStore(ref.watch(settingsDaoProvider));
+    });

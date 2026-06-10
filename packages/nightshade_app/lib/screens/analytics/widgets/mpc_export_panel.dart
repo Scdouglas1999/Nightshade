@@ -85,7 +85,8 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: widget.colors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(
                     color: widget.colors.error.withValues(alpha: 0.3),
                   ),
@@ -348,18 +349,23 @@ class _ObservationGroupTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: NightshadeDecorations.statusChip(
                   colors.success,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                   bordered: false,
                 ),
                 child: Text(
                   'Known',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.success),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize9,
+                      color: colors.success),
                 ),
               ),
             const SizedBox(width: 8),
             Text(
               '${group.observations.length} obs',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textMuted),
             ),
             if (group.nightCount > 1) ...[
               const SizedBox(width: 6),
@@ -367,7 +373,8 @@ class _ObservationGroupTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                   bordered: false,
                 ),
                 child: Text(
@@ -383,7 +390,9 @@ class _ObservationGroupTile extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               '${(group.averageConfidence * 100).toStringAsFixed(0)}%',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textSecondary),
             ),
           ],
         ),
@@ -434,7 +443,9 @@ class _ObservationGroupTile extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${obs.motionArcsecPerMinute.toStringAsFixed(1)}"/m',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textMuted),
                   ),
                 ],
               ),

@@ -56,7 +56,9 @@ class ImmersiveBottomChrome extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Icon(
-                  visible ? NightshadeIcons.chevronDown : NightshadeIcons.chevronUp,
+                  visible
+                      ? NightshadeIcons.chevronDown
+                      : NightshadeIcons.chevronUp,
                   size: 13,
                   color: colors.textMuted.withValues(alpha: 0.8),
                 ),

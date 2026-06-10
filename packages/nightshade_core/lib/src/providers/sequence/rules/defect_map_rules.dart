@@ -97,14 +97,16 @@ class DefectMapAppliedButCalibrationOffRule
       return const <ValidationIssue>[];
     }
 
-    final statusAsync = ctx.ref.read(defectMapStatusProvider(
-      DefectMapQuery(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: temperatureC,
+    final statusAsync = ctx.ref.read(
+      defectMapStatusProvider(
+        DefectMapQuery(
+          cameraId: cameraId,
+          width: width,
+          height: height,
+          sensorTemperatureCelsius: temperatureC,
+        ),
       ),
-    ));
+    );
     // Why .value rather than .valueOrNull: the FutureProvider's data
     // wrapper double-Options the payload (Option<Option<DefectMapStatus>>);
     // the AsyncValue helpers normalise the outer Option, so .value here

@@ -66,15 +66,15 @@ class GuideStar {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'x': x,
-        'y': y,
-        'flux': flux,
-        'snr': snr,
-        'is_lock': isLock,
-        'residual': residual,
-        'weight': weight,
-      };
+    'id': id,
+    'x': x,
+    'y': y,
+    'flux': flux,
+    'snr': snr,
+    'is_lock': isLock,
+    'residual': residual,
+    'weight': weight,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -186,16 +186,16 @@ class Phd2Status {
 
   /// Convert to JSON (for network transport)
   Map<String, dynamic> toJson() => {
-        'state': state,
-        'connected': connected,
-        'rmsRa': rmsRa,
-        'rmsDec': rmsDec,
-        'rmsTotal': rmsTotal,
-        'snr': snr,
-        'starMass': starMass,
-        'avgDistance': avgDistance,
-        'trackedStars': trackedStars.map((s) => s.toJson()).toList(),
-      };
+    'state': state,
+    'connected': connected,
+    'rmsRa': rmsRa,
+    'rmsDec': rmsDec,
+    'rmsTotal': rmsTotal,
+    'snr': snr,
+    'starMass': starMass,
+    'avgDistance': avgDistance,
+    'trackedStars': trackedStars.map((s) => s.toJson()).toList(),
+  };
 
   /// Check if PHD2 is actively guiding
   bool get isGuiding => state == 'Guiding';

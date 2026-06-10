@@ -34,15 +34,18 @@ final notesServiceProvider = Provider<NotesService>((ref) {
 
 /// Live notes for a target. Family-keyed by the logical target id
 /// string (catalog id or display name).
-final notesForTargetProvider =
-    StreamProvider.family<List<JournalNote>, String>((ref, targetId) {
-  final service = ref.watch(notesServiceProvider);
-  return service.watchTargetNotes(targetId);
-});
+final notesForTargetProvider = StreamProvider.family<List<JournalNote>, String>(
+  (ref, targetId) {
+    final service = ref.watch(notesServiceProvider);
+    return service.watchTargetNotes(targetId);
+  },
+);
 
 /// Live notes for a specific sequence run row id.
-final notesForRunProvider =
-    StreamProvider.family<List<JournalNote>, int>((ref, runId) {
+final notesForRunProvider = StreamProvider.family<List<JournalNote>, int>((
+  ref,
+  runId,
+) {
   final service = ref.watch(notesServiceProvider);
   return service.watchRunNotes(runId);
 });
@@ -75,13 +78,9 @@ final promptForNotesAfterRunProvider = StreamProvider<bool>((ref) {
 });
 
 /// Mutator for the auto-prompt preference.
-final notesPromptToggleProvider =
-    Provider<Future<void> Function(bool)>((ref) {
+final notesPromptToggleProvider = Provider<Future<void> Function(bool)>((ref) {
   final dao = ref.watch(settingsDaoProvider);
   return (bool enabled) async {
-    await dao.setSetting(
-      kPromptForNotesAfterRunKey,
-      enabled.toString(),
-    );
+    await dao.setSetting(kPromptForNotesAfterRunKey, enabled.toString());
   };
 });

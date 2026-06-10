@@ -22,7 +22,9 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.error),
             ),
           ),
         ],
@@ -51,12 +53,15 @@ class _StatRow extends StatelessWidget {
       children: [
         Expanded(
           child: Text(label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary)),
         ),
         const SizedBox(width: 8),
         Text(
           value,
-          style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),
+          style: NightshadeTypography.labelSm
+              .copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );
@@ -110,7 +115,8 @@ class _RejectionWarning extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: accent),
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: accent),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -182,9 +188,12 @@ class _AlignmentQualityBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Alignment Quality',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textSecondary)),
             Text(qualityLabel,
-                style: NightshadeTypography.labelStrongSm.copyWith(color: qualityColor)),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: qualityColor)),
           ],
         ),
         const SizedBox(height: 6),

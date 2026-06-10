@@ -59,11 +59,11 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: NightshadeDecorations.statusChip(
-                      statusColor,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusXs),
-                    ),
+                  decoration: NightshadeDecorations.statusChip(
+                    statusColor,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusXs),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -98,11 +98,10 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceSm),
             Container(
               padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-                decoration: NightshadeDecorations.emphasisSurface(
-                  colors.warning,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXs),
-                ),
+              decoration: NightshadeDecorations.emphasisSurface(
+                colors.warning,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+              ),
               child: Row(
                 children: [
                   Icon(LucideIcons.alertTriangle,
@@ -357,7 +356,9 @@ class _ConditionRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),

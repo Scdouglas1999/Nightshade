@@ -4,8 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:nightshade_bridge/nightshade_bridge.dart'
-    show PlateSolveResult;
+import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
@@ -23,11 +22,7 @@ class SolverNotAvailableError implements Exception {
 }
 
 /// Plate solver type
-enum PlateSolverType {
-  astap,
-  astrometryNet,
-  plateSolve2,
-}
+enum PlateSolverType { astap, astrometryNet, plateSolve2 }
 
 /// Plate solver configuration
 class PlateSolverConfig {
@@ -124,7 +119,8 @@ class PlateSolveService {
         fieldWidth: 0,
         fieldHeight: 0,
         solveTimeSecs: 0,
-        error: 'Backend solve failed: $e. Local fallback failed: '
+        error:
+            'Backend solve failed: $e. Local fallback failed: '
             '${fallbackResult.error ?? 'unknown error'}',
       );
     }
@@ -267,7 +263,8 @@ class PlateSolveService {
         fieldWidth: 0,
         fieldHeight: 0,
         solveTimeSecs: 0,
-        error: 'ASTAP exited 0 but wrote no WCS file '
+        error:
+            'ASTAP exited 0 but wrote no WCS file '
             '(no star match within search radius). stdout: '
             '${result.stdout.toString().trim()}',
       );
@@ -304,11 +301,7 @@ class PlateSolveService {
     PlateSolverConfig config,
   ) async {
     try {
-      final args = <String>[
-        imagePath,
-        '--no-plots',
-        '--overwrite',
-      ];
+      final args = <String>[imagePath, '--no-plots', '--overwrite'];
 
       if (config.searchRadius != null) {
         args.addAll(['--radius', config.searchRadius.toString()]);
@@ -769,7 +762,8 @@ class PlateSolveService {
           fieldWidth: 0,
           fieldHeight: 0,
           solveTimeSecs: 0,
-          error: 'Plate solver output has unexpected format: expected "RA,Dec" '
+          error:
+              'Plate solver output has unexpected format: expected "RA,Dec" '
               'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
         );
       }
@@ -787,7 +781,8 @@ class PlateSolveService {
           fieldWidth: 0,
           fieldHeight: 0,
           solveTimeSecs: 0,
-          error: 'Plate solver output contains non-numeric coordinates: '
+          error:
+              'Plate solver output contains non-numeric coordinates: '
               'RA="${parts[0]}", Dec="${parts[1]}"',
         );
       }

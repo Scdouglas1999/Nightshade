@@ -53,8 +53,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('phone full-screen mode pushes a route (360x640)',
-      (tester) async {
+  testWidgets('phone full-screen mode pushes a route (360x640)', (
+    tester,
+  ) async {
     await _pumpAt(
       tester,
       const Size(360, 640),
@@ -63,9 +64,8 @@ void main() {
         onPressed: (context) => showAdaptiveModal<void>(
           context: context,
           phoneMode: PhoneModalMode.fullScreen,
-          builder: (_) => const Scaffold(
-            body: Center(child: Text('FULLSCREEN BODY')),
-          ),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('FULLSCREEN BODY'))),
         ),
       ),
     );
@@ -77,8 +77,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('tablet/desktop shows a centered dialog (1200x800)',
-      (tester) async {
+  testWidgets('tablet/desktop shows a centered dialog (1200x800)', (
+    tester,
+  ) async {
     await _pumpAt(
       tester,
       const Size(1200, 800),

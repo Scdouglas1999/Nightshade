@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -294,10 +294,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final axis = requireString(payload, 'axis');
     if (axis != 'ra' && axis != 'dec') {
-      throw BadRequestError(
-        field: 'axis',
-        expected: "'ra' or 'dec'",
-      );
+      throw BadRequestError(field: 'axis', expected: "'ra' or 'dec'");
     }
     final name = requireString(payload, 'name');
     final value = requireDouble(payload, 'value');
@@ -305,9 +302,7 @@ class GuidingHandlers {
     final backend = container.read(guidingBackendProvider);
     await backend.phd2SetAlgoParam(axis: axis, name: name, value: value);
 
-    return jsonOk(
-      {"status": "ok", "axis": axis, "name": name, "value": value},
-    );
+    return jsonOk({"status": "ok", "axis": axis, "name": name, "value": value});
   }
 
   Future<Response> handleGuiderStartGuiding(Request request) async {
@@ -432,8 +427,10 @@ class GuidingHandlers {
     final size = int.tryParse(request.url.queryParameters['size'] ?? '') ?? 50;
 
     final backend = container.read(guidingBackendProvider);
-    final image =
-        await backend.guiderGetStarImage(deviceId: deviceId, size: size);
+    final image = await backend.guiderGetStarImage(
+      deviceId: deviceId,
+      size: size,
+    );
 
     return jsonOk({
       "frame": image.frame,
@@ -457,8 +454,7 @@ class GuidingHandlers {
     _logInfo('[API] POST /api/builtin-guider/config');
     final payload = await readJsonObject(request);
     final backend = container.read(guidingBackendProvider);
-    await backend
-        .builtinGuiderSetConfig(BuiltinGuiderConfig.fromJson(payload));
+    await backend.builtinGuiderSetConfig(BuiltinGuiderConfig.fromJson(payload));
     return jsonOk({"status": "ok"});
   }
 }

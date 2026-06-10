@@ -39,7 +39,8 @@ Future<void> _pump(
         // exercised deterministically.
         firstLaunchTourStatusProvider.overrideWith(
           (ref) => switch (status) {
-            AsyncData(:final value) => Future<FirstLaunchTourStatus>.value(value),
+            AsyncData(:final value) =>
+              Future<FirstLaunchTourStatus>.value(value),
             AsyncError(:final error) =>
               Future<FirstLaunchTourStatus>.error(error),
             _ => Completer<FirstLaunchTourStatus>().future, // loading

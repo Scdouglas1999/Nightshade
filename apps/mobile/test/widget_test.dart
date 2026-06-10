@@ -14,11 +14,7 @@ import 'package:nightshade_mobile/main.dart';
 void main() {
   testWidgets('Mobile app smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: NightshadeMobileApp(),
-      ),
-    );
+    await tester.pumpWidget(const ProviderScope(child: NightshadeMobileApp()));
 
     await tester.pump();
 

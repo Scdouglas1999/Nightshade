@@ -8,8 +8,7 @@ class _CoolCameraProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CoolCameraNode node;
 
-  const _CoolCameraProperties(
-      {required this.colors, required this.node});
+  const _CoolCameraProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,8 +65,7 @@ class _FilterChangeProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final FilterChangeNode node;
 
-  const _FilterChangeProperties(
-      {required this.colors, required this.node});
+  const _FilterChangeProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,7 +118,8 @@ class _FilterChangeProperties extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -191,8 +190,7 @@ class _WarmCameraProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final WarmCameraNode node;
 
-  const _WarmCameraProperties(
-      {required this.colors, required this.node});
+  const _WarmCameraProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -273,8 +271,7 @@ class _NotificationProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final NotificationNode node;
 
-  const _NotificationProperties(
-      {required this.colors, required this.node});
+  const _NotificationProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -530,7 +527,8 @@ class _NotificationPreview extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title.isEmpty ? '(no title)' : title,
-            style: NightshadeTypography.labelStrong.copyWith(color: title.isEmpty ? colors.textMuted : colors.textPrimary),
+            style: NightshadeTypography.labelStrong.copyWith(
+                color: title.isEmpty ? colors.textMuted : colors.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
@@ -546,4 +544,3 @@ class _NotificationPreview extends StatelessWidget {
     );
   }
 }
-

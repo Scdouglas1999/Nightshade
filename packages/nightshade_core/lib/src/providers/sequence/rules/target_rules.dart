@@ -13,26 +13,30 @@ class TargetCoordinatesRule implements SequenceValidator {
     for (final node in sequence.nodes.values) {
       if (node is! TargetHeaderNode) continue;
       if (node.raHours < 0 || node.raHours >= 24) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Invalid RA',
-          description:
-              'Target "${node.targetName}" has invalid RA: ${node.raHours}h',
-          affectedNodeId: node.id,
-          resolutionHint: 'RA must be between 0 and 24 hours.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Invalid RA',
+            description:
+                'Target "${node.targetName}" has invalid RA: ${node.raHours}h',
+            affectedNodeId: node.id,
+            resolutionHint: 'RA must be between 0 and 24 hours.',
+          ),
+        );
       }
       if (node.decDegrees < -90 || node.decDegrees > 90) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Invalid Dec',
-          description:
-              'Target "${node.targetName}" has invalid Dec: ${node.decDegrees}°',
-          affectedNodeId: node.id,
-          resolutionHint: 'Declination must be between -90 and +90 degrees.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Invalid Dec',
+            description:
+                'Target "${node.targetName}" has invalid Dec: ${node.decDegrees}°',
+            affectedNodeId: node.id,
+            resolutionHint: 'Declination must be between -90 and +90 degrees.',
+          ),
+        );
       }
     }
     return issues;
@@ -54,24 +58,28 @@ class SlewCoordinatesRule implements SequenceValidator {
       final ra = node.customRa;
       final dec = node.customDec;
       if (ra != null && (ra < 0 || ra >= 24)) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Invalid Slew RA',
-          description: 'Slew "${node.name}" has invalid RA: ${ra}h',
-          affectedNodeId: node.id,
-          resolutionHint: 'RA must be between 0 and 24 hours.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Invalid Slew RA',
+            description: 'Slew "${node.name}" has invalid RA: ${ra}h',
+            affectedNodeId: node.id,
+            resolutionHint: 'RA must be between 0 and 24 hours.',
+          ),
+        );
       }
       if (dec != null && (dec < -90 || dec > 90)) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Invalid Slew Dec',
-          description: 'Slew "${node.name}" has invalid Dec: $dec°',
-          affectedNodeId: node.id,
-          resolutionHint: 'Declination must be between -90 and +90 degrees.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Invalid Slew Dec',
+            description: 'Slew "${node.name}" has invalid Dec: $dec°',
+            affectedNodeId: node.id,
+            resolutionHint: 'Declination must be between -90 and +90 degrees.',
+          ),
+        );
       }
     }
     return issues;
@@ -89,15 +97,17 @@ class EmptyTargetRule implements SequenceValidator {
     final issues = <ValidationIssue>[];
     for (final target in sequence.targetHeaders) {
       if (target.childIds.isNotEmpty) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.targets,
-        title: 'Empty Target',
-        description: 'Target "${target.targetName}" has no instructions.',
-        affectedNodeId: target.id,
-        resolutionHint:
-            'Add exposure or other instruction nodes to the target.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.targets,
+          title: 'Empty Target',
+          description: 'Target "${target.targetName}" has no instructions.',
+          affectedNodeId: target.id,
+          resolutionHint:
+              'Add exposure or other instruction nodes to the target.',
+        ),
+      );
     }
     return issues;
   }
@@ -116,16 +126,18 @@ class LowAltitudeLimitRule implements SequenceValidator {
       final minAlt = target.minAltitude;
       if (minAlt == null) continue;
       if (minAlt >= 10) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.warning,
-        category: ValidationCategory.targets,
-        title: 'Very Low Altitude Limit',
-        description:
-            'Target "${target.targetName}" minimum altitude is $minAlt°. '
-            'Imaging near the horizon may result in poor quality.',
-        affectedNodeId: target.id,
-        resolutionHint: 'Consider setting minimum altitude to 20° or higher.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.targets,
+          title: 'Very Low Altitude Limit',
+          description:
+              'Target "${target.targetName}" minimum altitude is $minAlt°. '
+              'Imaging near the horizon may result in poor quality.',
+          affectedNodeId: target.id,
+          resolutionHint: 'Consider setting minimum altitude to 20° or higher.',
+        ),
+      );
     }
     return issues;
   }
@@ -147,17 +159,20 @@ class IntegrationBudgetEmptyRule implements SequenceValidator {
       final budget = target.integrationBudget;
       if (budget == null) continue;
       if (budget.isActive) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.error,
-        category: ValidationCategory.targets,
-        title: 'Empty Integration Budget',
-        description: 'Target "${target.targetName}" has an integration budget '
-            'enabled but no total time or per-filter caps configured.',
-        affectedNodeId: target.id,
-        resolutionHint:
-            'Set a non-zero total time or add at least one per-filter entry, '
-            'or turn the integration budget off.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.targets,
+          title: 'Empty Integration Budget',
+          description:
+              'Target "${target.targetName}" has an integration budget '
+              'enabled but no total time or per-filter caps configured.',
+          affectedNodeId: target.id,
+          resolutionHint:
+              'Set a non-zero total time or add at least one per-filter entry, '
+              'or turn the integration budget off.',
+        ),
+      );
     }
     return issues;
   }
@@ -177,8 +192,9 @@ class IntegrationBudgetRatioZeroSumRule implements SequenceValidator {
     for (final target in sequence.targetHeaders) {
       final budget = target.integrationBudget;
       if (budget == null || !budget.isActive) continue;
-      final hasAbsolute =
-          budget.perFilter.values.any((e) => e.isAbsolute && e.value > 0);
+      final hasAbsolute = budget.perFilter.values.any(
+        (e) => e.isAbsolute && e.value > 0,
+      );
       if (hasAbsolute) continue;
       final hasRatio = budget.perFilter.values.any((e) => e.isRatio);
       if (!hasRatio) continue;
@@ -186,17 +202,19 @@ class IntegrationBudgetRatioZeroSumRule implements SequenceValidator {
           .where((e) => e.isRatio)
           .fold<double>(0, (acc, e) => acc + e.value);
       if (ratioSum <= 0) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Integration Budget Ratios Sum To Zero',
-          description:
-              'Target "${target.targetName}" has only ratio entries and '
-              'their sum is zero — the budget can never fire.',
-          affectedNodeId: target.id,
-          resolutionHint:
-              'Set at least one ratio entry to a positive value or use absolute caps.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Integration Budget Ratios Sum To Zero',
+            description:
+                'Target "${target.targetName}" has only ratio entries and '
+                'their sum is zero — the budget can never fire.',
+            affectedNodeId: target.id,
+            resolutionHint:
+                'Set at least one ratio entry to a positive value or use absolute caps.',
+          ),
+        );
       }
     }
     return issues;
@@ -218,20 +236,23 @@ class IntegrationBudgetRatioWithoutTotalRule implements SequenceValidator {
       final budget = target.integrationBudget;
       if (budget == null || !budget.isActive) continue;
       if (budget.totalSecs > 0.0) continue;
-      final hasRatio =
-          budget.perFilter.values.any((e) => e.isRatio && e.value > 0);
+      final hasRatio = budget.perFilter.values.any(
+        (e) => e.isRatio && e.value > 0,
+      );
       if (hasRatio) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Ratio Without Total',
-          description:
-              'Target "${target.targetName}" has ratio-based filter budgets '
-              'but no total integration time to distribute them across.',
-          affectedNodeId: target.id,
-          resolutionHint:
-              'Set a total integration time, or convert ratio entries to absolute seconds.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Ratio Without Total',
+            description:
+                'Target "${target.targetName}" has ratio-based filter budgets '
+                'but no total integration time to distribute them across.',
+            affectedNodeId: target.id,
+            resolutionHint:
+                'Set a total integration time, or convert ratio entries to absolute seconds.',
+          ),
+        );
       }
     }
     return issues;
@@ -257,17 +278,19 @@ class TargetTriggerEmptyCompoundRule implements SequenceValidator {
         final trig = entry.$2;
         if (trig == null) continue;
         if (!trig.hasEmptyCompound) continue;
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.targets,
-          title: 'Empty Compound Trigger',
-          description:
-              'Target "${target.targetName}" has an empty And/Or in its '
-              '${entry.$1}_when condition.',
-          affectedNodeId: target.id,
-          resolutionHint:
-              'Add at least one sub-trigger, or remove the compound.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.targets,
+            title: 'Empty Compound Trigger',
+            description:
+                'Target "${target.targetName}" has an empty And/Or in its '
+                '${entry.$1}_when condition.',
+            affectedNodeId: target.id,
+            resolutionHint:
+                'Add at least one sub-trigger, or remove the compound.',
+          ),
+        );
       }
     }
     return issues;
@@ -309,19 +332,22 @@ class TargetTriggerImpossibleAltitudeRule implements SequenceValidator {
         _collectAltitudeAbove(trig, thresholds);
         for (final t in thresholds) {
           if (t > culmination) {
-            issues.add(ValidationIssue(
-              severity: ValidationSeverity.error,
-              category: ValidationCategory.targets,
-              title: 'Unreachable Altitude',
-              description: 'Target "${target.targetName}" requires altitude '
-                  '≥ ${t.toStringAsFixed(1)}° in its ${entry.$1}_when '
-                  'but culminates at ${culmination.toStringAsFixed(1)}° '
-                  'from your latitude (${lat.toStringAsFixed(1)}°).',
-              affectedNodeId: target.id,
-              resolutionHint:
-                  'Lower the altitude threshold or pick a target with '
-                  'higher declination.',
-            ));
+            issues.add(
+              ValidationIssue(
+                severity: ValidationSeverity.error,
+                category: ValidationCategory.targets,
+                title: 'Unreachable Altitude',
+                description:
+                    'Target "${target.targetName}" requires altitude '
+                    '≥ ${t.toStringAsFixed(1)}° in its ${entry.$1}_when '
+                    'but culminates at ${culmination.toStringAsFixed(1)}° '
+                    'from your latitude (${lat.toStringAsFixed(1)}°).',
+                affectedNodeId: target.id,
+                resolutionHint:
+                    'Lower the altitude threshold or pick a target with '
+                    'higher declination.',
+              ),
+            );
           }
         }
       }
@@ -367,18 +393,21 @@ class TargetTriggerStartEndContradictionRule implements SequenceValidator {
       final endBefore = _endTimeBefore(target.endWhen);
       if (startAfter == null || endBefore == null) continue;
       if (endBefore <= startAfter) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.error,
-        category: ValidationCategory.targets,
-        title: 'End Trigger Already Satisfied',
-        description: 'Target "${target.targetName}" waits until its startWhen '
-            '(TimeAfter), then immediately satisfies endWhen (TimeBefore). '
-            'The target will be skipped as soon as it starts.',
-        affectedNodeId: target.id,
-        resolutionHint:
-            'Use endWhen TimeAfter for a stop-at-time cap, move the '
-            'TimeBefore cutoff before the start time, or remove one trigger.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.targets,
+          title: 'End Trigger Already Satisfied',
+          description:
+              'Target "${target.targetName}" waits until its startWhen '
+              '(TimeAfter), then immediately satisfies endWhen (TimeBefore). '
+              'The target will be skipped as soon as it starts.',
+          affectedNodeId: target.id,
+          resolutionHint:
+              'Use endWhen TimeAfter for a stop-at-time cap, move the '
+              'TimeBefore cutoff before the start time, or remove one trigger.',
+        ),
+      );
     }
     return issues;
   }
@@ -445,8 +474,9 @@ class NoTargetForExposuresRule implements SequenceValidator {
     final targets = sequence.targetHeaders;
     if (targets.isNotEmpty) return const [];
 
-    final hasEnabledExposures =
-        sequence.nodes.values.whereType<ExposureNode>().any((n) => n.isEnabled);
+    final hasEnabledExposures = sequence.nodes.values
+        .whereType<ExposureNode>()
+        .any((n) => n.isEnabled);
     if (!hasEnabledExposures) return const [];
 
     return const [

@@ -423,7 +423,8 @@ class RemoteReplayEventsPage {
     return RemoteReplayEventsPage(
       items: items,
       total: (json['total'] as num?)?.toInt() ?? items.length,
-      isPartial: (json['is_partial'] as bool?) ??
+      isPartial:
+          (json['is_partial'] as bool?) ??
           (json['isPartial'] as bool?) ??
           false,
       partialReason: json['partialReason'] as String?,
@@ -597,7 +598,8 @@ class RemotePluginManifest {
 
 /// Helper function to consolidate HTTP response bytes
 Future<List<int>> consolidateHttpClientResponseBytes(
-    HttpClientResponse response) {
+  HttpClientResponse response,
+) {
   final completer = Completer<List<int>>();
   final chunks = <List<int>>[];
 

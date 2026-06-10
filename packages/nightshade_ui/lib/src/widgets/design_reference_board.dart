@@ -263,22 +263,38 @@ class _DomainPaletteSection extends StatelessWidget {
             spacing: NightshadeTokens.spaceMd,
             runSpacing: NightshadeTokens.spaceMd,
             children: [
-              _Swatch.compact(label: 'Blue', color: NightshadeChartColors.seriesBlue),
               _Swatch.compact(
-                  label: 'Violet', color: NightshadeChartColors.seriesViolet),
+                label: 'Blue',
+                color: NightshadeChartColors.seriesBlue,
+              ),
               _Swatch.compact(
-                  label: 'Green', color: NightshadeChartColors.seriesGreen),
+                label: 'Violet',
+                color: NightshadeChartColors.seriesViolet,
+              ),
               _Swatch.compact(
-                  label: 'Amber', color: NightshadeChartColors.seriesAmber),
+                label: 'Green',
+                color: NightshadeChartColors.seriesGreen,
+              ),
               _Swatch.compact(
-                  label: 'Indigo', color: NightshadeChartColors.seriesIndigo),
+                label: 'Amber',
+                color: NightshadeChartColors.seriesAmber,
+              ),
               _Swatch.compact(
-                  label: 'Deep Blue',
-                  color: NightshadeChartColors.seriesDeepBlue),
+                label: 'Indigo',
+                color: NightshadeChartColors.seriesIndigo,
+              ),
               _Swatch.compact(
-                  label: 'Red', color: NightshadeChartColors.seriesRed),
+                label: 'Deep Blue',
+                color: NightshadeChartColors.seriesDeepBlue,
+              ),
               _Swatch.compact(
-                  label: 'Orange', color: NightshadeChartColors.seriesOrange),
+                label: 'Red',
+                color: NightshadeChartColors.seriesRed,
+              ),
+              _Swatch.compact(
+                label: 'Orange',
+                color: NightshadeChartColors.seriesOrange,
+              ),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -357,23 +373,23 @@ class _DomainPaletteSection extends StatelessWidget {
   }
 
   static String _objectTypeLabel(ObjectType type) => switch (type) {
-        ObjectType.galaxy => 'Galaxy',
-        ObjectType.nebula => 'Nebula',
-        ObjectType.starCluster => 'Star Cluster',
-        ObjectType.planetaryNebula => 'Planetary Nebula',
-        ObjectType.star => 'Star',
-        ObjectType.doubleStar => 'Double Star',
-        ObjectType.asterism => 'Asterism',
-        ObjectType.unknown => 'Unknown',
-      };
+    ObjectType.galaxy => 'Galaxy',
+    ObjectType.nebula => 'Nebula',
+    ObjectType.starCluster => 'Star Cluster',
+    ObjectType.planetaryNebula => 'Planetary Nebula',
+    ObjectType.star => 'Star',
+    ObjectType.doubleStar => 'Double Star',
+    ObjectType.asterism => 'Asterism',
+    ObjectType.unknown => 'Unknown',
+  };
 
   static String _backendLabel(DriverType backend) => switch (backend) {
-        DriverType.native => 'Native SDK',
-        DriverType.ascom => 'ASCOM',
-        DriverType.alpaca => 'Alpaca',
-        DriverType.indi => 'INDI',
-        DriverType.simulator => 'Simulator',
-      };
+    DriverType.native => 'Native SDK',
+    DriverType.ascom => 'ASCOM',
+    DriverType.alpaca => 'Alpaca',
+    DriverType.indi => 'INDI',
+    DriverType.simulator => 'Simulator',
+  };
 }
 
 // ===========================================================================
@@ -395,34 +411,80 @@ class _TypographyScale extends StatelessWidget {
       ('h4', '16 / w600', 'Aa Widget Title', NightshadeTypography.h4),
       ('h5', '14 / w600', 'Aa Label Title', NightshadeTypography.h5),
       ('h6', '12 / w600', 'Aa Small Heading', NightshadeTypography.h6),
-      ('bodyLg', '16 / w400', 'The quick brown fox', NightshadeTypography.bodyLg),
+      (
+        'bodyLg',
+        '16 / w400',
+        'The quick brown fox',
+        NightshadeTypography.bodyLg,
+      ),
       ('body', '14 / w400', 'The quick brown fox', NightshadeTypography.body),
-      ('bodyMedium', '14 / w500', 'The quick brown fox',
-          NightshadeTypography.bodyMedium),
-      ('bodySm', '13 / w400', 'The quick brown fox', NightshadeTypography.bodySm),
+      (
+        'bodyMedium',
+        '14 / w500',
+        'The quick brown fox',
+        NightshadeTypography.bodyMedium,
+      ),
+      (
+        'bodySm',
+        '13 / w400',
+        'The quick brown fox',
+        NightshadeTypography.bodySm,
+      ),
       ('labelLg', '14 / w500', 'Navigation Item', NightshadeTypography.labelLg),
       ('label', '13 / w500', 'Form Label', NightshadeTypography.label),
       ('labelSm', '12 / w500', 'Helper Badge', NightshadeTypography.labelSm),
-      ('labelQuiet', '11 / w500', 'Sidebar description',
-          NightshadeTypography.labelQuiet),
-      ('caption', '12 / w400', 'Metadata · timestamp',
-          NightshadeTypography.caption),
-      ('captionSm', '11 / w400', 'Very small caption',
-          NightshadeTypography.captionSm),
-      ('overline', '10 / w600 caps', 'SECTION LABEL',
-          NightshadeTypography.overline),
+      (
+        'labelQuiet',
+        '11 / w500',
+        'Sidebar description',
+        NightshadeTypography.labelQuiet,
+      ),
+      (
+        'caption',
+        '12 / w400',
+        'Metadata · timestamp',
+        NightshadeTypography.caption,
+      ),
+      (
+        'captionSm',
+        '11 / w400',
+        'Very small caption',
+        NightshadeTypography.captionSm,
+      ),
+      (
+        'overline',
+        '10 / w600 caps',
+        'SECTION LABEL',
+        NightshadeTypography.overline,
+      ),
       ('monoLg', '18 / mono', 'RA 05h 35m 17s', NightshadeTypography.monoLg),
-      ('telemetryLg', '22 / mono tab', '02:45:11',
-          NightshadeTypography.telemetryLg),
-      ('telemetryMd', '18 / mono tab', '18 min · 0.42 rms',
-          NightshadeTypography.telemetryMd),
+      (
+        'telemetryLg',
+        '22 / mono tab',
+        '02:45:11',
+        NightshadeTypography.telemetryLg,
+      ),
+      (
+        'telemetryMd',
+        '18 / mono tab',
+        '18 min · 0.42 rms',
+        NightshadeTypography.telemetryMd,
+      ),
       ('mono', '14 / mono', 'EXP 120s · GAIN 100', NightshadeTypography.mono),
-      ('monoSm', '12 / mono', 'HFR 2.13 · ECC 0.41',
-          NightshadeTypography.monoSm),
+      (
+        'monoSm',
+        '12 / mono',
+        'HFR 2.13 · ECC 0.41',
+        NightshadeTypography.monoSm,
+      ),
       ('monoXs', '11 / mono', '-10.0°C · 33%', NightshadeTypography.monoXs),
       ('statValue', '36 / w700 mono', '247', NightshadeTypography.statValue),
-      ('statLabel', '12 / w500 caps', 'FRAMES CAPTURED',
-          NightshadeTypography.statLabel),
+      (
+        'statLabel',
+        '12 / w500 caps',
+        'FRAMES CAPTURED',
+        NightshadeTypography.statLabel,
+      ),
       ('button', '14 / w500', 'Start Sequence', NightshadeTypography.button),
       ('buttonSm', '13 / w500', 'Cancel', NightshadeTypography.buttonSm),
       ('input', '14 / w400', 'M31 Andromeda', NightshadeTypography.input),
@@ -476,9 +538,7 @@ class _TypeRow extends StatelessWidget {
           width: 120,
           child: Text(
             name,
-            style: NightshadeTypography.monoSm.copyWith(
-              color: colors.primary,
-            ),
+            style: NightshadeTypography.monoSm.copyWith(color: colors.primary),
           ),
         ),
         SizedBox(
@@ -548,10 +608,7 @@ class _ComponentsSection extends StatelessWidget {
                 variant: ButtonVariant.destructive,
                 onPressed: _noop,
               ),
-              NightshadeButton(
-                label: 'Disabled',
-                icon: LucideIcons.lock,
-              ),
+              NightshadeButton(label: 'Disabled', icon: LucideIcons.lock),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -605,15 +662,24 @@ class _ComponentsSection extends StatelessWidget {
             children: [
               const NightshadeSwitch(value: true, onChanged: _noopBool),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text('Cooling',
-                  style: NightshadeTypography.bodySm
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                'Cooling',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
               const SizedBox(width: NightshadeTokens.spaceLg),
-              const NightshadeCheckbox(value: true, onChanged: _noopNullableBool),
+              const NightshadeCheckbox(
+                value: true,
+                onChanged: _noopNullableBool,
+              ),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text('Autosave',
-                  style: NightshadeTypography.bodySm
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                'Autosave',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -621,8 +687,7 @@ class _ComponentsSection extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           const Row(
             children: [
-              SubTabButton(
-                  label: 'Capture', isSelected: true, onTap: _noop),
+              SubTabButton(label: 'Capture', isSelected: true, onTap: _noop),
               SubTabButton(label: 'Focus', isSelected: false, onTap: _noop),
               SubTabButton(label: 'Guiding', isSelected: false, onTap: _noop),
             ],
@@ -694,24 +759,33 @@ class _StatusAndFeedbackSection extends StatelessWidget {
             children: [
               StatusDot(color: colors.success),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text('Online',
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                'Online',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
               const SizedBox(width: NightshadeTokens.spaceLg),
               StatusDot(
-                  color: colors.warning,
-                  variant: StatusDotVariant.attention),
+                color: colors.warning,
+                variant: StatusDotVariant.attention,
+              ),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text('Attention',
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                'Attention',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
               const SizedBox(width: NightshadeTokens.spaceLg),
-              StatusDot(
-                  color: colors.error, variant: StatusDotVariant.urgent),
+              StatusDot(color: colors.error, variant: StatusDotVariant.urgent),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text('Urgent',
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                'Urgent',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -806,8 +880,9 @@ class _LayoutPrimitivesSection extends StatelessWidget {
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   Text(
                     'Cool camera before capture',
-                    style: NightshadeTypography.bodySm
-                        .copyWith(color: colors.textSecondary),
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -844,11 +919,11 @@ class _SubLabel extends StatelessWidget {
 
 class _Swatch extends StatelessWidget {
   const _Swatch({required this.label, required this.color, required this.frame})
-      : compactMode = false;
+    : compactMode = false;
 
   const _Swatch.compact({required this.label, required this.color})
-      : frame = null,
-        compactMode = true;
+    : frame = null,
+      compactMode = true;
 
   final String label;
   final Color color;
@@ -875,12 +950,15 @@ class _Swatch extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             label,
-            style: NightshadeTypography.captionSm
-                .copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
           Text(
             _hex(color),
-            style: NightshadeTypography.monoXs.copyWith(color: colors.textMuted),
+            style: NightshadeTypography.monoXs.copyWith(
+              color: colors.textMuted,
+            ),
           ),
         ],
       ),
@@ -911,8 +989,9 @@ class _GradientBar extends StatelessWidget {
       children: [
         Text(
           label,
-          style: NightshadeTypography.captionSm
-              .copyWith(color: colors.textMuted),
+          style: NightshadeTypography.captionSm.copyWith(
+            color: colors.textMuted,
+          ),
         ),
         const SizedBox(height: 4),
         Container(
@@ -962,8 +1041,9 @@ class _DotChip extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             label,
-            style: NightshadeTypography.captionSm
-                .copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -996,8 +1076,9 @@ class _CardSpecimen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: NightshadeTypography.overline
-                .copyWith(color: colors.textMuted),
+            style: NightshadeTypography.overline.copyWith(
+              color: colors.textMuted,
+            ),
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(

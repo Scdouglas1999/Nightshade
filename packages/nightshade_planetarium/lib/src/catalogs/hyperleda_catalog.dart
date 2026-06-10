@@ -36,7 +36,9 @@ class HyperLedaData {
   factory HyperLedaData.fromCsvLine(String line) {
     final parts = _parseCsvLine(line);
     if (parts.length < 11) {
-      throw const FormatException('Invalid HyperLEDA line: insufficient columns');
+      throw const FormatException(
+        'Invalid HyperLEDA line: insufficient columns',
+      );
     }
 
     return HyperLedaData(
@@ -175,7 +177,8 @@ class HyperLedaCatalogLoader {
   /// Build spatial index key from RA/Dec
   String _gridKey(double ra, double dec) {
     final raCell = (ra / _gridSize).floor();
-    final decCell = ((dec + 90) / _gridSize).floor(); // Shift Dec to positive range
+    final decCell = ((dec + 90) / _gridSize)
+        .floor(); // Shift Dec to positive range
     return '$raCell,$decCell';
   }
 
@@ -200,7 +203,10 @@ class HyperLedaCatalogLoader {
 
         // Add to spatial index
         final key = _gridKey(galaxy.ra, galaxy.dec);
-        _spatialIndex!.putIfAbsent(key, () => _SpatialGridCell()).objects.add(galaxy);
+        _spatialIndex!
+            .putIfAbsent(key, () => _SpatialGridCell())
+            .objects
+            .add(galaxy);
       } catch (e) {
         // Why: HyperLEDA catalog can have malformed rows from upstream
         // exports; a single bad line must not abort the load. Log at FINE

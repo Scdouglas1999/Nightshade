@@ -21,8 +21,7 @@ class _FakeSeam implements PostSessionSeam {
     required String inputFits,
     int? maxStars,
     int? aperture,
-  }) async =>
-      photometry;
+  }) async => photometry;
 
   @override
   Future<ColorCalibrationResult> colorCalibrate({
@@ -56,39 +55,38 @@ DetectedStarPhotometry _det(
   double snr = 50.0,
   double ecc = 0.1,
   double peak = 1000.0,
-}) =>
-    DetectedStarPhotometry(
-      x: x,
-      y: y,
-      flux: flux[0],
-      snr: snr,
-      hfr: 2.0,
-      fwhm: 3.0,
-      eccentricity: ecc,
-      peak: peak,
-      channelFlux: flux,
-    );
+}) => DetectedStarPhotometry(
+  x: x,
+  y: y,
+  flux: flux[0],
+  snr: snr,
+  hfr: 2.0,
+  fwhm: 3.0,
+  eccentricity: ecc,
+  peak: peak,
+  channelFlux: flux,
+);
 
 /// A catalog star at (RA°, Dec°) with colour index [bv].
 Star _star(String id, double raDeg, double decDeg, {double? bv}) => Star(
-      id: id,
-      name: id,
-      coordinates: CelestialCoordinate(ra: raDeg / 15.0, dec: decDeg),
-      magnitude: 8.0,
-      colorIndex: bv,
-    );
+  id: id,
+  name: id,
+  coordinates: CelestialCoordinate(ra: raDeg / 15.0, dec: decDeg),
+  magnitude: 8.0,
+  colorIndex: bv,
+);
 
 void main() {
   // Identity-ish WCS centred at RA=10°, Dec=20°, 1"/px, 100×100, no rotation.
   // crpix at the centre so pixel (50,50) ≈ the reference coordinate.
   WcsOverlay buildWcs() => WcsOverlay(
-        crpix1: 50,
-        crpix2: 50,
-        crval1: 10.0,
-        crval2: 20.0,
-        cdelt1: 1.0 / 3600.0,
-        cdelt2: 1.0 / 3600.0,
-      );
+    crpix1: 50,
+    crpix2: 50,
+    crval1: 10.0,
+    crval2: 20.0,
+    cdelt1: 1.0 / 3600.0,
+    cdelt2: 1.0 / 3600.0,
+  );
 
   late _FakeSeam seam;
   setUp(() => seam = _FakeSeam());
@@ -108,7 +106,9 @@ void main() {
       width: 100,
       height: 100,
       channels: 3,
-      stars: [_det(50, 50, flux: const [1200.0, 1000.0, 800.0])],
+      stars: [
+        _det(50, 50, flux: const [1200.0, 1000.0, 800.0]),
+      ],
     );
 
     // Two catalog stars: one essentially on top of the detection (with B-V),
@@ -196,9 +196,12 @@ void main() {
       height: 100,
       channels: 3,
       stars: [
-        _det(50, 50,
-            snr: 200.0,
-            peak: 0.5 * ColorCalibrationService.detectionPlaneFullScale)
+        _det(
+          50,
+          50,
+          snr: 200.0,
+          peak: 0.5 * ColorCalibrationService.detectionPlaneFullScale,
+        ),
       ],
     );
     final matched2 = service.crossMatch(
@@ -211,41 +214,44 @@ void main() {
   });
 
   test(
-      'cross-match rejects channel-clipped (flat-topped) bright detections',
-      () {
-    final wcs = buildWcs();
-    final service = ColorCalibrationService(
-      seam: seam,
-      starSearch: (_, __, {maxMagnitude}) async => const [],
-    );
-    final (ra, dec) = wcs.pixelToCelestial(50, 50);
+    'cross-match rejects channel-clipped (flat-topped) bright detections',
+    () {
+      final wcs = buildWcs();
+      final service = ColorCalibrationService(
+        seam: seam,
+        starSearch: (_, __, {maxMagnitude}) async => const [],
+      );
+      final (ra, dec) = wcs.pixelToCelestial(50, 50);
 
-    // Bright (peak above half scale) with two channels flat-topped at the same
-    // ADU — a clip signature even though the peak is below the hard ceiling.
-    final photometry = StarPhotometryResult(
-      width: 100,
-      height: 100,
-      channels: 3,
-      stars: [
-        _det(50, 50,
+      // Bright (peak above half scale) with two channels flat-topped at the same
+      // ADU — a clip signature even though the peak is below the hard ceiling.
+      final photometry = StarPhotometryResult(
+        width: 100,
+        height: 100,
+        channels: 3,
+        stars: [
+          _det(
+            50,
+            50,
             snr: 150.0,
             peak: 0.7 * ColorCalibrationService.detectionPlaneFullScale,
-            flux: const [5000.0, 5000.0, 3000.0]),
-      ],
-    );
-    final catalog = [_star('near', ra, dec, bv: 0.5)];
+            flux: const [5000.0, 5000.0, 3000.0],
+          ),
+        ],
+      );
+      final catalog = [_star('near', ra, dec, bv: 0.5)];
 
-    final matched = service.crossMatch(
-      photometry: photometry,
-      wcs: wcs,
-      catalog: catalog,
-      channels: 3,
-    );
-    expect(matched, isEmpty);
-  });
+      final matched = service.crossMatch(
+        photometry: photometry,
+        wcs: wcs,
+        catalog: catalog,
+        channels: 3,
+      );
+      expect(matched, isEmpty);
+    },
+  );
 
-  test(
-      'cross-match is order-independent: the NEARER detection wins a contested '
+  test('cross-match is order-independent: the NEARER detection wins a contested '
       'catalog star (not the first iterated)', () {
     final wcs = buildWcs();
     final service = ColorCalibrationService(
@@ -286,8 +292,7 @@ void main() {
     expect(matched.single.channelFlux, nearFlux);
   });
 
-  test(
-      'cross-match drops genuine blends rather than mis-pairing them', () {
+  test('cross-match drops genuine blends rather than mis-pairing them', () {
     final wcs = buildWcs();
     final service = ColorCalibrationService(
       seam: seam,
@@ -332,8 +337,12 @@ void main() {
       final (ra, dec) = wcs.pixelToCelestial(px, py);
       catalog.add(_star('s$i', ra, dec, bv: 0.5 + i * 0.05));
     }
-    seam.photometry =
-        StarPhotometryResult(width: 100, height: 100, channels: 3, stars: stars);
+    seam.photometry = StarPhotometryResult(
+      width: 100,
+      height: 100,
+      channels: 3,
+      stars: stars,
+    );
 
     final service = ColorCalibrationService(
       seam: seam,
@@ -352,10 +361,14 @@ void main() {
     expect(result.matched, ColorCalibrationService.minMatchesToCalibrate);
     // The seam was handed matchedStars carrying channelFlux + catalogBv.
     expect(seam.lastChannels, 3);
-    expect(seam.lastMatchedStars,
-        hasLength(ColorCalibrationService.minMatchesToCalibrate));
-    expect(seam.lastMatchedStars!.first.keys,
-        containsAll(['channelFlux', 'catalogBv']));
+    expect(
+      seam.lastMatchedStars,
+      hasLength(ColorCalibrationService.minMatchesToCalibrate),
+    );
+    expect(
+      seam.lastMatchedStars!.first.keys,
+      containsAll(['channelFlux', 'catalogBv']),
+    );
   });
 
   test('calibrate fail-softs to skipped on a sparse field', () async {

@@ -177,7 +177,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               const SizedBox(width: 8),
               Text(
                 'Alignment History',
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -243,7 +244,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               const SizedBox(height: 2),
                               Text(
                                 'Final: ${entry.finalTotalError.toStringAsFixed(0)}"',
-                                style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
+                                style: NightshadeTypography.labelQuiet
+                                    .copyWith(color: colors.textPrimary),
                               ),
                             ],
                           ),

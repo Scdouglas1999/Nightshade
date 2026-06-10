@@ -1,25 +1,29 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiImagePolarOperations on _FfiBackendBase {
-// =========================================================================
-// Image Processing
-// =========================================================================
+  // =========================================================================
+  // Image Processing
+  // =========================================================================
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
-      {int maxCrops = 5}) async {
+  Future<List<StarCrop>> getStarCropsFromLastImage(
+    String deviceId, {
+    int maxCrops = 5,
+  }) async {
     final bridgeCrops = await bridge_api.apiGetStarCropsFromLastImage(
       deviceId: deviceId,
       maxCrops: maxCrops,
     );
     return bridgeCrops
-        .map((crop) => StarCrop(
-              pixelsBase64: crop.pixelsBase64,
-              width: crop.width.toInt(),
-              height: crop.height.toInt(),
-              hfr: crop.hfr,
-              snr: crop.snr,
-            ))
+        .map(
+          (crop) => StarCrop(
+            pixelsBase64: crop.pixelsBase64,
+            width: crop.width.toInt(),
+            height: crop.height.toInt(),
+            hfr: crop.hfr,
+            snr: crop.snr,
+          ),
+        )
         .toList();
   }
 
@@ -40,7 +44,7 @@ mixin _FfiImagePolarOperations on _FfiBackendBase {
     );
   }
 
-// =========================================================================
+  // =========================================================================
   @override
   Stream<Map<String, dynamic>> get polarAlignmentEvents =>
       _polarAlignController.stream;

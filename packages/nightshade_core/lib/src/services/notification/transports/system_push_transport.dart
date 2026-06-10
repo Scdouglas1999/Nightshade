@@ -56,14 +56,16 @@ class SystemPushTransport extends NotificationTransport {
       return NotificationResult.ok();
     }
 
-    _service.enqueue(PushNotification(
-      title: title,
-      body: body,
-      priority: spec.priority,
-      eventType: category.storageKey,
-      category: _mapCategory(category),
-      timestamp: DateTime.now(),
-    ));
+    _service.enqueue(
+      PushNotification(
+        title: title,
+        body: body,
+        priority: spec.priority,
+        eventType: category.storageKey,
+        category: _mapCategory(category),
+        timestamp: DateTime.now(),
+      ),
+    );
     return NotificationResult.ok();
   }
 
@@ -82,14 +84,16 @@ class SystemPushTransport extends NotificationTransport {
     required core.EventCategory eventCategory,
     PushNotificationPriority priority = PushNotificationPriority.critical,
   }) {
-    _service.enqueue(PushNotification(
-      title: title,
-      body: body,
-      priority: priority,
-      eventType: eventType,
-      category: eventCategory,
-      timestamp: DateTime.now(),
-    ));
+    _service.enqueue(
+      PushNotification(
+        title: title,
+        body: body,
+        priority: priority,
+        eventType: eventType,
+        category: eventCategory,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   /// Per-category push spec: the toggle gate + priority for each
@@ -240,8 +244,5 @@ class _PushSpec {
   final bool Function(PushNotificationConfig) enabled;
   final PushNotificationPriority priority;
 
-  const _PushSpec({
-    required this.enabled,
-    required this.priority,
-  });
+  const _PushSpec({required this.enabled, required this.priority});
 }

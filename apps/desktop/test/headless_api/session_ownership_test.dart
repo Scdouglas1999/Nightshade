@@ -51,12 +51,13 @@ void main() {
       expect(owner.clientName, 'Pixel 7');
       expect(manager.current, isNotNull);
       expect(recorder.ofType(ownerEventClaimed), hasLength(1));
-      expect(recorder.ofType(ownerEventClaimed).single.category,
-          EventCategory.session);
+      expect(
+        recorder.ofType(ownerEventClaimed).single.category,
+        EventCategory.session,
+      );
     });
 
-    test('claim when slot already taken returns null and emits no event',
-        () {
+    test('claim when slot already taken returns null and emits no event', () {
       final recorder = _EventRecorder();
       final manager = _build(onEvent: recorder.record);
       addTearDown(manager.dispose);
@@ -102,7 +103,10 @@ void main() {
       expect(takenOver, hasLength(1));
       expect(takenOver.single.data['reason'], 'taking over for B');
       expect(takenOver.single.data['previousOwner'], isA<Map>());
-      expect((takenOver.single.data['previousOwner'] as Map)['clientName'], 'A');
+      expect(
+        (takenOver.single.data['previousOwner'] as Map)['clientName'],
+        'A',
+      );
     });
 
     test('takeOver succeeds when the slot was empty', () {
@@ -133,16 +137,18 @@ void main() {
       expect(recorder.ofType(ownerEventReleased), hasLength(1));
     });
 
-    test('release by a non-owner returns false and does not touch the slot',
-        () {
-      final manager = _build();
-      addTearDown(manager.dispose);
+    test(
+      'release by a non-owner returns false and does not touch the slot',
+      () {
+        final manager = _build();
+        addTearDown(manager.dispose);
 
-      manager.claim(token: 'token-a', clientName: 'A');
-      final ok = manager.release('token-b');
-      expect(ok, isFalse);
-      expect(manager.current!.tokenDigest, 'digest:token-a');
-    });
+        manager.claim(token: 'token-a', clientName: 'A');
+        final ok = manager.release('token-b');
+        expect(ok, isFalse);
+        expect(manager.current!.tokenDigest, 'digest:token-a');
+      },
+    );
 
     test('release on an empty slot is a no-op success', () {
       final manager = _build();
@@ -188,8 +194,11 @@ void main() {
       manager.touchHeartbeat('token-a');
       clock.advance(const Duration(minutes: 4));
       manager.sweepIdle();
-      expect(manager.current, isNotNull,
-          reason: 'heartbeat refresh should have prevented auto-release');
+      expect(
+        manager.current,
+        isNotNull,
+        reason: 'heartbeat refresh should have prevented auto-release',
+      );
     });
 
     test('touchHeartbeat with a non-owner token is silently ignored', () {
@@ -204,8 +213,11 @@ void main() {
       manager.touchHeartbeat('token-b'); // non-owner, no-op
       clock.advance(const Duration(minutes: 6));
       manager.sweepIdle();
-      expect(manager.current, isNull,
-          reason: 'idle timeout should still fire when a non-owner touches');
+      expect(
+        manager.current,
+        isNull,
+        reason: 'idle timeout should still fire when a non-owner touches',
+      );
     });
   });
 
@@ -242,8 +254,11 @@ void main() {
         '/api/polar-alignment/start',
       ];
       for (final path in samples) {
-        expect(isOwnershipRequired(method: 'POST', path: path), isTrue,
-            reason: 'expected POST $path to require ownership');
+        expect(
+          isOwnershipRequired(method: 'POST', path: path),
+          isTrue,
+          reason: 'expected POST $path to require ownership',
+        );
       }
     });
 
@@ -258,18 +273,28 @@ void main() {
         '/api/jobs',
       ];
       for (final path in samples) {
-        expect(isOwnershipRequired(method: 'GET', path: path), isFalse,
-            reason: 'expected GET $path to NOT require ownership');
-        expect(isOwnershipRequired(method: 'POST', path: path), isFalse,
-            reason: 'expected POST $path to NOT require ownership');
+        expect(
+          isOwnershipRequired(method: 'GET', path: path),
+          isFalse,
+          reason: 'expected GET $path to NOT require ownership',
+        );
+        expect(
+          isOwnershipRequired(method: 'POST', path: path),
+          isFalse,
+          reason: 'expected POST $path to NOT require ownership',
+        );
       }
     });
 
     test('non-POST methods never require ownership', () {
       expect(
-          isOwnershipRequired(method: 'GET', path: '/api/mount/slew'), isFalse);
-      expect(isOwnershipRequired(method: 'DELETE', path: '/api/mount/slew'),
-          isFalse);
+        isOwnershipRequired(method: 'GET', path: '/api/mount/slew'),
+        isFalse,
+      );
+      expect(
+        isOwnershipRequired(method: 'DELETE', path: '/api/mount/slew'),
+        isFalse,
+      );
     });
   });
 
@@ -283,11 +308,7 @@ void main() {
       addTearDown(sub.cancel);
 
       manager.claim(token: 'token-a', clientName: 'A');
-      manager.takeOver(
-        token: 'token-b',
-        reason: 'switch',
-        clientName: 'B',
-      );
+      manager.takeOver(token: 'token-b', reason: 'switch', clientName: 'B');
       manager.release('token-b');
 
       expect(snapshots, hasLength(3));

@@ -196,8 +196,7 @@ class FramingGridPainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     final center = Offset(size.width / 2 + panX, size.height / 2 + panY);
-    final spacing =
-        plateScale.pixelsPerDegree(size, zoom) * gridSpacingDegrees;
+    final spacing = plateScale.pixelsPerDegree(size, zoom) * gridSpacingDegrees;
 
     // A non-positive spacing would loop forever; surface the degenerate
     // geometry rather than silently hanging the paint pass.

@@ -120,12 +120,12 @@ ProviderContainer _container({
 }) {
   final container = ProviderContainer(
     overrides: [
-      equipmentProfileListProvider
-          .overrideWithValue(hasProfile ? [_sampleProfile] : const []),
+      equipmentProfileListProvider.overrideWithValue(
+        hasProfile ? [_sampleProfile] : const [],
+      ),
       cameraStateProvider.overrideWith(
-        (ref) => _FakeCameraNotifier(
-          CameraStateSnapshot(connectionState: camera),
-        ),
+        (ref) =>
+            _FakeCameraNotifier(CameraStateSnapshot(connectionState: camera)),
       ),
       mountStateProvider.overrideWith(
         (ref) => _FakeMountNotifier(MountState(connectionState: mount)),
@@ -135,11 +135,13 @@ ProviderContainer _container({
           FocuserState(connectionState: focuser, position: focuserPosition),
         ),
       ),
-      appSettingsProvider
-          .overrideWith(() => _FakeAppSettingsNotifier(settings)),
+      appSettingsProvider.overrideWith(
+        () => _FakeAppSettingsNotifier(settings),
+      ),
       plateSolverDetectionProvider.overrideWith(
         (ref) => plateSolverDetectionLoading
-            ? Completer<PlateSolverDetection>().future // never completes
+            ? Completer<PlateSolverDetection>()
+                  .future // never completes
             : Future.value(detection),
       ),
       darkLibraryStatsProvider.overrideWith((ref) => Future.value(darkStats)),
@@ -178,8 +180,11 @@ void main() {
       final critical = report.itemFor(ReadinessItemId.criticalDevices);
       expect(critical, isNotNull);
       expect(critical!.level, ReadinessLevel.blocked);
-      expect(critical.fixRoute, isNotNull,
-          reason: 'a blocked critical-devices item must offer a remediation');
+      expect(
+        critical.fixRoute,
+        isNotNull,
+        reason: 'a blocked critical-devices item must offer a remediation',
+      );
       expect(container.read(readinessOverallProvider), ReadinessLevel.blocked);
     });
 
@@ -188,8 +193,10 @@ void main() {
       final report = await _resolveReport(container);
 
       expect(report.overall, ReadinessLevel.blocked);
-      expect(report.itemFor(ReadinessItemId.criticalDevices)!.level,
-          ReadinessLevel.blocked);
+      expect(
+        report.itemFor(ReadinessItemId.criticalDevices)!.level,
+        ReadinessLevel.blocked,
+      );
     });
 
     test('all signals satisfied -> overall ready', () async {
@@ -198,24 +205,32 @@ void main() {
 
       expect(report.overall, ReadinessLevel.ready);
       for (final item in report.items) {
-        expect(item.level, ReadinessLevel.ready,
-            reason: '${item.id.name} should be ready in the happy path');
-        expect(item.fixRoute, isNull,
-            reason: 'ready items expose no remediation route');
+        expect(
+          item.level,
+          ReadinessLevel.ready,
+          reason: '${item.id.name} should be ready in the happy path',
+        );
+        expect(
+          item.fixRoute,
+          isNull,
+          reason: 'ready items expose no remediation route',
+        );
       }
       expect(container.read(readinessOverallProvider), ReadinessLevel.ready);
     });
 
-    test(
-        'plate-solver detection in loading state -> plateSolver caution, '
+    test('plate-solver detection in loading state -> plateSolver caution, '
         'overall caution (fail-closed, non-blocking)', () async {
       final container = _container(plateSolverDetectionLoading: true);
       final report = await _resolveReport(container, awaitPlateSolver: false);
 
       final solver = report.itemFor(ReadinessItemId.plateSolver);
       expect(solver, isNotNull);
-      expect(solver!.level, ReadinessLevel.caution,
-          reason: 'a loading detection must fail closed to not-ready');
+      expect(
+        solver!.level,
+        ReadinessLevel.caution,
+        reason: 'a loading detection must fail closed to not-ready',
+      );
       // The plate-solver item is the only non-green signal, and it is a
       // caution (not blocked), so the whole report is caution — never green.
       expect(report.overall, ReadinessLevel.caution);
@@ -227,25 +242,30 @@ void main() {
         overrides: [
           equipmentProfileListProvider.overrideWithValue([_sampleProfile]),
           cameraStateProvider.overrideWith(
-            (ref) =>
-                _FakeCameraNotifier(const CameraStateSnapshot(connectionState: _connected)),
+            (ref) => _FakeCameraNotifier(
+              const CameraStateSnapshot(connectionState: _connected),
+            ),
           ),
           mountStateProvider.overrideWith(
-            (ref) => _FakeMountNotifier(const MountState(connectionState: _connected)),
+            (ref) => _FakeMountNotifier(
+              const MountState(connectionState: _connected),
+            ),
           ),
           focuserStateProvider.overrideWith(
             (ref) => _FakeFocuserNotifier(
               const FocuserState(connectionState: _connected, position: 5000),
             ),
           ),
-          appSettingsProvider
-              .overrideWith(() => _FakeAppSettingsNotifier(_readySettings)),
-          plateSolverDetectionProvider.overrideWith(
-            (ref) => Future<PlateSolverDetection>.error(
-                StateError('detect failed')),
+          appSettingsProvider.overrideWith(
+            () => _FakeAppSettingsNotifier(_readySettings),
           ),
-          darkLibraryStatsProvider
-              .overrideWith((ref) => Future.value(_coveredStats)),
+          plateSolverDetectionProvider.overrideWith(
+            (ref) =>
+                Future<PlateSolverDetection>.error(StateError('detect failed')),
+          ),
+          darkLibraryStatsProvider.overrideWith(
+            (ref) => Future.value(_coveredStats),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -260,8 +280,10 @@ void main() {
       );
 
       final report = container.read(readinessReportProvider);
-      expect(report.itemFor(ReadinessItemId.plateSolver)!.level,
-          ReadinessLevel.caution);
+      expect(
+        report.itemFor(ReadinessItemId.plateSolver)!.level,
+        ReadinessLevel.caution,
+      );
       expect(report.overall, ReadinessLevel.caution);
     });
 
@@ -275,8 +297,10 @@ void main() {
       );
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.location)!.level,
-          ReadinessLevel.blocked);
+      expect(
+        report.itemFor(ReadinessItemId.location)!.level,
+        ReadinessLevel.blocked,
+      );
       expect(report.overall, ReadinessLevel.blocked);
     });
 
@@ -290,28 +314,36 @@ void main() {
       );
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.outputPath)!.level,
-          ReadinessLevel.blocked);
+      expect(
+        report.itemFor(ReadinessItemId.outputPath)!.level,
+        ReadinessLevel.blocked,
+      );
     });
 
-    test('disconnected mount -> criticalDevices caution (non-blocking)',
-        () async {
-      final container = _container(mount: _disconnected);
-      final report = await _resolveReport(container);
+    test(
+      'disconnected mount -> criticalDevices caution (non-blocking)',
+      () async {
+        final container = _container(mount: _disconnected);
+        final report = await _resolveReport(container);
 
-      // Camera connected + mount disconnected => caution, not blocked.
-      expect(report.itemFor(ReadinessItemId.criticalDevices)!.level,
-          ReadinessLevel.caution);
-      // No blocking items elsewhere, so overall is caution.
-      expect(report.overall, ReadinessLevel.caution);
-    });
+        // Camera connected + mount disconnected => caution, not blocked.
+        expect(
+          report.itemFor(ReadinessItemId.criticalDevices)!.level,
+          ReadinessLevel.caution,
+        );
+        // No blocking items elsewhere, so overall is caution.
+        expect(report.overall, ReadinessLevel.caution);
+      },
+    );
 
     test('empty dark library -> darkLibrary caution', () async {
       final container = _container(darkStats: _emptyStats);
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.darkLibrary)!.level,
-          ReadinessLevel.caution);
+      expect(
+        report.itemFor(ReadinessItemId.darkLibrary)!.level,
+        ReadinessLevel.caution,
+      );
       expect(report.overall, ReadinessLevel.caution);
     });
 
@@ -319,8 +351,10 @@ void main() {
       final container = _container(focuserPosition: null);
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.focusState)!.level,
-          ReadinessLevel.caution);
+      expect(
+        report.itemFor(ReadinessItemId.focusState)!.level,
+        ReadinessLevel.caution,
+      );
       expect(report.overall, ReadinessLevel.caution);
     });
 
@@ -328,28 +362,33 @@ void main() {
       final container = _container(focuser: _disconnected);
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.focusState)!.level,
-          ReadinessLevel.caution);
+      expect(
+        report.itemFor(ReadinessItemId.focusState)!.level,
+        ReadinessLevel.caution,
+      );
     });
 
     test('no solver detected -> plateSolver caution', () async {
       final container = _container(detection: _noSolverDetection);
       final report = await _resolveReport(container);
 
-      expect(report.itemFor(ReadinessItemId.plateSolver)!.level,
-          ReadinessLevel.caution);
+      expect(
+        report.itemFor(ReadinessItemId.plateSolver)!.level,
+        ReadinessLevel.caution,
+      );
       expect(report.overall, ReadinessLevel.caution);
     });
 
-    test(
-        'astrometry.net-only solver (no ASTAP) -> plateSolver ready '
+    test('astrometry.net-only solver (no ASTAP) -> plateSolver ready '
         '(gated on hasAnySolver, not astapReady)', () async {
       final container = _container(detection: _astrometryOnlyDetection);
       final report = await _resolveReport(container);
 
       // A working astrometry.net rig must not be flagged as "no solver".
-      expect(report.itemFor(ReadinessItemId.plateSolver)!.level,
-          ReadinessLevel.ready);
+      expect(
+        report.itemFor(ReadinessItemId.plateSolver)!.level,
+        ReadinessLevel.ready,
+      );
       // Every other signal is happy in the default container, so the report
       // is fully ready.
       expect(report.overall, ReadinessLevel.ready);

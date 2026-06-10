@@ -42,8 +42,9 @@ class SchedulerHandlers {
     final timeParam = request.url.queryParameters['time'];
 
     if (raParam == null || decParam == null) {
-      return jsonBadRequest(
-          {'error': 'Missing required parameters: ra and dec'});
+      return jsonBadRequest({
+        'error': 'Missing required parameters: ra and dec',
+      });
     }
 
     final raHours = double.tryParse(raParam);
@@ -60,7 +61,7 @@ class SchedulerHandlers {
         final epochMs = int.tryParse(timeParam);
         if (epochMs == null) {
           return jsonBadRequest({
-            'error': 'Invalid time format. Use ISO8601 or epoch milliseconds.'
+            'error': 'Invalid time format. Use ISO8601 or epoch milliseconds.',
           });
         }
         time = DateTime.fromMillisecondsSinceEpoch(epochMs);
@@ -77,7 +78,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -116,10 +117,7 @@ class SchedulerHandlers {
       'airmass': airmass.isFinite ? airmass : null,
       'isAboveHorizon': altitude > 0,
       'isRising': isRising,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -138,8 +136,9 @@ class SchedulerHandlers {
     final decParam = request.url.queryParameters['dec'];
 
     if (raParam == null || decParam == null) {
-      return jsonBadRequest(
-          {'error': 'Missing required parameters: ra and dec'});
+      return jsonBadRequest({
+        'error': 'Missing required parameters: ra and dec',
+      });
     }
 
     final raHours = double.tryParse(raParam);
@@ -154,7 +153,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -188,10 +187,7 @@ class SchedulerHandlers {
       'transitAltitude': visibility.transitAltitude,
       'isCircumpolar': visibility.isCircumpolar,
       'neverRises': visibility.neverRises,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -211,8 +207,9 @@ class SchedulerHandlers {
     final minAltParam = request.url.queryParameters['minAltitude'];
 
     if (raParam == null || decParam == null) {
-      return jsonBadRequest(
-          {'error': 'Missing required parameters: ra and dec'});
+      return jsonBadRequest({
+        'error': 'Missing required parameters: ra and dec',
+      });
     }
 
     final raHours = double.tryParse(raParam);
@@ -229,7 +226,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -258,12 +255,8 @@ class SchedulerHandlers {
       'transitAltitude': visibility.transitAltitude,
       'isCircumpolar': visibility.isCircumpolar,
       'neverRises': visibility.neverRises,
-      'durationAboveHorizonMinutes':
-          visibility.durationAboveHorizon?.inMinutes,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'durationAboveHorizonMinutes': visibility.durationAboveHorizon?.inMinutes,
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -283,8 +276,9 @@ class SchedulerHandlers {
     final minAltParam = request.url.queryParameters['minAltitude'];
 
     if (raParam == null || decParam == null) {
-      return jsonBadRequest(
-          {'error': 'Missing required parameters: ra and dec'});
+      return jsonBadRequest({
+        'error': 'Missing required parameters: ra and dec',
+      });
     }
 
     final raHours = double.tryParse(raParam);
@@ -301,7 +295,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -336,10 +330,7 @@ class SchedulerHandlers {
       'isCircumpolar': visibility.isCircumpolar,
       'neverRises': visibility.neverRises,
       'transitAltitude': visibility.transitAltitude,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -378,10 +369,7 @@ class SchedulerHandlers {
         }
         targetIds.add(parsed);
       } else {
-        throw BadRequestError(
-          field: 'targetIds',
-          expected: 'array<integer>',
-        );
+        throw BadRequestError(field: 'targetIds', expected: 'array<integer>');
       }
     }
 
@@ -399,7 +387,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -413,8 +401,9 @@ class SchedulerHandlers {
     }
 
     if (targets.isEmpty) {
-      return jsonBadRequest(
-          {'error': 'No valid targets found for provided IDs'});
+      return jsonBadRequest({
+        'error': 'No valid targets found for provided IDs',
+      });
     }
 
     // Calculate visibility data for each target
@@ -470,10 +459,8 @@ class SchedulerHandlers {
       case 'transittime':
         // Sort by transit time (earliest first)
         sortedTargets.sort((a, b) {
-          final aTransit =
-              targetVisibility[a.id]!['transitTime'] as DateTime?;
-          final bTransit =
-              targetVisibility[b.id]!['transitTime'] as DateTime?;
+          final aTransit = targetVisibility[a.id]!['transitTime'] as DateTime?;
+          final bTransit = targetVisibility[b.id]!['transitTime'] as DateTime?;
           if (aTransit == null && bTransit == null) return 0;
           if (aTransit == null) return 1;
           if (bTransit == null) return -1;
@@ -549,7 +536,7 @@ class SchedulerHandlers {
       default:
         return jsonBadRequest({
           'error':
-              'Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority'
+              'Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority',
         });
     }
 
@@ -576,10 +563,7 @@ class SchedulerHandlers {
       'strategy': strategyStr,
       'minAltitude': minAltitude,
       'optimizedTargets': orderedResults,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -599,7 +583,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -644,10 +628,7 @@ class SchedulerHandlers {
       'sunrise': twilight.sunrise?.toIso8601String(),
       'sunriseEpoch': twilight.sunrise?.millisecondsSinceEpoch,
       'darknessDurationMinutes': twilight.darknessDuration?.inMinutes,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 
@@ -667,7 +648,7 @@ class SchedulerHandlers {
     if (latitude == 0.0 && longitude == 0.0) {
       return jsonBadRequest({
         'error':
-            'No observer location configured. Set location in settings first.'
+            'No observer location configured. Set location in settings first.',
       });
     }
 
@@ -724,10 +705,7 @@ class SchedulerHandlers {
       'moonriseEpoch': moonTimes.moonrise?.millisecondsSinceEpoch,
       'moonset': moonTimes.moonset?.toIso8601String(),
       'moonsetEpoch': moonTimes.moonset?.millisecondsSinceEpoch,
-      'location': {
-        'latitude': latitude,
-        'longitude': longitude,
-      },
+      'location': {'latitude': latitude, 'longitude': longitude},
     });
   }
 }

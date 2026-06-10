@@ -38,17 +38,20 @@ class SgpSequenceParser {
     }
     if (raw is! Map<String, dynamic>) {
       throw MalformedSourceError(
-          'SGP root must be a JSON object, got ${raw.runtimeType}');
+        'SGP root must be a JSON object, got ${raw.runtimeType}',
+      );
     }
 
-    final title = raw['SequenceTitle']?.toString() ??
+    final title =
+        raw['SequenceTitle']?.toString() ??
         raw['Name']?.toString() ??
         'SGP Sequence';
 
     final targets = _extractTargets(raw);
     if (targets.isEmpty) {
       throw MalformedSourceError(
-          'SGP file has no targets (expected TargetSet[].Target or Targets[])');
+        'SGP file has no targets (expected TargetSet[].Target or Targets[])',
+      );
     }
 
     final targetNodes = <CanonicalSequenceNode>[];
@@ -105,15 +108,17 @@ class SgpSequenceParser {
   }
 
   CanonicalSequenceNode _parseTarget(Map<String, dynamic> t) {
-    final name = t['TargetName']?.toString() ??
+    final name =
+        t['TargetName']?.toString() ??
         t['Name']?.toString() ??
         'Untitled Target';
     final ref = (t['Reference'] is Map<String, dynamic>)
         ? t['Reference'] as Map<String, dynamic>
         : t;
     final raHours = _readDouble(ref['RAHours'] ?? ref['RA'] ?? t['RA']);
-    final decDegrees =
-        _readDouble(ref['Dec'] ?? ref['Declination'] ?? t['Dec']);
+    final decDegrees = _readDouble(
+      ref['Dec'] ?? ref['Declination'] ?? t['Dec'],
+    );
     final rotation = _readDouble(ref['Rotation'] ?? t['Rotation']);
 
     // Per-event exposure children.
@@ -123,29 +128,27 @@ class SgpSequenceParser {
     // Optional slew at the start (only if we know the coords).
     final slewChildren = <CanonicalSequenceNode>[];
     if (raHours != null && decDegrees != null) {
-      slewChildren.add(CanonicalSequenceNode(
-        kind: CanonicalKind.slew,
-        name: 'Slew to $name',
-        sourceType: 'SgpSlew',
-        attributes: {
-          'raHours': raHours,
-          'decDegrees': decDegrees,
-        },
-      ));
+      slewChildren.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.slew,
+          name: 'Slew to $name',
+          sourceType: 'SgpSlew',
+          attributes: {'raHours': raHours, 'decDegrees': decDegrees},
+        ),
+      );
     }
 
     // SGP "AutoCenter": top-level key on target.
     final autoCenter = _readBool(t['AutoCenter']) ?? false;
     if (autoCenter && raHours != null && decDegrees != null) {
-      slewChildren.add(CanonicalSequenceNode(
-        kind: CanonicalKind.center,
-        name: 'Center $name',
-        sourceType: 'SgpAutoCenter',
-        attributes: {
-          'raHours': raHours,
-          'decDegrees': decDegrees,
-        },
-      ));
+      slewChildren.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.center,
+          name: 'Center $name',
+          sourceType: 'SgpAutoCenter',
+          attributes: {'raHours': raHours, 'decDegrees': decDegrees},
+        ),
+      );
     }
 
     int totalExposureCount = 0;
@@ -153,8 +156,7 @@ class SgpSequenceParser {
       if (raw is! Map<String, dynamic>) continue;
       final exposureTime = _readDouble(raw['ExposureTime']);
       final count =
-          _readInt(raw['NumExposures'] ?? raw['Repeat'] ?? raw['Count']) ??
-              1;
+          _readInt(raw['NumExposures'] ?? raw['Repeat'] ?? raw['Count']) ?? 1;
       final filter = raw['Filter']?.toString();
       final binning = _readInt(raw['Binning']) ?? 1;
       final gain = _readInt(raw['Gain']);
@@ -164,38 +166,44 @@ class SgpSequenceParser {
       // Disabled events still get reported as decorative drops by the mapper.
       final enabled = _readBool(raw['Enabled'] ?? raw['IsEnabled']) ?? true;
       if (!enabled) {
-        exposureChildren.add(CanonicalSequenceNode(
-          kind: CanonicalKind.annotation,
-          name: 'Disabled event ($filter, ${exposureTime}s)',
-          sourceType: 'SgpDisabledEvent',
-          attributes: const {'reason': 'event disabled in source'},
-        ));
+        exposureChildren.add(
+          CanonicalSequenceNode(
+            kind: CanonicalKind.annotation,
+            name: 'Disabled event ($filter, ${exposureTime}s)',
+            sourceType: 'SgpDisabledEvent',
+            attributes: const {'reason': 'event disabled in source'},
+          ),
+        );
         continue;
       }
 
       if (filter != null && filter.isNotEmpty) {
-        exposureChildren.add(CanonicalSequenceNode(
-          kind: CanonicalKind.filterChange,
-          name: 'Filter: $filter',
-          sourceType: 'SgpFilterChange',
-          attributes: {'filterName': filter},
-        ));
+        exposureChildren.add(
+          CanonicalSequenceNode(
+            kind: CanonicalKind.filterChange,
+            name: 'Filter: $filter',
+            sourceType: 'SgpFilterChange',
+            attributes: {'filterName': filter},
+          ),
+        );
       }
 
-      exposureChildren.add(CanonicalSequenceNode(
-        kind: CanonicalKind.exposure,
-        name: '${filter ?? imageType} ${exposureTime}s x $count',
-        sourceType: 'SgpEvent',
-        attributes: {
-          'exposureTime': exposureTime,
-          'count': count,
-          'filterName': filter,
-          'binning': binning,
-          'gain': gain,
-          'offset': offset,
-          'imageType': imageType,
-        },
-      ));
+      exposureChildren.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.exposure,
+          name: '${filter ?? imageType} ${exposureTime}s x $count',
+          sourceType: 'SgpEvent',
+          attributes: {
+            'exposureTime': exposureTime,
+            'count': count,
+            'filterName': filter,
+            'binning': binning,
+            'gain': gain,
+            'offset': offset,
+            'imageType': imageType,
+          },
+        ),
+      );
       totalExposureCount += count;
     }
 

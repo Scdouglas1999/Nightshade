@@ -154,7 +154,9 @@ class TransientAlertsPanel extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Failed to load alerts: $error',
-                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.error),
                     ),
                   ),
                   IconButton(
@@ -302,7 +304,8 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'NEW',
@@ -319,7 +322,8 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.success.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'QUEUED',
@@ -336,7 +340,8 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.info.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'OBSERVED',
@@ -357,8 +362,9 @@ class _TransientAlertTile extends ConsumerWidget {
                       children: [
                         Text(
                           _typeLabel(alert.type),
-                          style:
-                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textMuted),
                         ),
                         if (alert.magnitude != null)
                           Text(
@@ -371,13 +377,15 @@ class _TransientAlertTile extends ConsumerWidget {
                           ),
                         Text(
                           'RA ${_formatRa(alert.raHours)} Dec ${_formatDec(alert.decDegrees)}',
-                          style:
-                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textMuted),
                         ),
                         Text(
                           DateFormat('MMM d').format(alert.discoveryTime),
-                          style:
-                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -598,14 +606,18 @@ class _TransientSettingsDialog extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 'Only show objects brighter than this magnitude',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Text(
                     '5',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                   Expanded(
                     child: Slider(
@@ -619,7 +631,9 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   ),
                   Text(
                     '20',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -687,7 +701,9 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 ),
                 subtitle: Text(
                   'Automatically add transients brighter than mag ${settings.autoQueueMagnitude.toStringAsFixed(0)} to targets',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 dense: true,
                 value: settings.autoQueueBright,

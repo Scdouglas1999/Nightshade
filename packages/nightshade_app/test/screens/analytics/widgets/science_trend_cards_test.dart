@@ -120,8 +120,7 @@ void main() {
         reason: 'empty placeholder must not be drawn when data exists.');
   });
 
-  testWidgets('ZeroPointTrendCard drops uncalibrated frames',
-      (tester) async {
+  testWidgets('ZeroPointTrendCard drops uncalibrated frames', (tester) async {
     final rows = <FramePhotometricCalibrationRow>[
       _calRow(id: 1, offset: const Duration(minutes: 0), zp: 24.10),
       _calRow(

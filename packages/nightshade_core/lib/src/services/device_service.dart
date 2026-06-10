@@ -116,8 +116,9 @@ class DeviceService {
   late final SwitchChannelService _switchChannels;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
-  static const Duration _filterWheelVerifyPollInterval =
-      Duration(milliseconds: 250);
+  static const Duration _filterWheelVerifyPollInterval = Duration(
+    milliseconds: 250,
+  );
 
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
@@ -146,14 +147,8 @@ class DeviceService {
   bool get isAutofocusRunning => _isAutofocusRunning;
 
   DeviceService(this._ref, this._backend) {
-    _temperaturePoller = CameraTemperaturePoller(
-      ref: _ref,
-      backend: _backend,
-    );
-    _warmupController = CameraWarmupController(
-      ref: _ref,
-      backend: _backend,
-    );
+    _temperaturePoller = CameraTemperaturePoller(ref: _ref, backend: _backend);
+    _warmupController = CameraWarmupController(ref: _ref, backend: _backend);
     _phd2Launcher = Phd2Launcher(ref: _ref);
     // Construct the heartbeat router first so the reconnect coordinator
     // can drive the "reconnecting" health indicator through it (the
@@ -167,10 +162,10 @@ class DeviceService {
       pauseSequence: pauseSequence,
       surfaceReconnecting: (deviceId, {int attempt = 0, int maxAttempts = 0}) =>
           _heartbeat.surfaceReconnecting(
-        deviceId: deviceId,
-        attempt: attempt,
-        maxAttempts: maxAttempts,
-      ),
+            deviceId: deviceId,
+            attempt: attempt,
+            maxAttempts: maxAttempts,
+          ),
     );
     _switchChannels = SwitchChannelService(ref: _ref, backend: _backend);
     DeviceServiceLifecycle.register(this);
@@ -328,7 +323,9 @@ class DeviceService {
 
   /// Discover Alpaca devices at a specific server address
   Future<List<DeviceInfo>> discoverAlpacaAtAddress(
-      String host, int port) async {
+    String host,
+    int port,
+  ) async {
     // Backend returns DeviceInfo directly
     return await _backend.discoverAlpacaAtAddress(host, port);
   }
@@ -337,8 +334,8 @@ class DeviceService {
   // mocks, and provider contracts keep the same surface.
   Future<void> connectCamera(String deviceId) => _connectCamera(deviceId);
   Future<CameraRecommendedSettings> queryRecommendedCameraSettings(
-          String deviceId) =>
-      _queryRecommendedCameraSettings(deviceId);
+    String deviceId,
+  ) => _queryRecommendedCameraSettings(deviceId);
   Future<bool> applyRecommendedCameraSettings(CameraRecommendedSettings rec) =>
       _applyRecommendedCameraSettings(rec);
   Future<void> setCameraCooling({required bool enabled, double? targetTemp}) =>
@@ -395,25 +392,24 @@ class DeviceService {
     String? switchId,
     String? coverCalibratorId,
     void Function(DeviceConnectProgress progress)? onProgress,
-  }) =>
-      _connectProfile(
-        cameraId: cameraId,
-        mountId: mountId,
-        focuserId: focuserId,
-        filterWheelId: filterWheelId,
-        guiderId: guiderId,
-        rotatorId: rotatorId,
-        domeId: domeId,
-        weatherId: weatherId,
-        safetyMonitorId: safetyMonitorId,
-        switchId: switchId,
-        coverCalibratorId: coverCalibratorId,
-        onProgress: onProgress,
-      );
+  }) => _connectProfile(
+    cameraId: cameraId,
+    mountId: mountId,
+    focuserId: focuserId,
+    filterWheelId: filterWheelId,
+    guiderId: guiderId,
+    rotatorId: rotatorId,
+    domeId: domeId,
+    weatherId: weatherId,
+    safetyMonitorId: safetyMonitorId,
+    switchId: switchId,
+    coverCalibratorId: coverCalibratorId,
+    onProgress: onProgress,
+  );
   Future<void> connectActiveProfile() => _connectActiveProfile();
   Stream<DeviceConnectProgress> connectAllFromProfile(
-          EquipmentProfileModel profile) =>
-      _connectAllFromProfile(profile);
+    EquipmentProfileModel profile,
+  ) => _connectAllFromProfile(profile);
   Future<void> disconnectAll() => _disconnectAll();
 
   Future<void> slewMountToCoordinates(double ra, double dec) =>
@@ -428,9 +424,10 @@ class DeviceService {
   Future<void> slewMountToAltAz(double altitude, double azimuth) =>
       _slewMountToAltAz(altitude, azimuth);
   Future<void> findMountHome() => _findMountHome();
-  Future<void> pulseGuidMount(
-          {required String direction, required int durationMs}) =>
-      _pulseGuidMount(direction: direction, durationMs: durationMs);
+  Future<void> pulseGuidMount({
+    required String direction,
+    required int durationMs,
+  }) => _pulseGuidMount(direction: direction, durationMs: durationMs);
 
   Future<void> moveFocuserTo(int position) => _moveFocuserTo(position);
   Future<void> moveFocuserRelative(int delta) => _moveFocuserRelative(delta);
@@ -445,15 +442,14 @@ class DeviceService {
     String method = 'VCurve',
     int binning = 1,
     bool useSettingsDefaults = true,
-  }) =>
-      _runAutofocus(
-        exposureTime: exposureTime,
-        stepSize: stepSize,
-        stepsOut: stepsOut,
-        method: method,
-        binning: binning,
-        useSettingsDefaults: useSettingsDefaults,
-      );
+  }) => _runAutofocus(
+    exposureTime: exposureTime,
+    stepSize: stepSize,
+    stepsOut: stepsOut,
+    method: method,
+    binning: binning,
+    useSettingsDefaults: useSettingsDefaults,
+  );
   Future<void> setFilterWheelPosition(int position) =>
       _setFilterWheelPosition(position);
 
@@ -461,12 +457,11 @@ class DeviceService {
     double settlePixels = 1.0,
     double settleTime = 10.0,
     double settleTimeout = 60.0,
-  }) =>
-      _startGuiding(
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
+  }) => _startGuiding(
+    settlePixels: settlePixels,
+    settleTime: settleTime,
+    settleTimeout: settleTimeout,
+  );
   Future<void> stopGuiding() => _stopGuiding();
   Future<void> dither({
     double amount = 5.0,
@@ -474,14 +469,13 @@ class DeviceService {
     double settlePixels = 1.0,
     double settleTime = 10.0,
     double settleTimeout = 60.0,
-  }) =>
-      _dither(
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
+  }) => _dither(
+    amount: amount,
+    raOnly: raOnly,
+    settlePixels: settlePixels,
+    settleTime: settleTime,
+    settleTimeout: settleTimeout,
+  );
   Future<void> startSequence() => _startSequence();
   Future<void> stopSequence() => _stopSequence();
   Future<void> pauseSequence() => _pauseSequence();

@@ -173,8 +173,10 @@ void main(List<String> args) async {
       tlsCertPath: authConfig.tlsCertPath,
       tlsKeyPath: authConfig.tlsKeyPath,
     );
-    runtimeLogger.info('Headless API server started',
-        source: _headlessLogSource);
+    runtimeLogger.info(
+      'Headless API server started',
+      source: _headlessLogSource,
+    );
 
     // v4 couch-grade remote: if a relay URL was supplied, dial OUT to the
     // self-hosted relay and proxy the loopback headless API through it so the
@@ -321,8 +323,7 @@ void main(List<String> args) async {
           source: _headlessLogSource,
           fields: {
             'channel': stack.controller.channel,
-            'serverUrl':
-                stack.controller.updateServerUrl ?? 'unconfigured',
+            'serverUrl': stack.controller.updateServerUrl ?? 'unconfigured',
           },
         );
 
@@ -366,8 +367,10 @@ void main(List<String> args) async {
     // the timestamped service-started events.
     stdout.writeln('\nNightshade is running in headless mode.');
     stdout.writeln('Press Ctrl+C to stop.\n');
-    runtimeLogger.info('Headless mode running; waiting for SIGINT/SIGTERM',
-        source: _headlessLogSource);
+    runtimeLogger.info(
+      'Headless mode running; waiting for SIGINT/SIGTERM',
+      source: _headlessLogSource,
+    );
 
     Future<void> shutdown(String reason) async {
       logger?.info('$reason; shutting down', source: _headlessLogSource);
@@ -471,14 +474,17 @@ class _AuthConfig {
 _AuthConfig _parseAuthConfig(List<String> args) {
   String? token;
   var requireAuth = false;
-  var allowUnauthenticatedLan =
-      _envFlag('NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN');
+  var allowUnauthenticatedLan = _envFlag(
+    'NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN',
+  );
   var port = 8080;
   final scopedTokens = <String, HeadlessTokenScope>{};
   final corsAllowedOrigins = <String>[];
   var pairingPrintCodes = _envFlag('NIGHTSHADE_PAIRING_PRINT_CODES');
   var tlsEnabled = _envFlag('NIGHTSHADE_TLS');
-  String? tlsCertPath = _trimToNull(Platform.environment['NIGHTSHADE_TLS_CERT']);
+  String? tlsCertPath = _trimToNull(
+    Platform.environment['NIGHTSHADE_TLS_CERT'],
+  );
   String? tlsKeyPath = _trimToNull(Platform.environment['NIGHTSHADE_TLS_KEY']);
 
   token = Platform.environment['NIGHTSHADE_AUTH_TOKEN'];
@@ -721,16 +727,17 @@ Future<HeadlessApiServer> _startHeadlessServices(
         logger: (level, message, {fields}) {
           switch (level) {
             case LanPushLogLevel.info:
-              logger.info(message,
-                  source: _headlessLogSource, fields: fields);
+              logger.info(message, source: _headlessLogSource, fields: fields);
               break;
             case LanPushLogLevel.warning:
-              logger.warning(message,
-                  source: _headlessLogSource, fields: fields);
+              logger.warning(
+                message,
+                source: _headlessLogSource,
+                fields: fields,
+              );
               break;
             case LanPushLogLevel.error:
-              logger.error(message,
-                  source: _headlessLogSource, fields: fields);
+              logger.error(message, source: _headlessLogSource, fields: fields);
               break;
           }
         },
@@ -777,8 +784,8 @@ Future<HeadlessApiServer> _startHeadlessServices(
       delivery is MockRemotePushDelivery
           ? 'Cellular push delivery wired (mock — no cloud credentials)'
           : delivery == null
-              ? 'Cellular push delivery not wired (no channel configured)'
-              : 'Cellular push delivery wired (cloud channel configured)',
+          ? 'Cellular push delivery not wired (no channel configured)'
+          : 'Cellular push delivery wired (cloud channel configured)',
       source: _headlessLogSource,
     );
   } catch (e, st) {
@@ -793,8 +800,8 @@ Future<HeadlessApiServer> _startHeadlessServices(
     String? localIp;
 
     for (final interface in interfaces) {
-      final isLoopback = interface.name.contains('lo') ||
-          interface.name.contains('Loopback');
+      final isLoopback =
+          interface.name.contains('lo') || interface.name.contains('Loopback');
       if (isLoopback) {
         continue;
       }
@@ -821,24 +828,29 @@ Future<HeadlessApiServer> _startHeadlessServices(
       if (apiServer.effectiveAuthToken != null) {
         stdout.writeln('\n  Authentication required:');
         stdout.writeln(
-            '    Authorization: Bearer ${_redactToken(apiServer.effectiveAuthToken!)}');
+          '    Authorization: Bearer ${_redactToken(apiServer.effectiveAuthToken!)}',
+        );
       } else {
         stdout.writeln(
-            '\n  WARNING: unauthenticated LAN control is enabled for this run.');
+          '\n  WARNING: unauthenticated LAN control is enabled for this run.',
+        );
       }
       if (tlsProvision != null) {
         stdout.writeln(
-            '  TLS fingerprint (SPKI SHA-256): ${tlsProvision.publicKeyFingerprintSha256}');
+          '  TLS fingerprint (SPKI SHA-256): ${tlsProvision.publicKeyFingerprintSha256}',
+        );
       }
       stdout.writeln('');
     } else {
       stdout.writeln('\n  Headless API is available on:');
       stdout.writeln('    $scheme://127.0.0.1:$port');
       stdout.writeln(
-          '  Add --require-auth or --auth-token to expose authenticated LAN access.');
+        '  Add --require-auth or --auth-token to expose authenticated LAN access.',
+      );
       if (tlsProvision != null) {
         stdout.writeln(
-            '  TLS fingerprint (SPKI SHA-256): ${tlsProvision.publicKeyFingerprintSha256}');
+          '  TLS fingerprint (SPKI SHA-256): ${tlsProvision.publicKeyFingerprintSha256}',
+        );
       }
       stdout.writeln('');
     }
@@ -957,7 +969,9 @@ Future<RelayUplink?> _startRelayUplink({
   required LoggingService logger,
   required int localPort,
 }) async {
-  String? relayUrlRaw = _trimToNull(Platform.environment['NIGHTSHADE_RELAY_URL']);
+  String? relayUrlRaw = _trimToNull(
+    Platform.environment['NIGHTSHADE_RELAY_URL'],
+  );
   for (final arg in args) {
     if (arg.startsWith('--relay-url=')) {
       relayUrlRaw = _trimToNull(arg.substring('--relay-url='.length));
@@ -967,7 +981,8 @@ Future<RelayUplink?> _startRelayUplink({
 
   // Off by default: only trust a self-signed relay cert when the operator
   // explicitly opts in (relays they run themselves before getting a real cert).
-  final allowInsecureTls = args.contains('--relay-allow-insecure-tls') ||
+  final allowInsecureTls =
+      args.contains('--relay-allow-insecure-tls') ||
       _envFlag('NIGHTSHADE_RELAY_ALLOW_INSECURE_TLS');
 
   final Uri relayUrl;
@@ -1075,8 +1090,7 @@ Future<MdnsServiceRegistration?> _startMdnsAdvertisement({
     name: 'Nightshade Headless',
     port: apiServer.actualPort,
     txt: txt,
-    onWarning: (msg) =>
-        logger.warning(msg, source: _headlessLogSource),
+    onWarning: (msg) => logger.warning(msg, source: _headlessLogSource),
   );
   await registration.start();
   if (registration.isRegistered) {

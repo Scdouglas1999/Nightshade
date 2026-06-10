@@ -14,8 +14,7 @@ import 'settings_widgets.dart';
 class ConnectionSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const ConnectionSettings(
-      {super.key, this.isMobile = false});
+  const ConnectionSettings({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,12 +63,15 @@ class ConnectionSettings extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: NightshadeDecorations.emphasisSurface(
                   statusColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   connectionStatus,
                   style: TextStyle(
-                    fontSize: isMobile ? NightshadeTypography.fontSize10 : NightshadeTypography.fontSize11,
+                    fontSize: isMobile
+                        ? NightshadeTypography.fontSize10
+                        : NightshadeTypography.fontSize11,
                     color: statusColor,
                     fontWeight: FontWeight.w600,
                   ),
@@ -85,7 +87,9 @@ class ConnectionSettings extends ConsumerWidget {
                 trailing: SelectableText(
                   serverAddress,
                   style: TextStyle(
-                    fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+                    fontSize: isMobile
+                        ? NightshadeTypography.fontSize11
+                        : NightshadeTypography.fontSize12,
                     color: colors.textPrimary,
                     fontFamily: 'monospace',
                   ),
@@ -327,7 +331,9 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
                 child: Text(
                   'Current platform: $platformLabel',
                   style: TextStyle(
-                    fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize13,
+                    fontSize: isMobile
+                        ? NightshadeTypography.fontSize12
+                        : NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -469,7 +475,7 @@ class _DriverLabel extends StatelessWidget {
     required this.driver,
     required this.statusColor,
     required this.statusLabel,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +535,9 @@ class _DriverDetails extends StatelessWidget {
         Text(
           driver.notes,
           style: TextStyle(
-            fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+            fontSize: isMobile
+                ? NightshadeTypography.fontSize11
+                : NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
         ),
@@ -538,7 +546,9 @@ class _DriverDetails extends StatelessWidget {
           Text(
             unsupportedReason,
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize11
+                  : NightshadeTypography.fontSize12,
               color: colors.warning,
             ),
           ),
@@ -547,7 +557,9 @@ class _DriverDetails extends StatelessWidget {
         Text(
           driver.deviceCoverage,
           style: TextStyle(
-            fontSize: isMobile ? NightshadeTypography.fontSize10 : NightshadeTypography.fontSize11,
+            fontSize: isMobile
+                ? NightshadeTypography.fontSize10
+                : NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),

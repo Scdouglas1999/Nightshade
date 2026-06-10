@@ -45,33 +45,37 @@ class FilterInWheelRule implements RefAwareSequenceValidator {
         final filter = node.filter;
         if (filter == null || filter.isEmpty) continue;
         if (!available.contains(filter.toLowerCase())) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.equipment,
-            title: 'Filter Not in Wheel',
-            description:
-                'Exposure "${node.name}" uses filter "$filter" which is not '
-                'in the connected filter wheel. Available: $availableLabel.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Change the filter name or check the filter wheel configuration.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.equipment,
+              title: 'Filter Not in Wheel',
+              description:
+                  'Exposure "${node.name}" uses filter "$filter" which is not '
+                  'in the connected filter wheel. Available: $availableLabel.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Change the filter name or check the filter wheel configuration.',
+            ),
+          );
         }
       } else if (node is FilterChangeNode) {
         final filter = node.filterName;
         if (filter.isEmpty) continue;
         if (!available.contains(filter.toLowerCase())) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.equipment,
-            title: 'Filter Not in Wheel',
-            description:
-                'Filter change "${node.name}" uses filter "$filter" which is not '
-                'in the connected filter wheel. Available: $availableLabel.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Change the filter name or check the filter wheel configuration.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.equipment,
+              title: 'Filter Not in Wheel',
+              description:
+                  'Filter change "${node.name}" uses filter "$filter" which is not '
+                  'in the connected filter wheel. Available: $availableLabel.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Change the filter name or check the filter wheel configuration.',
+            ),
+          );
         }
       }
     }

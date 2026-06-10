@@ -55,16 +55,16 @@ class BenchmarkResult {
   /// Stable on-disk schema. Field order/names are part of the contract — the
   /// optimization loop diffs successive runs by these keys.
   Map<String, dynamic> toJson() => {
-        'p50Ms': _round(p50Ms),
-        'p95Ms': _round(p95Ms),
-        'p99Ms': _round(p99Ms),
-        'avgFps': _round(avgFps),
-        'rssMb': _round(rssMb),
-        'objectsDrawn': objectsDrawn,
-        'frames': frames,
-        'scene': scene,
-        'note': note,
-      };
+    'p50Ms': _round(p50Ms),
+    'p95Ms': _round(p95Ms),
+    'p99Ms': _round(p99Ms),
+    'avgFps': _round(avgFps),
+    'rssMb': _round(rssMb),
+    'objectsDrawn': objectsDrawn,
+    'frames': frames,
+    'scene': scene,
+    'note': note,
+  };
 
   static double _round(double v) => double.parse(v.toStringAsFixed(3));
 }
@@ -134,14 +134,20 @@ Future<BenchmarkResult> runPaintBenchmark({
 /// cost. Everything is disposed each frame to avoid leaking images/pictures
 /// across the (potentially hundreds of) timed frames.
 Future<void> _paintFrame(
-    StressFixture fixture, CameraFrame frame, ui.Size size) async {
+  StressFixture fixture,
+  CameraFrame frame,
+  ui.Size size,
+) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   buildSkyPainter(fixture: fixture, frame: frame).paint(canvas, size);
   buildFovPainter(frame).paint(canvas, size);
   final picture = recorder.endRecording();
   try {
-    final image = await picture.toImage(size.width.round(), size.height.round());
+    final image = await picture.toImage(
+      size.width.round(),
+      size.height.round(),
+    );
     try {
       // Force full rasterization to memory; the result is intentionally unused.
       await image.toByteData();
@@ -158,7 +164,9 @@ Future<void> _paintFrame(
 /// counts vary per layer, but on-screen object count tracks scene density.
 int _countOnScreen(StressFixture fixture, CameraFrame frame, ui.Size size) {
   final scale =
-      (size.width < size.height ? size.width : size.height) / 2 / (frame.fieldOfViewDeg / 2);
+      (size.width < size.height ? size.width : size.height) /
+      2 /
+      (frame.fieldOfViewDeg / 2);
   final cx = size.width / 2;
   final cy = size.height / 2;
   var count = 0;

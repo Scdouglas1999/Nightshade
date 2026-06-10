@@ -32,10 +32,10 @@ class CameraTemperaturePoller {
     required NightshadeBackend backend,
     Duration interval = const Duration(seconds: 5),
     Duration idleInterval = const Duration(seconds: 30),
-  })  : _ref = ref,
-        _backend = backend,
-        _interval = interval,
-        _idleInterval = idleInterval;
+  }) : _ref = ref,
+       _backend = backend,
+       _interval = interval,
+       _idleInterval = idleInterval;
 
   final Ref _ref;
   final NightshadeBackend _backend;
@@ -137,11 +137,9 @@ class CameraTemperaturePoller {
             .read(cameraStateProvider.notifier)
             .updateTemperature(temp, power ?? 0.0);
 
-        _ref.read(temperatureHistoryProvider.notifier).addPoint(
-              temp,
-              targetTemp: targetTemp,
-              coolerPower: power,
-            );
+        _ref
+            .read(temperatureHistoryProvider.notifier)
+            .addPoint(temp, targetTemp: targetTemp, coolerPower: power);
 
         // Publish a live cooling snapshot derived from this reading. We only
         // do this inside the `temp != null` branch: with no live sensor value
@@ -159,7 +157,8 @@ class CameraTemperaturePoller {
         // the cooler is off. (Only updated on a real reading; a null/errored
         // poll leaves the cadence unchanged.)
         _coolerActive = isCooling;
-        final isAtTarget = isCooling &&
+        final isAtTarget =
+            isCooling &&
             targetTemp != null &&
             (temp - targetTemp).abs() <= _atTargetToleranceC;
 
@@ -177,16 +176,20 @@ class CameraTemperaturePoller {
       }
       try {
         final logger = _ref.read(loggingServiceProvider);
-        logger.warning('Temperature polling error: $e',
-            source: 'CameraTemperaturePoller');
+        logger.warning(
+          'Temperature polling error: $e',
+          source: 'CameraTemperaturePoller',
+        );
       } on Object catch (loggerErr) {
         // Why: nested catch around logger emission during the poll-loop's
         // error path. If the logging provider is itself disposing we must
         // not re-throw — that would mask the original temperature-polling
         // failure. Surface to stderr so it isn't fully silent.
         // ignore: avoid_print
-        print('CameraTemperaturePoller: warn-log emission failed: '
-            '$loggerErr (original temp-poll error: $e)');
+        print(
+          'CameraTemperaturePoller: warn-log emission failed: '
+          '$loggerErr (original temp-poll error: $e)',
+        );
       }
     }
   }

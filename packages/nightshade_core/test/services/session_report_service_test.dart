@@ -41,13 +41,9 @@ void main() {
     });
 
     Future<int> _createTarget(String name) async {
-      return db.into(db.targets).insert(
-            TargetsCompanion.insert(
-              name: name,
-              ra: 5.6,
-              dec: -5.4,
-            ),
-          );
+      return db
+          .into(db.targets)
+          .insert(TargetsCompanion.insert(name: name, ra: 5.6, dec: -5.4));
     }
 
     Future<int> _insertSession({
@@ -246,39 +242,44 @@ void main() {
       expect(gs.percentUnguidedFrames, closeTo(1 / 3, 1e-6));
     });
 
-    test('pulls mount stats from related sequence_runs and session row',
-        () async {
-      final targetId = await _createTarget('M31');
-      final sessionStart = DateTime.utc(2026, 3, 1, 22);
-      final sessionEnd = DateTime.utc(2026, 3, 2, 4);
-      final sessionId = await _insertSession(
-        name: 'Andromeda',
-        targetId: targetId,
-        startTime: sessionStart,
-        endTime: sessionEnd,
-        autofocusCount: 1,
-      );
+    test(
+      'pulls mount stats from related sequence_runs and session row',
+      () async {
+        final targetId = await _createTarget('M31');
+        final sessionStart = DateTime.utc(2026, 3, 1, 22);
+        final sessionEnd = DateTime.utc(2026, 3, 2, 4);
+        final sessionId = await _insertSession(
+          name: 'Andromeda',
+          targetId: targetId,
+          startTime: sessionStart,
+          endTime: sessionEnd,
+          autofocusCount: 1,
+        );
 
-      // Inject a sequence run whose stats blob holds the operations counters.
-      await db.into(db.sequenceRuns).insert(
-            SequenceRunsCompanion.insert(
-              sequenceName: 'Andromeda sequence',
-              startedAt: sessionStart.add(const Duration(minutes: 5)),
-              endedAt: Value(sessionEnd.subtract(const Duration(minutes: 5))),
-              status: const Value('completed'),
-              statsJson: const Value(
-                  '{"autofocusRuns":3,"meridianFlips":1,"ditherCount":12,"triggerFires":2,"errorMessages":["Guider lost star","Recovered"]}'),
-            ),
-          );
+        // Inject a sequence run whose stats blob holds the operations counters.
+        await db
+            .into(db.sequenceRuns)
+            .insert(
+              SequenceRunsCompanion.insert(
+                sequenceName: 'Andromeda sequence',
+                startedAt: sessionStart.add(const Duration(minutes: 5)),
+                endedAt: Value(sessionEnd.subtract(const Duration(minutes: 5))),
+                status: const Value('completed'),
+                statsJson: const Value(
+                  '{"autofocusRuns":3,"meridianFlips":1,"ditherCount":12,"triggerFires":2,"errorMessages":["Guider lost star","Recovered"]}',
+                ),
+              ),
+            );
 
-      final report = await service.buildReport(sessionId);
-      // session.autofocusCount=1, run stats=3 -> max wins.
-      expect(report.mountStats.autofocusRuns, 3);
-      expect(report.mountStats.meridianFlips, 1);
-      expect(report.mountStats.ditherCount, 12);
-      expect(report.mountStats.triggerFires, 2);
-      expect(report.errorMessages, ['Guider lost star', 'Recovered']);
-    });
+        final report = await service.buildReport(sessionId);
+        // session.autofocusCount=1, run stats=3 -> max wins.
+        expect(report.mountStats.autofocusRuns, 3);
+        expect(report.mountStats.meridianFlips, 1);
+        expect(report.mountStats.ditherCount, 12);
+        expect(report.mountStats.triggerFires, 2);
+        expect(report.errorMessages, ['Guider lost star', 'Recovered']);
+      },
+    );
 
     test('renderMarkdown emits headings and per-filter rows', () async {
       final targetId = await _createTarget('Heart');
@@ -308,8 +309,7 @@ void main() {
     });
 
     test('throws when session id does not exist', () async {
-      await expectLater(service.buildReport(99999),
-          throwsA(isA<StateError>()));
+      await expectLater(service.buildReport(99999), throwsA(isA<StateError>()));
     });
 
     test('handles untargeted captures with synthetic bucket', () async {

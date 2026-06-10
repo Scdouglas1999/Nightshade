@@ -235,5 +235,4 @@ class BridgeStackingEngineSeam implements StackingEngineSeam {
       totalSigmaRejectedPixels: s.totalSigmaRejectedPixels.toInt(),
     );
   }
-
 }

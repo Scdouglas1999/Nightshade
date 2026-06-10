@@ -242,7 +242,8 @@ class _TwilightOption extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: NightshadeTypography.h5.copyWith(color: isSelected ? colors.primary : colors.textPrimary),
+              style: NightshadeTypography.h5.copyWith(
+                  color: isSelected ? colors.primary : colors.textPrimary),
             ),
             Text(
               description,

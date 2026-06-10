@@ -47,8 +47,8 @@ class MpcExportService {
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     // Build provisional designations if not provided
-    final designations = provisionalDesignations ??
-        _assignProvisionalDesignations(sorted);
+    final designations =
+        provisionalDesignations ?? _assignProvisionalDesignations(sorted);
 
     final buffer = StringBuffer();
     for (final candidate in sorted) {
@@ -86,12 +86,10 @@ class MpcExportService {
     // Filter to only groups with observations spanning multiple nights
     final multiNight = <String, List<MovingObjectCandidateRow>>{};
     for (final entry in groups.entries) {
-      final nights = entry.value
-          .map((c) {
-            final utc = c.timestamp.toUtc();
-            return DateTime.utc(utc.year, utc.month, utc.day);
-          })
-          .toSet();
+      final nights = entry.value.map((c) {
+        final utc = c.timestamp.toUtc();
+        return DateTime.utc(utc.year, utc.month, utc.day);
+      }).toSet();
       if (nights.length > 1) {
         multiNight[entry.key] = entry.value;
       }
@@ -131,12 +129,16 @@ class MpcExportService {
     );
 
     final docsDir = await getApplicationDocumentsDirectory();
-    final exportDir = Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+    final exportDir = Directory(
+      path.join(docsDir.path, 'Nightshade', 'exports'),
+    );
     if (!exportDir.existsSync()) {
       exportDir.createSync(recursive: true);
     }
 
-    final timestamp = DateTime.now().toUtc().toIso8601String()
+    final timestamp = DateTime.now()
+        .toUtc()
+        .toIso8601String()
         .replaceAll(':', '-')
         .replaceAll('.', '-');
     final fileName = 'mpc_report_$timestamp.txt';
@@ -224,7 +226,8 @@ class MpcExportService {
     // Columns 78-80: Observatory code
     final obsCode = observatoryCode.padRight(3).substring(0, 3);
 
-    final line = '$numField$desigField$discoveryFlag$note1$note2'
+    final line =
+        '$numField$desigField$discoveryFlag$note1$note2'
         '$dateField$raField$decField$blank9$magField$band$blank6$obsCode';
 
     // Verify exact 80-column width
@@ -253,7 +256,8 @@ class MpcExportService {
     final utc = timestamp.toUtc();
 
     // Fractional day: hours/24 + minutes/(24*60) + seconds/(24*60*60) + ms/(24*60*60*1000)
-    final fractionalDay = utc.hour / 24.0 +
+    final fractionalDay =
+        utc.hour / 24.0 +
         utc.minute / 1440.0 +
         utc.second / 86400.0 +
         utc.millisecond / 86400000.0;
@@ -269,7 +273,10 @@ class MpcExportService {
 
     // "YYYY MM DD.ddddd " — exactly 17 chars
     final result = '$year $month $dayField';
-    assert(result.length == 17, 'MPC date must be 17 chars, got ${result.length}');
+    assert(
+      result.length == 17,
+      'MPC date must be 17 chars, got ${result.length}',
+    );
     return result;
   }
 
@@ -305,7 +312,10 @@ class MpcExportService {
     final secField = secondsStr.padRight(6);
 
     final result = '$hoursStr $minutesStr $secField';
-    assert(result.length == 12, 'MPC RA must be 12 chars, got ${result.length}');
+    assert(
+      result.length == 12,
+      'MPC RA must be 12 chars, got ${result.length}',
+    );
     return result;
   }
 
@@ -340,7 +350,10 @@ class MpcExportService {
 
     // "sDD MM SS.s " — exactly 12 chars
     final result = '$sign$degStr $minStr $secField';
-    assert(result.length == 12, 'MPC Dec must be 12 chars, got ${result.length}');
+    assert(
+      result.length == 12,
+      'MPC Dec must be 12 chars, got ${result.length}',
+    );
     return result;
   }
 
@@ -366,8 +379,9 @@ class MpcExportService {
 
       if (firstObs.isKnownObject && firstObs.objectName != null) {
         // For known objects, use the name truncated to 7 chars
-        designations[candidateId] =
-            firstObs.objectName!.padRight(7).substring(0, 7);
+        designations[candidateId] = firstObs.objectName!
+            .padRight(7)
+            .substring(0, 7);
       } else {
         // For unknown objects, use Nightshade temporary designation
         final seqStr = counter.toString().padLeft(4, '0');
@@ -455,7 +469,9 @@ List<MpcObservationGroup> buildObservationGroups(
 
   // Sort groups by first observation timestamp
   final sortedEntries = grouped.entries.toList()
-    ..sort((a, b) => a.value.first.timestamp.compareTo(b.value.first.timestamp));
+    ..sort(
+      (a, b) => a.value.first.timestamp.compareTo(b.value.first.timestamp),
+    );
 
   for (final entry in sortedEntries) {
     final firstObs = entry.value.first;
@@ -475,13 +491,15 @@ List<MpcObservationGroup> buildObservationGroups(
       counter++;
     }
 
-    groups.add(MpcObservationGroup(
-      candidateId: entry.key,
-      displayName: displayName,
-      isKnownObject: isKnown,
-      provisionalDesignation: provisionalDesignation,
-      observations: entry.value,
-    ));
+    groups.add(
+      MpcObservationGroup(
+        candidateId: entry.key,
+        displayName: displayName,
+        isKnownObject: isKnown,
+        provisionalDesignation: provisionalDesignation,
+        observations: entry.value,
+      ),
+    );
   }
 
   return groups;

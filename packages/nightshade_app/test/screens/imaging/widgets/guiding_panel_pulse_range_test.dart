@@ -165,8 +165,7 @@ void main() {
         reason: 'A rejected save must never push a new config.');
   });
 
-  testWidgets(
-      'min_pulse_rejected_with_caps_window: 40 blocked for minPulse=75',
+  testWidgets('min_pulse_rejected_with_caps_window: 40 blocked for minPulse=75',
       (tester) async {
     final notifier =
         await _pumpAndExpand(tester, _caps(minPulse: 75, maxPulse: 900));
@@ -182,8 +181,7 @@ void main() {
         reason: 'A rejected save must never push a new config.');
   });
 
-  testWidgets(
-      'in_range_accepted_with_caps_window: 600 max pushed for 75..900',
+  testWidgets('in_range_accepted_with_caps_window: 600 max pushed for 75..900',
       (tester) async {
     final notifier =
         await _pumpAndExpand(tester, _caps(minPulse: 75, maxPulse: 900));
@@ -201,8 +199,7 @@ void main() {
         reason: 'Untouched fields must be preserved.');
   });
 
-  testWidgets(
-      'null_caps_uses_default_bounds: 1200 accepted, 1201 rejected',
+  testWidgets('null_caps_uses_default_bounds: 1200 accepted, 1201 rejected',
       (tester) async {
     final notifier = await _pumpAndExpand(tester, null);
 

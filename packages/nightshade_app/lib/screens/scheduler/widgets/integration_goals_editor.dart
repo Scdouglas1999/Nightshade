@@ -127,7 +127,9 @@ class _IntegrationGoalsEditorState
         const SizedBox(height: NightshadeTokens.spaceSm),
         Text(
           'How many frames in each filter does ${widget.targetName} still need?',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         progressAsync.when(
@@ -144,7 +146,8 @@ class _IntegrationGoalsEditorState
           ),
           error: (e, _) => Text(
             'Failed to load goals: $e',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12, color: colors.error),
           ),
           data: (progress) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +157,9 @@ class _IntegrationGoalsEditorState
                   padding: NightshadeTokens.paddingMd,
                   child: Text(
                     'No integration goals yet. Add filters below to tell the scheduler what to image.',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textMuted),
                   ),
                 ),
               for (final p in progress)
@@ -267,7 +272,9 @@ class _GoalRowState extends State<_GoalRow> {
               width: 80,
               child: Text(
                 '${p.goal.exposureSeconds.toStringAsFixed(0)}s',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary),
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
@@ -277,13 +284,16 @@ class _GoalRowState extends State<_GoalRow> {
                 controller: _countCtl,
                 enabled: !widget.busy,
                 keyboardType: TextInputType.number,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textPrimary),
                 decoration: InputDecoration(
                   isDense: true,
                   labelText: 'Frames',
                   border: const OutlineInputBorder(),
-                  labelStyle:
-                      TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  labelStyle: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 onSubmitted: (v) {
                   final parsed = int.tryParse(v.trim());
@@ -302,13 +312,16 @@ class _GoalRowState extends State<_GoalRow> {
                 controller: _priorityCtl,
                 enabled: !widget.busy,
                 keyboardType: TextInputType.number,
-                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textPrimary),
                 decoration: InputDecoration(
                   isDense: true,
                   labelText: 'Prio',
                   border: const OutlineInputBorder(),
-                  labelStyle:
-                      TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  labelStyle: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 onSubmitted: (v) {
                   final parsed = int.tryParse(v.trim());
@@ -406,7 +419,8 @@ class _AddGoalRowState extends State<_AddGoalRow> {
   void _selectFilter(String? filter) {
     setState(() {
       _selectedFilter = filter;
-      final seconds = widget.exposureContext?.recommendForFilter(filter).seconds;
+      final seconds =
+          widget.exposureContext?.recommendForFilter(filter).seconds;
       if (seconds != null && seconds.isFinite && seconds > 0) {
         _exposureCtl.text = _formatExposureSeconds(seconds);
       }
@@ -424,13 +438,15 @@ class _AddGoalRowState extends State<_AddGoalRow> {
     if (widget.availableFilters.isEmpty) {
       return Text(
         'Equipment profile has no filters configured; configure a filter wheel first.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.warning),
       );
     }
     if (remaining.isEmpty) {
       return Text(
         'All filters from the active equipment profile already have goals.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
 

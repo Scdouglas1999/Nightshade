@@ -94,7 +94,8 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     _applyCalibration = defaults.applyCalibration;
     _autoStretch = defaults.autoStretch;
     _sensorMode = defaults.sensorMode;
-    _bayerPattern = defaults.bayerPatternOverride?.toUpperCase() ?? oscBayerAutoValue;
+    _bayerPattern =
+        defaults.bayerPatternOverride?.toUpperCase() ?? oscBayerAutoValue;
     _demosaicQuality = defaults.demosaicQuality.toLowerCase();
     _qualityController = TextEditingController(
       text: defaults.minQualityScore > 0
@@ -117,7 +118,8 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     if (text.isEmpty) return 0;
     final value = double.tryParse(text);
     if (value == null) {
-      setState(() => _qualityError = 'Enter a number (or leave blank for none)');
+      setState(
+          () => _qualityError = 'Enter a number (or leave blank for none)');
       return null;
     }
     if (value < 0) {
@@ -136,8 +138,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     // model's copyWith treats a null `bayerPatternOverride` as "leave unchanged"
     // (not "clear"), the Auto case is expressed by constructing directly with
     // null rather than copying.
-    final override =
-        _bayerPattern == oscBayerAutoValue ? null : _bayerPattern;
+    final override = _bayerPattern == oscBayerAutoValue ? null : _bayerPattern;
     return StackAndShareConfig(
       applyCalibration: _applyCalibration,
       autoStretch: _autoStretch,
@@ -263,8 +264,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
       return NightshadeAlert(
         severity: NightshadeAlertSeverity.error,
         title: 'Live stacking is active',
-        message:
-            'The stacking engine is busy with a live session. Stop live '
+        message: 'The stacking engine is busy with a live session. Stop live '
             'stacking before running Stack & Share.',
         action: NightshadeButton(
           label: 'Stop live stacking',
@@ -310,9 +310,8 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
             label: 'Apply calibration',
             subtitle: 'Subtract matched dark / flat / bias before stacking',
             value: _applyCalibration,
-            onChanged: running
-                ? null
-                : (v) => setState(() => _applyCalibration = v),
+            onChanged:
+                running ? null : (v) => setState(() => _applyCalibration = v),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeSwitchRow(
@@ -321,8 +320,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
                 'Apply the screen-transfer (STF) stretch to the integrated '
                 'result for display and export',
             value: _autoStretch,
-            onChanged:
-                running ? null : (v) => setState(() => _autoStretch = v),
+            onChanged: running ? null : (v) => setState(() => _autoStretch = v),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
           _buildOscOptions(running),
@@ -641,7 +639,9 @@ class _OverrideDisclosure extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              expanded ? NightshadeIcons.chevronDown : NightshadeIcons.chevronRight,
+              expanded
+                  ? NightshadeIcons.chevronDown
+                  : NightshadeIcons.chevronRight,
               size: NightshadeTokens.iconSm,
               color: tint,
             ),

@@ -200,7 +200,8 @@ class SmartExposureProperties extends ConsumerWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(
                         color: colors.warning.withValues(alpha: 0.4)),
                   ),
@@ -457,11 +458,11 @@ class _PlanRow extends StatelessWidget {
                         ? Container(
                             height: 38,
                             alignment: Alignment.centerLeft,
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
                               color: colors.surface,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline8),
                               border: Border.all(color: colors.border),
                             ),
                             child: Text(

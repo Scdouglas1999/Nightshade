@@ -9,8 +9,7 @@ class _ExposureProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ExposureNode node;
 
-  const _ExposureProperties(
-      {required this.colors, required this.node});
+  const _ExposureProperties({required this.colors, required this.node});
 
   @override
   ConsumerState<_ExposureProperties> createState() => _ExposureRichState();
@@ -442,7 +441,8 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
             padding: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -522,7 +522,8 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: DropdownButtonHideUnderline(

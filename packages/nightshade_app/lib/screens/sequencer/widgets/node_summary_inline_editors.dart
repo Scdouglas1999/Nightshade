@@ -141,8 +141,8 @@ class _AnchoredInlineEditor extends StatelessWidget {
     // Vertical: prefer below the anchor; flip above when there isn't room. We
     // anchor the top edge and let the popup size to its content height.
     final spaceBelow = overlaySize.height - anchorRect.bottom - _kScreenMargin;
-    final placeBelow = spaceBelow >= 96 ||
-        spaceBelow >= anchorRect.top - _kScreenMargin;
+    final placeBelow =
+        spaceBelow >= 96 || spaceBelow >= anchorRect.top - _kScreenMargin;
 
     final Widget surface = Material(
       type: MaterialType.transparency,
@@ -272,7 +272,8 @@ class _EditorSection extends StatelessWidget {
         Row(
           children: [
             if (icon != null) ...[
-              Icon(icon, size: NightshadeTokens.iconXs, color: colors.textMuted),
+              Icon(icon,
+                  size: NightshadeTokens.iconXs, color: colors.textMuted),
               const SizedBox(width: NightshadeTokens.spaceXs),
             ],
             Flexible(
@@ -335,8 +336,7 @@ class _NumericFieldEditorState extends State<_NumericFieldEditor> {
   @override
   void initState() {
     super.initState();
-    _controller =
-        TextEditingController(text: _format(widget.initialValue));
+    _controller = TextEditingController(text: _format(widget.initialValue));
     _focusNode = FocusNode()..addListener(_handleFocusChange);
     // Autofocus + select-all so the user can immediately overtype.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -393,9 +393,8 @@ class _NumericFieldEditorState extends State<_NumericFieldEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final pattern = widget.allowNegative
-        ? RegExp(r'^-?\d*\.?\d*')
-        : RegExp(r'^\d*\.?\d*');
+    final pattern =
+        widget.allowNegative ? RegExp(r'^-?\d*\.?\d*') : RegExp(r'^\d*\.?\d*');
     return _EditorSection(
       title: widget.title,
       icon: widget.icon,
@@ -744,7 +743,8 @@ class _ExposureFilterEditor extends ConsumerWidget {
         for (var i = 0; i < filterNames.length; i++)
           _MenuRow(
             label: filterNames[i],
-            selected: _filterMatches(node.filter, node.filterIndex, filterNames[i], i),
+            selected: _filterMatches(
+                node.filter, node.filterIndex, filterNames[i], i),
             onTap: () => select(filterNames[i], i),
           ),
       ],

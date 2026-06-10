@@ -128,8 +128,7 @@ void main() {
             'position index 2.');
   });
 
-  testWidgets(
-      'position_indicator_shows_current_filter: surfaces At wheel: R',
+  testWidgets('position_indicator_shows_current_filter: surfaces At wheel: R',
       (tester) async {
     await _pumpPanel(tester, wheelPosition: 1);
 

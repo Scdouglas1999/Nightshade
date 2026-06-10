@@ -32,8 +32,8 @@ class PluginNodeExecutor {
     required PluginHost host,
     required PluginNodeRegistry registry,
     this.defaultTimeout = const Duration(minutes: 10),
-  })  : _host = host,
-        _registry = registry;
+  }) : _host = host,
+       _registry = registry;
 
   /// Execute the plugin node identified by [pluginId] / [nodeTypeId] with
   /// the supplied [params] map.

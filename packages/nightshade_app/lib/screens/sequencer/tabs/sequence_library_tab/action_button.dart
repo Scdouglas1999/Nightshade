@@ -59,9 +59,10 @@ class _ActionButtonState extends State<_ActionButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: NightshadeTypography.labelSm.copyWith(color: widget.isPrimary
-                      ? onPrimary
-                      : widget.colors.textSecondary),
+                style: NightshadeTypography.labelSm.copyWith(
+                    color: widget.isPrimary
+                        ? onPrimary
+                        : widget.colors.textSecondary),
               ),
             ],
           ),

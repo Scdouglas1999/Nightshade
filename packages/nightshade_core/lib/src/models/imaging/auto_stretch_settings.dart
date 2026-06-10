@@ -82,14 +82,14 @@ abstract class AutoStretchSettings with _$AutoStretchSettings {
 
   /// Creates settings with sensible defaults for general astrophotography.
   factory AutoStretchSettings.defaults() => const AutoStretchSettings(
-        enabled: false,
-        method: AutoStretchMethod.stf,
-        shadowClip: -2.8,
-        highlightClip: -0.5,
-        targetMedian: 0.25,
-        linkedChannels: true,
-        gammaValue: 2.2,
-      );
+    enabled: false,
+    method: AutoStretchMethod.stf,
+    shadowClip: -2.8,
+    highlightClip: -0.5,
+    targetMedian: 0.25,
+    linkedChannels: true,
+    gammaValue: 2.2,
+  );
 
   /// Creates optimized settings for a specific stretch method.
   ///

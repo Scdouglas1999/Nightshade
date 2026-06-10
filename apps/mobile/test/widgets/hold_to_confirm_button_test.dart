@@ -59,11 +59,11 @@ void main() {
     hapticCalls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'HapticFeedback.vibrate') {
-        hapticCalls.add(call.arguments as String? ?? '');
-      }
-      return null;
-    });
+          if (call.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(call.arguments as String? ?? '');
+          }
+          return null;
+        });
   });
 
   tearDown(() {
@@ -78,16 +78,20 @@ void main() {
     await tester.tap(find.byType(HoldToConfirmButton));
     await tester.pumpAndSettle();
 
-    expect(confirmed, 0,
-        reason: 'Single tap must never trigger destructive action.');
+    expect(
+      confirmed,
+      0,
+      reason: 'Single tap must never trigger destructive action.',
+    );
   });
 
   testWidgets('hold released early does NOT fire onConfirmed', (tester) async {
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     // Wait long enough to trigger the long-press recognizer (~500ms by
     // default in Flutter), plus half of our hold duration.
     await tester.pump(const Duration(milliseconds: 600));
@@ -96,17 +100,22 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(confirmed, 0,
-        reason: 'Releasing before completion must cancel the gesture.');
+    expect(
+      confirmed,
+      0,
+      reason: 'Releasing before completion must cancel the gesture.',
+    );
   });
 
-  testWidgets('full-duration hold fires onConfirmed exactly once',
-      (tester) async {
+  testWidgets('full-duration hold fires onConfirmed exactly once', (
+    tester,
+  ) async {
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     // Wait for the long-press recognizer to fire.
     await tester.pump(const Duration(milliseconds: 600));
     // Pump well past the configured hold duration so the animation
@@ -116,18 +125,23 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(confirmed, 1,
-        reason: 'Full hold must trigger onConfirmed exactly once.');
+    expect(
+      confirmed,
+      1,
+      reason: 'Full hold must trigger onConfirmed exactly once.',
+    );
   });
 
-  testWidgets('multiple sequential holds each trigger onConfirmed',
-      (tester) async {
+  testWidgets('multiple sequential holds each trigger onConfirmed', (
+    tester,
+  ) async {
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++);
 
     for (var i = 0; i < 3; i++) {
-      final gesture = await tester
-          .startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(HoldToConfirmButton)),
+      );
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(_kHoldDuration);
       await tester.pump(_kHoldDuration);
@@ -135,16 +149,20 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    expect(confirmed, 3,
-        reason: 'Each completed hold should fire onConfirmed independently.');
+    expect(
+      confirmed,
+      3,
+      reason: 'Each completed hold should fire onConfirmed independently.',
+    );
   });
 
   testWidgets('disabled button never fires onConfirmed', (tester) async {
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++, enabled: false);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(_kHoldDuration);
     await tester.pump(_kHoldDuration);
@@ -174,20 +192,21 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(confirmed, 0,
-        reason: 'A cancelled long press must never confirm.');
+    expect(confirmed, 0, reason: 'A cancelled long press must never confirm.');
   });
 
-  testWidgets('animation controller is disposed when widget is removed',
-      (tester) async {
+  testWidgets('animation controller is disposed when widget is removed', (
+    tester,
+  ) async {
     // We can't directly inspect the controller, but if it wasn't disposed
     // properly, the test framework's leak detector flags it at teardown.
     // We exercise the full hold cycle then unmount.
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(_kHoldDuration ~/ 2);
     await gesture.up();
@@ -201,8 +220,9 @@ void main() {
     expect(confirmed, 0);
   });
 
-  testWidgets('disableAnimations still requires full hold duration',
-      (tester) async {
+  testWidgets('disableAnimations still requires full hold duration', (
+    tester,
+  ) async {
     var confirmed = 0;
     await _pumpButton(
       tester,
@@ -210,35 +230,43 @@ void main() {
       disableAnimations: true,
     );
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     await tester.pump(const Duration(milliseconds: 600));
     // Release early — should NOT fire even with animations disabled.
     await tester.pump(_kHoldDuration ~/ 4);
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(confirmed, 0,
-        reason:
-            'Even with reduced motion, an early release must not confirm.');
+    expect(
+      confirmed,
+      0,
+      reason: 'Even with reduced motion, an early release must not confirm.',
+    );
 
     // Now hold full duration — should fire.
-    final g2 = await tester
-        .startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final g2 = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(_kHoldDuration);
     await tester.pump(_kHoldDuration);
     await g2.up();
     await tester.pumpAndSettle();
-    expect(confirmed, 1,
-        reason: 'Reduced-motion path must still complete after duration.');
+    expect(
+      confirmed,
+      1,
+      reason: 'Reduced-motion path must still complete after duration.',
+    );
   });
 
   testWidgets('full hold triggers heavy haptic feedback', (tester) async {
     var confirmed = 0;
     await _pumpButton(tester, onConfirmed: () => confirmed++);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.byType(HoldToConfirmButton)));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(HoldToConfirmButton)),
+    );
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(_kHoldDuration);
     await tester.pump(_kHoldDuration);

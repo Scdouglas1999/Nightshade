@@ -42,28 +42,34 @@ void main() {
 
       // fastReadout=true would otherwise resolve to the last mode (2), but the
       // explicit index 0 must override it.
-      final explicitSlow =
-          base.copyWith(fastReadout: true, readoutModeIndex: 0);
+      final explicitSlow = base.copyWith(
+        fastReadout: true,
+        readoutModeIndex: 0,
+      );
       expect(explicitSlow.resolveReadoutModeIndex(modeCount), 0);
     });
 
-    test('single-mode camera resolves to 0 for both fast and slow fallback',
-        () {
-      const single = 1;
-      final fast = base.copyWith(fastReadout: true);
-      final slow = base.copyWith(fastReadout: false);
+    test(
+      'single-mode camera resolves to 0 for both fast and slow fallback',
+      () {
+        const single = 1;
+        final fast = base.copyWith(fastReadout: true);
+        final slow = base.copyWith(fastReadout: false);
 
-      // fast -> modeCount-1 == 0 when there is only one mode.
-      expect(fast.resolveReadoutModeIndex(single), 0);
-      expect(slow.resolveReadoutModeIndex(single), 0);
-    });
+        // fast -> modeCount-1 == 0 when there is only one mode.
+        expect(fast.resolveReadoutModeIndex(single), 0);
+        expect(slow.resolveReadoutModeIndex(single), 0);
+      },
+    );
   });
 
   group('ExposureSettings.readoutIsFast', () {
     test('derives from fastReadout when readoutModeIndex is null', () {
       expect(base.copyWith(fastReadout: true).readoutIsFast(modeCount), isTrue);
       expect(
-          base.copyWith(fastReadout: false).readoutIsFast(modeCount), isFalse);
+        base.copyWith(fastReadout: false).readoutIsFast(modeCount),
+        isFalse,
+      );
     });
 
     test('derives from readoutModeIndex when it is set', () {
@@ -88,8 +94,11 @@ void main() {
       final updated = legacy.copyWith(readoutModeIndex: 0);
 
       expect(updated.readoutModeIndex, 0);
-      expect(updated.fastReadout, isTrue,
-          reason: 'fastReadout must survive a readoutModeIndex-only update');
+      expect(
+        updated.fastReadout,
+        isTrue,
+        reason: 'fastReadout must survive a readoutModeIndex-only update',
+      );
     });
 
     test('preserves readoutModeIndex when only fastReadout changes', () {
@@ -100,11 +109,13 @@ void main() {
       expect(updated.fastReadout, isTrue);
     });
 
-    test('default ExposureSettings has null readoutModeIndex and slow readout',
-        () {
-      expect(base.readoutModeIndex, isNull);
-      expect(base.fastReadout, isFalse);
-    });
+    test(
+      'default ExposureSettings has null readoutModeIndex and slow readout',
+      () {
+        expect(base.readoutModeIndex, isNull);
+        expect(base.fastReadout, isFalse);
+      },
+    );
 
     test('readoutModeIndex participates in value equality', () {
       final a = base.copyWith(readoutModeIndex: 1);

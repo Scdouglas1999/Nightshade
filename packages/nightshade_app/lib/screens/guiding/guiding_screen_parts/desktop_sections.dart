@@ -106,7 +106,8 @@ mixin _GuidingDesktopSections
                 if (!isMobile)
                   Text(
                     isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
-                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.label
+                        .copyWith(color: colors.textPrimary),
                   ),
                 SizedBox(width: isMobile ? 8 : 20),
                 // State indicator pill — flexible so a long label (e.g.
@@ -557,7 +558,9 @@ mixin _GuidingDesktopSections
       children: [
         Text(
           '$label:',
-          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+          style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize11),
         ),
         const SizedBox(width: 4),
         Text(
@@ -687,7 +690,8 @@ mixin _GuidingDesktopSections
               Text(
                 'Failed to load brain settings',
                 textAlign: TextAlign.center,
-                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 6),
               // Surface the real error so the user can act on it instead of
@@ -696,7 +700,9 @@ mixin _GuidingDesktopSections
               Text(
                 _brainErrorMessage(e),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
               const SizedBox(height: 14),
               NightshadeButton(
@@ -704,8 +710,7 @@ mixin _GuidingDesktopSections
                 icon: NightshadeIcons.refresh,
                 size: ButtonSize.small,
                 variant: ButtonVariant.outline,
-                onPressed: () =>
-                    ref.read(brainParamsProvider.notifier).fetch(),
+                onPressed: () => ref.read(brainParamsProvider.notifier).fetch(),
               ),
             ],
           ),
@@ -731,7 +736,9 @@ mixin _GuidingDesktopSections
           flex: 1,
           child: Text(
             label,
-            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+            style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -348,10 +348,7 @@ void main() {
         const ui.Color(0xFFE83E8C),
       ];
       for (var i = 0; i < 4; i++) {
-        cache.put(
-          id(i),
-          await makeImage(tilePx, tilePx, color: colors[i]),
-        );
+        cache.put(id(i), await makeImage(tilePx, tilePx, color: colors[i]));
       }
 
       final snap = cache.snapshot();
@@ -378,7 +375,12 @@ void main() {
         final dest = entry.value & const ui.Size(tilePxD, tilePxD);
         canvas.drawImageRect(
           image!,
-          ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+          ui.Rect.fromLTWH(
+            0,
+            0,
+            image.width.toDouble(),
+            image.height.toDouble(),
+          ),
           dest,
           paint,
         );

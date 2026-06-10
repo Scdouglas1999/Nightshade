@@ -10,9 +10,19 @@ void main() {
         raBand: 7,
         decBand: 12,
         records: const [
-          DeepStarRecord(raHours: 12.345678, decDeg: -5.123456, magnitude: 12.4, bv: 0.65),
+          DeepStarRecord(
+            raHours: 12.345678,
+            decDeg: -5.123456,
+            magnitude: 12.4,
+            bv: 0.65,
+          ),
           DeepStarRecord(raHours: 0.0, decDeg: 89.9, magnitude: 11.8, bv: -0.1),
-          DeepStarRecord(raHours: 23.999999, decDeg: -89.9, magnitude: 12.9, bv: null),
+          DeepStarRecord(
+            raHours: 23.999999,
+            decDeg: -89.9,
+            magnitude: 12.9,
+            bv: null,
+          ),
         ],
       );
 
@@ -27,13 +37,17 @@ void main() {
       expect(mags, [11.8, 12.4, 12.9]);
 
       // Find the round-tripped record for the high-precision input.
-      final r = decoded.records.firstWhere((x) => (x.magnitude - 12.4).abs() < 1e-6);
+      final r = decoded.records.firstWhere(
+        (x) => (x.magnitude - 12.4).abs() < 1e-6,
+      );
       expect(r.raHours, closeTo(12.345678, 1e-6));
       expect(r.decDeg, closeTo(-5.123456, 1e-6));
       expect(r.bv, closeTo(0.65, 1e-3));
 
       // Unknown B-V stays null after the sentinel round-trips.
-      final noColor = decoded.records.firstWhere((x) => (x.magnitude - 12.9).abs() < 1e-6);
+      final noColor = decoded.records.firstWhere(
+        (x) => (x.magnitude - 12.9).abs() < 1e-6,
+      );
       expect(noColor.bv, isNull);
     });
 
@@ -83,7 +97,10 @@ void main() {
       expect(DeepStarTileScheme.decBandOf(-90), 0);
       expect(DeepStarTileScheme.decBandOf(89.9), 17);
       // RA wraps.
-      expect(DeepStarTileScheme.raBandOf(24.5), DeepStarTileScheme.raBandOf(0.5));
+      expect(
+        DeepStarTileScheme.raBandOf(24.5),
+        DeepStarTileScheme.raBandOf(0.5),
+      );
     });
 
     test('narrow viewport selects only a handful of tiles', () {

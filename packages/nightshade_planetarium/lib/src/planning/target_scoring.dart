@@ -108,12 +108,7 @@ enum WarningType {
 }
 
 /// Warning severity levels
-enum WarningSeverity {
-  info,
-  caution,
-  warning,
-  critical,
-}
+enum WarningSeverity { info, caution, warning, critical }
 
 /// A warning about target conditions
 class TargetWarning {
@@ -237,7 +232,8 @@ class TargetScoringService {
     );
 
     // Calculate weighted total score
-    final totalScore = (altScore * weights.altitudeWeight +
+    final totalScore =
+        (altScore * weights.altitudeWeight +
             moonScore * weights.moonDistanceWeight +
             transitScore * weights.transitProximityWeight +
             darknessScore * weights.darknessWeight +
@@ -350,8 +346,9 @@ class TargetScoringService {
     final bool everObservable = samplesAboveMin > 0;
     final double peakAlt = everObservable ? observablePeakAlt : overallPeakAlt;
     final double peakAz = everObservable ? observablePeakAz : overallPeakAz;
-    final DateTime peakTime =
-        everObservable ? observablePeakTime! : overallPeakTime;
+    final DateTime peakTime = everObservable
+        ? observablePeakTime!
+        : overallPeakTime;
 
     final hoursAboveMin = totalSamples > 0
         ? (samplesAboveMin * sampleInterval.inMinutes / 60.0)
@@ -359,9 +356,7 @@ class TargetScoringService {
 
     // Calculate visibility (rise/transit/set) relative to the night's midpoint
     final nightMid = nightStart.add(
-      Duration(
-        seconds: nightEnd.difference(nightStart).inSeconds ~/ 2,
-      ),
+      Duration(seconds: nightEnd.difference(nightStart).inSeconds ~/ 2),
     );
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: raDeg,
@@ -430,7 +425,8 @@ class TargetScoringService {
     );
 
     // Calculate weighted total score
-    final totalScore = (altScore * weights.altitudeWeight +
+    final totalScore =
+        (altScore * weights.altitudeWeight +
             moonScore * weights.moonDistanceWeight +
             transitScore * weights.transitProximityWeight +
             darknessScore * weights.darknessWeight +
@@ -467,10 +463,9 @@ class TargetScoringService {
     double minScore = 50,
     int maxResults = 10,
   }) {
-    return scoreTargets(targets)
-        .where((s) => s.totalScore >= minScore)
-        .take(maxResults)
-        .toList();
+    return scoreTargets(
+      targets,
+    ).where((s) => s.totalScore >= minScore).take(maxResults).toList();
   }
 
   double _scoreAltitude(double altitude) {
@@ -503,8 +498,10 @@ class TargetScoringService {
     if (visibility.neverRises) return 0;
     if (visibility.transitTime == null) return 50; // Unknown
 
-    final minutesToTransit =
-        visibility.transitTime!.difference(time).inMinutes.abs();
+    final minutesToTransit = visibility.transitTime!
+        .difference(time)
+        .inMinutes
+        .abs();
 
     // Best score when close to transit (within 2 hours)
     if (minutesToTransit < 30) return 100;
@@ -567,146 +564,181 @@ class TargetScoringService {
 
     // Below horizon
     if (alt < 0) {
-      warnings.add(TargetWarning(
-        type: WarningType.belowHorizon,
-        severity: WarningSeverity.critical,
-        message: 'Target is below the horizon (${alt.toStringAsFixed(1)}°)',
-        suggestion: visibility.riseTime != null
-            ? 'Will rise at ${_formatTime(visibility.riseTime!)}'
-            : null,
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.belowHorizon,
+          severity: WarningSeverity.critical,
+          message: 'Target is below the horizon (${alt.toStringAsFixed(1)}°)',
+          suggestion: visibility.riseTime != null
+              ? 'Will rise at ${_formatTime(visibility.riseTime!)}'
+              : null,
+        ),
+      );
     }
     // Very low altitude
     else if (alt < 15) {
-      warnings.add(TargetWarning(
-        type: WarningType.lowAltitude,
-        severity: WarningSeverity.warning,
-        message: 'Low altitude (${alt.toStringAsFixed(1)}°) - poor seeing expected',
-        suggestion: 'Consider waiting for higher altitude',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.lowAltitude,
+          severity: WarningSeverity.warning,
+          message:
+              'Low altitude (${alt.toStringAsFixed(1)}°) - poor seeing expected',
+          suggestion: 'Consider waiting for higher altitude',
+        ),
+      );
     }
     // Low altitude
     else if (alt < 30) {
-      warnings.add(TargetWarning(
-        type: WarningType.lowAltitude,
-        severity: WarningSeverity.caution,
-        message: 'Moderate altitude (${alt.toStringAsFixed(1)}°)',
-        suggestion: visibility.transitTime != null
-            ? 'Best at transit: ${visibility.transitAltitude?.toStringAsFixed(0)}°'
-            : null,
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.lowAltitude,
+          severity: WarningSeverity.caution,
+          message: 'Moderate altitude (${alt.toStringAsFixed(1)}°)',
+          suggestion: visibility.transitTime != null
+              ? 'Best at transit: ${visibility.transitAltitude?.toStringAsFixed(0)}°'
+              : null,
+        ),
+      );
     }
 
     // High airmass
     if (airmass > 2.5 && airmass.isFinite) {
-      warnings.add(TargetWarning(
-        type: WarningType.highAirmass,
-        severity: WarningSeverity.warning,
-        message: 'High airmass (${airmass.toStringAsFixed(2)}) - atmospheric extinction',
-        suggestion: 'Image quality may be degraded',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.highAirmass,
+          severity: WarningSeverity.warning,
+          message:
+              'High airmass (${airmass.toStringAsFixed(2)}) - atmospheric extinction',
+          suggestion: 'Image quality may be degraded',
+        ),
+      );
     } else if (airmass > 2.0 && airmass.isFinite) {
-      warnings.add(TargetWarning(
-        type: WarningType.highAirmass,
-        severity: WarningSeverity.caution,
-        message: 'Elevated airmass (${airmass.toStringAsFixed(2)})',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.highAirmass,
+          severity: WarningSeverity.caution,
+          message: 'Elevated airmass (${airmass.toStringAsFixed(2)})',
+        ),
+      );
     }
 
     // Moon proximity
     if (moonIllumination > 20) {
       if (moonDist < 15) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.critical,
-          message:
-              'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-          suggestion: 'Consider narrowband filters or a different target',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.critical,
+            message:
+                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+            suggestion: 'Consider narrowband filters or a different target',
+          ),
+        );
       } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.warning,
-          message:
-              'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-          suggestion: 'Use narrowband filters to reduce sky glow',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.warning,
+            message:
+                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+            suggestion: 'Use narrowband filters to reduce sky glow',
+          ),
+        );
       } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.caution,
-          message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-          suggestion: 'Some sky glow may be present',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.caution,
+            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
+            suggestion: 'Some sky glow may be present',
+          ),
+        );
       }
     }
 
     // Setting soon
     if (visibility.setTime != null && alt > 0) {
-      final minutesToSet =
-          visibility.setTime!.difference(observationTime).inMinutes;
+      final minutesToSet = visibility.setTime!
+          .difference(observationTime)
+          .inMinutes;
       if (minutesToSet > 0 && minutesToSet < 60) {
-        warnings.add(TargetWarning(
-          type: WarningType.settingSoon,
-          severity: WarningSeverity.warning,
-          message: 'Setting in ${minutesToSet} minutes',
-          suggestion: 'Start imaging soon or wait for tomorrow',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.settingSoon,
+            severity: WarningSeverity.warning,
+            message: 'Setting in ${minutesToSet} minutes',
+            suggestion: 'Start imaging soon or wait for tomorrow',
+          ),
+        );
       } else if (minutesToSet > 0 && minutesToSet < 120) {
-        warnings.add(TargetWarning(
-          type: WarningType.settingSoon,
-          severity: WarningSeverity.caution,
-          message: 'Setting in ${(minutesToSet / 60).toStringAsFixed(1)} hours',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.settingSoon,
+            severity: WarningSeverity.caution,
+            message:
+                'Setting in ${(minutesToSet / 60).toStringAsFixed(1)} hours',
+          ),
+        );
       }
     }
 
     // Not yet risen
     if (alt < 0 && visibility.riseTime != null) {
-      final minutesToRise =
-          visibility.riseTime!.difference(observationTime).inMinutes;
+      final minutesToRise = visibility.riseTime!
+          .difference(observationTime)
+          .inMinutes;
       if (minutesToRise > 0) {
-        warnings.add(TargetWarning(
-          type: WarningType.notYetRisen,
-          severity: WarningSeverity.info,
-          message: 'Rises in ${(minutesToRise / 60).toStringAsFixed(1)} hours',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.notYetRisen,
+            severity: WarningSeverity.info,
+            message:
+                'Rises in ${(minutesToRise / 60).toStringAsFixed(1)} hours',
+          ),
+        );
       }
     }
 
     // Check if during twilight
     if (twilight != null) {
-      final inAstroDark = (twilight!.astronomicalDusk != null &&
-              twilight!.astronomicalDawn != null &&
-              observationTime.isAfter(twilight!.astronomicalDusk!) &&
-              observationTime.isBefore(twilight!.astronomicalDawn!));
+      final inAstroDark =
+          (twilight!.astronomicalDusk != null &&
+          twilight!.astronomicalDawn != null &&
+          observationTime.isAfter(twilight!.astronomicalDusk!) &&
+          observationTime.isBefore(twilight!.astronomicalDawn!));
 
       if (!inAstroDark) {
-        final inNautical = (twilight!.nauticalDusk != null &&
+        final inNautical =
+            (twilight!.nauticalDusk != null &&
             twilight!.nauticalDawn != null &&
             observationTime.isAfter(twilight!.nauticalDusk!) &&
             observationTime.isBefore(twilight!.nauticalDawn!));
 
         if (inNautical) {
-          warnings.add(const TargetWarning(
-            type: WarningType.twilight,
-            severity: WarningSeverity.caution,
-            message: 'Nautical twilight - not fully dark',
-            suggestion: 'Wait for astronomical darkness for best results',
-          ));
+          warnings.add(
+            const TargetWarning(
+              type: WarningType.twilight,
+              severity: WarningSeverity.caution,
+              message: 'Nautical twilight - not fully dark',
+              suggestion: 'Wait for astronomical darkness for best results',
+            ),
+          );
         } else {
-          final inCivil = (twilight!.civilDusk != null &&
+          final inCivil =
+              (twilight!.civilDusk != null &&
               twilight!.civilDawn != null &&
               observationTime.isAfter(twilight!.civilDusk!) &&
               observationTime.isBefore(twilight!.civilDawn!));
 
           if (inCivil) {
-            warnings.add(const TargetWarning(
-              type: WarningType.twilight,
-              severity: WarningSeverity.warning,
-              message: 'Civil twilight - sky is still bright',
-              suggestion: 'Use for flats or calibration only',
-            ));
+            warnings.add(
+              const TargetWarning(
+                type: WarningType.twilight,
+                severity: WarningSeverity.warning,
+                message: 'Civil twilight - sky is still bright',
+                suggestion: 'Use for flats or calibration only',
+              ),
+            );
           }
         }
       }
@@ -734,9 +766,7 @@ class TargetScoringService {
 
     final transitTime = visibility.transitTime!;
     final nightMid = nightStart.add(
-      Duration(
-        seconds: nightEnd.difference(nightStart).inSeconds ~/ 2,
-      ),
+      Duration(seconds: nightEnd.difference(nightStart).inSeconds ~/ 2),
     );
     final halfNightMinutes = nightEnd.difference(nightStart).inMinutes / 2;
 
@@ -753,8 +783,9 @@ class TargetScoringService {
     // Transit is outside the night - score based on proximity to the window
     final minutesToStart = transitTime.difference(nightStart).inMinutes.abs();
     final minutesToEnd = transitTime.difference(nightEnd).inMinutes.abs();
-    final closestMinutes =
-        minutesToStart < minutesToEnd ? minutesToStart : minutesToEnd;
+    final closestMinutes = minutesToStart < minutesToEnd
+        ? minutesToStart
+        : minutesToEnd;
 
     if (closestMinutes < 60) return 60;
     if (closestMinutes < 120) return 40;
@@ -798,93 +829,113 @@ class TargetScoringService {
 
     // Peak altitude warnings
     if (peakAlt < 0) {
-      warnings.add(const TargetWarning(
-        type: WarningType.belowHorizon,
-        severity: WarningSeverity.critical,
-        message: 'Below horizon all night',
-        suggestion: 'Target is not visible during this night',
-      ));
+      warnings.add(
+        const TargetWarning(
+          type: WarningType.belowHorizon,
+          severity: WarningSeverity.critical,
+          message: 'Below horizon all night',
+          suggestion: 'Target is not visible during this night',
+        ),
+      );
     } else if (peakAlt < 15) {
-      warnings.add(TargetWarning(
-        type: WarningType.lowAltitude,
-        severity: WarningSeverity.warning,
-        message:
-            'Low peak altitude (${peakAlt.toStringAsFixed(0)}°) - poor seeing expected',
-        suggestion: 'Consider imaging on a different night',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.lowAltitude,
+          severity: WarningSeverity.warning,
+          message:
+              'Low peak altitude (${peakAlt.toStringAsFixed(0)}°) - poor seeing expected',
+          suggestion: 'Consider imaging on a different night',
+        ),
+      );
     } else if (peakAlt < 30) {
-      warnings.add(TargetWarning(
-        type: WarningType.lowAltitude,
-        severity: WarningSeverity.caution,
-        message: 'Moderate peak altitude (${peakAlt.toStringAsFixed(0)}°)',
-        suggestion: visibility.transitAltitude != null
-            ? 'Max altitude: ${visibility.transitAltitude?.toStringAsFixed(0)}°'
-            : null,
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.lowAltitude,
+          severity: WarningSeverity.caution,
+          message: 'Moderate peak altitude (${peakAlt.toStringAsFixed(0)}°)',
+          suggestion: visibility.transitAltitude != null
+              ? 'Max altitude: ${visibility.transitAltitude?.toStringAsFixed(0)}°'
+              : null,
+        ),
+      );
     }
 
     // Airmass (best during the night)
     if (bestAirmass > 2.5 && bestAirmass.isFinite) {
-      warnings.add(TargetWarning(
-        type: WarningType.highAirmass,
-        severity: WarningSeverity.warning,
-        message:
-            'Best airmass ${bestAirmass.toStringAsFixed(2)} - atmospheric extinction',
-        suggestion: 'Image quality may be degraded all night',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.highAirmass,
+          severity: WarningSeverity.warning,
+          message:
+              'Best airmass ${bestAirmass.toStringAsFixed(2)} - atmospheric extinction',
+          suggestion: 'Image quality may be degraded all night',
+        ),
+      );
     } else if (bestAirmass > 2.0 && bestAirmass.isFinite) {
-      warnings.add(TargetWarning(
-        type: WarningType.highAirmass,
-        severity: WarningSeverity.caution,
-        message: 'Elevated best airmass (${bestAirmass.toStringAsFixed(2)})',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.highAirmass,
+          severity: WarningSeverity.caution,
+          message: 'Elevated best airmass (${bestAirmass.toStringAsFixed(2)})',
+        ),
+      );
     }
 
     // Moon proximity
     if (moonIllumination > 20) {
       if (moonDist < 15) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.critical,
-          message:
-              'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-          suggestion: 'Consider narrowband filters or a different target',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.critical,
+            message:
+                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+            suggestion: 'Consider narrowband filters or a different target',
+          ),
+        );
       } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.warning,
-          message:
-              'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-          suggestion: 'Use narrowband filters to reduce sky glow',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.warning,
+            message:
+                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+            suggestion: 'Use narrowband filters to reduce sky glow',
+          ),
+        );
       } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(TargetWarning(
-          type: WarningType.moonProximity,
-          severity: WarningSeverity.caution,
-          message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-          suggestion: 'Some sky glow may be present',
-        ));
+        warnings.add(
+          TargetWarning(
+            type: WarningType.moonProximity,
+            severity: WarningSeverity.caution,
+            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
+            suggestion: 'Some sky glow may be present',
+          ),
+        );
       }
     }
 
     // Short imaging window
     final nightHours = nightEnd.difference(nightStart).inMinutes / 60.0;
     if (hoursAboveMin > 0 && hoursAboveMin < 2.0 && nightHours > 0) {
-      warnings.add(TargetWarning(
-        type: WarningType.settingSoon,
-        severity: WarningSeverity.warning,
-        message:
-            'Short imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
-        suggestion: 'Limited time above minimum altitude tonight',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.settingSoon,
+          severity: WarningSeverity.warning,
+          message:
+              'Short imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
+          suggestion: 'Limited time above minimum altitude tonight',
+        ),
+      );
     } else if (hoursAboveMin >= 2.0 && hoursAboveMin < 4.0 && nightHours > 4) {
-      warnings.add(TargetWarning(
-        type: WarningType.settingSoon,
-        severity: WarningSeverity.caution,
-        message:
-            'Moderate imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
-      ));
+      warnings.add(
+        TargetWarning(
+          type: WarningType.settingSoon,
+          severity: WarningSeverity.caution,
+          message:
+              'Moderate imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
+        ),
+      );
     }
 
     // Rises late in the night
@@ -895,12 +946,14 @@ class TargetScoringService {
         final riseOffset = riseTime.difference(nightStart);
         // If the target rises in the last third of the night
         if (riseOffset > nightDuration * 0.66) {
-          warnings.add(TargetWarning(
-            type: WarningType.notYetRisen,
-            severity: WarningSeverity.info,
-            message: 'Rises late at ${_formatTime(riseTime)}',
-            suggestion: 'Target becomes available late in the night',
-          ));
+          warnings.add(
+            TargetWarning(
+              type: WarningType.notYetRisen,
+              severity: WarningSeverity.info,
+              message: 'Rises late at ${_formatTime(riseTime)}',
+              suggestion: 'Target becomes available late in the night',
+            ),
+          );
         }
       }
     }
@@ -913,12 +966,14 @@ class TargetScoringService {
         final setOffset = setTime.difference(nightStart);
         // If the target sets in the first third of the night
         if (setOffset < nightDuration * 0.33) {
-          warnings.add(TargetWarning(
-            type: WarningType.settingSoon,
-            severity: WarningSeverity.caution,
-            message: 'Sets early at ${_formatTime(setTime)}',
-            suggestion: 'Image this target early in the session',
-          ));
+          warnings.add(
+            TargetWarning(
+              type: WarningType.settingSoon,
+              severity: WarningSeverity.caution,
+              message: 'Sets early at ${_formatTime(setTime)}',
+              suggestion: 'Image this target early in the session',
+            ),
+          );
         }
       }
     }

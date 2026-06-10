@@ -70,8 +70,7 @@ class ElementRefreshCard extends ConsumerWidget {
                     ? NightshadeIcons.success
                     : NightshadeIcons.circle,
                 size: 14,
-                color:
-                    status.hasData ? colors.success : colors.textSecondary,
+                color: status.hasData ? colors.success : colors.textSecondary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -128,11 +127,8 @@ class ElementRefreshCard extends ConsumerWidget {
                     ? null
                     : (s) async {
                         if (s == null) return;
-                        await service
-                            .saveConfig(config.copyWith(schedule: s));
-                        ref
-                            .read(elementRefreshReloadProvider.notifier)
-                            .state++;
+                        await service.saveConfig(config.copyWith(schedule: s));
+                        ref.read(elementRefreshReloadProvider.notifier).state++;
                       },
               ),
             ],

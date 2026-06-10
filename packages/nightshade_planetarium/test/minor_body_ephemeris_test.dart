@@ -35,9 +35,13 @@ void main() {
         DateTime.utc(2026, 1, 1),
       ]) {
         final data = KeplerianPropagator.propagate(el, date);
-        expect(data.heliocentricDistanceAU,
-            inInclusiveRange(el.perihelionDistance - 0.01,
-                el.aphelionDistance + 0.01));
+        expect(
+          data.heliocentricDistanceAU,
+          inInclusiveRange(
+            el.perihelionDistance - 0.01,
+            el.aphelionDistance + 0.01,
+          ),
+        );
         expect(data.ra, inInclusiveRange(0.0, 24.0));
         expect(data.dec, inInclusiveRange(-90.0, 90.0));
       }
@@ -47,16 +51,19 @@ void main() {
       // The embedded catalog uses an older osculating epoch (2024 Jan 1) with
       // its own mean anomaly, so it need not match the fresh MPCORB position
       // exactly — but it must stay a sane point on Ceres's orbit.
-      final bundled = MinorPlanetCatalog.asteroids
-          .firstWhere((a) => a.commonName == 'Ceres');
+      final bundled = MinorPlanetCatalog.asteroids.firstWhere(
+        (a) => a.commonName == 'Ceres',
+      );
       final data = KeplerianPropagator.propagate(
         bundled,
         DateTime.utc(2024, 1, 1),
       );
       expect(data.ra, inInclusiveRange(0.0, 24.0));
       expect(data.dec, inInclusiveRange(-90.0, 90.0));
-      expect(data.heliocentricDistanceAU,
-          closeTo(bundled.semiMajorAxis, bundled.semiMajorAxis * 0.1));
+      expect(
+        data.heliocentricDistanceAU,
+        closeTo(bundled.semiMajorAxis, bundled.semiMajorAxis * 0.1),
+      );
     });
   });
 }

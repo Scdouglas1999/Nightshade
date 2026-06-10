@@ -13,5 +13,7 @@ class GuideRmsHistoryDaoManager {
   GuideRmsHistoryDaoManager(this._db);
   $$GuideRmsHistoryTableTableManager get guideRmsHistory =>
       $$GuideRmsHistoryTableTableManager(
-          _db.attachedDatabase, _db.guideRmsHistory);
+        _db.attachedDatabase,
+        _db.guideRmsHistory,
+      );
 }

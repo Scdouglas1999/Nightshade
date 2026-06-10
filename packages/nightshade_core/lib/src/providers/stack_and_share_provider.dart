@@ -219,10 +219,13 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
 /// `autoDispose` so the in-memory RGBA / mono buffers (which can be tens of
 /// megabytes for a full-frame integration) are released as soon as the last
 /// listener — the Stack-and-Share screen — is torn down.
-final stackAndShareProvider = StateNotifierProvider.autoDispose<
-    StackAndShareNotifier, StackAndShareState>((ref) {
-  return StackAndShareNotifier(ref);
-});
+final stackAndShareProvider =
+    StateNotifierProvider.autoDispose<
+      StackAndShareNotifier,
+      StackAndShareState
+    >((ref) {
+      return StackAndShareNotifier(ref);
+    });
 
 /// Loads a single persisted [StackAndShareResult] by its database id for the
 /// result viewer.
@@ -233,18 +236,19 @@ final stackAndShareProvider = StateNotifierProvider.autoDispose<
 /// per CLAUDE.md).
 final stackResultViewerProvider =
     FutureProvider.family<StackAndShareResult, int>((ref, id) async {
-  final dao = ref.watch(stackedResultsDaoProvider);
-  final result = await dao.getResultById(id);
-  if (result == null) {
-    throw StateError('No stacked result found for id $id');
-  }
-  return result;
-});
+      final dao = ref.watch(stackedResultsDaoProvider);
+      final result = await dao.getResultById(id);
+      if (result == null) {
+        throw StateError('No stacked result found for id $id');
+      }
+      return result;
+    });
 
 /// The most recent stacked results across all sessions, newest first, for any
 /// history / gallery surface. Caps at the DAO's default limit.
-final recentStackedResultsProvider =
-    FutureProvider<List<StackAndShareResult>>((ref) async {
+final recentStackedResultsProvider = FutureProvider<List<StackAndShareResult>>((
+  ref,
+) async {
   final dao = ref.watch(stackedResultsDaoProvider);
   return dao.getRecentResults();
 });

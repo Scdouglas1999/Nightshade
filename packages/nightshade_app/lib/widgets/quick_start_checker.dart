@@ -94,10 +94,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       // Caught and degraded: background startup check should not surface an
       // error to the user, but we MUST keep the failure visible in logs.
       ref.read(loggingServiceProvider).warning(
-            'Error checking startup options: $e',
-            source: 'QuickStart',
-            fields: {'stackTrace': st.toString()},
-          );
+        'Error checking startup options: $e',
+        source: 'QuickStart',
+        fields: {'stackTrace': st.toString()},
+      );
     }
   }
 
@@ -150,10 +150,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       // Caught + surfaced to user via SnackBar; the failure is not fatal but
       // is user-visible, so log as error and include stack for diagnostics.
       ref.read(loggingServiceProvider).error(
-            'Error starting fresh: $e',
-            source: 'QuickStart',
-            fields: {'stackTrace': st.toString()},
-          );
+        'Error starting fresh: $e',
+        source: 'QuickStart',
+        fields: {'stackTrace': st.toString()},
+      );
       if (mounted) {
         final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(
@@ -214,10 +214,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       // Caught + surfaced to user via SnackBar; the failure is not fatal but
       // is user-visible, so log as error and include stack for diagnostics.
       ref.read(loggingServiceProvider).error(
-            'Error resuming progress: $e',
-            source: 'QuickStart',
-            fields: {'stackTrace': st.toString()},
-          );
+        'Error resuming progress: $e',
+        source: 'QuickStart',
+        fields: {'stackTrace': st.toString()},
+      );
       if (mounted) {
         final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(

@@ -243,8 +243,9 @@ class _HistogramPainter extends CustomPainter {
 
       if (logarithmic) {
         // Logarithmic scale: log(1 + value) / log(1 + maxVal)
-        normalizedHeight =
-            value > 0 ? math.log(1 + value) / math.log(1 + maxVal) : 0;
+        normalizedHeight = value > 0
+            ? math.log(1 + value) / math.log(1 + maxVal)
+            : 0;
       } else {
         // Linear scale
         normalizedHeight = value / maxVal;
@@ -253,7 +254,8 @@ class _HistogramPainter extends CustomPainter {
       final barHeight = normalizedHeight * size.height;
 
       // Check for clipping (first or last few bins with high values)
-      final isClipping = showClipping &&
+      final isClipping =
+          showClipping &&
           ((i < 3 && value > maxVal * 0.1) ||
               (i >= bins - 3 && value > maxVal * 0.1));
 
@@ -307,16 +309,40 @@ class _RgbHistogramPainter extends CustomPainter {
     final barWidth = size.width / bins;
 
     // Draw each channel with additive blending
-    _drawChannel(canvas, size, redHistogram, _histogramRed.withValues(alpha: 0.5),
-        barWidth, maxVal);
-    _drawChannel(canvas, size, greenHistogram,
-        _histogramGreen.withValues(alpha: 0.5), barWidth, maxVal);
-    _drawChannel(canvas, size, blueHistogram,
-        _histogramBlue.withValues(alpha: 0.5), barWidth, maxVal);
+    _drawChannel(
+      canvas,
+      size,
+      redHistogram,
+      _histogramRed.withValues(alpha: 0.5),
+      barWidth,
+      maxVal,
+    );
+    _drawChannel(
+      canvas,
+      size,
+      greenHistogram,
+      _histogramGreen.withValues(alpha: 0.5),
+      barWidth,
+      maxVal,
+    );
+    _drawChannel(
+      canvas,
+      size,
+      blueHistogram,
+      _histogramBlue.withValues(alpha: 0.5),
+      barWidth,
+      maxVal,
+    );
   }
 
-  void _drawChannel(Canvas canvas, Size size, List<int> histogram, Color color,
-      double barWidth, int maxVal) {
+  void _drawChannel(
+    Canvas canvas,
+    Size size,
+    List<int> histogram,
+    Color color,
+    double barWidth,
+    int maxVal,
+  ) {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -326,8 +352,9 @@ class _RgbHistogramPainter extends CustomPainter {
       double normalizedHeight;
 
       if (logarithmic) {
-        normalizedHeight =
-            value > 0 ? math.log(1 + value) / math.log(1 + maxVal) : 0;
+        normalizedHeight = value > 0
+            ? math.log(1 + value) / math.log(1 + maxVal)
+            : 0;
       } else {
         normalizedHeight = value / maxVal;
       }

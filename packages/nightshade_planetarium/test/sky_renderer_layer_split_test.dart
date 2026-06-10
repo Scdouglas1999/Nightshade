@@ -87,16 +87,18 @@ void main() {
     expect(b.shouldRepaint(a), isTrue);
   });
 
-  test('overlay layer repaints for a pose change (bright stars move on pan)',
-      () {
-    final a = makePainter(scope: SkyRenderScope.overlay, twinkle: 0.0);
-    final b = makePainter(
-      scope: SkyRenderScope.overlay,
-      viewState: const SkyViewState(centerRA: 6, centerDec: 0),
-      twinkle: 0.0,
-    );
-    expect(b.shouldRepaint(a), isTrue);
-  });
+  test(
+    'overlay layer repaints for a pose change (bright stars move on pan)',
+    () {
+      final a = makePainter(scope: SkyRenderScope.overlay, twinkle: 0.0);
+      final b = makePainter(
+        scope: SkyRenderScope.overlay,
+        viewState: const SkyViewState(centerRA: 6, centerDec: 0),
+        twinkle: 0.0,
+      );
+      expect(b.shouldRepaint(a), isTrue);
+    },
+  );
 
   test('overlay layer does NOT repaint for a sub-quantum twinkle change', () {
     // Two phases inside the same 1/20 bucket must not trigger a repaint.

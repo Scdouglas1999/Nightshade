@@ -209,8 +209,9 @@ abstract final class Responsive {
       minWidth: minWidth ?? 0.0,
       minHeight: minHeight ?? 0.0,
       maxWidth: preferredWidth != null ? math.min(preferredWidth, maxW) : maxW,
-      maxHeight:
-          preferredHeight != null ? math.min(preferredHeight, maxH) : maxH,
+      maxHeight: preferredHeight != null
+          ? math.min(preferredHeight, maxH)
+          : maxH,
     );
   }
 
@@ -277,7 +278,7 @@ abstract final class Responsive {
   static double scaleFactor(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final minDimension = math.min(size.width, size.height);
-    
+
     // Reference: 900px min dimension = 1.0 scale
     if (minDimension < 900) {
       // Scale down linearly from 1.0 to 0.85 as screen shrinks
@@ -338,11 +339,11 @@ abstract final class Responsive {
     double? bottom,
   }) {
     final scale = scaleFactor(context);
-    
+
     if (all != null) {
       return EdgeInsets.all(all * scale);
     }
-    
+
     return EdgeInsets.only(
       left: (left ?? horizontal ?? 0) * scale,
       top: (top ?? vertical ?? 0) * scale,

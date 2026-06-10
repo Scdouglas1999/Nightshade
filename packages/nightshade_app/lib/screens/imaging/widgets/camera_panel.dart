@@ -99,7 +99,8 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -109,8 +110,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                   Expanded(
                     child: Text(
                       'No camera connected',
-                      style:
-                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -138,7 +140,8 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                             isConnected && cameraState.temperature != null
                                 ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
                                 : '---',
-                            style: NightshadeTypography.h4.copyWith(color: widget.colors.textPrimary),
+                            style: NightshadeTypography.h4
+                                .copyWith(color: widget.colors.textPrimary),
                           ),
                           if (isConnected && coolingStatus.isCooling)
                             Padding(
@@ -331,7 +334,8 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               binningY: int.parse(parts[1]),
                             );
                             ref
-                                .read(exposureSettingsUserDirtyProvider.notifier)
+                                .read(
+                                    exposureSettingsUserDirtyProvider.notifier)
                                 .state = true;
                           }
                         }
@@ -500,7 +504,9 @@ class DebayeringCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Enable for color cameras to convert raw Bayer data to RGB',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 16),
 

@@ -156,7 +156,9 @@ void main() {
       );
 
   Future<void> waitUntilLoaded() async {
-    for (var i = 0; i < 50 && (state().loading || state().loadingSmartData); i++) {
+    for (var i = 0;
+        i < 50 && (state().loading || state().loadingSmartData);
+        i++) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
   }
@@ -240,7 +242,8 @@ void main() {
       ),
     );
     final stored = curve.toJson()..['population'] = populationPaths;
-    await masters.updateSmartFields(id, improvementCurveJson: jsonEncode(stored));
+    await masters.updateSmartFields(id,
+        improvementCurveJson: jsonEncode(stored));
   }
 
   test(
@@ -266,10 +269,7 @@ void main() {
     expect(rejected, 2);
 
     // s0/s1 stay accepted; s2/s3 (outside keptIndices) are now rejected.
-    final accepted = state()
-        .acceptedLights
-        .map((s) => s.filePath)
-        .toSet();
+    final accepted = state().acceptedLights.map((s) => s.filePath).toSet();
     expect(accepted, {'C:/subs/s0.fits', 'C:/subs/s1.fits'});
 
     // The cull fires an unawaited loadSmartData() to re-derive the backbone;

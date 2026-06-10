@@ -54,17 +54,17 @@ class CsvColumnMapping {
   /// derived from the CSV's header row so future imports with the same shape
   /// auto-apply the mapping.
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'name_col': nameColumn,
-        'ra_col': raColumn,
-        'dec_col': decColumn,
-        if (rotationColumn != null) 'rotation_col': rotationColumn,
-        if (countColumn != null) 'count_col': countColumn,
-        if (exposureTimeColumn != null) 'exposure_col': exposureTimeColumn,
-        if (filterColumn != null) 'filter_col': filterColumn,
-        if (priorityColumn != null) 'priority_col': priorityColumn,
-        if (notesColumn != null) 'notes_col': notesColumn,
-        'skip_header': skipHeader,
-      };
+    'name_col': nameColumn,
+    'ra_col': raColumn,
+    'dec_col': decColumn,
+    if (rotationColumn != null) 'rotation_col': rotationColumn,
+    if (countColumn != null) 'count_col': countColumn,
+    if (exposureTimeColumn != null) 'exposure_col': exposureTimeColumn,
+    if (filterColumn != null) 'filter_col': filterColumn,
+    if (priorityColumn != null) 'priority_col': priorityColumn,
+    if (notesColumn != null) 'notes_col': notesColumn,
+    'skip_header': skipHeader,
+  };
 
   factory CsvColumnMapping.fromJson(Map<String, dynamic> json) {
     int? optInt(String key) =>
@@ -131,8 +131,9 @@ class GenericCsvImporter {
     final columnCount = rows.first.length;
     // A row "looks like a header" if it has no numeric cells. That's a
     // good heuristic for the CSVs astrophotographers actually share.
-    final hasHeader =
-        rows.first.every((c) => double.tryParse(c.trim()) == null);
+    final hasHeader = rows.first.every(
+      (c) => double.tryParse(c.trim()) == null,
+    );
     final headers = hasHeader ? rows.first : null;
     final dataRows = hasHeader ? rows.skip(1).toList() : rows;
     final sample = dataRows.take(sampleSize).toList();
@@ -221,35 +222,37 @@ class GenericCsvImporter {
       };
       final exposureChildren = <CanonicalSequenceNode>[];
       if (exposureTime != null || count != null) {
-        exposureChildren.add(CanonicalSequenceNode(
-          kind: CanonicalKind.exposure,
-          name: 'Light',
-          sourceType: 'GenericCsvExposure',
-          attributes: {
-            'exposureTime': exposureTime ?? 60.0,
-            'count': count ?? 1,
-            if (filter != null) 'filterName': filter,
-            'imageType': 'LIGHT',
-          },
-        ));
+        exposureChildren.add(
+          CanonicalSequenceNode(
+            kind: CanonicalKind.exposure,
+            name: 'Light',
+            sourceType: 'GenericCsvExposure',
+            attributes: {
+              'exposureTime': exposureTime ?? 60.0,
+              'count': count ?? 1,
+              if (filter != null) 'filterName': filter,
+              'imageType': 'LIGHT',
+            },
+          ),
+        );
       }
 
-      children.add(CanonicalSequenceNode(
-        kind: CanonicalKind.targetHeader,
-        name: name,
-        sourceType: 'GenericCsvTarget',
-        attributes: attrs,
-        children: exposureChildren,
-      ));
+      children.add(
+        CanonicalSequenceNode(
+          kind: CanonicalKind.targetHeader,
+          name: name,
+          sourceType: 'GenericCsvTarget',
+          attributes: attrs,
+          children: exposureChildren,
+        ),
+      );
     }
 
     return CanonicalSequenceNode(
       kind: CanonicalKind.sequential,
       name: sequenceName ?? 'CSV Import',
       sourceType: 'GenericCsv',
-      attributes: {
-        'rowCount': dataRows.length,
-      },
+      attributes: {'rowCount': dataRows.length},
       children: children,
     );
   }

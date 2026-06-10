@@ -13,9 +13,11 @@ final deviceMatchingServiceProvider = Provider<DeviceMatchingService>((ref) {
 
 /// Provider for unified device discovery state
 final unifiedDiscoveryProvider =
-    StateNotifierProvider<UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((ref) {
-  return UnifiedDiscoveryNotifier(ref);
-});
+    StateNotifierProvider<UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((
+      ref,
+    ) {
+      return UnifiedDiscoveryNotifier(ref);
+    });
 
 /// Notifier for managing unified device discovery across all backends
 class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
@@ -100,7 +102,9 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Update state with results
-    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
+    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(
+      state.backendStates,
+    );
     updatedStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: result.error != null
@@ -163,7 +167,10 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     _cancelled = false;
 
     // UI-P0-4: clear stale devices for backends being rescanned.
-    state = _discoveringStateForBackends(staleBackends, mergeWithExisting: true);
+    state = _discoveringStateForBackends(
+      staleBackends,
+      mergeWithExisting: true,
+    );
 
     // Discover stale backends in parallel
     final futures = <Future<_BackendResult>>[];
@@ -175,8 +182,9 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Merge results into existing state
-    final updatedStates =
-        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
+    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(
+      state.backendStates,
+    );
     for (final result in results) {
       updatedStates[result.backend] = BackendDiscoveryState(
         backend: result.backend,
@@ -317,7 +325,10 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final indiPort = port ?? settings.indiServerPort;
           if (indiHost.isNotEmpty) {
             try {
-              devices = await deviceService.discoverIndiAtAddress(indiHost, indiPort);
+              devices = await deviceService.discoverIndiAtAddress(
+                indiHost,
+                indiPort,
+              );
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -333,7 +344,10 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final alpacaPort = port ?? settings.alpacaServerPort;
           if (alpacaHost.isNotEmpty) {
             try {
-              devices = await deviceService.discoverAlpacaAtAddress(alpacaHost, alpacaPort);
+              devices = await deviceService.discoverAlpacaAtAddress(
+                alpacaHost,
+                alpacaPort,
+              );
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -347,11 +361,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
       return _BackendResult(backend: backend, devices: devices);
     } catch (e) {
-      return _BackendResult(
-        backend: backend,
-        devices: [],
-        error: e.toString(),
-      );
+      return _BackendResult(backend: backend, devices: [], error: e.toString());
     }
   }
 }

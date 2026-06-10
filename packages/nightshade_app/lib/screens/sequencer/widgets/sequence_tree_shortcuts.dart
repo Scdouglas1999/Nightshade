@@ -126,10 +126,12 @@ class _CollapsedNodeIdsNotifier extends StateNotifier<Set<String>> {
 Map<Type, Action<Intent>> buildSequenceTreeActions(WidgetRef ref) {
   return <Type, Action<Intent>>{
     TreeMoveSelectionUpIntent: CallbackAction<TreeMoveSelectionUpIntent>(
-      onInvoke: (intent) => _moveSelection(ref, delta: -1, extend: intent.extend),
+      onInvoke: (intent) =>
+          _moveSelection(ref, delta: -1, extend: intent.extend),
     ),
     TreeMoveSelectionDownIntent: CallbackAction<TreeMoveSelectionDownIntent>(
-      onInvoke: (intent) => _moveSelection(ref, delta: 1, extend: intent.extend),
+      onInvoke: (intent) =>
+          _moveSelection(ref, delta: 1, extend: intent.extend),
     ),
     TreeCollapseFocusedIntent: CallbackAction<TreeCollapseFocusedIntent>(
       onInvoke: (_) {
@@ -151,8 +153,7 @@ Map<Type, Action<Intent>> buildSequenceTreeActions(WidgetRef ref) {
       onInvoke: (_) {
         // Tick the request counter; NodePropertiesPanel listens via
         // ref.listen and calls FocusScope.requestFocus on its first field.
-        final notifier =
-            ref.read(propertiesPanelFocusRequestProvider.notifier);
+        final notifier = ref.read(propertiesPanelFocusRequestProvider.notifier);
         notifier.state = notifier.state + 1;
         return null;
       },

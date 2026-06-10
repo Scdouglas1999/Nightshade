@@ -12,8 +12,7 @@ import 'settings_widgets.dart';
 class NotificationSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const NotificationSettings(
-      {super.key, this.isMobile = false});
+  const NotificationSettings({super.key, this.isMobile = false});
 
   @override
   ConsumerState<NotificationSettings> createState() =>
@@ -227,8 +226,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 SettingRow(
                   icon: LucideIcons.bellRing,
                   title: 'Audible alert on critical events',
-                  subtitle:
-                      'Play the system bell when a critical error fires',
+                  subtitle: 'Play the system bell when a critical error fires',
                   trailing: SettingsSwitch(
                     value: settings.audibleAlertsOnCritical,
                     onChanged: (value) {
@@ -241,8 +239,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 SettingRow(
                   icon: LucideIcons.volume2,
                   title: 'Alert sound',
-                  subtitle:
-                      'Which sound to play when critical events fire',
+                  subtitle: 'Which sound to play when critical events fire',
                   trailing: SettingsDropdown(
                     value: settings.criticalAlertSound,
                     items: const ['systemBell', 'none'],

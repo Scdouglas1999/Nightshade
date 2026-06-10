@@ -54,8 +54,9 @@ void main() {
         nativeFocalRatio: 3.85,
         isBuiltIn: false,
       );
-      final withOverride =
-          service.withOverrides(telescopeOverrides: [replacement]);
+      final withOverride = service.withOverrides(
+        telescopeOverrides: [replacement],
+      );
 
       final matching = withOverride
           .allTelescopes()
@@ -72,32 +73,31 @@ void main() {
       );
     });
 
-    test('user preset (isBuiltIn:false) with a new id appears in allX first',
-        () {
-      final customId = newHardwarePresetId();
-      final custom = CameraDefaultsPreset(
-        id: customId,
-        brand: 'Homebrew',
-        model: 'CoolCam 9000',
-        aliases: const ['CC9000'],
-        pixelSizeMicrons: 5.0,
-        sensorWidthPx: 1000,
-        sensorHeightPx: 1000,
-        sensorName: 'Custom CMOS',
-        isColor: false,
-        recommendedGain: 50,
-        recommendedOffset: 10,
-        isBuiltIn: false,
-      );
-      final withCustom = service.withOverrides(cameraOverrides: [custom]);
+    test(
+      'user preset (isBuiltIn:false) with a new id appears in allX first',
+      () {
+        final customId = newHardwarePresetId();
+        final custom = CameraDefaultsPreset(
+          id: customId,
+          brand: 'Homebrew',
+          model: 'CoolCam 9000',
+          aliases: const ['CC9000'],
+          pixelSizeMicrons: 5.0,
+          sensorWidthPx: 1000,
+          sensorHeightPx: 1000,
+          sensorName: 'Custom CMOS',
+          isColor: false,
+          recommendedGain: 50,
+          recommendedOffset: 10,
+          isBuiltIn: false,
+        );
+        final withCustom = service.withOverrides(cameraOverrides: [custom]);
 
-      expect(withCustom.allCameras().first, custom);
-      expect(
-        withCustom.allCameras().length,
-        service.allCameras().length + 1,
-      );
-      expect(withCustom.searchCameras('CoolCam').single.id, customId);
-    });
+        expect(withCustom.allCameras().first, custom);
+        expect(withCustom.allCameras().length, service.allCameras().length + 1);
+        expect(withCustom.searchCameras('CoolCam').single.id, customId);
+      },
+    );
 
     test('search ranks exact match before startsWith before contains', () {
       const exact = CameraDefaultsPreset(
@@ -143,35 +143,42 @@ void main() {
         cameraCatalog: [contains, startsWith, exact],
       );
       final results = ranked.searchCameras('Orion');
-      expect(
-        results.map((preset) => preset.id),
-        ['cam.test.exact', 'cam.test.startswith', 'cam.test.contains'],
-      );
+      expect(results.map((preset) => preset.id), [
+        'cam.test.exact',
+        'cam.test.startswith',
+        'cam.test.contains',
+      ]);
     });
 
-    test('matchCameraByName resolves reported names to the IMX571 mono preset',
-        () {
-      final byModel = service.matchCameraByName('ASI2600MM Pro');
-      expect(byModel, isNotNull);
-      expect(byModel!.id, 'cam.zwo.asi2600mm');
-      expect(byModel.sensorName, 'Sony IMX571');
-      expect(byModel.isColor, isFalse);
+    test(
+      'matchCameraByName resolves reported names to the IMX571 mono preset',
+      () {
+        final byModel = service.matchCameraByName('ASI2600MM Pro');
+        expect(byModel, isNotNull);
+        expect(byModel!.id, 'cam.zwo.asi2600mm');
+        expect(byModel.sensorName, 'Sony IMX571');
+        expect(byModel.isColor, isFalse);
 
-      final byBrandedAlias = service.matchCameraByName('ZWO ASI2600MM');
-      expect(byBrandedAlias, isNotNull);
-      expect(byBrandedAlias!.id, 'cam.zwo.asi2600mm');
-      expect(byBrandedAlias.isColor, isFalse);
+        final byBrandedAlias = service.matchCameraByName('ZWO ASI2600MM');
+        expect(byBrandedAlias, isNotNull);
+        expect(byBrandedAlias!.id, 'cam.zwo.asi2600mm');
+        expect(byBrandedAlias.isColor, isFalse);
 
-      // Normalization tolerates punctuation/case differences.
-      final messy = service.matchCameraByName('zwo-asi2600mm-pro');
-      expect(messy?.id, 'cam.zwo.asi2600mm');
-    });
+        // Normalization tolerates punctuation/case differences.
+        final messy = service.matchCameraByName('zwo-asi2600mm-pro');
+        expect(messy?.id, 'cam.zwo.asi2600mm');
+      },
+    );
 
     test('matchCameraByName does not confuse the mono and color variants', () {
-      expect(service.matchCameraByName('ASI2600MC Pro')?.id,
-          'cam.zwo.asi2600mc');
-      expect(service.matchCameraByName('ASI2600MM Pro')?.id,
-          'cam.zwo.asi2600mm');
+      expect(
+        service.matchCameraByName('ASI2600MC Pro')?.id,
+        'cam.zwo.asi2600mc',
+      );
+      expect(
+        service.matchCameraByName('ASI2600MM Pro')?.id,
+        'cam.zwo.asi2600mm',
+      );
     });
 
     test('matchCameraByName returns null for empty or unknown names', () {
@@ -226,8 +233,9 @@ void main() {
           ),
         ];
 
-        final encoded =
-            HardwarePresetsService.encodeTelescopeOverrides(originals);
+        final encoded = HardwarePresetsService.encodeTelescopeOverrides(
+          originals,
+        );
         final decoded = HardwarePresetsService.telescopeOverridesFromJson(
           jsonDecode(encoded),
         );
@@ -272,8 +280,9 @@ void main() {
 
       test('non-list JSON throws FormatException', () {
         expect(
-          () => HardwarePresetsService.telescopeOverridesFromJson(
-              {'not': 'a list'}),
+          () => HardwarePresetsService.telescopeOverridesFromJson({
+            'not': 'a list',
+          }),
           throwsFormatException,
         );
         expect(

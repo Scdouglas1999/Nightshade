@@ -17,8 +17,8 @@ final observingListsProvider = StreamProvider<List<ObservingList>>((ref) {
 /// Reactive stream of items in a specific list.
 final observingListItemsProvider =
     StreamProvider.family<List<ObservingListItem>, int>((ref, listId) {
-  return ref.watch(observingListsDaoProvider).watchItemsForList(listId);
-});
+      return ref.watch(observingListsDaoProvider).watchItemsForList(listId);
+    });
 
 /// Watch catalog IDs across all observing lists (for planetarium markers).
 final listedCatalogIdsProvider = StreamProvider<Set<String>>((ref) {
@@ -40,8 +40,8 @@ final activeObservingListIdProvider = StateProvider<int?>((ref) => null);
 /// StateNotifier for managing observing list UI interactions.
 final observingListNotifierProvider =
     StateNotifierProvider<ObservingListNotifier, ObservingListUiState>((ref) {
-  return ObservingListNotifier(ref);
-});
+      return ObservingListNotifier(ref);
+    });
 
 /// UI state for observing list management.
 class ObservingListUiState {
@@ -76,10 +76,7 @@ class ObservingListNotifier extends StateNotifier<ObservingListUiState> {
   ObservingListsDao get _dao => ref.read(observingListsDaoProvider);
 
   /// Create a new observing list.
-  Future<int?> createList({
-    required String name,
-    String? description,
-  }) async {
+  Future<int?> createList({required String name, String? description}) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
       final id = await _dao.createList(name: name, description: description);
@@ -180,10 +177,7 @@ class ObservingListNotifier extends StateNotifier<ObservingListUiState> {
       );
       return id;
     } catch (e) {
-      state = state.copyWith(
-        isSaving: false,
-        errorMessage: '$e',
-      );
+      state = state.copyWith(isSaving: false, errorMessage: '$e');
       return null;
     }
   }

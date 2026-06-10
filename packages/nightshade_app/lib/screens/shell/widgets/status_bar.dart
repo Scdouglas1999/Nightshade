@@ -228,7 +228,8 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 12),
       if (!widget.compact)
         _InfoChip(
-          icon: savePathExists ? NightshadeIcons.folderOpen : LucideIcons.folderX,
+          icon:
+              savePathExists ? NightshadeIcons.folderOpen : LucideIcons.folderX,
           value: savePathLabel,
           tooltip: savePathTooltip,
           colors: colors,

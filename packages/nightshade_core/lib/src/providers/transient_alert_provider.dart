@@ -25,7 +25,8 @@ const String _settingsKeyPrefix = 'transient_alert_';
 ///
 /// Settings are persisted to the app settings database and loaded on startup.
 /// Changes are immediately saved to ensure settings survive app restarts.
-class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSettings> {
+class TransientAlertSettingsNotifier
+    extends StateNotifier<TransientAlertSettings> {
   final SettingsDao _settingsDao;
   final LoggingService _logger;
   bool _initialized = false;
@@ -33,9 +34,9 @@ class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSetting
   TransientAlertSettingsNotifier({
     required SettingsDao settingsDao,
     required LoggingService logger,
-  })  : _settingsDao = settingsDao,
-        _logger = logger,
-        super(TransientAlertSettings.defaultSettings) {
+  }) : _settingsDao = settingsDao,
+       _logger = logger,
+       super(TransientAlertSettings.defaultSettings) {
     _loadSettings();
   }
 
@@ -50,12 +51,15 @@ class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSetting
       final sourcesJson = allSettings['${_settingsKeyPrefix}enabled_sources'];
       Set<TransientSource> enabledSources;
       if (sourcesJson != null) {
-        final sourcesList = (json.decode(sourcesJson) as List<dynamic>).cast<String>();
+        final sourcesList = (json.decode(sourcesJson) as List<dynamic>)
+            .cast<String>();
         enabledSources = sourcesList
-            .map((s) => TransientSource.values.firstWhere(
-                  (e) => e.name == s,
-                  orElse: () => TransientSource.aavso,
-                ))
+            .map(
+              (s) => TransientSource.values.firstWhere(
+                (e) => e.name == s,
+                orElse: () => TransientSource.aavso,
+              ),
+            )
             .toSet();
       } else {
         enabledSources = TransientAlertSettings.defaultSettings.enabledSources;
@@ -65,32 +69,40 @@ class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSetting
       final typesJson = allSettings['${_settingsKeyPrefix}types_to_monitor'];
       Set<TransientType> typesToMonitor;
       if (typesJson != null) {
-        final typesList = (json.decode(typesJson) as List<dynamic>).cast<String>();
+        final typesList = (json.decode(typesJson) as List<dynamic>)
+            .cast<String>();
         typesToMonitor = typesList
-            .map((t) => TransientType.values.firstWhere(
-                  (e) => e.name == t,
-                  orElse: () => TransientType.other,
-                ))
+            .map(
+              (t) => TransientType.values.firstWhere(
+                (e) => e.name == t,
+                orElse: () => TransientType.other,
+              ),
+            )
             .toSet();
       } else {
         typesToMonitor = TransientAlertSettings.defaultSettings.typesToMonitor;
       }
 
       // Parse numeric and boolean settings
-      final magnitudeThreshold = double.tryParse(
+      final magnitudeThreshold =
+          double.tryParse(
             allSettings['${_settingsKeyPrefix}magnitude_threshold'] ?? '',
           ) ??
           TransientAlertSettings.defaultSettings.magnitudeThreshold;
 
       final notifyOnNew =
-          allSettings['${_settingsKeyPrefix}notify_on_new']?.toLowerCase() == 'true' ||
-              (allSettings['${_settingsKeyPrefix}notify_on_new'] == null &&
-                  TransientAlertSettings.defaultSettings.notifyOnNew);
+          allSettings['${_settingsKeyPrefix}notify_on_new']?.toLowerCase() ==
+              'true' ||
+          (allSettings['${_settingsKeyPrefix}notify_on_new'] == null &&
+              TransientAlertSettings.defaultSettings.notifyOnNew);
 
       final autoQueueBright =
-          allSettings['${_settingsKeyPrefix}auto_queue_bright']?.toLowerCase() == 'true';
+          allSettings['${_settingsKeyPrefix}auto_queue_bright']
+              ?.toLowerCase() ==
+          'true';
 
-      final autoQueueMagnitude = double.tryParse(
+      final autoQueueMagnitude =
+          double.tryParse(
             allSettings['${_settingsKeyPrefix}auto_queue_magnitude'] ?? '',
           ) ??
           TransientAlertSettings.defaultSettings.autoQueueMagnitude;
@@ -124,16 +136,24 @@ class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSetting
   Future<void> _saveSettings() async {
     try {
       await _settingsDao.setSettings({
-        '${_settingsKeyPrefix}enabled_sources':
-            json.encode(state.enabledSources.map((s) => s.name).toList()),
-        '${_settingsKeyPrefix}types_to_monitor':
-            json.encode(state.typesToMonitor.map((t) => t.name).toList()),
-        '${_settingsKeyPrefix}magnitude_threshold': state.magnitudeThreshold.toString(),
+        '${_settingsKeyPrefix}enabled_sources': json.encode(
+          state.enabledSources.map((s) => s.name).toList(),
+        ),
+        '${_settingsKeyPrefix}types_to_monitor': json.encode(
+          state.typesToMonitor.map((t) => t.name).toList(),
+        ),
+        '${_settingsKeyPrefix}magnitude_threshold': state.magnitudeThreshold
+            .toString(),
         '${_settingsKeyPrefix}notify_on_new': state.notifyOnNew.toString(),
-        '${_settingsKeyPrefix}auto_queue_bright': state.autoQueueBright.toString(),
-        '${_settingsKeyPrefix}auto_queue_magnitude': state.autoQueueMagnitude.toString(),
+        '${_settingsKeyPrefix}auto_queue_bright': state.autoQueueBright
+            .toString(),
+        '${_settingsKeyPrefix}auto_queue_magnitude': state.autoQueueMagnitude
+            .toString(),
       });
-      _logger.debug('Transient alert settings saved', source: 'TransientAlertSettingsNotifier');
+      _logger.debug(
+        'Transient alert settings saved',
+        source: 'TransientAlertSettingsNotifier',
+      );
     } catch (e) {
       _logger.error(
         'Failed to save transient alert settings: $e',
@@ -200,14 +220,17 @@ class TransientAlertSettingsNotifier extends StateNotifier<TransientAlertSetting
 
 /// Provider for transient alert settings with persistence.
 final transientAlertSettingsProvider =
-    StateNotifierProvider<TransientAlertSettingsNotifier, TransientAlertSettings>((ref) {
-  final settingsDao = ref.watch(settingsDaoProvider);
-  final logger = ref.watch(loggingServiceProvider);
-  return TransientAlertSettingsNotifier(
-    settingsDao: settingsDao,
-    logger: logger,
-  );
-});
+    StateNotifierProvider<
+      TransientAlertSettingsNotifier,
+      TransientAlertSettings
+    >((ref) {
+      final settingsDao = ref.watch(settingsDaoProvider);
+      final logger = ref.watch(loggingServiceProvider);
+      return TransientAlertSettingsNotifier(
+        settingsDao: settingsDao,
+        logger: logger,
+      );
+    });
 
 // =============================================================================
 // Active Transient Alerts Provider
@@ -225,68 +248,74 @@ const Duration _alertPollingInterval = Duration(minutes: 15);
 /// In local mode, fetches directly from AAVSO/TNS APIs.
 final activeTransientAlertsProvider =
     StreamProvider.autoDispose<List<TransientAlert>>((ref) {
-  final backend = ref.watch(backendProvider);
-  final service = ref.watch(transientAlertServiceProvider);
-  final settings = ref.watch(transientAlertSettingsProvider);
-  final logger = ref.watch(loggingServiceProvider);
-  final networkBackend = backend is NetworkBackend ? backend : null;
+      final backend = ref.watch(backendProvider);
+      final service = ref.watch(transientAlertServiceProvider);
+      final settings = ref.watch(transientAlertSettingsProvider);
+      final logger = ref.watch(loggingServiceProvider);
+      final networkBackend = backend is NetworkBackend ? backend : null;
 
-  // Create a controller for the stream
-  final controller = StreamController<List<TransientAlert>>();
+      // Create a controller for the stream
+      final controller = StreamController<List<TransientAlert>>();
 
-  // Initial fetch
-  Future<void> fetchAlerts() async {
-    try {
-      List<TransientAlert> alerts;
+      // Initial fetch
+      Future<void> fetchAlerts() async {
+        try {
+          List<TransientAlert> alerts;
 
-      if (networkBackend != null) {
-        // Fetch from headless server API
-        final response = await networkBackend.getActiveTransients();
-        final alertsJson = response['alerts'] as List<dynamic>? ?? [];
-        alerts = alertsJson.map((json) => _parseTransientAlertFromJson(json as Map<String, dynamic>)).toList();
-        logger.debug(
-          'Fetched ${alerts.length} transient alerts from remote server',
-          source: 'activeTransientAlertsProvider',
-        );
-      } else {
-        // Fetch directly from AAVSO/TNS APIs
-        alerts = await service.getAllAlerts(settings);
-        logger.debug(
-          'Fetched ${alerts.length} transient alerts from local service',
-          source: 'activeTransientAlertsProvider',
-        );
+          if (networkBackend != null) {
+            // Fetch from headless server API
+            final response = await networkBackend.getActiveTransients();
+            final alertsJson = response['alerts'] as List<dynamic>? ?? [];
+            alerts = alertsJson
+                .map(
+                  (json) => _parseTransientAlertFromJson(
+                    json as Map<String, dynamic>,
+                  ),
+                )
+                .toList();
+            logger.debug(
+              'Fetched ${alerts.length} transient alerts from remote server',
+              source: 'activeTransientAlertsProvider',
+            );
+          } else {
+            // Fetch directly from AAVSO/TNS APIs
+            alerts = await service.getAllAlerts(settings);
+            logger.debug(
+              'Fetched ${alerts.length} transient alerts from local service',
+              source: 'activeTransientAlertsProvider',
+            );
+          }
+
+          if (!controller.isClosed) {
+            controller.add(alerts);
+          }
+        } catch (e) {
+          logger.error(
+            'Error fetching transient alerts: $e',
+            source: 'activeTransientAlertsProvider',
+          );
+          if (!controller.isClosed) {
+            controller.addError(e);
+          }
+        }
       }
 
-      if (!controller.isClosed) {
-        controller.add(alerts);
-      }
-    } catch (e) {
-      logger.error(
-        'Error fetching transient alerts: $e',
-        source: 'activeTransientAlertsProvider',
-      );
-      if (!controller.isClosed) {
-        controller.addError(e);
-      }
-    }
-  }
+      // Fetch immediately
+      fetchAlerts();
 
-  // Fetch immediately
-  fetchAlerts();
+      // Set up periodic polling
+      final timer = Timer.periodic(_alertPollingInterval, (_) {
+        fetchAlerts();
+      });
 
-  // Set up periodic polling
-  final timer = Timer.periodic(_alertPollingInterval, (_) {
-    fetchAlerts();
-  });
+      // Clean up on dispose
+      ref.onDispose(() {
+        timer.cancel();
+        controller.close();
+      });
 
-  // Clean up on dispose
-  ref.onDispose(() {
-    timer.cancel();
-    controller.close();
-  });
-
-  return controller.stream;
-});
+      return controller.stream;
+    });
 
 /// Parse a TransientAlert from JSON response
 TransientAlert _parseTransientAlertFromJson(Map<String, dynamic> json) {
@@ -299,10 +328,18 @@ TransientAlert _parseTransientAlertFromJson(Map<String, dynamic> json) {
     ),
     raHours: (json['raHours'] as num).toDouble(),
     decDegrees: (json['decDegrees'] as num).toDouble(),
-    magnitude: json['magnitude'] != null ? (json['magnitude'] as num).toDouble() : null,
-    peakMagnitude: json['peakMagnitude'] != null ? (json['peakMagnitude'] as num).toDouble() : null,
-    discoveryTime: DateTime.fromMillisecondsSinceEpoch(json['discoveryTime'] as int),
-    lastUpdated: DateTime.fromMillisecondsSinceEpoch(json['lastUpdated'] as int),
+    magnitude: json['magnitude'] != null
+        ? (json['magnitude'] as num).toDouble()
+        : null,
+    peakMagnitude: json['peakMagnitude'] != null
+        ? (json['peakMagnitude'] as num).toDouble()
+        : null,
+    discoveryTime: DateTime.fromMillisecondsSinceEpoch(
+      json['discoveryTime'] as int,
+    ),
+    lastUpdated: DateTime.fromMillisecondsSinceEpoch(
+      json['lastUpdated'] as int,
+    ),
     source: TransientSource.values.firstWhere(
       (s) => s.name == json['source'],
       orElse: () => TransientSource.aavso,
@@ -325,7 +362,8 @@ const String _alertStateKeyPrefix = 'transient_alert_state_';
 ///
 /// Persists alert states (acknowledged, queued, observed, dismissed) to the database
 /// so they survive app restarts.
-class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAlertState>> {
+class TransientAlertStatesNotifier
+    extends StateNotifier<Map<String, TransientAlertState>> {
   final SettingsDao _settingsDao;
   final LoggingService _logger;
   bool _initialized = false;
@@ -333,9 +371,9 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
   TransientAlertStatesNotifier({
     required SettingsDao settingsDao,
     required LoggingService logger,
-  })  : _settingsDao = settingsDao,
-        _logger = logger,
-        super({}) {
+  }) : _settingsDao = settingsDao,
+       _logger = logger,
+       super({}) {
     _loadStates();
   }
 
@@ -375,7 +413,10 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
   }
 
   /// Save a single alert state to persistent storage
-  Future<void> _saveState(String alertId, TransientAlertState alertState) async {
+  Future<void> _saveState(
+    String alertId,
+    TransientAlertState alertState,
+  ) async {
     try {
       await _settingsDao.setSetting(
         '$_alertStateKeyPrefix$alertId',
@@ -394,7 +435,10 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
   Future<void> acknowledge(String id) async {
     state = {...state, id: TransientAlertState.acknowledged};
     await _saveState(id, TransientAlertState.acknowledged);
-    _logger.debug('Alert $id acknowledged', source: 'TransientAlertStatesNotifier');
+    _logger.debug(
+      'Alert $id acknowledged',
+      source: 'TransientAlertStatesNotifier',
+    );
   }
 
   /// Mark an alert as queued for observation
@@ -408,14 +452,20 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
   Future<void> markObserved(String id) async {
     state = {...state, id: TransientAlertState.observed};
     await _saveState(id, TransientAlertState.observed);
-    _logger.debug('Alert $id marked as observed', source: 'TransientAlertStatesNotifier');
+    _logger.debug(
+      'Alert $id marked as observed',
+      source: 'TransientAlertStatesNotifier',
+    );
   }
 
   /// Dismiss an alert
   Future<void> dismiss(String id) async {
     state = {...state, id: TransientAlertState.dismissed};
     await _saveState(id, TransientAlertState.dismissed);
-    _logger.debug('Alert $id dismissed', source: 'TransientAlertStatesNotifier');
+    _logger.debug(
+      'Alert $id dismissed',
+      source: 'TransientAlertStatesNotifier',
+    );
   }
 
   /// Get the state of a specific alert
@@ -432,7 +482,10 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
         }
       }
       state = {};
-      _logger.info('All alert states cleared', source: 'TransientAlertStatesNotifier');
+      _logger.info(
+        'All alert states cleared',
+        source: 'TransientAlertStatesNotifier',
+      );
     } catch (e) {
       _logger.error(
         'Failed to clear alert states: $e',
@@ -445,14 +498,17 @@ class TransientAlertStatesNotifier extends StateNotifier<Map<String, TransientAl
 
 /// Provider for tracking user actions on transient alerts.
 final transientAlertStatesProvider =
-    StateNotifierProvider<TransientAlertStatesNotifier, Map<String, TransientAlertState>>((ref) {
-  final settingsDao = ref.watch(settingsDaoProvider);
-  final logger = ref.watch(loggingServiceProvider);
-  return TransientAlertStatesNotifier(
-    settingsDao: settingsDao,
-    logger: logger,
-  );
-});
+    StateNotifierProvider<
+      TransientAlertStatesNotifier,
+      Map<String, TransientAlertState>
+    >((ref) {
+      final settingsDao = ref.watch(settingsDaoProvider);
+      final logger = ref.watch(loggingServiceProvider);
+      return TransientAlertStatesNotifier(
+        settingsDao: settingsDao,
+        logger: logger,
+      );
+    });
 
 // =============================================================================
 // Unacknowledged Alert Count Provider
@@ -522,7 +578,10 @@ final actionableAlertsProvider = Provider<List<TransientAlert>>((ref) {
 /// - [alert]: The transient alert to queue
 ///
 /// Returns the created target, or null if creation failed.
-Future<CelestialTarget?> queueTransientForTonight(WidgetRef ref, TransientAlert alert) async {
+Future<CelestialTarget?> queueTransientForTonight(
+  WidgetRef ref,
+  TransientAlert alert,
+) async {
   final logger = ref.read(loggingServiceProvider);
   final statesNotifier = ref.read(transientAlertStatesProvider.notifier);
   final notificationNotifier = ref.read(uiNotificationProvider.notifier);
@@ -535,31 +594,38 @@ Future<CelestialTarget?> queueTransientForTonight(WidgetRef ref, TransientAlert 
 
     // Build notes combining all transient info
     final alertNotes = StringBuffer();
-    alertNotes.writeln('Transient alert from ${alert.source.name.toUpperCase()}');
+    alertNotes.writeln(
+      'Transient alert from ${alert.source.name.toUpperCase()}',
+    );
     if (alert.classification != null) {
       alertNotes.writeln('Classification: ${alert.classification}');
     }
     if (alert.notes != null) {
       alertNotes.writeln('Alert notes: ${alert.notes}');
     }
-    alertNotes.writeln('Queued from transient alert on ${DateTime.now().toIso8601String()}');
-    alertNotes.writeln('Discovery time: ${alert.discoveryTime.toIso8601String()}');
+    alertNotes.writeln(
+      'Queued from transient alert on ${DateTime.now().toIso8601String()}',
+    );
+    alertNotes.writeln(
+      'Discovery time: ${alert.discoveryTime.toIso8601String()}',
+    );
     if (alert.sourceUrl != null) {
       alertNotes.writeln('Source URL: ${alert.sourceUrl}');
     }
 
-    final targetId =
-        await ref.read(targetLibraryServiceProvider).createTarget(
-              name: alert.name,
-              catalogId: alert.id,
-              raHours: alert.raHours,
-              decDegrees: alert.decDegrees,
-              objectType: targetType.name,
-              magnitude: alert.magnitude,
-              isFavorite: false,
-              priority: alert.priority,
-              notes: alertNotes.toString(),
-            );
+    final targetId = await ref
+        .read(targetLibraryServiceProvider)
+        .createTarget(
+          name: alert.name,
+          catalogId: alert.id,
+          raHours: alert.raHours,
+          decDegrees: alert.decDegrees,
+          objectType: targetType.name,
+          magnitude: alert.magnitude,
+          isFavorite: false,
+          priority: alert.priority,
+          notes: alertNotes.toString(),
+        );
 
     // Create the target object to return
     final target = CelestialTarget(
@@ -631,7 +697,10 @@ void refreshTransientAlerts(WidgetRef ref) {
   ref.invalidate(activeTransientAlertsProvider);
 
   final logger = ref.read(loggingServiceProvider);
-  logger.info('Transient alerts refresh triggered', source: 'refreshTransientAlerts');
+  logger.info(
+    'Transient alerts refresh triggered',
+    source: 'refreshTransientAlerts',
+  );
 }
 
 // =============================================================================
@@ -639,14 +708,14 @@ void refreshTransientAlerts(WidgetRef ref) {
 // =============================================================================
 
 /// Provider for getting a specific alert by ID
-final transientAlertByIdProvider =
-    Provider.family.autoDispose<TransientAlert?, String>((ref, alertId) {
-  final alertsAsync = ref.watch(activeTransientAlertsProvider);
-  final alerts = alertsAsync.valueOrNull ?? [];
+final transientAlertByIdProvider = Provider.family
+    .autoDispose<TransientAlert?, String>((ref, alertId) {
+      final alertsAsync = ref.watch(activeTransientAlertsProvider);
+      final alerts = alertsAsync.valueOrNull ?? [];
 
-  try {
-    return alerts.firstWhere((a) => a.id == alertId);
-  } catch (_) {
-    return null;
-  }
-});
+      try {
+        return alerts.firstWhere((a) => a.id == alertId);
+      } catch (_) {
+        return null;
+      }
+    });

@@ -36,13 +36,7 @@ final remoteSessionSyncProvider = Provider<void>((ref) {
     unawaited(_hydrate(ref, next));
 
     eventSub = next.eventStream.listen((event) {
-      unawaited(
-        applyRemoteSyncEvent(
-          ref,
-          event,
-          networkBackend: next,
-        ),
-      );
+      unawaited(applyRemoteSyncEvent(ref, event, networkBackend: next));
     });
 
     pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -59,10 +53,7 @@ Future<void> _hydrate(Ref ref, NetworkBackend backend) async {
 
   try {
     await hydrateRemoteSessionState(ref, backend);
-    logger.info(
-      'Hydrated remote session from host',
-      source: _logSource,
-    );
+    logger.info('Hydrated remote session from host', source: _logSource);
   } catch (e, stackTrace) {
     logger.error(
       'Remote session hydration failed: $e',

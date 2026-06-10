@@ -88,8 +88,10 @@ const _lineFigureSet02 = <ConstellationData>[
     lines: [
       // Teapot body
       ConstellationLine(
-        start:
-            CelestialCoordinate(ra: 18.4029, dec: -34.3844), // Kaus Australis
+        start: CelestialCoordinate(
+          ra: 18.4029,
+          dec: -34.3844,
+        ), // Kaus Australis
         end: CelestialCoordinate(ra: 18.3498, dec: -29.8282), // Kaus Media
         startStarName: 'Kaus Australis',
         endStarName: 'Kaus Media',
@@ -128,8 +130,10 @@ const _lineFigureSet02 = <ConstellationData>[
       ),
       // Handle (spout)
       ConstellationLine(
-        start:
-            CelestialCoordinate(ra: 18.4029, dec: -34.3844), // Kaus Australis
+        start: CelestialCoordinate(
+          ra: 18.4029,
+          dec: -34.3844,
+        ), // Kaus Australis
         end: CelestialCoordinate(ra: 18.2965, dec: -36.7615), // Eta Sgr
       ),
     ],
@@ -202,8 +206,10 @@ const _lineFigureSet02 = <ConstellationData>[
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 22.5906, dec: -13.5925), // Tau2 Aqr
-        end:
-            CelestialCoordinate(ra: 22.8264, dec: -13.5924), // Delta Aqr (Skat)
+        end: CelestialCoordinate(
+          ra: 22.8264,
+          dec: -13.5924,
+        ), // Delta Aqr (Skat)
         endStarName: 'Skat',
       ),
       ConstellationLine(
@@ -226,7 +232,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 1.5247, dec: 15.3458), // Omicron Psc
         end: CelestialCoordinate(
-            ra: 1.6905, dec: 19.2934), // Alpha Psc (Alrescha)
+          ra: 1.6905,
+          dec: 19.2934,
+        ), // Alpha Psc (Alrescha)
         endStarName: 'Alrescha',
       ),
       ConstellationLine(
@@ -298,7 +306,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 8.7213, dec: 21.4686), // Delta Cnc
         end: CelestialCoordinate(
-            ra: 9.1843, dec: 22.0431), // Gamma Cnc (Asellus Borealis)
+          ra: 9.1843,
+          dec: 22.0431,
+        ), // Gamma Cnc (Asellus Borealis)
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 8.7447, dec: 18.1542), // Acubens
@@ -358,7 +368,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 16.6190, dec: -10.5671), // Zeta Oph
         end: CelestialCoordinate(
-            ra: 16.3052, dec: -4.6925), // Delta Oph (Yed Prior)
+          ra: 16.3052,
+          dec: -4.6925,
+        ), // Delta Oph (Yed Prior)
         endStarName: 'Yed Prior',
       ),
       ConstellationLine(
@@ -435,7 +447,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 16.5034, dec: 21.4897), // Zeta Her
         end: CelestialCoordinate(
-            ra: 16.1464, dec: 14.0333), // Beta Her (Kornephoros)
+          ra: 16.1464,
+          dec: 14.0333,
+        ), // Beta Her (Kornephoros)
         endStarName: 'Kornephoros',
       ),
       ConstellationLine(
@@ -445,12 +459,16 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 17.2508, dec: 24.8392), // Pi Her
         end: CelestialCoordinate(
-            ra: 17.5822, dec: 12.5600), // Rasalhague (shared with Oph)
+          ra: 17.5822,
+          dec: 12.5600,
+        ), // Rasalhague (shared with Oph)
       ),
       ConstellationLine(
         start: CelestialCoordinate(ra: 16.6880, dec: 31.6028), // Epsilon Her
         end: CelestialCoordinate(
-            ra: 17.3941, dec: 37.1459), // Alpha Her (Rasalgethi)
+          ra: 17.3941,
+          dec: 37.1459,
+        ), // Alpha Her (Rasalgethi)
         endStarName: 'Rasalgethi',
       ),
     ],
@@ -475,7 +493,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 5.9920, dec: 37.2126), // Theta Aur
         end: CelestialCoordinate(
-            ra: 5.4382, dec: 28.6074), // Elnath (shared w/ Tau)
+          ra: 5.4382,
+          dec: 28.6074,
+        ), // Elnath (shared w/ Tau)
         endStarName: 'Elnath',
       ),
       ConstellationLine(
@@ -485,7 +505,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 5.0331, dec: 33.1661), // Iota Aur
         end: CelestialCoordinate(
-            ra: 5.1089, dec: 41.2346), // Epsilon Aur (Almaaz)
+          ra: 5.1089,
+          dec: 41.2346,
+        ), // Epsilon Aur (Almaaz)
         endStarName: 'Almaaz',
       ),
       ConstellationLine(
@@ -548,7 +570,9 @@ const _lineFigureSet02 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 10.9965, dec: -18.2989), // Alpha Crt (Alkes)
+          ra: 10.9965,
+          dec: -18.2989,
+        ), // Alpha Crt (Alkes)
         end: CelestialCoordinate(ra: 11.1943, dec: -22.8264), // Beta Crt
         startStarName: 'Alkes',
       ),
@@ -575,9 +599,13 @@ const _lineFigureSet02 = <ConstellationData>[
     lines: [
       ConstellationLine(
         start: CelestialCoordinate(
-            ra: 14.6599, dec: -60.8353), // Alpha Cen (Rigil Kentaurus)
-        end:
-            CelestialCoordinate(ra: 14.0637, dec: -60.3730), // Beta Cen (Hadar)
+          ra: 14.6599,
+          dec: -60.8353,
+        ), // Alpha Cen (Rigil Kentaurus)
+        end: CelestialCoordinate(
+          ra: 14.0637,
+          dec: -60.3730,
+        ), // Beta Cen (Hadar)
         startStarName: 'Rigil Kentaurus',
         endStarName: 'Hadar',
       ),
@@ -592,7 +620,9 @@ const _lineFigureSet02 = <ConstellationData>[
       ConstellationLine(
         start: CelestialCoordinate(ra: 12.6917, dec: -48.9597), // Gamma Cen
         end: CelestialCoordinate(
-            ra: 14.1114, dec: -36.3700), // Theta Cen (Menkent)
+          ra: 14.1114,
+          dec: -36.3700,
+        ), // Theta Cen (Menkent)
         endStarName: 'Menkent',
       ),
       ConstellationLine(

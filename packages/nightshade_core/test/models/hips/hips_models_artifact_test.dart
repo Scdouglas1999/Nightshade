@@ -42,13 +42,21 @@ void main() {
       ..writeln()
       ..writeln('--- HipsProperties.parse(live CDS/P/DSS2/red properties) ---')
       ..writeln('hips_order          : ${props.hipsOrder}')
-      ..writeln('hips_order_min      : ${props.hipsOrderMin} '
-          '(default applied: ${props.hipsOrderMin == HipsProperties.defaultOrderMin && !_documentHasKey(_liveDss2RedProperties, "hips_order_min")})')
-      ..writeln('hips_tile_width     : ${props.tileWidth} '
-          '(defaulted: ${props.tileWidthWasDefaulted})')
-      ..writeln('hips_tile_format    : ${props.tileFormats.map((f) => f.wireValue).join(", ")}')
-      ..writeln('preferred format    : ${props.preferredFormat.wireValue} '
-          '(ext .${props.preferredFormat.fileExtension})')
+      ..writeln(
+        'hips_order_min      : ${props.hipsOrderMin} '
+        '(default applied: ${props.hipsOrderMin == HipsProperties.defaultOrderMin && !_documentHasKey(_liveDss2RedProperties, "hips_order_min")})',
+      )
+      ..writeln(
+        'hips_tile_width     : ${props.tileWidth} '
+        '(defaulted: ${props.tileWidthWasDefaulted})',
+      )
+      ..writeln(
+        'hips_tile_format    : ${props.tileFormats.map((f) => f.wireValue).join(", ")}',
+      )
+      ..writeln(
+        'preferred format    : ${props.preferredFormat.wireValue} '
+        '(ext .${props.preferredFormat.fileExtension})',
+      )
       ..writeln('hips_frame          : ${props.frame.wireValue}')
       ..writeln('obs_copyright       : ${props.obsCopyright}')
       ..writeln('obs_copyright_url   : ${props.obsCopyrightUrl}')
@@ -64,23 +72,33 @@ void main() {
     const verifiedBase = 'https://alasky.cds.unistra.fr/DSS/DSS2Merged';
     for (final tile in sampleTiles) {
       buffer
-        ..writeln('Norder${tile.norder} Npix${tile.npix}: '
-            'Dir=${tile.directoryBucket}, '
-            'path=${tile.relativePath(props.preferredFormat)}')
-        ..writeln('    url=${tile.tileUrl(verifiedBase, props.preferredFormat)}');
+        ..writeln(
+          'Norder${tile.norder} Npix${tile.npix}: '
+          'Dir=${tile.directoryBucket}, '
+          'path=${tile.relativePath(props.preferredFormat)}',
+        )
+        ..writeln(
+          '    url=${tile.tileUrl(verifiedBase, props.preferredFormat)}',
+        );
     }
     buffer
-      ..writeln('Allsky(Norder3): '
-          '${HipsTileId.allskyUrl(verifiedBase, 3, props.preferredFormat)}')
-      ..writeln('tile counts: '
-          'N0=${HipsTileId.numberOfTiles(0)}, '
-          'N3=${HipsTileId.numberOfTiles(3)}, '
-          'N9=${HipsTileId.numberOfTiles(9)}')
+      ..writeln(
+        'Allsky(Norder3): '
+        '${HipsTileId.allskyUrl(verifiedBase, 3, props.preferredFormat)}',
+      )
+      ..writeln(
+        'tile counts: '
+        'N0=${HipsTileId.numberOfTiles(0)}, '
+        'N3=${HipsTileId.numberOfTiles(3)}, '
+        'N9=${HipsTileId.numberOfTiles(9)}',
+      )
       ..writeln()
       ..writeln('--- HipsSurveyRegistry (SurveySource -> CDS HiPS) ---')
-      ..writeln('exhaustive entries  : '
-          '${HipsSurveyRegistry.debugAssertExhaustive()} / '
-          '${SurveySource.values.length}');
+      ..writeln(
+        'exhaustive entries  : '
+        '${HipsSurveyRegistry.debugAssertExhaustive()} / '
+        '${SurveySource.values.length}',
+      );
     for (final source in SurveySource.values) {
       final entry = HipsSurveyRegistry.entryFor(source);
       buffer.writeln(

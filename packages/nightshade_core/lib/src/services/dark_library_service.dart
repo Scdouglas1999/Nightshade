@@ -44,18 +44,20 @@ class DarkLibraryService {
         'frameType must be "dark" or "bias", got "$frameType"',
       );
     }
-    return _dao.addEntry(DarkLibraryCompanion.insert(
-      filePath: filePath,
-      exposureTime: exposureTime,
-      frameType: Value(frameType),
-      temperature: Value(temperature),
-      gain: Value(gain),
-      offset: Value(offset),
-      binX: Value(binX),
-      binY: Value(binY),
-      width: Value(width),
-      height: Value(height),
-    ));
+    return _dao.addEntry(
+      DarkLibraryCompanion.insert(
+        filePath: filePath,
+        exposureTime: exposureTime,
+        frameType: Value(frameType),
+        temperature: Value(temperature),
+        gain: Value(gain),
+        offset: Value(offset),
+        binX: Value(binX),
+        binY: Value(binY),
+        width: Value(width),
+        height: Value(height),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -82,8 +84,7 @@ class DarkLibraryService {
     int binX = 1,
     int binY = 1,
     double? temperature,
-    DarkLibraryMatchTolerances tolerances =
-        DarkLibraryMatchTolerances.defaults,
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults,
     String frameType = 'dark',
   }) {
     return _dao.findBestMatch(
@@ -145,9 +146,7 @@ class DarkLibraryService {
     for (final frame in frames) {
       final file = File(frame.filePath);
       if (!await file.exists()) {
-        throw StateError(
-          'Dark frame file not found: ${frame.filePath}',
-        );
+        throw StateError('Dark frame file not found: ${frame.filePath}');
       }
       final bytes = await file.readAsBytes();
       final parsed = _parseFitsPixels(bytes);
@@ -171,27 +170,30 @@ class DarkLibraryService {
 
     // Compute average temperature across input frames
     double? avgTemp;
-    final temps =
-        frames.where((f) => f.temperature != null).map((f) => f.temperature!);
+    final temps = frames
+        .where((f) => f.temperature != null)
+        .map((f) => f.temperature!);
     if (temps.isNotEmpty) {
       avgTemp = temps.reduce((a, b) => a + b) / temps.length;
     }
 
     // Register the master dark in the library
-    return _dao.addEntry(DarkLibraryCompanion.insert(
-      filePath: outputPath,
-      exposureTime: first.exposureTime,
-      frameType: Value(first.frameType),
-      temperature: Value(avgTemp),
-      gain: Value(first.gain),
-      offset: Value(first.offset),
-      binX: Value(first.binX),
-      binY: Value(first.binY),
-      width: Value(imgWidth),
-      height: Value(imgHeight),
-      masterDarkPath: Value(outputPath),
-      masterFrameCount: Value(frames.length),
-    ));
+    return _dao.addEntry(
+      DarkLibraryCompanion.insert(
+        filePath: outputPath,
+        exposureTime: first.exposureTime,
+        frameType: Value(first.frameType),
+        temperature: Value(avgTemp),
+        gain: Value(first.gain),
+        offset: Value(first.offset),
+        binX: Value(first.binX),
+        binY: Value(first.binY),
+        width: Value(imgWidth),
+        height: Value(imgHeight),
+        masterDarkPath: Value(outputPath),
+        masterFrameCount: Value(frames.length),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -216,10 +218,7 @@ class DarkLibraryService {
     }
 
     // Do subtraction in isolate to avoid jank
-    return compute(
-      _subtractPixels,
-      _SubtractParams(lightPixels, darkPixels),
-    );
+    return compute(_subtractPixels, _SubtractParams(lightPixels, darkPixels));
   }
 
   /// Load raw pixel data from a FITS file on disk.
@@ -393,12 +392,16 @@ class DarkLibraryService {
 
     // FITS headers are in 2880-byte blocks, each card is 80 chars
     bool endFound = false;
-    for (int blockStart = 0;
-        blockStart < bytes.length && !endFound;
-        blockStart += 2880) {
-      for (int cardStart = blockStart;
-          cardStart < blockStart + 2880 && cardStart + 80 <= bytes.length;
-          cardStart += 80) {
+    for (
+      int blockStart = 0;
+      blockStart < bytes.length && !endFound;
+      blockStart += 2880
+    ) {
+      for (
+        int cardStart = blockStart;
+        cardStart < blockStart + 2880 && cardStart + 80 <= bytes.length;
+        cardStart += 80
+      ) {
         final card = String.fromCharCodes(bytes, cardStart, cardStart + 80);
 
         if (card.startsWith('NAXIS1')) {
@@ -472,8 +475,9 @@ class DarkLibraryService {
         final lowByte = bytes[bytePos + 1];
         final rawUnsigned = (highByte << 8) | lowByte;
         // Interpret as signed 16-bit: values > 32767 are negative
-        final signedVal =
-            rawUnsigned > 32767 ? rawUnsigned - 65536 : rawUnsigned;
+        final signedVal = rawUnsigned > 32767
+            ? rawUnsigned - 65536
+            : rawUnsigned;
         // Convert from signed to unsigned (BZERO=32768 convention):
         // physical_value = stored_value + BZERO
         // Range: -32768 + 32768 = 0  through  32767 + 32768 = 65535
@@ -484,8 +488,11 @@ class DarkLibraryService {
       // FITS spec defaults for floats: BSCALE=1, BZERO=0.
       final bzero = bzeroFromHeader ?? 0.0;
       final bscale = bscaleFromHeader ?? 1.0;
-      final bd = ByteData.sublistView(bytes, dataOffset,
-          dataOffset + expectedDataBytes);
+      final bd = ByteData.sublistView(
+        bytes,
+        dataOffset,
+        dataOffset + expectedDataBytes,
+      );
 
       for (int i = 0; i < pixelCount; i++) {
         // FITS floats are big-endian per the spec.
@@ -551,8 +558,8 @@ class DarkLibraryService {
     if (eqIdx < 0) return 0;
     final afterEq = card.substring(eqIdx + 1);
     final slashIdx = afterEq.indexOf('/');
-    final valStr =
-        (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq).trim();
+    final valStr = (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq)
+        .trim();
     return int.tryParse(valStr) ?? 0;
   }
 
@@ -564,8 +571,8 @@ class DarkLibraryService {
     if (eqIdx < 0) return null;
     final afterEq = card.substring(eqIdx + 1);
     final slashIdx = afterEq.indexOf('/');
-    final valStr =
-        (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq).trim();
+    final valStr = (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq)
+        .trim();
     if (valStr.isEmpty) return null;
     // double.tryParse accepts both "32768" and "32768.0" / "3.2768E4" so it
     // handles the integer-literal case the FITS spec allows for these

@@ -74,7 +74,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                     child: InkWell(
                       onTap: () =>
                           ref.read(periodAnalysisProvider.notifier).clear(),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(LucideIcons.x,
@@ -110,7 +111,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                       Text(
                         'Computing periodograms...',
                         style: TextStyle(
-                            color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                            color: colors.textSecondary,
+                            fontSize: NightshadeTypography.fontSize12),
                       ),
                     ],
                   ),
@@ -139,7 +141,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 children: [
                   Text(
                     'Min period (d):',
-                    style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
@@ -157,9 +161,11 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 6),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4)),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4)),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           borderSide: BorderSide(color: colors.border),
                         ),
                       ),
@@ -185,7 +191,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 children: [
                   Text(
                     'Max period (d):',
-                    style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
@@ -203,9 +211,11 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 6),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4)),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4)),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
                           borderSide: BorderSide(color: colors.border),
                         ),
                       ),
@@ -250,7 +260,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             children: [
               Text(
                 'Custom period (d):',
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
               const SizedBox(width: 8),
               SizedBox(
@@ -265,13 +277,17 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: 'e.g. 1.234',
-                    hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                    hintStyle: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize11),
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4)),
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline4)),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                       borderSide: BorderSide(color: colors.border),
                     ),
                   ),
@@ -318,7 +334,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           Expanded(
             child: Text(
               error,
-              style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
+              style: TextStyle(
+                  color: colors.error,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ),
         ],
@@ -346,7 +364,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 pointCount < 10
                     ? 'Need at least 10 photometry points ($pointCount available)'
                     : 'Click "Run Period Search" to analyze $pointCount data points',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12),
                 textAlign: TextAlign.center,
               ),
             ],

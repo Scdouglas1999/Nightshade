@@ -57,9 +57,12 @@ void main() {
       final m31Notes = await service.notesForTarget('M31');
       expect(m31Notes.length, 2);
       // Newest first by created_at.
-      expect(m31Notes.first.createdAt
-          .isAfter(m31Notes.last.createdAt.subtract(const Duration(seconds: 1))),
-          isTrue);
+      expect(
+        m31Notes.first.createdAt.isAfter(
+          m31Notes.last.createdAt.subtract(const Duration(seconds: 1)),
+        ),
+        isTrue,
+      );
 
       final ngcNotes = await service.notesForTarget('NGC7000');
       expect(ngcNotes.length, 1);
@@ -129,28 +132,32 @@ void main() {
 
     test('searchNotes matches by query text', () async {
       await service.addNote(
-          targetId: 'M31', body: 'Polar alignment was rough.');
+        targetId: 'M31',
+        body: 'Polar alignment was rough.',
+      );
       await service.addNote(
-          targetId: 'M42', body: 'Guiding was smooth all night.');
+        targetId: 'M42',
+        body: 'Guiding was smooth all night.',
+      );
       await service.addNote(targetId: 'NGC7000', body: 'no match here');
 
       final guidingResults = await service.searchNotes(query: 'guiding');
       expect(guidingResults.length, 1);
       expect(guidingResults.single.targetId, 'M42');
 
-      final caseInsensitive =
-          await service.searchNotes(query: 'POLAR');
+      final caseInsensitive = await service.searchNotes(query: 'POLAR');
       expect(caseInsensitive.length, 1);
       expect(caseInsensitive.single.targetId, 'M31');
     });
 
     test('searchNotes filters by tags', () async {
+      await service.addNote(targetId: 'M31', body: 'a', tags: ['seeing']);
+      await service.addNote(targetId: 'M31', body: 'b', tags: ['guiding']);
       await service.addNote(
-          targetId: 'M31', body: 'a', tags: ['seeing']);
-      await service.addNote(
-          targetId: 'M31', body: 'b', tags: ['guiding']);
-      await service.addNote(
-          targetId: 'M31', body: 'c', tags: ['seeing', 'guiding']);
+        targetId: 'M31',
+        body: 'c',
+        tags: ['seeing', 'guiding'],
+      );
 
       final seeing = await service.searchNotes(tags: ['seeing']);
       expect(seeing.length, 2);
@@ -169,9 +176,7 @@ void main() {
       final emissions = <int>[];
       final done = Completer<void>();
       late StreamSubscription<List<dynamic>> sub;
-      sub = service
-          .watchTargetNotes('M31')
-          .listen((notes) async {
+      sub = service.watchTargetNotes('M31').listen((notes) async {
         emissions.add(notes.length);
         if (emissions.length == 3) {
           await sub.cancel();

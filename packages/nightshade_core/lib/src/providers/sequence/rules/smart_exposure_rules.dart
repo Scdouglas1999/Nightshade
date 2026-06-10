@@ -28,16 +28,18 @@ class SmartExposureEmptyPlansRule implements SequenceValidator {
       if (node is! SmartExposureNode) continue;
       if (!node.isEnabled) continue;
       if (node.plans.isEmpty) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.exposures,
-          title: 'SmartExposure has no filter plans',
-          description:
-              'Smart Exposure "${node.name}" has no filter plans. It will run but capture no images.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Add at least one filter plan (filter + count + duration).',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'SmartExposure has no filter plans',
+            description:
+                'Smart Exposure "${node.name}" has no filter plans. It will run but capture no images.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Add at least one filter plan (filter + count + duration).',
+          ),
+        );
       }
     }
     return issues;
@@ -63,53 +65,62 @@ class SmartExposureNegativeCountRule implements SequenceValidator {
         // (1 sub per filter, looping), so a zero/negative count is not a
         // dead row — skip the warning to avoid a false positive.
         if (!node.loopUntilStopped && p.count <= 0) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.exposures,
-            title: 'SmartExposure plan never runs',
-            description:
-                'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has count ${p.count} — no frames will be taken for this filter.',
-            affectedNodeId: node.id,
-            resolutionHint:
-                'Set count to a positive number, or remove the row entirely.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.exposures,
+              title: 'SmartExposure plan never runs',
+              description:
+                  'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has count ${p.count} — no frames will be taken for this filter.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set count to a positive number, or remove the row entirely.',
+            ),
+          );
         }
         if (p.durationSecs <= 0) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'SmartExposure plan has invalid duration',
-            description:
-                'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has duration ${p.durationSecs}s.',
-            affectedNodeId: node.id,
-            resolutionHint: 'Set a positive sub-exposure duration.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'SmartExposure plan has invalid duration',
+              description:
+                  'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has duration ${p.durationSecs}s.',
+              affectedNodeId: node.id,
+              resolutionHint: 'Set a positive sub-exposure duration.',
+            ),
+          );
         }
         if (p.filterName.trim().isEmpty) {
-          issues.add(ValidationIssue(
-            severity: ValidationSeverity.error,
-            category: ValidationCategory.exposures,
-            title: 'SmartExposure plan has no filter',
-            description:
-                'Smart Exposure "${node.name}": plan ${i + 1} has an empty filter name. The runtime cannot route the filter change.',
-            affectedNodeId: node.id,
-            resolutionHint: 'Pick a filter from the active equipment profile.',
-          ));
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.exposures,
+              title: 'SmartExposure plan has no filter',
+              description:
+                  'Smart Exposure "${node.name}": plan ${i + 1} has an empty filter name. The runtime cannot route the filter change.',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Pick a filter from the active equipment profile.',
+            ),
+          );
         }
       }
 
       // Duplicate filter names: legal but usually a UX mistake.
       if (node.hasDuplicateFilter && node.plans.length > 1) {
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.warning,
-          category: ValidationCategory.exposures,
-          title: 'SmartExposure has duplicate filter rows',
-          description:
-              'Smart Exposure "${node.name}" has two or more rows for the same filter — usually a mistake. SmartExposure tracks per-filter completed counts by name, so duplicate rows compete for the same counter.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Merge duplicate filter rows, or rename one to a different filter.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.exposures,
+            title: 'SmartExposure has duplicate filter rows',
+            description:
+                'Smart Exposure "${node.name}" has two or more rows for the same filter — usually a mistake. SmartExposure tracks per-filter completed counts by name, so duplicate rows compete for the same counter.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Merge duplicate filter rows, or rename one to a different filter.',
+          ),
+        );
       }
     }
     return issues;
@@ -156,16 +167,18 @@ class SmartExposureFilterWheelMissingRule implements RefAwareSequenceValidator {
     for (final node in sequence.nodes.values) {
       if (node is! SmartExposureNode) continue;
       if (!node.isEnabled) continue;
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.error,
-        category: ValidationCategory.equipment,
-        title: 'No filter wheel for SmartExposure',
-        description:
-            'Smart Exposure "${node.name}" requires a filter wheel, but the active equipment profile has no filters configured.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Edit the active profile and add at least one filter, or remove the SmartExposure node.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.equipment,
+          title: 'No filter wheel for SmartExposure',
+          description:
+              'Smart Exposure "${node.name}" requires a filter wheel, but the active equipment profile has no filters configured.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Edit the active profile and add at least one filter, or remove the SmartExposure node.',
+        ),
+      );
     }
     return issues;
   }
@@ -212,8 +225,9 @@ class SmartExposureFilterUnknownRule implements RefAwareSequenceValidator {
     if (profile.filterNames.isEmpty) return const [];
 
     // Case-insensitive lookup set, matching FilterInWheelRule's convention.
-    final availableLower =
-        profile.filterNames.map((f) => f.toLowerCase()).toSet();
+    final availableLower = profile.filterNames
+        .map((f) => f.toLowerCase())
+        .toSet();
     final availableLabel = profile.filterNames.join(', ');
 
     final issues = <ValidationIssue>[];
@@ -225,17 +239,19 @@ class SmartExposureFilterUnknownRule implements RefAwareSequenceValidator {
         // per-row empty-filter check — skip to avoid double-counting.
         if (raw.trim().isEmpty) continue;
         if (availableLower.contains(raw.toLowerCase())) continue;
-        issues.add(ValidationIssue(
-          severity: ValidationSeverity.error,
-          category: ValidationCategory.equipment,
-          title: 'SmartExposure plan filter not in profile',
-          description:
-              'Smart Exposure "${node.name}": plan ${i + 1} uses filter "$raw" '
-              'which is not in the active equipment profile. Available: $availableLabel.',
-          affectedNodeId: node.id,
-          resolutionHint:
-              'Pick a filter from the active profile, or add "$raw" to the profile\'s filter list.',
-        ));
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.equipment,
+            title: 'SmartExposure plan filter not in profile',
+            description:
+                'Smart Exposure "${node.name}": plan ${i + 1} uses filter "$raw" '
+                'which is not in the active equipment profile. Available: $availableLabel.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Pick a filter from the active profile, or add "$raw" to the profile\'s filter list.',
+          ),
+        );
       }
     }
     return issues;
@@ -264,20 +280,22 @@ class SmartExposureUnboundedLoopRule implements SequenceValidator {
       // Otherwise, the only automatic bound is a parent target window.
       if (_hasBoundingTargetWindow(sequence, node)) continue;
 
-      issues.add(ValidationIssue(
-        severity: ValidationSeverity.error,
-        category: ValidationCategory.exposures,
-        title: 'SmartExposure loop is unbounded',
-        description:
-            'Smart Exposure "${node.name}" is in "switch filter every frame" '
-            '(loop until stopped) mode but has no integration budget and is not '
-            'under a target with an end condition. It would loop forever, so the '
-            'run will refuse to start.',
-        affectedNodeId: node.id,
-        resolutionHint:
-            'Set an integration budget on the node, or place it under a target '
-            'with an ends-when / ends-before condition.',
-      ));
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.exposures,
+          title: 'SmartExposure loop is unbounded',
+          description:
+              'Smart Exposure "${node.name}" is in "switch filter every frame" '
+              '(loop until stopped) mode but has no integration budget and is not '
+              'under a target with an end condition. It would loop forever, so the '
+              'run will refuse to start.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Set an integration budget on the node, or place it under a target '
+              'with an ends-when / ends-before condition.',
+        ),
+      );
     }
     return issues;
   }

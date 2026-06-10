@@ -45,7 +45,8 @@ class _ExposureProgressPanel extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Exposure: ${node.filter ?? 'No Filter'}',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(

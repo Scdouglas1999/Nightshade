@@ -89,10 +89,11 @@ void main() {
     final recorder = ui.PictureRecorder();
     painter.paint(Canvas(recorder), size);
     final picture = recorder.endRecording();
-    final image =
-        await picture.toImage(size.width.toInt(), size.height.toInt());
-    final bytes =
-        (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+    final image = await picture.toImage(
+      size.width.toInt(),
+      size.height.toInt(),
+    );
+    final bytes = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
 
     var best = -1;
     var bestX = 0;
@@ -125,10 +126,16 @@ void main() {
     // A star exactly at the view-center alt/az (here the zenith) must project
     // to the middle of the canvas.
     final pos = await brightestPixelFor(eqAt(89.5, 0));
-    expect((pos.dx - size.width / 2).abs(), lessThan(20),
-        reason: 'center-alt/az star should be horizontally centered, got $pos');
-    expect((pos.dy - size.height / 2).abs(), lessThan(20),
-        reason: 'center-alt/az star should be vertically centered, got $pos');
+    expect(
+      (pos.dx - size.width / 2).abs(),
+      lessThan(20),
+      reason: 'center-alt/az star should be horizontally centered, got $pos',
+    );
+    expect(
+      (pos.dy - size.height / 2).abs(),
+      lessThan(20),
+      reason: 'center-alt/az star should be vertically centered, got $pos',
+    );
   });
 
   test('higher altitude maps higher on screen (horizon-up)', () async {
@@ -146,13 +153,21 @@ void main() {
       centerAltitude: 0,
       fieldOfView: 120,
     );
-    expect(high.dy, lessThan(low.dy),
-        reason: 'higher altitude must be higher on screen '
-            '(low=$low, high=$high)');
+    expect(
+      high.dy,
+      lessThan(low.dy),
+      reason:
+          'higher altitude must be higher on screen '
+          '(low=$low, high=$high)',
+    );
     // The higher star should also be above the horizon-centered midline.
-    expect(high.dy, lessThan(size.height / 2),
-        reason: 'a 50-deg star above a horizon center should be in the upper '
-            'half, got $high');
+    expect(
+      high.dy,
+      lessThan(size.height / 2),
+      reason:
+          'a 50-deg star above a horizon center should be in the upper '
+          'half, got $high',
+    );
   });
 
   test('opposite azimuths project to opposite sides of center', () async {
@@ -163,17 +178,26 @@ void main() {
     final west = await brightestPixelFor(eqAt(30, 270)); // due West
 
     final cx = size.width / 2;
-    expect((east.dx - cx).sign, isNot((west.dx - cx).sign),
-        reason: 'East ($east) and West ($west) must fall on opposite sides '
-            'of center');
-    expect((east.dx - cx).abs(), greaterThan(20),
-        reason: 'East should be clearly off-center, got $east');
-    expect((west.dx - cx).abs(), greaterThan(20),
-        reason: 'West should be clearly off-center, got $west');
+    expect(
+      (east.dx - cx).sign,
+      isNot((west.dx - cx).sign),
+      reason:
+          'East ($east) and West ($west) must fall on opposite sides '
+          'of center',
+    );
+    expect(
+      (east.dx - cx).abs(),
+      greaterThan(20),
+      reason: 'East should be clearly off-center, got $east',
+    );
+    expect(
+      (west.dx - cx).abs(),
+      greaterThan(20),
+      reason: 'West should be clearly off-center, got $west',
+    );
   });
 
-  test('equatorial mode is unaffected by the alt/az fields (default frame)',
-      () {
+  test('equatorial mode is unaffected by the alt/az fields (default frame)', () {
     // The default view state is equatorial; the new alt/az center fields must
     // not perturb it. This guards the committed equatorial render goldens.
     const a = SkyViewState(centerRA: 5, centerDec: 10, fieldOfView: 60);

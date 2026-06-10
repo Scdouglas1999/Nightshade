@@ -13,14 +13,16 @@ class SyntheticOldProfileFixture {
   });
 
   static Future<SyntheticOldProfileFixture>
-      schema20WithDuplicateActiveProfiles() async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema20_profile_');
+  schema20WithDuplicateActiveProfiles() async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema20_profile_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
-      await db
-          .customStatement('DROP INDEX IF EXISTS idx_profiles_single_active');
+      await db.customStatement(
+        'DROP INDEX IF EXISTS idx_profiles_single_active',
+      );
       await db.customStatement('DELETE FROM equipment_profiles');
       await db.customStatement('''
 INSERT INTO equipment_profiles (
@@ -35,16 +37,14 @@ INSERT INTO equipment_profiles (
       await db.close();
     }
 
-    return SyntheticOldProfileFixture._(
-      tempDir: tempDir,
-      dbFile: dbFile,
-    );
+    return SyntheticOldProfileFixture._(tempDir: tempDir, dbFile: dbFile);
   }
 
   static Future<SyntheticOldProfileFixture>
-      schema17WithCapturedImageMetadata() async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema17_images_');
+  schema17WithCapturedImageMetadata() async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema17_images_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
@@ -73,16 +73,14 @@ VALUES (1, 1, 'FILTER', 'L', 'legacy FITS metadata')
       await db.close();
     }
 
-    return SyntheticOldProfileFixture._(
-      tempDir: tempDir,
-      dbFile: dbFile,
-    );
+    return SyntheticOldProfileFixture._(tempDir: tempDir, dbFile: dbFile);
   }
 
   static Future<SyntheticOldProfileFixture>
-      schema20WithDuplicateScienceSessionConfigs() async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema20_science_');
+  schema20WithDuplicateScienceSessionConfigs() async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema20_science_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
@@ -110,16 +108,14 @@ INSERT INTO science_session_config (
       await db.close();
     }
 
-    return SyntheticOldProfileFixture._(
-      tempDir: tempDir,
-      dbFile: dbFile,
-    );
+    return SyntheticOldProfileFixture._(tempDir: tempDir, dbFile: dbFile);
   }
 
   static Future<SyntheticOldProfileFixture>
-      schema20WithDuplicateWeatherSettings() async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('nightshade_schema20_weather_');
+  schema20WithDuplicateWeatherSettings() async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_schema20_weather_',
+    );
     final dbFile = File('${tempDir.path}/nightshade.db');
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
@@ -139,10 +135,7 @@ INSERT INTO weather_settings (
       await db.close();
     }
 
-    return SyntheticOldProfileFixture._(
-      tempDir: tempDir,
-      dbFile: dbFile,
-    );
+    return SyntheticOldProfileFixture._(tempDir: tempDir, dbFile: dbFile);
   }
 
   Future<void> dispose() async {

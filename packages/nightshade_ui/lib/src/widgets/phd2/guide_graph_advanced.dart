@@ -246,10 +246,7 @@ class GuideGraphAdvanced extends StatelessWidget {
       children: [
         Text(
           '$label:',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: fontSize,
-          ),
+          style: TextStyle(color: colors.textSecondary, fontSize: fontSize),
         ),
         const SizedBox(width: 2),
         Text(
@@ -302,8 +299,10 @@ class GuideGraphAdvanced extends StatelessWidget {
               children: [
                 Text(
                   value,
-                  style:
-                      TextStyle(color: colors.textPrimary, fontSize: fontSize),
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: fontSize,
+                  ),
                 ),
                 Icon(
                   Icons.arrow_drop_down,
@@ -421,9 +420,7 @@ class _GraphPainter extends CustomPainter {
   }
 
   void _drawYAxisLabels(Canvas canvas, Rect graphRect) {
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-    );
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     final labels = [
       '+${yScale.arcsec.toStringAsFixed(0)}"',
@@ -441,17 +438,12 @@ class _GraphPainter extends CustomPainter {
       textPainter.layout();
 
       final y = graphRect.top + (graphRect.height / (labels.length - 1)) * i;
-      textPainter.paint(
-        canvas,
-        Offset(2, y - textPainter.height / 2),
-      );
+      textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
     }
   }
 
   void _drawXAxisLabels(Canvas canvas, Size size, Rect graphRect) {
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-    );
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     // The X axis is elapsed time relative to *now*, which sits at the right
     // edge (matching how _drawTrace positions points across `timeScale`). We
@@ -466,8 +458,8 @@ class _GraphPainter extends CustomPainter {
     for (int i = 0; i < numLabels; i++) {
       // i == 0 is the left edge (oldest, -totalSeconds); the last index is the
       // right edge (newest, 0s).
-      final secondsAgo =
-          (totalSeconds * (numLabels - 1 - i) / (numLabels - 1)).round();
+      final secondsAgo = (totalSeconds * (numLabels - 1 - i) / (numLabels - 1))
+          .round();
       final label = secondsAgo == 0 ? '0s' : '-${_formatElapsed(secondsAgo)}';
 
       textPainter.text = TextSpan(
@@ -514,12 +506,13 @@ class _GraphPainter extends CustomPainter {
 
       final timeFraction =
           point.timestamp.difference(startTime).inMilliseconds /
-              timeScale.duration.inMilliseconds;
+          timeScale.duration.inMilliseconds;
       final x = graphRect.left + graphRect.width * timeFraction.clamp(0.0, 1.0);
 
       final error = isRa ? point.raError : point.decError;
       final errorFraction = (error / yScale.arcsec).clamp(-1.0, 1.0);
-      final y = graphRect.top +
+      final y =
+          graphRect.top +
           graphRect.height / 2 -
           (errorFraction * graphRect.height / 2);
 

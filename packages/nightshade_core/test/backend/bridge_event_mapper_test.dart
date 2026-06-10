@@ -82,8 +82,7 @@ void main() {
       );
 
       final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);
-      final inner =
-          (bridgeEvent.payload as bridge.EventPayload_Guiding).field0;
+      final inner = (bridgeEvent.payload as bridge.EventPayload_Guiding).field0;
       expect(inner, isA<bridge.GuidingEvent_LostStar>());
     });
 

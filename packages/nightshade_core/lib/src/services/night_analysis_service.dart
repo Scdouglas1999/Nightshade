@@ -37,10 +37,10 @@ class NightAnalysisService {
     required ScienceDao science,
     required NightReportsDao reports,
     DateTime Function()? clock,
-  })  : _images = images,
-        _science = science,
-        _reports = reports,
-        _clock = clock ?? DateTime.now;
+  }) : _images = images,
+       _science = science,
+       _reports = reports,
+       _clock = clock ?? DateTime.now;
 
   final ImagesDao _images;
   final ScienceDao _science;
@@ -62,11 +62,7 @@ class NightAnalysisService {
     bool persist = true,
   }) async {
     final data = await _load(sessionId: sessionId, targetId: targetId);
-    final report = analyze(
-      data,
-      sessionId: sessionId,
-      targetId: targetId,
-    );
+    final report = analyze(data, sessionId: sessionId, targetId: targetId);
     if (persist) {
       await _reports.insertReport(
         sessionId: sessionId,
@@ -83,11 +79,7 @@ class NightAnalysisService {
   /// Pure analysis over already-loaded [data]. Exposed (rather than only the
   /// DB-bound [computeReport]) so tests can drive the full detector + scoring
   /// pipeline with synthetic series and no database at all.
-  NightReport analyze(
-    NightData data, {
-    int? sessionId,
-    int? targetId,
-  }) {
+  NightReport analyze(NightData data, {int? sessionId, int? targetId}) {
     final findings = <NightFinding>[];
     for (final detector in _detectors) {
       // Defensive: a detector bug must never sink the whole report. Each one is
@@ -162,7 +154,8 @@ class NightAnalysisService {
   /// null: the science pipeline not having produced tiles is the common
   /// case, and the tilt detector then simply stays silent.
   Future<OpticalTrainDiagnostics?> _loadOpticalDiagnostics(
-      int? sessionId) async {
+    int? sessionId,
+  ) async {
     if (sessionId == null) return null;
     try {
       final tiles = await _science.getPsfTilesForSession(sessionId);
@@ -280,9 +273,7 @@ class NightAnalysisService {
         sums[id] = (sums[id] ?? 0) + r.medianFwhm;
         counts[id] = (counts[id] ?? 0) + 1;
       }
-      return {
-        for (final e in sums.entries) e.key: e.value / counts[e.key]!,
-      };
+      return {for (final e in sums.entries) e.key: e.value / counts[e.key]!};
     } catch (_) {
       return const {};
     }
@@ -306,7 +297,7 @@ class NightAnalysisService {
     if (pts.length < 8) return const [];
 
     final times = [
-      for (final p in pts) p.sub.capturedAt.millisecondsSinceEpoch.toDouble()
+      for (final p in pts) p.sub.capturedAt.millisecondsSinceEpoch.toDouble(),
     ];
     final hfrs = [for (final p in pts) p.hfr];
     final r = _pearson(times, hfrs);
@@ -333,7 +324,7 @@ class NightAnalysisService {
 
     final tempClause = tempDrift != null
         ? ' Focuser temperature moved ${tempDrift.toStringAsFixed(1)} C over '
-            'the same window, so this is almost certainly thermal.'
+              'the same window, so this is almost certainly thermal.'
         : '';
 
     return [
@@ -348,9 +339,9 @@ class NightAnalysisService {
             'trend.$tempClause',
         advice: tempDrift != null
             ? 'Enable temperature-compensated autofocus, or trigger a refocus '
-                'every ~1 C of focuser temperature change.'
+                  'every ~1 C of focuser temperature change.'
             : 'Refocus more often (e.g. every 30-45 min or after each filter '
-                'change) so HFR stays flat across the session.',
+                  'change) so HFR stays flat across the session.',
         evidenceSubIds: evidence.isEmpty
             ? pts.map((p) => p.sub.id).toList()
             : evidence,
@@ -375,8 +366,7 @@ class NightAnalysisService {
     // healthy absolute sample; otherwise use `starCount`, which is present for
     // essentially every sub. Both signals are never mixed into one baseline.
     final snrCount = data.subs.where((s) => s.snr != null).length;
-    final useSnr =
-        snrCount >= 8 && snrCount >= (data.subs.length * 0.8).ceil();
+    final useSnr = snrCount >= 8 && snrCount >= (data.subs.length * 0.8).ceil();
 
     final pts = <({NightSub sub, double value})>[];
     for (final s in data.subs) {
@@ -402,8 +392,7 @@ class NightAnalysisService {
 
     final bad = [
       for (final p in pts)
-        p.value < relativeFloor &&
-            (!robustUsable || p.value < robustThreshold)
+        p.value < relativeFloor && (!robustUsable || p.value < robustThreshold),
     ];
 
     // Cluster bad subs into events, but treat two bad subs as part of the same
@@ -429,7 +418,9 @@ class NightAnalysisService {
       // event worth surfacing.
       if (runLen >= 2) {
         final eventSubs = [for (var k = i; k < j; k++) pts[k].sub];
-        final worst = [for (var k = i; k < j; k++) pts[k].value].reduce(math.min);
+        final worst = [
+          for (var k = i; k < j; k++) pts[k].value,
+        ].reduce(math.min);
         final dropPct = ((baseline - worst) / baseline * 100).clamp(0, 100);
         final metric = useSnr ? 'SNR' : 'star count';
         final severity = runLen >= 4 || dropPct >= 60
@@ -519,9 +510,7 @@ class NightAnalysisService {
   /// and monotone): here HFR steps up at one point and never recovers, and the
   /// star count falls off a cliff. Fires on the first such collapse point.
   List<NightFinding> _detectDewHfrCollapse(NightData data) {
-    final pts = data.subs
-        .where((s) => s.hfr != null)
-        .toList(growable: false);
+    final pts = data.subs.where((s) => s.hfr != null).toList(growable: false);
     if (pts.length < 6) return const [];
 
     final hfrs = [for (final s in pts) s.hfr!];
@@ -540,16 +529,18 @@ class NightAnalysisService {
 
       if (ratio >= 1.6 && stepUp >= 1.4 && !recovered) {
         // Confirm star loss across the same boundary when star counts exist.
-        final starsBefore =
-            _median([for (var i = 0; i < k; i++) pts[i].starCount?.toDouble()]
-                .whereType<double>()
-                .toList());
-        final starsAfter = _median([
-          for (var i = k; i < pts.length; i++) pts[i].starCount?.toDouble()
-        ].whereType<double>().toList());
-        final starLoss = (starsBefore != null &&
-                starsAfter != null &&
-                starsBefore > 0)
+        final starsBefore = _median(
+          [
+            for (var i = 0; i < k; i++) pts[i].starCount?.toDouble(),
+          ].whereType<double>().toList(),
+        );
+        final starsAfter = _median(
+          [
+            for (var i = k; i < pts.length; i++) pts[i].starCount?.toDouble(),
+          ].whereType<double>().toList(),
+        );
+        final starLoss =
+            (starsBefore != null && starsAfter != null && starsBefore > 0)
             ? starsAfter < starsBefore * 0.6
             : true; // no star data → don't block on it (HFR step is enough)
         if (!starLoss) continue;
@@ -564,8 +555,8 @@ class NightAnalysisService {
                 'HFR jumped sharply (${before.toStringAsFixed(2)} → '
                 '${after.toStringAsFixed(2)} px) and never recovered'
                 '${starsBefore != null && starsAfter != null ? ', with star '
-                    'count collapsing from ${starsBefore.round()} to '
-                    '${starsAfter.round()}' : ''} — the classic signature of '
+                          'count collapsing from ${starsBefore.round()} to '
+                          '${starsAfter.round()}' : ''} — the classic signature of '
                 'dew or frost on the optics.',
             advice:
                 'Fit and power a dew heater on the corrector/objective, and '
@@ -601,7 +592,7 @@ class NightAnalysisService {
     if (pts.length < 8) return const [];
 
     final times = [
-      for (final p in pts) p.sub.capturedAt.millisecondsSinceEpoch.toDouble()
+      for (final p in pts) p.sub.capturedAt.millisecondsSinceEpoch.toDouble(),
     ];
     final bgs = [for (final p in pts) p.bg];
     final r = _pearson(times, bgs);
@@ -626,24 +617,25 @@ class NightAnalysisService {
     return [
       NightFinding(
         id: 'moon_gradient',
-        severity:
-            moonDriven ? NightFindingSeverity.warn : NightFindingSeverity.info,
+        severity: moonDriven
+            ? NightFindingSeverity.warn
+            : NightFindingSeverity.info,
         title: moonDriven
             ? 'Moon washed out the sky as it rose'
             : 'Sky background rose through the night',
         explanation: moonDriven
             ? 'Sky background climbed '
-                '${(relRise * 100).round()}% as the moon '
-                '(${(moonStart.illumination * 100).round()}% lit) rose — '
-                'moonlight gradient reducing contrast on faint signal.'
+                  '${(relRise * 100).round()}% as the moon '
+                  '(${(moonStart.illumination * 100).round()}% lit) rose — '
+                  'moonlight gradient reducing contrast on faint signal.'
             : 'Sky background climbed ${(relRise * 100).round()}% through the '
-                'session, eroding contrast (light-pollution gradient or the '
-                'target sinking toward the horizon).',
+                  'session, eroding contrast (light-pollution gradient or the '
+                  'target sinking toward the horizon).',
         advice: moonDriven
             ? 'Schedule this target on darker, moon-free nights, or switch to '
-                'narrowband filters that reject moonlight.'
+                  'narrowband filters that reject moonlight.'
             : 'Image this target when it is higher / earlier, and apply gradient '
-                'extraction in post.',
+                  'extraction in post.',
         evidenceSubIds: [for (final p in pts) p.sub.id],
         metricSeries: bgs,
       ),
@@ -662,43 +654,53 @@ class NightAnalysisService {
 
     final findings = <NightFinding>[];
     if (diag.tiltScore >= OpticalHealthScore.tiltWarnThreshold) {
-      final critical = diag.tiltScore >= OpticalHealthScore.tiltCriticalThreshold;
-      findings.add(NightFinding(
-        id: 'field_tilt',
-        severity: critical
-            ? NightFindingSeverity.critical
-            : NightFindingSeverity.warn,
-        title: 'Field tilt detected '
-            '(score ${diag.tiltScore.toStringAsFixed(0)}/100)',
-        explanation:
-            'Star size (PSF) is systematically uneven across the frame; the '
-            'strongest degradation is toward ${diag.dominantTiltDirection}. '
-            'This pattern held across the night\'s solved frames, which '
-            'points at sensor tilt or a sagging imaging-train connection '
-            'rather than seeing.',
-        advice: 'Check the camera/corrector connection for sag and the '
-            'sensor tilt adjustment (if your camera has a tilt plate). The '
-            'equipment screen\'s optical-health card shows the live '
-            'corner-by-corner breakdown.',
-      ));
+      final critical =
+          diag.tiltScore >= OpticalHealthScore.tiltCriticalThreshold;
+      findings.add(
+        NightFinding(
+          id: 'field_tilt',
+          severity: critical
+              ? NightFindingSeverity.critical
+              : NightFindingSeverity.warn,
+          title:
+              'Field tilt detected '
+              '(score ${diag.tiltScore.toStringAsFixed(0)}/100)',
+          explanation:
+              'Star size (PSF) is systematically uneven across the frame; the '
+              'strongest degradation is toward ${diag.dominantTiltDirection}. '
+              'This pattern held across the night\'s solved frames, which '
+              'points at sensor tilt or a sagging imaging-train connection '
+              'rather than seeing.',
+          advice:
+              'Check the camera/corrector connection for sag and the '
+              'sensor tilt adjustment (if your camera has a tilt plate). The '
+              'equipment screen\'s optical-health card shows the live '
+              'corner-by-corner breakdown.',
+        ),
+      );
     }
     if (diag.collimationScore >= OpticalHealthScore.collimationWarnThreshold) {
-      final critical = diag.collimationScore >=
+      final critical =
+          diag.collimationScore >=
           OpticalHealthScore.collimationCriticalThreshold;
-      findings.add(NightFinding(
-        id: 'collimation_spacing',
-        severity: critical
-            ? NightFindingSeverity.critical
-            : NightFindingSeverity.warn,
-        title: 'Collimation / spacing mismatch '
-            '(score ${diag.collimationScore.toStringAsFixed(0)}/100)',
-        explanation:
-            'Astrometric residuals grow toward the field edges relative to '
-            'the centre — the signature of optical misalignment or wrong '
-            'corrector/flattener back-spacing, not atmosphere.',
-        advice: 'Verify collimation and the flattener back-focus distance '
-            '(55 mm is typical but check your corrector\'s spec).',
-      ));
+      findings.add(
+        NightFinding(
+          id: 'collimation_spacing',
+          severity: critical
+              ? NightFindingSeverity.critical
+              : NightFindingSeverity.warn,
+          title:
+              'Collimation / spacing mismatch '
+              '(score ${diag.collimationScore.toStringAsFixed(0)}/100)',
+          explanation:
+              'Astrometric residuals grow toward the field edges relative to '
+              'the centre — the signature of optical misalignment or wrong '
+              'corrector/flattener back-spacing, not atmosphere.',
+          advice:
+              'Verify collimation and the flattener back-focus distance '
+              '(55 mm is typical but check your corrector\'s spec).',
+        ),
+      );
     }
     return findings;
   }
@@ -756,7 +758,7 @@ class NightAnalysisService {
   static double? _focuserTempDrift(Iterable<NightSub> subs) {
     final temps = [
       for (final s in subs)
-        if (s.focuserTemp != null) s.focuserTemp!
+        if (s.focuserTemp != null) s.focuserTemp!,
     ];
     if (temps.length < 4) return null;
     final drift = temps.last - temps.first;
@@ -850,9 +852,9 @@ class NightSub {
 /// detector signatures read clearly and future cross-sub aggregates have a home.
 class NightData {
   NightData(List<NightSub> subs, {this.opticalDiagnostics})
-      : subs = List.unmodifiable(
-          [...subs]..sort((a, b) => a.capturedAt.compareTo(b.capturedAt)),
-        );
+    : subs = List.unmodifiable(
+        [...subs]..sort((a, b) => a.capturedAt.compareTo(b.capturedAt)),
+      );
 
   final List<NightSub> subs;
 
@@ -876,10 +878,8 @@ class _MoonEphemeris {
   /// observer because `captured_images` / the session row carry no site
   /// lat/long in this layer; the *rising/setting* trend is robust to that
   /// choice for the "is the moon coming up?" question the detector asks.
-  static ({double illumination, bool altitudeRising}) illuminationAndAltitudeTrend(
-    DateTime start,
-    DateTime end,
-  ) {
+  static ({double illumination, bool altitudeRising})
+  illuminationAndAltitudeTrend(DateTime start, DateTime end) {
     const latDeg = 40.0; // nominal mid-northern site
     const lonDeg = 0.0;
     final mid = DateTime.fromMillisecondsSinceEpoch(
@@ -901,14 +901,12 @@ class _MoonEphemeris {
       latDeg: latDeg,
       lonDeg: lonDeg,
     );
-    return (
-      illumination: pos.illumination,
-      altitudeRising: altEnd > altStart,
-    );
+    return (illumination: pos.illumination, altitudeRising: altEnd > altStart);
   }
 
   static ({double raHours, double decDeg, double illumination}) _moonPosition(
-      DateTime time) {
+    DateTime time,
+  ) {
     final jd = _julianDate(time);
     final t = (jd - 2451545.0) / 36525.0;
     final l = (218.3164477 + 481267.88123421 * t) % 360.0;
@@ -926,8 +924,10 @@ class _MoonEphemeris {
           math.tan(betaRad) * math.sin(epsRad),
       math.cos(lambdaRad),
     );
-    final dec = math.asin(math.sin(betaRad) * math.cos(epsRad) +
-        math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad));
+    final dec = math.asin(
+      math.sin(betaRad) * math.cos(epsRad) +
+          math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad),
+    );
     var raHours = (ra * 180.0 / math.pi) / 15.0;
     if (raHours < 0) raHours += 24.0;
     final illumination = (1.0 - math.cos(dRad)) / 2.0;
@@ -949,7 +949,8 @@ class _MoonEphemeris {
     final lat = latDeg * math.pi / 180.0;
     final lst = _localSiderealTime(time, lonDeg);
     final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-    final sinAlt = math.sin(dec) * math.sin(lat) +
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
         math.cos(dec) * math.cos(lat) * math.cos(ha);
     return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
   }
@@ -957,7 +958,8 @@ class _MoonEphemeris {
   static double _localSiderealTime(DateTime time, double lonDeg) {
     final jd = _julianDate(time);
     final t = (jd - 2451545.0) / 36525.0;
-    var gmst = 280.46061837 +
+    var gmst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000.0;

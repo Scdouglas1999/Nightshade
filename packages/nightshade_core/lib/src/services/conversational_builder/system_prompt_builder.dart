@@ -195,9 +195,7 @@ class SystemPromptBuilder {
         '${ctx.options.maxSessionHours!.toStringAsFixed(1)} hours',
       );
     }
-    buf.writeln(
-      '- Append flats at end: ${ctx.options.includeFlatsAtEnd}',
-    );
+    buf.writeln('- Append flats at end: ${ctx.options.includeFlatsAtEnd}');
     buf.writeln(
       '- Use TargetScheduler for multi-target: '
       '${ctx.options.useSchedulerForMultiTarget}',
@@ -303,16 +301,8 @@ class SystemPromptBuilder {
         'Gradually warm the camera at end of session.',
         '`ratePerMin` (°C/min), `targetTemp` (°C).',
       ],
-      [
-        'Unpark',
-        'Unpark the mount.',
-        '',
-      ],
-      [
-        'Park',
-        'Park the mount.',
-        '',
-      ],
+      ['Unpark', 'Unpark the mount.', ''],
+      ['Park', 'Park the mount.', ''],
       [
         'Dither',
         'One-shot dither.',
@@ -343,11 +333,7 @@ class SystemPromptBuilder {
         '`waitUntil` (ISO timestamp, optional), `waitForTwilight` '
             '(civil|nautical|astronomical, optional).',
       ],
-      [
-        'Delay',
-        'Sleep for N seconds.',
-        '`seconds` (number).',
-      ],
+      ['Delay', 'Sleep for N seconds.', '`seconds` (number).'],
       [
         'Notification',
         'Send a user notification (in-app / push / etc.).',

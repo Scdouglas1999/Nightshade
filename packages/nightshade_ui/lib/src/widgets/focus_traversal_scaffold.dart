@@ -75,9 +75,6 @@ class FocusOrderedWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FocusTraversalOrder(
-      order: NumericFocusOrder(order),
-      child: child,
-    );
+    return FocusTraversalOrder(order: NumericFocusOrder(order), child: child);
   }
 }

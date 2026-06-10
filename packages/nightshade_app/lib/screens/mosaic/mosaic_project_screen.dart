@@ -184,14 +184,15 @@ class MosaicProjectScreen extends ConsumerWidget {
 
   /// Per-panel master FITS base path under the DURABLE [base] artifacts dir:
   /// `<base>/project_<id>/panel_<index>.fits`.
-  static String Function(MosaicProjectPanel panel) _durablePanelOutputPathBuilder(
+  static String Function(MosaicProjectPanel panel)
+      _durablePanelOutputPathBuilder(
     String base,
   ) =>
-      (panel) => p.join(
-            base,
-            'project_${panel.projectId}',
-            'panel_${panel.panelIndex}.fits',
-          );
+          (panel) => p.join(
+                base,
+                'project_${panel.projectId}',
+                'panel_${panel.panelIndex}.fits',
+              );
 
   /// Per-project stitched-mosaic artifacts directory under the DURABLE [base]:
   /// `<base>/project_<id>`.

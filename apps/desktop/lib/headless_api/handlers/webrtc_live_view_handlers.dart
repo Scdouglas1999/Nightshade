@@ -112,9 +112,8 @@ const String kLiveViewDataChannelLabel = 'live-view-frames';
 /// Builder used by tests to swap the real `flutter_webrtc` factory for
 /// an in-memory mock. Production callers leave this null and the real
 /// `createPeerConnection` from `package:flutter_webrtc` is used.
-typedef PeerConnectionFactory = Future<RTCPeerConnection> Function(
-  Map<String, dynamic> configuration,
-);
+typedef PeerConnectionFactory =
+    Future<RTCPeerConnection> Function(Map<String, dynamic> configuration);
 
 /// Handlers for the `/api/webrtc/live-view/*` signalling surface plus
 /// the per-session [_WebRtcLiveViewSession] registry. One instance per
@@ -138,9 +137,9 @@ class WebRtcLiveViewHandlers {
     required this.hub,
     PeerConnectionFactory? peerConnectionFactory,
     Random? random,
-  })  : _factory = peerConnectionFactory ?? createPeerConnection,
-        _random = random ?? Random.secure(),
-        _logger = container.read(loggingServiceProvider);
+  }) : _factory = peerConnectionFactory ?? createPeerConnection,
+       _random = random ?? Random.secure(),
+       _logger = container.read(loggingServiceProvider);
 
   /// Number of active sessions; exposed for tests + diagnostics.
   int get sessionCount => _sessions.length;
@@ -177,26 +176,21 @@ class WebRtcLiveViewHandlers {
       });
     }
     if (_sessions.length >= _kMaxConcurrentSessions) {
-      return jsonResponse(
-        {
-          'error': 'too_many_sessions',
-          'message': 'Server already holds the maximum number of WebRTC '
-              'live-view sessions ($_kMaxConcurrentSessions). Close an '
-              'existing session before requesting a new one.',
-          'maxSessions': _kMaxConcurrentSessions,
-        },
-        statusCode: 503,
-      );
+      return jsonResponse({
+        'error': 'too_many_sessions',
+        'message':
+            'Server already holds the maximum number of WebRTC '
+            'live-view sessions ($_kMaxConcurrentSessions). Close an '
+            'existing session before requesting a new one.',
+        'maxSessions': _kMaxConcurrentSessions,
+      }, statusCode: 503);
     }
 
     final Map<String, Object?> body;
     try {
       body = await _readJsonBody(request);
     } on FormatException catch (e) {
-      return jsonBadRequest({
-        'error': 'bad_json',
-        'message': e.message,
-      });
+      return jsonBadRequest({'error': 'bad_json', 'message': e.message});
     }
 
     final deviceIdRaw = body['deviceId'];
@@ -235,9 +229,11 @@ class WebRtcLiveViewHandlers {
     if (iceRaw is List) {
       try {
         iceServers = iceRaw
-            .map((e) => (e as Map).map(
-                  (k, v) => MapEntry(k.toString(), v as Object?),
-                ))
+            .map(
+              (e) => (e as Map).map(
+                (k, v) => MapEntry(k.toString(), v as Object?),
+              ),
+            )
             .toList(growable: false);
       } catch (e) {
         return jsonBadRequest({
@@ -276,10 +272,7 @@ class WebRtcLiveViewHandlers {
 
       return jsonResponse({
         'sessionId': sessionId,
-        'sdp': {
-          'type': answer.type,
-          'sdp': answer.sdp,
-        },
+        'sdp': {'type': answer.type, 'sdp': answer.sdp},
         'iceServers': iceServers,
         'expiresAt': session.expiresAt.toUtc().toIso8601String(),
         'dataChannelLabel': kLiveViewDataChannelLabel,
@@ -312,10 +305,7 @@ class WebRtcLiveViewHandlers {
     try {
       body = await _readJsonBody(request);
     } on FormatException catch (e) {
-      return jsonBadRequest({
-        'error': 'bad_json',
-        'message': e.message,
-      });
+      return jsonBadRequest({'error': 'bad_json', 'message': e.message});
     }
 
     final candidateRaw = body['candidate'];
@@ -414,9 +404,9 @@ class WebRtcLiveViewHandlers {
         },
         onError: (Object e, _) {
           // Sanitized SSE error: don't leak the raw exception to the client.
-          write('event: error\ndata: ${jsonEncode({
-                "message": "stream_error"
-              })}\n\n');
+          write(
+            'event: error\ndata: ${jsonEncode({"message": "stream_error"})}\n\n',
+          );
         },
         onDone: () {
           if (!controller.isClosed) controller.close();
@@ -510,8 +500,10 @@ class WebRtcLiveViewHandlers {
     return session;
   }
 
-  Future<void> _destroySession(String sessionId,
-      {required String reason}) async {
+  Future<void> _destroySession(
+    String sessionId, {
+    required String reason,
+  }) async {
     final session = _sessions.remove(sessionId);
     if (session == null) return;
     _logger.info(
@@ -665,13 +657,15 @@ class _WebRtcLiveViewSession {
     // immediately. The signalling layer already carried `deviceId`, so
     // the WebRTC client does not need to send a separate subscribe
     // message over the data channel.
-    inbound.add(jsonEncode({
-      'type': 'subscribe',
-      'deviceId': deviceId,
-      'maxDim': liveViewMaxDim,
-      'maxFps': liveViewMaxFps,
-      'jpegQuality': liveViewJpegQuality,
-    }));
+    inbound.add(
+      jsonEncode({
+        'type': 'subscribe',
+        'deviceId': deviceId,
+        'maxDim': liveViewMaxDim,
+        'maxFps': liveViewMaxFps,
+        'jpegQuality': liveViewJpegQuality,
+      }),
+    );
   }
 
   /// Sink adapter passed to [LiveViewStreamHub.attachRaw]. The hub
@@ -694,9 +688,7 @@ class _WebRtcLiveViewSession {
       } else if (value is Uint8List) {
         dc.send(RTCDataChannelMessage.fromBinary(value));
       } else if (value is List<int>) {
-        dc.send(
-          RTCDataChannelMessage.fromBinary(Uint8List.fromList(value)),
-        );
+        dc.send(RTCDataChannelMessage.fromBinary(Uint8List.fromList(value)));
       } else {
         // Anything else is a protocol violation by the hub; surface it
         // loudly per CLAUDE.md and tear the session down so the client
@@ -801,19 +793,19 @@ class _WebRtcLiveViewSession {
     if (inbound != null && !inbound.isClosed) {
       try {
         await inbound.close();
-      } catch (_, __) {
+      } catch (_) {
         // Why: best-effort teardown — the hub side may have already closed.
       }
     }
     try {
       await _dataChannel?.close();
-    } catch (_, __) {
+    } catch (_) {
       // Why: best-effort teardown — the connection is already closing.
     }
     _dataChannel = null;
     try {
       await peerConnection.close();
-    } catch (_, __) {
+    } catch (_) {
       // Why: best-effort teardown — the connection is already closing.
     }
     if (!_iceController.isClosed) {

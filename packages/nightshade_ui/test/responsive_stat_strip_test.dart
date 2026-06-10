@@ -44,11 +44,7 @@ void main() {
 
   for (final entry in sizes.entries) {
     testWidgets('no overflow at ${entry.key}', (tester) async {
-      await _pumpAt(
-        tester,
-        entry.value,
-        _host(width: entry.value.width),
-      );
+      await _pumpAt(tester, entry.value, _host(width: entry.value.width));
       expect(tester.takeException(), isNull);
       // All stats are rendered (reflowed, not dropped).
       expect(find.text('0.62"'), findsOneWidget);
@@ -56,8 +52,9 @@ void main() {
     });
   }
 
-  testWidgets('reflows to a wrap when stats do not fit one row',
-      (tester) async {
+  testWidgets('reflows to a wrap when stats do not fit one row', (
+    tester,
+  ) async {
     await _pumpAt(tester, const Size(360, 640), _host(width: 320));
     // The strip uses a Wrap (multiple runs) rather than a single Row.
     final wrap = find.descendant(

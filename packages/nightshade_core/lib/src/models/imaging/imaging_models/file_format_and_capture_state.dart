@@ -72,18 +72,10 @@ extension ImageFileFormatSettingsX on ImageFileFormat {
 }
 
 /// Progressive raw load state for host-authoritative capture previews.
-enum RawLoadStatus {
-  idle,
-  loading,
-  ready,
-  failed,
-}
+enum RawLoadStatus { idle, loading, ready, failed }
 
 /// Whether the preview pixels came from a local FFI backend or remote host.
-enum CapturePreviewSource {
-  local,
-  remote,
-}
+enum CapturePreviewSource { local, remote }
 
 /// Captured image data with display buffer
 class CapturedImageData extends Equatable {
@@ -97,7 +89,7 @@ class CapturedImageData extends Equatable {
   final String? targetName;
   final String? filePath;
   final bool
-      isColor; // true if source was color (RGB), false if grayscale — displayData is always RGBA
+  isColor; // true if source was color (RGB), false if grayscale — displayData is always RGBA
 
   /// Host-authoritative 16-bit raw pixels (width * height), when loaded.
   final Uint16List? rawU16;
@@ -164,20 +156,20 @@ class CapturedImageData extends Equatable {
 
   @override
   List<Object?> get props => [
-        width,
-        height,
-        displayData,
-        histogram,
-        stats,
-        capturedAt,
-        settings,
-        targetName,
-        filePath,
-        isColor,
-        rawU16,
-        rawLoadStatus,
-        previewSource,
-      ];
+    width,
+    height,
+    displayData,
+    histogram,
+    stats,
+    capturedAt,
+    settings,
+    targetName,
+    filePath,
+    isColor,
+    rawU16,
+    rawLoadStatus,
+    previewSource,
+  ];
 }
 
 /// Captured image metadata (without pixel data)
@@ -201,8 +193,15 @@ class CapturedImage extends Equatable {
   });
 
   @override
-  List<Object?> get props =>
-      [id, filePath, capturedAt, settings, stats, targetName, format];
+  List<Object?> get props => [
+    id,
+    filePath,
+    capturedAt,
+    settings,
+    stats,
+    targetName,
+    format,
+  ];
 }
 
 /// Exposure progress
@@ -233,8 +232,14 @@ class ExposureProgress extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [elapsed, remaining, percent, frameNumber, totalFrames, isDownloading];
+  List<Object?> get props => [
+    elapsed,
+    remaining,
+    percent,
+    frameNumber,
+    totalFrames,
+    isDownloading,
+  ];
 }
 
 /// Capture mode

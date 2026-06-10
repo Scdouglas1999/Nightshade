@@ -41,8 +41,7 @@ class _LiveStackingPropertiesState
     _broadcastPathCtl = TextEditingController(text: widget.node.broadcastPath);
     _broadcastPortCtl =
         TextEditingController(text: widget.node.broadcastPort.toString());
-    _authTokenCtl =
-        TextEditingController(text: widget.node.authToken ?? '');
+    _authTokenCtl = TextEditingController(text: widget.node.authToken ?? '');
     _watermarkCtl =
         TextEditingController(text: widget.node.watermarkText ?? '');
     _maxFramesCtl =
@@ -205,8 +204,7 @@ class _LiveStackingPropertiesState
           controller: _authTokenCtl,
           decoration: const InputDecoration(
             labelText: 'Auth token',
-            helperText:
-                'Leave empty for public access. Add a token to require '
+            helperText: 'Leave empty for public access. Add a token to require '
                 '?token=… on broadcast URLs.',
             border: OutlineInputBorder(),
           ),

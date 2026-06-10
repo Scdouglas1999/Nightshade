@@ -8,10 +8,7 @@ class CelestialCoordinate {
   /// Declination in degrees (-90 to +90)
   final double dec;
 
-  const CelestialCoordinate({
-    required this.ra,
-    required this.dec,
-  });
+  const CelestialCoordinate({required this.ra, required this.dec});
 
   /// RA in degrees
   double get raDegrees => ra * 15;
@@ -38,12 +35,14 @@ class CelestialCoordinate {
     // Convert to horizontal
     final latRad = latitude * math.pi / 180;
 
-    final sinAlt = math.sin(decRadians) * math.sin(latRad) +
+    final sinAlt =
+        math.sin(decRadians) * math.sin(latRad) +
         math.cos(decRadians) * math.cos(latRad) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
     final y = -math.sin(ha) * math.cos(decRadians);
-    final x = math.sin(decRadians) * math.cos(latRad) -
+    final x =
+        math.sin(decRadians) * math.cos(latRad) -
         math.cos(decRadians) * math.sin(latRad) * math.cos(ha);
     var az = math.atan2(y, x);
     if (az < 0) az += 2 * math.pi;
@@ -74,7 +73,8 @@ class CelestialCoordinate {
 
   double _localSiderealTime(double jd, double longitude) {
     final t = (jd - 2451545.0) / 36525;
-    var lst = 280.46061837 +
+    var lst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000;
@@ -129,10 +129,7 @@ class HorizontalCoordinate {
   /// Azimuth in degrees (0 = North, 90 = East)
   final double azimuth;
 
-  const HorizontalCoordinate({
-    required this.altitude,
-    required this.azimuth,
-  });
+  const HorizontalCoordinate({required this.altitude, required this.azimuth});
 
   bool get isAboveHorizon => altitude > 0;
 

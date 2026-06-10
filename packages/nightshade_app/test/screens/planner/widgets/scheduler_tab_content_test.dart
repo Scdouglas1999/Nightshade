@@ -94,8 +94,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Tap the delete icon on the second row (target id=2, M31).
-    final deleteButton =
-        find.byKey(const ValueKey('scheduler-delete-row-2'));
+    final deleteButton = find.byKey(const ValueKey('scheduler-delete-row-2'));
     expect(deleteButton, findsOneWidget);
     await tester.tap(deleteButton);
     await tester.pumpAndSettle();
@@ -111,8 +110,7 @@ void main() {
     expect(constraintSvc.deletedForTarget, [2]);
   });
 
-  testWidgets(
-      '"Clear all" button works when SchedulerTabContent is embedded',
+  testWidgets('"Clear all" button works when SchedulerTabContent is embedded',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1280, 800);
@@ -292,8 +290,8 @@ void main() {
     expect(find.text('M31'), findsOneWidget);
     expect(find.text('M42'), findsOneWidget);
     expect(find.text('below horizon'), findsOneWidget);
-    expect(find.text('lower score than chosen (66% of winner)'),
-        findsOneWidget);
+    expect(
+        find.text('lower score than chosen (66% of winner)'), findsOneWidget);
 
     // Tap the M31 row to expand its details. The expanded body shows the
     // hard-constraint failure list AND the per-factor score breakdown.

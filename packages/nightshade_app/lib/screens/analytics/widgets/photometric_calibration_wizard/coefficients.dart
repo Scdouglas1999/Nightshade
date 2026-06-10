@@ -15,7 +15,8 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
     if (coeff == null) {
       return Text(
         _statusMessage.isEmpty ? 'Fit computation failed.' : _statusMessage,
-        style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize13),
+        style: TextStyle(
+            color: colors.error, fontSize: NightshadeTypography.fontSize13),
       );
     }
 
@@ -69,7 +70,9 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12)),
           Text(
             value,
             style: TextStyle(
@@ -178,25 +181,33 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             axisNameWidget: Text('Catalog Magnitude',
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10)),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize10)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 24,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(1),
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textSecondary),
               ),
             ),
           ),
           leftTitles: AxisTitles(
             axisNameWidget: Text('Residual (mag)',
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10)),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize10)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(2),
-                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textSecondary),
               ),
             ),
           ),

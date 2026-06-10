@@ -50,14 +50,12 @@ DisplayBufferJpegEncodeResult? encodeCapturedImageDisplayBufferToJpeg(
   var encodedWidth = image.width;
   var encodedHeight = image.height;
   if (maxWidth > 0 && image.width > maxWidth) {
-    encodedHeight =
-        (image.height * (maxWidth / image.width)).round().clamp(1, 1 << 16);
-    encodedWidth = maxWidth;
-    bitmap = img.copyResize(
-      bitmap,
-      width: encodedWidth,
-      height: encodedHeight,
+    encodedHeight = (image.height * (maxWidth / image.width)).round().clamp(
+      1,
+      1 << 16,
     );
+    encodedWidth = maxWidth;
+    bitmap = img.copyResize(bitmap, width: encodedWidth, height: encodedHeight);
   }
 
   final jpeg = img.encodeJpg(bitmap, quality: quality.clamp(1, 100));

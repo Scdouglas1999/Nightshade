@@ -33,9 +33,9 @@ class WatchComplicationLifecycleController {
     WatchComplicationService? service,
     DateTime Function()? now,
     bool? platformIsIos,
-  })  : _service = service ?? WatchComplicationService(),
-        _now = now ?? DateTime.now,
-        _platformIsIos = platformIsIos ?? Platform.isIOS;
+  }) : _service = service ?? WatchComplicationService(),
+       _now = now ?? DateTime.now,
+       _platformIsIos = platformIsIos ?? Platform.isIOS;
 
   final Ref _ref;
   final WatchComplicationService _service;
@@ -75,29 +75,20 @@ class WatchComplicationLifecycleController {
       return;
     }
 
-    _ref.listen<SequenceProgress>(
-      sequenceProgressProvider,
-      (previous, next) {
-        _scheduleFromCurrentState();
-      },
-      fireImmediately: true,
-    );
+    _ref.listen<SequenceProgress>(sequenceProgressProvider, (previous, next) {
+      _scheduleFromCurrentState();
+    }, fireImmediately: true);
 
-    _ref.listen<SequenceExecutionState>(
-      sequenceExecutionStateProvider,
-      (previous, next) {
-        _scheduleFromCurrentState();
-      },
-      fireImmediately: false,
-    );
+    _ref.listen<SequenceExecutionState>(sequenceExecutionStateProvider, (
+      previous,
+      next,
+    ) {
+      _scheduleFromCurrentState();
+    }, fireImmediately: false);
 
-    _ref.listen<WeatherSafetyState>(
-      weatherSafetyProvider,
-      (previous, next) {
-        _scheduleFromCurrentState();
-      },
-      fireImmediately: false,
-    );
+    _ref.listen<WeatherSafetyState>(weatherSafetyProvider, (previous, next) {
+      _scheduleFromCurrentState();
+    }, fireImmediately: false);
   }
 
   /// Build a snapshot from the *current* Riverpod state (not the value
@@ -115,7 +106,8 @@ class WatchComplicationLifecycleController {
     // Target name — prefer the live progress payload, fall back to the
     // sequence name so the watch face still says something useful when
     // the sequence is queued but the first target node has not fired.
-    final target = (progress.currentTarget != null &&
+    final target =
+        (progress.currentTarget != null &&
             progress.currentTarget!.trim().isNotEmpty)
         ? progress.currentTarget!.trim()
         : (sequence?.name ?? '');
@@ -263,7 +255,9 @@ class WatchComplicationLifecycleController {
         stackTrace: st,
       );
       try {
-        _ref.read(loggingServiceProvider).warning(
+        _ref
+            .read(loggingServiceProvider)
+            .warning(
               'WatchComplication publish failed: $e',
               source: 'WatchComplicationLifecycle',
             );
@@ -304,10 +298,10 @@ class WatchComplicationLifecycleController {
 /// listeners and owns no resources.
 final watchComplicationLifecycleProvider =
     Provider<WatchComplicationLifecycleController>((ref) {
-  final controller = WatchComplicationLifecycleController(ref);
-  controller.start();
-  ref.onDispose(() {
-    unawaited(controller.dispose());
-  });
-  return controller;
-});
+      final controller = WatchComplicationLifecycleController(ref);
+      controller.start();
+      ref.onDispose(() {
+        unawaited(controller.dispose());
+      });
+      return controller;
+    });

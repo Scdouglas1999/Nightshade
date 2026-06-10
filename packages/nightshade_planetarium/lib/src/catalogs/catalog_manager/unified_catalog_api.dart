@@ -11,10 +11,12 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   Future<List<InstalledCatalogStatus>> _getInstalledCatalogStatuses() async {
     if (!isInitialized) {
       return CatalogManager.knownCatalogs.values
-          .map((d) => InstalledCatalogStatus(
-                name: d.name,
-                status: CatalogInstallStatus.missing,
-              ))
+          .map(
+            (d) => InstalledCatalogStatus(
+              name: d.name,
+              status: CatalogInstallStatus.missing,
+            ),
+          )
           .toList(growable: false);
     }
 
@@ -26,7 +28,8 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   }
 
   Future<InstalledCatalogStatus> _statusFor(
-      CatalogDescriptor descriptor) async {
+    CatalogDescriptor descriptor,
+  ) async {
     final filePath = path.join(catalogDirectory, descriptor.fileName);
     final file = File(filePath);
     if (!await file.exists()) {
@@ -69,10 +72,12 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         final raw = jsonDecode(await metaFile.readAsString());
         if (raw is Map<String, dynamic>) {
           version = raw['version'] as String?;
-          installedAt =
-              DateTime.tryParse(raw['installedDate']?.toString() ?? '');
-          lastVerified =
-              DateTime.tryParse(raw['lastVerified']?.toString() ?? '');
+          installedAt = DateTime.tryParse(
+            raw['installedDate']?.toString() ?? '',
+          );
+          lastVerified = DateTime.tryParse(
+            raw['lastVerified']?.toString() ?? '',
+          );
           expectedHash = raw['sha256'] as String?;
           objectCount = raw['objectCount'] is int
               ? raw['objectCount'] as int
@@ -121,16 +126,18 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   /// `POST /api/catalog/verify` after downloading to confirm.
   Future<List<AvailableCatalog>> _listAvailableCatalogs() async {
     return CatalogManager.knownCatalogs.values
-        .map((d) => AvailableCatalog(
-              name: d.name,
-              displayName: d.displayName,
-              version: d.version,
-              description: d.description,
-              downloadUrl: d.downloadUrl.isNotEmpty ? d.downloadUrl : null,
-              sizeBytes: d.approximateSizeBytes,
-              sha256: null,
-              requiredForPlateSolve: d.requiredForPlateSolve,
-            ))
+        .map(
+          (d) => AvailableCatalog(
+            name: d.name,
+            displayName: d.displayName,
+            version: d.version,
+            description: d.description,
+            downloadUrl: d.downloadUrl.isNotEmpty ? d.downloadUrl : null,
+            sizeBytes: d.approximateSizeBytes,
+            sha256: null,
+            requiredForPlateSolve: d.requiredForPlateSolve,
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -172,8 +179,8 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     final downloadUrl = descriptor.downloadUrl.isNotEmpty
         ? descriptor.downloadUrl
         : (name == 'annotation'
-            ? buildGladePlusUrl(AnnotationPackage.standard)
-            : '');
+              ? buildGladePlusUrl(AnnotationPackage.standard)
+              : '');
     if (downloadUrl.isEmpty) {
       throw StateError('No download URL configured for catalog $name');
     }
@@ -184,22 +191,28 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     }
 
     final finalPath = path.join(catalogDirectory, descriptor.fileName);
-    final tempPath =
-        path.join(catalogDirectory, '.${descriptor.fileName}.partial');
+    final tempPath = path.join(
+      catalogDirectory,
+      '.${descriptor.fileName}.partial',
+    );
     final metaPath = path.join(catalogDirectory, descriptor.metadataFileName);
 
-    _eventController.add(CatalogEvent.downloadStarted(
-      jobId: jobId,
-      name: descriptor.name,
-      downloadUrl: downloadUrl,
-      totalBytes: descriptor.approximateSizeBytes,
-    ));
+    _eventController.add(
+      CatalogEvent.downloadStarted(
+        jobId: jobId,
+        name: descriptor.name,
+        downloadUrl: downloadUrl,
+        totalBytes: descriptor.approximateSizeBytes,
+      ),
+    );
 
     final client = http.Client();
     int totalBytes = -1;
     int downloadedBytes = 0;
-    DateTime lastProgressEmit =
-        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    DateTime lastProgressEmit = DateTime.fromMillisecondsSinceEpoch(
+      0,
+      isUtc: true,
+    );
     try {
       final request = http.Request('GET', Uri.parse(downloadUrl));
       final response = await client.send(request);
@@ -240,12 +253,14 @@ extension CatalogManagerUnifiedApi on CatalogManager {
           final now = DateTime.now();
           if (now.difference(lastProgressEmit).inMilliseconds >= 1000) {
             lastProgressEmit = now;
-            _eventController.add(CatalogEvent.downloadProgress(
-              jobId: jobId,
-              name: descriptor.name,
-              downloadedBytes: downloadedBytes,
-              totalBytes: totalBytes,
-            ));
+            _eventController.add(
+              CatalogEvent.downloadProgress(
+                jobId: jobId,
+                name: descriptor.name,
+                downloadedBytes: downloadedBytes,
+                totalBytes: totalBytes,
+              ),
+            );
           }
         }
       } finally {
@@ -310,13 +325,15 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         dsos: descriptor.name == 'dso',
       );
 
-      _eventController.add(CatalogEvent.downloadComplete(
-        jobId: jobId,
-        name: descriptor.name,
-        version: descriptor.version,
-        sizeBytes: finalBytes.length,
-        sha256: actualHash,
-      ));
+      _eventController.add(
+        CatalogEvent.downloadComplete(
+          jobId: jobId,
+          name: descriptor.name,
+          version: descriptor.version,
+          sizeBytes: finalBytes.length,
+          sha256: actualHash,
+        ),
+      );
 
       return CatalogInstallResult(
         name: descriptor.name,
@@ -342,22 +359,26 @@ extension CatalogManagerUnifiedApi on CatalogManager {
           );
         }
       }
-      _eventController.add(CatalogEvent.downloadFailed(
-        jobId: jobId,
-        name: descriptor.name,
-        error: 'cancelled',
-        phase: 'cancelled',
-      ));
+      _eventController.add(
+        CatalogEvent.downloadFailed(
+          jobId: jobId,
+          name: descriptor.name,
+          error: 'cancelled',
+          phase: 'cancelled',
+        ),
+      );
       rethrow;
     } catch (e) {
       // Surface failure events before rethrowing so subscribers always
       // see a terminating event for the started download.
-      _eventController.add(CatalogEvent.downloadFailed(
-        jobId: jobId,
-        name: descriptor.name,
-        error: e.toString(),
-        phase: e is CatalogDownloadException ? e.phase : 'unknown',
-      ));
+      _eventController.add(
+        CatalogEvent.downloadFailed(
+          jobId: jobId,
+          name: descriptor.name,
+          error: e.toString(),
+          phase: e is CatalogDownloadException ? e.phase : 'unknown',
+        ),
+      );
       final tempFile = File(tempPath);
       if (await tempFile.exists()) {
         try {
@@ -427,8 +448,10 @@ extension CatalogManagerUnifiedApi on CatalogManager {
 
     // Write to a temp file in the catalog directory then atomically
     // rename — same flow as downloadAndInstall.
-    final tempPath =
-        path.join(catalogDirectory, '.${descriptor.fileName}.upload');
+    final tempPath = path.join(
+      catalogDirectory,
+      '.${descriptor.fileName}.upload',
+    );
     final tempFile = File(tempPath);
     if (await tempFile.exists()) {
       await tempFile.delete();
@@ -459,13 +482,15 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       dsos: descriptor.name == 'dso',
     );
 
-    _eventController.add(CatalogEvent.downloadComplete(
-      jobId: null,
-      name: descriptor.name,
-      version: descriptor.version,
-      sizeBytes: sourceBytes.length,
-      sha256: actualHash,
-    ));
+    _eventController.add(
+      CatalogEvent.downloadComplete(
+        jobId: null,
+        name: descriptor.name,
+        version: descriptor.version,
+        sizeBytes: sourceBytes.length,
+        sha256: actualHash,
+      ),
+    );
 
     return CatalogInstallResult(
       name: descriptor.name,
@@ -489,8 +514,9 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     }
 
     final dataFile = File(path.join(catalogDirectory, descriptor.fileName));
-    final metaFile =
-        File(path.join(catalogDirectory, descriptor.metadataFileName));
+    final metaFile = File(
+      path.join(catalogDirectory, descriptor.metadataFileName),
+    );
     var removedAnything = false;
     if (await dataFile.exists()) {
       await dataFile.delete();
@@ -526,8 +552,9 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   /// [name] selects a single catalog; null means "verify every
   /// installed catalog". A catalog that is not installed surfaces as
   /// `ok: false` with `error: 'not_installed'`.
-  Future<Map<String, CatalogVerifyResult>> _verifyCatalogs(
-      {String? name}) async {
+  Future<Map<String, CatalogVerifyResult>> _verifyCatalogs({
+    String? name,
+  }) async {
     if (!isInitialized) {
       throw StateError('CatalogManager not initialized');
     }
@@ -558,17 +585,20 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         actualHash: null,
         errors: ['not_installed'],
       );
-      _eventController.add(CatalogEvent.verified(
-        name: descriptor.name,
-        ok: false,
-        errors: result.errors,
-      ));
+      _eventController.add(
+        CatalogEvent.verified(
+          name: descriptor.name,
+          ok: false,
+          errors: result.errors,
+        ),
+      );
       return result;
     }
 
     String? expectedHash;
-    final metaFile =
-        File(path.join(catalogDirectory, descriptor.metadataFileName));
+    final metaFile = File(
+      path.join(catalogDirectory, descriptor.metadataFileName),
+    );
     if (await metaFile.exists()) {
       try {
         final raw = jsonDecode(await metaFile.readAsString());
@@ -589,7 +619,8 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     final digest = await sha256.bind(dataFile.openRead()).first;
     final actualHash = digest.toString();
 
-    final ok = expectedHash != null &&
+    final ok =
+        expectedHash != null &&
         expectedHash.toLowerCase() == actualHash.toLowerCase();
     final errors = <String>[];
     if (expectedHash == null) {
@@ -621,11 +652,9 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       actualHash: actualHash,
       errors: errors,
     );
-    _eventController.add(CatalogEvent.verified(
-      name: descriptor.name,
-      ok: ok,
-      errors: errors,
-    ));
+    _eventController.add(
+      CatalogEvent.verified(name: descriptor.name, ok: ok, errors: errors),
+    );
     return result;
   }
 }

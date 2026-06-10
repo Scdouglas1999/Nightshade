@@ -83,13 +83,14 @@ class MuxFrame {
   final Uint8List payload;
 
   MuxFrame(this.streamId, this.type, [Uint8List? payload])
-      : payload = payload ?? Uint8List(0) {
+    : payload = payload ?? Uint8List(0) {
     if (streamId < 0 || streamId > 0xFFFFFFFF) {
       throw MuxProtocolException('streamId out of uint32 range: $streamId');
     }
     if (this.payload.length > kMuxMaxPayloadLength) {
       throw MuxProtocolException(
-          'payload ${this.payload.length} exceeds $kMuxMaxPayloadLength');
+        'payload ${this.payload.length} exceeds $kMuxMaxPayloadLength',
+      );
     }
   }
 
@@ -109,7 +110,8 @@ class MuxFrame {
   static MuxFrame decodeExact(Uint8List bytes) {
     if (bytes.length < kMuxHeaderLength) {
       throw MuxProtocolException(
-          'frame too short: ${bytes.length} < $kMuxHeaderLength');
+        'frame too short: ${bytes.length} < $kMuxHeaderLength',
+      );
     }
     final view = ByteData.sublistView(bytes);
     final streamId = view.getUint32(0);
@@ -117,12 +119,14 @@ class MuxFrame {
     final length = view.getUint32(5);
     if (length > kMuxMaxPayloadLength) {
       throw MuxProtocolException(
-          'declared payload $length exceeds $kMuxMaxPayloadLength');
+        'declared payload $length exceeds $kMuxMaxPayloadLength',
+      );
     }
     if (bytes.length != kMuxHeaderLength + length) {
       throw MuxProtocolException(
-          'frame length mismatch: declared $length, got '
-          '${bytes.length - kMuxHeaderLength} payload bytes');
+        'frame length mismatch: declared $length, got '
+        '${bytes.length - kMuxHeaderLength} payload bytes',
+      );
     }
     return MuxFrame(
       streamId,
@@ -154,7 +158,8 @@ class MuxFrameReader {
       final length = view.getUint32(5);
       if (length > kMuxMaxPayloadLength) {
         throw MuxProtocolException(
-            'declared payload $length exceeds $kMuxMaxPayloadLength');
+          'declared payload $length exceeds $kMuxMaxPayloadLength',
+        );
       }
       final total = kMuxHeaderLength + length;
       if (bytes.length < total) return;

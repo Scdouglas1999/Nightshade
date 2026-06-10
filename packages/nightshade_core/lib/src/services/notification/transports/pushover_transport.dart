@@ -29,9 +29,9 @@ class PushoverTransport extends NotificationTransport {
     required PushoverTransportConfig config,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 15),
-  })  : _config = config,
-        _client = httpClient ?? http.Client(),
-        _timeout = timeout;
+  }) : _config = config,
+       _client = httpClient ?? http.Client(),
+       _timeout = timeout;
 
   @override
   NotificationTransportKind get kind => NotificationTransportKind.pushover;
@@ -76,17 +76,17 @@ class PushoverTransport extends NotificationTransport {
     try {
       final response = await _client
           .post(
-        Uri.parse(_pushoverApiUrl),
-        body: {
-          'token': _config.apiToken,
-          'user': _config.userKey,
-          if (_config.device != null && _config.device!.isNotEmpty)
-            'device': _config.device!,
-          'title': title,
-          'message': body,
-          'priority': _priorityFor(category).toString(),
-        },
-      )
+            Uri.parse(_pushoverApiUrl),
+            body: {
+              'token': _config.apiToken,
+              'user': _config.userKey,
+              if (_config.device != null && _config.device!.isNotEmpty)
+                'device': _config.device!,
+              'title': title,
+              'message': body,
+              'priority': _priorityFor(category).toString(),
+            },
+          )
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -103,10 +103,15 @@ class PushoverTransport extends NotificationTransport {
       );
     } on TimeoutException {
       return NotificationResult.fail(
-          'Pushover request timed out after ${_timeout.inSeconds}s');
+        'Pushover request timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/Pushover] Send failed: $e',
-          name: 'PushoverTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/Pushover] Send failed: $e',
+        name: 'PushoverTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }

@@ -27,8 +27,7 @@ void main() {
       expect(kEtaWindowSize, 10);
     });
 
-    test('EMA alpha is 0.3 (balance between responsiveness and stability)',
-        () {
+    test('EMA alpha is 0.3 (balance between responsiveness and stability)', () {
       expect(kEtaEmaAlpha, closeTo(0.3, 1e-9));
     });
   });
@@ -65,8 +64,11 @@ void main() {
       // Naive average would be (60+600+60+60)/4 = 195
       // EMA gives 139.38 — heavier weight on more-recent normal samples.
       final ema = computeEma([60.0, 600.0, 60.0, 60.0]);
-      expect(ema, lessThan(195.0),
-          reason: 'EMA should be lower than a naive average');
+      expect(
+        ema,
+        lessThan(195.0),
+        reason: 'EMA should be lower than a naive average',
+      );
       expect(ema, closeTo(139.38, 0.1));
     });
 

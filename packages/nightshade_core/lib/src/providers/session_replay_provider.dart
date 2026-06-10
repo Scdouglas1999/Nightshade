@@ -151,10 +151,7 @@ class ReplayEventMarker implements ReplayMarker {
   /// Build a marker from a wire event using the run's `startedAt`
   /// as the offset anchor. Wire events carry a `timestampMs` so
   /// the projection is monotonic without any DateTime arithmetic.
-  factory ReplayEventMarker.fromRemote(
-    RemoteReplayEvent e,
-    int runStartedMs,
-  ) {
+  factory ReplayEventMarker.fromRemote(RemoteReplayEvent e, int runStartedMs) {
     return ReplayEventMarker(
       offsetMs: e.timestampMs - runStartedMs,
       wallClock: e.timestamp,
@@ -212,10 +209,7 @@ class ReplayFrameMarker implements ReplayMarker {
     this.guideRmsTotal,
   });
 
-  factory ReplayFrameMarker.fromRemote(
-    RemoteReplayFrame f,
-    int runStartedMs,
-  ) {
+  factory ReplayFrameMarker.fromRemote(RemoteReplayFrame f, int runStartedMs) {
     return ReplayFrameMarker(
       offsetMs: f.capturedAtMs - runStartedMs,
       wallClock: f.capturedAt,
@@ -445,10 +439,8 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
   DateTime? _playbackAnchor;
   int? _playbackAnchorPlayheadMs;
 
-  SessionReplayNotifier({
-    required this.runId,
-    required this.dataSource,
-  }) : super(SessionReplayLoading(runId)) {
+  SessionReplayNotifier({required this.runId, required this.dataSource})
+    : super(SessionReplayLoading(runId)) {
     _bootstrap();
   }
 
@@ -487,13 +479,11 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       // timeline even before the end-of-run header lands); ultimately
       // floor to 1s so the scrubber never has a zero-width track.
       final endedMs = run.endedAt?.millisecondsSinceEpoch;
-      final lastMarkerOffset =
-          markers.isNotEmpty ? markers.last.offsetMs : 0;
+      final lastMarkerOffset = markers.isNotEmpty ? markers.last.offsetMs : 0;
       final computedDurationMs = endedMs != null
           ? (endedMs - runStartedMs)
           : lastMarkerOffset;
-      final durationMs =
-          computedDurationMs > 0 ? computedDurationMs : 1000;
+      final durationMs = computedDurationMs > 0 ? computedDurationMs : 1000;
 
       state = SessionReplayReady(
         runId: runId,
@@ -700,8 +690,9 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       }
     }
 
-    final wallClock = current.run.startedAt
-        .add(Duration(milliseconds: playheadMs));
+    final wallClock = current.run.startedAt.add(
+      Duration(milliseconds: playheadMs),
+    );
     return ReplaySnapshot(
       playheadMs: playheadMs,
       playheadWallClock: wallClock,
@@ -739,10 +730,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
 /// Provider-level construction parameters. We use a record-shaped key
 /// so the family auto-disposes the notifier when the screen goes away
 /// (Riverpod compares records by `==`, not identity).
-typedef SessionReplayKey = ({
-  int runId,
-  SessionReplayDataSource dataSource,
-});
+typedef SessionReplayKey = ({int runId, SessionReplayDataSource dataSource});
 
 /// Family provider exposing the [SessionReplayNotifier] for a given
 /// runId + data source pair. Callers in the mobile screen layer
@@ -750,8 +738,6 @@ typedef SessionReplayKey = ({
 /// in; tests pass a stub data source.
 final sessionReplayNotifierProvider = StateNotifierProvider.autoDispose
     .family<SessionReplayNotifier, SessionReplayState, SessionReplayKey>(
-  (ref, key) => SessionReplayNotifier(
-    runId: key.runId,
-    dataSource: key.dataSource,
-  ),
-);
+      (ref, key) =>
+          SessionReplayNotifier(runId: key.runId, dataSource: key.dataSource),
+    );

@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,9 +167,8 @@ void main() {
     await tester.tap(find.text('Apply 30s'));
     await tester.pump();
 
-    final updated =
-        container.read(currentSequenceProvider)!.nodes[exposure.id]
-            as ExposureNode;
+    final updated = container.read(currentSequenceProvider)!.nodes[exposure.id]
+        as ExposureNode;
     expect(updated.durationSecs, 30);
   });
 
@@ -199,9 +198,8 @@ void main() {
     await tester.tap(find.text('Add Filter Plan'));
     await tester.pump();
 
-    final updated =
-        container.read(currentSequenceProvider)!.nodes[smart.id]
-            as SmartExposureNode;
+    final updated = container.read(currentSequenceProvider)!.nodes[smart.id]
+        as SmartExposureNode;
     expect(updated.plans.single.durationSecs, 30);
   });
 
@@ -242,9 +240,9 @@ void main() {
     expect(spy.settings?.filter, 'Ha');
     expect(spy.settings?.frameType, FrameType.snapshot);
 
-    final unchanged =
-        container.read(currentSequenceProvider)!.nodes[exposure.id]
-            as ExposureNode;
+    final unchanged = container
+        .read(currentSequenceProvider)!
+        .nodes[exposure.id] as ExposureNode;
     expect(unchanged.durationSecs, 180);
     expect(unchanged.count, 5);
 

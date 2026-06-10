@@ -160,14 +160,14 @@ class ValidationIssue {
 
   @override
   int get hashCode => Object.hash(
-        severity,
-        category,
-        title,
-        description,
-        resolutionHint,
-        affectedNodeId,
-        code,
-      );
+    severity,
+    category,
+    title,
+    description,
+    resolutionHint,
+    affectedNodeId,
+    code,
+  );
 
   @override
   String toString() =>
@@ -179,15 +179,10 @@ class ValidationResult {
   final List<ValidationIssue> issues;
   final DateTime validatedAt;
 
-  const ValidationResult({
-    required this.issues,
-    required this.validatedAt,
-  });
+  const ValidationResult({required this.issues, required this.validatedAt});
 
-  factory ValidationResult.empty() => ValidationResult(
-        issues: const [],
-        validatedAt: DateTime.now(),
-      );
+  factory ValidationResult.empty() =>
+      ValidationResult(issues: const [], validatedAt: DateTime.now());
 
   bool get hasErrors =>
       issues.any((i) => i.severity == ValidationSeverity.error);
@@ -274,120 +269,122 @@ abstract class AsyncSequenceValidator {
   String get name;
 
   Future<List<ValidationIssue>> validate(
-      Sequence sequence, ValidationContext ctx);
+    Sequence sequence,
+    ValidationContext ctx,
+  );
 }
 
 /// The full set of pure structural validators. Order is preserved in the
 /// output.
 final List<SequenceValidator> defaultSequenceValidators =
     List<SequenceValidator>.unmodifiable(<SequenceValidator>[
-  EmptySequenceRule(),
-  MissingRootNodeRule(),
-  OrphanedNodesRule(),
-  EmptyContainerRule(),
-  TargetCoordinatesRule(),
-  EmptyTargetRule(),
-  LowAltitudeLimitRule(),
-  // Wave 3 Agent 3 — per-target integration budget validators.
-  IntegrationBudgetEmptyRule(),
-  IntegrationBudgetRatioZeroSumRule(),
-  IntegrationBudgetRatioWithoutTotalRule(),
-  // Wave 4 — per-target altitude/time crossing validators. The
-  // ImpossibleAltitude rule needs an observer latitude to be useful; we
-  // wire it up below in `sequenceValidatorsFor(latitude)` if/when the
-  // caller has one. The structural rules (empty compound,
-  // start/end contradiction) work without an observer.
-  TargetTriggerEmptyCompoundRule(),
-  const TargetTriggerStartEndContradictionRule(),
-  NoTargetForExposuresRule(),
-  ExposureParamsRule(),
-  HighBinningRule(),
-  NoExposuresRule(),
-  LongTotalIntegrationRule(),
-  UnboundedLoopRule(),
-  SlewCoordinatesRule(),
-  WaitTimePastRule(),
-  LoopEndTimePastRule(),
-  // Logic-node-specific rules (Recovery / Parallel / Conditional).
-  RecoveryNodeConfigRule(),
-  // Wave 5 Agent 4 — cloud-motion-aware trigger config validation.
-  CloudTriggerConfigRule(),
-  ParallelNodeRequiredSuccessesRule(),
-  ConditionalNodeEmptyBranchRule(),
-  LoopUnreachableTerminationRule(),
-  // Wave 3 Agent 2: SmartExposure validation.
-  SmartExposureEmptyPlansRule(),
-  SmartExposureNegativeCountRule(),
-  SmartExposureUnboundedLoopRule(),
-  // Wave 7 Science: SciencePhotometry validation.
-  SciencePhotometryFilterRule(),
-  SciencePhotometryReferenceStarsEmptyRule(),
-  SciencePhotometryCadenceRule(),
-  // Wave 7 Agent 2: LiveStacking node validation.
-  LiveStackingNoExposureRule(),
-  LiveStackingPortClashRule(),
-  // Wave 3 Agent 1: TargetScheduler validation.
-  TargetSchedulerNoChildrenRule(),
-  TargetSchedulerNonTargetChildRule(),
-  TargetSchedulerWeightsRule(),
-  // Wave 5 Agent 2: Sky-brightness adaptive exposure validation.
-  AdaptiveExposureBoundsRule(),
-  AdaptiveExposureNoFilterEnabledRule(),
-  AdaptiveExposureNominalOutOfBoundsRule(),
-]);
+      EmptySequenceRule(),
+      MissingRootNodeRule(),
+      OrphanedNodesRule(),
+      EmptyContainerRule(),
+      TargetCoordinatesRule(),
+      EmptyTargetRule(),
+      LowAltitudeLimitRule(),
+      // Wave 3 Agent 3 — per-target integration budget validators.
+      IntegrationBudgetEmptyRule(),
+      IntegrationBudgetRatioZeroSumRule(),
+      IntegrationBudgetRatioWithoutTotalRule(),
+      // Wave 4 — per-target altitude/time crossing validators. The
+      // ImpossibleAltitude rule needs an observer latitude to be useful; we
+      // wire it up below in `sequenceValidatorsFor(latitude)` if/when the
+      // caller has one. The structural rules (empty compound,
+      // start/end contradiction) work without an observer.
+      TargetTriggerEmptyCompoundRule(),
+      const TargetTriggerStartEndContradictionRule(),
+      NoTargetForExposuresRule(),
+      ExposureParamsRule(),
+      HighBinningRule(),
+      NoExposuresRule(),
+      LongTotalIntegrationRule(),
+      UnboundedLoopRule(),
+      SlewCoordinatesRule(),
+      WaitTimePastRule(),
+      LoopEndTimePastRule(),
+      // Logic-node-specific rules (Recovery / Parallel / Conditional).
+      RecoveryNodeConfigRule(),
+      // Wave 5 Agent 4 — cloud-motion-aware trigger config validation.
+      CloudTriggerConfigRule(),
+      ParallelNodeRequiredSuccessesRule(),
+      ConditionalNodeEmptyBranchRule(),
+      LoopUnreachableTerminationRule(),
+      // Wave 3 Agent 2: SmartExposure validation.
+      SmartExposureEmptyPlansRule(),
+      SmartExposureNegativeCountRule(),
+      SmartExposureUnboundedLoopRule(),
+      // Wave 7 Science: SciencePhotometry validation.
+      SciencePhotometryFilterRule(),
+      SciencePhotometryReferenceStarsEmptyRule(),
+      SciencePhotometryCadenceRule(),
+      // Wave 7 Agent 2: LiveStacking node validation.
+      LiveStackingNoExposureRule(),
+      LiveStackingPortClashRule(),
+      // Wave 3 Agent 1: TargetScheduler validation.
+      TargetSchedulerNoChildrenRule(),
+      TargetSchedulerNonTargetChildRule(),
+      TargetSchedulerWeightsRule(),
+      // Wave 5 Agent 2: Sky-brightness adaptive exposure validation.
+      AdaptiveExposureBoundsRule(),
+      AdaptiveExposureNoFilterEnabledRule(),
+      AdaptiveExposureNominalOutOfBoundsRule(),
+    ]);
 
 /// The full set of ref-aware validators (read providers but no I/O).
 final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
     List<RefAwareSequenceValidator>.unmodifiable(<RefAwareSequenceValidator>[
-  EquipmentConnectionRule(),
-  RotatorRotationConflictRule(),
-  FilterInWheelRule(),
-  ImageOutputPathRule(),
-  DefaultSequenceNameRule(),
-  LongEstimatedDurationRule(),
-  MeridianFlipTriggerRule(),
-  // Wave 3 Agent 2: SmartExposure needs a filter wheel.
-  SmartExposureFilterWheelMissingRule(),
-  // Audit C6: every SmartExposure row's filterName must match a filter
-  // configured in the active equipment profile.
-  SmartExposureFilterUnknownRule(),
-  // Wave 5 Agent 3 — Pre-flight equipment-health checks (synchronous —
-  // they only read providers, no network / disk I/O).
-  UsbStabilityRule(),
-  FocuserRangeRule(),
-  PolarAlignmentFreshnessRule(),
-  CoolerDeltaRule(),
-  FilterWheelHomingRule(),
-  OpticalTrainPreflightRule(),
-  // Wave 7 Agent 3 — defect-map calibration check. Warns when the user
-  // enabled auto-apply but no map exists for the current camera/bucket.
-  DefectMapAppliedButCalibrationOffRule(),
-]);
+      EquipmentConnectionRule(),
+      RotatorRotationConflictRule(),
+      FilterInWheelRule(),
+      ImageOutputPathRule(),
+      DefaultSequenceNameRule(),
+      LongEstimatedDurationRule(),
+      MeridianFlipTriggerRule(),
+      // Wave 3 Agent 2: SmartExposure needs a filter wheel.
+      SmartExposureFilterWheelMissingRule(),
+      // Audit C6: every SmartExposure row's filterName must match a filter
+      // configured in the active equipment profile.
+      SmartExposureFilterUnknownRule(),
+      // Wave 5 Agent 3 — Pre-flight equipment-health checks (synchronous —
+      // they only read providers, no network / disk I/O).
+      UsbStabilityRule(),
+      FocuserRangeRule(),
+      PolarAlignmentFreshnessRule(),
+      CoolerDeltaRule(),
+      FilterWheelHomingRule(),
+      OpticalTrainPreflightRule(),
+      // Wave 7 Agent 3 — defect-map calibration check. Warns when the user
+      // enabled auto-apply but no map exists for the current camera/bucket.
+      DefectMapAppliedButCalibrationOffRule(),
+    ]);
 
 /// The full set of async validators (perform I/O — disk space).
 final List<AsyncSequenceValidator> defaultAsyncSequenceValidators =
     List<AsyncSequenceValidator>.unmodifiable(<AsyncSequenceValidator>[
-  DiskSpaceProjectionRule(),
-  // Wave 5 Agent 3 — Pre-flight async checks (query dark library DAO,
-  // NTP). Live in the async tier so the live in-tree validator (which
-  // runs on every keystroke) doesn't trigger them.
-  DarkLibraryCoverageRule(),
-  HistoryDrivenQualityRule(),
-  TimeSyncRule(),
-]);
+      DiskSpaceProjectionRule(),
+      // Wave 5 Agent 3 — Pre-flight async checks (query dark library DAO,
+      // NTP). Live in the async tier so the live in-tree validator (which
+      // runs on every keystroke) doesn't trigger them.
+      DarkLibraryCoverageRule(),
+      HistoryDrivenQualityRule(),
+      TimeSyncRule(),
+    ]);
 
 /// Provider that exposes the canonical validator. UI / providers consume
 /// this — they should not new up [SequenceValidator] directly except in
 /// tests.
 final sequenceValidatorProvider =
     Provider.autoDispose<SequenceValidatorService>((ref) {
-  return SequenceValidatorService(
-    ref: ref,
-    syncRules: defaultSequenceValidators,
-    refAwareRules: defaultRefAwareSequenceValidators,
-    asyncRules: defaultAsyncSequenceValidators,
-  );
-});
+      return SequenceValidatorService(
+        ref: ref,
+        syncRules: defaultSequenceValidators,
+        refAwareRules: defaultRefAwareSequenceValidators,
+        asyncRules: defaultAsyncSequenceValidators,
+      );
+    });
 
 /// Service that runs all registered validators against a sequence.
 ///
@@ -408,10 +405,10 @@ class SequenceValidatorService {
     required List<SequenceValidator> syncRules,
     required List<RefAwareSequenceValidator> refAwareRules,
     required List<AsyncSequenceValidator> asyncRules,
-  })  : _ref = ref,
-        _syncRules = syncRules,
-        _refAwareRules = refAwareRules,
-        _asyncRules = asyncRules;
+  }) : _ref = ref,
+       _syncRules = syncRules,
+       _refAwareRules = refAwareRules,
+       _asyncRules = asyncRules;
 
   /// Runs only synchronous rules. Safe to call from non-async UI paths.
   ValidationResult validateSync(Sequence sequence) {
@@ -499,25 +496,25 @@ class SequenceValidationException implements Exception {
   /// shape of the in-app pre-flight dialog so a remote dashboard can
   /// render the same UI as the desktop.
   Map<String, Object?> toJsonBody() => {
-        'code': 'sequence_validation_failed',
-        'message': toString(),
-        'errorCount': result.errorCount,
-        'warningCount': result.warningCount,
-        'infoCount': result.infoCount,
-        'issues': result.issues
-            .map((i) => {
-                  'severity': i.severity.name,
-                  'category': i.category.name,
-                  'title': i.title,
-                  'description': i.description,
-                  if (i.resolutionHint != null)
-                    'resolutionHint': i.resolutionHint,
-                  if (i.affectedNodeId != null)
-                    'affectedNodeId': i.affectedNodeId,
-                  if (i.code != null) 'code': i.code,
-                })
-            .toList(),
-      };
+    'code': 'sequence_validation_failed',
+    'message': toString(),
+    'errorCount': result.errorCount,
+    'warningCount': result.warningCount,
+    'infoCount': result.infoCount,
+    'issues': result.issues
+        .map(
+          (i) => {
+            'severity': i.severity.name,
+            'category': i.category.name,
+            'title': i.title,
+            'description': i.description,
+            if (i.resolutionHint != null) 'resolutionHint': i.resolutionHint,
+            if (i.affectedNodeId != null) 'affectedNodeId': i.affectedNodeId,
+            if (i.code != null) 'code': i.code,
+          },
+        )
+        .toList(),
+  };
 }
 
 /// True for node types that own a child list (Target/Loop/Parallel/Conditional/
@@ -537,8 +534,7 @@ bool isContainerNode(SequenceNode node) {
     InstructionSetNode _ ||
     // Wave 3 Agent 1: TargetScheduler holds child target headers and picks
     // among them at runtime.
-    TargetSchedulerNode _ =>
-      true,
+    TargetSchedulerNode _ => true,
     // Leaf nodes (instructions / triggers) do not own children
     ExposureNode _ ||
     SlewNode _ ||
@@ -574,7 +570,6 @@ bool isContainerNode(SequenceNode node) {
     // Wave 7 Science: SciencePhotometry — leaf instruction.
     SciencePhotometryNode _ ||
     // Audit §11 — plugin-contributed instruction. Leaf.
-    PluginInstructionNode _ =>
-      false,
+    PluginInstructionNode _ => false,
   };
 }

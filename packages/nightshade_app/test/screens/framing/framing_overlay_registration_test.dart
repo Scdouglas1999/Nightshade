@@ -25,8 +25,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Matrix4 _translation(Offset o) =>
-    Matrix4.translationValues(o.dx, o.dy, 0);
+Matrix4 _translation(Offset o) => Matrix4.translationValues(o.dx, o.dy, 0);
 
 /// Rotation by [radians] about [pivot]: T(pivot) · R · T(-pivot).
 Matrix4 _rotationAbout(double radians, Offset pivot) =>

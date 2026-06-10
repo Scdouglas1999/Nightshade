@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,8 +99,12 @@ class PolarAlignmentService {
       // message. The Rust layer returns a clear "Plate solver required —
       // install ASTAP" error when no solver is configured; surface it
       // verbatim rather than wrapping.
-      developer.log('[PolarAlignmentService] allSky failed: $e',
-          name: 'PolarAlignmentService', level: 1000, error: e);
+      developer.log(
+        '[PolarAlignmentService] allSky failed: $e',
+        name: 'PolarAlignmentService',
+        level: 1000,
+        error: e,
+      );
       rethrow;
     }
   }

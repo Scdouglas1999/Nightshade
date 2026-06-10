@@ -179,8 +179,10 @@ Duration _tickerInterval(TickerCadence cadence) {
 /// final tick = ref.watch(tickerProvider(TickerCadence.thirtySeconds));
 /// final now = tick.valueOrNull ?? DateTime.now();
 /// ```
-final tickerProvider =
-    StreamProvider.family<DateTime, TickerCadence>((ref, cadence) {
+final tickerProvider = StreamProvider.family<DateTime, TickerCadence>((
+  ref,
+  cadence,
+) {
   final interval = _tickerInterval(cadence);
   late StreamController<DateTime> controller;
   Timer? timer;

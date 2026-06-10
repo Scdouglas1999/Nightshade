@@ -55,7 +55,9 @@ const Map<String, String> oscDemosaicQualityLabels = <String, String>{
 /// identically in the live panel and the Stack-and-Share dialog.
 String oscBayerPatternLabel(String value, String? detectedPattern) {
   if (value == oscBayerAutoValue) {
-    return detectedPattern != null ? 'Auto (detected: $detectedPattern)' : 'Auto';
+    return detectedPattern != null
+        ? 'Auto (detected: $detectedPattern)'
+        : 'Auto';
   }
   return value;
 }

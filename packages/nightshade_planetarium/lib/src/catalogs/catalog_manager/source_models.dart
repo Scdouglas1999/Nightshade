@@ -15,7 +15,8 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
   final dRa = ra2Rad - ra1Rad;
   final dDec = dec2Rad - dec1Rad;
 
-  final a = math.sin(dDec / 2) * math.sin(dDec / 2) +
+  final a =
+      math.sin(dDec / 2) * math.sin(dDec / 2) +
       math.cos(dec1Rad) *
           math.cos(dec2Rad) *
           math.sin(dRa / 2) *
@@ -36,7 +37,10 @@ String _normalizeCatalogSearchText(String value) {
 }
 
 bool _catalogTextMatches(
-    String value, String rawQuery, String normalizedQuery) {
+  String value,
+  String rawQuery,
+  String normalizedQuery,
+) {
   final rawValue = value.toLowerCase();
   if (rawValue.contains(rawQuery)) return true;
   final normalizedValue = _normalizeCatalogSearchText(value);
@@ -55,35 +59,17 @@ enum CatalogPackage {
   /// Essential package: ~10MB
   /// - Stars: magnitude < 6.5 (~9,000 stars)
   /// - DSOs: Messier + NGC objects magnitude < 10 (~2,000 objects)
-  essential(
-    'Essential',
-    'Basic catalog for visual observation',
-    10,
-    6.5,
-    10.0,
-  ),
+  essential('Essential', 'Basic catalog for visual observation', 10, 6.5, 10.0),
 
   /// Standard package: ~30MB
   /// - Stars: magnitude < 8.0 (~40,000 stars)
   /// - DSOs: All NGC + IC objects magnitude < 12 (~8,000 objects)
-  standard(
-    'Standard',
-    'Recommended for most users',
-    30,
-    8.0,
-    12.0,
-  ),
+  standard('Standard', 'Recommended for most users', 30, 8.0, 12.0),
 
   /// Complete package: ~60MB
   /// - Stars: All HYG stars (~120,000 stars)
   /// - DSOs: All OpenNGC objects (~13,000 objects)
-  complete(
-    'Complete',
-    'Full catalogs for advanced users',
-    60,
-    15.0,
-    20.0,
-  );
+  complete('Complete', 'Full catalogs for advanced users', 60, 15.0, 20.0);
 
   final String displayName;
   final String description;
@@ -269,12 +255,12 @@ class DownloadProgress {
   });
 
   factory DownloadProgress.starting(String catalogName) => DownloadProgress(
-        catalogName: catalogName,
-        progress: 0,
-        bytesReceived: 0,
-        totalBytes: 0,
-        status: 'Starting download...',
-      );
+    catalogName: catalogName,
+    progress: 0,
+    bytesReceived: 0,
+    totalBytes: 0,
+    status: 'Starting download...',
+  );
 
   factory DownloadProgress.complete(String catalogName, int bytes) =>
       DownloadProgress(

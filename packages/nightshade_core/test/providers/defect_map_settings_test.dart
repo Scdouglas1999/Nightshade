@@ -21,9 +21,9 @@ void main() {
 
     setUp(() {
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      container = ProviderContainer(overrides: [
-        databaseProvider.overrideWithValue(db),
-      ]);
+      container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
     });
 
     tearDown(() async {
@@ -82,8 +82,7 @@ void main() {
         DefectMapMethod.gaussian.wireValue,
       );
       expect(await dao.getSetting(DefectMapSettingsKeys.kernel), '7');
-      expect(
-          await dao.getSetting(DefectMapSettingsKeys.saveOriginal), 'true');
+      expect(await dao.getSetting(DefectMapSettingsKeys.saveOriginal), 'true');
     });
 
     test('round-trips through a fresh provider', () async {

@@ -32,9 +32,9 @@ class TargetProgressService {
     required db.NightshadeDatabase database,
     required IntegrationGoalService goalService,
     DateTime Function()? clock,
-  })  : _db = database,
-        _goalService = goalService,
-        _now = clock ?? DateTime.now;
+  }) : _db = database,
+       _goalService = goalService,
+       _now = clock ?? DateTime.now;
 
   /// Compute progress for a single target.
   ///
@@ -95,8 +95,8 @@ class TargetProgressService {
     var totalCapturedSeconds = 0.0;
 
     for (final g in goals) {
-      final captured = aggregates.framesByFilterLower[g.filter.toLowerCase()] ??
-          0;
+      final captured =
+          aggregates.framesByFilterLower[g.filter.toLowerCase()] ?? 0;
       perFilter.add(
         FilterProgress(
           filter: g.filter,
@@ -115,8 +115,8 @@ class TargetProgressService {
         ? 0.0
         : math.min(1.0, totalCapturedFrames / totalGoalFrames);
 
-    final avgFramesPerNight = aggregates.windowFrameCount > 0 &&
-            aggregates.windowDistinctNights > 0
+    final avgFramesPerNight =
+        aggregates.windowFrameCount > 0 && aggregates.windowDistinctNights > 0
         ? aggregates.windowFrameCount / aggregates.windowDistinctNights
         : 0.0;
 
@@ -138,10 +138,12 @@ class TargetProgressService {
       perFilter: perFilter,
       totalGoalFrames: totalGoalFrames,
       totalCapturedFrames: totalCapturedFrames,
-      totalIntegrationGoal:
-          Duration(milliseconds: (totalGoalSeconds * 1000).round()),
-      totalIntegrationCaptured:
-          Duration(milliseconds: (totalCapturedSeconds * 1000).round()),
+      totalIntegrationGoal: Duration(
+        milliseconds: (totalGoalSeconds * 1000).round(),
+      ),
+      totalIntegrationCaptured: Duration(
+        milliseconds: (totalCapturedSeconds * 1000).round(),
+      ),
       percentComplete: percentComplete,
       avgFramesPerNight: avgFramesPerNight,
       estimatedNightsRemaining: eta,
@@ -154,9 +156,9 @@ class TargetProgressService {
     List<db.CapturedImage> images,
   ) {
     final now = _now();
-    final windowStart = _nightStart(now).subtract(
-      const Duration(days: TargetProgress.etaWindowNights),
-    );
+    final windowStart = _nightStart(
+      now,
+    ).subtract(const Duration(days: TargetProgress.etaWindowNights));
 
     final framesByFilterLower = <String, int>{};
     var totalCapturedAny = 0;
@@ -198,24 +200,25 @@ class TargetProgressService {
   /// rolling-window stats needed for the ETA.
   Future<_CaptureAggregates> _captureAggregatesForTarget(int targetId) async {
     final now = _now();
-    final windowStart = _nightStart(now).subtract(
-      const Duration(days: TargetProgress.etaWindowNights),
-    );
+    final windowStart = _nightStart(
+      now,
+    ).subtract(const Duration(days: TargetProgress.etaWindowNights));
     // Drift stores DateTimeColumn as Unix seconds (see e.g.
     // IntegrationGoalService which divides millis by 1000), so the
     // captured_at comparison and re-hydration both use seconds.
-    final windowStartSec =
-        windowStart.toUtc().millisecondsSinceEpoch ~/ 1000;
+    final windowStartSec = windowStart.toUtc().millisecondsSinceEpoch ~/ 1000;
 
     // Per-filter accepted-light counts.
-    final perFilterRows = await _db.customSelect(
-      "SELECT LOWER(filter) AS filter_lower, COUNT(*) AS c "
-      "FROM captured_images "
-      "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
-      "AND filter IS NOT NULL "
-      "GROUP BY LOWER(filter)",
-      variables: [Variable.withInt(targetId)],
-    ).get();
+    final perFilterRows = await _db
+        .customSelect(
+          "SELECT LOWER(filter) AS filter_lower, COUNT(*) AS c "
+          "FROM captured_images "
+          "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
+          "AND filter IS NOT NULL "
+          "GROUP BY LOWER(filter)",
+          variables: [Variable.withInt(targetId)],
+        )
+        .get();
     final framesByFilterLower = <String, int>{};
     var totalCapturedAny = 0;
     for (final row in perFilterRows) {
@@ -227,39 +230,46 @@ class TargetProgressService {
 
     // Most recent accepted light frame for the target. Stored as Unix
     // seconds by drift's DateTimeColumn (default mapping).
-    final lastRow = await _db.customSelect(
-      "SELECT MAX(captured_at) AS last_sec FROM captured_images "
-      "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1",
-      variables: [Variable.withInt(targetId)],
-    ).getSingleOrNull();
+    final lastRow = await _db
+        .customSelect(
+          "SELECT MAX(captured_at) AS last_sec FROM captured_images "
+          "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1",
+          variables: [Variable.withInt(targetId)],
+        )
+        .getSingleOrNull();
     DateTime? lastImagedAt;
     if (lastRow != null) {
       final lastSec = lastRow.data['last_sec'];
       if (lastSec is int) {
-        lastImagedAt =
-            DateTime.fromMillisecondsSinceEpoch(lastSec * 1000, isUtc: true)
-                .toLocal();
+        lastImagedAt = DateTime.fromMillisecondsSinceEpoch(
+          lastSec * 1000,
+          isUtc: true,
+        ).toLocal();
       }
     }
 
     // Frames in the rolling window — pulled as timestamps so we can bucket
     // them into local-noon nights in Dart (sqlite's date arithmetic does
     // not know the local-offset rule we want).
-    final windowRows = await _db.customSelect(
-      "SELECT captured_at AS ts FROM captured_images "
-      "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
-      "AND captured_at >= ?",
-      variables: [
-        Variable.withInt(targetId),
-        Variable.withInt(windowStartSec),
-      ],
-    ).get();
+    final windowRows = await _db
+        .customSelect(
+          "SELECT captured_at AS ts FROM captured_images "
+          "WHERE target_id = ? AND frame_type = 'light' AND is_accepted = 1 "
+          "AND captured_at >= ?",
+          variables: [
+            Variable.withInt(targetId),
+            Variable.withInt(windowStartSec),
+          ],
+        )
+        .get();
     final distinctNights = <DateTime>{};
     for (final row in windowRows) {
       final ts = row.data['ts'];
       if (ts is! int) continue;
-      final dt =
-          DateTime.fromMillisecondsSinceEpoch(ts * 1000, isUtc: true).toLocal();
+      final dt = DateTime.fromMillisecondsSinceEpoch(
+        ts * 1000,
+        isUtc: true,
+      ).toLocal();
       distinctNights.add(_nightStart(dt));
     }
 

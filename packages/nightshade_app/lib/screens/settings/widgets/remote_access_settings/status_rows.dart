@@ -29,7 +29,8 @@ class _PairingCallout extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -103,7 +104,8 @@ class _StatusRow extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
-              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.textPrimary),
             ),
           ),
         ],

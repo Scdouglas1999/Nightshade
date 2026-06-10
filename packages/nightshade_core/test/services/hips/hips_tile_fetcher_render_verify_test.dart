@@ -68,16 +68,18 @@ void main() {
     const baseUrl = 'https://alasky.cds.unistra.fr/DSS/DSS2Merged';
     final id = HipsTileId(survey: 'CDS/P/DSS2/red', norder: 4, npix: 777);
 
-    final ui.Image image =
-        await fetcher.fetchTile(id, baseUrl, HipsTileFormat.png);
+    final ui.Image image = await fetcher.fetchTile(
+      id,
+      baseUrl,
+      HipsTileFormat.png,
+    );
     addTearDown(image.dispose);
 
     expect(image.width, tileSize);
     expect(image.height, tileSize);
 
     // Read back the decoded GPU image and re-encode to PNG for the artifact.
-    final byteData =
-        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     expect(byteData, isNotNull);
     final rgba = byteData!.buffer.asUint8List();
     expect(rgba.length, tileSize * tileSize * 4);
@@ -122,9 +124,13 @@ void main() {
       // ignore: avoid_print
       print('Golden created: ${golden.absolute.path}');
     } else {
-      expect(png, golden.readAsBytesSync(),
-          reason: 'C5 fetch+decode round-trip drifted from golden; if '
-              'intentional, delete ${golden.path} to regenerate.');
+      expect(
+        png,
+        golden.readAsBytesSync(),
+        reason:
+            'C5 fetch+decode round-trip drifted from golden; if '
+            'intentional, delete ${golden.path} to regenerate.',
+      );
     }
   });
 }

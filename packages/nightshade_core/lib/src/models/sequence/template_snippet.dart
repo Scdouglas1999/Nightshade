@@ -670,23 +670,10 @@ class BuiltInSnippets {
             'nodeType': 'InstructionSet',
             'name': 'Weather Response',
             'children': [
-              {
-                'nodeType': 'StopGuiding',
-                'name': 'Stop Guiding',
-              },
-              {
-                'nodeType': 'Park',
-                'name': 'Park Mount',
-              },
-              {
-                'nodeType': 'Delay',
-                'name': 'Wait 5 Minutes',
-                'seconds': 300.0,
-              },
-              {
-                'nodeType': 'Unpark',
-                'name': 'Unpark Mount',
-              },
+              {'nodeType': 'StopGuiding', 'name': 'Stop Guiding'},
+              {'nodeType': 'Park', 'name': 'Park Mount'},
+              {'nodeType': 'Delay', 'name': 'Wait 5 Minutes', 'seconds': 300.0},
+              {'nodeType': 'Unpark', 'name': 'Unpark Mount'},
               {
                 'nodeType': 'StartGuiding',
                 'name': 'Resume Guiding',
@@ -724,10 +711,7 @@ class BuiltInSnippets {
             'nodeType': 'InstructionSet',
             'name': 'Restart Guiding',
             'children': [
-              {
-                'nodeType': 'StopGuiding',
-                'name': 'Stop Guiding',
-              },
+              {'nodeType': 'StopGuiding', 'name': 'Stop Guiding'},
               {
                 'nodeType': 'Delay',
                 'name': 'Wait Before Restart',
@@ -815,10 +799,7 @@ class BuiltInSnippets {
         'nodeType': 'InstructionSet',
         'name': 'Meridian Flip Sequence',
         'children': [
-          {
-            'nodeType': 'StopGuiding',
-            'name': 'Stop Guiding',
-          },
+          {'nodeType': 'StopGuiding', 'name': 'Stop Guiding'},
           {
             'nodeType': 'MeridianFlip',
             'name': 'Meridian Flip',
@@ -851,31 +832,31 @@ class BuiltInSnippets {
 
   /// All built-in snippets
   static List<TemplateSnippet> get all => [
-        // Autofocus snippets
-        autofocusRoutine,
-        hfrTriggeredAf,
-        tempDriftAf,
-        perFilterAf,
-        // Dithering snippets
-        ditherAfterEach,
-        aggressiveDither,
-        gentleDither,
-        ditherEveryN,
-        // Filter sequence snippets
-        lrgbFilterCycle,
-        haOiiiBicolor,
-        shoHubble,
-        lrgbHaEnhanced,
-        oscNoFilter,
-        dualNarrowband,
-        rgbOnly,
-        // Safety snippets
-        safetyCheck,
-        weatherPause,
-        guidingRecovery,
-        // Calibration snippets
-        meridianFlipHandler,
-      ];
+    // Autofocus snippets
+    autofocusRoutine,
+    hfrTriggeredAf,
+    tempDriftAf,
+    perFilterAf,
+    // Dithering snippets
+    ditherAfterEach,
+    aggressiveDither,
+    gentleDither,
+    ditherEveryN,
+    // Filter sequence snippets
+    lrgbFilterCycle,
+    haOiiiBicolor,
+    shoHubble,
+    lrgbHaEnhanced,
+    oscNoFilter,
+    dualNarrowband,
+    rgbOnly,
+    // Safety snippets
+    safetyCheck,
+    weatherPause,
+    guidingRecovery,
+    // Calibration snippets
+    meridianFlipHandler,
+  ];
 
   /// Get built-in snippets by category
   static List<TemplateSnippet> byCategory(SnippetCategory category) {

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,24 +11,30 @@ void main() {
   group('ObservingListJsonImporter sniff', () {
     test('detects format marker', () {
       expect(
-          ObservingListJsonImporter.sniff(
-              '{"_format": "observing_list_v1", "items": []}'),
-          isTrue);
+        ObservingListJsonImporter.sniff(
+          '{"_format": "observing_list_v1", "items": []}',
+        ),
+        isTrue,
+      );
     });
 
     test('detects heuristic (items + version)', () {
       expect(
-          ObservingListJsonImporter.sniff(
-              '{"name":"x","version":1,"items":[{"target":{"name":"M1"}}]}'),
-          isTrue);
+        ObservingListJsonImporter.sniff(
+          '{"name":"x","version":1,"items":[{"target":{"name":"M1"}}]}',
+        ),
+        isTrue,
+      );
     });
 
     test('rejects NINA-shaped JSON (capital Items)', () {
       // NINA uses "Items" not "items".
       expect(
-          ObservingListJsonImporter.sniff(
-              '{"\$type": "NINA.Sequencer.Container", "Items": []}'),
-          isFalse);
+        ObservingListJsonImporter.sniff(
+          '{"\$type": "NINA.Sequencer.Container", "Items": []}',
+        ),
+        isFalse,
+      );
     });
 
     test('rejects non-JSON', () {
@@ -39,28 +45,31 @@ void main() {
 
   group('ObservingListJsonImporter parse', () {
     test('produces TargetHeaderNodes for each item', () async {
-      final content =
-          await File('test/services/import/fixtures/observing_list_basic.json')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/observing_list_basic.json',
+      ).readAsString();
       final root = ObservingListJsonImporter().parse(content);
       final mapped = CanonicalNodeMapper().map(
         root,
         sequenceName: 'Spring DSO Tour',
         forceUnsupported: false,
       );
-      final targets =
-          mapped.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = mapped.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(3));
       final names = targets.map((t) => t.targetName).toSet();
       expect(names, containsAll(['M51', 'M81', 'M101']));
       // M51 had two exposures attached.
-      final exposures =
-          mapped.sequence.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = mapped.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(2));
     });
 
     test('sorts items by priority ascending', () {
-      const json = '{"name":"L","version":1,"items":['
+      const json =
+          '{"name":"L","version":1,"items":['
           '{"target":{"name":"C","ra":5,"dec":0},"priority":3},'
           '{"target":{"name":"A","ra":5,"dec":0},"priority":1},'
           '{"target":{"name":"B","ra":5,"dec":0},"priority":2}'
@@ -90,7 +99,8 @@ void main() {
     test('throws on missing target.ra', () {
       expect(
         () => ObservingListJsonImporter().parse(
-            '{"name":"x","version":1,"items":[{"target":{"name":"M1"}}]}'),
+          '{"name":"x","version":1,"items":[{"target":{"name":"M1"}}]}',
+        ),
         throwsA(isA<MalformedSourceError>()),
       );
     });
@@ -98,7 +108,8 @@ void main() {
     test('rejects future schema versions', () {
       expect(
         () => ObservingListJsonImporter().parse(
-            '{"name":"x","version":999,"items":[]}'),
+          '{"name":"x","version":999,"items":[]}',
+        ),
         throwsA(isA<MalformedSourceError>()),
       );
     });
@@ -158,16 +169,18 @@ void main() {
         sequenceName: 'Re-imported',
         forceUnsupported: false,
       );
-      final targets =
-          mapped.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = mapped.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(2));
       final reM31 = targets.firstWhere((t) => t.targetName == 'M31');
       expect(reM31.raHours, closeTo(0.7122, 1e-4));
       expect(reM31.decDegrees, closeTo(41.269, 1e-3));
       expect(reM31.rotation, closeTo(12.0, 1e-3));
       // Round-tripped exposure: one ExposureNode child of M31.
-      final exposures =
-          mapped.sequence.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = mapped.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(1));
       expect(exposures.first.durationSecs, 300);
       expect(exposures.first.count, 60);

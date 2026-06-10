@@ -42,9 +42,9 @@ void main() {
     double ra = 0.7,
     double dec = 41.3,
   }) {
-    return database.into(database.targets).insert(
-          TargetsCompanion.insert(name: name, ra: ra, dec: dec),
-        );
+    return database
+        .into(database.targets)
+        .insert(TargetsCompanion.insert(name: name, ra: ra, dec: dec));
   }
 
   /// Insert [count] accepted light frames of [filter] for [targetId].
@@ -55,7 +55,9 @@ void main() {
     double exposureSeconds = 60.0,
   }) async {
     for (var i = 0; i < count; i++) {
-      await database.into(database.capturedImages).insert(
+      await database
+          .into(database.capturedImages)
+          .insert(
             CapturedImagesCompanion.insert(
               filePath: 'frame_${filter}_$i.fits',
               fileName: 'frame_${filter}_$i.fits',
@@ -83,13 +85,17 @@ void main() {
       expect(fetched!.name, 'Winter Nebulae');
       expect(fetched.description, 'Orion + Horsehead');
       expect(fetched.colorArgb, 0xFF5B9EC4);
-      expect(fetched.createdAt.isUtc, isFalse); // fromRow yields local DateTime.
+      expect(
+        fetched.createdAt.isUtc,
+        isFalse,
+      ); // fromRow yields local DateTime.
 
       final all = await service.listProjects();
       expect(all, hasLength(1));
       expect(all.single.id, id);
 
-      final updated = fetched.copyWith(name: 'Galaxy Season')
+      final updated = fetched
+          .copyWith(name: 'Galaxy Season')
           .copyWith(clearDescription: true, clearColor: true);
       await service.updateProject(updated);
       final afterUpdate = await service.getProject(id);
@@ -168,8 +174,10 @@ void main() {
       final projectId = await service.createProject(name: 'P');
       final targetId = await insertTarget(name: 'M31');
       await service.addTarget(projectId: projectId, targetId: targetId);
-      expect((await service.listTargets(projectId)).single.priorityOverride,
-          isNull);
+      expect(
+        (await service.listTargets(projectId)).single.priorityOverride,
+        isNull,
+      );
 
       await service.setPriorityOverride(
         projectId: projectId,
@@ -183,8 +191,10 @@ void main() {
         targetId: targetId,
         priorityOverride: null,
       );
-      expect((await service.listTargets(projectId)).single.priorityOverride,
-          isNull);
+      expect(
+        (await service.listTargets(projectId)).single.priorityOverride,
+        isNull,
+      );
     });
 
     test('deleteProject cascades memberships', () async {
@@ -201,85 +211,96 @@ void main() {
   });
 
   group('buildProgress', () {
-    test('computes accrued frames / percent / completeness from history',
-        () async {
-      final projectId = await service.createProject(name: 'Campaign');
-      final targetId = await insertTarget(name: 'M31');
-      await service.addTarget(projectId: projectId, targetId: targetId);
+    test(
+      'computes accrued frames / percent / completeness from history',
+      () async {
+        final projectId = await service.createProject(name: 'Campaign');
+        final targetId = await insertTarget(name: 'M31');
+        await service.addTarget(projectId: projectId, targetId: targetId);
 
-      // Goal: Lum @ 60s x 100 frames. Capture 25 -> 25% complete, incomplete.
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'Lum',
-        exposureSeconds: 60.0,
-        frameCount: 100,
-        priority: 5,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
-      // Mixed-case filter on the capture rows proves the case-insensitive
-      // LOWER(filter) match in capturedFrameCount.
-      await insertCaptures(targetId: targetId, filter: 'lum', count: 25);
+        // Goal: Lum @ 60s x 100 frames. Capture 25 -> 25% complete, incomplete.
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: targetId,
+            filter: 'Lum',
+            exposureSeconds: 60.0,
+            frameCount: 100,
+            priority: 5,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
+        // Mixed-case filter on the capture rows proves the case-insensitive
+        // LOWER(filter) match in capturedFrameCount.
+        await insertCaptures(targetId: targetId, filter: 'lum', count: 25);
 
-      final progress = await service.buildProgress(projectId);
-      expect(progress.totalTargets, 1);
-      final tp = progress.targets.single;
-      expect(tp.filters, hasLength(1));
+        final progress = await service.buildProgress(projectId);
+        expect(progress.totalTargets, 1);
+        final tp = progress.targets.single;
+        expect(tp.filters, hasLength(1));
 
-      final line = tp.filters.single;
-      expect(line.capturedFrames, 25);
-      expect(line.goalFrames, 100);
-      expect(line.isComplete, isFalse);
+        final line = tp.filters.single;
+        expect(line.capturedFrames, 25);
+        expect(line.goalFrames, 100);
+        expect(line.isComplete, isFalse);
 
-      expect(tp.percentComplete, closeTo(0.25, 1e-9));
-      expect(tp.isComplete, isFalse);
-      expect(progress.totalPercentComplete, closeTo(0.25, 1e-9));
-      expect(progress.completeTargets, 0);
-    });
+        expect(tp.percentComplete, closeTo(0.25, 1e-9));
+        expect(tp.isComplete, isFalse);
+        expect(progress.totalPercentComplete, closeTo(0.25, 1e-9));
+        expect(progress.completeTargets, 0);
+      },
+    );
 
-    test('a fully-captured target reads complete and drops from incomplete set',
-        () async {
-      // COMPLETION REMOVES FROM FUTURE NIGHTS — at the project layer, a target
-      // whose goals are fully met must not appear in incompleteTargets.
-      final projectId = await service.createProject(name: 'Campaign');
-      final doneTarget = await insertTarget(name: 'Done');
-      final pendingTarget = await insertTarget(name: 'Pending');
-      await service.addTarget(projectId: projectId, targetId: doneTarget);
-      await service.addTarget(projectId: projectId, targetId: pendingTarget);
+    test(
+      'a fully-captured target reads complete and drops from incomplete set',
+      () async {
+        // COMPLETION REMOVES FROM FUTURE NIGHTS — at the project layer, a target
+        // whose goals are fully met must not appear in incompleteTargets.
+        final projectId = await service.createProject(name: 'Campaign');
+        final doneTarget = await insertTarget(name: 'Done');
+        final pendingTarget = await insertTarget(name: 'Pending');
+        await service.addTarget(projectId: projectId, targetId: doneTarget);
+        await service.addTarget(projectId: projectId, targetId: pendingTarget);
 
-      await goalService.upsert(IntegrationGoal(
-        targetId: doneTarget,
-        filter: 'Lum',
-        exposureSeconds: 60.0,
-        frameCount: 10,
-        priority: 5,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
-      await goalService.upsert(IntegrationGoal(
-        targetId: pendingTarget,
-        filter: 'Lum',
-        exposureSeconds: 60.0,
-        frameCount: 10,
-        priority: 5,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: doneTarget,
+            filter: 'Lum',
+            exposureSeconds: 60.0,
+            frameCount: 10,
+            priority: 5,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: pendingTarget,
+            filter: 'Lum',
+            exposureSeconds: 60.0,
+            frameCount: 10,
+            priority: 5,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
 
-      // Overshoot the done target (12 >= 10) and partially fill the pending one.
-      await insertCaptures(targetId: doneTarget, filter: 'Lum', count: 12);
-      await insertCaptures(targetId: pendingTarget, filter: 'Lum', count: 4);
+        // Overshoot the done target (12 >= 10) and partially fill the pending one.
+        await insertCaptures(targetId: doneTarget, filter: 'Lum', count: 12);
+        await insertCaptures(targetId: pendingTarget, filter: 'Lum', count: 4);
 
-      final progress = await service.buildProgress(projectId);
-      expect(progress.completeTargets, 1);
+        final progress = await service.buildProgress(projectId);
+        expect(progress.completeTargets, 1);
 
-      final incompleteIds =
-          progress.incompleteTargets.map((t) => t.targetId).toList();
-      expect(incompleteIds, isNot(contains(doneTarget)));
-      expect(incompleteIds, contains(pendingTarget));
+        final incompleteIds = progress.incompleteTargets
+            .map((t) => t.targetId)
+            .toList();
+        expect(incompleteIds, isNot(contains(doneTarget)));
+        expect(incompleteIds, contains(pendingTarget));
 
-      final donePct = progress.targets
-          .firstWhere((t) => t.targetId == doneTarget)
-          .percentComplete;
-      expect(donePct, 1.0); // clamped to 1.0 on overshoot.
-    });
+        final donePct = progress.targets
+            .firstWhere((t) => t.targetId == doneTarget)
+            .percentComplete;
+        expect(donePct, 1.0); // clamped to 1.0 on overshoot.
+      },
+    );
 
     test('throws StateError on a missing project', () async {
       expect(() => service.buildProgress(9999), throwsStateError);

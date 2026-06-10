@@ -140,8 +140,9 @@ class MobilePreferences {
 }
 
 /// Async provider that resolves once SharedPreferences is loaded.
-final mobilePreferencesProvider =
-    FutureProvider<MobilePreferences>((ref) async {
+final mobilePreferencesProvider = FutureProvider<MobilePreferences>((
+  ref,
+) async {
   final prefs = await SharedPreferences.getInstance();
   return MobilePreferences(prefs);
 });

@@ -125,8 +125,9 @@ void main() {
       numChannels: 4,
       order: img.ChannelOrder.rgba,
     ).convert(numChannels: 3);
-    await File(filePath)
-        .writeAsBytes(img.encodeJpg(image, quality: quality), flush: true);
+    await File(
+      filePath,
+    ).writeAsBytes(img.encodeJpg(image, quality: quality), flush: true);
   }
 
   setUp(() {
@@ -135,9 +136,9 @@ void main() {
     pngSaveCount = 0;
     jpegSaveCount = 0;
     lastJpegQuality = -1;
-    container = ProviderContainer(overrides: [
-      databaseProvider.overrideWithValue(db),
-    ]);
+    container = ProviderContainer(
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
     resultsDao = container.read(stackedResultsDaoProvider);
   });
 
@@ -160,29 +161,31 @@ void main() {
   }
 
   group('exportImage — format coverage', () {
-    test('PNG export writes a non-empty, decodable file via the save path',
-        () async {
-      final result = _sampleResult(width: 16, height: 12);
-      final rgba = _rgbaRamp(16, 12);
-      final out = p.join(tempDir.path, 'm51.png');
+    test(
+      'PNG export writes a non-empty, decodable file via the save path',
+      () async {
+        final result = _sampleResult(width: 16, height: 12);
+        final rgba = _rgbaRamp(16, 12);
+        final out = p.join(tempDir.path, 'm51.png');
 
-      final written = await service().exportImage(
-        result: result,
-        rgba: rgba,
-        format: ShareExportFormat.png,
-        outputPath: out,
-      );
+        final written = await service().exportImage(
+          result: result,
+          rgba: rgba,
+          format: ShareExportFormat.png,
+          outputPath: out,
+        );
 
-      expect(written, p.normalize(p.absolute(out)));
-      expect(pngSaveCount, 1);
-      expect(jpegSaveCount, 0);
-      final bytes = File(written).readAsBytesSync();
-      expect(bytes, isNotEmpty);
-      final decoded = img.decodePng(bytes);
-      expect(decoded, isNotNull);
-      expect(decoded!.width, 16);
-      expect(decoded.height, 12);
-    });
+        expect(written, p.normalize(p.absolute(out)));
+        expect(pngSaveCount, 1);
+        expect(jpegSaveCount, 0);
+        final bytes = File(written).readAsBytesSync();
+        expect(bytes, isNotEmpty);
+        final decoded = img.decodePng(bytes);
+        expect(decoded, isNotNull);
+        expect(decoded!.width, 16);
+        expect(decoded.height, 12);
+      },
+    );
 
     test('JPEG export honours quality and writes a decodable file', () async {
       final result = _sampleResult(width: 16, height: 12);
@@ -204,37 +207,39 @@ void main() {
       expect(img.decodeJpg(bytes), isNotNull);
     });
 
-    test('share card composites overlay and writes PNG for a .png path',
-        () async {
-      final result = _sampleResult(width: 64, height: 48);
-      final rgba = _rgbaRamp(64, 48);
-      final out = p.join(tempDir.path, 'card.png');
-      const spec = ShareCardSpec(
-        title: 'M51',
-        stats: [ShareStatLine(label: 'Integration', value: '01:16:00')],
-        watermark: 'Nightshade',
-        targetWidth: 64,
-        targetHeight: 48,
-      );
+    test(
+      'share card composites overlay and writes PNG for a .png path',
+      () async {
+        final result = _sampleResult(width: 64, height: 48);
+        final rgba = _rgbaRamp(64, 48);
+        final out = p.join(tempDir.path, 'card.png');
+        const spec = ShareCardSpec(
+          title: 'M51',
+          stats: [ShareStatLine(label: 'Integration', value: '01:16:00')],
+          watermark: 'Nightshade',
+          targetWidth: 64,
+          targetHeight: 48,
+        );
 
-      final written = await service().exportImage(
-        result: result,
-        rgba: rgba,
-        format: ShareExportFormat.shareCard,
-        outputPath: out,
-        cardSpec: spec,
-      );
+        final written = await service().exportImage(
+          result: result,
+          rgba: rgba,
+          format: ShareExportFormat.shareCard,
+          outputPath: out,
+          cardSpec: spec,
+        );
 
-      // The card path renders in Dart, not through the injected save funcs.
-      expect(pngSaveCount, 0);
-      expect(jpegSaveCount, 0);
-      final bytes = File(written).readAsBytesSync();
-      expect(bytes, isNotEmpty);
-      final decoded = img.decodePng(bytes);
-      expect(decoded, isNotNull);
-      expect(decoded!.width, 64);
-      expect(decoded.height, 48);
-    });
+        // The card path renders in Dart, not through the injected save funcs.
+        expect(pngSaveCount, 0);
+        expect(jpegSaveCount, 0);
+        final bytes = File(written).readAsBytesSync();
+        expect(bytes, isNotEmpty);
+        final decoded = img.decodePng(bytes);
+        expect(decoded, isNotNull);
+        expect(decoded!.width, 64);
+        expect(decoded.height, 48);
+      },
+    );
 
     test('share card emits JPEG for a .jpg path', () async {
       final result = _sampleResult(width: 64, height: 48);
@@ -353,15 +358,15 @@ void main() {
 
   group('buildAstroBinMetadata', () {
     EquipmentProfileModel profile() => const EquipmentProfileModel(
-          id: 1,
-          name: 'Rig',
-          telescopeName: 'Esprit 100ED',
-          telescopeFocalLength: 550,
-          telescopeAperture: 100,
-          cameraName: 'ASI2600MM Pro',
-          focalLength: 550,
-          aperture: 100,
-        );
+      id: 1,
+      name: 'Rig',
+      telescopeName: 'Esprit 100ED',
+      telescopeFocalLength: 550,
+      telescopeAperture: 100,
+      cameraName: 'ASI2600MM Pro',
+      focalLength: 550,
+      aperture: 100,
+    );
 
     test('fills equipment from the supplied profile and run', () {
       final meta = service().buildAstroBinMetadata(
@@ -379,8 +384,7 @@ void main() {
       expect(meta.focalRatio, closeTo(5.5, 1e-9));
     });
 
-    test(
-        'prefers profile-level (effective) optics over bare telescope optics '
+    test('prefers profile-level (effective) optics over bare telescope optics '
         'so a reducer/barlow reports the imaging focal length', () {
       // Esprit 100ED (550mm f/5.5) imaged through a 0.8x reducer: the profile's
       // effective focal length is 440mm (f/4.4). AstroBin acquisition data must
@@ -404,8 +408,7 @@ void main() {
       expect(meta.focalRatio, closeTo(4.4, 1e-9));
     });
 
-    test(
-        'falls back to bare telescope optics when the profile-level value is '
+    test('falls back to bare telescope optics when the profile-level value is '
         'unset', () {
       // A profile that never recorded a profile-level focal length (0.0 =
       // unset) should still report the telescope optics rather than null.
@@ -428,10 +431,12 @@ void main() {
     });
 
     test('falls back to the active profile when none is supplied', () {
-      final scoped = ProviderContainer(overrides: [
-        databaseProvider.overrideWithValue(db),
-        activeEquipmentProfileProvider.overrideWithValue(profile()),
-      ]);
+      final scoped = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          activeEquipmentProfileProvider.overrideWithValue(profile()),
+        ],
+      );
       addTearDown(scoped.dispose);
       final svc = StackShareExportService(
         scoped.read(_refProvider),
@@ -470,42 +475,45 @@ void main() {
   });
 
   group('exportAstroBinSidecar', () {
-    test('writes a .md and .json beside the image and the json round-trips',
-        () async {
-      final meta = service().buildAstroBinMetadata(
-        result: _sampleResult(),
-        profile: const EquipmentProfileModel(
-          id: 1,
-          name: 'Rig',
-          telescopeName: 'RC8',
-          telescopeFocalLength: 1624,
-          telescopeAperture: 203,
-          cameraName: 'QHY268M',
-          focalLength: 1624,
-          aperture: 203,
-        ),
-      );
-      final imagePath = p.join(tempDir.path, 'm51.png');
+    test(
+      'writes a .md and .json beside the image and the json round-trips',
+      () async {
+        final meta = service().buildAstroBinMetadata(
+          result: _sampleResult(),
+          profile: const EquipmentProfileModel(
+            id: 1,
+            name: 'Rig',
+            telescopeName: 'RC8',
+            telescopeFocalLength: 1624,
+            telescopeAperture: 203,
+            cameraName: 'QHY268M',
+            focalLength: 1624,
+            aperture: 203,
+          ),
+        );
+        final imagePath = p.join(tempDir.path, 'm51.png');
 
-      final mdPath = await service().exportAstroBinSidecar(
-        meta: meta,
-        outputPath: imagePath,
-      );
+        final mdPath = await service().exportAstroBinSidecar(
+          meta: meta,
+          outputPath: imagePath,
+        );
 
-      expect(mdPath, p.join(tempDir.path, 'm51.md'));
-      final jsonPath = p.join(tempDir.path, 'm51.json');
-      expect(File(mdPath).existsSync(), isTrue);
-      expect(File(jsonPath).existsSync(), isTrue);
+        expect(mdPath, p.join(tempDir.path, 'm51.md'));
+        final jsonPath = p.join(tempDir.path, 'm51.json');
+        expect(File(mdPath).existsSync(), isTrue);
+        expect(File(jsonPath).existsSync(), isTrue);
 
-      final mdContents = File(mdPath).readAsStringSync();
-      expect(mdContents, contains('**Integration:** 01:16:00'));
-      expect(mdContents, contains('RC8'));
+        final mdContents = File(mdPath).readAsStringSync();
+        expect(mdContents, contains('**Integration:** 01:16:00'));
+        expect(mdContents, contains('RC8'));
 
-      final decoded = jsonDecode(File(jsonPath).readAsStringSync())
-          as Map<String, dynamic>;
-      final roundTripped = AstroBinExportMetadata.fromJson(decoded);
-      expect(roundTripped, meta);
-    });
+        final decoded =
+            jsonDecode(File(jsonPath).readAsStringSync())
+                as Map<String, dynamic>;
+        final roundTripped = AstroBinExportMetadata.fromJson(decoded);
+        expect(roundTripped, meta);
+      },
+    );
 
     test('creates missing parent directories for the sidecar', () async {
       final meta = service().buildAstroBinMetadata(result: _sampleResult());
@@ -515,8 +523,10 @@ void main() {
         outputPath: imagePath,
       );
       expect(File(mdPath).existsSync(), isTrue);
-      expect(File(p.join(tempDir.path, 'a', 'b', 'm51.json')).existsSync(),
-          isTrue);
+      expect(
+        File(p.join(tempDir.path, 'a', 'b', 'm51.json')).existsSync(),
+        isTrue,
+      );
     });
   });
 }

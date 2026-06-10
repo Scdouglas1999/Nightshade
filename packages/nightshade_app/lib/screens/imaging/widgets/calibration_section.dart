@@ -357,9 +357,8 @@ class _AlternateBucketChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final delta =
         (alternateBucket.celsius - currentBucket.celsius).toStringAsFixed(0);
-    final signedDelta = alternateBucket.celsius >= currentBucket.celsius
-        ? '+$delta'
-        : delta;
+    final signedDelta =
+        alternateBucket.celsius >= currentBucket.celsius ? '+$delta' : delta;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: NightshadeDecorations.emphasisSurface(
@@ -586,7 +585,9 @@ class _ApplyToggle extends ConsumerWidget {
         Expanded(
           child: Text(
             'Apply during capture',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
           ),
         ),
         NightshadeSwitch(
@@ -594,8 +595,7 @@ class _ApplyToggle extends ConsumerWidget {
           enabled: enabled,
           onChanged: enabled
               ? (value) async {
-                  final notifier =
-                      ref.read(defectMapNotifierProvider.notifier);
+                  final notifier = ref.read(defectMapNotifierProvider.notifier);
                   await notifier.setApplyDuringCapture(
                     cameraId: cameraId!,
                     apply: value,
@@ -692,14 +692,14 @@ class _ClearButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final uiState = ref.watch(defectMapNotifierProvider);
-    final buttonEnabled =
-        enabled && !uiState.isClearing && !uiState.isBuilding;
+    final buttonEnabled = enabled && !uiState.isClearing && !uiState.isBuilding;
 
     final button = SmallButton(
       label: uiState.isClearing
           ? 'Clearing...'
           : 'Clear defect map for this camera at this temperature',
-      icon: uiState.isClearing ? NightshadeIcons.loading : NightshadeIcons.delete,
+      icon:
+          uiState.isClearing ? NightshadeIcons.loading : NightshadeIcons.delete,
       isOutline: true,
       colors: colors,
       isEnabled: buttonEnabled,
@@ -809,7 +809,9 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Auto-apply when map exists',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -830,7 +832,9 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Replacement method',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -854,7 +858,9 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Kernel size',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -879,7 +885,9 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Save original to Raw/ subdir',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(

@@ -72,8 +72,9 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
         newParentId = idMapping[oldNode.parentId];
       }
 
-      final newChildIds =
-          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      final newChildIds = oldNode.childIds
+          .map((id) => idMapping[id] ?? id)
+          .toList();
 
       newNodes[newId] = oldNode.copyWith(
         id: newId,
@@ -211,28 +212,34 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
     }
 
     developer.log(
-        'insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}',
-        name: 'Sequence');
+      'insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}',
+      name: 'Sequence',
+    );
     if (profileFilterNames != null && profileFilterNames.isNotEmpty) {
       for (int i = 0; i < createdNodes.length; i++) {
         final node = createdNodes[i];
         if (node is ExposureNode &&
             node.filter != null &&
             node.filter!.isNotEmpty) {
-          final matchedIndex =
-              _matchFilterToProfile(node.filter!, profileFilterNames);
+          final matchedIndex = _matchFilterToProfile(
+            node.filter!,
+            profileFilterNames,
+          );
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
               filter: profileFilterNames[matchedIndex],
               filterIndex: matchedIndex,
             );
             developer.log(
-                'insertSnippet: Mapped filter "${node.filter}" -> "${profileFilterNames[matchedIndex]}" (index $matchedIndex)',
-                name: 'Sequence');
+              'insertSnippet: Mapped filter "${node.filter}" -> "${profileFilterNames[matchedIndex]}" (index $matchedIndex)',
+              name: 'Sequence',
+            );
           }
         } else if (node is FilterChangeNode) {
-          final matchedIndex =
-              _matchFilterToProfile(node.filterName, profileFilterNames);
+          final matchedIndex = _matchFilterToProfile(
+            node.filterName,
+            profileFilterNames,
+          );
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
               filterName: profileFilterNames[matchedIndex],
@@ -250,9 +257,11 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
     final newChildIds = List<String>.from(insertParent.childIds);
     newChildIds.insertAll(insertIdx, topLevelNodeIds);
 
-    for (int i = insertIdx + topLevelNodeIds.length;
-        i < newChildIds.length;
-        i++) {
+    for (
+      int i = insertIdx + topLevelNodeIds.length;
+      i < newChildIds.length;
+      i++
+    ) {
       final childId = newChildIds[i];
       if (newNodes.containsKey(childId)) {
         newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
@@ -281,8 +290,7 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
       RecoveryNode _ ||
       // Wave 3 Agent 1: TargetScheduler is a container — children are the
       // candidate TargetHeaders the scheduler picks from.
-      TargetSchedulerNode _ =>
-        true,
+      TargetSchedulerNode _ => true,
       ExposureNode _ ||
       SlewNode _ ||
       CenterNode _ ||
@@ -325,8 +333,7 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
       // Audit §11 — plugin nodes are leaves. The plugin author owns
       // any internal fan-out; nesting Dart-side children under a
       // plugin node would never execute.
-      PluginInstructionNode _ =>
-        false,
+      PluginInstructionNode _ => false,
     };
   }
 
@@ -414,19 +421,19 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
               json['finishIterationOnSwitch'] as bool? ?? true,
           swapOnConditionsBelow:
               (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
-                  (json['swap_on_conditions_below'] as num?)?.toDouble(),
+              (json['swap_on_conditions_below'] as num?)?.toDouble(),
           swapHysteresisSecs:
               (json['swapHysteresisSecs'] as num?)?.toDouble() ??
-                  (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
-                  180.0,
+              (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+              180.0,
           brightnessTierPreferences: _parseBrightnessTierPreferencesForSnippet(
             json['brightnessTierPreferences'] ??
                 json['brightness_tier_preferences'],
           ),
           maxConditionsScoreAgeSecs:
               (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
-                  (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
-                  300,
+              (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+              300,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -595,7 +602,8 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
           name: name ?? 'Change Filter',
           filterName:
               json['filterName'] as String? ?? json['filter'] as String? ?? 'L',
-          filterPosition: (json['filterPosition'] as num?)?.toInt() ??
+          filterPosition:
+              (json['filterPosition'] as num?)?.toInt() ??
               (json['filterIndex'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,

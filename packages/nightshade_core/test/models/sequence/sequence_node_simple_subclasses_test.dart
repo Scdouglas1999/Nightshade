@@ -182,8 +182,7 @@ void main() {
       final n = CenterNode();
       expect(n.nodeType, equals('CenterTarget'));
       expect(n.iconName, equals('crosshair'));
-      expect(n.requiredDevices,
-          equals({DeviceType.mount, DeviceType.camera}));
+      expect(n.requiredDevices, equals({DeviceType.mount, DeviceType.camera}));
     });
 
     test('default_values_match_documented_defaults', () {
@@ -204,8 +203,7 @@ void main() {
       expect(n.copyWith(useTargetCoords: false).useTargetCoords, isFalse);
       expect(n.copyWith(customRa: 1.0).customRa, equals(1.0));
       expect(n.copyWith(customDec: 2.0).customDec, equals(2.0));
-      expect(n.copyWith(exposureDuration: 10.0).exposureDuration,
-          equals(10.0));
+      expect(n.copyWith(exposureDuration: 10.0).exposureDuration, equals(10.0));
       expect(n.copyWith(filter: 'L').filter, equals('L'));
       expect(n.copyWith(), equals(n));
     });
@@ -219,8 +217,10 @@ void main() {
       final n = AutofocusNode();
       expect(n.nodeType, equals('Autofocus'));
       expect(n.iconName, equals('focus'));
-      expect(n.requiredDevices,
-          equals({DeviceType.camera, DeviceType.focuser}));
+      expect(
+        n.requiredDevices,
+        equals({DeviceType.camera, DeviceType.focuser}),
+      );
     });
 
     test('defaults_match_settings_path', () {
@@ -236,16 +236,19 @@ void main() {
 
     test('copyWith_each_field', () {
       final n = AutofocusNode();
-      expect(n.copyWith(method: AutofocusMethod.hyperbolic).method,
-          equals(AutofocusMethod.hyperbolic));
+      expect(
+        n.copyWith(method: AutofocusMethod.hyperbolic).method,
+        equals(AutofocusMethod.hyperbolic),
+      );
       expect(n.copyWith(stepSize: 50).stepSize, equals(50));
       expect(n.copyWith(stepsOut: 9).stepsOut, equals(9));
       expect(n.copyWith(exposuresPerPoint: 3).exposuresPerPoint, equals(3));
       expect(n.copyWith(exposureDuration: 5.0).exposureDuration, equals(5.0));
-      expect(n.copyWith(useSettingsDefaults: false).useSettingsDefaults,
-          isFalse);
-      expect(n.copyWith(maxDurationSecs: 900.0).maxDurationSecs,
-          equals(900.0));
+      expect(
+        n.copyWith(useSettingsDefaults: false).useSettingsDefaults,
+        isFalse,
+      );
+      expect(n.copyWith(maxDurationSecs: 900.0).maxDurationSecs, equals(900.0));
       expect(n.copyWith(), equals(n));
     });
   });
@@ -268,8 +271,10 @@ void main() {
       expect(n.copyWith(settlePixels: 2.0).settlePixels, equals(2.0));
       expect(n.copyWith(settleTimeout: 240.0).settleTimeout, equals(240.0));
       expect(n.copyWith(raOnly: true).raOnly, isTrue);
-      expect(n.copyWith(pattern: DitherPattern.grid).pattern,
-          equals(DitherPattern.grid));
+      expect(
+        n.copyWith(pattern: DitherPattern.grid).pattern,
+        equals(DitherPattern.grid),
+      );
       expect(n.copyWith(gridSize: 5).gridSize, equals(5));
       expect(n.copyWith(), equals(n));
     });
@@ -448,7 +453,12 @@ void main() {
       final a = WaitTimeNode(id: 'w', waitUntil: dt);
       final b = WaitTimeNode(id: 'w', waitUntil: dt);
       expect(a, equals(b));
-      expect(a, isNot(equals(b.copyWith(waitUntil: dt.add(const Duration(seconds: 1))))));
+      expect(
+        a,
+        isNot(
+          equals(b.copyWith(waitUntil: dt.add(const Duration(seconds: 1)))),
+        ),
+      );
     });
   });
 
@@ -480,10 +490,14 @@ void main() {
 
     test('copyWith_each_field', () {
       final n = ScriptNode();
-      expect(n.copyWith(scriptPath: '/tmp/x.sh').scriptPath,
-          equals('/tmp/x.sh'));
-      expect(n.copyWith(arguments: ['-v', 'arg']).arguments,
-          equals(['-v', 'arg']));
+      expect(
+        n.copyWith(scriptPath: '/tmp/x.sh').scriptPath,
+        equals('/tmp/x.sh'),
+      );
+      expect(
+        n.copyWith(arguments: ['-v', 'arg']).arguments,
+        equals(['-v', 'arg']),
+      );
       expect(n.copyWith(timeoutSecs: 60).timeoutSecs, equals(60));
       expect(n.copyWith(), equals(n));
     });
@@ -566,8 +580,7 @@ void main() {
 
     test('copyWith_each_field', () {
       final n = PolarAlignmentNode();
-      expect(
-          n.copyWith(exposureDuration: 5.0).exposureDuration, equals(5.0));
+      expect(n.copyWith(exposureDuration: 5.0).exposureDuration, equals(5.0));
       expect(n.copyWith(binning: 1).binning, equals(1));
       expect(n.copyWith(startAltitude: 60.0).startAltitude, equals(60.0));
       expect(n.copyWith(rotationStep: 30.0).rotationStep, equals(30.0));

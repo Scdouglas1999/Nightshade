@@ -16,9 +16,12 @@ sealed class InstructionProgressDetail extends Equatable {
     switch (detailKind) {
       case 'Exposure':
         return ExposureInstructionProgressDetail(
-          frame: _intValue(json['frame']) ?? _intValue(json['current_frame']) ?? 0,
-          total: _intValue(json['total']) ?? _intValue(json['total_frames']) ?? 0,
-          durationSecs: _doubleValue(json['duration_secs']) ??
+          frame:
+              _intValue(json['frame']) ?? _intValue(json['current_frame']) ?? 0,
+          total:
+              _intValue(json['total']) ?? _intValue(json['total_frames']) ?? 0,
+          durationSecs:
+              _doubleValue(json['duration_secs']) ??
               _doubleValue(json['durationSecs']) ??
               0,
         );

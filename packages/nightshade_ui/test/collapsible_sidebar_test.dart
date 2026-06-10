@@ -6,7 +6,11 @@ class _Host extends StatefulWidget {
   final bool initialCollapsed;
   final ValueChanged<bool>? onCollapsedChange;
 
-  const _Host({super.key, this.initialCollapsed = false, this.onCollapsedChange});
+  const _Host({
+    super.key,
+    this.initialCollapsed = false,
+    this.onCollapsedChange,
+  });
 
   @override
   State<_Host> createState() => _HostState();
@@ -22,21 +26,25 @@ class _HostState extends State<_Host> {
     return MaterialApp(
       theme: NightshadeTheme.dark,
       home: Scaffold(
-        body: Row(children: [
-          CollapsibleSidebar(
-            isCollapsed: _collapsed,
-            collapsedWidth: NightshadeTokens.sidebarCollapsed,
-            expandedWidth: 280,
-            minExpandedWidth: NightshadeTokens.sidebarExpanded,
-            maxExpandedWidth: 400,
-            onCollapsedChange: widget.onCollapsedChange,
-            collapsedChild: const Center(
-                child: Icon(Icons.menu, key: ValueKey('icon'))),
-            expandedChild: const Center(
-                child: Text('Sidebar Content', key: ValueKey('content'))),
-          ),
-          const Expanded(child: ColoredBox(color: Color(0xFF000000))),
-        ]),
+        body: Row(
+          children: [
+            CollapsibleSidebar(
+              isCollapsed: _collapsed,
+              collapsedWidth: NightshadeTokens.sidebarCollapsed,
+              expandedWidth: 280,
+              minExpandedWidth: NightshadeTokens.sidebarExpanded,
+              maxExpandedWidth: 400,
+              onCollapsedChange: widget.onCollapsedChange,
+              collapsedChild: const Center(
+                child: Icon(Icons.menu, key: ValueKey('icon')),
+              ),
+              expandedChild: const Center(
+                child: Text('Sidebar Content', key: ValueKey('content')),
+              ),
+            ),
+            const Expanded(child: ColoredBox(color: Color(0xFF000000))),
+          ],
+        ),
       ),
     );
   }
@@ -60,8 +68,7 @@ void main() {
 
   testWidgets('animates between collapsed and expanded', (tester) async {
     final key = GlobalKey<_HostState>();
-    await tester
-        .pumpWidget(_Host(key: key, initialCollapsed: true));
+    await tester.pumpWidget(_Host(key: key, initialCollapsed: true));
     await tester.pumpAndSettle();
 
     // Width starts at the collapsed width.
@@ -82,15 +89,14 @@ void main() {
     expect(size.width, closeTo(280, 0.5));
   });
 
-  testWidgets('onCollapsedChange fires when transitioning to collapsed',
-      (tester) async {
+  testWidgets('onCollapsedChange fires when transitioning to collapsed', (
+    tester,
+  ) async {
     final events = <bool>[];
     final key = GlobalKey<_HostState>();
-    await tester.pumpWidget(_Host(
-      key: key,
-      initialCollapsed: false,
-      onCollapsedChange: events.add,
-    ));
+    await tester.pumpWidget(
+      _Host(key: key, initialCollapsed: false, onCollapsedChange: events.add),
+    );
     await tester.pumpAndSettle();
 
     key.currentState!.setCollapsed(true);
@@ -99,15 +105,14 @@ void main() {
     expect(events, contains(true));
   });
 
-  testWidgets('onCollapsedChange fires when transitioning to expanded',
-      (tester) async {
+  testWidgets('onCollapsedChange fires when transitioning to expanded', (
+    tester,
+  ) async {
     final events = <bool>[];
     final key = GlobalKey<_HostState>();
-    await tester.pumpWidget(_Host(
-      key: key,
-      initialCollapsed: true,
-      onCollapsedChange: events.add,
-    ));
+    await tester.pumpWidget(
+      _Host(key: key, initialCollapsed: true, onCollapsedChange: events.add),
+    );
     await tester.pumpAndSettle();
     events.clear();
 

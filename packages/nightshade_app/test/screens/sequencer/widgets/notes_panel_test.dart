@@ -44,8 +44,7 @@ void main() {
       await database.close();
     });
 
-    testWidgets('shows empty state when target has no notes',
-        (tester) async {
+    testWidgets('shows empty state when target has no notes', (tester) async {
       await _pumpHost(
         tester,
         database: database,
@@ -84,8 +83,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
       expect(find.text('M31 first night'), findsOneWidget);
-      expect(find.textContaining('Polar alignment was rough'),
-          findsOneWidget);
+      expect(find.textContaining('Polar alignment was rough'), findsOneWidget);
       expect(find.textContaining('Guiding stabilised'), findsOneWidget);
     });
   });
@@ -111,12 +109,10 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Sequence Diff'), findsOneWidget);
-      expect(find.textContaining('No structural changes'),
-          findsOneWidget);
+      expect(find.textContaining('No structural changes'), findsOneWidget);
     });
 
-    testWidgets('renders added / removed / modified sections',
-        (tester) async {
+    testWidgets('renders added / removed / modified sections', (tester) async {
       final result = SequenceDiffResult(
         previousName: 'a',
         currentName: 'b',

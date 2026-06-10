@@ -39,11 +39,7 @@ void main() {
     });
 
     test('defaults the Bayer pattern to null (mono frame)', () {
-      const frame = LinearFrameData(
-        width: 1,
-        height: 1,
-        linearData: [42.0],
-      );
+      const frame = LinearFrameData(width: 1, height: 1, linearData: [42.0]);
 
       expect(frame.bayerPattern, isNull);
     });
@@ -67,26 +63,29 @@ void main() {
   });
 
   group('OSC config pass-through', () {
-    test('startFromData forwards sensorMode/bayerPattern/demosaicQuality', () async {
-      final engine = _CapturingSeam();
-      const config = LiveStackingConfig(
-        sensorMode: 'osc',
-        bayerPattern: 'GRBG',
-        demosaicQuality: 'vng',
-      );
+    test(
+      'startFromData forwards sensorMode/bayerPattern/demosaicQuality',
+      () async {
+        final engine = _CapturingSeam();
+        const config = LiveStackingConfig(
+          sensorMode: 'osc',
+          bayerPattern: 'GRBG',
+          demosaicQuality: 'vng',
+        );
 
-      await engine.startFromData(
-        width: 4,
-        height: 4,
-        data: const [0, 0, 0, 0],
-        config: config,
-      );
+        await engine.startFromData(
+          width: 4,
+          height: 4,
+          data: const [0, 0, 0, 0],
+          config: config,
+        );
 
-      expect(engine.lastConfig, isNotNull);
-      expect(engine.lastConfig!.sensorMode, 'osc');
-      expect(engine.lastConfig!.bayerPattern, 'GRBG');
-      expect(engine.lastConfig!.demosaicQuality, 'vng');
-    });
+        expect(engine.lastConfig, isNotNull);
+        expect(engine.lastConfig!.sensorMode, 'osc');
+        expect(engine.lastConfig!.bayerPattern, 'GRBG');
+        expect(engine.lastConfig!.demosaicQuality, 'vng');
+      },
+    );
 
     test('startFromFile forwards the colour config unchanged', () async {
       final engine = _CapturingSeam();

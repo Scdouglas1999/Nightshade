@@ -197,8 +197,9 @@ void main() {
     });
 
     test('File storage survives new instances', () async {
-      final tempRoot =
-          await Directory.systemTemp.createTemp('nightshade_plugins_test_');
+      final tempRoot = await Directory.systemTemp.createTemp(
+        'nightshade_plugins_test_',
+      );
       addTearDown(() async {
         if (await tempRoot.exists()) {
           await tempRoot.delete(recursive: true);
@@ -306,8 +307,9 @@ void main() {
       expect(plugin.nodeDefinitions, isNotEmpty);
       expect(plugin.nodeDefinitions.length, equals(2));
 
-      final waitNode =
-          plugin.nodeDefinitions.where((n) => n.id == 'example.wait').first;
+      final waitNode = plugin.nodeDefinitions
+          .where((n) => n.id == 'example.wait')
+          .first;
       expect(waitNode.name, equals('Custom Wait'));
       expect(waitNode.category, equals('Example'));
     });

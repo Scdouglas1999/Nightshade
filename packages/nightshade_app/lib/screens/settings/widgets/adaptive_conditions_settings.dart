@@ -278,7 +278,7 @@ class _WeightTotalCallout extends StatelessWidget {
 
   const _WeightTotalCallout({
     required this.total,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {

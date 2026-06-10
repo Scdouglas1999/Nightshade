@@ -82,20 +82,20 @@ class SessionFilterReport {
   });
 
   Map<String, dynamic> toJson() => {
-        'filter': filter,
-        'framesAttempted': framesAttempted,
-        'framesAccepted': framesAccepted,
-        'framesRejected': framesRejected,
-        'totalIntegrationSecs': totalIntegrationSecs,
-        'meanHfr': meanHfr,
-        'meanFwhm': meanFwhm,
-        'meanStarCount': meanStarCount,
-        'meanSnr': meanSnr,
-        'snrIsProxy': snrIsProxy,
-        'meanGuidingRmsTotal': meanGuidingRmsTotal,
-        'meanSensorTemp': meanSensorTemp,
-        'rejectionReasons': rejectionReasons,
-      };
+    'filter': filter,
+    'framesAttempted': framesAttempted,
+    'framesAccepted': framesAccepted,
+    'framesRejected': framesRejected,
+    'totalIntegrationSecs': totalIntegrationSecs,
+    'meanHfr': meanHfr,
+    'meanFwhm': meanFwhm,
+    'meanStarCount': meanStarCount,
+    'meanSnr': meanSnr,
+    'snrIsProxy': snrIsProxy,
+    'meanGuidingRmsTotal': meanGuidingRmsTotal,
+    'meanSensorTemp': meanSensorTemp,
+    'rejectionReasons': rejectionReasons,
+  };
 }
 
 /// Per-target rollup (one report can cover multiple targets when the
@@ -135,14 +135,14 @@ class SessionTargetReport {
       filters.fold<double>(0.0, (sum, f) => sum + f.totalIntegrationSecs);
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'filters': filters.map((f) => f.toJson()).toList(),
-        'framesAttempted': framesAttempted,
-        'framesAccepted': framesAccepted,
-        'framesRejected': framesRejected,
-        'totalIntegrationSecs': totalIntegrationSecs,
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'filters': filters.map((f) => f.toJson()).toList(),
+    'framesAttempted': framesAttempted,
+    'framesAccepted': framesAccepted,
+    'framesRejected': framesRejected,
+    'totalIntegrationSecs': totalIntegrationSecs,
+  };
 }
 
 /// Guide-stats rollup across the whole session.
@@ -186,14 +186,14 @@ class SessionGuideStats {
       meanRmsTotalArcsec == null;
 
   Map<String, dynamic> toJson() => {
-        'meanRmsRaArcsec': meanRmsRaArcsec,
-        'meanRmsDecArcsec': meanRmsDecArcsec,
-        'meanRmsTotalArcsec': meanRmsTotalArcsec,
-        'maxRmsRaArcsec': maxRmsRaArcsec,
-        'maxRmsDecArcsec': maxRmsDecArcsec,
-        'maxRmsTotalArcsec': maxRmsTotalArcsec,
-        'percentUnguidedFrames': percentUnguidedFrames,
-      };
+    'meanRmsRaArcsec': meanRmsRaArcsec,
+    'meanRmsDecArcsec': meanRmsDecArcsec,
+    'meanRmsTotalArcsec': meanRmsTotalArcsec,
+    'maxRmsRaArcsec': maxRmsRaArcsec,
+    'maxRmsDecArcsec': maxRmsDecArcsec,
+    'maxRmsTotalArcsec': maxRmsTotalArcsec,
+    'percentUnguidedFrames': percentUnguidedFrames,
+  };
 }
 
 /// Mount + operations rollup (autofocus, meridian flips, dithers, etc.).
@@ -222,11 +222,11 @@ class SessionMountStats {
   });
 
   Map<String, dynamic> toJson() => {
-        'autofocusRuns': autofocusRuns,
-        'meridianFlips': meridianFlips,
-        'ditherCount': ditherCount,
-        'triggerFires': triggerFires,
-      };
+    'autofocusRuns': autofocusRuns,
+    'meridianFlips': meridianFlips,
+    'ditherCount': ditherCount,
+    'triggerFires': triggerFires,
+  };
 }
 
 /// Top-level session report.
@@ -349,27 +349,27 @@ class SessionReport {
   bool get isEmpty => totalFramesAttempted == 0;
 
   Map<String, dynamic> toJson() => {
-        'sessionId': sessionId,
-        'sessionName': sessionName,
-        'status': status,
-        'startTime': startTime.toIso8601String(),
-        'endTime': endTime?.toIso8601String(),
-        'wallClockSecs': wallClockDuration.inMilliseconds / 1000.0,
-        'totalIntegrationSecs': totalIntegration.inMilliseconds / 1000.0,
-        'effectiveImagingFraction': effectiveImagingFraction,
-        'downtimeSecs': downtime.inMilliseconds / 1000.0,
-        'totalFramesAttempted': totalFramesAttempted,
-        'totalFramesAccepted': totalFramesAccepted,
-        'totalFramesRejected': totalFramesRejected,
-        'targets': targets.map((t) => t.toJson()).toList(),
-        'guideStats': guideStats.toJson(),
-        'mountStats': mountStats.toJson(),
-        'avgTemperatureC': avgTemperatureC,
-        'avgHumidityPercent': avgHumidityPercent,
-        'avgSeeingArcsec': avgSeeingArcsec,
-        'notes': notes,
-        'errorMessages': errorMessages,
-        'warningMessages': warningMessages,
-        'generatedAt': generatedAt.toIso8601String(),
-      };
+    'sessionId': sessionId,
+    'sessionName': sessionName,
+    'status': status,
+    'startTime': startTime.toIso8601String(),
+    'endTime': endTime?.toIso8601String(),
+    'wallClockSecs': wallClockDuration.inMilliseconds / 1000.0,
+    'totalIntegrationSecs': totalIntegration.inMilliseconds / 1000.0,
+    'effectiveImagingFraction': effectiveImagingFraction,
+    'downtimeSecs': downtime.inMilliseconds / 1000.0,
+    'totalFramesAttempted': totalFramesAttempted,
+    'totalFramesAccepted': totalFramesAccepted,
+    'totalFramesRejected': totalFramesRejected,
+    'targets': targets.map((t) => t.toJson()).toList(),
+    'guideStats': guideStats.toJson(),
+    'mountStats': mountStats.toJson(),
+    'avgTemperatureC': avgTemperatureC,
+    'avgHumidityPercent': avgHumidityPercent,
+    'avgSeeingArcsec': avgSeeingArcsec,
+    'notes': notes,
+    'errorMessages': errorMessages,
+    'warningMessages': warningMessages,
+    'generatedAt': generatedAt.toIso8601String(),
+  };
 }

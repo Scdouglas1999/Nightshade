@@ -23,17 +23,19 @@ void main() {
   group('imaging sessions remote authority', () {
     test('HostStateChanged session invalidates allSessionsProvider', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+      when(() => backend.getAllSessions()).thenAnswer(
+        (_) async => [
+          {
+            'id': 1,
+            'name': 'Night 1',
+            'startTime': DateTime(2025, 1, 1).millisecondsSinceEpoch,
+            'status': 'active',
+          },
+        ],
       );
-      when(() => backend.getAllSessions()).thenAnswer((_) async => [
-            {
-              'id': 1,
-              'name': 'Night 1',
-              'startTime': DateTime(2025, 1, 1).millisecondsSinceEpoch,
-              'status': 'active',
-            },
-          ]);
 
       final container = ProviderContainer(
         overrides: [
@@ -47,21 +49,23 @@ void main() {
       await container.read(allSessionsProvider.future);
       clearInteractions(backend);
 
-      when(() => backend.getAllSessions()).thenAnswer((_) async => [
-            {
-              'id': 1,
-              'name': 'Night 1',
-              'startTime': DateTime(2025, 1, 1).millisecondsSinceEpoch,
-              'status': 'completed',
-              'endTime': DateTime(2025, 1, 2).millisecondsSinceEpoch,
-            },
-            {
-              'id': 2,
-              'name': 'Night 2',
-              'startTime': DateTime(2025, 1, 3).millisecondsSinceEpoch,
-              'status': 'active',
-            },
-          ]);
+      when(() => backend.getAllSessions()).thenAnswer(
+        (_) async => [
+          {
+            'id': 1,
+            'name': 'Night 1',
+            'startTime': DateTime(2025, 1, 1).millisecondsSinceEpoch,
+            'status': 'completed',
+            'endTime': DateTime(2025, 1, 2).millisecondsSinceEpoch,
+          },
+          {
+            'id': 2,
+            'name': 'Night 2',
+            'startTime': DateTime(2025, 1, 3).millisecondsSinceEpoch,
+            'status': 'active',
+          },
+        ],
+      );
 
       await applyRemoteSyncEvent(
         container,
@@ -77,13 +81,15 @@ void main() {
       verify(() => backend.getAllSessions()).called(greaterThanOrEqualTo(1));
     });
 
-    test('HostStateChanged capturedImage invalidates allDbImagesProvider',
-        () async {
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
-      when(() => backend.getAllImageRows()).thenAnswer((_) async => [
+    test(
+      'HostStateChanged capturedImage invalidates allDbImagesProvider',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(() => backend.getAllImageRows()).thenAnswer(
+          (_) async => [
             {
               'id': 10,
               'filePath': '/a.fits',
@@ -98,21 +104,23 @@ void main() {
               'isPlateSolved': false,
               'isAccepted': true,
             },
-          ]);
+          ],
+        );
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await container.read(allDbImagesProvider.future);
-      clearInteractions(backend);
+        await container.read(allDbImagesProvider.future);
+        clearInteractions(backend);
 
-      when(() => backend.getAllImageRows()).thenAnswer((_) async => [
+        when(() => backend.getAllImageRows()).thenAnswer(
+          (_) async => [
             {
               'id': 10,
               'filePath': '/a.fits',
@@ -141,20 +149,22 @@ void main() {
               'isPlateSolved': false,
               'isAccepted': true,
             },
-          ]);
+          ],
+        );
 
-      await applyRemoteSyncEvent(
-        container,
-        buildHostMutationEvent(
-          entityType: HostMutationEntity.capturedImage,
-          action: HostMutationAction.created,
-          entityId: '11',
-        ),
-      );
+        await applyRemoteSyncEvent(
+          container,
+          buildHostMutationEvent(
+            entityType: HostMutationEntity.capturedImage,
+            action: HostMutationAction.created,
+            entityId: '11',
+          ),
+        );
 
-      final images = await container.read(allDbImagesProvider.future);
-      expect(images, hasLength(2));
-      verify(() => backend.getAllImageRows()).called(greaterThanOrEqualTo(1));
-    });
+        final images = await container.read(allDbImagesProvider.future);
+        expect(images, hasLength(2));
+        verify(() => backend.getAllImageRows()).called(greaterThanOrEqualTo(1));
+      },
+    );
   });
 }

@@ -126,8 +126,7 @@ void main() {
       // Subscribe to the push stream BEFORE invoking the bridge so we
       // catch the first emission. Buffer with a Completer so the test can
       // assert exactly one notification was enqueued for this event.
-      final pushService =
-          container.read(pushNotificationServiceProvider);
+      final pushService = container.read(pushNotificationServiceProvider);
       final firstPush = Completer<PushNotification>();
       final pushSub = pushService.notifications.listen((n) {
         if (!firstPush.isCompleted) firstPush.complete(n);
@@ -150,8 +149,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // 1. Banner data
-      final banner =
-          container.read(runDashboardCriticalEventsProvider);
+      final banner = container.read(runDashboardCriticalEventsProvider);
       expect(banner, hasLength(1));
       expect(banner.first.isCritical, isTrue);
       expect(banner.first.category, 'System');
@@ -160,15 +158,13 @@ void main() {
       expect(player.playCalls, ['systemBell']);
 
       // 3. Push notification enqueued (priority critical)
-      final push =
-          await firstPush.future.timeout(const Duration(seconds: 1));
+      final push = await firstPush.future.timeout(const Duration(seconds: 1));
       expect(push.priority, PushNotificationPriority.critical);
       expect(push.title, contains('Critical · System'));
       expect(push.category, EventCategory.system);
     });
 
-    test('audible alert respects 5-second cooldown across a burst',
-        () async {
+    test('audible alert respects 5-second cooldown across a burst', () async {
       final container = makeContainer(
         audibleAlertsOnCritical: true,
         pushCriticalAlerts: false,
@@ -220,8 +216,7 @@ void main() {
       await container.read(appSettingsProvider.future);
 
       // Subscribe and accumulate; we expect zero notifications.
-      final pushService =
-          container.read(pushNotificationServiceProvider);
+      final pushService = container.read(pushNotificationServiceProvider);
       final received = <PushNotification>[];
       final pushSub = pushService.notifications.listen(received.add);
       addTearDown(pushSub.cancel);
@@ -247,8 +242,7 @@ void main() {
       );
       await container.read(appSettingsProvider.future);
 
-      final pushService =
-          container.read(pushNotificationServiceProvider);
+      final pushService = container.read(pushNotificationServiceProvider);
       final firstPush = Completer<PushNotification>();
       final pushSub = pushService.notifications.listen((n) {
         if (!firstPush.isCompleted) firstPush.complete(n);
@@ -263,8 +257,7 @@ void main() {
 
       expect(container.read(runDashboardCriticalEventsProvider), hasLength(1));
       expect(player.playCalls, isEmpty);
-      final push =
-          await firstPush.future.timeout(const Duration(seconds: 1));
+      final push = await firstPush.future.timeout(const Duration(seconds: 1));
       expect(push.priority, PushNotificationPriority.critical);
     });
   });

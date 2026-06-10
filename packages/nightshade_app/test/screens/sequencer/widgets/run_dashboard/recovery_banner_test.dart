@@ -60,8 +60,8 @@ Widget _harness({
         return notifier;
       }),
       if (execState != null)
-        sequenceProgressProvider.overrideWith((ref) =>
-            SequenceProgressNotifier()..updateState(execState)),
+        sequenceProgressProvider.overrideWith(
+            (ref) => SequenceProgressNotifier()..updateState(execState)),
     ],
     child: MaterialApp(
       theme: ThemeData.dark().copyWith(
@@ -81,8 +81,7 @@ RecoveryStatus _waitingRecovery({
   return RecoveryStatus(
     startedAt: DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
     cause: RecoveryCause.guideStarLost(),
-    lastAttemptAt:
-        DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
+    lastAttemptAt: DateTime.now().toUtc().subtract(const Duration(seconds: 30)),
     attemptCount: attempts,
     maxAttempts: maxAttempts,
     retryIntervalSecs: retryIntervalSecs,
@@ -96,8 +95,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('RunDashboardRecoveryBanner', () {
-    testWidgets('renders the cause label and attempt counter',
-        (tester) async {
+    testWidgets('renders the cause label and attempt counter', (tester) async {
       final backend = _SpyBackend();
       await tester.pumpWidget(_harness(
         backend: backend,
@@ -130,8 +128,7 @@ void main() {
       expect(find.byKey(const Key('recovery_abort')), findsNothing);
     });
 
-    testWidgets('Try Now button calls backend.recoveryTryNow',
-        (tester) async {
+    testWidgets('Try Now button calls backend.recoveryTryNow', (tester) async {
       final backend = _SpyBackend();
       await tester.pumpWidget(_harness(
         backend: backend,
@@ -147,8 +144,7 @@ void main() {
       expect(backend.abortCalls, 0);
     });
 
-    testWidgets(
-        'Abort button calls backend.recoveryAbort via hold-to-confirm',
+    testWidgets('Abort button calls backend.recoveryAbort via hold-to-confirm',
         (tester) async {
       final backend = _SpyBackend();
       await tester.pumpWidget(_harness(
@@ -188,8 +184,7 @@ void main() {
       expect(backend.tryNowCalls, 0);
     });
 
-    testWidgets('Skip Node button calls backend.sequencerSkip',
-        (tester) async {
+    testWidgets('Skip Node button calls backend.sequencerSkip', (tester) async {
       final backend = _SpyBackend();
       await tester.pumpWidget(_harness(
         backend: backend,
@@ -257,8 +252,8 @@ void main() {
 
     testWidgets('renders nothing extra when showLabel is false',
         (tester) async {
-      await tester.pumpWidget(
-          _ledHarness(state: SequenceExecutionState.recovering));
+      await tester
+          .pumpWidget(_ledHarness(state: SequenceExecutionState.recovering));
       await tester.pump();
       expect(find.text('Recovering'), findsNothing);
       // The dot itself is just a Container, no easy text marker — the

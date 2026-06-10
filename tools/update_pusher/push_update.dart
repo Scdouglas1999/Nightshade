@@ -55,7 +55,8 @@ Future<void> main(List<String> args) async {
     final packagePath = getArg(args, '--package') ?? findDefaultPackage();
     if (packagePath == null) {
       print(
-          'Error: No update package found. Run build_update_package.ps1 first.');
+        'Error: No update package found. Run build_update_package.ps1 first.',
+      );
       exit(1);
     }
 
@@ -65,7 +66,8 @@ Future<void> main(List<String> args) async {
       exit(1);
     }
 
-    final pushSecret = getArg(args, '--secret') ??
+    final pushSecret =
+        getArg(args, '--secret') ??
         Platform.environment['NIGHTSHADE_UPDATE_PUSH_SECRET'];
     if (pushSecret == null || pushSecret.isEmpty) {
       print(
@@ -198,7 +200,10 @@ Future<List<UpdateTarget>> discoverTargets() async {
     // Send discovery broadcast
     final discoveryData = utf8.encode(updatePushMessage);
     socket.send(
-        discoveryData, InternetAddress('255.255.255.255'), discoveryPort);
+      discoveryData,
+      InternetAddress('255.255.255.255'),
+      discoveryPort,
+    );
 
     // Wait for responses
     await Future.delayed(const Duration(seconds: 3));
@@ -263,7 +268,8 @@ Future<void> pushToTarget(
     final packageFile = File(packagePath);
     final packageSize = await packageFile.length();
     print(
-        '  Package size: ${(packageSize / 1024 / 1024).toStringAsFixed(1)} MB');
+      '  Package size: ${(packageSize / 1024 / 1024).toStringAsFixed(1)} MB',
+    );
 
     // Connect to target
     final socket = await Socket.connect(host, port);

@@ -76,8 +76,10 @@ void main() {
           preset: preset,
           pixelScaleArcsecPerPixel: pixelScale,
         );
-        expect(v.settlePixels,
-            inInclusiveRange(kDitherSettleMinPixels, kDitherSettleMaxPixels));
+        expect(
+          v.settlePixels,
+          inInclusiveRange(kDitherSettleMinPixels, kDitherSettleMaxPixels),
+        );
         expect(v.settlePixels, greaterThan(0));
         expect(v.settleTime, greaterThan(0));
       }
@@ -96,19 +98,24 @@ void main() {
         preset: DitherSettlePreset.windy,
         pixelScaleArcsecPerPixel: scale,
       );
-      expect(v.settlePixels,
-          inInclusiveRange(kDitherSettleMinPixels, kDitherSettleMaxPixels));
+      expect(
+        v.settlePixels,
+        inInclusiveRange(kDitherSettleMinPixels, kDitherSettleMaxPixels),
+      );
     });
 
-    test('null pixel scale falls back to tolerance-as-pixels (still clamped)', () {
-      final v = deriveDitherSettleValues(
-        preset: DitherSettlePreset.windy,
-        pixelScaleArcsecPerPixel: null,
-      );
-      // 2.5" tolerance interpreted directly as 2.5px.
-      expect(v.settlePixels, closeTo(2.5, 1e-9));
-      expect(v.settleTime, 20.0);
-    });
+    test(
+      'null pixel scale falls back to tolerance-as-pixels (still clamped)',
+      () {
+        final v = deriveDitherSettleValues(
+          preset: DitherSettlePreset.windy,
+          pixelScaleArcsecPerPixel: null,
+        );
+        // 2.5" tolerance interpreted directly as 2.5px.
+        expect(v.settlePixels, closeTo(2.5, 1e-9));
+        expect(v.settleTime, 20.0);
+      },
+    );
 
     test('rig convenience overload matches the scale-based path', () {
       final fromRig = deriveDitherSettleValuesFromRig(

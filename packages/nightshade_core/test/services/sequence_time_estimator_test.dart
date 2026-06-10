@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
@@ -31,24 +31,27 @@ void main() {
         expect(timings, isEmpty);
       });
 
-      test('returns empty list for sequence with no root and no target headers', () {
-        final sequence = createSequence(
-          nodes: {
-            'exposure1': ExposureNode(
-              id: 'exposure1',
-              name: 'Light 300s',
-              durationSecs: 300,
-              count: 10,
-            ),
-          },
-        );
-        final startTime = DateTime(2024, 6, 15, 22, 0);
+      test(
+        'returns empty list for sequence with no root and no target headers',
+        () {
+          final sequence = createSequence(
+            nodes: {
+              'exposure1': ExposureNode(
+                id: 'exposure1',
+                name: 'Light 300s',
+                durationSecs: 300,
+                count: 10,
+              ),
+            },
+          );
+          final startTime = DateTime(2024, 6, 15, 22, 0);
 
-        final timings = estimator.estimateSequenceTiming(sequence, startTime);
+          final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        // No root node and no target headers means empty result
-        expect(timings, isEmpty);
-      });
+          // No root node and no target headers means empty result
+          expect(timings, isEmpty);
+        },
+      );
 
       test('estimates ExposureNode duration correctly', () {
         final exposureNode = ExposureNode(
@@ -149,43 +152,44 @@ void main() {
         expect(ditherTiming.duration.inSeconds, equals(10));
       });
 
-      test('estimates DitherNode with default duration when settleTime is zero', () {
-        final ditherNode = DitherNode(
-          id: 'dither1',
-          name: 'Dither',
-          settleTime: 0.0, // Zero settle time
-        );
-        final targetNode = TargetHeaderNode(
-          id: 'target1',
-          name: 'Test Target',
-          targetName: 'Test',
-          raHours: 12.0,
-          decDegrees: 45.0,
-          childIds: const ['dither1'],
-        );
+      test(
+        'estimates DitherNode with default duration when settleTime is zero',
+        () {
+          final ditherNode = DitherNode(
+            id: 'dither1',
+            name: 'Dither',
+            settleTime: 0.0, // Zero settle time
+          );
+          final targetNode = TargetHeaderNode(
+            id: 'target1',
+            name: 'Test Target',
+            targetName: 'Test',
+            raHours: 12.0,
+            decDegrees: 45.0,
+            childIds: const ['dither1'],
+          );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-            'dither1': ditherNode.copyWith(parentId: 'target1'),
-          },
-        );
-        final startTime = DateTime(2024, 6, 15, 22, 0);
+          final sequence = createSequence(
+            nodes: {
+              'target1': targetNode,
+              'dither1': ditherNode.copyWith(parentId: 'target1'),
+            },
+          );
+          final startTime = DateTime(2024, 6, 15, 22, 0);
 
-        final timings = estimator.estimateSequenceTiming(sequence, startTime);
+          final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final ditherTiming = timings.firstWhere((t) => t.nodeType == 'Dither');
+          final ditherTiming = timings.firstWhere(
+            (t) => t.nodeType == 'Dither',
+          );
 
-        // Uses default of 5 seconds
-        expect(ditherTiming.duration.inSeconds, equals(5));
-      });
+          // Uses default of 5 seconds
+          expect(ditherTiming.duration.inSeconds, equals(5));
+        },
+      );
 
       test('estimates DelayNode duration correctly', () {
-        final delayNode = DelayNode(
-          id: 'delay1',
-          name: 'Delay',
-          seconds: 30.0,
-        );
+        final delayNode = DelayNode(id: 'delay1', name: 'Delay', seconds: 30.0);
         final targetNode = TargetHeaderNode(
           id: 'target1',
           name: 'Test Target',
@@ -211,10 +215,7 @@ void main() {
       });
 
       test('estimates SlewNode duration correctly', () {
-        final slewNode = SlewNode(
-          id: 'slew1',
-          name: 'Slew to Target',
-        );
+        final slewNode = SlewNode(id: 'slew1', name: 'Slew to Target');
         final targetNode = TargetHeaderNode(
           id: 'target1',
           name: 'Test Target',
@@ -234,7 +235,9 @@ void main() {
 
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final slewTiming = timings.firstWhere((t) => t.nodeType == 'SlewToTarget');
+        final slewTiming = timings.firstWhere(
+          (t) => t.nodeType == 'SlewToTarget',
+        );
 
         // Default slew duration is 30 seconds
         expect(slewTiming.duration.inSeconds, equals(30));
@@ -247,11 +250,7 @@ void main() {
           durationSecs: 60,
           count: 5, // 5 * 60 + 5 * 2 = 310s
         );
-        final delayNode = DelayNode(
-          id: 'delay1',
-          name: 'Delay',
-          seconds: 30.0,
-        );
+        final delayNode = DelayNode(id: 'delay1', name: 'Delay', seconds: 30.0);
         final targetNode = TargetHeaderNode(
           id: 'target1',
           name: 'Test Target',
@@ -264,7 +263,10 @@ void main() {
         final sequence = createSequence(
           nodes: {
             'target1': targetNode,
-            'exposure1': exposureNode.copyWith(parentId: 'target1', orderIndex: 0),
+            'exposure1': exposureNode.copyWith(
+              parentId: 'target1',
+              orderIndex: 0,
+            ),
             'delay1': delayNode.copyWith(parentId: 'target1', orderIndex: 1),
           },
         );
@@ -276,7 +278,9 @@ void main() {
         final delayTiming = timings.firstWhere((t) => t.nodeType == 'Delay');
 
         // Delay should start after exposure ends
-        final exposureTiming = timings.firstWhere((t) => t.nodeType == 'TakeExposure');
+        final exposureTiming = timings.firstWhere(
+          (t) => t.nodeType == 'TakeExposure',
+        );
         expect(delayTiming.estimatedStart, equals(exposureTiming.estimatedEnd));
       });
 
@@ -316,7 +320,9 @@ void main() {
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
         // Should only have one exposure timing (enabled one)
-        final exposureTimings = timings.where((t) => t.nodeType == 'TakeExposure');
+        final exposureTimings = timings.where(
+          (t) => t.nodeType == 'TakeExposure',
+        );
         expect(exposureTimings, hasLength(1));
         expect(exposureTimings.first.nodeName, equals('Enabled Light'));
       });
@@ -348,7 +354,9 @@ void main() {
 
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final waitTiming = timings.firstWhere((t) => t.nodeType == 'WaitForTime');
+        final waitTiming = timings.firstWhere(
+          (t) => t.nodeType == 'WaitForTime',
+        );
 
         // Should wait 1.5 hours = 90 minutes = 5400 seconds
         expect(waitTiming.duration.inMinutes, equals(90));
@@ -380,7 +388,9 @@ void main() {
 
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final coolTiming = timings.firstWhere((t) => t.nodeType == 'CoolCamera');
+        final coolTiming = timings.firstWhere(
+          (t) => t.nodeType == 'CoolCamera',
+        );
 
         expect(coolTiming.duration.inMinutes, equals(15));
       });
@@ -411,7 +421,9 @@ void main() {
 
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final flipTiming = timings.firstWhere((t) => t.nodeType == 'MeridianFlip');
+        final flipTiming = timings.firstWhere(
+          (t) => t.nodeType == 'MeridianFlip',
+        );
 
         // 120s base + 30s center + 10s settle = 160s
         expect(flipTiming.duration.inSeconds, equals(160));
@@ -442,7 +454,9 @@ void main() {
 
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
-        final guideTiming = timings.firstWhere((t) => t.nodeType == 'StartGuiding');
+        final guideTiming = timings.firstWhere(
+          (t) => t.nodeType == 'StartGuiding',
+        );
 
         expect(guideTiming.duration.inSeconds, equals(45));
       });
@@ -482,7 +496,9 @@ void main() {
         final timings = estimator.estimateSequenceTiming(sequence, startTime);
 
         // Loop shows single iteration in timeline but adds warning
-        final exposureTiming = timings.firstWhere((t) => t.nodeType == 'TakeExposure');
+        final exposureTiming = timings.firstWhere(
+          (t) => t.nodeType == 'TakeExposure',
+        );
         expect(exposureTiming.warnings, isNotNull);
         expect(
           exposureTiming.warnings!.any((w) => w.contains('1 of 3')),
@@ -490,8 +506,7 @@ void main() {
         );
       });
 
-      test(
-          'Count loop multiplies body duration by the loop factor in the '
+      test('Count loop multiplies body duration by the loop factor in the '
           'cumulative timeline', () {
         // Loop(count=10) over a 5x60s exposure body (= 5*60 + 5*2 = 310s).
         // The total must reflect 10 iterations (3100s), not a single pass.
@@ -532,8 +547,7 @@ void main() {
         expect(total.inSeconds, equals(3100));
       });
 
-      test(
-          'A trailing node after a Count loop starts after the full loop, '
+      test('A trailing node after a Count loop starts after the full loop, '
           'not one pass', () {
         final exposureNode = ExposureNode(
           id: 'exposure1',
@@ -548,11 +562,7 @@ void main() {
           repeatCount: 4,
           childIds: const ['exposure1'],
         );
-        final delayNode = DelayNode(
-          id: 'delay1',
-          name: 'Delay',
-          seconds: 30.0,
-        );
+        final delayNode = DelayNode(id: 'delay1', name: 'Delay', seconds: 30.0);
         final targetNode = TargetHeaderNode(
           id: 'target1',
           name: 'Test Target',
@@ -583,8 +593,7 @@ void main() {
         );
       });
 
-      test(
-          'Unbounded loop keeps the single-iteration estimate (no factor '
+      test('Unbounded loop keeps the single-iteration estimate (no factor '
           'multiplication)', () {
         final exposureNode = ExposureNode(
           id: 'exposure1',
@@ -665,11 +674,7 @@ void main() {
           decDegrees: 38.8, // Vega Dec
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         final date = DateTime(2024, 6, 15, 22, 0);
         final windows = estimator.calculateTargetWindows(
@@ -701,11 +706,7 @@ void main() {
           decDegrees: -80.0,
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         final date = DateTime(2024, 6, 15, 22, 0);
         final windows = estimator.calculateTargetWindows(
@@ -730,11 +731,7 @@ void main() {
           decDegrees: 85.0,
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         final date = DateTime(2024, 6, 15, 22, 0);
         final windows = estimator.calculateTargetWindows(
@@ -770,10 +767,7 @@ void main() {
         );
 
         final sequence = createSequence(
-          nodes: {
-            'target1': enabledTarget,
-            'target2': disabledTarget,
-          },
+          nodes: {'target1': enabledTarget, 'target2': disabledTarget},
         );
 
         final date = DateTime(2024, 6, 15, 22, 0);
@@ -838,13 +832,14 @@ void main() {
           ),
         };
 
-        final conflicts = estimator.findTimingConflicts(timings, windows, sequence);
+        final conflicts = estimator.findTimingConflicts(
+          timings,
+          windows,
+          sequence,
+        );
 
         expect(conflicts, isNotEmpty);
-        expect(
-          conflicts.any((c) => c.contains('after target sets')),
-          isTrue,
-        );
+        expect(conflicts.any((c) => c.contains('after target sets')), isTrue);
       });
 
       test('detects conflict when node runs before target rises', () {
@@ -856,11 +851,7 @@ void main() {
           decDegrees: 45.0,
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         // Create timings that start before rise time
         final timings = [
@@ -887,13 +878,14 @@ void main() {
           ),
         };
 
-        final conflicts = estimator.findTimingConflicts(timings, windows, sequence);
+        final conflicts = estimator.findTimingConflicts(
+          timings,
+          windows,
+          sequence,
+        );
 
         expect(conflicts, isNotEmpty);
-        expect(
-          conflicts.any((c) => c.contains('before target rises')),
-          isTrue,
-        );
+        expect(conflicts.any((c) => c.contains('before target rises')), isTrue);
       });
 
       test('reports never-rising target as conflict', () {
@@ -905,11 +897,7 @@ void main() {
           decDegrees: -80.0,
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         final timings = [
           NodeTiming(
@@ -931,13 +919,14 @@ void main() {
           ),
         };
 
-        final conflicts = estimator.findTimingConflicts(timings, windows, sequence);
+        final conflicts = estimator.findTimingConflicts(
+          timings,
+          windows,
+          sequence,
+        );
 
         expect(conflicts, isNotEmpty);
-        expect(
-          conflicts.any((c) => c.contains('never rises')),
-          isTrue,
-        );
+        expect(conflicts.any((c) => c.contains('never rises')), isTrue);
       });
 
       test('no conflicts for circumpolar target', () {
@@ -949,11 +938,7 @@ void main() {
           decDegrees: 89.0,
         );
 
-        final sequence = createSequence(
-          nodes: {
-            'target1': targetNode,
-          },
-        );
+        final sequence = createSequence(nodes: {'target1': targetNode});
 
         final timings = [
           NodeTiming(
@@ -976,7 +961,11 @@ void main() {
           ),
         };
 
-        final conflicts = estimator.findTimingConflicts(timings, windows, sequence);
+        final conflicts = estimator.findTimingConflicts(
+          timings,
+          windows,
+          sequence,
+        );
 
         // No conflicts for circumpolar targets
         expect(conflicts, isEmpty);
@@ -999,7 +988,11 @@ void main() {
 
         final windows = <String, TargetWindow>{};
 
-        final conflicts = estimator.findTimingConflicts(timings, windows, sequence);
+        final conflicts = estimator.findTimingConflicts(
+          timings,
+          windows,
+          sequence,
+        );
 
         // Should not produce conflicts for nodes without target headers
         expect(conflicts, isEmpty);
@@ -1030,7 +1023,13 @@ void main() {
           },
         );
 
-        final startTime = DateTime(2024, 9, 15, 22, 0); // Good viewing time for M31
+        final startTime = DateTime(
+          2024,
+          9,
+          15,
+          22,
+          0,
+        ); // Good viewing time for M31
 
         final result = estimator.analyzeSequence(
           sequence,

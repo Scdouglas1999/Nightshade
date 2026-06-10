@@ -65,8 +65,11 @@ class DeepStarTileScheme {
     double centerDecDeg,
     double fovDegrees,
   ) {
-    final region =
-        ViewportRegion.compute(centerRaHours, centerDecDeg, fovDegrees);
+    final region = ViewportRegion.compute(
+      centerRaHours,
+      centerDecDeg,
+      fovDegrees,
+    );
 
     final startDec = decBandOf(region.minDec);
     final endDec = decBandOf(region.maxDec);
@@ -140,8 +143,9 @@ class ViewportRegion {
     final minDec = (centerDecDeg - decHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDecDeg + decHalf).clamp(-90.0, 90.0);
     final cosDec = math.cos(centerDecDeg.abs() * math.pi / 180);
-    final raHalf =
-        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2 : 12.0;
+    final raHalf = cosDec > 0.1
+        ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2
+        : 12.0;
     return ViewportRegion(
       centerRaHours: centerRaHours,
       minDec: minDec,
@@ -203,7 +207,7 @@ class DeepStarTile {
     required this.decBand,
     required List<DeepStarRecord> records,
   }) : records = List<DeepStarRecord>.of(records)
-          ..sort((a, b) => a.magnitude.compareTo(b.magnitude));
+         ..sort((a, b) => a.magnitude.compareTo(b.magnitude));
 
   /// Encode the tile to its binary form.
   Uint8List encode() {
@@ -260,7 +264,8 @@ class DeepStarTile {
     final expected = headerBytes + recordBytes * count;
     if (bytes.length < expected) {
       throw FormatException(
-          'NSDT tile truncated: ${bytes.length} bytes, expected $expected');
+        'NSDT tile truncated: ${bytes.length} bytes, expected $expected',
+      );
     }
 
     final records = <DeepStarRecord>[];
@@ -270,12 +275,14 @@ class DeepStarTile {
       final decMicro = data.getInt32(off + 4, Endian.little);
       final milliMag = data.getInt16(off + 8, Endian.little);
       final milliBv = data.getInt16(off + 10, Endian.little);
-      records.add(DeepStarRecord(
-        raHours: raMicro / 1e6,
-        decDeg: decMicro / 1e6,
-        magnitude: milliMag / 1000.0,
-        bv: milliBv == _bvUnknown ? null : milliBv / 1000.0,
-      ));
+      records.add(
+        DeepStarRecord(
+          raHours: raMicro / 1e6,
+          decDeg: decMicro / 1e6,
+          magnitude: milliMag / 1000.0,
+          bv: milliBv == _bvUnknown ? null : milliBv / 1000.0,
+        ),
+      );
       off += recordBytes;
     }
     return DeepStarTile(raBand: raBand, decBand: decBand, records: records);
@@ -291,14 +298,16 @@ class DeepStarTile {
     final stars = <Star>[];
     for (var i = 0; i < records.length; i++) {
       final r = records[i];
-      stars.add(Star(
-        id: 'DEEP_${raBand}_${decBand}_$i',
-        name: '',
-        coordinates: CelestialCoordinate(ra: r.raHours, dec: r.decDeg),
-        magnitude: r.magnitude,
-        colorIndex: r.bv,
-        spectralType: spectralTypeFromBv(r.bv),
-      ));
+      stars.add(
+        Star(
+          id: 'DEEP_${raBand}_${decBand}_$i',
+          name: '',
+          coordinates: CelestialCoordinate(ra: r.raHours, dec: r.decDeg),
+          magnitude: r.magnitude,
+          colorIndex: r.bv,
+          spectralType: spectralTypeFromBv(r.bv),
+        ),
+      );
     }
     return stars;
   }
@@ -334,13 +343,13 @@ class DeepStarManifestTile {
   });
 
   Map<String, Object?> toJson() => {
-        'ra': raBand,
-        'dec': decBand,
-        'file': file,
-        'bytes': sizeBytes,
-        'sha256': sha256,
-        'stars': starCount,
-      };
+    'ra': raBand,
+    'dec': decBand,
+    'file': file,
+    'bytes': sizeBytes,
+    'sha256': sha256,
+    'stars': starCount,
+  };
 
   factory DeepStarManifestTile.fromJson(Map<String, Object?> json) =>
       DeepStarManifestTile(
@@ -386,25 +395,26 @@ class DeepStarManifest {
   int get totalBytes => tiles.fold(0, (sum, t) => sum + t.sizeBytes);
 
   Map<String, Object?> toJson() => {
-        'format': formatName,
-        'formatVersion': formatVersion,
-        'name': name,
-        'source': source,
-        'magnitudeFloor': magnitudeFloor,
-        'magnitudeLimit': magnitudeLimit,
-        if (generated != null) 'generated': generated!.toIso8601String(),
-        'tileCount': tiles.length,
-        'totalStars': totalStars,
-        'totalBytes': totalBytes,
-        'tiles': tiles.map((t) => t.toJson()).toList(),
-      };
+    'format': formatName,
+    'formatVersion': formatVersion,
+    'name': name,
+    'source': source,
+    'magnitudeFloor': magnitudeFloor,
+    'magnitudeLimit': magnitudeLimit,
+    if (generated != null) 'generated': generated!.toIso8601String(),
+    'tileCount': tiles.length,
+    'totalStars': totalStars,
+    'totalBytes': totalBytes,
+    'tiles': tiles.map((t) => t.toJson()).toList(),
+  };
 
   String encodeJson() => const JsonEncoder.withIndent('  ').convert(toJson());
 
   factory DeepStarManifest.fromJson(Map<String, Object?> json) {
     if (json['format'] != formatName) {
       throw FormatException(
-          'Not a deep-star tileset manifest (format=${json['format']})');
+        'Not a deep-star tileset manifest (format=${json['format']})',
+      );
     }
     final version = (json['formatVersion'] as num?)?.toInt() ?? 0;
     if (version != DeepStarTile.formatVersion) {
@@ -420,13 +430,16 @@ class DeepStarManifest {
           ? DateTime.tryParse(json['generated'] as String)
           : null,
       tiles: (json['tiles'] as List<dynamic>? ?? const [])
-          .map((t) =>
-              DeepStarManifestTile.fromJson((t as Map).cast<String, Object?>()))
+          .map(
+            (t) => DeepStarManifestTile.fromJson(
+              (t as Map).cast<String, Object?>(),
+            ),
+          )
           .toList(),
     );
   }
 
-  static DeepStarManifest decodeJson(String text) =>
-      DeepStarManifest.fromJson(
-          (jsonDecode(text) as Map).cast<String, Object?>());
+  static DeepStarManifest decodeJson(String text) => DeepStarManifest.fromJson(
+    (jsonDecode(text) as Map).cast<String, Object?>(),
+  );
 }

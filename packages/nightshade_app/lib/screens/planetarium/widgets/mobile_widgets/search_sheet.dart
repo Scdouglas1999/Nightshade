@@ -48,11 +48,14 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
           child: TextField(
             controller: _searchController,
             autofocus: true,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize14,
+                color: widget.colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search objects (M42, Orion, etc.)',
-              hintStyle:
-                  TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textMuted),
+              hintStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize14,
+                  color: widget.colors.textMuted),
               prefixIcon: Icon(NightshadeIcons.search,
                   size: 18, color: widget.colors.textMuted),
               suffixIcon: _searchController.text.isNotEmpty
@@ -68,15 +71,18 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
               filled: true,
               fillColor: widget.colors.surfaceAlt,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.primary),
               ),
               contentPadding:
@@ -109,7 +115,8 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(NightshadeIcons.searchEmpty, size: 48, color: widget.colors.textMuted),
+            Icon(NightshadeIcons.searchEmpty,
+                size: 48, color: widget.colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No results found',
@@ -191,7 +198,8 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                     height: _mobileSearchTileExtent(context) - 12,
                     decoration: BoxDecoration(
                       color: widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
                     ),
                   ),
                 ),
@@ -263,7 +271,8 @@ class MobileSearchResultTile extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Text(
                 catalogTag,
@@ -283,7 +292,8 @@ class MobileSearchResultTile extends StatelessWidget {
                     displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
                   ),
                   Text(
                     typeName,

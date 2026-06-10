@@ -15,7 +15,9 @@ final hostMutationEventHubProvider = Provider<HostMutationEventHub>((ref) {
 });
 
 /// Broadcast stream of host mutation events for local EventBus merge and sync.
-final hostMutationEventStreamProvider = Provider<Stream<NightshadeEvent>>((ref) {
+final hostMutationEventStreamProvider = Provider<Stream<NightshadeEvent>>((
+  ref,
+) {
   return ref.watch(hostMutationEventHubProvider).stream;
 });
 
@@ -72,4 +74,3 @@ void publishHostMutationFromContainer(
     extra: extra,
   );
 }
-

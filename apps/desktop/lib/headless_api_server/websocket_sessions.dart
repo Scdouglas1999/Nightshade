@@ -59,19 +59,18 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
   /// (call snapshot, drop cached state, etc.). The socket is NOT closed;
   /// the live stream continues so the client can keep receiving fresh
   /// events while it rehydrates.
-  void _sendResyncRequired(
-    WebSocketChannel socket, {
-    required String reason,
-  }) {
+  void _sendResyncRequired(WebSocketChannel socket, {required String reason}) {
     try {
-      socket.sink.add(jsonEncode({
-        'type': 'resync_required',
-        'reason': reason,
-        'currentSeq': _eventSeq,
-        'currentInstance': _serverInstanceId,
-        if (_eventReplayBuffer.oldestSeq != null)
-          'oldestRetainedSeq': _eventReplayBuffer.oldestSeq,
-      }));
+      socket.sink.add(
+        jsonEncode({
+          'type': 'resync_required',
+          'reason': reason,
+          'currentSeq': _eventSeq,
+          'currentInstance': _serverInstanceId,
+          if (_eventReplayBuffer.oldestSeq != null)
+            'oldestRetainedSeq': _eventReplayBuffer.oldestSeq,
+        }),
+      );
     } catch (e) {
       _logWarning('Error sending resync_required to socket: $e');
     }
@@ -82,10 +81,12 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
     _socketLastSeenAt[socket] = DateTime.now();
     _ensureWebSocketHeartbeatTimer();
     _logInfo('New WebSocket connection');
-    socket.sink.add(jsonEncode({
-      'type': 'collaboration_state',
-      'state': _collaborationManager.state.toJson(),
-    }));
+    socket.sink.add(
+      jsonEncode({
+        'type': 'collaboration_state',
+        'state': _collaborationManager.state.toJson(),
+      }),
+    );
 
     socket.stream.listen(
       (message) {
@@ -94,17 +95,16 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
           _socketLastSeenAt[socket] = DateTime.now();
           final data = jsonDecode(message) as Map<String, dynamic>;
           if (data['type'] == 'ping') {
-            socket.sink.add(jsonEncode({
-              'type': 'pong',
-              'timestamp': DateTime.now().toUtc().toIso8601String(),
-            }));
+            socket.sink.add(
+              jsonEncode({
+                'type': 'pong',
+                'timestamp': DateTime.now().toUtc().toIso8601String(),
+              }),
+            );
           } else if (data['type'] == 'pong') {
             return;
           } else {
-            _handleCollaborationSocketMessage(
-              socket,
-              data,
-            );
+            _handleCollaborationSocketMessage(socket, data);
           }
         } on Object catch (e) {
           // Why: malformed inbound socket frame must not tear down the socket
@@ -159,10 +159,12 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         }
 
         try {
-          socket.sink.add(jsonEncode({
-            'type': 'ping',
-            'timestamp': now.toUtc().toIso8601String(),
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'ping',
+              'timestamp': now.toUtc().toIso8601String(),
+            }),
+          );
         } catch (e) {
           _logWarning('WebSocket heartbeat failed: $e');
           _removeWebSocket(socket);
@@ -188,10 +190,12 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         final clientViewerId = data['viewerId'] as String?;
         final name = data['name'] as String?;
         if (name == null || name.isEmpty) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message': 'collaboration.join requires a name',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message': 'collaboration.join requires a name',
+            }),
+          );
           return;
         }
         // Resolve the actual viewer id. The auth identity wins
@@ -202,11 +206,13 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         // working unchanged.
         final effectiveViewerId = authIdentity ?? clientViewerId;
         if (effectiveViewerId == null || effectiveViewerId.isEmpty) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message':
-                'collaboration.join requires viewerId when auth is disabled',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message':
+                  'collaboration.join requires viewerId when auth is disabled',
+            }),
+          );
           return;
         }
         if (authIdentity != null &&
@@ -232,7 +238,8 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         // own. We always use the socket's authoritative identity (or
         // the id this socket previously bound to) regardless of what
         // the payload says.
-        final viewerId = _socketViewerIds.remove(socket) ??
+        final viewerId =
+            _socketViewerIds.remove(socket) ??
             authIdentity ??
             (data['viewerId'] as String?);
         if (viewerId != null) {
@@ -242,10 +249,13 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
       case 'collaboration.preview':
         final preview = data['preview'];
         if (preview != null && preview is! Map<String, dynamic>) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message': 'collaboration.preview requires preview to be an object',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message':
+                  'collaboration.preview requires preview to be an object',
+            }),
+          );
           return;
         }
         _collaborationManager.updatePreview(preview as Map<String, dynamic>?);
@@ -255,10 +265,12 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         final viewerName = data['viewerName'] as String?;
         final message = data['message'] as String?;
         if (viewerName == null || message == null) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message': 'collaboration.chat requires viewerName and message',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message': 'collaboration.chat requires viewerName and message',
+            }),
+          );
           return;
         }
         // P2-15: same impersonation rule as collaboration.join — the
@@ -266,11 +278,13 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         // chat row so a client cannot put words in someone else's mouth.
         final viewerId = authIdentity ?? clientViewerId;
         if (viewerId == null) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message':
-                'collaboration.chat requires viewerId when auth is disabled',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message':
+                  'collaboration.chat requires viewerId when auth is disabled',
+            }),
+          );
           return;
         }
         if (authIdentity != null &&
@@ -297,20 +311,24 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         if (annotationId == null ||
             kind == null ||
             payload is! Map<String, dynamic>) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message':
-                'collaboration.annotation requires annotationId, kind, and payload',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message':
+                  'collaboration.annotation requires annotationId, kind, and payload',
+            }),
+          );
           return;
         }
         final viewerId = authIdentity ?? clientViewerId;
         if (viewerId == null) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message':
-                'collaboration.annotation requires viewerId when auth is disabled',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message':
+                  'collaboration.annotation requires viewerId when auth is disabled',
+            }),
+          );
           return;
         }
         if (authIdentity != null &&
@@ -333,14 +351,17 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
       case 'session_handoff.set':
         final handoff = data['handoff'];
         if (handoff != null && handoff is! Map<String, dynamic>) {
-          socket.sink.add(jsonEncode({
-            'type': 'error',
-            'message': 'session_handoff.set requires handoff to be an object',
-          }));
+          socket.sink.add(
+            jsonEncode({
+              'type': 'error',
+              'message': 'session_handoff.set requires handoff to be an object',
+            }),
+          );
           return;
         }
-        _collaborationManager
-            .setSessionHandoff(handoff as Map<String, dynamic>?);
+        _collaborationManager.setSessionHandoff(
+          handoff as Map<String, dynamic>?,
+        );
         return;
       case 'session_handoff.clear':
         _collaborationManager.setSessionHandoff(null);

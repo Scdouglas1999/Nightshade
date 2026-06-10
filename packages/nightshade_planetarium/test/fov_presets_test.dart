@@ -197,14 +197,16 @@ void main() {
 
     test('setActivePositionAngle normalizes into [0,360)', () {
       final notifier = FovPresetsNotifier();
-      notifier.add(const FovPreset(
-        id: 'a',
-        name: 'A',
-        focalLengthMm: 480,
-        sensorWidthMm: 23.5,
-        sensorHeightMm: 15.6,
-        pixelSizeMicrons: 3.9,
-      ));
+      notifier.add(
+        const FovPreset(
+          id: 'a',
+          name: 'A',
+          focalLengthMm: 480,
+          sensorWidthMm: 23.5,
+          sensorHeightMm: 15.6,
+          pixelSizeMicrons: 3.9,
+        ),
+      );
       notifier.setActivePositionAngle(-30);
       expect(notifier.state.active!.positionAngleDeg, closeTo(330, 1e-9));
       notifier.setActivePositionAngle(450);
@@ -213,14 +215,16 @@ void main() {
 
     test('setActiveCenter pins and clearActiveCenter un-pins', () {
       final notifier = FovPresetsNotifier();
-      notifier.add(const FovPreset(
-        id: 'a',
-        name: 'A',
-        focalLengthMm: 480,
-        sensorWidthMm: 23.5,
-        sensorHeightMm: 15.6,
-        pixelSizeMicrons: 3.9,
-      ));
+      notifier.add(
+        const FovPreset(
+          id: 'a',
+          name: 'A',
+          focalLengthMm: 480,
+          sensorWidthMm: 23.5,
+          sensorHeightMm: 15.6,
+          pixelSizeMicrons: 3.9,
+        ),
+      );
       expect(notifier.state.active!.center, isNull);
       notifier.setActiveCenter(const CelestialCoordinate(ra: 10, dec: 20));
       expect(notifier.state.active!.center!.ra, 10);
@@ -230,14 +234,16 @@ void main() {
 
     test('hydrate replaces collection from JSON; blank is a no-op', () {
       final notifier = FovPresetsNotifier();
-      notifier.add(const FovPreset(
-        id: 'pre',
-        name: 'pre',
-        focalLengthMm: 480,
-        sensorWidthMm: 23.5,
-        sensorHeightMm: 15.6,
-        pixelSizeMicrons: 3.9,
-      ));
+      notifier.add(
+        const FovPreset(
+          id: 'pre',
+          name: 'pre',
+          focalLengthMm: 480,
+          sensorWidthMm: 23.5,
+          sensorHeightMm: 15.6,
+          pixelSizeMicrons: 3.9,
+        ),
+      );
       notifier.hydrate(''); // no-op keeps existing
       expect(notifier.state.presets.single.id, 'pre');
 
@@ -263,10 +269,12 @@ void main() {
 
 String _jsonOf(FovPreset p) {
   final m = p.toJson();
-  final entries = m.entries.map((e) {
-    final v = e.value;
-    final encoded = v is String ? '"$v"' : (v is bool ? '$v' : '$v');
-    return '"${e.key}":$encoded';
-  }).join(',');
+  final entries = m.entries
+      .map((e) {
+        final v = e.value;
+        final encoded = v is String ? '"$v"' : (v is bool ? '$v' : '$v');
+        return '"${e.key}":$encoded';
+      })
+      .join(',');
   return '{$entries}';
 }

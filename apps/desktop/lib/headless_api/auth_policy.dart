@@ -1,10 +1,6 @@
 import 'route_metadata.dart' as route_metadata;
 
-enum HeadlessTokenScope {
-  view,
-  control,
-  admin,
-}
+enum HeadlessTokenScope { view, control, admin }
 
 HeadlessTokenScope? parseHeadlessTokenScope(String? value) {
   switch (value?.trim().toLowerCase()) {

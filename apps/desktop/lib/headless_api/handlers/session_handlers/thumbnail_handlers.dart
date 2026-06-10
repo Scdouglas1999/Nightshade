@@ -5,7 +5,9 @@ part of '../session_handlers.dart';
 
 extension SessionThumbnailHandlers on SessionHandlers {
   Future<Response> handleGetImageThumbnail(
-      Request request, String imageId) async {
+    Request request,
+    String imageId,
+  ) async {
     final iid = _parsePathId(imageId, 'imageId');
     final database = container.read(databaseProvider);
     final dbImage = await database.imagesDao.getImageById(iid);
@@ -20,8 +22,9 @@ extension SessionThumbnailHandlers on SessionHandlers {
     // un-viewable for science purposes).
     final sourceFile = File(dbImage.filePath);
     if (!await sourceFile.exists()) {
-      return jsonNotFound(
-          {'error': 'Image file not found: ${dbImage.filePath}'});
+      return jsonNotFound({
+        'error': 'Image file not found: ${dbImage.filePath}',
+      });
     }
 
     final sidecarPath = await database.imagesDao.getThumbnailPath(iid);
@@ -109,10 +112,12 @@ extension SessionThumbnailHandlers on SessionHandlers {
     final etag = '"$imageId-${sidecarMtime.millisecondsSinceEpoch}"';
     final ifNoneMatch = request.headers['if-none-match'];
     if (ifNoneMatch != null && ifNoneMatch == etag) {
-      return Response.notModified(headers: {
-        'etag': etag,
-        'cache-control': 'private, max-age=86400, immutable',
-      });
+      return Response.notModified(
+        headers: {
+          'etag': etag,
+          'cache-control': 'private, max-age=86400, immutable',
+        },
+      );
     }
 
     final bytes = await sidecarFile.readAsBytes();
@@ -155,7 +160,9 @@ extension SessionThumbnailHandlers on SessionHandlers {
   /// the cached sidecar (the only condition under which the otherwise-
   /// immutable cache becomes incorrect).
   Future<Response> handleRegenerateImageThumbnail(
-      Request request, String imageId) async {
+    Request request,
+    String imageId,
+  ) async {
     _logInfo('[API] POST /api/images/$imageId/regenerate-thumbnail');
     final iid = _parsePathId(imageId, 'imageId');
     final database = container.read(databaseProvider);
@@ -165,8 +172,9 @@ extension SessionThumbnailHandlers on SessionHandlers {
     }
     final source = File(dbImage.filePath);
     if (!await source.exists()) {
-      return jsonNotFound(
-          {'error': 'Image file not found: ${dbImage.filePath}'});
+      return jsonNotFound({
+        'error': 'Image file not found: ${dbImage.filePath}',
+      });
     }
 
     final sidecarService = container.read(thumbnailSidecarServiceProvider);
@@ -256,12 +264,13 @@ extension SessionThumbnailHandlers on SessionHandlers {
           // honour any stamped path first; if missing we fall back to
           // the canonical `${filePath}.thumb.jpg` location.
           final stampedSidecar = row.thumbnailPath;
-          final canonical =
-              row.filePath.isEmpty ? null : '${row.filePath}.thumb.jpg';
+          final canonical = row.filePath.isEmpty
+              ? null
+              : '${row.filePath}.thumb.jpg';
           final candidatePath =
               (stampedSidecar != null && stampedSidecar.isNotEmpty)
-                  ? stampedSidecar
-                  : canonical;
+              ? stampedSidecar
+              : canonical;
 
           if (candidatePath != null && await File(candidatePath).exists()) {
             // Already-present sidecar — make sure the DB stamp matches
@@ -355,8 +364,9 @@ extension SessionThumbnailHandlers on SessionHandlers {
     // Get the file path and check if it exists
     final file = File(dbImage.filePath);
     if (!await file.exists()) {
-      return jsonNotFound(
-          {"error": "Image file not found: ${dbImage.filePath}"});
+      return jsonNotFound({
+        "error": "Image file not found: ${dbImage.filePath}",
+      });
     }
 
     // Stat the file. A permission-denied here is a 403; a generic I/O
@@ -373,13 +383,12 @@ extension SessionThumbnailHandlers on SessionHandlers {
         'Permission denied reading $imageId: $e',
         source: 'SessionHandlers',
       );
-      return jsonForbidden(
-          {'error': 'Permission denied', 'path': dbImage.filePath});
+      return jsonForbidden({
+        'error': 'Permission denied',
+        'path': dbImage.filePath,
+      });
     } on FileSystemException catch (e) {
-      _logger.error(
-        'Failed to stat $imageId: $e',
-        source: 'SessionHandlers',
-      );
+      _logger.error('Failed to stat $imageId: $e', source: 'SessionHandlers');
       return jsonInternalServerError(const {
         'error': 'Failed to read file metadata',
         // Sanitized: full cause is logged above; not leaked to the caller.
@@ -429,10 +438,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
         fileName: dbImage.fileName,
         contentType: contentType,
         contentLength: fileLength,
-        headers: {
-          'accept-ranges': 'bytes',
-          'etag': etag,
-        },
+        headers: {'accept-ranges': 'bytes', 'etag': etag},
       );
     }
 

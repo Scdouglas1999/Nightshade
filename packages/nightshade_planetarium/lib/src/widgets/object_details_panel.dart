@@ -101,7 +101,10 @@ class ObjectDetailsPanel extends ConsumerWidget {
             // Header with name, type, and optional thumbnail for DSOs
             if (object is DeepSkyObject)
               _buildHeaderWithThumbnail(
-                  txtColor, accent, object as DeepSkyObject)
+                txtColor,
+                accent,
+                object as DeepSkyObject,
+              )
             else
               _buildHeader(txtColor, accent),
             const SizedBox(height: 12),

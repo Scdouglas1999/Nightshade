@@ -44,7 +44,8 @@ class OpticalConfigPanel extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(NightshadeIcons.aperture, size: 14, color: colors.textMuted),
+                  Icon(NightshadeIcons.aperture,
+                      size: 14, color: colors.textMuted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -64,7 +65,8 @@ class OpticalConfigPanel extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                       iconSize: 14,
                       tooltip: 'Hide optical config panel',
-                      icon: Icon(NightshadeIcons.close, size: 14, color: colors.textMuted),
+                      icon: Icon(NightshadeIcons.close,
+                          size: 14, color: colors.textMuted),
                       onPressed: () {
                         ref
                             .read(framingProvider.notifier)
@@ -153,12 +155,15 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F52D}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize14)), // Telescope emoji
+                  style: TextStyle(
+                      fontSize:
+                          NightshadeTypography.fontSize14)), // Telescope emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.telescopeName!,
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -183,12 +188,15 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F4F7}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize14)), // Camera emoji
+                  style: TextStyle(
+                      fontSize:
+                          NightshadeTypography.fontSize14)), // Camera emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.cameraName!,
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

@@ -1,4 +1,4 @@
-﻿// DEV-P3-1: capability-driven UI provider layer.
+// DEV-P3-1: capability-driven UI provider layer.
 //
 // This file is a Riverpod facade over the device capability queries exposed
 // by `NightshadeBackend.getXCapabilities`. It exists so per-device UI widgets
@@ -54,51 +54,53 @@ import 'rotator_state_provider.dart';
 /// fail closed — see [gateCapability].
 final equipmentCameraCapabilitiesProvider =
     FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getCameraCapabilities(deviceId);
-});
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getCameraCapabilities(deviceId);
+    });
 
 /// Mount capabilities for [deviceId]. See [equipmentCameraCapabilitiesProvider].
 final equipmentMountCapabilitiesProvider =
     FutureProvider.family<MountCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getMountCapabilities(deviceId);
-});
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getMountCapabilities(deviceId);
+    });
 
 /// Focuser capabilities for [deviceId]. See [equipmentCameraCapabilitiesProvider].
 final equipmentFocuserCapabilitiesProvider =
     FutureProvider.family<FocuserCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getFocuserCapabilities(deviceId);
-});
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getFocuserCapabilities(deviceId);
+    });
 
 /// Filter wheel capabilities for [deviceId]. See [equipmentCameraCapabilitiesProvider].
 final equipmentFilterWheelCapabilitiesProvider =
-    FutureProvider.family<FilterWheelCapabilities?, String>(
-        (ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getFilterWheelCapabilities(deviceId);
-});
+    FutureProvider.family<FilterWheelCapabilities?, String>((
+      ref,
+      deviceId,
+    ) async {
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getFilterWheelCapabilities(deviceId);
+    });
 
 /// Rotator capabilities for [deviceId]. See [equipmentCameraCapabilitiesProvider].
 final equipmentRotatorCapabilitiesProvider =
     FutureProvider.family<RotatorCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final backend = ref.watch(deviceBackendProvider);
-  return backend.getRotatorCapabilities(deviceId);
-});
+      if (deviceId.isEmpty) return null;
+      final backend = ref.watch(deviceBackendProvider);
+      return backend.getRotatorCapabilities(deviceId);
+    });
 
 /// Dome capability fetcher — overridable for tests.
 ///
 /// Production calls the FRB bridge directly because the [NightshadeBackend]
 /// abstraction does not yet have a `getDomeCapabilities` method, and adding
 /// one belongs to a backend-shape change outside the scope of DEV-P3-1.
-typedef DomeCapabilityFetcher = Future<DomeCapabilities?> Function(
-    String deviceId);
+typedef DomeCapabilityFetcher =
+    Future<DomeCapabilities?> Function(String deviceId);
 
 DomeCapabilityFetcher _defaultDomeCapabilityFetcher = (deviceId) async {
   final caps = await bridge_diag.apiGetDomeCapabilities(deviceId: deviceId);
@@ -121,10 +123,10 @@ final domeCapabilityFetcherProvider = Provider<DomeCapabilityFetcher>(
 /// elsewhere. Same null/throw semantics as the other capability providers.
 final equipmentDomeCapabilitiesProvider =
     FutureProvider.family<DomeCapabilities?, String>((ref, deviceId) async {
-  if (deviceId.isEmpty) return null;
-  final fetcher = ref.watch(domeCapabilityFetcherProvider);
-  return fetcher(deviceId);
-});
+      if (deviceId.isEmpty) return null;
+      final fetcher = ref.watch(domeCapabilityFetcherProvider);
+      return fetcher(deviceId);
+    });
 
 DomeCapabilities _fromBridgeDomeCapabilities(bridge_caps.DomeCapabilities src) {
   return DomeCapabilities(
@@ -199,26 +201,21 @@ final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
     ref,
     cameraStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
-    invalidate: (id) =>
-        ref.invalidate(equipmentCameraCapabilitiesProvider(id)),
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
+    invalidate: (id) => ref.invalidate(equipmentCameraCapabilitiesProvider(id)),
   );
   _listenForConnect<MountState>(
     ref,
     mountStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
-    invalidate: (id) =>
-        ref.invalidate(equipmentMountCapabilitiesProvider(id)),
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
+    invalidate: (id) => ref.invalidate(equipmentMountCapabilitiesProvider(id)),
   );
   _listenForConnect<FocuserState>(
     ref,
     focuserStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
     invalidate: (id) =>
         ref.invalidate(equipmentFocuserCapabilitiesProvider(id)),
   );
@@ -226,8 +223,7 @@ final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
     ref,
     filterWheelStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
     invalidate: (id) =>
         ref.invalidate(equipmentFilterWheelCapabilitiesProvider(id)),
   );
@@ -235,8 +231,7 @@ final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
     ref,
     rotatorStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
     invalidate: (id) =>
         ref.invalidate(equipmentRotatorCapabilitiesProvider(id)),
   );
@@ -244,10 +239,8 @@ final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
     ref,
     domeStateProvider,
     deviceIdOf: (s) => s.deviceId,
-    isConnected: (s) =>
-        s.connectionState == DeviceConnectionState.connected,
-    invalidate: (id) =>
-        ref.invalidate(equipmentDomeCapabilitiesProvider(id)),
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
+    invalidate: (id) => ref.invalidate(equipmentDomeCapabilitiesProvider(id)),
   );
 });
 

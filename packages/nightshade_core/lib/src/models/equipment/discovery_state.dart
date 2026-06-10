@@ -126,8 +126,7 @@ class UnifiedDiscoveryState extends Equatable {
     DateTime? newest;
     for (final backendState in backendStates.values) {
       final completed = backendState.completedAt;
-      if (completed != null &&
-          (newest == null || completed.isAfter(newest))) {
+      if (completed != null && (newest == null || completed.isAfter(newest))) {
         newest = completed;
       }
     }

@@ -98,8 +98,9 @@ Map<String, dynamic> buildOpenApiSpec({
 
     if (methodCanHaveBody(method)) {
       responses['413'] = {'description': 'Request body too large'};
-      operation['x-max-request-body-bytes'] =
-          requestBodyLimitForPath(routePath);
+      operation['x-max-request-body-bytes'] = requestBodyLimitForPath(
+        routePath,
+      );
     }
 
     if (rateLimit != null) {
@@ -129,11 +130,11 @@ Map<String, dynamic> buildOpenApiSpec({
       'version': '2.6.0',
       'description':
           'Event envelope now carries `seq`, `serverInstanceId`, and '
-              '`correlatingCommandId`. Action POSTs return a `commandId`. '
-              'GET /api/info exposes `currentEventSeq`, '
-              '`eventReplayBufferOldestSeq`, and `eventReplayBufferSize` '
-              'so clients can decide between WS `?since=` replay and a '
-              'full snapshot rehydrate.',
+          '`correlatingCommandId`. Action POSTs return a `commandId`. '
+          'GET /api/info exposes `currentEventSeq`, '
+          '`eventReplayBufferOldestSeq`, and `eventReplayBufferSize` '
+          'so clients can decide between WS `?since=` replay and a '
+          'full snapshot rehydrate.',
     },
     'servers': [
       {'url': 'http://localhost:$port'},
@@ -230,10 +231,7 @@ EndpointRateLimit? endpointRateLimitFor({
   return null;
 }
 
-String? highRiskAuditActionFor({
-  required String method,
-  required String path,
-}) {
+String? highRiskAuditActionFor({required String method, required String path}) {
   if (method.toUpperCase() == 'GET' && path == '/api/files/browse') {
     return 'file_browse';
   }
@@ -252,8 +250,7 @@ String? highRiskAuditActionFor({
   // P1-11 — DELETE /api/system/update/staged is destructive but uses the
   // DELETE method. The remaining update audit actions live in
   // `_highRiskAuditActions` below and are matched via the POST branch.
-  if (method.toUpperCase() == 'DELETE' &&
-      path == '/api/system/update/staged') {
+  if (method.toUpperCase() == 'DELETE' && path == '/api/system/update/staged') {
     return 'update_discard_staged';
   }
 
@@ -365,10 +362,7 @@ bool isHighRiskControlPath(String path) {
   return _highRiskControlPaths.contains(path);
 }
 
-bool isPublicEndpoint({
-  required String method,
-  required String path,
-}) {
+bool isPublicEndpoint({required String method, required String path}) {
   final normalizedMethod = method.toUpperCase();
   final normalizedPath = _normalizePath(path);
   return normalizedMethod == 'GET' && normalizedPath == '/api/info';
@@ -463,8 +457,7 @@ String requiredAuthScopeNameForEndpoint({
   // The named DELETE is parameterised so the `_adminOnlyPaths` set
   // can't cover it; we resolve it via the path matcher here.
   if (normalizedPath.startsWith('/api/catalog/')) {
-    if (normalizedMethod == 'DELETE' &&
-        _isCatalogNamedPath(normalizedPath)) {
+    if (normalizedMethod == 'DELETE' && _isCatalogNamedPath(normalizedPath)) {
       return 'admin';
     }
     // Concrete admin-only POSTs are caught by the `_adminOnlyPaths`
@@ -546,9 +539,7 @@ const _adminOnlyPaths = {
 /// operator may be sharing out of band. Keeping the table separate from
 /// `_adminOnlyPaths` makes it explicit that this set covers GETs too,
 /// whereas `_adminOnlyPaths` only escalates mutating methods.
-const _pairingActivePaths = {
-  '/api/pairing/active',
-};
+const _pairingActivePaths = {'/api/pairing/active'};
 
 const _controlPathPrefixes = [
   '/api/devices/',
@@ -578,9 +569,7 @@ const _controlPathPrefixes = [
   '/api/calibration/',
 ];
 
-const _rateLimitedReadPaths = {
-  '/api/files/browse',
-};
+const _rateLimitedReadPaths = {'/api/files/browse'};
 
 const _highRiskControlPaths = {
   '/api/devices/connect',
@@ -686,10 +675,7 @@ class EndpointRateLimit {
   final int maxRequests;
   final Duration window;
 
-  const EndpointRateLimit({
-    required this.maxRequests,
-    required this.window,
-  });
+  const EndpointRateLimit({required this.maxRequests, required this.window});
 }
 
 class RateLimitDecision {
@@ -844,8 +830,7 @@ class TokenBucketConfig {
 
   /// Tokens added per microsecond. Computed lazily by the limiter; held as
   /// a method (not a getter) to keep the type a const-friendly value type.
-  double refillPerMicrosecond() =>
-      refillTokens / refillPeriod.inMicroseconds;
+  double refillPerMicrosecond() => refillTokens / refillPeriod.inMicroseconds;
 }
 
 /// P2-6: token-bucket rate limiter keyed by `(tokenId, route_class)`.
@@ -868,8 +853,8 @@ class TokenBucketRateLimiter {
     Map<TokenRouteClass, TokenBucketConfig>? configByClass,
     DateTime Function()? now,
     this.maxBuckets = 8192,
-  })  : _configByClass = configByClass ?? defaultTokenBucketConfigs,
-        _now = now ?? DateTime.now;
+  }) : _configByClass = configByClass ?? defaultTokenBucketConfigs,
+       _now = now ?? DateTime.now;
 
   /// Look up the configuration for a class. Returns the default config if
   /// the caller-supplied map omitted it (defensive — every class should
@@ -899,11 +884,13 @@ class TokenBucketRateLimiter {
     // 60 req/s the per-token interval is ~16.6 ms, so millisecond math
     // would round trips into 0 and starve the bucket between two close
     // requests. Microseconds give us the precision the budget needs.
-    final elapsedMicros =
-        now.microsecondsSinceEpoch - state.lastRefillMicros;
+    final elapsedMicros = now.microsecondsSinceEpoch - state.lastRefillMicros;
     if (elapsedMicros > 0) {
       final added = elapsedMicros * config.refillPerMicrosecond();
-      state.tokens = (state.tokens + added).clamp(0.0, config.capacity.toDouble());
+      state.tokens = (state.tokens + added).clamp(
+        0.0,
+        config.capacity.toDouble(),
+      );
       state.lastRefillMicros = now.microsecondsSinceEpoch;
     }
 

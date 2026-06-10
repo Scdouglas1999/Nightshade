@@ -89,10 +89,7 @@ class PhoneBatteryIndicator extends ConsumerWidget {
             ),
             if (!compact && isLowPower) ...[
               const SizedBox(width: 6),
-              Text(
-                'Power saving',
-                style: TextStyle(fontSize: 11, color: tint),
-              ),
+              Text('Power saving', style: TextStyle(fontSize: 11, color: tint)),
             ],
           ],
         ),

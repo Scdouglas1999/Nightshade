@@ -143,8 +143,7 @@ void main() {
 
     await controller.createProject(design);
 
-    final forwarded =
-        calls.single['panelTargetId'] as int? Function(int)?;
+    final forwarded = calls.single['panelTargetId'] as int? Function(int)?;
     expect(forwarded, isNotNull,
         reason: 'the per-panel target callback must reach the service');
     // Each panel index resolves to its OWN distinct target id.

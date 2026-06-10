@@ -115,8 +115,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 750));
 
       expect(ok, isFalse);
-      expect(find.textContaining('Could not Duplicate Node'),
-          findsOneWidget);
+      expect(find.textContaining('Could not Duplicate Node'), findsOneWidget);
     });
 
     testWidgets(
@@ -165,8 +164,8 @@ void main() {
       // Dialog should have rendered with the typed message body.
       expect(find.text('Could not Insert Snippet'), findsOneWidget);
       expect(find.textContaining('WarpDrive'), findsOneWidget);
-      expect(find.textContaining('newer version of Nightshade'),
-          findsOneWidget);
+      expect(
+          find.textContaining('newer version of Nightshade'), findsOneWidget);
 
       // Dismiss the dialog and confirm the helper returns false.
       await tester.tap(find.text('OK'));
@@ -330,8 +329,7 @@ void main() {
         find.text('Filter "Halpha" could not be matched 14 times'),
         findsOneWidget,
       );
-      expect(find.text('Autofocus skipped: dome was closing'),
-          findsOneWidget);
+      expect(find.text('Autofocus skipped: dome was closing'), findsOneWidget);
     });
   });
 

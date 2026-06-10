@@ -59,8 +59,12 @@ class LanPushNotificationReceiver {
 
   /// Optional logger sink so production wiring routes through
   /// LoggingService; tests inject a recorder.
-  final void Function(LanPushLogLevel level, String message,
-      {Map<String, Object?>? fields})? logger;
+  final void Function(
+    LanPushLogLevel level,
+    String message, {
+    Map<String, Object?>? fields,
+  })?
+  logger;
 
   /// Capacity of the dedup ring. We keep the last N frame IDs to
   /// suppress duplicates between the WS-delivered copy and the UDP
@@ -133,8 +137,10 @@ class LanPushNotificationReceiver {
     if (inj != null) {
       _injectorSubscription = inj.datagrams.listen(_processDatagram);
       _active = true;
-      _log(LanPushLogLevel.info,
-          'LAN push receiver started (injector); port=$port');
+      _log(
+        LanPushLogLevel.info,
+        'LAN push receiver started (injector); port=$port',
+      );
       return;
     }
 
@@ -174,24 +180,33 @@ class LanPushNotificationReceiver {
         _log(
           LanPushLogLevel.warning,
           'LAN push receiver: failed to enumerate interfaces for '
-              'multicast join — continuing with broadcast-only',
+          'multicast join — continuing with broadcast-only',
           fields: {'error': '$e'},
         );
       }
 
-      _socketSubscription = socket.listen(_onSocketEvent, onError: (e, st) {
-        _log(LanPushLogLevel.warning, 'LAN push receiver: socket error',
-            fields: {'error': '$e', 'stack': '$st'});
-      });
+      _socketSubscription = socket.listen(
+        _onSocketEvent,
+        onError: (e, st) {
+          _log(
+            LanPushLogLevel.warning,
+            'LAN push receiver: socket error',
+            fields: {'error': '$e', 'stack': '$st'},
+          );
+        },
+      );
       _socket = socket;
       _active = true;
-      _log(LanPushLogLevel.info, 'LAN push receiver started',
-          fields: {'port': port});
+      _log(
+        LanPushLogLevel.info,
+        'LAN push receiver started',
+        fields: {'port': port},
+      );
     } catch (e, st) {
       _log(
         LanPushLogLevel.warning,
         'LAN push receiver bind failed — backgrounded phones will not '
-            'wake on critical alerts when their WebSocket is dropped',
+        'wake on critical alerts when their WebSocket is dropped',
         fields: {'port': port, 'error': '$e', 'stack': '$st'},
       );
       _started = false;
@@ -222,7 +237,7 @@ class LanPushNotificationReceiver {
           _log(
             LanPushLogLevel.warning,
             'LAN push receiver: HMAC verification FAILED — dropping '
-                'datagram (possible forge attempt or fingerprint drift)',
+            'datagram (possible forge attempt or fingerprint drift)',
           );
           break;
         case LanPushDecodeFailure.badMagic:
@@ -238,8 +253,10 @@ class LanPushNotificationReceiver {
           break;
         case LanPushDecodeFailure.payloadLengthMismatch:
         case LanPushDecodeFailure.malformedPayload:
-          _log(LanPushLogLevel.warning,
-              'LAN push receiver: malformed payload — drop');
+          _log(
+            LanPushLogLevel.warning,
+            'LAN push receiver: malformed payload — drop',
+          );
           break;
         case null:
           // Defensive — decodePushFrame guarantees failure non-null when isOk is false.
@@ -256,8 +273,8 @@ class LanPushNotificationReceiver {
       _log(
         LanPushLogLevel.warning,
         'LAN push receiver: fingerprint mismatch — frame claims '
-            '"${frame.serverFingerprint}" but we paired with '
-            '"$serverFingerprint"; dropping',
+        '"${frame.serverFingerprint}" but we paired with '
+        '"$serverFingerprint"; dropping',
       );
       return;
     }
@@ -298,8 +315,11 @@ class LanPushNotificationReceiver {
     }
   }
 
-  void _log(LanPushLogLevel level, String message,
-      {Map<String, Object?>? fields}) {
+  void _log(
+    LanPushLogLevel level,
+    String message, {
+    Map<String, Object?>? fields,
+  }) {
     final l = logger;
     if (l != null) {
       l(level, message, fields: fields);

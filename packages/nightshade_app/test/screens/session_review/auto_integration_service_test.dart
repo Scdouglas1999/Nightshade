@@ -38,8 +38,8 @@ class _FakeAccumulationService implements MasterAccumulationService {
       masterPath: null,
       previewPath: null,
       frameCount: subs.length,
-      totalIntegrationSec: subs.fold<double>(
-          0, (a, s) => a + s.exposureDuration),
+      totalIntegrationSec:
+          subs.fold<double>(0, (a, s) => a + s.exposureDuration),
       width: 100,
       height: 80,
       channels: 1,
@@ -204,7 +204,8 @@ void main() {
     final targetId = await insertTarget('M42');
 
     // Accumulating master exists for L only.
-    final lMaster = await insertAccumulatingMaster(targetId: targetId, filter: 'L');
+    final lMaster =
+        await insertAccumulatingMaster(targetId: targetId, filter: 'L');
 
     // Night: 3×L (dominant, has a master), 2×Ha, 1×OIII (no masters).
     for (var i = 0; i < 3; i++) {
@@ -280,7 +281,9 @@ void main() {
     // Two folds (one per filter), no batch run.
     expect(accumulate.calls, hasLength(2));
     expect(integrate.calls, isEmpty);
-    final folded = {for (final c in accumulate.calls) c.masterId: c.subs.length};
+    final folded = {
+      for (final c in accumulate.calls) c.masterId: c.subs.length
+    };
     expect(folded[lMaster], 2);
     expect(folded[haMaster], 1);
     // Total reported across both folds.

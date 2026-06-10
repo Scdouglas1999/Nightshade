@@ -38,8 +38,7 @@ class _FakeDiagnosticsBackend implements DiagnosticsBackend {
   bool get dispatchPluginNodesLocally => false;
 
   @override
-  Stream<Map<String, dynamic>> get polarAlignmentEvents =>
-      const Stream.empty();
+  Stream<Map<String, dynamic>> get polarAlignmentEvents => const Stream.empty();
 
   @override
   void dispose() {}
@@ -50,12 +49,12 @@ class _FakeDiagnosticsBackend implements DiagnosticsBackend {
 }
 
 NightshadeEvent _weatherUnsafeEvent() => NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.error,
-      category: EventCategory.safety,
-      eventType: 'WeatherUnsafe',
-      data: const {'reason': 'clouds'},
-    );
+  timestamp: DateTime.now().millisecondsSinceEpoch,
+  severity: EventSeverity.error,
+  category: EventCategory.safety,
+  eventType: 'WeatherUnsafe',
+  data: const {'reason': 'clouds'},
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -84,8 +83,7 @@ void main() {
     await db.close();
   });
 
-  test(
-      'an eager read at app start (no notification UI) attaches the router '
+  test('an eager read at app start (no notification UI) attaches the router '
       'to the backend event stream: an at-idle critical event reaches the '
       'in-app sink', () async {
     // Simulates desktop_app_bootstrap / main_headless: a plain read on the
@@ -102,13 +100,13 @@ void main() {
     expect(
       inApp,
       hasLength(1),
-      reason: 'the eagerly-mounted router must classify and dispatch the '
+      reason:
+          'the eagerly-mounted router must classify and dispatch the '
           'at-idle event to the in-app sink',
     );
   });
 
-  test(
-      'a later read returns the identical cached router — one subscription, '
+  test('a later read returns the identical cached router — one subscription, '
       'an event dispatches exactly once (no double-subscribe)', () async {
     // Eager read at app start...
     final eager = container.read(notificationRouterProvider);
@@ -126,7 +124,8 @@ void main() {
     expect(
       container.read(uiNotificationProvider),
       hasLength(1),
-      reason: 'a single backend event must dispatch exactly once even after '
+      reason:
+          'a single backend event must dispatch exactly once even after '
           'multiple provider reads',
     );
   });

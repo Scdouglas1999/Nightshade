@@ -3,8 +3,9 @@ import 'dart:io';
 
 Future<void> main() async {
   final repoRoot = Directory.current;
-  final script =
-      File('${repoRoot.path}/tools/production/release_docs_audit.dart');
+  final script = File(
+    '${repoRoot.path}/tools/production/release_docs_audit.dart',
+  );
   if (!script.existsSync()) {
     throw StateError('Release docs audit script not found: ${script.path}');
   }
@@ -27,8 +28,9 @@ Future<void> main() async {
     _expect(report['issueCount'] == 0, 'complete report should have no issues');
     _expect(report['documentCount'] == 6, 'should audit 6 required docs');
 
-    await File('${temp.path}/docs/troubleshooting/firewall.md')
-        .writeAsString('# Firewall\n');
+    await File(
+      '${temp.path}/docs/troubleshooting/firewall.md',
+    ).writeAsString('# Firewall\n');
     final failing = await _run(script, temp, jsonPath, markdownPath);
     _expect(failing.exitCode != 0, 'incomplete fixture should fail');
     report =

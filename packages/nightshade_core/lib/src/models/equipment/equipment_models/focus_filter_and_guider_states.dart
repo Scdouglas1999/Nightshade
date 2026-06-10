@@ -68,19 +68,19 @@ class FocuserState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        position,
-        maxPosition,
-        stepSize,
-        isAbsolute,
-        hasTemperature,
-        temperature,
-        isMoving,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    position,
+    maxPosition,
+    stepSize,
+    isAbsolute,
+    hasTemperature,
+    temperature,
+    isMoving,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }
 
 /// Filter wheel state
@@ -142,15 +142,15 @@ class FilterWheelState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        currentPosition,
-        filterNames,
-        isMoving,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    currentPosition,
+    filterNames,
+    isMoving,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }
 
 /// Guider state
@@ -213,15 +213,15 @@ class GuiderState extends Equatable {
 
   @override
   List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        isGuiding,
-        isCalibrating,
-        rmsRa,
-        rmsDec,
-        rmsTotal,
-        lastError,
-        autoReconnectEnabled,
-      ];
+    connectionState,
+    deviceId,
+    deviceName,
+    isGuiding,
+    isCalibrating,
+    rmsRa,
+    rmsDec,
+    rmsTotal,
+    lastError,
+    autoReconnectEnabled,
+  ];
 }

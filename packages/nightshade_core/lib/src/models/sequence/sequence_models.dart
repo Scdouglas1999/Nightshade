@@ -354,8 +354,15 @@ sealed class SequenceNode extends Equatable {
   });
 
   @override
-  List<Object?> get props =>
-      [id, name, isEnabled, childIds, parentId, orderIndex, comment];
+  List<Object?> get props => [
+    id,
+    name,
+    isEnabled,
+    childIds,
+    parentId,
+    orderIndex,
+    comment,
+  ];
 }
 
 /// Node category for coloring

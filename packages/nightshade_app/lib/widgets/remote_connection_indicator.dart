@@ -429,7 +429,6 @@ class _RemoteConnectionSheetState
             ],
           ),
           const SizedBox(height: 24),
-
           if (backend != null) ...[
             _row(theme, colors, 'Host', backend.serverHost),
             _row(theme, colors, 'Port', backend.serverPort.toString()),
@@ -442,9 +441,7 @@ class _RemoteConnectionSheetState
               'Latency',
               '${(widget.latency!.inMicroseconds / 1000.0).round()} ms',
             ),
-
           const SizedBox(height: 16),
-
           if (backend != null && status != RemoteConnectionStatus.notConnected)
             SizedBox(
               width: double.infinity,
@@ -454,7 +451,6 @@ class _RemoteConnectionSheetState
                 label: _reconnecting ? 'Reconnecting...' : 'Reconnect now',
               ),
             ),
-
           if (backend != null && status == RemoteConnectionStatus.connected)
             Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -183,7 +183,8 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
             padding: const EdgeInsets.all(8),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               LucideIcons.info,
@@ -399,7 +400,8 @@ class _SeriesChartCard extends StatelessWidget {
                       axisNameWidget: Text(
                         yLabel,
                         style: TextStyle(
-                            color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
+                            color: colors.textSecondary,
+                            fontSize: NightshadeTypography.fontSize10),
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,

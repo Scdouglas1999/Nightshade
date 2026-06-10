@@ -188,8 +188,7 @@ class EditableFragment extends SummaryFragment {
   int get hashCode => Object.hash(kind, displayValue, icon);
 
   @override
-  String toString() =>
-      'EditableFragment($kind, "$displayValue", icon: $icon)';
+  String toString() => 'EditableFragment($kind, "$displayValue", icon: $icon)';
 }
 
 /// Build the at-a-glance summary fragments for [node].
@@ -462,7 +461,8 @@ List<SummaryFragment> nodeSummary(SequenceNode node) {
       ],
     NotificationNode(level: final level, title: final title) =>
       <SummaryFragment>[
-        StaticFragment('${level.name}: ${title.isEmpty ? '(untitled)' : title}'),
+        StaticFragment(
+            '${level.name}: ${title.isEmpty ? '(untitled)' : title}'),
       ],
 
     // -------------------------------------------------------------------

@@ -80,8 +80,9 @@ class FlatWizardService {
   ) {
     return FlatWizardService(
       backend,
-      imageDownloadTimeout:
-          Duration(seconds: settings.imageDownloadTimeoutSeconds),
+      imageDownloadTimeout: Duration(
+        seconds: settings.imageDownloadTimeoutSeconds,
+      ),
       defaultMaxIterations: settings.maxIterations,
       quickMinExposure: settings.minExposure,
       quickMaxExposure: settings.maxExposure,
@@ -115,7 +116,9 @@ class FlatWizardService {
 
     // For large adjustments, use logarithmic damping
     final adjustedRatio = clampedRatio > 2.0 || clampedRatio < 0.5
-        ? 1.0 + (clampedRatio - 1.0) * 0.7 // Reduce aggressive changes
+        ? 1.0 +
+              (clampedRatio - 1.0) *
+                  0.7 // Reduce aggressive changes
         : clampedRatio;
 
     // Calculate next exposure
@@ -147,7 +150,9 @@ class FlatWizardService {
           await backend.filterWheelSetByName(filterWheelDeviceId, filterName);
         } else if (filterPosition != null) {
           await backend.filterWheelSetPosition(
-              filterWheelDeviceId, filterPosition);
+            filterWheelDeviceId,
+            filterPosition,
+          );
         }
       }
 
@@ -182,38 +187,48 @@ class FlatWizardService {
         );
       } on TimeoutException {
         developer.log(
-            'FlatWizardService: Exposure timed out after ${exposureTime + 30}s',
-            name: 'FlatWizardService',
-            level: 900);
+          'FlatWizardService: Exposure timed out after ${exposureTime + 30}s',
+          name: 'FlatWizardService',
+          level: 900,
+        );
         return null;
       } finally {
         await subscription.cancel();
       }
 
       // Retrieve captured image
-      final image = await backend.cameraGetLastImage(deviceId).timeout(
-        imageDownloadTimeout,
-        onTimeout: () {
-          developer.log(
-            'FlatWizardService: Image retrieval timed out after '
-            '${imageDownloadTimeout.inSeconds}s',
-            name: 'FlatWizardService',
-            level: 900,
+      final image = await backend
+          .cameraGetLastImage(deviceId)
+          .timeout(
+            imageDownloadTimeout,
+            onTimeout: () {
+              developer.log(
+                'FlatWizardService: Image retrieval timed out after '
+                '${imageDownloadTimeout.inSeconds}s',
+                name: 'FlatWizardService',
+                level: 900,
+              );
+              return null;
+            },
           );
-          return null;
-        },
-      );
       if (image == null) {
-        developer.log('FlatWizardService: Failed to retrieve test frame',
-            name: 'FlatWizardService', level: 900);
+        developer.log(
+          'FlatWizardService: Failed to retrieve test frame',
+          name: 'FlatWizardService',
+          level: 900,
+        );
         return null;
       }
 
       // Return mean ADU
       return image.stats.mean;
     } catch (e) {
-      developer.log('FlatWizardService: Error capturing test frame: $e',
-          name: 'FlatWizardService', level: 1000, error: e);
+      developer.log(
+        'FlatWizardService: Error capturing test frame: $e',
+        name: 'FlatWizardService',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -287,9 +302,10 @@ class FlatWizardService {
 
       lastAdu = adu;
       developer.log(
-          'FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}',
-          name: 'FlatWizardService',
-          level: 800);
+        'FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}',
+        name: 'FlatWizardService',
+        level: 800,
+      );
 
       // Notify progress callback
       onProgress?.call(iteration, exposure, adu);
@@ -377,7 +393,7 @@ class FlatWizardService {
     int binX = 1,
     int binY = 1,
     void Function(int iteration, double exposure, double adu, String status)?
-        onProgress,
+    onProgress,
   }) async {
     // Get starting exposure
     double exposure = FlatExposureCalculator.getStartingExposure(
@@ -519,16 +535,17 @@ class FlatWizardService {
     int binX = 1,
     int binY = 1,
     void Function(String filter, int iteration, double exposure, double adu)?
-        onProgress,
+    onProgress,
     void Function(String filter, FlatResult result)? onFilterComplete,
   }) async {
     final results = <FlatResult>[];
 
     for (final filter in filters) {
       developer.log(
-          'FlatWizardService: Starting calibration for filter: $filter',
-          name: 'FlatWizardService',
-          level: 800);
+        'FlatWizardService: Starting calibration for filter: $filter',
+        name: 'FlatWizardService',
+        level: 800,
+      );
 
       final result = await calibrateFilter(
         deviceId: deviceId,
@@ -657,14 +674,12 @@ class FlatWizardService {
     final updatedNodes = <String, SequenceNode>{rootId: rootNode};
     for (int i = 0; i < captureNodes.length; i++) {
       final child = captureNodes[i];
-      updatedNodes[child.id] = child.copyWith(
-        parentId: rootId,
-        orderIndex: i,
-      );
+      updatedNodes[child.id] = child.copyWith(parentId: rootId, orderIndex: i);
     }
 
     // Build description
-    final desc = description ??
+    final desc =
+        description ??
         'Flat frame sequence generated from wizard\n'
             'Filters: ${calibrations.where((c) => !onlySuccessful || c.success).map((c) => c.filter).join(", ")}\n'
             'Frames per filter: $framesPerFilter\n'

@@ -35,22 +35,25 @@ void main() {
         expect(level, AlertLevel.critical);
       });
 
-      test('returns critical when ETA is under 5 minutes with dense clouds', () {
-        const settings = WeatherSettings(
-          cloudDensityThreshold: 60.0,
-          triggerDistanceKm: 30.0,
-          leadTimeMinutes: 15,
-        );
+      test(
+        'returns critical when ETA is under 5 minutes with dense clouds',
+        () {
+          const settings = WeatherSettings(
+            cloudDensityThreshold: 60.0,
+            triggerDistanceKm: 30.0,
+            leadTimeMinutes: 15,
+          );
 
-        final level = alertService.determineAlertLevel(
-          cloudDistanceKm: 10.0,
-          cloudDensityPercent: 75.0, // >= threshold
-          eta: const Duration(minutes: 3), // < 5 min
-          settings: settings,
-        );
+          final level = alertService.determineAlertLevel(
+            cloudDistanceKm: 10.0,
+            cloudDensityPercent: 75.0, // >= threshold
+            eta: const Duration(minutes: 3), // < 5 min
+            settings: settings,
+          );
 
-        expect(level, AlertLevel.critical);
-      });
+          expect(level, AlertLevel.critical);
+        },
+      );
 
       test('returns clear when clouds are beyond trigger distance', () {
         const settings = WeatherSettings(
@@ -210,13 +213,18 @@ void main() {
           newAlert: current,
           previousAlert: previous,
           debounceDuration: const Duration(seconds: 30),
-          lastChangeTime: now.subtract(const Duration(seconds: 10)), // only 10s ago
+          lastChangeTime: now.subtract(
+            const Duration(seconds: 10),
+          ), // only 10s ago
           currentTime: now,
         );
 
-        expect(result, isNull,
-            reason:
-                'Alert level change should be suppressed within debounce window');
+        expect(
+          result,
+          isNull,
+          reason:
+              'Alert level change should be suppressed within debounce window',
+        );
       });
 
       test('allows level change after debounce period elapses', () {
@@ -240,7 +248,9 @@ void main() {
           newAlert: current,
           previousAlert: previous,
           debounceDuration: const Duration(seconds: 30),
-          lastChangeTime: now.subtract(const Duration(seconds: 45)), // 45s ago > 30s
+          lastChangeTime: now.subtract(
+            const Duration(seconds: 45),
+          ), // 45s ago > 30s
           currentTime: now,
         );
 
@@ -312,8 +322,10 @@ void main() {
         // New York (40.7128, -74.0060) to Los Angeles (34.0522, -118.2437)
         // Known distance: ~3944 km
         final dist = analyzer.calculateDistance(
-          40.7128, -74.0060,
-          34.0522, -118.2437,
+          40.7128,
+          -74.0060,
+          34.0522,
+          -118.2437,
         );
 
         expect(dist, closeTo(3944.0, 50.0)); // within 50 km
@@ -366,14 +378,17 @@ void main() {
         expect(result, isFalse);
       });
 
-      test('clouds moving perpendicular at exactly 90 degrees are approaching', () {
-        // At exactly 90 degrees difference, cos(90) = 0 but the threshold is <=90
-        final result = analyzer.areCloudsApproaching(
-          cloudDirectionDeg: 90.0,
-          bearingToUser: 0.0,
-        );
-        expect(result, isTrue);
-      });
+      test(
+        'clouds moving perpendicular at exactly 90 degrees are approaching',
+        () {
+          // At exactly 90 degrees difference, cos(90) = 0 but the threshold is <=90
+          final result = analyzer.areCloudsApproaching(
+            cloudDirectionDeg: 90.0,
+            bearingToUser: 0.0,
+          );
+          expect(result, isTrue);
+        },
+      );
 
       test('clouds moving at 91 degree offset are not approaching', () {
         final result = analyzer.areCloudsApproaching(

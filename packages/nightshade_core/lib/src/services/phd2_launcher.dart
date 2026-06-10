@@ -28,9 +28,9 @@ class Phd2Launcher {
     required Ref ref,
     Duration launchTimeout = const Duration(seconds: 10),
     Duration pollInterval = const Duration(milliseconds: 250),
-  })  : _ref = ref,
-        _launchTimeout = launchTimeout,
-        _pollInterval = pollInterval;
+  }) : _ref = ref,
+       _launchTimeout = launchTimeout,
+       _pollInterval = pollInterval;
 
   final Ref _ref;
   final Duration _launchTimeout;

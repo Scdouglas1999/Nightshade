@@ -202,10 +202,12 @@ class SampleSequenceService {
     for (final entry in template.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
-      final newParentId =
-          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
-      final newChildIds =
-          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      final newParentId = oldNode.parentId != null
+          ? idMapping[oldNode.parentId]
+          : null;
+      final newChildIds = oldNode.childIds
+          .map((id) => idMapping[id] ?? id)
+          .toList();
 
       newNodes[newId] = oldNode.copyWith(
         id: newId,
@@ -214,8 +216,9 @@ class SampleSequenceService {
       );
     }
 
-    final newRootId =
-        template.rootNodeId != null ? idMapping[template.rootNodeId] : null;
+    final newRootId = template.rootNodeId != null
+        ? idMapping[template.rootNodeId]
+        : null;
 
     return Sequence.create(
       name: nameOverride ?? template.name,

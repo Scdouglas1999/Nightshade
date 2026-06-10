@@ -22,7 +22,9 @@ Future<void> main() async {
     );
     _expect(passing['passed'] == true, 'passing fixture should pass');
     _expect(
-        passing['issueCount'] == 0, 'passing fixture should have no issues');
+      passing['issueCount'] == 0,
+      'passing fixture should have no issues',
+    );
     final metadataRequirements =
         passing['metadataRequirements'] as Map? ?? const {};
     _expect(
@@ -86,7 +88,8 @@ Future<void> main() async {
 Future<void> _writePassingFixture(Directory root) async {
   await File('${root.path}/.github/workflows/linux-release-build.yml')
       .create(recursive: true)
-      .then((file) => file.writeAsString('''
+      .then(
+        (file) => file.writeAsString('''
 name: Linux Release Build
 on:
   workflow_dispatch:
@@ -120,17 +123,23 @@ jobs:
           path: docs/production-readiness/linux-release-package-metadata.json
           if-no-files-found: error
           retention-days: 14
-'''));
+'''),
+      );
   await File(
-          '${root.path}/tools/production/linux_release_package_metadata.dart')
+        '${root.path}/tools/production/linux_release_package_metadata.dart',
+      )
       .create(recursive: true)
-      .then((file) => file.writeAsString(
-            "const words = \"sha256 sourceGitHead githubRunId githubRepository githubSha metadataSchemaVersion toolVersions artifactSha256Path packageSha256Path runtimeSmokeChecks nativeLibraryNotes linuxPermissionNotes native-library-note linux-permission-note headless_process_started api_info_ok openapi_ok dashboard_asset_ok operatingSystem dartVersion flutterVersion rustcVersion artifactName metadata-output bundle-dir output-dir tar.gz\"; const map = {'sha256': sha256};",
-          ));
+      .then(
+        (file) => file.writeAsString(
+          "const words = \"sha256 sourceGitHead githubRunId githubRepository githubSha metadataSchemaVersion toolVersions artifactSha256Path packageSha256Path runtimeSmokeChecks nativeLibraryNotes linuxPermissionNotes native-library-note linux-permission-note headless_process_started api_info_ok openapi_ok dashboard_asset_ok operatingSystem dartVersion flutterVersion rustcVersion artifactName metadata-output bundle-dir output-dir tar.gz\"; const map = {'sha256': sha256};",
+        ),
+      );
   await File(
-          '${root.path}/docs/production-readiness/linux-release-ci-recipe.md')
+        '${root.path}/docs/production-readiness/linux-release-ci-recipe.md',
+      )
       .create(recursive: true)
-      .then((file) => file.writeAsString('''
+      .then(
+        (file) => file.writeAsString('''
 .github/workflows/linux-release-build.yml
 workflow_dispatch
 build/release-linux/*.sha256
@@ -152,20 +161,23 @@ openapi_ok
 dashboard_asset_ok
 runtime smoke
 does not replace
-'''));
+'''),
+      );
 }
 
 Future<void> _writeFailingFixture(Directory root) async {
-  await File('${root.path}/.github/workflows/linux-release-build.yml')
-      .writeAsString('name: broken\n');
+  await File(
+    '${root.path}/.github/workflows/linux-release-build.yml',
+  ).writeAsString('name: broken\n');
   final metadata = File(
     '${root.path}/tools/production/linux_release_package_metadata.dart',
   );
   if (metadata.existsSync()) {
     await metadata.delete();
   }
-  final recipe =
-      File('${root.path}/docs/production-readiness/linux-release-ci-recipe.md');
+  final recipe = File(
+    '${root.path}/docs/production-readiness/linux-release-ci-recipe.md',
+  );
   if (recipe.existsSync()) {
     await recipe.delete();
   }

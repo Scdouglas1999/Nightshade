@@ -226,8 +226,7 @@ class HipsProperties extends Equatable {
   /// (it cannot publish an Allsky deeper than `hipsOrder`) or whose
   /// `hips_order_min` exceeds 3 (the Allsky cannot be coarser than the survey's
   /// own minimum published order).
-  int get allskyOrder =>
-      standardAllskyOrder.clamp(hipsOrderMin, hipsOrder);
+  int get allskyOrder => standardAllskyOrder.clamp(hipsOrderMin, hipsOrder);
 
   /// The publisher-preferred tile format (first entry of [tileFormats]).
   HipsTileFormat get preferredFormat => tileFormats.first;
@@ -249,7 +248,10 @@ class HipsProperties extends Equatable {
   /// value is malformed, or a value is out of range. There are no silent
   /// fallbacks beyond the two documented standard defaults
   /// ([defaultTileWidth], [defaultOrderMin]).
-  factory HipsProperties.parse(String document, {String logName = 'HipsProperties'}) {
+  factory HipsProperties.parse(
+    String document, {
+    String logName = 'HipsProperties',
+  }) {
     final entries = _parseKeyValues(document);
 
     final hipsOrder = _requireInt(entries, 'hips_order', min: 0, max: 29);
@@ -259,7 +261,12 @@ class HipsProperties extends Equatable {
     if (rawOrderMin == null) {
       orderMin = defaultOrderMin;
     } else {
-      orderMin = _parseIntValue('hips_order_min', rawOrderMin, min: 0, max: hipsOrder);
+      orderMin = _parseIntValue(
+        'hips_order_min',
+        rawOrderMin,
+        min: 0,
+        max: hipsOrder,
+      );
     }
 
     int tileWidth;
@@ -275,7 +282,12 @@ class HipsProperties extends Equatable {
         level: 800, // INFO
       );
     } else {
-      tileWidth = _parseIntValue('hips_tile_width', rawTileWidth, min: 1, max: 16384);
+      tileWidth = _parseIntValue(
+        'hips_tile_width',
+        rawTileWidth,
+        min: 1,
+        max: 16384,
+      );
       tileWidthWasDefaulted = false;
     }
     // A power-of-two tile edge is required by the standard for the HEALPix
@@ -340,9 +352,24 @@ class HipsProperties extends Equatable {
       obsCopyright: _optionalString(entries, 'obs_copyright'),
       obsCopyrightUrl: _optionalString(entries, 'obs_copyright_url'),
       creator: _optionalString(entries, 'hips_creator'),
-      initialRaDeg: _optionalDouble(entries, 'hips_initial_ra', min: 0, max: 360),
-      initialDecDeg: _optionalDouble(entries, 'hips_initial_dec', min: -90, max: 90),
-      initialFovDeg: _optionalDouble(entries, 'hips_initial_fov', min: 0, max: 360),
+      initialRaDeg: _optionalDouble(
+        entries,
+        'hips_initial_ra',
+        min: 0,
+        max: 360,
+      ),
+      initialDecDeg: _optionalDouble(
+        entries,
+        'hips_initial_dec',
+        min: -90,
+        max: 90,
+      ),
+      initialFovDeg: _optionalDouble(
+        entries,
+        'hips_initial_fov',
+        min: 0,
+        max: 360,
+      ),
     );
   }
 
@@ -473,19 +500,19 @@ class HipsProperties extends Equatable {
 
   @override
   List<Object?> get props => [
-        hipsOrder,
-        hipsOrderMin,
-        tileWidth,
-        tileWidthWasDefaulted,
-        tileFormats,
-        frame,
-        obsCopyright,
-        obsCopyrightUrl,
-        creator,
-        initialRaDeg,
-        initialDecDeg,
-        initialFovDeg,
-      ];
+    hipsOrder,
+    hipsOrderMin,
+    tileWidth,
+    tileWidthWasDefaulted,
+    tileFormats,
+    frame,
+    obsCopyright,
+    obsCopyrightUrl,
+    creator,
+    initialRaDeg,
+    initialDecDeg,
+    initialFovDeg,
+  ];
 
   @override
   String toString() =>

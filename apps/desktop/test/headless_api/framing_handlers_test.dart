@@ -22,67 +22,86 @@ void main() {
       container.dispose();
     });
 
-    test('slew to target malformed payload returns JSON internal error',
-        () async {
-      final response = await translateHandlerErrors(handlers.handleSlewToTarget(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/framing/slew-to-target'),
-          body: jsonEncode({}),
-        ),
-      ));
+    test(
+      'slew to target malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleSlewToTarget(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/framing/slew-to-target'),
+              body: jsonEncode({}),
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
-    test('center on target malformed payload returns JSON internal error',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleCenterOnTarget(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/framing/center-on-target'),
-          body: '{',
-        ),
-      ));
+    test(
+      'center on target malformed payload returns JSON internal error',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleCenterOnTarget(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/framing/center-on-target'),
+              body: '{',
+            ),
+          ),
+        );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
-    });
+        expect(
+          response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+        );
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+      },
+    );
 
     test('save framing malformed payload returns JSON error', () async {
-      final response = await translateHandlerErrors(handlers.handleSaveFraming(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/framing/save'),
-          body: jsonEncode({'ra': 1.0}),
+      final response = await translateHandlerErrors(
+        handlers.handleSaveFraming(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/framing/save'),
+            body: jsonEncode({'ra': 1.0}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
     test('rotate to malformed payload returns JSON internal error', () async {
-      final response = await translateHandlerErrors(handlers.handleRotateTo(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/framing/rotate-to'),
-          body: jsonEncode({}),
+      final response = await translateHandlerErrors(
+        handlers.handleRotateTo(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/framing/rotate-to'),
+            body: jsonEncode({}),
+          ),
         ),
-      ));
+      );
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(
+        response.statusCode,
+        anyOf(HttpStatus.badRequest, HttpStatus.internalServerError),
+      );
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

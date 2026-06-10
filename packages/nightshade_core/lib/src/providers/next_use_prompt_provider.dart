@@ -120,8 +120,9 @@ NextUseStep? selectNextUseStep({
 ///
 /// Exposed as a [StreamProvider] so the prompt re-resolves the instant the user
 /// dismisses a step, without any manual invalidation.
-final nextUseDismissedActionsProvider =
-    StreamProvider<Set<NextUseActionId>>((ref) {
+final nextUseDismissedActionsProvider = StreamProvider<Set<NextUseActionId>>((
+  ref,
+) {
   final dao = ref.watch(tutorialProgressDaoProvider);
   return dao.watchDismissedPromptScreenIds().map((screenIds) {
     final actions = <NextUseActionId>{};
@@ -158,8 +159,7 @@ final nextUseDismissedActionsProvider =
 ///   [ReadinessLevel.ready] (focus has been established).
 /// * [NextUseActionId.captureFirstLight] — complete once at least one captured
 ///   image exists.
-final nextUseCompletedActionsProvider =
-    Provider<Set<NextUseActionId>>((ref) {
+final nextUseCompletedActionsProvider = Provider<Set<NextUseActionId>>((ref) {
   final completed = <NextUseActionId>{};
 
   // Smart Night: any saved draft (built or skip-tracked) marks the step done.
@@ -172,9 +172,7 @@ final nextUseCompletedActionsProvider =
   // Framing: a non-empty session target name means the user has framed/chosen a
   // target. Watched via `select` so this only recomputes when the boolean flips.
   final hasTarget = ref.watch(
-    sessionStateProvider.select(
-      (s) => (s.targetName ?? '').trim().isNotEmpty,
-    ),
+    sessionStateProvider.select((s) => (s.targetName ?? '').trim().isNotEmpty),
   );
   if (hasTarget) {
     completed.add(NextUseActionId.frameTarget);
@@ -193,8 +191,7 @@ final nextUseCompletedActionsProvider =
 
   // First light: at least one captured image on disk/db.
   // Loading/error -> valueOrNull null -> empty -> not complete (fail-closed).
-  final imageCount =
-      ref.watch(allDbImagesProvider).valueOrNull?.length ?? 0;
+  final imageCount = ref.watch(allDbImagesProvider).valueOrNull?.length ?? 0;
   if (imageCount > 0) {
     completed.add(NextUseActionId.captureFirstLight);
   }

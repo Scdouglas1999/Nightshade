@@ -240,9 +240,9 @@ class CustomNotificationPlugin extends NightshadePlugin {
     final eventNames = _rules.map((r) => r.eventName).toSet();
 
     for (final eventName in eventNames) {
-      _subscriptions[eventName] = context.eventBus.on(eventName).listen(
-        (data) => _evaluateRules(eventName, data),
-      );
+      _subscriptions[eventName] = context.eventBus
+          .on(eventName)
+          .listen((data) => _evaluateRules(eventName, data));
     }
   }
 

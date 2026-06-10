@@ -31,8 +31,8 @@ _EquipmentProfile _$EquipmentProfileFromJson(Map<String, dynamic> json) =>
       defaultBinY: (json['defaultBinY'] as num?)?.toInt() ?? 1,
       defaultCoolingTemp: (json['defaultCoolingTemp'] as num?)?.toDouble(),
       coolOnConnect: json['coolOnConnect'] as bool? ?? false,
-      defaultCenteringExposure:
-          (json['defaultCenteringExposure'] as num?)?.toDouble(),
+      defaultCenteringExposure: (json['defaultCenteringExposure'] as num?)
+          ?.toDouble(),
       filterNames: json['filterNames'] as String?,
       filterFocusOffsets: json['filterFocusOffsets'] as String?,
       meridianFlipOverrides: json['meridianFlipOverrides'] as String?,

@@ -50,7 +50,9 @@ extension _PhotometricWizardSaveNavigation
           'measurements taken with the "$_filterName" filter. The standard '
           'equation M_std = m_inst - k*X + T*(B-V) + zp will be used '
           'to convert instrumental magnitudes to the standard system.',
-          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12),
         ),
         if (_statusMessage.isNotEmpty) ...[
           const SizedBox(height: 8),

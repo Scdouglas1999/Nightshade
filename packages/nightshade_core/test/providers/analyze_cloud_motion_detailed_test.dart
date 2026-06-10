@@ -37,128 +37,155 @@ class _FakeRadarService extends WeatherRadarService {
 }
 
 RadarFrame _frame(DateTime t) => RadarFrame(
-      timestamp: t,
-      tileUrlTemplate: 'https://example.test/{z}/{x}/{y}.png',
-      north: 41,
-      south: 39,
-      east: -73,
-      west: -75,
-      opacity: 0.6,
-    );
+  timestamp: t,
+  tileUrlTemplate: 'https://example.test/{z}/{x}/{y}.png',
+  north: 41,
+  south: 39,
+  east: -73,
+  west: -75,
+  opacity: 0.6,
+);
 
 void main() {
   group('analyzeCloudMotionDetailedProvider', () {
-    test('returns insufficientFrames when observer location is unset (0,0)',
-        () async {
-      final container = ProviderContainer(overrides: [
-        appObserverLocationProvider
-            .overrideWithValue(const LocationSettings()),
-        cloudMotionAnalyzerProvider.overrideWithValue(
-          _FakeAnalyzer(
-            const CloudMotionResult.unavailable(
-              CloudMotionUnavailableReason.noSpatialData,
+    test(
+      'returns insufficientFrames when observer location is unset (0,0)',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            appObserverLocationProvider.overrideWithValue(
+              const LocationSettings(),
             ),
-          ),
-        ),
-      ]);
-      addTearDown(container.dispose);
-
-      final result =
-          await container.read(analyzeCloudMotionDetailedProvider.future);
-
-      // Location unset short-circuits BEFORE the analyzer runs — so the result
-      // is insufficientFrames, not the analyzer's noSpatialData.
-      expect(result.isAvailable, isFalse);
-      expect(result.unavailableReason,
-          CloudMotionUnavailableReason.insufficientFrames);
-    });
-
-    test('returns insufficientFrames when no cached radar frames exist',
-        () async {
-      late _FakeRadarService radar;
-      final container = ProviderContainer(overrides: [
-        appObserverLocationProvider.overrideWithValue(
-          const LocationSettings(latitude: 40, longitude: -74),
-        ),
-        weatherRadarServiceProvider.overrideWith((ref) {
-          radar = _FakeRadarService(ref, null);
-          return radar;
-        }),
-        cloudMotionAnalyzerProvider.overrideWithValue(
-          _FakeAnalyzer(
-            const CloudMotionResult.unavailable(
-              CloudMotionUnavailableReason.noSpatialData,
+            cloudMotionAnalyzerProvider.overrideWithValue(
+              _FakeAnalyzer(
+                const CloudMotionResult.unavailable(
+                  CloudMotionUnavailableReason.noSpatialData,
+                ),
+              ),
             ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final result = await container.read(
+          analyzeCloudMotionDetailedProvider.future,
+        );
+
+        // Location unset short-circuits BEFORE the analyzer runs — so the result
+        // is insufficientFrames, not the analyzer's noSpatialData.
+        expect(result.isAvailable, isFalse);
+        expect(
+          result.unavailableReason,
+          CloudMotionUnavailableReason.insufficientFrames,
+        );
+      },
+    );
+
+    test(
+      'returns insufficientFrames when no cached radar frames exist',
+      () async {
+        late _FakeRadarService radar;
+        final container = ProviderContainer(
+          overrides: [
+            appObserverLocationProvider.overrideWithValue(
+              const LocationSettings(latitude: 40, longitude: -74),
+            ),
+            weatherRadarServiceProvider.overrideWith((ref) {
+              radar = _FakeRadarService(ref, null);
+              return radar;
+            }),
+            cloudMotionAnalyzerProvider.overrideWithValue(
+              _FakeAnalyzer(
+                const CloudMotionResult.unavailable(
+                  CloudMotionUnavailableReason.noSpatialData,
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final result = await container.read(
+          analyzeCloudMotionDetailedProvider.future,
+        );
+
+        expect(
+          result.unavailableReason,
+          CloudMotionUnavailableReason.insufficientFrames,
+        );
+      },
+    );
+
+    test(
+      'passes cached frames to the analyzer and surfaces its reason',
+      () async {
+        final analyzer = _FakeAnalyzer(
+          const CloudMotionResult.unavailable(
+            CloudMotionUnavailableReason.noSpatialData,
           ),
-        ),
-      ]);
-      addTearDown(container.dispose);
+        );
+        final frames = [
+          _frame(DateTime.utc(2026, 1, 1, 0, 0, 0)),
+          _frame(DateTime.utc(2026, 1, 1, 0, 10, 0)),
+        ];
+        final container = ProviderContainer(
+          overrides: [
+            appObserverLocationProvider.overrideWithValue(
+              const LocationSettings(latitude: 40, longitude: -74),
+            ),
+            weatherRadarServiceProvider.overrideWith(
+              (ref) => _FakeRadarService(ref, frames),
+            ),
+            cloudMotionAnalyzerProvider.overrideWithValue(analyzer),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      final result =
-          await container.read(analyzeCloudMotionDetailedProvider.future);
+        final result = await container.read(
+          analyzeCloudMotionDetailedProvider.future,
+        );
 
-      expect(result.unavailableReason,
-          CloudMotionUnavailableReason.insufficientFrames);
-    });
-
-    test('passes cached frames to the analyzer and surfaces its reason',
-        () async {
-      final analyzer = _FakeAnalyzer(
-        const CloudMotionResult.unavailable(
+        expect(analyzer.lastFrames, same(frames));
+        expect(
+          result.unavailableReason,
           CloudMotionUnavailableReason.noSpatialData,
-        ),
-      );
-      final frames = [
-        _frame(DateTime.utc(2026, 1, 1, 0, 0, 0)),
-        _frame(DateTime.utc(2026, 1, 1, 0, 10, 0)),
-      ];
-      final container = ProviderContainer(overrides: [
-        appObserverLocationProvider.overrideWithValue(
-          const LocationSettings(latitude: 40, longitude: -74),
-        ),
-        weatherRadarServiceProvider
-            .overrideWith((ref) => _FakeRadarService(ref, frames)),
-        cloudMotionAnalyzerProvider.overrideWithValue(analyzer),
-      ]);
-      addTearDown(container.dispose);
+        );
+      },
+    );
 
-      final result =
-          await container.read(analyzeCloudMotionDetailedProvider.future);
+    test(
+      'thin analyzeCloudMotionProvider wrapper returns motion from detailed',
+      () async {
+        final motion = CloudMotion(
+          speedKmh: 25,
+          directionDegrees: 180,
+          distanceKm: 50,
+          etaToLocation: const Duration(minutes: 90),
+          calculatedAt: DateTime.utc(2026, 1, 1),
+        );
+        final frames = [
+          _frame(DateTime.utc(2026, 1, 1, 0, 0, 0)),
+          _frame(DateTime.utc(2026, 1, 1, 0, 10, 0)),
+        ];
+        final container = ProviderContainer(
+          overrides: [
+            appObserverLocationProvider.overrideWithValue(
+              const LocationSettings(latitude: 40, longitude: -74),
+            ),
+            weatherRadarServiceProvider.overrideWith(
+              (ref) => _FakeRadarService(ref, frames),
+            ),
+            cloudMotionAnalyzerProvider.overrideWithValue(
+              _FakeAnalyzer(CloudMotionResult.available(motion)),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      expect(analyzer.lastFrames, same(frames));
-      expect(result.unavailableReason,
-          CloudMotionUnavailableReason.noSpatialData);
-    });
-
-    test('thin analyzeCloudMotionProvider wrapper returns motion from detailed',
-        () async {
-      final motion = CloudMotion(
-        speedKmh: 25,
-        directionDegrees: 180,
-        distanceKm: 50,
-        etaToLocation: const Duration(minutes: 90),
-        calculatedAt: DateTime.utc(2026, 1, 1),
-      );
-      final frames = [
-        _frame(DateTime.utc(2026, 1, 1, 0, 0, 0)),
-        _frame(DateTime.utc(2026, 1, 1, 0, 10, 0)),
-      ];
-      final container = ProviderContainer(overrides: [
-        appObserverLocationProvider.overrideWithValue(
-          const LocationSettings(latitude: 40, longitude: -74),
-        ),
-        weatherRadarServiceProvider
-            .overrideWith((ref) => _FakeRadarService(ref, frames)),
-        cloudMotionAnalyzerProvider.overrideWithValue(
-          _FakeAnalyzer(CloudMotionResult.available(motion)),
-        ),
-      ]);
-      addTearDown(container.dispose);
-
-      final viaThin =
-          await container.read(analyzeCloudMotionProvider.future);
-      expect(viaThin, isNotNull);
-      expect(viaThin!.etaToLocation, const Duration(minutes: 90));
-    });
+        final viaThin = await container.read(analyzeCloudMotionProvider.future);
+        expect(viaThin, isNotNull);
+        expect(viaThin!.etaToLocation, const Duration(minutes: 90));
+      },
+    );
   });
 }

@@ -66,30 +66,36 @@ class NarrowbandCompositesDao {
 
   /// Fetch a composite by id, or null when absent.
   Future<NarrowbandComposite?> getById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM narrowband_composites WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM narrowband_composites WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _map(rows.first);
   }
 
   /// All composites, newest first.
   Future<List<NarrowbandComposite>> getAll() async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM narrowband_composites '
-      'ORDER BY created_at DESC, id DESC',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM narrowband_composites '
+          'ORDER BY created_at DESC, id DESC',
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
   /// Composites for a given target, newest first.
   Future<List<NarrowbandComposite>> getForTarget(int targetId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM narrowband_composites '
-      'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<int>(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM narrowband_composites '
+          'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(targetId)],
+        )
+        .get();
     return rows.map(_map).toList();
   }
 
@@ -125,7 +131,8 @@ class NarrowbandCompositesDao {
 }
 
 /// Riverpod provider for [NarrowbandCompositesDao].
-final narrowbandCompositesDaoProvider =
-    Provider<NarrowbandCompositesDao>((ref) {
+final narrowbandCompositesDaoProvider = Provider<NarrowbandCompositesDao>((
+  ref,
+) {
   return NarrowbandCompositesDao(ref.watch(databaseProvider));
 });

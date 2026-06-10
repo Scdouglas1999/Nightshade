@@ -24,7 +24,9 @@ class _EmptySelection extends StatelessWidget {
           Text(
             'Select a node',
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize16 : NightshadeTypography.fontSize13,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize16
+                  : NightshadeTypography.fontSize13,
               color: colors.textSecondary,
             ),
           ),
@@ -32,7 +34,9 @@ class _EmptySelection extends StatelessWidget {
           Text(
             'to view its properties',
             style: TextStyle(
-              fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize11,
+              fontSize: isMobile
+                  ? NightshadeTypography.fontSize14
+                  : NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),
@@ -65,74 +69,74 @@ class _NodeEditor extends ConsumerWidget {
     return Material(
       type: MaterialType.transparency,
       child: SingleChildScrollView(
-      controller: scrollController,
-      padding: EdgeInsets.all(isMobile ? 20 : 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Node type badge
-          _NodeTypeBadge(colors: colors, node: node),
-          const SizedBox(height: 16),
+        controller: scrollController,
+        padding: EdgeInsets.all(isMobile ? 20 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Node type badge
+            _NodeTypeBadge(colors: colors, node: node),
+            const SizedBox(height: 16),
 
-          // Name field
-          _PropertyField(
-            colors: colors,
-            label: 'Name',
-            child: _TextInput(
+            // Name field
+            _PropertyField(
               colors: colors,
-              value: node.name,
-              onChanged: (value) {
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(name: value),
-                    );
-              },
+              label: 'Name',
+              child: _TextInput(
+                colors: colors,
+                value: node.name,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(name: value),
+                      );
+                },
+              ),
             ),
-          ),
 
-          // Enabled toggle
-          _PropertyField(
-            colors: colors,
-            label: 'Enabled',
-            child: _ToggleSwitch(
+            // Enabled toggle
+            _PropertyField(
               colors: colors,
-              value: node.isEnabled,
-              onChanged: (value) {
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(isEnabled: value),
-                    );
-              },
+              label: 'Enabled',
+              child: _ToggleSwitch(
+                colors: colors,
+                value: node.isEnabled,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(isEnabled: value),
+                      );
+                },
+              ),
             ),
-          ),
 
-          const Divider(height: 32),
+            const Divider(height: 32),
 
-          // Type-specific properties
-          _buildTypeSpecificProperties(ref),
+            // Type-specific properties
+            _buildTypeSpecificProperties(ref),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Delete button — routes through the canonical confirmation
-          // helper so a stray click on the Properties-panel button can't
-          // silently nuke a container holding many descendants. The
-          // helper handles both the prompt and the selection cleanup.
-          SizedBox(
-            width: double.infinity,
-            child: _DangerButton(
-              colors: colors,
-              label: 'Delete Node',
-              icon: LucideIcons.trash2,
-              onPressed: () async {
-                await confirmAndDeleteSequenceNode(
-                  context: context,
-                  ref: ref,
-                  nodeId: node.id,
-                  colors: colors,
-                );
-              },
+            // Delete button — routes through the canonical confirmation
+            // helper so a stray click on the Properties-panel button can't
+            // silently nuke a container holding many descendants. The
+            // helper handles both the prompt and the selection cleanup.
+            SizedBox(
+              width: double.infinity,
+              child: _DangerButton(
+                colors: colors,
+                label: 'Delete Node',
+                icon: LucideIcons.trash2,
+                onPressed: () async {
+                  await confirmAndDeleteSequenceNode(
+                    context: context,
+                    ref: ref,
+                    nodeId: node.id,
+                    colors: colors,
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

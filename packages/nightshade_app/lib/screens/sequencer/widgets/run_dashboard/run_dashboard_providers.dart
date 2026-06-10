@@ -63,8 +63,7 @@ class RunDashboardSkyStats {
   });
 }
 
-final runDashboardSkyStatsProvider =
-    Provider<RunDashboardSkyStats?>((ref) {
+final runDashboardSkyStatsProvider = Provider<RunDashboardSkyStats?>((ref) {
   final target = ref.watch(runDashboardActiveTargetProvider);
   if (target == null) return null;
 
@@ -215,8 +214,9 @@ Map<String, double> _computeGoalSecs(Sequence? sequence) {
 /// provided, split into accepted-only and total-acquired (accepted +
 /// rejected). A single DB scan produces both so the dashboard can show "usable
 /// vs spent" without a second query.
-final runDashboardSessionIntegrationProvider = FutureProvider.family<
-    RunDashboardSessionIntegration, int>((ref, sessionId) async {
+final runDashboardSessionIntegrationProvider =
+    FutureProvider.family<RunDashboardSessionIntegration, int>(
+        (ref, sessionId) async {
   final dao = ref.watch(imagesDaoProvider);
   final images = await dao.getImagesForSession(sessionId);
   final accepted = <String, double>{};
@@ -288,9 +288,10 @@ final runDashboardFilterTotalsProvider =
     );
   }
 
-  final integration =
-      ref.watch(runDashboardSessionIntegrationProvider(sessionId)).valueOrNull ??
-          RunDashboardSessionIntegration.empty;
+  final integration = ref
+          .watch(runDashboardSessionIntegrationProvider(sessionId))
+          .valueOrNull ??
+      RunDashboardSessionIntegration.empty;
 
   return RunDashboardFilterTotals(
     integrationSecs: integration.acceptedSecs,
@@ -340,8 +341,7 @@ class RunDashboardBudgetProgress {
     if (totalSecs > 0) {
       return (completedTotalSecs / totalSecs).clamp(0.0, 1.0);
     }
-    final capSum =
-        resolvedCapSecs.values.fold<double>(0, (a, b) => a + b);
+    final capSum = resolvedCapSecs.values.fold<double>(0, (a, b) => a + b);
     if (capSum <= 0) return 0;
     return (completedTotalSecs / capSum).clamp(0.0, 1.0);
   }
@@ -382,8 +382,7 @@ final runDashboardActiveBudgetProvider =
           const <String, double>{};
 
   // Budget-met check mirrors `BudgetState::evaluate` on the Rust side.
-  final completedTotal =
-      completedSecs.values.fold<double>(0, (a, b) => a + b);
+  final completedTotal = completedSecs.values.fold<double>(0, (a, b) => a + b);
   final totalMet = budget.totalSecs > 0 && completedTotal >= budget.totalSecs;
   final allFiltersMet = resolvedCaps.isNotEmpty &&
       resolvedCaps.entries.every(
@@ -558,8 +557,7 @@ const Duration _audibleAlertCooldown = Duration(seconds: 5);
 /// Why two enums: the bridge layer's enum is generated from FRB and lives
 /// in `nightshade_bridge`; `nightshade_core` has its own copy used by
 /// services (`PushNotification.category` is the core enum).
-EventCategory _bridgeCategoryToCore(
-    bridge_event.EventCategory cat) {
+EventCategory _bridgeCategoryToCore(bridge_event.EventCategory cat) {
   switch (cat) {
     case bridge_event.EventCategory.equipment:
       return EventCategory.equipment;

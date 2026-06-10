@@ -29,9 +29,9 @@ class WebhookTransport extends NotificationTransport {
     required WebhookTransportConfig config,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 15),
-  })  : _config = config,
-        _client = httpClient ?? http.Client(),
-        _timeout = timeout;
+  }) : _config = config,
+       _client = httpClient ?? http.Client(),
+       _timeout = timeout;
 
   @override
   NotificationTransportKind get kind =>
@@ -81,16 +81,20 @@ class WebhookTransport extends NotificationTransport {
       );
     } on TimeoutException {
       return NotificationResult.fail(
-          'Webhook request timed out after ${_timeout.inSeconds}s');
+        'Webhook request timed out after ${_timeout.inSeconds}s',
+      );
     } catch (e) {
-      developer.log('[Notifications/Webhook] Send failed: $e',
-          name: 'WebhookTransport', level: 1000, error: e);
+      developer.log(
+        '[Notifications/Webhook] Send failed: $e',
+        name: 'WebhookTransport',
+        level: 1000,
+        error: e,
+      );
       return NotificationResult.fail(e.toString());
     }
   }
 
-  String _renderBody(
-      NotificationCategory category, String title, String body) {
+  String _renderBody(NotificationCategory category, String title, String body) {
     final template = _config.bodyTemplate;
     if (template == null || template.trim().isEmpty) {
       return jsonEncode({
@@ -110,8 +114,7 @@ class WebhookTransport extends NotificationTransport {
         .replaceAll(r'${title}', _jsonEscapeForTemplate(title))
         .replaceAll(r'${body}', _jsonEscapeForTemplate(body))
         .replaceAll(r'${category}', category.storageKey)
-        .replaceAll(
-            r'${timestamp}', DateTime.now().toUtc().toIso8601String());
+        .replaceAll(r'${timestamp}', DateTime.now().toUtc().toIso8601String());
   }
 
   /// Escape a string so it can be safely substituted inside a

@@ -95,12 +95,12 @@ class FocusHistoryPoint {
   });
 
   Map<String, dynamic> toJson() => {
-        'timestamp': timestamp.toIso8601String(),
-        'temperature': temperatureCelsius,
-        'position': focusPosition,
-        'hfr': hfr,
-        'filter': filterName,
-      };
+    'timestamp': timestamp.toIso8601String(),
+    'temperature': temperatureCelsius,
+    'position': focusPosition,
+    'hfr': hfr,
+    'filter': filterName,
+  };
 
   factory FocusHistoryPoint.fromJson(Map<String, dynamic> json) =>
       FocusHistoryPoint(
@@ -148,20 +148,20 @@ class FocusModel {
       dataPointCount >= config.minDataPointCount;
 
   Map<String, dynamic> toJson() => {
-        'slope': slope,
-        'intercept': intercept,
-        'rSquared': rSquared,
-        'dataPointCount': dataPointCount,
-        'lastUpdated': lastUpdated.toIso8601String(),
-      };
+    'slope': slope,
+    'intercept': intercept,
+    'rSquared': rSquared,
+    'dataPointCount': dataPointCount,
+    'lastUpdated': lastUpdated.toIso8601String(),
+  };
 
   factory FocusModel.fromJson(Map<String, dynamic> json) => FocusModel(
-        slope: (json['slope'] as num).toDouble(),
-        intercept: (json['intercept'] as num).toDouble(),
-        rSquared: (json['rSquared'] as num).toDouble(),
-        dataPointCount: json['dataPointCount'] as int,
-        lastUpdated: DateTime.parse(json['lastUpdated'] as String),
-      );
+    slope: (json['slope'] as num).toDouble(),
+    intercept: (json['intercept'] as num).toDouble(),
+    rSquared: (json['rSquared'] as num).toDouble(),
+    dataPointCount: json['dataPointCount'] as int,
+    lastUpdated: DateTime.parse(json['lastUpdated'] as String),
+  );
 }
 
 /// Coarse confidence ladder for filter-offset estimation.
@@ -218,26 +218,26 @@ class FilterOffset {
   });
 
   Map<String, dynamic> toJson() => {
-        'filterName': filterName,
-        'referenceFilter': referenceFilter,
-        'offsetSteps': offsetSteps,
-        'measurementCount': measurementCount,
-        'confidence': confidence,
-        'confidenceBand': confidenceBand.name,
-        'confidenceReason': confidenceReason,
-        'temperatureCorrected': temperatureCorrected,
-      };
+    'filterName': filterName,
+    'referenceFilter': referenceFilter,
+    'offsetSteps': offsetSteps,
+    'measurementCount': measurementCount,
+    'confidence': confidence,
+    'confidenceBand': confidenceBand.name,
+    'confidenceReason': confidenceReason,
+    'temperatureCorrected': temperatureCorrected,
+  };
 
   factory FilterOffset.fromJson(Map<String, dynamic> json) => FilterOffset(
-        filterName: json['filterName'] as String,
-        referenceFilter: json['referenceFilter'] as String,
-        offsetSteps: json['offsetSteps'] as int,
-        measurementCount: json['measurementCount'] as int,
-        confidence: (json['confidence'] as num).toDouble(),
-        confidenceBand: _confidenceBandFromJson(json['confidenceBand']),
-        confidenceReason: json['confidenceReason'] as String? ?? '',
-        temperatureCorrected: json['temperatureCorrected'] as bool? ?? false,
-      );
+    filterName: json['filterName'] as String,
+    referenceFilter: json['referenceFilter'] as String,
+    offsetSteps: json['offsetSteps'] as int,
+    measurementCount: json['measurementCount'] as int,
+    confidence: (json['confidence'] as num).toDouble(),
+    confidenceBand: _confidenceBandFromJson(json['confidenceBand']),
+    confidenceReason: json['confidenceReason'] as String? ?? '',
+    temperatureCorrected: json['temperatureCorrected'] as bool? ?? false,
+  );
 
   static FilterOffsetConfidence _confidenceBandFromJson(dynamic raw) {
     if (raw is String) {
@@ -282,30 +282,33 @@ class ProfileFocusData {
   }
 
   Map<String, dynamic> toJson() => {
-        'profileId': profileId,
-        'dataPoints': dataPoints.map((p) => p.toJson()).toList(),
-        'temperatureModel': temperatureModel?.toJson(),
-        'filterOffsets': filterOffsets.map((k, v) => MapEntry(k, v.toJson())),
-        'referenceFilter': referenceFilter,
-      };
+    'profileId': profileId,
+    'dataPoints': dataPoints.map((p) => p.toJson()).toList(),
+    'temperatureModel': temperatureModel?.toJson(),
+    'filterOffsets': filterOffsets.map((k, v) => MapEntry(k, v.toJson())),
+    'referenceFilter': referenceFilter,
+  };
 
-  factory ProfileFocusData.fromJson(Map<String, dynamic> json) =>
-      ProfileFocusData(
-        profileId: json['profileId'] as String,
-        dataPoints: (json['dataPoints'] as List<dynamic>?)
-                ?.map((p) => FocusHistoryPoint.fromJson(p as Map<String, dynamic>))
-                .toList() ??
-            [],
-        temperatureModel: json['temperatureModel'] != null
-            ? FocusModel.fromJson(
-                json['temperatureModel'] as Map<String, dynamic>)
-            : null,
-        filterOffsets: (json['filterOffsets'] as Map<String, dynamic>?)?.map(
-                (k, v) => MapEntry(
-                    k, FilterOffset.fromJson(v as Map<String, dynamic>))) ??
-            {},
-        referenceFilter: json['referenceFilter'] as String?,
-      );
+  factory ProfileFocusData.fromJson(
+    Map<String, dynamic> json,
+  ) => ProfileFocusData(
+    profileId: json['profileId'] as String,
+    dataPoints:
+        (json['dataPoints'] as List<dynamic>?)
+            ?.map((p) => FocusHistoryPoint.fromJson(p as Map<String, dynamic>))
+            .toList() ??
+        [],
+    temperatureModel: json['temperatureModel'] != null
+        ? FocusModel.fromJson(json['temperatureModel'] as Map<String, dynamic>)
+        : null,
+    filterOffsets:
+        (json['filterOffsets'] as Map<String, dynamic>?)?.map(
+          (k, v) =>
+              MapEntry(k, FilterOffset.fromJson(v as Map<String, dynamic>)),
+        ) ??
+        {},
+    referenceFilter: json['referenceFilter'] as String?,
+  );
 }
 
 /// Service for managing focus models and predictions
@@ -437,10 +440,11 @@ class FocusModelService {
     final slope = (n * sumXY - sumX * sumY) / denominator;
     if (slope.abs() > config.maxAcceptableSlopeStepsPerC) {
       developer.log(
-          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C '
-          '(threshold ${config.maxAcceptableSlopeStepsPerC.toStringAsFixed(0)})',
-          name: 'FocusModelService',
-          level: 900);
+        'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C '
+        '(threshold ${config.maxAcceptableSlopeStepsPerC.toStringAsFixed(0)})',
+        name: 'FocusModelService',
+        level: 900,
+      );
       return null;
     }
     final intercept = (sumY - slope * sumX) / n;
@@ -533,13 +537,13 @@ class FocusModelService {
     // sample's temperature (across all filters) rather than the reference
     // filter's mean: it is robust to outliers and does not bias the
     // correction toward whichever filter was nominated as the reference.
-    final allTemps = points
-        .where((p) => p.filterName != null)
-        .map((p) => p.temperatureCelsius)
-        .toList()
-      ..sort();
-    final refTemperature =
-        allTemps.isEmpty ? 0.0 : _median(allTemps);
+    final allTemps =
+        points
+            .where((p) => p.filterName != null)
+            .map((p) => p.temperatureCelsius)
+            .toList()
+          ..sort();
+    final refTemperature = allTemps.isEmpty ? 0.0 : _median(allTemps);
 
     // Sample temperature spread across all filtered points — used for the
     // confidence ladder (insufficient spread => medium, not high).
@@ -613,7 +617,8 @@ class FocusModelService {
       // now do the same on temperature-corrected positions so a filter
       // sampled across a temperature range no longer looks "inconsistent"
       // purely because of drift).
-      final variance = corrected
+      final variance =
+          corrected
               .map((p) => math.pow(p - filterAvg, 2))
               .reduce((a, b) => a + b) /
           corrected.length;
@@ -856,10 +861,11 @@ class FocusModelService {
         } catch (e) {
           // Log corrupted files but continue loading others
           developer.log(
-              'FocusModelService: Skipping corrupted focus data file ${entity.path}: $e',
-              name: 'FocusModelService',
-              level: 900,
-              error: e);
+            'FocusModelService: Skipping corrupted focus data file ${entity.path}: $e',
+            name: 'FocusModelService',
+            level: 900,
+            error: e,
+          );
         }
       }
     }

@@ -27,13 +27,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// Lifecycle states for a [Job]. Transitions:
 ///   queued  -> running -> succeeded | failed | cancelled
 ///   queued  -> cancelled (when cancelled before the executor picks it up)
-enum JobState {
-  queued,
-  running,
-  succeeded,
-  failed,
-  cancelled,
-}
+enum JobState { queued, running, succeeded, failed, cancelled }
 
 extension JobStateX on JobState {
   String get wireName => name;
@@ -145,18 +139,18 @@ class Job {
 
   /// Wire-format JSON used by REST responses and WS event payloads.
   Map<String, Object?> toJson() => {
-        'jobId': jobId,
-        'operation': operation,
-        if (deviceId != null) 'deviceId': deviceId,
-        if (commandId != null) 'commandId': commandId,
-        'state': state.wireName,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        if (progress != null) 'progress': progress,
-        if (progressMessage != null) 'progressMessage': progressMessage,
-        if (result != null) 'result': result,
-        if (error != null) 'error': error,
-      };
+    'jobId': jobId,
+    'operation': operation,
+    if (deviceId != null) 'deviceId': deviceId,
+    if (commandId != null) 'commandId': commandId,
+    'state': state.wireName,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    if (progress != null) 'progress': progress,
+    if (progressMessage != null) 'progressMessage': progressMessage,
+    if (result != null) 'result': result,
+    if (error != null) 'error': error,
+  };
 }
 
 /// Caller-side sink the work callback writes progress updates to.
@@ -194,8 +188,9 @@ class JobCancelledException implements Exception {
   const JobCancelledException([this.reason]);
 
   @override
-  String toString() =>
-      reason == null ? 'JobCancelledException' : 'JobCancelledException($reason)';
+  String toString() => reason == null
+      ? 'JobCancelledException'
+      : 'JobCancelledException($reason)';
 }
 
 class _JobProgressSink implements JobProgressSink {
@@ -254,8 +249,9 @@ class JobManager {
   /// to inline.
   final String Function() _generateJobId;
 
-  final StreamController<Job> _changes =
-      StreamController<Job>.broadcast(sync: true);
+  final StreamController<Job> _changes = StreamController<Job>.broadcast(
+    sync: true,
+  );
 
   final Map<String, Job> _jobs = {};
   final Map<String, _JobCancellation> _cancellations = {};
@@ -265,9 +261,9 @@ class JobManager {
     this.retention = const Duration(hours: 24),
     DateTime Function()? now,
     String Function()? generateJobId,
-  })  : _emitEvent = emitEvent,
-        _now = now ?? DateTime.now,
-        _generateJobId = generateJobId ?? _defaultUuidV4Generator;
+  }) : _emitEvent = emitEvent,
+       _now = now ?? DateTime.now,
+       _generateJobId = generateJobId ?? _defaultUuidV4Generator;
 
   /// Stream of [Job] snapshots emitted on every state change. Internal to
   /// the server (event broadcast is the public API); exposed for tests.
@@ -292,7 +288,8 @@ class JobManager {
     required Future<Map<String, Object?>> Function(
       JobProgressSink sink,
       JobCancellation cancellation,
-    ) work,
+    )
+    work,
   }) {
     final jobId = _generateJobId();
     final now = _now();
@@ -309,11 +306,7 @@ class JobManager {
     final cancellation = _JobCancellation();
     _cancellations[jobId] = cancellation;
 
-    _emit(
-      'JobStarted',
-      initial,
-      severity: EventSeverity.info,
-    );
+    _emit('JobStarted', initial, severity: EventSeverity.info);
     _changes.add(initial);
 
     // Why scheduleMicrotask rather than unawaited(work(...)): scheduling
@@ -329,7 +322,8 @@ class JobManager {
 
   Future<void> _runWork(
     String jobId,
-    Future<Map<String, Object?>> Function(JobProgressSink, JobCancellation) work,
+    Future<Map<String, Object?>> Function(JobProgressSink, JobCancellation)
+    work,
     _JobCancellation cancellation,
   ) async {
     // The job may have been cancelled between start() and this microtask
@@ -489,7 +483,9 @@ class JobManager {
       // Re-read state and surface the same StateError contract.
       final fresh = _jobs[jobId];
       if (fresh != null && fresh.state.isTerminal) {
-        throw StateError('Job ${fresh.jobId} is already ${fresh.state.wireName}');
+        throw StateError(
+          'Job ${fresh.jobId} is already ${fresh.state.wireName}',
+        );
       }
       // The job is non-terminal but has no cancellation token — that's a
       // programmer error. Surface loudly per CLAUDE.md "errors are a feature".
@@ -555,11 +551,7 @@ class JobManager {
     await _changes.close();
   }
 
-  void _emit(
-    String eventType,
-    Job job, {
-    required EventSeverity severity,
-  }) {
+  void _emit(String eventType, Job job, {required EventSeverity severity}) {
     final event = NightshadeEvent(
       timestamp: job.updatedAt.toUtc().millisecondsSinceEpoch,
       severity: severity,

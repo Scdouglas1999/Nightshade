@@ -103,8 +103,10 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
   LiveStackingService get _service => _ref.read(liveStackingServiceProvider);
 
   /// Start a new live stacking session from a reference image file.
-  Future<void> startFromFile(String referenceImagePath,
-      {LiveStackingConfig? config}) async {
+  Future<void> startFromFile(
+    String referenceImagePath, {
+    LiveStackingConfig? config,
+  }) async {
     final effectiveConfig = config ?? state.config;
     state = state.copyWith(
       status: LiveStackingStatus.running,
@@ -138,16 +140,19 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       );
 
       _logger.info(
-          'Live stacking started: ${stats.stackedFrameCount} frames',
-          source: 'LiveStackingNotifier');
+        'Live stacking started: ${stats.stackedFrameCount} frames',
+        source: 'LiveStackingNotifier',
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         status: LiveStackingStatus.error,
         errorMessage: e.toString(),
       );
-      _logger.error('Failed to start live stacking: $e',
-          source: 'LiveStackingNotifier');
+      _logger.error(
+        'Failed to start live stacking: $e',
+        source: 'LiveStackingNotifier',
+      );
     }
   }
 
@@ -211,8 +216,9 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       // Diff against the previous cumulative count. Rust resets the counter
       // on stacker reset, so a negative delta would indicate a state
       // inconsistency -- clamp to 0 rather than render garbage.
-      final perFrameRejected =
-          newTotal >= previousTotal ? newTotal - previousTotal : 0;
+      final perFrameRejected = newTotal >= previousTotal
+          ? newTotal - previousTotal
+          : 0;
       final totalPixels = result.width * result.height;
 
       state = state.copyWith(
@@ -249,8 +255,9 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 
       final previousTotal = state.stats.totalSigmaRejectedPixels;
       final newTotal = result.stats.totalSigmaRejectedPixels;
-      final perFrameRejected =
-          newTotal >= previousTotal ? newTotal - previousTotal : 0;
+      final perFrameRejected = newTotal >= previousTotal
+          ? newTotal - previousTotal
+          : 0;
       final totalPixels = result.width * result.height;
 
       state = state.copyWith(
@@ -279,13 +286,12 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       if (!mounted) return;
       // Rebuild from scratch (preserving config) so per-frame counters drop
       // back to zero alongside the cleared cumulative stats.
-      state = LiveStackingState(
-        status: state.status,
-        config: state.config,
-      );
+      state = LiveStackingState(status: state.status, config: state.config);
     } catch (e) {
-      _logger.error('Failed to reset stacker: $e',
-          source: 'LiveStackingNotifier');
+      _logger.error(
+        'Failed to reset stacker: $e',
+        source: 'LiveStackingNotifier',
+      );
     }
   }
 
@@ -294,8 +300,10 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
     try {
       await _service.stop();
     } catch (e) {
-      _logger.error('Failed to stop stacker: $e',
-          source: 'LiveStackingNotifier');
+      _logger.error(
+        'Failed to stop stacker: $e',
+        source: 'LiveStackingNotifier',
+      );
     }
 
     if (!mounted) return;
@@ -306,8 +314,8 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 /// Provider for the live stacking state.
 final liveStackingProvider =
     StateNotifierProvider<LiveStackingNotifier, LiveStackingState>((ref) {
-  return LiveStackingNotifier(ref);
-});
+      return LiveStackingNotifier(ref);
+    });
 
 /// Convenience provider for just the frame count.
 final liveStackingFrameCountProvider = Provider<int>((ref) {

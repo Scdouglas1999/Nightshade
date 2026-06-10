@@ -170,9 +170,7 @@ void main() {
     // the target.
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    container
-        .read(equipmentFOVProvider.notifier)
-        .setRotation(33.0);
+    container.read(equipmentFOVProvider.notifier).setRotation(33.0);
     expect(container.read(equipmentFOVProvider).rotation, 33.0);
   });
 }

@@ -500,7 +500,8 @@ class _LabeledToolbarToggleState extends State<_LabeledToolbarToggle> {
             ),
             if (widget.showChevron) ...[
               const SizedBox(width: 2),
-              Icon(NightshadeIcons.chevronDown, size: 13, color: colors.textMuted),
+              Icon(NightshadeIcons.chevronDown,
+                  size: 13, color: colors.textMuted),
             ],
           ],
         ),

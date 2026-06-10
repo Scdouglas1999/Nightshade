@@ -117,8 +117,10 @@ class WcsGridPainter {
     double decSpacing = 1.0, // degrees
   }) {
     final lines = <GridLine>[];
-    final fov =
-        wcs.fieldOfView(imageSize.width.toInt(), imageSize.height.toInt());
+    final fov = wcs.fieldOfView(
+      imageSize.width.toInt(),
+      imageSize.height.toInt(),
+    );
 
     // Generate RA lines
     final raStart = (wcs.crval1 - fov.$1 / 2).floor().toDouble();
@@ -137,11 +139,13 @@ class WcsGridPainter {
       }
 
       if (points.length >= 2) {
-        lines.add(GridLine(
-          points: points,
-          label: '${(ra / 15).toStringAsFixed(1)}h',
-          type: GridLineType.ra,
-        ));
+        lines.add(
+          GridLine(
+            points: points,
+            label: '${(ra / 15).toStringAsFixed(1)}h',
+            type: GridLineType.ra,
+          ),
+        );
       }
     }
 
@@ -162,11 +166,13 @@ class WcsGridPainter {
       }
 
       if (points.length >= 2) {
-        lines.add(GridLine(
-          points: points,
-          label: '${dec.toStringAsFixed(0)}°',
-          type: GridLineType.dec,
-        ));
+        lines.add(
+          GridLine(
+            points: points,
+            label: '${dec.toStringAsFixed(0)}°',
+            type: GridLineType.dec,
+          ),
+        );
       }
     }
 
@@ -180,11 +186,7 @@ class GridLine {
   final String label;
   final GridLineType type;
 
-  GridLine({
-    required this.points,
-    required this.label,
-    required this.type,
-  });
+  GridLine({required this.points, required this.label, required this.type});
 }
 
 /// Grid line type

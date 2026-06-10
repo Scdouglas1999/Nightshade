@@ -348,7 +348,12 @@ void main() {
       _props,
     );
     final visibleSet = HipsTileSelection.computeVisibleTiles(
-      _plateScale, m81, _canvasSize, 1.0, norder, _props,
+      _plateScale,
+      m81,
+      _canvasSize,
+      1.0,
+      norder,
+      _props,
       surveyId: _surveyId,
     );
 
@@ -365,7 +370,8 @@ void main() {
 
     final rec = ui.PictureRecorder();
     final canvas = Canvas(rec);
-    canvas.drawRect(Offset.zero & _canvasSize, Paint()..color = const Color(0xFF000000));
+    canvas.drawRect(
+        Offset.zero & _canvasSize, Paint()..color = const Color(0xFF000000));
     painter.paint(canvas, _canvasSize);
     final out = await rec.endRecording().toImage(
           _canvasSize.width.toInt(),
@@ -406,7 +412,8 @@ void main() {
       // non-square-cell bug shifts the sampled Y by `expRow * (excessHeight)` plus
       // the within-cell stretch — several px at row 4 — which this catches.
       expect((sampledY - expectedSampledY).abs(), lessThan(2.5),
-          reason: 'Tile npix=${tile.id.npix} (ancestor row $expRow): the painter '
+          reason:
+              'Tile npix=${tile.id.npix} (ancestor row $expRow): the painter '
               'sampled Allsky-Y $sampledY but square-cell geometry requires '
               '$expectedSampledY. A mismatch is the non-square-grid bug — the '
               'Allsky cell height was derived from the grid WIDTH instead of the '

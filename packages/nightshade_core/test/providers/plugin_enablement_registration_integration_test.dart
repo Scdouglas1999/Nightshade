@@ -33,7 +33,9 @@ Future<void> _seedEnablement(
   NightshadeDatabase db,
   Map<String, bool> choices,
 ) async {
-  await db.into(db.appSettings).insert(
+  await db
+      .into(db.appSettings)
+      .insert(
         AppSettingsCompanion.insert(
           key: kPluginEnablementSettingKey,
           value: jsonEncode(choices),
@@ -79,22 +81,27 @@ void main() {
       await database.close();
     });
 
-    test('persisted {discord:false} registers Discord loaded-but-disabled',
-        () async {
-      await _seedEnablement(database, {_discordId: false});
+    test(
+      'persisted {discord:false} registers Discord loaded-but-disabled',
+      () async {
+        await _seedEnablement(database, {_discordId: false});
 
-      await container.read(pluginRegistrationProvider.future);
+        await container.read(pluginRegistrationProvider.future);
 
-      // Loaded (so it appears in the Integrations list + can be re-enabled)…
-      expect(host.isLoaded(_discordId), isTrue);
-      // …but NOT enabled: the user's saved disable choice was honoured.
-      expect(host.isEnabled(_discordId), isFalse);
+        // Loaded (so it appears in the Integrations list + can be re-enabled)…
+        expect(host.isLoaded(_discordId), isTrue);
+        // …but NOT enabled: the user's saved disable choice was honoured.
+        expect(host.isEnabled(_discordId), isFalse);
 
-      // Every other bundled plugin defaults to enabled.
-      expect(host.isEnabled(_pushoverId), isTrue);
-      expect(host.isEnabled('com.nightshade.examples.home_assistant'), isTrue);
-      expect(host.isEnabled('com.nightshade.weatherlogger'), isTrue);
-    });
+        // Every other bundled plugin defaults to enabled.
+        expect(host.isEnabled(_pushoverId), isTrue);
+        expect(
+          host.isEnabled('com.nightshade.examples.home_assistant'),
+          isTrue,
+        );
+        expect(host.isEnabled('com.nightshade.weatherlogger'), isTrue);
+      },
+    );
 
     test('no persisted choice registers every plugin enabled', () async {
       // Nothing seeded → fresh-install default: all on.

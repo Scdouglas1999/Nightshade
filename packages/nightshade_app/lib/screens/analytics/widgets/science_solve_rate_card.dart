@@ -28,8 +28,7 @@ class ScienceSolveRateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = lightFrames.length;
-    final solved =
-        lightFrames.where((image) => image.isPlateSolved).length;
+    final solved = lightFrames.where((image) => image.isPlateSolved).length;
     final rate = total == 0 ? 0.0 : solved / total;
     final pct = (rate * 100).round();
 
@@ -43,8 +42,7 @@ class ScienceSolveRateCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(LucideIcons.crosshair,
-                    size: 15, color: colors.primary),
+                Icon(LucideIcons.crosshair, size: 15, color: colors.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Plate solve health',
@@ -86,13 +84,13 @@ class ScienceSolveRateCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
               child: LinearProgressIndicator(
                 value: total == 0 ? 0 : rate.clamp(0.0, 1.0),
                 minHeight: 6,
                 backgroundColor: colors.surfaceAlt,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(tier.color(colors)),
+                valueColor: AlwaysStoppedAnimation<Color>(tier.color(colors)),
               ),
             ),
             const SizedBox(height: 10),
@@ -139,8 +137,7 @@ enum _Tier {
   struggling,
   broken;
 
-  bool get showConfigureCta =>
-      this == _Tier.struggling || this == _Tier.broken;
+  bool get showConfigureCta => this == _Tier.struggling || this == _Tier.broken;
 
   String get label {
     switch (this) {

@@ -147,8 +147,7 @@ class GuideStarOverlay extends ConsumerWidget {
             panY: framingState.panY,
             rotationDegrees: framingState.rotation,
           );
-          final projection =
-              FramingSkyProjection.fromView(canvasSize, view);
+          final projection = FramingSkyProjection.fromView(canvasSize, view);
 
           final candidates = findGuideStarCandidates(
             projection: projection,

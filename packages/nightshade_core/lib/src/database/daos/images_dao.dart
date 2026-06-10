@@ -62,8 +62,7 @@ class ProducingNodeThumbnail {
     // it back here goes through the same path.
     final capturedAtRaw = row.data['captured_at'];
     final capturedAt = capturedAtRaw is int
-        ? DateTime.fromMillisecondsSinceEpoch(capturedAtRaw * 1000,
-            isUtc: true)
+        ? DateTime.fromMillisecondsSinceEpoch(capturedAtRaw * 1000, isUtc: true)
         : DateTime.now();
     return ProducingNodeThumbnail(
       id: row.read<int>('id'),
@@ -108,16 +107,17 @@ class ProducingNodeThumbnail {
 }
 
 @DriftAccessor(
-    tables: [CapturedImages, ImageMetadata, ImagingSessions, Targets])
+  tables: [CapturedImages, ImageMetadata, ImagingSessions, Targets],
+)
 class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ImagesDaoMixin {
   ImagesDao(NightshadeDatabase db) : super(db);
 
   /// Get all images
   Future<List<CapturedImage>> getAllImages() {
-    return (select(capturedImages)
-          ..orderBy([(i) => OrderingTerm.desc(i.capturedAt)]))
-        .get();
+    return (select(
+      capturedImages,
+    )..orderBy([(i) => OrderingTerm.desc(i.capturedAt)])).get();
   }
 
   /// Get all images with pagination
@@ -154,9 +154,9 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Watch all images
   Stream<List<CapturedImage>> watchAllImages() {
-    return (select(capturedImages)
-          ..orderBy([(i) => OrderingTerm.desc(i.capturedAt)]))
-        .watch();
+    return (select(
+      capturedImages,
+    )..orderBy([(i) => OrderingTerm.desc(i.capturedAt)])).watch();
   }
 
   /// Get images for a session
@@ -201,13 +201,15 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get image by ID
   Future<CapturedImage?> getImageById(int id) {
-    return (select(capturedImages)..where((i) => i.id.equals(id)))
-        .getSingleOrNull();
+    return (select(
+      capturedImages,
+    )..where((i) => i.id.equals(id))).getSingleOrNull();
   }
 
   Future<CapturedImage?> getImageByFilePath(String filePath) {
-    return (select(capturedImages)..where((i) => i.filePath.equals(filePath)))
-        .getSingleOrNull();
+    return (select(
+      capturedImages,
+    )..where((i) => i.filePath.equals(filePath))).getSingleOrNull();
   }
 
   Future<List<CapturedImage>> getRecentImagesForSession(
@@ -288,18 +290,20 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   /// operator (e.g. SD card cleanup); the backfill should pick those up
   /// too. The caller iterates and stats each `thumbnail_path`.
   Future<List<({int id, String filePath, String? thumbnailPath})>>
-      listImagesForThumbnailBackfill() async {
+  listImagesForThumbnailBackfill() async {
     final rows = await customSelect(
       'SELECT id, file_path, thumbnail_path FROM captured_images '
       'ORDER BY id ASC',
       readsFrom: {capturedImages},
     ).get();
     return rows
-        .map((r) => (
-              id: r.read<int>('id'),
-              filePath: r.read<String>('file_path'),
-              thumbnailPath: r.data['thumbnail_path'] as String?,
-            ))
+        .map(
+          (r) => (
+            id: r.read<int>('id'),
+            filePath: r.read<String>('file_path'),
+            thumbnailPath: r.data['thumbnail_path'] as String?,
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -378,9 +382,11 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     final countExp = capturedImages.id.count();
     final query = selectOnly(capturedImages)
       ..addColumns([capturedImages.filter, countExp])
-      ..where(capturedImages.targetId.equals(targetId) &
-          capturedImages.isAccepted.equals(true) &
-          capturedImages.filter.isNotNull())
+      ..where(
+        capturedImages.targetId.equals(targetId) &
+            capturedImages.isAccepted.equals(true) &
+            capturedImages.filter.isNotNull(),
+      )
       ..groupBy([capturedImages.filter]);
 
     final rows = await query.get();
@@ -509,8 +515,10 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       'LIMIT ?',
       variables: variables,
       readsFrom: {capturedImages},
-    ).watch().map((rows) =>
-        rows.map(ProducingNodeThumbnail.fromRow).toList(growable: false));
+    ).watch().map(
+      (rows) =>
+          rows.map(ProducingNodeThumbnail.fromRow).toList(growable: false),
+    );
   }
 
   /// Count thumbnails for a given producing node — used by the tree
@@ -612,8 +620,9 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     // asynchronously by `ThumbnailSidecarService` (best-effort,
     // unawaited); a missing file at this path triggers the cold-read
     // self-heal in the GET handler.
-    final String? thumbnailPath =
-        filePath.isEmpty ? null : '$filePath.thumb.jpg';
+    final String? thumbnailPath = filePath.isEmpty
+        ? null
+        : '$filePath.thumb.jpg';
 
     final result = await customInsert(
       'INSERT INTO captured_images '
@@ -659,9 +668,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     // persisted regardless of sidecar outcome — a missing sidecar self-
     // heals on the next GET. Errors land in the structured logger via
     // the service (see ThumbnailSidecarService.writeSidecarForRow).
-    if (sidecarService != null &&
-        filePath.isNotEmpty &&
-        isAccepted) {
+    if (sidecarService != null && filePath.isNotEmpty && isAccepted) {
       sidecarService.scheduleSidecarWrite(
         imageId: result,
         fitsPath: filePath,
@@ -717,8 +724,9 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       }
       try {
         final size = await file.length();
-        await (update(capturedImages)..where((i) => i.id.equals(id)))
-            .write(CapturedImagesCompanion(fileSize: Value(size)));
+        await (update(capturedImages)..where((i) => i.id.equals(id))).write(
+          CapturedImagesCompanion(fileSize: Value(size)),
+        );
         updated++;
       } catch (e) {
         errors++;
@@ -730,24 +738,25 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       }
     }
 
-    return {
-      'updated': updated,
-      'skipped': skipped,
-      'errors': errors,
-    };
+    return {'updated': updated, 'skipped': skipped, 'errors': errors};
   }
 
   // Image metadata operations
 
   /// Get metadata for an image
   Future<List<ImageMetadatum>> getMetadataForImage(int imageId) {
-    return (select(imageMetadata)..where((m) => m.imageId.equals(imageId)))
-        .get();
+    return (select(
+      imageMetadata,
+    )..where((m) => m.imageId.equals(imageId))).get();
   }
 
   /// Add metadata to an image
-  Future<int> addMetadata(int imageId, String key, String value,
-      {String? comment}) {
+  Future<int> addMetadata(
+    int imageId,
+    String key,
+    String value, {
+    String? comment,
+  }) {
     return into(imageMetadata).insert(
       ImageMetadataCompanion.insert(
         imageId: imageId,
@@ -760,7 +769,9 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Add multiple metadata entries
   Future<void> addMetadataBatch(
-      int imageId, Map<String, String> metadata) async {
+    int imageId,
+    Map<String, String> metadata,
+  ) async {
     await batch((batch) {
       for (final entry in metadata.entries) {
         batch.insert(
@@ -804,9 +815,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       ],
       readsFrom: {capturedImages},
     ).get();
-    return [
-      for (final row in rows) capturedImages.map(row.data),
-    ];
+    return [for (final row in rows) capturedImages.map(row.data)];
   }
 
   Future<int> countImagesByProducingRun({

@@ -99,30 +99,30 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                   children: [
                     Text(
                       'How the scheduler picks targets',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Every 60 seconds the engine scores every target in '
-                    'your catalog. The score is a weighted blend of how '
-                    'high the target sits above the horizon, how far it '
-                    'is from the meridian, its angular separation from '
-                    'the moon (weighted by moon illumination), and how '
-                    'much time tonight still works for it. Targets that '
-                    'still need integration in some filter score higher '
-                    'than fully-imaged ones. Switching between targets '
-                    'is gated by a hysteresis ratio so the scheduler '
-                    'does not flip-flop between two close scores.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                      height: 1.5,
+                    const SizedBox(height: 6),
+                    Text(
+                      'Every 60 seconds the engine scores every target in '
+                      'your catalog. The score is a weighted blend of how '
+                      'high the target sits above the horizon, how far it '
+                      'is from the meridian, its angular separation from '
+                      'the moon (weighted by moon illumination), and how '
+                      'much time tonight still works for it. Targets that '
+                      'still need integration in some filter score higher '
+                      'than fully-imaged ones. Switching between targets '
+                      'is gated by a hysteresis ratio so the scheduler '
+                      'does not flip-flop between two close scores.',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textSecondary,
+                        height: 1.5,
+                      ),
                     ),
-                  ),
                   ],
                 ),
               ),

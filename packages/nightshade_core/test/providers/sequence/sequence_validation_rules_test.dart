@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/exposure_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/logic_node_rules.dart';
@@ -24,17 +24,15 @@ Sequence _sequenceWith(List<SequenceNode> children, {String name = 'Test'}) {
   }
   final rootWithChildren = root.copyWith(childIds: childIds);
   nodes[root.id] = rootWithChildren;
-  return Sequence.create(
-    name: name,
-    nodes: nodes,
-    rootNodeId: root.id,
-  );
+  return Sequence.create(name: name, nodes: nodes, rootNodeId: root.id);
 }
 
 ValidationIssue _findIssue(List<ValidationIssue> issues, String title) {
   return issues.firstWhere(
     (i) => i.title == title,
-    orElse: () => fail('Expected issue "$title" but found ${issues.map((i) => i.title).toList()}'),
+    orElse: () => fail(
+      'Expected issue "$title" but found ${issues.map((i) => i.title).toList()}',
+    ),
   );
 }
 
@@ -62,10 +60,7 @@ void main() {
 
     test('fires when nodes exist but no root', () {
       final exp = ExposureNode();
-      final s = Sequence.create(
-        name: 'NoRoot',
-        nodes: {exp.id: exp},
-      );
+      final s = Sequence.create(name: 'NoRoot', nodes: {exp.id: exp});
       final issues = rule.validate(s);
       expect(issues.single.severity, ValidationSeverity.error);
       expect(issues.single.title, 'No Root Node');
@@ -116,15 +111,20 @@ void main() {
       expect(issues.single.affectedNodeId, isNotNull);
     });
 
-    test('does not fire on empty TargetHeaderNode (EmptyTargetRule owns that)',
-        () {
-      final target = TargetHeaderNode(targetName: 'M31', raHours: 0, decDegrees: 0);
-      final s = _sequenceWith([target]);
-      // No Empty Container issue — EmptyTargetRule covers targets.
-      final issues = rule.validate(s);
-      expect(
-          issues.where((i) => i.affectedNodeId == target.id), isEmpty);
-    });
+    test(
+      'does not fire on empty TargetHeaderNode (EmptyTargetRule owns that)',
+      () {
+        final target = TargetHeaderNode(
+          targetName: 'M31',
+          raHours: 0,
+          decDegrees: 0,
+        );
+        final s = _sequenceWith([target]);
+        // No Empty Container issue — EmptyTargetRule covers targets.
+        final issues = rule.validate(s);
+        expect(issues.where((i) => i.affectedNodeId == target.id), isEmpty);
+      },
+    );
 
     test('clean on non-empty container', () {
       final exp = ExposureNode();
@@ -132,7 +132,10 @@ void main() {
       // Manually build to keep linkage tidy
       final s = Sequence.create(
         name: 'T',
-        nodes: {loop.id: loop, exp.id: exp.copyWith(parentId: loop.id)},
+        nodes: {
+          loop.id: loop,
+          exp.id: exp.copyWith(parentId: loop.id),
+        },
         rootNodeId: loop.id,
       );
       expect(rule.validate(s), isEmpty);
@@ -212,21 +215,28 @@ void main() {
       final t = TargetHeaderNode(targetName: 'X', raHours: 25, decDegrees: 0);
       final s = _sequenceWith([t]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Invalid RA').severity,
-          ValidationSeverity.error);
+      expect(
+        _findIssue(issues, 'Invalid RA').severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('fires on invalid Dec', () {
-      final t =
-          TargetHeaderNode(targetName: 'X', raHours: 12, decDegrees: 95);
+      final t = TargetHeaderNode(targetName: 'X', raHours: 12, decDegrees: 95);
       final s = _sequenceWith([t]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Invalid Dec').severity,
-          ValidationSeverity.error);
+      expect(
+        _findIssue(issues, 'Invalid Dec').severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('clean on valid coords', () {
-      final t = TargetHeaderNode(targetName: 'M31', raHours: 0.7, decDegrees: 41);
+      final t = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41,
+      );
       final s = _sequenceWith([t]);
       expect(rule.validate(s), isEmpty);
     });
@@ -239,8 +249,10 @@ void main() {
       final n = SlewNode(useTargetCoords: false, customRa: 30, customDec: 0);
       final s = _sequenceWith([n]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Invalid Slew RA').severity,
-          ValidationSeverity.error);
+      expect(
+        _findIssue(issues, 'Invalid Slew RA').severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('does not fire when using target coords', () {
@@ -278,7 +290,10 @@ void main() {
       );
       final s = Sequence.create(
         name: 'T',
-        nodes: {t.id: t, exp.id: exp.copyWith(parentId: t.id)},
+        nodes: {
+          t.id: t,
+          exp.id: exp.copyWith(parentId: t.id),
+        },
         rootNodeId: t.id,
       );
       expect(rule.validate(s), isEmpty);
@@ -347,24 +362,30 @@ void main() {
       final e = ExposureNode(durationSecs: 0, count: 5);
       final s = _sequenceWith([e]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Invalid Exposure Time').severity,
-          ValidationSeverity.error);
+      expect(
+        _findIssue(issues, 'Invalid Exposure Time').severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('fires on count <= 0', () {
       final e = ExposureNode(durationSecs: 60, count: 0);
       final s = _sequenceWith([e]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Invalid Frame Count').severity,
-          ValidationSeverity.error);
+      expect(
+        _findIssue(issues, 'Invalid Frame Count').severity,
+        ValidationSeverity.error,
+      );
     });
 
     test('warns on very long exposure', () {
       final e = ExposureNode(durationSecs: 3600, count: 1);
       final s = _sequenceWith([e]);
       final issues = rule.validate(s);
-      expect(_findIssue(issues, 'Very Long Exposure').severity,
-          ValidationSeverity.warning);
+      expect(
+        _findIssue(issues, 'Very Long Exposure').severity,
+        ValidationSeverity.warning,
+      );
     });
 
     test('clean on sensible exposure', () {
@@ -493,9 +514,7 @@ void main() {
       expect(missing.affectedNodeId, r.id);
     });
 
-    test(
-        'fires when recoveryAction is customBranch but no children',
-        () {
+    test('fires when recoveryAction is customBranch but no children', () {
       final r = RecoveryNode(
         name: 'R',
         triggerType: TriggerType.hfrDegraded,
@@ -655,8 +674,7 @@ void main() {
       );
       final s = _sequenceWith([loop]);
       final issues = rule.validate(s);
-      expect(issues.single.title,
-          'Integration-Time Loop Has No Target');
+      expect(issues.single.title, 'Integration-Time Loop Has No Target');
     });
 
     test('clean on whileDark loop with future repeatUntil', () {
@@ -877,8 +895,9 @@ void main() {
         startWhen: const AltitudeAboveTrigger(60.0),
       );
       final seq = _sequenceWith([target]);
-      const rule =
-          TargetTriggerImpossibleAltitudeRule(observerLatitudeDeg: 40.0);
+      const rule = TargetTriggerImpossibleAltitudeRule(
+        observerLatitudeDeg: 40.0,
+      );
       final issues = rule.validate(seq);
       expect(issues, hasLength(1));
       expect(issues.first.title, 'Unreachable Altitude');

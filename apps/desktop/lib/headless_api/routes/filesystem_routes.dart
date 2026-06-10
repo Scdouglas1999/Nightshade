@@ -10,10 +10,13 @@ import '../handlers/filesystem_handlers.dart';
 import 'headless_route.dart';
 
 /// Build the declarative route table for [FileSystemHandlers].
-List<HeadlessRoute> buildFileSystemRoutes(FileSystemHandlers h) =>
-    <HeadlessRoute>[
-      HeadlessRoute(
-          HttpMethod.get, '/api/files/browse', h.handleBrowseDirectories),
-      HeadlessRoute(HttpMethod.post, '/api/files/validate',
-          h.handleValidateDirectory),
-    ];
+List<HeadlessRoute> buildFileSystemRoutes(
+  FileSystemHandlers h,
+) => <HeadlessRoute>[
+  HeadlessRoute(HttpMethod.get, '/api/files/browse', h.handleBrowseDirectories),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/files/validate',
+    h.handleValidateDirectory,
+  ),
+];

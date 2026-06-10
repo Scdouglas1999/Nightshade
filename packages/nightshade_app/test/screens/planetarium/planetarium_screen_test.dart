@@ -52,7 +52,8 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 void main() {
   group('getDsoDisplayInfo', () {
-    test('getDsoDisplayInfo_messier: returns Messier number + "M" tag '
+    test(
+        'getDsoDisplayInfo_messier: returns Messier number + "M" tag '
         'when catalogIds contains M\\d+', () {
       // M31 with an explicit Messier catalog id. The helper should
       // prefer the Messier designation over the bare `id` so the UI
@@ -76,7 +77,8 @@ void main() {
               'Messier objects must tag as "M".');
     });
 
-    test('getDsoDisplayInfo_ngc_ic: returns NGC designation + "NGC" tag '
+    test(
+        'getDsoDisplayInfo_ngc_ic: returns NGC designation + "NGC" tag '
         'for non-Messier DSOs', () {
       // NGC 7000 (North America Nebula) has no Messier number. The
       // helper should fall through the Messier branch and return the
@@ -101,7 +103,8 @@ void main() {
   });
 
   group('observationTimeProvider', () {
-    test('observationTimeProvider_pause: setSpeedMultiplier(0) clears '
+    test(
+        'observationTimeProvider_pause: setSpeedMultiplier(0) clears '
         'isRealTime and freezes the time stream', () {
       // Why ProviderContainer not pumpWidget: this is a state-level
       // test of the notifier the space-bar handler in
@@ -126,9 +129,7 @@ void main() {
       // Mirror the space-bar pause path: setSpeedMultiplier(0) is what
       // _handleKeyEvent calls when the time stream is currently real-
       // time and the user wants to freeze the sky.
-      container
-          .read(observationTimeProvider.notifier)
-          .setSpeedMultiplier(0);
+      container.read(observationTimeProvider.notifier).setSpeedMultiplier(0);
 
       final paused = container.read(observationTimeProvider);
       expect(paused.isRealTime, isFalse,
@@ -141,7 +142,8 @@ void main() {
               'remains frozen.');
     });
 
-    test('observationTimeProvider_fastForward: setSpeedMultiplier(2.0) '
+    test(
+        'observationTimeProvider_fastForward: setSpeedMultiplier(2.0) '
         'drops out of real-time and pins the multiplier the per-tick '
         'delta is scaled by', () {
       // Why we don't `await` a real second: ObservationTimeNotifier's
@@ -154,9 +156,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      container
-          .read(observationTimeProvider.notifier)
-          .setSpeedMultiplier(2.0);
+      container.read(observationTimeProvider.notifier).setSpeedMultiplier(2.0);
 
       final fast = container.read(observationTimeProvider);
       expect(fast.isRealTime, isFalse,
@@ -172,7 +172,8 @@ void main() {
   });
 
   group('skyViewStateProvider', () {
-    test('skyViewState_clampsAtCelestialPoles: setCenter with extreme '
+    test(
+        'skyViewState_clampsAtCelestialPoles: setCenter with extreme '
         'inputs near RA wrap and Dec ±90° clamps to valid celestial '
         'coordinates', () {
       // Why this matters: the arrow-key handler in _handleKeyEvent
@@ -283,7 +284,8 @@ void main() {
       return container;
     }
 
-    test('searchProvider_filtersByTypeFilter: switching SearchObjectType'
+    test(
+        'searchProvider_filtersByTypeFilter: switching SearchObjectType'
         'Filter narrows results to only the matching DSO type', () {
       final container = buildContainer([
         fixtureGalaxy,
@@ -313,29 +315,28 @@ void main() {
           expect(galaxyOnly.results.length, 1,
               reason: 'Galaxy-only filter must exclude the nebula and '
                   'cluster fixtures — only NGC1234 remains.');
-          expect((galaxyOnly.results.single as DeepSkyObject).id,
-              'NGC1234',
+          expect((galaxyOnly.results.single as DeepSkyObject).id, 'NGC1234',
               reason: 'The retained result must be the galaxy fixture; '
                   'a mismatch means the DsoType.isGalaxy predicate '
                   'regressed.');
 
           // Switch to nebulae and confirm a different single result.
-          notifier.updateFilters(const SearchFilters(
-              typeFilter: SearchObjectTypeFilter.nebulae));
+          notifier.updateFilters(
+              const SearchFilters(typeFilter: SearchObjectTypeFilter.nebulae));
           return notifier.search('NGC').then((_) {
             final nebulaOnly = container.read(objectSearchProvider);
             expect(nebulaOnly.results.length, 1,
                 reason: 'Nebula filter must keep the emissionNebula '
                     'fixture and drop the galaxy and cluster.');
-            expect((nebulaOnly.results.single as DeepSkyObject).id,
-                'NGC5678',
+            expect((nebulaOnly.results.single as DeepSkyObject).id, 'NGC5678',
                 reason: 'The retained result must be the nebula fixture.');
           });
         });
       });
     });
 
-    test('searchProvider_findsObjectByCommonName: a common-name query '
+    test(
+        'searchProvider_findsObjectByCommonName: a common-name query '
         'resolves to the matching catalog object', () async {
       // Andromeda Galaxy is in the well-known-names map keyed to M31 /
       // NGC224 (planetarium_providers §1533). The search code adds the

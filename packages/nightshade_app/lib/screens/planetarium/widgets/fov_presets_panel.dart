@@ -150,9 +150,8 @@ class _PresetRow extends StatelessWidget {
               : Colors.transparent,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
-            color: isActive
-                ? preset.color.withValues(alpha: 0.55)
-                : colors.border,
+            color:
+                isActive ? preset.color.withValues(alpha: 0.55) : colors.border,
           ),
         ),
         child: Row(
@@ -177,8 +176,7 @@ class _PresetRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -237,8 +235,8 @@ class _ActivePresetControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasTarget = selectedObject.coordinates != null ||
-        selectedObject.object != null;
+    final hasTarget =
+        selectedObject.coordinates != null || selectedObject.object != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,96 +351,97 @@ class _AddRigDialogState extends State<_AddRigDialog> {
         ),
         child: SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _label('Telescope', colors),
-            DropdownButton<TelescopeSpecs>(
-              isExpanded: true,
-              value: _telescope,
-              dropdownColor: colors.surfaceAlt,
-              items: [
-                for (final t in TelescopeSpecs.commonTelescopes)
-                  DropdownMenuItem(
-                    value: t,
-                    child: Text(
-                      '${t.name} · ${t.focalLengthMm.toStringAsFixed(0)}mm '
-                      'f/${t.focalRatio.toStringAsFixed(1)}',
-                      style: TextStyle(color: colors.textPrimary),
-                    ),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _telescope = v ?? _telescope),
-            ),
-            const SizedBox(height: 8),
-            _label('Camera', colors),
-            DropdownButton<CameraSensorSpecs>(
-              isExpanded: true,
-              value: _camera,
-              dropdownColor: colors.surfaceAlt,
-              items: [
-                for (final c in CameraSensorSpecs.commonCameras)
-                  DropdownMenuItem(
-                    value: c,
-                    child: Text(
-                      '${c.name} · ${c.widthMm.toStringAsFixed(1)}×'
-                      '${c.heightMm.toStringAsFixed(1)}mm',
-                      style: TextStyle(color: colors.textPrimary),
-                    ),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _camera = v ?? _camera),
-            ),
-            const SizedBox(height: 8),
-            _label('Reducer / Barlow', colors),
-            DropdownButton<double>(
-              isExpanded: true,
-              value: _multiplier,
-              dropdownColor: colors.surfaceAlt,
-              items: [
-                for (final (label, value) in _multipliers)
-                  DropdownMenuItem(
-                    value: value,
-                    child: Text(label,
-                        style: TextStyle(color: colors.textPrimary)),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _multiplier = v ?? _multiplier),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: widget.nextColor.withValues(alpha: 0.08),
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(
-                    color: widget.nextColor.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(NightshadeIcons.frame,
-                      size: 16, color: widget.nextColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      fov == null
-                          ? 'Invalid optics'
-                          : '${fov.$1.toStringAsFixed(2)}° × '
-                              '${fov.$2.toStringAsFixed(2)}°'
-                              '${scale == null ? '' : '   ${scale.toStringAsFixed(2)}"/px'}',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label('Telescope', colors),
+              DropdownButton<TelescopeSpecs>(
+                isExpanded: true,
+                value: _telescope,
+                dropdownColor: colors.surfaceAlt,
+                items: [
+                  for (final t in TelescopeSpecs.commonTelescopes)
+                    DropdownMenuItem(
+                      value: t,
+                      child: Text(
+                        '${t.name} · ${t.focalLengthMm.toStringAsFixed(0)}mm '
+                        'f/${t.focalRatio.toStringAsFixed(1)}',
+                        style: TextStyle(color: colors.textPrimary),
                       ),
                     ),
-                  ),
                 ],
+                onChanged: (v) => setState(() => _telescope = v ?? _telescope),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 8),
+              _label('Camera', colors),
+              DropdownButton<CameraSensorSpecs>(
+                isExpanded: true,
+                value: _camera,
+                dropdownColor: colors.surfaceAlt,
+                items: [
+                  for (final c in CameraSensorSpecs.commonCameras)
+                    DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        '${c.name} · ${c.widthMm.toStringAsFixed(1)}×'
+                        '${c.heightMm.toStringAsFixed(1)}mm',
+                        style: TextStyle(color: colors.textPrimary),
+                      ),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _camera = v ?? _camera),
+              ),
+              const SizedBox(height: 8),
+              _label('Reducer / Barlow', colors),
+              DropdownButton<double>(
+                isExpanded: true,
+                value: _multiplier,
+                dropdownColor: colors.surfaceAlt,
+                items: [
+                  for (final (label, value) in _multipliers)
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(label,
+                          style: TextStyle(color: colors.textPrimary)),
+                    ),
+                ],
+                onChanged: (v) =>
+                    setState(() => _multiplier = v ?? _multiplier),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.nextColor.withValues(alpha: 0.08),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  border: Border.all(
+                      color: widget.nextColor.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(NightshadeIcons.frame,
+                        size: 16, color: widget.nextColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fov == null
+                            ? 'Invalid optics'
+                            : '${fov.$1.toStringAsFixed(2)}° × '
+                                '${fov.$2.toStringAsFixed(2)}°'
+                                '${scale == null ? '' : '   ${scale.toStringAsFixed(2)}"/px'}',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

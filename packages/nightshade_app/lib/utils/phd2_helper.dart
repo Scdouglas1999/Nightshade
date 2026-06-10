@@ -15,9 +15,9 @@ Future<void> connectPhd2(WidgetRef ref, {BuildContext? context}) async {
   try {
     final settings = await ref.read(appSettingsProvider.future);
     await ref.read(phd2ControllerProvider).connect(
-      settings.phd2Host,
-      settings.phd2Port,
-    );
+          settings.phd2Host,
+          settings.phd2Port,
+        );
   } catch (e) {
     if (context != null && context.mounted) {
       context.showErrorSnackBar('Failed to connect to PHD2: $e');

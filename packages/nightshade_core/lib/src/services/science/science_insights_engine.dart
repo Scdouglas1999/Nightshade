@@ -14,8 +14,7 @@ import '../../database/database.dart'
         FramePhotometricCalibrationRow,
         ScienceFrameQualityMetricsRow,
         TransparencySampleRow;
-import '../equipment_health_service.dart'
-    show EquipmentHealthReport;
+import '../equipment_health_service.dart' show EquipmentHealthReport;
 import '../optical_train_diagnostics_service.dart'
     show OpticalIssueSeverity, OpticalTrainDiagnostics;
 import 'science_status.dart';
@@ -106,36 +105,43 @@ class ScienceInsightsEngine {
     // ── Last pipeline error ────────────────────────────────────────────────
     final failure = input.lastFailure;
     if (failure != null) {
-      out.add(ScienceInsight(
-        id: 'pipeline.last_failure',
-        severity: ScienceInsightSeverity.error,
-        headline:
-            '${failure.stage.displayName} failed on the most recent frame',
-        body: failure.note ??
-            'Check the science log for details. The capture itself is unaffected.',
-      ));
+      out.add(
+        ScienceInsight(
+          id: 'pipeline.last_failure',
+          severity: ScienceInsightSeverity.error,
+          headline:
+              '${failure.stage.displayName} failed on the most recent frame',
+          body:
+              failure.note ??
+              'Check the science log for details. The capture itself is unaffected.',
+        ),
+      );
     }
 
     // ── Plate-solve health ─────────────────────────────────────────────────
     if (input.processedFrameCount >= 3) {
       final pct = (input.solveRate * 100).round();
       if (input.solvedFrameCount == 0) {
-        out.add(const ScienceInsight(
-          id: 'solve.none',
-          severity: ScienceInsightSeverity.warning,
-          headline: 'No frames have been plate-solved this session',
-          body:
-              'Most science products need a WCS. Configure a plate solver in Settings → Plate Solving.',
-        ));
+        out.add(
+          const ScienceInsight(
+            id: 'solve.none',
+            severity: ScienceInsightSeverity.warning,
+            headline: 'No frames have been plate-solved this session',
+            body:
+                'Most science products need a WCS. Configure a plate solver in Settings → Plate Solving.',
+          ),
+        );
       } else if (input.solveRate < poorSolveRate) {
-        out.add(ScienceInsight(
-          id: 'solve.low_rate',
-          severity: ScienceInsightSeverity.warning,
-          headline:
-              'Only $pct% of frames are plate-solving (${input.solvedFrameCount}/${input.processedFrameCount})',
-          body:
-              'Check focal length, pixel scale, and that your solver has the right catalog index installed.',
-        ));
+        out.add(
+          ScienceInsight(
+            id: 'solve.low_rate',
+            severity: ScienceInsightSeverity.warning,
+            headline:
+                'Only $pct% of frames are plate-solving (${input.solvedFrameCount}/${input.processedFrameCount})',
+            body:
+                'Check focal length, pixel scale, and that your solver has the right catalog index installed.',
+          ),
+        );
       }
     }
 
@@ -148,67 +154,79 @@ class ScienceInsightsEngine {
         input.calibratedFrameCount < minCalibratedForTransparency) {
       final remaining =
           minCalibratedForTransparency - input.calibratedFrameCount;
-      out.add(ScienceInsight(
-        id: 'transparency.warming_up',
-        severity: ScienceInsightSeverity.info,
-        headline:
-            'Transparency unlocks after $remaining more calibrated frame${remaining == 1 ? '' : 's'}',
-        body:
-            'Atmospheric estimates stabilise once $minCalibratedForTransparency photometric calibrations are in the buffer.',
-      ));
+      out.add(
+        ScienceInsight(
+          id: 'transparency.warming_up',
+          severity: ScienceInsightSeverity.info,
+          headline:
+              'Transparency unlocks after $remaining more calibrated frame${remaining == 1 ? '' : 's'}',
+          body:
+              'Atmospheric estimates stabilise once $minCalibratedForTransparency photometric calibrations are in the buffer.',
+        ),
+      );
     }
 
     // ── Frame quality ──────────────────────────────────────────────────────
     final fm = input.latestFrameQuality;
     if (fm != null) {
       if (fm.highClipPercent > 1.5) {
-        out.add(const ScienceInsight(
-          id: 'frame.high_clip',
-          severity: ScienceInsightSeverity.warning,
-          headline: 'Highlights are clipping',
-          body:
-              'Reduce exposure or gain to protect bright stars before more frames burn in.',
-        ));
+        out.add(
+          const ScienceInsight(
+            id: 'frame.high_clip',
+            severity: ScienceInsightSeverity.warning,
+            headline: 'Highlights are clipping',
+            body:
+                'Reduce exposure or gain to protect bright stars before more frames burn in.',
+          ),
+        );
       }
       if (fm.lowClipPercent > 1.5) {
-        out.add(const ScienceInsight(
-          id: 'frame.low_clip',
-          severity: ScienceInsightSeverity.info,
-          headline: 'Shadow clipping is elevated',
-          body:
-              'Increase exposure length or relax the black point so faint detail isn\'t lost.',
-        ));
+        out.add(
+          const ScienceInsight(
+            id: 'frame.low_clip',
+            severity: ScienceInsightSeverity.info,
+            headline: 'Shadow clipping is elevated',
+            body:
+                'Increase exposure length or relax the black point so faint detail isn\'t lost.',
+          ),
+        );
       }
       if (fm.uniformityCv > 0.28) {
-        out.add(const ScienceInsight(
-          id: 'frame.uniformity',
-          severity: ScienceInsightSeverity.warning,
-          headline: 'Background uniformity is uneven',
-          body:
-              'Check flats, gradients, and possible optical tilt — the field is brighter on one side.',
-        ));
+        out.add(
+          const ScienceInsight(
+            id: 'frame.uniformity',
+            severity: ScienceInsightSeverity.warning,
+            headline: 'Background uniformity is uneven',
+            body:
+                'Check flats, gradients, and possible optical tilt — the field is brighter on one side.',
+          ),
+        );
       }
       if (fm.snr < 10) {
-        out.add(const ScienceInsight(
-          id: 'frame.low_snr',
-          severity: ScienceInsightSeverity.info,
-          headline: 'Frame SNR is low',
-          body: 'Longer subs or more total integration will help.',
-        ));
+        out.add(
+          const ScienceInsight(
+            id: 'frame.low_snr',
+            severity: ScienceInsightSeverity.info,
+            headline: 'Frame SNR is low',
+            body: 'Longer subs or more total integration will help.',
+          ),
+        );
       }
     }
 
     // ── Transparency value ─────────────────────────────────────────────────
     final transparency = input.latestTransparency;
     if (transparency != null && transparency.transparencyPercent < 75) {
-      out.add(ScienceInsight(
-        id: 'transparency.below_threshold',
-        severity: ScienceInsightSeverity.info,
-        headline:
-            'Sky transparency is ${transparency.transparencyPercent.toStringAsFixed(1)}%',
-        body:
-            'Quality may vary frame-to-frame. Consider stacking only the best windows.',
-      ));
+      out.add(
+        ScienceInsight(
+          id: 'transparency.below_threshold',
+          severity: ScienceInsightSeverity.info,
+          headline:
+              'Sky transparency is ${transparency.transparencyPercent.toStringAsFixed(1)}%',
+          body:
+              'Quality may vary frame-to-frame. Consider stacking only the best windows.',
+        ),
+      );
     }
 
     // ── Calibration fit quality ────────────────────────────────────────────
@@ -216,26 +234,30 @@ class ScienceInsightsEngine {
     if (calibration != null &&
         calibration.isCalibrated &&
         calibration.calibrationRms > 0.2) {
-      out.add(ScienceInsight(
-        id: 'calibration.high_rms',
-        severity: ScienceInsightSeverity.info,
-        headline:
-            'Photometric fit RMS is ${calibration.calibrationRms.toStringAsFixed(2)} mag',
-        body:
-            'Verify focus and plate-solve inputs — a noisy fit reduces limiting-magnitude accuracy.',
-      ));
+      out.add(
+        ScienceInsight(
+          id: 'calibration.high_rms',
+          severity: ScienceInsightSeverity.info,
+          headline:
+              'Photometric fit RMS is ${calibration.calibrationRms.toStringAsFixed(2)} mag',
+          body:
+              'Verify focus and plate-solve inputs — a noisy fit reduces limiting-magnitude accuracy.',
+        ),
+      );
     }
     if (calibration != null &&
         calibration.isCalibrated &&
         calibration.matchedStarCount < 12) {
-      out.add(ScienceInsight(
-        id: 'calibration.few_matches',
-        severity: ScienceInsightSeverity.info,
-        headline:
-            'Only ${calibration.matchedStarCount} catalog stars matched',
-        body:
-            'Calibration is usable but more matches give a steadier zero-point. Try a denser field or a wider catalog.',
-      ));
+      out.add(
+        ScienceInsight(
+          id: 'calibration.few_matches',
+          severity: ScienceInsightSeverity.info,
+          headline:
+              'Only ${calibration.matchedStarCount} catalog stars matched',
+          body:
+              'Calibration is usable but more matches give a steadier zero-point. Try a denser field or a wider catalog.',
+        ),
+      );
     }
 
     // ── Optical-train diagnostics ──────────────────────────────────────────
@@ -243,16 +265,18 @@ class ScienceInsightsEngine {
     if (diag != null) {
       var optIndex = 0;
       for (final issue in diag.issues.take(2)) {
-        out.add(ScienceInsight(
-          id: 'optical.${optIndex++}',
-          severity: switch (issue.severity) {
-            OpticalIssueSeverity.info => ScienceInsightSeverity.info,
-            OpticalIssueSeverity.warning => ScienceInsightSeverity.warning,
-            OpticalIssueSeverity.critical => ScienceInsightSeverity.error,
-          },
-          headline: issue.title,
-          body: issue.detail,
-        ));
+        out.add(
+          ScienceInsight(
+            id: 'optical.${optIndex++}',
+            severity: switch (issue.severity) {
+              OpticalIssueSeverity.info => ScienceInsightSeverity.info,
+              OpticalIssueSeverity.warning => ScienceInsightSeverity.warning,
+              OpticalIssueSeverity.critical => ScienceInsightSeverity.error,
+            },
+            headline: issue.title,
+            body: issue.detail,
+          ),
+        );
       }
     }
 
@@ -261,12 +285,14 @@ class ScienceInsightsEngine {
     if (health != null) {
       var eqIndex = 0;
       for (final insight in health.insights.take(2)) {
-        out.add(ScienceInsight(
-          id: 'equipment.${eqIndex++}',
-          severity: ScienceInsightSeverity.info,
-          headline: insight.title,
-          body: insight.message,
-        ));
+        out.add(
+          ScienceInsight(
+            id: 'equipment.${eqIndex++}',
+            severity: ScienceInsightSeverity.info,
+            headline: insight.title,
+            body: insight.message,
+          ),
+        );
       }
     }
 

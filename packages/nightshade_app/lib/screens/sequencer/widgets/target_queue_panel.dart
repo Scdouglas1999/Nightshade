@@ -208,9 +208,7 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
         if (next == null || next.isEmpty) {
           // Sequencer is between targets — clear "active" flag.
           if (queue.activeTargetId != null) {
-            ref
-                .read(targetQueueProvider.notifier)
-                .setActiveTarget(null);
+            ref.read(targetQueueProvider.notifier).setActiveTarget(null);
           }
           return;
         }
@@ -219,17 +217,15 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
         // and "M31 (Panel 1/9)" together so mosaics light up the
         // parent queue card.
         final match = queue.targets.cast<QueuedTarget?>().firstWhere(
-          (t) =>
-              t != null &&
-              (t.displayName == next ||
-                  next.startsWith(t.displayName) ||
-                  t.displayName.startsWith(next)),
-          orElse: () => null,
-        );
+              (t) =>
+                  t != null &&
+                  (t.displayName == next ||
+                      next.startsWith(t.displayName) ||
+                      t.displayName.startsWith(next)),
+              orElse: () => null,
+            );
         if (match != null && match.id != queue.activeTargetId) {
-          ref
-              .read(targetQueueProvider.notifier)
-              .setActiveTarget(match.id);
+          ref.read(targetQueueProvider.notifier).setActiveTarget(match.id);
         }
       },
       fireImmediately: true,
@@ -295,8 +291,7 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
             Expanded(
               child: ListView.separated(
                 key: const ValueKey('target_queue_list'),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 itemCount: filtered.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
@@ -400,19 +395,22 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               'Target Queue',
-              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.textPrimary),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Text(
               '$queueLength',
-              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+              style: NightshadeTypography.labelStrongSm
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           if (onCollapse != null) ...[
@@ -421,7 +419,8 @@ class _Header extends StatelessWidget {
               message: 'Collapse panel',
               child: InkWell(
                 onTap: onCollapse,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: Icon(
@@ -467,8 +466,7 @@ class _SortFilterBar extends StatelessWidget {
               tooltip: 'Sort',
               value: sortMode,
               entries: _QueueSortMode.values
-                  .map((m) =>
-                      DropdownMenuItem(value: m, child: Text(m.label)))
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
                   .toList(),
               onChanged: (v) {
                 if (v != null) onSortChanged(v);
@@ -483,8 +481,7 @@ class _SortFilterBar extends StatelessWidget {
               tooltip: 'Filter',
               value: filterMode,
               entries: _QueueFilterMode.values
-                  .map((m) =>
-                      DropdownMenuItem(value: m, child: Text(m.label)))
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
                   .toList(),
               onChanged: (v) {
                 if (v != null) onFilterChanged(v);
@@ -577,7 +574,8 @@ class _EmptyState extends ConsumerWidget {
             Text(
               'Your target queue is empty.',
               textAlign: TextAlign.center,
-              style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+              style:
+                  NightshadeTypography.h6.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: 6),
             Text(
@@ -756,8 +754,7 @@ class _RowCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.target,
-                  size: 12, color: colors.primary),
+              Icon(LucideIcons.target, size: 12, color: colors.primary),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -775,7 +772,8 @@ class _RowCard extends StatelessWidget {
                   message: 'Add to sequence',
                   child: InkWell(
                     onTap: onAddPressed,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Icon(LucideIcons.plus,
@@ -788,7 +786,8 @@ class _RowCard extends StatelessWidget {
                   message: 'Remove from queue',
                   child: InkWell(
                     onTap: onRemovePressed,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Icon(LucideIcons.x,
@@ -892,7 +891,8 @@ class _Stat extends StatelessWidget {
         const SizedBox(height: 1),
         Text(
           value,
-          style: NightshadeTypography.labelStrongSm.copyWith(color: highlight ? colors.primary : colors.textPrimary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: highlight ? colors.primary : colors.textPrimary),
         ),
       ],
     );

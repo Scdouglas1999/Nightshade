@@ -34,13 +34,10 @@ import 'settings_provider.dart';
 class LiveValidationState {
   final ValidationResult result;
 
-  const LiveValidationState({
-    required this.result,
-  });
+  const LiveValidationState({required this.result});
 
-  factory LiveValidationState.empty() => LiveValidationState(
-        result: ValidationResult.empty(),
-      );
+  factory LiveValidationState.empty() =>
+      LiveValidationState(result: ValidationResult.empty());
 
   List<ValidationIssue> get issues => result.issues;
   Map<String, List<ValidationIssue>> get issuesByNodeId =>
@@ -69,8 +66,8 @@ class LiveValidationState {
 /// - focuserStateProvider (focuser connection)
 final liveValidationProvider =
     StateNotifierProvider<LiveValidationNotifier, LiveValidationState>((ref) {
-  return LiveValidationNotifier(ref);
-});
+      return LiveValidationNotifier(ref);
+    });
 
 class LiveValidationNotifier extends StateNotifier<LiveValidationState> {
   final Ref _ref;

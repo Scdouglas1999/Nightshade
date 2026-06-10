@@ -72,7 +72,8 @@ const List<TutorialStep> _firstNight = [
     // wonder why their 5-minute exposures have field rotation. Explain the
     // two methods, when each applies, and acceptable error so they know
     // when "good enough" really is good enough.
-    description: 'Polar alignment lines up the mount\'s rotation axis with the '
+    description:
+        'Polar alignment lines up the mount\'s rotation axis with the '
         'celestial pole. Without it, stars trail in long exposures and the '
         'frame slowly rotates around the guide star — guiding can\'t fix '
         'either. Nightshade ships two methods. Drift alignment is the most '

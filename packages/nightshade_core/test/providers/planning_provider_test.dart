@@ -47,18 +47,19 @@ void main() {
   });
 
   /// Seed the observing location so weekForecastProvider's (0,0) guard passes.
-  Future<void> seedLocation({
-    double lat = 47.6,
-    double lng = -122.3,
-  }) async {
-    await database.into(database.appSettings).insert(
+  Future<void> seedLocation({double lat = 47.6, double lng = -122.3}) async {
+    await database
+        .into(database.appSettings)
+        .insert(
           AppSettingsCompanion.insert(
             key: 'observer_latitude',
             value: lat.toString(),
           ),
           mode: InsertMode.insertOrReplace,
         );
-    await database.into(database.appSettings).insert(
+    await database
+        .into(database.appSettings)
+        .insert(
           AppSettingsCompanion.insert(
             key: 'observer_longitude',
             value: lng.toString(),
@@ -73,7 +74,9 @@ void main() {
     double dec = -5.4,
     double minAltitude = 20.0,
   }) {
-    return database.into(database.targets).insert(
+    return database
+        .into(database.targets)
+        .insert(
           TargetsCompanion.insert(
             name: name,
             ra: ra,
@@ -90,7 +93,9 @@ void main() {
     double exposureSeconds = 60.0,
   }) async {
     for (var i = 0; i < count; i++) {
-      await database.into(database.capturedImages).insert(
+      await database
+          .into(database.capturedImages)
+          .insert(
             CapturedImagesCompanion.insert(
               filePath: 'frame_${filter}_$i.fits',
               fileName: 'frame_${filter}_$i.fits',
@@ -127,10 +132,7 @@ void main() {
         cover.add(cloudCoverPercent);
       }
       final body = jsonEncode({
-        'hourly': {
-          'time': times,
-          'cloud_cover': cover,
-        },
+        'hourly': {'time': times, 'cloud_cover': cover},
       });
       return http.Response(body, 200);
     });
@@ -196,7 +198,9 @@ void main() {
     });
 
     test('a corrupt stored value hydrates as null (no throw)', () async {
-      await database.into(database.appSettings).insert(
+      await database
+          .into(database.appSettings)
+          .insert(
             AppSettingsCompanion.insert(
               key: 'planning.active_project_id',
               value: 'not-a-number',
@@ -211,8 +215,7 @@ void main() {
   });
 
   group('projectListProvider', () {
-    test('emits initial empty list then re-emits after createProject',
-        () async {
+    test('emits initial empty list then re-emits after createProject', () async {
       final container = makeContainer();
       final service = container.read(projectServiceProvider);
 
@@ -243,14 +246,16 @@ void main() {
       final projectId = await service.createProject(name: 'Campaign');
       final targetId = await insertTarget(name: 'M42');
       await service.addTarget(projectId: projectId, targetId: targetId);
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'Lum',
-        exposureSeconds: 60.0,
-        frameCount: 100,
-        priority: 5,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
+      await goalService.upsert(
+        IntegrationGoal(
+          targetId: targetId,
+          filter: 'Lum',
+          exposureSeconds: 60.0,
+          frameCount: 100,
+          priority: 5,
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+      );
 
       // Keep the provider alive across the mutation so its autoDispose does not
       // tear it down between reads.
@@ -297,27 +302,29 @@ void main() {
       );
     });
 
-    test('surfaces WeekForecast.unavailable when the http client errors',
-        () async {
-      // FAIL-CLOSED: a network failure must never become a fabricated clear
-      // week — the forecast comes back explicitly unavailable.
-      await seedLocation();
-      final container = makeContainer(
-        cloudFactory: () => OpenMeteoCloudProvider(httpClient: failingClient()),
-      );
+    test(
+      'surfaces WeekForecast.unavailable when the http client errors',
+      () async {
+        // FAIL-CLOSED: a network failure must never become a fabricated clear
+        // week — the forecast comes back explicitly unavailable.
+        await seedLocation();
+        final container = makeContainer(
+          cloudFactory: () =>
+              OpenMeteoCloudProvider(httpClient: failingClient()),
+        );
 
-      // Keep the autoDispose forecast alive across its async build.
-      final sub = container.listen(weekForecastProvider, (_, __) {});
-      addTearDown(sub.close);
+        // Keep the autoDispose forecast alive across its async build.
+        final sub = container.listen(weekForecastProvider, (_, __) {});
+        addTearDown(sub.close);
 
-      final week = await container.read(weekForecastProvider.future);
-      expect(week.available, isFalse);
-      expect(week.nights, isEmpty);
-      expect(week.unavailableReason, isNotNull);
-    });
+        final week = await container.read(weekForecastProvider.future);
+        expect(week.available, isFalse);
+        expect(week.nights, isEmpty);
+        expect(week.unavailableReason, isNotNull);
+      },
+    );
 
-    test('builds a week against the active project incomplete targets',
-        () async {
+    test('builds a week against the active project incomplete targets', () async {
       await seedLocation();
 
       // An active project with one incomplete target (Orion, well-placed at the
@@ -328,14 +335,16 @@ void main() {
       final projectId = await service.createProject(name: 'Orion');
       final targetId = await insertTarget(name: 'M42', ra: 5.6, dec: -5.4);
       await service.addTarget(projectId: projectId, targetId: targetId);
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'Ha',
-        exposureSeconds: 300.0,
-        frameCount: 30,
-        priority: 7,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
+      await goalService.upsert(
+        IntegrationGoal(
+          targetId: targetId,
+          filter: 'Ha',
+          exposureSeconds: 300.0,
+          frameCount: 30,
+          priority: 7,
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+      );
       tmpContainer.dispose();
 
       // A healthy, fully-clear week-long feed anchored to "now".
@@ -362,49 +371,52 @@ void main() {
       // should have a real dark window with the target up — i.e. a non-null
       // best night. (We do not assert a specific score, only that the pipeline
       // produced an available, target-bearing forecast rather than unavailable.)
-      final available =
-          week.nights.where((n) => n.forecastAvailable).toList();
+      final available = week.nights.where((n) => n.forecastAvailable).toList();
       expect(available, isNotEmpty);
     });
 
-    test('with no active project, falls back to catalog incomplete-goal targets',
-        () async {
-      await seedLocation();
+    test(
+      'with no active project, falls back to catalog incomplete-goal targets',
+      () async {
+        await seedLocation();
 
-      // No project active, but a catalog target carries an unmet goal.
-      final setupContainer = makeContainer();
-      final goalService = setupContainer.read(integrationGoalServiceProvider);
-      final targetId = await insertTarget(name: 'M31', ra: 0.71, dec: 41.27);
-      await goalService.upsert(IntegrationGoal(
-        targetId: targetId,
-        filter: 'Lum',
-        exposureSeconds: 60.0,
-        frameCount: 50,
-        priority: 5,
-        createdAt: DateTime.utc(2026, 1, 1),
-      ));
-      setupContainer.dispose();
-
-      final container = makeContainer(
-        cloudFactory: () => OpenMeteoCloudProvider(
-          httpClient: cloudClient(
-            start: DateTime.now().toUtc().subtract(const Duration(days: 1)),
-            cloudCoverPercent: 0.0,
+        // No project active, but a catalog target carries an unmet goal.
+        final setupContainer = makeContainer();
+        final goalService = setupContainer.read(integrationGoalServiceProvider);
+        final targetId = await insertTarget(name: 'M31', ra: 0.71, dec: 41.27);
+        await goalService.upsert(
+          IntegrationGoal(
+            targetId: targetId,
+            filter: 'Lum',
+            exposureSeconds: 60.0,
+            frameCount: 50,
+            priority: 5,
+            createdAt: DateTime.utc(2026, 1, 1),
           ),
-        ),
-      );
-      // Ensure the active-project selection has hydrated to null.
-      final notifier = container.read(activeProjectIdProvider.notifier);
-      await notifier.loaded;
-      expect(container.read(activeProjectIdProvider), isNull);
+        );
+        setupContainer.dispose();
 
-      // Keep the autoDispose forecast alive across its async build.
-      final sub = container.listen(weekForecastProvider, (_, __) {});
-      addTearDown(sub.close);
+        final container = makeContainer(
+          cloudFactory: () => OpenMeteoCloudProvider(
+            httpClient: cloudClient(
+              start: DateTime.now().toUtc().subtract(const Duration(days: 1)),
+              cloudCoverPercent: 0.0,
+            ),
+          ),
+        );
+        // Ensure the active-project selection has hydrated to null.
+        final notifier = container.read(activeProjectIdProvider.notifier);
+        await notifier.loaded;
+        expect(container.read(activeProjectIdProvider), isNull);
 
-      final week = await container.read(weekForecastProvider.future);
-      expect(week.available, isTrue);
-      expect(week.nights, hasLength(7));
-    });
+        // Keep the autoDispose forecast alive across its async build.
+        final sub = container.listen(weekForecastProvider, (_, __) {});
+        addTearDown(sub.close);
+
+        final week = await container.read(weekForecastProvider.future);
+        expect(week.available, isTrue);
+        expect(week.nights, hasLength(7));
+      },
+    );
   });
 }

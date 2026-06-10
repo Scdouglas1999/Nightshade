@@ -82,7 +82,8 @@ class _ImportSummaryDialogState extends State<ImportSummaryDialog> {
     );
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: SizedBox(
         width: dialogSize.width,
         height: dialogSize.height,
@@ -170,12 +171,15 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   'Import Sequence — ${result.sourceFormat.displayName}',
-                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h4
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${result.totalNodes} source nodes parsed',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted),
                 ),
               ],
             ),
@@ -185,7 +189,8 @@ class _Header extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.statusChip(
                 colors.warning,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -194,7 +199,8 @@ class _Header extends StatelessWidget {
                       size: 12, color: colors.warning),
                   const SizedBox(width: 4),
                   Text('Force import',
-                      style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning)),
+                      style: NightshadeTypography.labelStrongSm
+                          .copyWith(color: colors.warning)),
                 ],
               ),
             ),
@@ -277,8 +283,7 @@ class _Pill extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _Pill(
-      {required this.label, required this.value, required this.color});
+  const _Pill({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -315,14 +320,17 @@ class _MappingTable extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
       return Text('No mappings were recorded.',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted));
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textMuted));
     }
     final headerStyle = TextStyle(
       fontSize: NightshadeTypography.fontSize11,
       color: colors.textMuted,
       fontWeight: FontWeight.w700,
     );
-    final cellStyle = TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary);
+    final cellStyle = TextStyle(
+        fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary);
     final droppedCellStyle = cellStyle.copyWith(
       color: colors.textMuted,
       fontStyle: FontStyle.italic,
@@ -402,7 +410,8 @@ class _DroppedSection extends StatelessWidget {
                   child: Text(
                     '${d.sourceType} — ${d.name} (${_reasonLabel(d.reason)})',
                     style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textSecondary),
                   ),
                 ),
               ],
@@ -451,8 +460,9 @@ class _UnsupportedSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text('• ${u.sourceType} — ${u.name}',
-                style:
-                    TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary)),
           ),
       ],
     );
@@ -486,8 +496,9 @@ class _DestinationPicker extends StatelessWidget {
             if (v != null) onChanged(v);
           },
           title: Text('Open in editor (save + load)',
-              style:
-                  TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary)),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: colors.textPrimary)),
         ),
         RadioListTile<ImportDestination>(
           dense: true,
@@ -498,8 +509,9 @@ class _DestinationPicker extends StatelessWidget {
             if (v != null) onChanged(v);
           },
           title: Text('Save to library (do not open)',
-              style:
-                  TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary)),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: colors.textPrimary)),
         ),
       ],
     );

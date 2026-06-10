@@ -13,7 +13,8 @@ import 'main_headless.dart' as headless;
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final isHeadless = args.contains('--headless') ||
+  final isHeadless =
+      args.contains('--headless') ||
       Platform.environment['NIGHTSHADE_HEADLESS'] == '1';
 
   if (isHeadless) {
@@ -47,9 +48,7 @@ void main(List<String> args) async {
       // Why: appVersionProvider throws by default to surface misconfiguration
       // loudly (an unset version masks OTA update logic). The desktop entry
       // is the canonical place to wire it.
-      appVersionProvider.overrideWithValue(
-        appVersion,
-      ),
+      appVersionProvider.overrideWithValue(appVersion),
       // Wave 6 Pack P — wire `pluginNodeDispatcherProvider` (defined in
       // nightshade_core) to the real `PluginNodeExecutor` (defined in
       // nightshade_plugins). Without this override the Rust executor would

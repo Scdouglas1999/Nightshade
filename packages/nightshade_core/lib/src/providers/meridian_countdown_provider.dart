@@ -93,15 +93,15 @@ class MeridianCountdownState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isArmed,
-        timeToFlip,
-        isAutomaticWatchdog,
-        isSequencerOwned,
-        disabledReason,
-        method,
-        hourAngleHours,
-        sideOfPier,
-      ];
+    isArmed,
+    timeToFlip,
+    isAutomaticWatchdog,
+    isSequencerOwned,
+    disabledReason,
+    method,
+    hourAngleHours,
+    sideOfPier,
+  ];
 }
 
 /// Refresh cadence for the countdown stream.
@@ -129,12 +129,16 @@ MeridianCountdownState computeMeridianCountdown({
   required bool enabled,
   DateTime? nowUtc,
 }) {
-  final sequencerActive = execState == SequenceExecutionState.running ||
+  final sequencerActive =
+      execState == SequenceExecutionState.running ||
       execState == SequenceExecutionState.paused;
   final method = settings.triggerMethod;
   final sideOfPier = mount.sideOfPier;
 
-  MeridianCountdownState notArmed(String reason, {bool ownedBySequencer = false}) {
+  MeridianCountdownState notArmed(
+    String reason, {
+    bool ownedBySequencer = false,
+  }) {
     return MeridianCountdownState(
       isArmed: false,
       timeToFlip: null,
@@ -267,8 +271,9 @@ MeridianCountdownState computeMeridianCountdown({
 /// assertion that an autoDispose periodic stream caused in widget tests.
 ///
 /// `autoDispose` so the projection is dropped the moment no banner is mounted.
-final meridianCountdownProvider =
-    Provider.autoDispose<MeridianCountdownState>((ref) {
+final meridianCountdownProvider = Provider.autoDispose<MeridianCountdownState>((
+  ref,
+) {
   final mount = ref.watch(mountStateProvider);
   final appSettings = ref.watch(appSettingsProvider).valueOrNull;
   final settings = ref.watch(effectiveMeridianFlipSettingsProvider);

@@ -36,9 +36,10 @@ final displayRefreshRateProvider = Provider<double>((ref) {
       }
       if (kDebugMode) {
         developer.log(
-            '[Platform] Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.',
-            name: 'PlatformProviders',
-            level: 900);
+          '[Platform] Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.',
+          name: 'PlatformProviders',
+          level: 900,
+        );
       }
     }
   }
@@ -47,9 +48,10 @@ final displayRefreshRateProvider = Provider<double>((ref) {
   if (views.isEmpty) {
     if (kDebugMode) {
       developer.log(
-          '[Platform] No Flutter views available, using $defaultHz Hz.',
-          name: 'PlatformProviders',
-          level: 900);
+        '[Platform] No Flutter views available, using $defaultHz Hz.',
+        name: 'PlatformProviders',
+        level: 900,
+      );
     }
     return defaultHz;
   }

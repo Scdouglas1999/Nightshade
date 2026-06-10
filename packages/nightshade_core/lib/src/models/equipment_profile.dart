@@ -76,7 +76,8 @@ abstract class EquipmentProfile with _$EquipmentProfile {
     double? pixelSize,
   }) = _EquipmentProfile;
 
-  factory EquipmentProfile.fromJson(Map<String, dynamic> json) => _$EquipmentProfileFromJson(json);
+  factory EquipmentProfile.fromJson(Map<String, dynamic> json) =>
+      _$EquipmentProfileFromJson(json);
 }
 
 // Extension to provide computed properties and compatibility
@@ -86,13 +87,13 @@ extension EquipmentProfileExtension on EquipmentProfile {
     // Use focalLength field if it's set (> 0), otherwise fall back to telescopeFocalLength
     return this.focalLength > 0 ? this.focalLength : this.telescopeFocalLength;
   }
-  
+
   /// Get effective aperture (uses aperture if set, otherwise telescopeAperture)
   double get effectiveAperture {
     // Use aperture field if it's set (> 0), otherwise fall back to telescopeAperture
     return this.aperture > 0 ? this.aperture : this.telescopeAperture;
   }
-  
+
   /// Get computed focal ratio
   double? get computedFocalRatio {
     if (this.focalRatio != null) return this.focalRatio;

@@ -23,7 +23,8 @@ class _FakeGuiderStateNotifier extends GuiderStateNotifier {
   }
 }
 
-const _connected = GuiderState(connectionState: DeviceConnectionState.connected);
+const _connected =
+    GuiderState(connectionState: DeviceConnectionState.connected);
 const _disconnected =
     GuiderState(connectionState: DeviceConnectionState.disconnected);
 
@@ -75,7 +76,8 @@ void main() {
     expect(tester.getSize(find.byType(GuidingActiveChip)), Size.zero);
   });
 
-  testWidgets('renders nothing when the guider is disconnected even if PHD2 '
+  testWidgets(
+      'renders nothing when the guider is disconnected even if PHD2 '
       'reports guiding', (tester) async {
     await _pumpChip(
       tester,

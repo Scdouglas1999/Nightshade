@@ -12,8 +12,11 @@ class SmartNightDraftLookup {
     required this.astronomicalDay,
   });
 
-  DateTime get _day =>
-      DateTime.utc(astronomicalDay.year, astronomicalDay.month, astronomicalDay.day);
+  DateTime get _day => DateTime.utc(
+    astronomicalDay.year,
+    astronomicalDay.month,
+    astronomicalDay.day,
+  );
 
   @override
   bool operator ==(Object other) {
@@ -32,8 +35,10 @@ final smartNightDraftServiceProvider = Provider<SmartNightDraftService>((ref) {
 
 final pendingSmartNightDraftProvider = FutureProvider.autoDispose
     .family<SmartNightDraft?, SmartNightDraftLookup>((ref, lookup) {
-  return ref.watch(smartNightDraftServiceProvider).loadPending(
-        profileId: lookup.profileId,
-        astronomicalDay: lookup.astronomicalDay,
-      );
-});
+      return ref
+          .watch(smartNightDraftServiceProvider)
+          .loadPending(
+            profileId: lookup.profileId,
+            astronomicalDay: lookup.astronomicalDay,
+          );
+    });

@@ -81,9 +81,10 @@ class FramingNotifier extends StateNotifier<FramingState> {
     if (canvasWidthLogicalPx == null || canvasWidthLogicalPx <= 0) {
       return _defaultRequestPixelWidth;
     }
-    return canvasWidthLogicalPx
-        .ceil()
-        .clamp(_defaultRequestPixelWidth, _maxRequestPixelWidth);
+    return canvasWidthLogicalPx.ceil().clamp(
+      _defaultRequestPixelWidth,
+      _maxRequestPixelWidth,
+    );
   }
 
   /// React to the framing canvas being resized.
@@ -147,12 +148,14 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
     final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
-      unawaited(_pushTargetToHost(
-        backend,
-        raHours: raHours,
-        decDegrees: decDegrees,
-        name: targetName,
-      ));
+      unawaited(
+        _pushTargetToHost(
+          backend,
+          raHours: raHours,
+          decDegrees: decDegrees,
+          name: targetName,
+        ),
+      );
     }
   }
 
@@ -185,11 +188,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
     required String name,
   }) async {
     try {
-      await backend.framingSetTarget(
-        ra: raHours,
-        dec: decDegrees,
-        name: name,
-      );
+      await backend.framingSetTarget(ra: raHours, dec: decDegrees, name: name);
     } catch (e, stackTrace) {
       developer.log(
         'Failed to push framing target to host: $e',
@@ -210,12 +209,14 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
     final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
-      unawaited(_pushTargetToHost(
-        backend,
-        raHours: target.raHours,
-        decDegrees: target.decDegrees,
-        name: target.name,
-      ));
+      unawaited(
+        _pushTargetToHost(
+          backend,
+          raHours: target.raHours,
+          decDegrees: target.decDegrees,
+          name: target.name,
+        ),
+      );
     }
   }
 
@@ -334,8 +335,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final degreesMovedY = newPanY / pxPerDeg;
 
     final thresholdDeg = scale.surveyFovWidthDeg * _panRefetchFovFraction;
-    final movedDeg = math
-        .sqrt(degreesMovedX * degreesMovedX + degreesMovedY * degreesMovedY);
+    final movedDeg = math.sqrt(
+      degreesMovedX * degreesMovedX + degreesMovedY * degreesMovedY,
+    );
     if (movedDeg <= thresholdDeg) return;
 
     // The view has drifted past the margin: recompute a new sky center using a
@@ -364,8 +366,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
   }) {
     final decRad = target.decDegrees * math.pi / 180;
     final cosDec = math.cos(decRad);
-    final safeCosDec =
-        cosDec.abs() > 0.01 ? cosDec : (cosDec.isNegative ? -0.01 : 0.01);
+    final safeCosDec = cosDec.abs() > 0.01
+        ? cosDec
+        : (cosDec.isNegative ? -0.01 : 0.01);
 
     final raOffsetHours = (-raDisplacementDeg / 15.0) / safeCosDec;
     final decOffsetDeg = decDisplacementDeg;
@@ -406,8 +409,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Toggle cardinal directions
   void toggleCardinalDirections() {
-    state =
-        state.copyWith(showCardinalDirections: !state.showCardinalDirections);
+    state = state.copyWith(
+      showCardinalDirections: !state.showCardinalDirections,
+    );
   }
 
   /// Toggle the candidate guide-star overlay.
@@ -417,8 +421,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Toggle optical config panel visibility
   void toggleOpticalConfigPanel() {
-    state =
-        state.copyWith(showOpticalConfigPanel: !state.showOpticalConfigPanel);
+    state = state.copyWith(
+      showOpticalConfigPanel: !state.showOpticalConfigPanel,
+    );
   }
 
   /// Set optical config panel visibility
@@ -428,8 +433,10 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Set custom equipment
   void setCustomEquipment(FramingEquipment equipment) {
-    state =
-        state.copyWith(customEquipment: equipment, useCustomEquipment: true);
+    state = state.copyWith(
+      customEquipment: equipment,
+      useCustomEquipment: true,
+    );
   }
 
   /// Use equipment from active profile
@@ -440,7 +447,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Set preview FOV for browsing without equipment
   void setPreviewFov(double degrees) {
     state = state.copyWith(
-        previewFovDegrees: degrees.clamp(0.1, 20.0), clearImage: true);
+      previewFovDegrees: degrees.clamp(0.1, 20.0),
+      clearImage: true,
+    );
     if (state.target != null) {
       loadSurveyImage();
     }
@@ -453,8 +462,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Toggle equipment FOV overlay visibility
   void toggleEquipmentFovOverlay() {
-    state =
-        state.copyWith(showEquipmentFovOverlay: !state.showEquipmentFovOverlay);
+    state = state.copyWith(
+      showEquipmentFovOverlay: !state.showEquipmentFovOverlay,
+    );
   }
 
   // ===========================================================================
@@ -492,13 +502,15 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Set mosaic overlap percentage
   void setMosaicOverlap(double percent) {
     setMosaicConfig(
-        state.mosaicConfig.copyWith(overlapPercent: percent.clamp(0, 50)));
+      state.mosaicConfig.copyWith(overlapPercent: percent.clamp(0, 50)),
+    );
   }
 
   /// Toggle serpentine capture pattern
   void toggleSerpentine() {
-    setMosaicConfig(state.mosaicConfig
-        .copyWith(serpentine: !state.mosaicConfig.serpentine));
+    setMosaicConfig(
+      state.mosaicConfig.copyWith(serpentine: !state.mosaicConfig.serpentine),
+    );
   }
 
   /// Set mosaic start corner
@@ -568,7 +580,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
         // Note: RA offset needs to account for declination (cos(dec) factor)
         final decRad = centerDec * math.pi / 180;
         final cosDec = math.cos(decRad);
-        final raOffsetHours = (startRaOffset + actualCol * stepWidthDeg) /
+        final raOffsetHours =
+            (startRaOffset + actualCol * stepWidthDeg) /
             15 /
             (cosDec.abs() > 0.01 ? cosDec : 0.01);
         final decOffsetDeg = startDecOffset - actualRow * stepHeightDeg;
@@ -576,14 +589,16 @@ class FramingNotifier extends StateNotifier<FramingState> {
         final panelRa = (centerRa + raOffsetHours) % 24;
         final panelDec = (centerDec + decOffsetDeg).clamp(-90.0, 90.0);
 
-        panels.add(FramingMosaicPanel(
-          index: panelIndex,
-          column: actualCol,
-          row: actualRow,
-          centerRaHours: panelRa,
-          centerDecDegrees: panelDec,
-          name: 'Panel ${panelIndex + 1} ($actualCol,$actualRow)',
-        ));
+        panels.add(
+          FramingMosaicPanel(
+            index: panelIndex,
+            column: actualCol,
+            row: actualRow,
+            centerRaHours: panelRa,
+            centerDecDegrees: panelDec,
+            name: 'Panel ${panelIndex + 1} ($actualCol,$actualRow)',
+          ),
+        );
 
         panelIndex++;
       }
@@ -593,13 +608,15 @@ class FramingNotifier extends StateNotifier<FramingState> {
   }
 
   int _getActualRow(int row, FramingMosaicConfig config) {
-    final flipVertical = config.startCorner == MosaicStartCorner.bottomLeft ||
+    final flipVertical =
+        config.startCorner == MosaicStartCorner.bottomLeft ||
         config.startCorner == MosaicStartCorner.bottomRight;
     return flipVertical ? (config.rows - 1 - row) : row;
   }
 
   int _getActualCol(int col, int row, FramingMosaicConfig config) {
-    final flipHorizontal = config.startCorner == MosaicStartCorner.topRight ||
+    final flipHorizontal =
+        config.startCorner == MosaicStartCorner.topRight ||
         config.startCorner == MosaicStartCorner.bottomRight;
     final baseCol = flipHorizontal ? (config.columns - 1 - col) : col;
 
@@ -622,10 +639,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final config = state.mosaicConfig;
     final baseWidthDeg =
         state.customEquipment?.fovWidthDeg ?? state.previewFovDegrees;
-    final baseHeightDeg = state.customEquipment?.fovHeightDeg ??
+    final baseHeightDeg =
+        state.customEquipment?.fovHeightDeg ??
         (state.surveyImage != null && state.surveyImage!.width > 0
             ? state.previewFovDegrees *
-                (state.surveyImage!.height / state.surveyImage!.width)
+                  (state.surveyImage!.height / state.surveyImage!.width)
             : state.previewFovDegrees);
     return (
       config.effectiveWidthMultiplier * baseWidthDeg,
@@ -702,8 +720,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
 /// overwritten on every selection — never a new `targets` row.
 const String _lastFramedTargetKey = 'framing.lastTarget';
 
-final framingProvider =
-    StateNotifierProvider<FramingNotifier, FramingState>((ref) {
+final framingProvider = StateNotifierProvider<FramingNotifier, FramingState>((
+  ref,
+) {
   return FramingNotifier(ref);
 });
 

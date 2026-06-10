@@ -29,14 +29,14 @@ class _QuickTimeButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.labelQuiet
+                .copyWith(color: colors.textSecondary),
           ),
         ),
       ),
     );
   }
 }
-
 
 class _NodeTypeBadge extends StatelessWidget {
   final NightshadeColors colors;
@@ -124,7 +124,8 @@ class _NodeTypeBadge extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(_getIcon(), size: 20, color: color),
           ),
@@ -135,7 +136,8 @@ class _NodeTypeBadge extends StatelessWidget {
               children: [
                 Text(
                   node.nodeType,
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   node.category.name.toUpperCase(),
@@ -556,9 +558,10 @@ class _DangerButtonState extends State<_DangerButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: NightshadeTypography.labelSm.copyWith(color: _isHovered
-                      ? widget.colors.error
-                      : widget.colors.textSecondary),
+                style: NightshadeTypography.labelSm.copyWith(
+                    color: _isHovered
+                        ? widget.colors.error
+                        : widget.colors.textSecondary),
               ),
             ],
           ),

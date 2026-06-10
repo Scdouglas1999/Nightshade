@@ -133,9 +133,9 @@ class ReadinessItem {
     this.fixRoute,
     this.fixLabel,
   }) : assert(
-          (fixRoute == null) == (fixLabel == null),
-          'fixRoute and fixLabel must both be null or both be set',
-        );
+         (fixRoute == null) == (fixLabel == null),
+         'fixRoute and fixLabel must both be null or both be set',
+       );
 
   /// True when this item is fully satisfied.
   bool get isReady => level == ReadinessLevel.ready;
@@ -308,7 +308,8 @@ ReadinessItem _buildCriticalDevices({
     return const ReadinessItem(
       id: ReadinessItemId.criticalDevices,
       title: 'Critical devices',
-      detail: 'No equipment profile is set up yet. '
+      detail:
+          'No equipment profile is set up yet. '
           'Create a profile and connect your camera to begin.',
       level: ReadinessLevel.blocked,
       fixRoute: _routeEquipment,
@@ -319,7 +320,8 @@ ReadinessItem _buildCriticalDevices({
     return const ReadinessItem(
       id: ReadinessItemId.criticalDevices,
       title: 'Critical devices',
-      detail: 'Camera is not connected. A connected camera is required '
+      detail:
+          'Camera is not connected. A connected camera is required '
           'before you can capture.',
       level: ReadinessLevel.blocked,
       fixRoute: _routeEquipment,
@@ -330,7 +332,8 @@ ReadinessItem _buildCriticalDevices({
     return const ReadinessItem(
       id: ReadinessItemId.criticalDevices,
       title: 'Critical devices',
-      detail: 'Camera connected. Mount is not connected — you can capture '
+      detail:
+          'Camera connected. Mount is not connected — you can capture '
           'but cannot slew or track until the mount is online.',
       level: ReadinessLevel.caution,
       fixRoute: _routeEquipment,
@@ -355,7 +358,8 @@ ReadinessItem _buildLocation({required bool locationSet}) {
     return const ReadinessItem(
       id: ReadinessItemId.location,
       title: 'Observing location',
-      detail: 'No observing location set. Enter your latitude and longitude '
+      detail:
+          'No observing location set. Enter your latitude and longitude '
           'so targets and slews are computed correctly.',
       level: ReadinessLevel.blocked,
       fixRoute: _routeSettings,
@@ -379,7 +383,8 @@ ReadinessItem _buildOutputPath({required bool outputPathSet}) {
     return const ReadinessItem(
       id: ReadinessItemId.outputPath,
       title: 'Capture output folder',
-      detail: 'No capture folder selected. Choose where saved images should '
+      detail:
+          'No capture folder selected. Choose where saved images should '
           'be written.',
       level: ReadinessLevel.blocked,
       fixRoute: _routeSettings,
@@ -404,7 +409,8 @@ ReadinessItem _buildPlateSolver({required bool plateSolverReady}) {
     return const ReadinessItem(
       id: ReadinessItemId.plateSolver,
       title: 'Plate solver',
-      detail: 'No plate solver is configured. Install ASTAP (with a star '
+      detail:
+          'No plate solver is configured. Install ASTAP (with a star '
           'catalog) or astrometry.net to enable centering and alignment.',
       level: ReadinessLevel.caution,
       fixRoute: _routePlateSolving,
@@ -429,7 +435,8 @@ ReadinessItem _buildDarkLibrary({required bool darkLibraryHasCoverage}) {
     return const ReadinessItem(
       id: ReadinessItemId.darkLibrary,
       title: 'Dark library',
-      detail: 'No matching dark frames for your current camera settings. '
+      detail:
+          'No matching dark frames for your current camera settings. '
           'Capture darks for proper calibration.',
       level: ReadinessLevel.caution,
       fixRoute: _routeSettings,
@@ -454,7 +461,8 @@ ReadinessItem _buildFocusState({required bool focusKnown}) {
     return const ReadinessItem(
       id: ReadinessItemId.focusState,
       title: 'Focus',
-      detail: 'Focus has not been established yet. Run autofocus or set focus '
+      detail:
+          'Focus has not been established yet. Run autofocus or set focus '
           'manually before imaging for sharp frames.',
       level: ReadinessLevel.caution,
       fixRoute: _routeEquipment,

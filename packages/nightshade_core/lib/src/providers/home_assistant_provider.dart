@@ -33,10 +33,14 @@ class HomeAssistantConfigNotifier
     if (raw == null) return const HomeAssistantDiscoveryConfig();
     try {
       return HomeAssistantDiscoveryConfig.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
     } catch (e) {
-      developer.log('[HomeAssistantProviders] Bad config blob: $e',
-          name: 'HomeAssistantProviders', level: 900);
+      developer.log(
+        '[HomeAssistantProviders] Bad config blob: $e',
+        name: 'HomeAssistantProviders',
+        level: 900,
+      );
       return const HomeAssistantDiscoveryConfig();
     }
   }
@@ -44,26 +48,33 @@ class HomeAssistantConfigNotifier
   Future<void> save(HomeAssistantDiscoveryConfig config) async {
     final dao = ref.read(settingsDaoProvider);
     await dao.setSetting(
-        _kHomeAssistantSettingKey, jsonEncode(config.toJson()));
+      _kHomeAssistantSettingKey,
+      jsonEncode(config.toJson()),
+    );
     state = AsyncData(config);
   }
 }
 
-final homeAssistantConfigProvider = AsyncNotifierProvider<
-    HomeAssistantConfigNotifier,
-    HomeAssistantDiscoveryConfig>(HomeAssistantConfigNotifier.new);
+final homeAssistantConfigProvider =
+    AsyncNotifierProvider<
+      HomeAssistantConfigNotifier,
+      HomeAssistantDiscoveryConfig
+    >(HomeAssistantConfigNotifier.new);
 
 /// The discovery service singleton. Config changes (this feature's own
 /// settings and the shared MQTT broker settings) are forwarded in-place
 /// so a settings toggle restarts the MQTT session without tearing the
 /// provider down.
-final homeAssistantDiscoveryProvider =
-    Provider<HomeAssistantDiscoveryService>((ref) {
+final homeAssistantDiscoveryProvider = Provider<HomeAssistantDiscoveryService>((
+  ref,
+) {
   final service = HomeAssistantDiscoveryService(
     ref,
-    config: ref.read(homeAssistantConfigProvider).valueOrNull ??
+    config:
+        ref.read(homeAssistantConfigProvider).valueOrNull ??
         const HomeAssistantDiscoveryConfig(),
-    broker: ref.read(mqttTransportConfigProvider).valueOrNull ??
+    broker:
+        ref.read(mqttTransportConfigProvider).valueOrNull ??
         const MqttTransportConfig(),
   );
 

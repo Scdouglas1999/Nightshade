@@ -26,10 +26,12 @@ void main() {
       // The expiry/revoke sweep deletes each affected device's push rows so a
       // deauthorized phone stops receiving cellular criticals. Stub these as
       // no-ops by default; the dedicated sweep test verifies the call count.
-      when(() => mockDb.deletePushTokensForDevice(any()))
-          .thenAnswer((_) async {});
-      when(() => mockDb.deletePushPrefsForDevice(any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockDb.deletePushTokensForDevice(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockDb.deletePushPrefsForDevice(any()),
+      ).thenAnswer((_) async {});
     });
 
     group('generateSecureToken', () {
@@ -75,10 +77,12 @@ void main() {
           isActive: true,
         );
 
-        when(() => mockDb.getPairedDevice('device-1'))
-            .thenAnswer((_) async => device);
-        when(() => mockDb.updateLastConnected('device-1'))
-            .thenAnswer((_) async {});
+        when(
+          () => mockDb.getPairedDevice('device-1'),
+        ).thenAnswer((_) async => device);
+        when(
+          () => mockDb.updateLastConnected('device-1'),
+        ).thenAnswer((_) async {});
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'device-1',
@@ -96,8 +100,9 @@ void main() {
           isActive: true,
         );
 
-        when(() => mockDb.getPairedDevice('device-1'))
-            .thenAnswer((_) async => device);
+        when(
+          () => mockDb.getPairedDevice('device-1'),
+        ).thenAnswer((_) async => device);
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'device-1',
@@ -109,8 +114,9 @@ void main() {
       });
 
       test('returns deviceNotFound for unknown device', () async {
-        when(() => mockDb.getPairedDevice('unknown'))
-            .thenAnswer((_) async => null);
+        when(
+          () => mockDb.getPairedDevice('unknown'),
+        ).thenAnswer((_) async => null);
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'unknown',
@@ -127,8 +133,9 @@ void main() {
           isActive: false,
         );
 
-        when(() => mockDb.getPairedDevice('device-revoked'))
-            .thenAnswer((_) async => device);
+        when(
+          () => mockDb.getPairedDevice('device-revoked'),
+        ).thenAnswer((_) async => device);
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'device-revoked',
@@ -180,8 +187,9 @@ void main() {
 
     group('verifyPairing', () {
       test('returns invalidCode when session not found', () async {
-        when(() => mockDb.getPairingSession('BAD-0000'))
-            .thenAnswer((_) async => null);
+        when(
+          () => mockDb.getPairingSession('BAD-0000'),
+        ).thenAnswer((_) async => null);
 
         final result = await tokenManager.verifyPairing(
           pairingCode: 'BAD-0000',
@@ -199,8 +207,9 @@ void main() {
           expiresAt: DateTime.now().add(const Duration(minutes: 5)),
         );
 
-        when(() => mockDb.getPairingSession('STAR-1234'))
-            .thenAnswer((_) async => session);
+        when(
+          () => mockDb.getPairingSession('STAR-1234'),
+        ).thenAnswer((_) async => session);
 
         final result = await tokenManager.verifyPairing(
           pairingCode: 'STAR-1234',
@@ -218,8 +227,9 @@ void main() {
           expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
         );
 
-        when(() => mockDb.getPairingSession('MOON-LYRA-5678'))
-            .thenAnswer((_) async => session);
+        when(
+          () => mockDb.getPairingSession('MOON-LYRA-5678'),
+        ).thenAnswer((_) async => session);
 
         final result = await tokenManager.verifyPairing(
           pairingCode: 'MOON-LYRA-5678',
@@ -230,83 +240,95 @@ void main() {
         expect(result, equals(PairingResult.codeExpired));
       });
 
-      test('reissues a fresh token when pairing an already paired device',
-          () async {
-        final session = _fakePairingSession(
-          pairingCode: 'STAR-LYRA-1234',
-          sessionToken: '11223344' * 8,
-          isUsed: false,
-          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-        );
-        final existingDevice = _fakePairedDevice(
-          deviceId: 'dev-1',
-          sessionToken: 'aabbccdd' * 8,
-          isActive: true,
-        );
+      test(
+        'reissues a fresh token when pairing an already paired device',
+        () async {
+          final session = _fakePairingSession(
+            pairingCode: 'STAR-LYRA-1234',
+            sessionToken: '11223344' * 8,
+            isUsed: false,
+            expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+          );
+          final existingDevice = _fakePairedDevice(
+            deviceId: 'dev-1',
+            sessionToken: 'aabbccdd' * 8,
+            isActive: true,
+          );
 
-        when(() => mockDb.getPairingSession('STAR-LYRA-1234'))
-            .thenAnswer((_) async => session);
-        when(() => mockDb.getPairedDevice('dev-1'))
-            .thenAnswer((_) async => existingDevice);
-        when(() => mockDb.markPairingSessionUsed('STAR-LYRA-1234'))
-            .thenAnswer((_) async {});
-        when(() => mockDb.deletePairedDevice('dev-1')).thenAnswer((_) async {});
-        when(
-          () => mockDb.addPairedDevice(
+          when(
+            () => mockDb.getPairingSession('STAR-LYRA-1234'),
+          ).thenAnswer((_) async => session);
+          when(
+            () => mockDb.getPairedDevice('dev-1'),
+          ).thenAnswer((_) async => existingDevice);
+          when(
+            () => mockDb.markPairingSessionUsed('STAR-LYRA-1234'),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockDb.deletePairedDevice('dev-1'),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockDb.addPairedDevice(
+              deviceId: 'dev-1',
+              deviceName: 'Test Phone',
+              sessionToken: '11223344' * 8,
+              deviceType: 'mobile',
+              expiresAt: any(named: 'expiresAt'),
+            ),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockDb.deleteUsedPairingSessions(),
+          ).thenAnswer((_) async {});
+
+          final result = await tokenManager.completePairing(
+            pairingCode: 'star-lyra-1234',
             deviceId: 'dev-1',
             deviceName: 'Test Phone',
-            sessionToken: '11223344' * 8,
-            deviceType: 'mobile',
-            expiresAt: any(named: 'expiresAt'),
-          ),
-        ).thenAnswer((_) async {});
-        when(() => mockDb.deleteUsedPairingSessions()).thenAnswer((_) async {});
+          );
 
-        final result = await tokenManager.completePairing(
-          pairingCode: 'star-lyra-1234',
-          deviceId: 'dev-1',
-          deviceName: 'Test Phone',
-        );
-
-        expect(result.result, equals(PairingResult.deviceAlreadyPaired));
-        expect(result.sessionToken, equals('11223344' * 8));
-        verify(() => mockDb.deletePairedDevice('dev-1')).called(1);
-        verify(
-          () => mockDb.addPairedDevice(
-            deviceId: 'dev-1',
-            deviceName: 'Test Phone',
-            sessionToken: '11223344' * 8,
-            deviceType: 'mobile',
-            expiresAt: any(named: 'expiresAt'),
-          ),
-        ).called(1);
-      });
+          expect(result.result, equals(PairingResult.deviceAlreadyPaired));
+          expect(result.sessionToken, equals('11223344' * 8));
+          verify(() => mockDb.deletePairedDevice('dev-1')).called(1);
+          verify(
+            () => mockDb.addPairedDevice(
+              deviceId: 'dev-1',
+              deviceName: 'Test Phone',
+              sessionToken: '11223344' * 8,
+              deviceType: 'mobile',
+              expiresAt: any(named: 'expiresAt'),
+            ),
+          ).called(1);
+        },
+      );
     });
 
     group('verifySessionToken (P0-10 expiry)', () {
-      test('returns expired when device token is past its expires_at',
-          () async {
-        final past = DateTime.now().subtract(const Duration(minutes: 1));
-        final device = _fakePairedDevice(
-          deviceId: 'device-expired',
-          sessionToken: 'aabbccdd' * 8,
-          isActive: true,
-          expiresAt: past,
-        );
+      test(
+        'returns expired when device token is past its expires_at',
+        () async {
+          final past = DateTime.now().subtract(const Duration(minutes: 1));
+          final device = _fakePairedDevice(
+            deviceId: 'device-expired',
+            sessionToken: 'aabbccdd' * 8,
+            isActive: true,
+            expiresAt: past,
+          );
 
-        when(() => mockDb.getPairedDevice('device-expired'))
-            .thenAnswer((_) async => device);
+          when(
+            () => mockDb.getPairedDevice('device-expired'),
+          ).thenAnswer((_) async => device);
 
-        final result = await tokenManager.verifySessionToken(
-          deviceId: 'device-expired',
-          token: 'aabbccdd' * 8,
-        );
+          final result = await tokenManager.verifySessionToken(
+            deviceId: 'device-expired',
+            token: 'aabbccdd' * 8,
+          );
 
-        expect(result, equals(TokenVerificationResult.expired));
-        // No DB write should have happened — expired tokens must not bump
-        // last_connected_at because they cannot be honoured.
-        verifyNever(() => mockDb.updateLastConnected(any()));
-      });
+          expect(result, equals(TokenVerificationResult.expired));
+          // No DB write should have happened — expired tokens must not bump
+          // last_connected_at because they cannot be honoured.
+          verifyNever(() => mockDb.updateLastConnected(any()));
+        },
+      );
 
       test('returns valid when expires_at is in the future', () async {
         final future = DateTime.now().add(const Duration(hours: 1));
@@ -317,10 +339,12 @@ void main() {
           expiresAt: future,
         );
 
-        when(() => mockDb.getPairedDevice('device-unexpired'))
-            .thenAnswer((_) async => device);
-        when(() => mockDb.updateLastConnected('device-unexpired'))
-            .thenAnswer((_) async {});
+        when(
+          () => mockDb.getPairedDevice('device-unexpired'),
+        ).thenAnswer((_) async => device);
+        when(
+          () => mockDb.updateLastConnected('device-unexpired'),
+        ).thenAnswer((_) async {});
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'device-unexpired',
@@ -338,10 +362,12 @@ void main() {
           expiresAt: null,
         );
 
-        when(() => mockDb.getPairedDevice('device-legacy'))
-            .thenAnswer((_) async => device);
-        when(() => mockDb.updateLastConnected('device-legacy'))
-            .thenAnswer((_) async {});
+        when(
+          () => mockDb.getPairedDevice('device-legacy'),
+        ).thenAnswer((_) async => device);
+        when(
+          () => mockDb.updateLastConnected('device-legacy'),
+        ).thenAnswer((_) async {});
 
         final result = await tokenManager.verifySessionToken(
           deviceId: 'device-legacy',
@@ -360,8 +386,9 @@ void main() {
           expiresAt: past,
         );
 
-        when(() => mockDb.getPairedDevice('device-expired-listener'))
-            .thenAnswer((_) async => device);
+        when(
+          () => mockDb.getPairedDevice('device-expired-listener'),
+        ).thenAnswer((_) async => device);
 
         String? evicted;
         tokenManager.setRevocationListener((token) => evicted = token);
@@ -384,10 +411,10 @@ void main() {
           isActive: true,
         );
 
-        when(() => mockDb.getPairedDevice('dev-revoked'))
-            .thenAnswer((_) async => device);
-        when(() => mockDb.revokeDevice('dev-revoked'))
-            .thenAnswer((_) async {});
+        when(
+          () => mockDb.getPairedDevice('dev-revoked'),
+        ).thenAnswer((_) async => device);
+        when(() => mockDb.revokeDevice('dev-revoked')).thenAnswer((_) async {});
 
         String? evicted;
         tokenManager.setRevocationListener((token) => evicted = token);
@@ -398,10 +425,10 @@ void main() {
         verify(() => mockDb.revokeDevice('dev-revoked')).called(1);
       });
 
-      test('is a no-op for an unknown device id (no listener call)',
-          () async {
-        when(() => mockDb.getPairedDevice('nope'))
-            .thenAnswer((_) async => null);
+      test('is a no-op for an unknown device id (no listener call)', () async {
+        when(
+          () => mockDb.getPairedDevice('nope'),
+        ).thenAnswer((_) async => null);
         when(() => mockDb.revokeDevice('nope')).thenAnswer((_) async {});
 
         var called = false;
@@ -414,45 +441,53 @@ void main() {
     });
 
     group('purgeExpiredAndRevokedSessions', () {
-      test('separates expired and revoked rows and notifies listener',
-          () async {
-        final past = DateTime.now().subtract(const Duration(minutes: 1));
-        final expiredDevice = _fakePairedDevice(
-          deviceId: 'dev-expired',
-          sessionToken: 'expiredtok' * 6 + 'abcd',
-          isActive: true,
-          expiresAt: past,
-        );
-        final revokedDevice = _fakePairedDevice(
-          deviceId: 'dev-revoked-sweep',
-          sessionToken: 'revokedtok' * 6 + 'abcd',
-          isActive: false,
-          expiresAt: null,
-        );
+      test(
+        'separates expired and revoked rows and notifies listener',
+        () async {
+          final past = DateTime.now().subtract(const Duration(minutes: 1));
+          final expiredDevice = _fakePairedDevice(
+            deviceId: 'dev-expired',
+            sessionToken: 'expiredtok' * 6 + 'abcd',
+            isActive: true,
+            expiresAt: past,
+          );
+          final revokedDevice = _fakePairedDevice(
+            deviceId: 'dev-revoked-sweep',
+            sessionToken: 'revokedtok' * 6 + 'abcd',
+            isActive: false,
+            expiresAt: null,
+          );
 
-        when(() => mockDb.getExpiredOrRevokedDevices(any()))
-            .thenAnswer((_) async => [expiredDevice, revokedDevice]);
-        when(() => mockDb.deleteExpiredPairedDevices(any()))
-            .thenAnswer((_) async {});
+          when(
+            () => mockDb.getExpiredOrRevokedDevices(any()),
+          ).thenAnswer((_) async => [expiredDevice, revokedDevice]);
+          when(
+            () => mockDb.deleteExpiredPairedDevices(any()),
+          ).thenAnswer((_) async {});
 
-        final evicted = <String>[];
-        tokenManager.setRevocationListener(evicted.add);
+          final evicted = <String>[];
+          tokenManager.setRevocationListener(evicted.add);
 
-        final result = await tokenManager.purgeExpiredAndRevokedSessions();
+          final result = await tokenManager.purgeExpiredAndRevokedSessions();
 
-        expect(result.expiredTokens, equals([expiredDevice.sessionToken]));
-        expect(result.revokedTokens, equals([revokedDevice.sessionToken]));
-        expect(
-          evicted,
-          containsAll([expiredDevice.sessionToken, revokedDevice.sessionToken]),
-        );
-        // Expired rows must be hard-deleted; revoked rows retained for audit.
-        verify(() => mockDb.deleteExpiredPairedDevices(any())).called(1);
-      });
+          expect(result.expiredTokens, equals([expiredDevice.sessionToken]));
+          expect(result.revokedTokens, equals([revokedDevice.sessionToken]));
+          expect(
+            evicted,
+            containsAll([
+              expiredDevice.sessionToken,
+              revokedDevice.sessionToken,
+            ]),
+          );
+          // Expired rows must be hard-deleted; revoked rows retained for audit.
+          verify(() => mockDb.deleteExpiredPairedDevices(any())).called(1);
+        },
+      );
 
       test('no-op when nothing matches', () async {
-        when(() => mockDb.getExpiredOrRevokedDevices(any()))
-            .thenAnswer((_) async => []);
+        when(
+          () => mockDb.getExpiredOrRevokedDevices(any()),
+        ).thenAnswer((_) async => []);
 
         final result = await tokenManager.purgeExpiredAndRevokedSessions();
 

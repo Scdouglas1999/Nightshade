@@ -9,8 +9,7 @@ import 'settings_widgets.dart';
 class AppearanceSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const AppearanceSettings(
-      {super.key, this.isMobile = false});
+  const AppearanceSettings({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

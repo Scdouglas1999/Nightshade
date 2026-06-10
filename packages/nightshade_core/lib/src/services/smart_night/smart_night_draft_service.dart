@@ -43,14 +43,14 @@ class SmartNightDraft {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'profileId': profileId,
-        'astronomicalDay': _dateKey(astronomicalDay),
-        'status': status.name,
-        'plan': plan.toJson(),
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'profileId': profileId,
+    'astronomicalDay': _dateKey(astronomicalDay),
+    'status': status.name,
+    'plan': plan.toJson(),
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   factory SmartNightDraft.fromJson(Map<String, dynamic> json) {
     return SmartNightDraft(
@@ -116,21 +116,21 @@ class SmartNightDraftService {
     final dayKey = _dateKey(astronomicalDay);
     final drafts = await loadAll();
     return drafts.cast<SmartNightDraft?>().lastWhere(
-          (d) =>
-              d != null &&
-              d.profileId == profileId &&
-              _dateKey(d.astronomicalDay) == dayKey &&
-              d.status == SmartNightDraftStatus.pending,
-          orElse: () => null,
-        );
+      (d) =>
+          d != null &&
+          d.profileId == profileId &&
+          _dateKey(d.astronomicalDay) == dayKey &&
+          d.status == SmartNightDraftStatus.pending,
+      orElse: () => null,
+    );
   }
 
   Future<SmartNightDraft?> loadById(String id) async {
     final drafts = await loadAll();
     return drafts.cast<SmartNightDraft?>().firstWhere(
-          (d) => d?.id == id,
-          orElse: () => null,
-        );
+      (d) => d?.id == id,
+      orElse: () => null,
+    );
   }
 
   Future<void> markStarted(String id) async {

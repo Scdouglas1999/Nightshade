@@ -36,8 +36,9 @@ void main() {
     mockBackend = MockBackend();
     events = StreamController<NightshadeEvent>.broadcast();
     when(() => mockBackend.eventStream).thenAnswer((_) => events.stream);
-    when(() => mockBackend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     container = ProviderContainer(
       overrides: [
@@ -65,39 +66,45 @@ void main() {
         data: data,
       );
 
-  test('HeartbeatStatusChanged(degraded) updates the provider with reason',
-      () async {
-    const deviceId = 'native:zwo:0';
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'status': 'degraded',
-      'consecutive_failures': 3,
-      'last_rtt_ms': 250,
-    }));
+  test(
+    'HeartbeatStatusChanged(degraded) updates the provider with reason',
+    () async {
+      const deviceId = 'native:zwo:0';
+      events.add(
+        makeEvent('HeartbeatStatusChanged', {
+          'device_type': 'camera',
+          'device_id': deviceId,
+          'status': 'degraded',
+          'consecutive_failures': 3,
+          'last_rtt_ms': 250,
+        }),
+      );
 
-    // Allow the stream listener to dispatch.
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Allow the stream listener to dispatch.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    final state = container
-        .read(deviceHeartbeatHealthProvider.notifier)
-        .forDevice(deviceId);
-    expect(state.health, HeartbeatHealth.degraded);
-    // CLAUDE.md: the reason must carry the real failure count, not a
-    // generic placeholder.
-    expect(state.reason, isNotNull);
-    expect(state.reason!, contains('3'));
-    expect(state.consecutiveFailures, 3);
-  });
+      final state = container
+          .read(deviceHeartbeatHealthProvider.notifier)
+          .forDevice(deviceId);
+      expect(state.health, HeartbeatHealth.degraded);
+      // CLAUDE.md: the reason must carry the real failure count, not a
+      // generic placeholder.
+      expect(state.reason, isNotNull);
+      expect(state.reason!, contains('3'));
+      expect(state.consecutiveFailures, 3);
+    },
+  );
 
   test('HeartbeatStatusChanged(healthy) routes to healthy state', () async {
     const deviceId = 'native:zwo:0';
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'status': 'healthy',
-      'consecutive_failures': 0,
-    }));
+    events.add(
+      makeEvent('HeartbeatStatusChanged', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'status': 'healthy',
+        'consecutive_failures': 0,
+      }),
+    );
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -107,15 +114,16 @@ void main() {
     expect(state.health, HeartbeatHealth.healthy);
   });
 
-  test('HeartbeatReconnecting populates attempt counter in reason',
-      () async {
+  test('HeartbeatReconnecting populates attempt counter in reason', () async {
     const deviceId = 'native:zwo:0';
-    events.add(makeEvent('HeartbeatReconnecting', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'attempt': 2,
-      'max_attempts': 5,
-    }));
+    events.add(
+      makeEvent('HeartbeatReconnecting', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'attempt': 2,
+        'max_attempts': 5,
+      }),
+    );
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -126,8 +134,7 @@ void main() {
     expect(state.reason, contains('attempt 2'));
   });
 
-  test(
-      'Disconnected event clears the heartbeat entry when no reconnect is '
+  test('Disconnected event clears the heartbeat entry when no reconnect is '
       'pending', () async {
     const deviceId = 'native:zwo:0';
 
@@ -138,12 +145,14 @@ void main() {
     container.read(cameraStateProvider.notifier).setAutoReconnect(false);
 
     // First, mark the device degraded.
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'status': 'degraded',
-      'consecutive_failures': 2,
-    }));
+    events.add(
+      makeEvent('HeartbeatStatusChanged', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'status': 'degraded',
+        'consecutive_failures': 2,
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final beforeState = container
@@ -153,10 +162,12 @@ void main() {
 
     // Now disconnect — heartbeat entry should be cleared so the
     // indicator falls back to gray "unknown" rather than getting stuck.
-    events.add(makeEvent('Disconnected', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-    }));
+    events.add(
+      makeEvent('Disconnected', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final afterState = container
@@ -167,11 +178,13 @@ void main() {
 
   test('HeartbeatStarted seeds device as healthy immediately', () async {
     const deviceId = 'native:zwo:0';
-    events.add(makeEvent('HeartbeatStarted', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'interval_secs': BigInt.from(10),
-    }));
+    events.add(
+      makeEvent('HeartbeatStarted', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'interval_secs': BigInt.from(10),
+      }),
+    );
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -183,11 +196,13 @@ void main() {
 
   test('HeartbeatStopped clears the entry', () async {
     const deviceId = 'native:zwo:0';
-    events.add(makeEvent('HeartbeatStarted', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'interval_secs': BigInt.from(10),
-    }));
+    events.add(
+      makeEvent('HeartbeatStarted', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'interval_secs': BigInt.from(10),
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(
       container
@@ -197,10 +212,12 @@ void main() {
       HeartbeatHealth.healthy,
     );
 
-    events.add(makeEvent('HeartbeatStopped', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-    }));
+    events.add(
+      makeEvent('HeartbeatStopped', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(
@@ -212,8 +229,7 @@ void main() {
     );
   });
 
-  test(
-      'HeartbeatStatusChanged(disconnected) drives the disconnect side '
+  test('HeartbeatStatusChanged(disconnected) drives the disconnect side '
       'effects (flips connection state + surfaces reconnecting)', () async {
     // Polish #5 regression guard. The heartbeat-lost path no longer emits a
     // standalone `Disconnected` event (deduped to one toast), so the
@@ -240,12 +256,14 @@ void main() {
     );
 
     // Degrade first so there is a health entry to transition.
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'status': 'degraded',
-      'consecutive_failures': 4,
-    }));
+    events.add(
+      makeEvent('HeartbeatStatusChanged', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'status': 'degraded',
+        'consecutive_failures': 4,
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(
       container
@@ -258,12 +276,14 @@ void main() {
     // Cross the threshold: Rust emits HeartbeatStatusChanged{Disconnected}
     // (no standalone Disconnected event). This must flip the camera to
     // disconnected and surface the reconnecting indicator.
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'camera',
-      'device_id': deviceId,
-      'status': 'disconnected',
-      'consecutive_failures': 5,
-    }));
+    events.add(
+      makeEvent('HeartbeatStatusChanged', {
+        'device_type': 'camera',
+        'device_id': deviceId,
+        'status': 'disconnected',
+        'consecutive_failures': 5,
+      }),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(
@@ -272,7 +292,8 @@ void main() {
           .forDevice(deviceId)
           .health,
       HeartbeatHealth.reconnecting,
-      reason: 'a Dart-owned reconnect must light the reconnecting indicator, '
+      reason:
+          'a Dart-owned reconnect must light the reconnecting indicator, '
           'not fall back to gray "unknown" while the attempt is in flight',
     );
     expect(
@@ -282,8 +303,7 @@ void main() {
     );
   });
 
-  test(
-      'native-owned mount heartbeat loss surfaces reconnecting WITHOUT a '
+  test('native-owned mount heartbeat loss surfaces reconnecting WITHOUT a '
       'competing Dart connect (single-owner de-dup)', () async {
     // DEV-P1 dual-reconnect race. The mount is a native-owned reconnect
     // type (HeartbeatConfig::for_mount sets auto_reconnect = true), so the
@@ -297,12 +317,14 @@ void main() {
     mountNotifier.setConnecting(deviceId, 'Test Mount');
     mountNotifier.setConnected();
 
-    events.add(makeEvent('HeartbeatStatusChanged', {
-      'device_type': 'mount',
-      'device_id': deviceId,
-      'status': 'disconnected',
-      'consecutive_failures': 5,
-    }));
+    events.add(
+      makeEvent('HeartbeatStatusChanged', {
+        'device_type': 'mount',
+        'device_id': deviceId,
+        'status': 'disconnected',
+        'consecutive_failures': 5,
+      }),
+    );
     // Give the unawaited reconnect path time to run its synchronous
     // ownership decision. The Dart coordinator's own backoff is 5s, so a
     // 100ms wait is well short of any (incorrect) Dart connect attempt.
@@ -372,22 +394,26 @@ void main() {
     }
   });
 
-  test('Heartbeat dispatch does not interfere with the Disconnected handler',
-      () async {
-    // Regression guard for the task constraint: heartbeat routing must
-    // not break the DEV-P0-1 / DEV-P0-5 connection-state handling.
-    // We send a Disconnected event for a device that has no heartbeat
-    // entry at all — the heartbeat clear (no-op) must not raise and
-    // the event must still be processed by the existing handler.
-    const deviceId = 'native:zwo:0';
+  test(
+    'Heartbeat dispatch does not interfere with the Disconnected handler',
+    () async {
+      // Regression guard for the task constraint: heartbeat routing must
+      // not break the DEV-P0-1 / DEV-P0-5 connection-state handling.
+      // We send a Disconnected event for a device that has no heartbeat
+      // entry at all — the heartbeat clear (no-op) must not raise and
+      // the event must still be processed by the existing handler.
+      const deviceId = 'native:zwo:0';
 
-    expect(
-      () => events.add(makeEvent('Disconnected', {
-        'device_type': 'camera',
-        'device_id': deviceId,
-      })),
-      returnsNormally,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-  });
+      expect(
+        () => events.add(
+          makeEvent('Disconnected', {
+            'device_type': 'camera',
+            'device_id': deviceId,
+          }),
+        ),
+        returnsNormally,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    },
+  );
 }

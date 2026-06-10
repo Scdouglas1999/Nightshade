@@ -187,8 +187,8 @@ class PlanetariumCatalogOverlaySource implements CatalogOverlaySource {
   PlanetariumCatalogOverlaySource({
     OpenNgcDsoCatalog? dso,
     HygStarCatalog? star,
-  })  : _dso = dso ?? OpenNgcDsoCatalog(),
-        _star = star ?? HygStarCatalog();
+  }) : _dso = dso ?? OpenNgcDsoCatalog(),
+       _star = star ?? HygStarCatalog();
 
   @override
   Future<List<DeepSkyObject>> loadDsos() => _dso.loadObjects();
@@ -271,8 +271,9 @@ class CatalogOverlayService {
     }
 
     final projection = GnomonicProjection(wcs);
-    final bbox =
-        projection.computeBoundingBox(paddingFraction: bboxPaddingFraction);
+    final bbox = projection.computeBoundingBox(
+      paddingFraction: bboxPaddingFraction,
+    );
 
     final hits = <_RankedHit>[];
     var totalInFov = 0;
@@ -361,7 +362,9 @@ class CatalogOverlayService {
   // -------------------------------------------------------------------------
 
   static bool _dsoPassesMagnitudeFilter(
-      DeepSkyObject dso, double magnitudeLimit) {
+    DeepSkyObject dso,
+    double magnitudeLimit,
+  ) {
     final mag = dso.magnitude;
     // Mission requirement: include Messier objects even when magnitude
     // is unknown — they're the centerpiece of any overlay. NGC / IC
@@ -472,7 +475,9 @@ class CatalogOverlayService {
   }
 
   static double _markerRadiusForArcmin(
-      double? arcmin, double pixelScaleArcsec) {
+    double? arcmin,
+    double pixelScaleArcsec,
+  ) {
     if (arcmin == null || arcmin <= 0) return 24;
     final diameterPx = arcmin * 60.0 / pixelScaleArcsec;
     return (diameterPx / 2.0).clamp(8.0, 320.0);

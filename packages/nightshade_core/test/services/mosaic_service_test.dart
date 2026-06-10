@@ -139,8 +139,10 @@ void main() {
 
       // With 90° rotation, what was horizontal should become vertical
       // Dec separation should be larger with rotation
-      final decSepNoRot = (panelsNoRot[1].decDegrees - panelsNoRot[0].decDegrees).abs();
-      final decSepRot = (panelsRot[1].decDegrees - panelsRot[0].decDegrees).abs();
+      final decSepNoRot =
+          (panelsNoRot[1].decDegrees - panelsNoRot[0].decDegrees).abs();
+      final decSepRot = (panelsRot[1].decDegrees - panelsRot[0].decDegrees)
+          .abs();
 
       expect(decSepRot, greaterThan(decSepNoRot));
     });
@@ -278,7 +280,10 @@ void main() {
 
       expect(validation.isValid, isFalse);
       expect(validation.errors, isNotEmpty);
-      expect(validation.errors.any((e) => e.contains('Right Ascension')), isTrue);
+      expect(
+        validation.errors.any((e) => e.contains('Right Ascension')),
+        isTrue,
+      );
     });
 
     test('rejects invalid declination', () {
@@ -497,9 +502,7 @@ void main() {
         exposuresPerPanel: 10,
       );
 
-      const options = MosaicSequenceOptions(
-        autofocusPerPanel: true,
-      );
+      const options = MosaicSequenceOptions(autofocusPerPanel: true);
 
       final nodes = service.createMosaicSequence(
         mosaicName: 'Test Mosaic',
@@ -590,9 +593,7 @@ void main() {
         exposuresPerPanel: 10,
       );
 
-      const options = MosaicSequenceOptions(
-        centerAfterSlew: false,
-      );
+      const options = MosaicSequenceOptions(centerAfterSlew: false);
 
       final nodes = service.createMosaicSequence(
         mosaicName: 'Test Mosaic',
@@ -688,9 +689,7 @@ void main() {
         exposuresPerPanel: 1,
       );
 
-      const options = MosaicSequenceOptions(
-        serpentineOrdering: true,
-      );
+      const options = MosaicSequenceOptions(serpentineOrdering: true);
 
       final nodes = service.createMosaicSequence(
         mosaicName: 'Test Mosaic',
@@ -711,10 +710,15 @@ void main() {
 
       // First three should be in same row
       // Next three should be in next row
-      final firstRowCount = targetGroups.take(3).where((t) =>
-        t.targetName.contains('Panel 1') ||
-        t.targetName.contains('Panel 2') ||
-        t.targetName.contains('Panel 3')).length;
+      final firstRowCount = targetGroups
+          .take(3)
+          .where(
+            (t) =>
+                t.targetName.contains('Panel 1') ||
+                t.targetName.contains('Panel 2') ||
+                t.targetName.contains('Panel 3'),
+          )
+          .length;
       expect(firstRowCount, equals(3));
     });
   });
@@ -757,10 +761,16 @@ void main() {
 
       final ids = headers.map((h) => h.catalogTargetId).toList();
       // Six panels -> six distinct, non-null capture targets.
-      expect(ids.whereType<int>(), hasLength(6),
-          reason: 'every panel header must carry a non-null catalogTargetId');
-      expect(ids.toSet(), hasLength(6),
-          reason: 'each panel must attribute to its OWN target (no pooling)');
+      expect(
+        ids.whereType<int>(),
+        hasLength(6),
+        reason: 'every panel header must carry a non-null catalogTargetId',
+      );
+      expect(
+        ids.toSet(),
+        hasLength(6),
+        reason: 'each panel must attribute to its OWN target (no pooling)',
+      );
       // Each id resolves to its own panel index (header order == panel index
       // with serpentine off).
       expect(ids, equals(const [100, 101, 102, 103, 104, 105]));
@@ -792,12 +802,15 @@ void main() {
         config: config,
         exposure: exposure,
         options: const MosaicSequenceOptions(serpentineOrdering: false),
-        panelTargetId: (panelIndex) => panelIndex.isEven ? 200 + panelIndex : null,
+        panelTargetId: (panelIndex) =>
+            panelIndex.isEven ? 200 + panelIndex : null,
       );
       final headers = nodes.values.whereType<TargetHeaderNode>().toList()
         ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-      expect(headers.map((h) => h.catalogTargetId).toList(),
-          equals(const [200, null, 202, null, 204, null]));
+      expect(
+        headers.map((h) => h.catalogTargetId).toList(),
+        equals(const [200, null, 202, null, 204, null]),
+      );
     });
   });
 
@@ -831,8 +844,11 @@ void main() {
 
       final headers = nodes.values.whereType<TargetHeaderNode>().toList();
       expect(headers, hasLength(4));
-      expect(headers.every((h) => h.minAltitude == 30.0), isTrue,
-          reason: 'every panel must gate on the configured altitude floor');
+      expect(
+        headers.every((h) => h.minAltitude == 30.0),
+        isTrue,
+        reason: 'every panel must gate on the configured altitude floor',
+      );
       expect(headers.every((h) => h.hasAltitudeConstraints), isTrue);
     });
   });

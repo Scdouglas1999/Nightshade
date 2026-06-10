@@ -59,8 +59,7 @@ NightshadeEvent _hotplugEvent({
 }
 
 void main() {
-  test(
-      'hotplugEventBridgeProvider invalidates discovery providers on '
+  test('hotplugEventBridgeProvider invalidates discovery providers on '
       'device_discovered events', () async {
     final controller = StreamController<NightshadeEvent>.broadcast();
     addTearDown(controller.close);
@@ -107,8 +106,7 @@ void main() {
     expect(mountScans, greaterThan(mountBaseline));
   });
 
-  test(
-      'hotplugEventBridgeProvider coalesces a burst into a single '
+  test('hotplugEventBridgeProvider coalesces a burst into a single '
       'invalidation round', () async {
     final controller = StreamController<NightshadeEvent>.broadcast();
     addTearDown(controller.close);
@@ -136,10 +134,12 @@ void main() {
 
     // A powered-hub plug-in: many arrivals back-to-back inside one window.
     for (var i = 0; i < 25; i++) {
-      controller.add(_hotplugEvent(
-        property: deviceDiscoveredProperty,
-        deviceId: 'native:zwo:$i',
-      ));
+      controller.add(
+        _hotplugEvent(
+          property: deviceDiscoveredProperty,
+          deviceId: 'native:zwo:$i',
+        ),
+      );
     }
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
@@ -150,8 +150,7 @@ void main() {
     expect(cameraScans, equals(baseline + 1));
   });
 
-  test(
-      'hotplugEventBridgeProvider invalidates discovery providers on '
+  test('hotplugEventBridgeProvider invalidates discovery providers on '
       'device_lost events', () async {
     final controller = StreamController<NightshadeEvent>.broadcast();
     addTearDown(controller.close);
@@ -177,11 +176,13 @@ void main() {
     await container.read(availableFocusersProvider.future);
     final baseline = scans;
 
-    controller.add(_hotplugEvent(
-      property: deviceLostProperty,
-      deviceType: 'focuser',
-      deviceId: 'native:zwo:0',
-    ));
+    controller.add(
+      _hotplugEvent(
+        property: deviceLostProperty,
+        deviceType: 'focuser',
+        deviceId: 'native:zwo:0',
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
     await container.read(availableFocusersProvider.future);
@@ -189,50 +190,53 @@ void main() {
   });
 
   test(
-      'hotplugEventBridgeProvider ignores unrelated PropertyChanged events',
-      () async {
-    final controller = StreamController<NightshadeEvent>.broadcast();
-    addTearDown(controller.close);
+    'hotplugEventBridgeProvider ignores unrelated PropertyChanged events',
+    () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
 
-    final backend = _MockFfiBackend();
-    when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+      final backend = _MockFfiBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
 
-    var scans = 0;
-    final container = ProviderContainer(
-      overrides: [
-        backendProvider.overrideWith(
-          (ref) => _FixedBackendNotifier(ref, backend),
+      var scans = 0;
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          availableCamerasProvider.overrideWith((ref) {
+            scans += 1;
+            return <DeviceInfo>[];
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(hotplugEventBridgeProvider);
+      await container.read(availableCamerasProvider.future);
+      final baseline = scans;
+
+      // A non-hot-plug PropertyChanged (mount tracking, camera temp, etc.)
+      // must NOT invalidate the discovery providers — that would cause a
+      // rescan storm during normal operation.
+      controller.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.equipment,
+          eventType: 'PropertyChanged',
+          data: const {
+            'device_type': 'mount',
+            'device_id': 'ascom:sw.eqmod',
+            'property': 'tracking_state',
+            'value': 'true',
+          },
         ),
-        availableCamerasProvider.overrideWith((ref) {
-          scans += 1;
-          return <DeviceInfo>[];
-        }),
-      ],
-    );
-    addTearDown(container.dispose);
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-    container.read(hotplugEventBridgeProvider);
-    await container.read(availableCamerasProvider.future);
-    final baseline = scans;
-
-    // A non-hot-plug PropertyChanged (mount tracking, camera temp, etc.)
-    // must NOT invalidate the discovery providers — that would cause a
-    // rescan storm during normal operation.
-    controller.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'PropertyChanged',
-      data: const {
-        'device_type': 'mount',
-        'device_id': 'ascom:sw.eqmod',
-        'property': 'tracking_state',
-        'value': 'true',
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-
-    // No re-read because the future provider was not invalidated.
-    expect(scans, equals(baseline));
-  });
+      // No re-read because the future provider was not invalidated.
+      expect(scans, equals(baseline));
+    },
+  );
 }

@@ -35,7 +35,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
   bool _isMoving = false;
 
   FocuserState? get _focuserState => ref.watch(focuserStateProvider);
-  bool get _isConnected => _focuserState?.connectionState == DeviceConnectionState.connected;
+  bool get _isConnected =>
+      _focuserState?.connectionState == DeviceConnectionState.connected;
 
   Future<void> _moveRelative(int steps) async {
     if (_isMoving) return;
@@ -67,19 +68,18 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
-        exposureTime: settings.exposureTime,
-        stepSize: settings.afStepSize,
-        stepsOut: settings.stepsOut,
-        method: settings.method,
-        binning: 1,
-      );
+            exposureTime: settings.exposureTime,
+            stepSize: settings.afStepSize,
+            stepsOut: settings.stepsOut,
+            method: settings.method,
+            binning: 1,
+          );
       ref.read(autofocusResultProvider.notifier).state = result;
       // Notify overlay of completion
       ref.read(autofocusOverlayProvider.notifier).onAutofocusCompleted(result);
       if (mounted) {
         context.showSuccessSnackBar(
-          'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}'
-        );
+            'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
         widget.onAutofocusComplete?.call();
       }
     } catch (e) {
@@ -147,7 +147,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
             label: _isRunningAutofocus ? 'Running...' : 'Run Autofocus',
             icon: _isRunningAutofocus ? LucideIcons.loader2 : LucideIcons.focus,
             size: widget.compact ? ButtonSize.small : ButtonSize.medium,
-            onPressed: (_isConnected && !_isRunningAutofocus) ? _runAutofocus : null,
+            onPressed:
+                (_isConnected && !_isRunningAutofocus) ? _runAutofocus : null,
           ),
         ],
       ],
@@ -183,7 +184,9 @@ class _MoveButton extends StatelessWidget {
           child: Icon(
             icon,
             size: size * 0.5,
-            color: onPressed != null ? (color ?? colors.textPrimary) : colors.textMuted,
+            color: onPressed != null
+                ? (color ?? colors.textPrimary)
+                : colors.textMuted,
           ),
         ),
       ),

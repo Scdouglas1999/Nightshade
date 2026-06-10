@@ -14,8 +14,7 @@ import 'settings_widgets.dart';
 class PlateSolvingSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const PlateSolvingSettings(
-      {super.key, this.isMobile = false});
+  const PlateSolvingSettings({super.key, this.isMobile = false});
 
   @override
   ConsumerState<PlateSolvingSettings> createState() =>

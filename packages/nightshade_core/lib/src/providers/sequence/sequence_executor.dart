@@ -257,8 +257,7 @@ class SequenceExecutor {
   Future<void> seedIntegrationCarryOverFromHandoffForTest(
     NightshadeBackend backend,
     Sequence sequence,
-  ) =>
-      _seedIntegrationCarryOverFromHandoff(backend, sequence);
+  ) => _seedIntegrationCarryOverFromHandoff(backend, sequence);
 
   /// Convert Dart sequence to JSON for native executor
   ///
@@ -267,7 +266,8 @@ class SequenceExecutor {
   /// AppSettings is consulted only when the node provides no explicit value
   /// (audit-handoff §2.1 WIRE-UP items #4 and #5).
   Future<validation.ValidationResult> validateSequenceForStart(
-      Sequence sequence) async {
+    Sequence sequence,
+  ) async {
     final validator = _ref.read(validation.sequenceValidatorProvider);
     return validator.validate(sequence);
   }
@@ -323,14 +323,14 @@ class SequenceExecutor {
     await sessionNotifier.startSession(
       targetName: sequence.name,
       targetRa: isSingleTarget ? sequence.targetHeaders.first.raHours : null,
-      targetDec:
-          isSingleTarget ? sequence.targetHeaders.first.decDegrees : null,
+      targetDec: isSingleTarget
+          ? sequence.targetHeaders.first.decDegrees
+          : null,
     );
     sessionNotifier.setTotalExposures(sequence.totalExposures);
-    final runId = await _ref.read(sequenceRunsDaoProvider).startRun(
-          sequenceId: sequence.databaseId,
-          sequenceName: sequence.name,
-        );
+    final runId = await _ref
+        .read(sequenceRunsDaoProvider)
+        .startRun(sequenceId: sequence.databaseId, sequenceName: sequence.name);
     _ref.read(currentRunIdProvider.notifier).state = runId;
     _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
     _runFinalized = false;
@@ -376,8 +376,10 @@ class SequenceExecutor {
     // estimate around.
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
-        final elapsed =
-            DateTime.now().difference(_startTime!).inSeconds.toDouble();
+        final elapsed = DateTime.now()
+            .difference(_startTime!)
+            .inSeconds
+            .toDouble();
         final progress = _ref.read(sequenceProgressProvider);
         final eta = _computeSmoothedEta(elapsed, progress);
         progressNotifier.updateProgress(
@@ -402,8 +404,10 @@ class SequenceExecutor {
   }
 
   /// Wait for state change with timeout
-  Future<bool> _awaitStateChange(SequenceExecutionState expectedState,
-      {Duration timeout = const Duration(seconds: 5)}) async {
+  Future<bool> _awaitStateChange(
+    SequenceExecutionState expectedState, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
     final endTime = DateTime.now().add(timeout);
 
     while (DateTime.now().isBefore(endTime)) {
@@ -563,8 +567,10 @@ class SequenceExecutor {
       await backend.discardCheckpoint();
     } catch (e) {
       // Cleanup-only error; the stop itself succeeded.
-      _logger.warning('Failed to clear checkpoint on stop: $e',
-          source: 'SequenceExecutor');
+      _logger.warning(
+        'Failed to clear checkpoint on stop: $e',
+        source: 'SequenceExecutor',
+      );
     }
   }
 
@@ -599,23 +605,29 @@ class SequenceExecutor {
     try {
       await backend.sequencerReset();
     } catch (e) {
-      _logger.warning('Error resetting native sequencer: $e',
-          source: 'SequenceExecutor');
+      _logger.warning(
+        'Error resetting native sequencer: $e',
+        source: 'SequenceExecutor',
+      );
       // The Dart-side reset above is the authoritative source of truth.
     }
 
     try {
       await backend.discardCheckpoint();
     } catch (e) {
-      _logger.warning('Error clearing checkpoint on reset: $e',
-          source: 'SequenceExecutor');
+      _logger.warning(
+        'Error clearing checkpoint on reset: $e',
+        source: 'SequenceExecutor',
+      );
     }
 
     _ref.read(sequenceExecutionStateProvider.notifier).state =
         SequenceExecutionState.idle;
 
-    _logger.info('Sequence reset - ready to run from beginning',
-        source: 'SequenceExecutor');
+    _logger.info(
+      'Sequence reset - ready to run from beginning',
+      source: 'SequenceExecutor',
+    );
   }
 
   // =========================================================================
@@ -669,11 +681,13 @@ class SequenceExecutor {
     final settings = _ref.read(appSettingsProvider).valueOrNull;
     if (settings != null &&
         (settings.latitude != 0.0 || settings.longitude != 0.0)) {
-      await backend.setLocation(ObserverLocation(
-        latitude: settings.latitude,
-        longitude: settings.longitude,
-        elevation: settings.elevation,
-      ));
+      await backend.setLocation(
+        ObserverLocation(
+          latitude: settings.latitude,
+          longitude: settings.longitude,
+          elevation: settings.elevation,
+        ),
+      );
     }
     if (kReleaseMode) {
       await backend.sequencerSetSimulationMode(false);
@@ -710,16 +724,16 @@ class SequenceExecutor {
             : null,
         focuserId:
             focuserState.connectionState == DeviceConnectionState.connected
-                ? focuserState.deviceId
-                : null,
+            ? focuserState.deviceId
+            : null,
         filterwheelId:
             filterwheelState.connectionState == DeviceConnectionState.connected
-                ? filterwheelState.deviceId
-                : null,
+            ? filterwheelState.deviceId
+            : null,
         rotatorId:
             rotatorState.connectionState == DeviceConnectionState.connected
-                ? rotatorState.deviceId
-                : null,
+            ? rotatorState.deviceId
+            : null,
       );
     }
     await _seedRuntimeConfigFromSettings(backend);
@@ -741,10 +755,9 @@ class SequenceExecutor {
     // Rust-side definition, not the Dart DB id) — null is accepted.
     final sessionNotifier = _ref.read(sessionStateProvider.notifier);
     await sessionNotifier.startSession(targetName: info.sequenceName);
-    final runId = await _ref.read(sequenceRunsDaoProvider).startRun(
-          sequenceId: null,
-          sequenceName: info.sequenceName,
-        );
+    final runId = await _ref
+        .read(sequenceRunsDaoProvider)
+        .startRun(sequenceId: null, sequenceName: info.sequenceName);
     _ref.read(currentRunIdProvider.notifier).state = runId;
     _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
     _runFinalized = false;
@@ -772,8 +785,10 @@ class SequenceExecutor {
 
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
-        final elapsed =
-            DateTime.now().difference(_startTime!).inSeconds.toDouble();
+        final elapsed = DateTime.now()
+            .difference(_startTime!)
+            .inSeconds
+            .toDouble();
         final progress = _ref.read(sequenceProgressProvider);
         final eta = _computeSmoothedEta(elapsed, progress);
         progressNotifier.updateProgress(

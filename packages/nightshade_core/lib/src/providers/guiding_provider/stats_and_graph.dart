@@ -51,8 +51,8 @@ final starLostEventProvider = StateProvider<DateTime?>((ref) => null);
 /// Provider for current guide stats with rolling RMS calculation
 final guideStatsProvider =
     StateNotifierProvider<GuideStatsNotifier, Phd2GuideStats>((ref) {
-  return GuideStatsNotifier(ref);
-});
+      return GuideStatsNotifier(ref);
+    });
 
 /// Notifier that maintains rolling RMS statistics
 class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
@@ -66,14 +66,16 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   int _frameCount = 0;
 
   GuideStatsNotifier(this.ref)
-      : super(const Phd2GuideStats(
+    : super(
+        const Phd2GuideStats(
           rmsRa: 0,
           rmsDec: 0,
           rmsTotal: 0,
           snr: 0,
           starMass: 0,
           frameCount: 0,
-        )) {
+        ),
+      ) {
     _events = _BackendGuidingEventBinding(ref, _onBackendEvent);
     _events.start();
   }
@@ -87,8 +89,10 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       } else if (event.eventType == 'GuideStats') {
         final snr = (event.data['SNR'] ?? 0).toDouble();
         final starMass = (event.data['StarMass'] ?? 0).toDouble();
-        _logger.debug('Received GuideStats: SNR=$snr, StarMass=$starMass',
-            source: 'GuideStatsNotifier');
+        _logger.debug(
+          'Received GuideStats: SNR=$snr, StarMass=$starMass',
+          source: 'GuideStatsNotifier',
+        );
         updateStarData(snr, starMass);
       } else if (event.eventType == 'GuidingStopped') {
         _logger.debug('Received GuidingStopped', source: 'GuideStatsNotifier');
@@ -195,8 +199,8 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
 /// looping/guiding/calibrating; cleared on disconnect.
 final guideStarsProvider =
     StateNotifierProvider<GuideStarsNotifier, List<GuideStar>>((ref) {
-  return GuideStarsNotifier(ref);
-});
+      return GuideStarsNotifier(ref);
+    });
 
 class GuideStarsNotifier extends StateNotifier<List<GuideStar>> {
   GuideStarsNotifier(this.ref) : super(const []) {
@@ -234,8 +238,10 @@ class GuideStarsNotifier extends StateNotifier<List<GuideStar>> {
 
   void _startPolling() {
     _stopPolling();
-    _pollTimer =
-        Timer.periodic(const Duration(milliseconds: 1000), (_) => _fetch());
+    _pollTimer = Timer.periodic(
+      const Duration(milliseconds: 1000),
+      (_) => _fetch(),
+    );
     _fetch();
   }
 
@@ -256,8 +262,10 @@ class GuideStarsNotifier extends StateNotifier<List<GuideStar>> {
         state = status.trackedStars;
       }
     } catch (e) {
-      _logger.debug('guideStarsProvider poll failed: $e',
-          source: 'GuideStarsNotifier');
+      _logger.debug(
+        'guideStarsProvider poll failed: $e',
+        source: 'GuideStarsNotifier',
+      );
     }
   }
 
@@ -296,8 +304,8 @@ class GuideGraphPoint {
 /// Provider for guiding graph data (last N points)
 final guideGraphProvider =
     StateNotifierProvider<GuideGraphNotifier, List<GuideGraphPoint>>((ref) {
-  return GuideGraphNotifier(ref);
-});
+      return GuideGraphNotifier(ref);
+    });
 
 class GuideGraphNotifier extends StateNotifier<List<GuideGraphPoint>> {
   final Ref ref;
@@ -328,8 +336,10 @@ class GuideGraphNotifier extends StateNotifier<List<GuideGraphPoint>> {
       final json = event.data;
       final ra = _guideAxisPixels(json, isRa: true);
       final dec = _guideAxisPixels(json, isRa: false);
-      _logger.debug('Adding point: RA=$ra, Dec=$dec',
-          source: 'GuideGraphNotifier');
+      _logger.debug(
+        'Adding point: RA=$ra, Dec=$dec',
+        source: 'GuideGraphNotifier',
+      );
       addPoint(ra, dec);
     } else if (event.category == EventCategory.guiding &&
         event.eventType == 'GuidingStopped') {

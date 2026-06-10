@@ -95,8 +95,12 @@ void main() {
   });
 
   /// Builds a fully-resident snapshot of the committed primary mosaic + Allsky.
-  Future<({HipsResidentSnapshot snapshot, HipsTileCache cache, ui.Image allsky})>
-      buildResidentMosaic() async {
+  Future<
+      ({
+        HipsResidentSnapshot snapshot,
+        HipsTileCache cache,
+        ui.Image allsky
+      })> buildResidentMosaic() async {
     final cache = HipsTileCache(maxEntries: 256, maxBytes: 256 * 1024 * 1024);
     final primary = <HipsVisibleTile>[];
     for (final tile in visibleSet.tiles) {
@@ -226,7 +230,8 @@ void main() {
         reason: 'The committed mosaic must be larger than the cache cap so '
             'eviction is actually exercised.');
     expect(cache.length, maxEntries,
-        reason: 'After feeding more tiles than fit, the cache holds exactly its '
+        reason:
+            'After feeding more tiles than fit, the cache holds exactly its '
             'entry cap (the most-recently-used ones).');
 
     // The most-recently-fed tiles are the survivors (LRU eviction): the last

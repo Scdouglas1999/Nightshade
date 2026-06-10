@@ -28,9 +28,7 @@ void main() {
     setUp(() {
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
       container = ProviderContainer(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-        ],
+        overrides: [databaseProvider.overrideWithValue(db)],
       );
       handlers = DbReadHandlers(container);
     });
@@ -164,7 +162,10 @@ void main() {
       expect(body['total'], 2);
       final first = (body['items'] as List).first as Map;
       expect(first['mountId'], 'mount-1');
-      expect((first['totalRmsArcsec'] as num).toDouble(), inExclusiveRange(0.0, 5.0));
+      expect(
+        (first['totalRmsArcsec'] as num).toDouble(),
+        inExclusiveRange(0.0, 5.0),
+      );
     });
 
     // =====================================================================
@@ -172,7 +173,9 @@ void main() {
     // =====================================================================
 
     test('GET /api/polar-alignment-history lists alignment runs', () async {
-      await db.into(db.polarAlignmentHistory).insert(
+      await db
+          .into(db.polarAlignmentHistory)
+          .insert(
             PolarAlignmentHistoryCompanion.insert(
               startedAt: DateTime.utc(2026, 4, 1, 21, 0),
               completedAt: DateTime.utc(2026, 4, 1, 21, 5),
@@ -320,8 +323,7 @@ void main() {
       test('returns 404 when the run does not exist', () async {
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunById(
-            Request('GET',
-                Uri.parse('http://localhost/api/sequence-runs/999')),
+            Request('GET', Uri.parse('http://localhost/api/sequence-runs/999')),
             '999',
           ),
         );
@@ -339,8 +341,10 @@ void main() {
 
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunById(
-            Request('GET',
-                Uri.parse('http://localhost/api/sequence-runs/$runId')),
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/sequence-runs/$runId'),
+            ),
             runId.toString(),
           ),
         );
@@ -358,39 +362,43 @@ void main() {
       test('returns 404 when the run does not exist', () async {
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunEvents(
-            Request('GET',
-                Uri.parse('http://localhost/api/sequence-runs/999/events')),
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/sequence-runs/999/events'),
+            ),
             '999',
           ),
         );
         expect(response.statusCode, HttpStatus.notFound);
       });
 
-      test('returns empty envelope with is_partial=true for an empty buffer',
-          () async {
-        final runId = await db.sequenceRunsDao.startRun(
-          sequenceId: null,
-          sequenceName: 'Empty run',
-        );
-        await db.sequenceRunsDao.finishRun(runId, 'completed', '{}');
+      test(
+        'returns empty envelope with is_partial=true for an empty buffer',
+        () async {
+          final runId = await db.sequenceRunsDao.startRun(
+            sequenceId: null,
+            sequenceName: 'Empty run',
+          );
+          await db.sequenceRunsDao.finishRun(runId, 'completed', '{}');
 
-        final response = await translateHandlerErrors(
-          handlers.handleGetSequenceRunEvents(
-            Request(
+          final response = await translateHandlerErrors(
+            handlers.handleGetSequenceRunEvents(
+              Request(
                 'GET',
-                Uri.parse(
-                    'http://localhost/api/sequence-runs/$runId/events')),
-            runId.toString(),
-          ),
-        );
-        expect(response.statusCode, HttpStatus.ok);
-        final body = jsonDecode(await response.readAsString()) as Map;
-        expect(body['items'], isEmpty);
-        // No buffered entries in the test logging service → is_partial.
-        // The flag tells the phone the gap is by design, not data loss.
-        expect(body['is_partial'], isTrue);
-        expect(body['source'], 'logging_service_ring_buffer');
-      });
+                Uri.parse('http://localhost/api/sequence-runs/$runId/events'),
+              ),
+              runId.toString(),
+            ),
+          );
+          expect(response.statusCode, HttpStatus.ok);
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['items'], isEmpty);
+          // No buffered entries in the test logging service → is_partial.
+          // The flag tells the phone the gap is by design, not data loss.
+          expect(body['is_partial'], isTrue);
+          expect(body['source'], 'logging_service_ring_buffer');
+        },
+      );
 
       test('rejects an invalid severityMin query param', () async {
         final runId = await db.sequenceRunsDao.startRun(
@@ -400,9 +408,11 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunEvents(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/sequence-runs/$runId/events?severityMin=NOPE')),
+              'GET',
+              Uri.parse(
+                'http://localhost/api/sequence-runs/$runId/events?severityMin=NOPE',
+              ),
+            ),
             runId.toString(),
           ),
         );
@@ -423,9 +433,9 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunFrames(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/sequence-runs/$runId/frames')),
+              'GET',
+              Uri.parse('http://localhost/api/sequence-runs/$runId/frames'),
+            ),
             runId.toString(),
           ),
         );
@@ -471,9 +481,9 @@ void main() {
         final response = await translateHandlerErrors(
           handlers.handleGetSequenceRunFrames(
             Request(
-                'GET',
-                Uri.parse(
-                    'http://localhost/api/sequence-runs/$runId/frames')),
+              'GET',
+              Uri.parse('http://localhost/api/sequence-runs/$runId/frames'),
+            ),
             runId.toString(),
           ),
         );

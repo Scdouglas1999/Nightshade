@@ -30,11 +30,11 @@ class SchedulerEngine {
     Future<List<SchedulerCandidate>> Function()? candidateLoader,
     Stream<SchedulerTriggerEvent>? triggerStream,
     DateTime Function()? clock,
-  })  : _config = config,
-        _sequenceSink = sequenceSink,
-        _site = site,
-        _candidateLoader = candidateLoader ?? (() async => const []),
-        _clock = clock ?? DateTime.now {
+  }) : _config = config,
+       _sequenceSink = sequenceSink,
+       _site = site,
+       _candidateLoader = candidateLoader ?? (() async => const []),
+       _clock = clock ?? DateTime.now {
     if (triggerStream != null) {
       _triggerSubscription = triggerStream.listen((evt) {
         // A natural sequence completion means the executor has STOPPED, but
@@ -79,10 +79,12 @@ class SchedulerEngine {
   bool _parkedForEndOfNight = false;
 
   SchedulerStatus _status = const SchedulerStatus();
-  final _statusController =
-      StreamController<SchedulerStatus>.broadcast(sync: false);
-  final _decisionController =
-      StreamController<SchedulerDecision>.broadcast(sync: false);
+  final _statusController = StreamController<SchedulerStatus>.broadcast(
+    sync: false,
+  );
+  final _decisionController = StreamController<SchedulerDecision>.broadcast(
+    sync: false,
+  );
   SchedulerDecision? _lastDecision;
 
   SchedulerStatus get status => _status;
@@ -112,11 +114,13 @@ class SchedulerEngine {
     // Fresh run: re-arm the end-of-night park so a previous dawn's park does
     // not suppress parking on this run's dawn.
     _parkedForEndOfNight = false;
-    _updateStatus(_status.copyWith(
-      state: SchedulerState.running,
-      clearError: true,
-      nextEvaluationAt: _clock().add(_config.tickInterval),
-    ));
+    _updateStatus(
+      _status.copyWith(
+        state: SchedulerState.running,
+        clearError: true,
+        nextEvaluationAt: _clock().add(_config.tickInterval),
+      ),
+    );
     _restartTimer();
     await _evaluateWithReason('engine start');
   }
@@ -125,19 +129,20 @@ class SchedulerEngine {
     if (_status.state != SchedulerState.running) return;
     _tickTimer?.cancel();
     _tickTimer = null;
-    _updateStatus(_status.copyWith(
-      state: SchedulerState.paused,
-      clearNextEvaluation: true,
-    ));
+    _updateStatus(
+      _status.copyWith(state: SchedulerState.paused, clearNextEvaluation: true),
+    );
     await _sequenceSink.pauseSequence();
   }
 
   Future<void> resume() async {
     if (_status.state != SchedulerState.paused) return;
-    _updateStatus(_status.copyWith(
-      state: SchedulerState.running,
-      nextEvaluationAt: _clock().add(_config.tickInterval),
-    ));
+    _updateStatus(
+      _status.copyWith(
+        state: SchedulerState.running,
+        nextEvaluationAt: _clock().add(_config.tickInterval),
+      ),
+    );
     await _sequenceSink.resumeSequence();
     _restartTimer();
     await _evaluateWithReason('engine resume');
@@ -146,11 +151,13 @@ class SchedulerEngine {
   Future<void> stop() async {
     _tickTimer?.cancel();
     _tickTimer = null;
-    _updateStatus(_status.copyWith(
-      state: SchedulerState.idle,
-      clearCurrentTarget: true,
-      clearNextEvaluation: true,
-    ));
+    _updateStatus(
+      _status.copyWith(
+        state: SchedulerState.idle,
+        clearCurrentTarget: true,
+        clearNextEvaluation: true,
+      ),
+    );
     await _sequenceSink.stopSequence();
   }
 
@@ -187,9 +194,9 @@ class SchedulerEngine {
   void _restartTimer() {
     _tickTimer?.cancel();
     _tickTimer = Timer.periodic(_config.tickInterval, (_) {
-      _updateStatus(_status.copyWith(
-        nextEvaluationAt: _clock().add(_config.tickInterval),
-      ));
+      _updateStatus(
+        _status.copyWith(nextEvaluationAt: _clock().add(_config.tickInterval)),
+      );
       _evaluateWithReason('tick');
     });
   }
@@ -250,13 +257,16 @@ class SchedulerEngine {
 
     if (outcome.isSwitch) {
       final winner = outcome.winner!;
-      _updateStatus(_status.copyWith(
-        currentTargetId: winner.targetId,
-        currentTargetName: winner.targetName,
-      ));
+      _updateStatus(
+        _status.copyWith(
+          currentTargetId: winner.targetId,
+          currentTargetName: winner.targetName,
+        ),
+      );
       if (_status.state == SchedulerState.running) {
-        final chosenCandidate =
-            candidates.firstWhere((c) => c.targetId == winner.targetId);
+        final chosenCandidate = candidates.firstWhere(
+          (c) => c.targetId == winner.targetId,
+        );
         final seq = buildSequenceForCandidate(chosenCandidate);
         await _sequenceSink.dispatchSequence(seq);
         // A target was dispatched: a (new) observing night is under way, so
@@ -323,12 +333,15 @@ class SchedulerEngine {
             .map((s) => '${s.targetName}: ${s.rejectionReasons.first}'),
       ];
       final rejectedAll = scored
-          .map((s) => _buildRejection(
-                s,
-                chosenScore: 0,
-                primaryReasonOverride:
-                    s.hardConstraintFailed ? null : 'no eligible winner',
-              ))
+          .map(
+            (s) => _buildRejection(
+              s,
+              chosenScore: 0,
+              primaryReasonOverride: s.hardConstraintFailed
+                  ? null
+                  : 'no eligible winner',
+            ),
+          )
           .toList();
       return _EvaluationOutcome(
         decision: SchedulerDecision(
@@ -377,8 +390,9 @@ class SchedulerEngine {
       winner = challenger;
       isSwitch = true;
     } else {
-      final currentEntry =
-          eligible.where((s) => s.targetId == currentId).toList();
+      final currentEntry = eligible
+          .where((s) => s.targetId == currentId)
+          .toList();
       if (currentEntry.isEmpty) {
         // Current target is no longer eligible: forced switch.
         winner = challenger;
@@ -403,14 +417,17 @@ class SchedulerEngine {
 
     final reasoning = <String>[];
     reasoning.add(
-        'Chose ${winner.targetName} (score ${winner.totalScore.toStringAsFixed(3)}) at ${now.toIso8601String()} ($reason)');
+      'Chose ${winner.targetName} (score ${winner.totalScore.toStringAsFixed(3)}) at ${now.toIso8601String()} ($reason)',
+    );
     for (final f in winner.factors) {
       reasoning.add(
-          '  ${f.name}: value=${f.value.toStringAsFixed(3)} weight=${f.weight.toStringAsFixed(2)} -> ${f.weighted.toStringAsFixed(3)}${f.detail != null ? "  ${f.detail}" : ""}');
+        '  ${f.name}: value=${f.value.toStringAsFixed(3)} weight=${f.weight.toStringAsFixed(2)} -> ${f.weighted.toStringAsFixed(3)}${f.detail != null ? "  ${f.detail}" : ""}',
+      );
     }
     if (forcedByScheduledWindow) {
       reasoning.add(
-          'Forced by scheduled window (hysteresis bypassed) on ${winner.targetName}');
+        'Forced by scheduled window (hysteresis bypassed) on ${winner.targetName}',
+      );
     }
     if (eligible.length > 1) {
       final next = eligible.firstWhere(
@@ -418,11 +435,13 @@ class SchedulerEngine {
         orElse: () => eligible[1],
       );
       reasoning.add(
-          'Runner-up: ${next.targetName} score ${next.totalScore.toStringAsFixed(3)}');
+        'Runner-up: ${next.targetName} score ${next.totalScore.toStringAsFixed(3)}',
+      );
     }
     if (isSwitch && currentId != null && !forcedByScheduledWindow) {
       reasoning.add(
-          'Switching from previous target id=$currentId (hysteresis ratio=${_config.hysteresisRatio.toStringAsFixed(2)} exceeded)');
+        'Switching from previous target id=$currentId (hysteresis ratio=${_config.hysteresisRatio.toStringAsFixed(2)} exceeded)',
+      );
     }
 
     final orderedAll = [
@@ -632,7 +651,8 @@ class SchedulerEngine {
     // Hard constraint: minimum altitude.
     if (alt < _config.minAltitudeDegrees) {
       rejections.add(
-          'altitude ${alt.toStringAsFixed(1)}° below site minimum ${_config.minAltitudeDegrees.toStringAsFixed(1)}°');
+        'altitude ${alt.toStringAsFixed(1)}° below site minimum ${_config.minAltitudeDegrees.toStringAsFixed(1)}°',
+      );
     }
 
     // Hard constraint: twilight / Sun altitude. Never image while the Sun is
@@ -648,31 +668,41 @@ class SchedulerEngine {
     );
     if (sunAlt > _config.maxSunAltitudeDegrees) {
       rejections.add(
-          'Sun ${sunAlt.toStringAsFixed(1)}° above darkness limit ${_config.maxSunAltitudeDegrees.toStringAsFixed(1)}° — too bright to image');
+        'Sun ${sunAlt.toStringAsFixed(1)}° above darkness limit ${_config.maxSunAltitudeDegrees.toStringAsFixed(1)}° — too bright to image',
+      );
     }
 
     // Hard constraint: equipment / filter availability.
     final remainingByGoal = <IntegrationGoalProgress>[];
     for (var i = 0; i < c.goals.length; i++) {
-      remainingByGoal.add(IntegrationGoalProgress(
-        goal: c.goals[i],
-        capturedCount: c.capturedCounts[i],
-      ));
+      remainingByGoal.add(
+        IntegrationGoalProgress(
+          goal: c.goals[i],
+          capturedCount: c.capturedCounts[i],
+        ),
+      );
     }
-    final stillNeeded =
-        remainingByGoal.where((p) => p.remainingFrames > 0).toList();
+    final stillNeeded = remainingByGoal
+        .where((p) => p.remainingFrames > 0)
+        .toList();
     if (stillNeeded.isEmpty && c.goals.isNotEmpty) {
       rejections.add('all integration goals complete');
     }
-    final filtersOnEquipmentLower =
-        c.availableFilters.map((f) => f.toLowerCase()).toSet();
+    final filtersOnEquipmentLower = c.availableFilters
+        .map((f) => f.toLowerCase())
+        .toSet();
     final hasUsableGoal = stillNeeded.isEmpty
-        ? c.goals.isEmpty // no goals at all is fine - free-form imaging
-        : stillNeeded.any((p) =>
-            filtersOnEquipmentLower.contains(p.goal.filter.toLowerCase()));
+        ? c
+              .goals
+              .isEmpty // no goals at all is fine - free-form imaging
+        : stillNeeded.any(
+            (p) =>
+                filtersOnEquipmentLower.contains(p.goal.filter.toLowerCase()),
+          );
     if (c.goals.isNotEmpty && !hasUsableGoal && stillNeeded.isNotEmpty) {
       rejections.add(
-          'required filter(s) not in equipment wheel (${stillNeeded.map((p) => p.goal.filter).toSet().join(", ")})');
+        'required filter(s) not in equipment wheel (${stillNeeded.map((p) => p.goal.filter).toSet().join(", ")})',
+      );
     }
 
     // Hard constraint: time-window / moon / horizon.
@@ -684,7 +714,8 @@ class SchedulerEngine {
           if (ct.timeWindow != null &&
               !ct.timeWindow!.containsLocal(localTime)) {
             rejections.add(
-                'outside time window ${ct.timeWindow!.startMinutes ~/ 60}:${(ct.timeWindow!.startMinutes % 60).toString().padLeft(2, '0')}-${ct.timeWindow!.endMinutes ~/ 60}:${(ct.timeWindow!.endMinutes % 60).toString().padLeft(2, '0')}');
+              'outside time window ${ct.timeWindow!.startMinutes ~/ 60}:${(ct.timeWindow!.startMinutes % 60).toString().padLeft(2, '0')}-${ct.timeWindow!.endMinutes ~/ 60}:${(ct.timeWindow!.endMinutes % 60).toString().padLeft(2, '0')}',
+            );
           }
           break;
         case TargetConstraintKind.moonIlluminationMax:
@@ -692,19 +723,22 @@ class SchedulerEngine {
           if (ct.moonIlluminationMax != null &&
               moon.illumination > ct.moonIlluminationMax!) {
             rejections.add(
-                'moon illumination ${(moon.illumination * 100).toStringAsFixed(0)}% exceeds max ${(ct.moonIlluminationMax! * 100).toStringAsFixed(0)}%');
+              'moon illumination ${(moon.illumination * 100).toStringAsFixed(0)}% exceeds max ${(ct.moonIlluminationMax! * 100).toStringAsFixed(0)}%',
+            );
           }
           break;
         case TargetConstraintKind.customHorizon:
           final profile = c.horizonProfiles[ct.customHorizonId];
           if (profile == null) {
             rejections.add(
-                'horizon profile ${ct.customHorizonId} not loaded (orchestrator bug)');
+              'horizon profile ${ct.customHorizonId} not loaded (orchestrator bug)',
+            );
           } else {
             final minAlt = profile.minAltitudeAt(az);
             if (alt < minAlt) {
               rejections.add(
-                  'altitude ${alt.toStringAsFixed(1)}° below horizon profile "${profile.name}" (${minAlt.toStringAsFixed(1)}° at az ${az.toStringAsFixed(0)}°)');
+                'altitude ${alt.toStringAsFixed(1)}° below horizon profile "${profile.name}" (${minAlt.toStringAsFixed(1)}° at az ${az.toStringAsFixed(0)}°)',
+              );
             }
           }
           break;
@@ -725,10 +759,7 @@ class SchedulerEngine {
     // Compute factors regardless so the UI can show them even on rejected
     // candidates.
     final altitudeFactor = _altitudeFactor(alt);
-    final meridianFactor = _meridianFactor(
-      raHours: c.raHours,
-      now: now,
-    );
+    final meridianFactor = _meridianFactor(raHours: c.raHours, now: now);
     final (moonFactor, moonDetail) = _moonFactor(
       raHours: c.raHours,
       decDegrees: c.decDegrees,
@@ -739,45 +770,53 @@ class SchedulerEngine {
       decDegrees: c.decDegrees,
       now: now,
     );
-    final filterFactor =
-        _filterCoverageFactor(remainingByGoal, c.availableFilters);
+    final filterFactor = _filterCoverageFactor(
+      remainingByGoal,
+      c.availableFilters,
+    );
     final priorityFactor = _userPriorityFactor(c.userPriority);
 
     final w = _config.weights;
     final factors = <ScoreFactor>[
       ScoreFactor(
-          name: 'altitude',
-          value: altitudeFactor,
-          weight: w.altitude,
-          weighted: altitudeFactor * w.altitude,
-          detail: 'alt ${alt.toStringAsFixed(1)}°'),
+        name: 'altitude',
+        value: altitudeFactor,
+        weight: w.altitude,
+        weighted: altitudeFactor * w.altitude,
+        detail: 'alt ${alt.toStringAsFixed(1)}°',
+      ),
       ScoreFactor(
-          name: 'meridian',
-          value: meridianFactor,
-          weight: w.meridian,
-          weighted: meridianFactor * w.meridian),
+        name: 'meridian',
+        value: meridianFactor,
+        weight: w.meridian,
+        weighted: meridianFactor * w.meridian,
+      ),
       ScoreFactor(
-          name: 'moon',
-          value: moonFactor,
-          weight: w.moon,
-          weighted: moonFactor * w.moon,
-          detail: moonDetail),
+        name: 'moon',
+        value: moonFactor,
+        weight: w.moon,
+        weighted: moonFactor * w.moon,
+        detail: moonDetail,
+      ),
       ScoreFactor(
-          name: 'timeRemaining',
-          value: timeFactor,
-          weight: w.timeRemaining,
-          weighted: timeFactor * w.timeRemaining,
-          detail: timeDetail),
+        name: 'timeRemaining',
+        value: timeFactor,
+        weight: w.timeRemaining,
+        weighted: timeFactor * w.timeRemaining,
+        detail: timeDetail,
+      ),
       ScoreFactor(
-          name: 'filterCoverage',
-          value: filterFactor,
-          weight: w.filterCoverage,
-          weighted: filterFactor * w.filterCoverage),
+        name: 'filterCoverage',
+        value: filterFactor,
+        weight: w.filterCoverage,
+        weighted: filterFactor * w.filterCoverage,
+      ),
       ScoreFactor(
-          name: 'userPriority',
-          value: priorityFactor,
-          weight: w.userPriority,
-          weighted: priorityFactor * w.userPriority),
+        name: 'userPriority',
+        value: priorityFactor,
+        weight: w.userPriority,
+        weighted: priorityFactor * w.userPriority,
+      ),
       if (scheduledWindowBoost > 0)
         ScoreFactor(
           name: 'scheduledWindow',
@@ -844,7 +883,7 @@ class SchedulerEngine {
     if (sep >= radius) {
       return (
         1.0,
-        'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%'
+        'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%',
       );
     }
     final closeness = 1.0 - (sep / radius);
@@ -852,7 +891,7 @@ class SchedulerEngine {
     final factor = (1.0 - penalty).clamp(0.0, 1.0);
     return (
       factor,
-      'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%'
+      'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%',
     );
   }
 
@@ -926,13 +965,15 @@ class SchedulerEngine {
     }
     final a = (y / 100).floor();
     final b = 2 - a + (a / 4).floor();
-    final jd = (365.25 * (y + 4716)).floor() +
+    final jd =
+        (365.25 * (y + 4716)).floor() +
         (30.6001 * (m + 1)).floor() +
         d +
         b -
         1524.5;
     final t = (jd - 2451545.0) / 36525.0;
-    var gmst = 280.46061837 +
+    var gmst =
+        280.46061837 +
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         t * t * t / 38710000.0;
@@ -998,22 +1039,27 @@ class SchedulerEngine {
   Sequence buildSequenceForCandidate(SchedulerCandidate c) {
     final goalProgress = <IntegrationGoalProgress>[];
     for (var i = 0; i < c.goals.length; i++) {
-      goalProgress.add(IntegrationGoalProgress(
-        goal: c.goals[i],
-        capturedCount: c.capturedCounts[i],
-      ));
+      goalProgress.add(
+        IntegrationGoalProgress(
+          goal: c.goals[i],
+          capturedCount: c.capturedCounts[i],
+        ),
+      );
     }
-    final pending = goalProgress
-        .where((p) => p.remainingFrames > 0)
-        .where((p) => c.availableFilters
-            .map((f) => f.toLowerCase())
-            .contains(p.goal.filter.toLowerCase()))
-        .toList()
-      ..sort((a, b) {
-        final cmp = b.remainingFrames.compareTo(a.remainingFrames);
-        if (cmp != 0) return cmp;
-        return b.goal.priority.compareTo(a.goal.priority);
-      });
+    final pending =
+        goalProgress
+            .where((p) => p.remainingFrames > 0)
+            .where(
+              (p) => c.availableFilters
+                  .map((f) => f.toLowerCase())
+                  .contains(p.goal.filter.toLowerCase()),
+            )
+            .toList()
+          ..sort((a, b) {
+            final cmp = b.remainingFrames.compareTo(a.remainingFrames);
+            if (cmp != 0) return cmp;
+            return b.goal.priority.compareTo(a.goal.priority);
+          });
 
     const uuid = Uuid();
     final targetId = uuid.v4();
@@ -1027,8 +1073,8 @@ class SchedulerEngine {
     final rowsToDispatch = c.isMosaicTarget
         ? pending
         : pending.isEmpty
-            ? const <IntegrationGoalProgress>[]
-            : [pending.first];
+        ? const <IntegrationGoalProgress>[]
+        : [pending.first];
 
     if (rowsToDispatch.isEmpty) {
       // No goals or all complete; build a one-shot 30s luminance to keep

@@ -29,7 +29,9 @@ class _WeatherSafetyCard extends ConsumerWidget {
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  isSafe ? NightshadeIcons.shieldOk : NightshadeIcons.shieldAlert,
+                  isSafe
+                      ? NightshadeIcons.shieldOk
+                      : NightshadeIcons.shieldAlert,
                   size: 16,
                   color: isSafe ? colors.success : colors.error,
                 ),
@@ -41,7 +43,8 @@ class _WeatherSafetyCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Safety Status',
-                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.h5
+                          .copyWith(color: colors.textPrimary),
                     ),
                     Text(
                       _getStatusText(status, snoozeUntil),
@@ -157,7 +160,8 @@ class _WeatherSettingsCard extends ConsumerWidget {
                   'Current Settings',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -251,7 +255,8 @@ class _SettingRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
-              style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),
+              style: NightshadeTypography.labelSm
+                  .copyWith(color: valueColor ?? colors.textPrimary),
             ),
           ),
         ],

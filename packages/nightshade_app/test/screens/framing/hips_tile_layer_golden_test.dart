@@ -93,8 +93,12 @@ void main() {
   /// tiles outside the committed sample fall back to the Allsky cell warped onto
   /// their mesh — exactly the never-blank behaviour, so the golden shows real
   /// coverage edge-to-edge.
-  Future<({HipsResidentSnapshot snapshot, HipsTileCache cache, ui.Image allsky})>
-      residentAt(double zoom) async {
+  Future<
+      ({
+        HipsResidentSnapshot snapshot,
+        HipsTileCache cache,
+        ui.Image allsky
+      })> residentAt(double zoom) async {
     final norder = HipsTileSelection.selectNorder(
       _plateScale.pixelsPerDegree(_canvasSize, zoom),
       props,
@@ -164,7 +168,8 @@ void main() {
   /// and prints its absolute path.
   Future<void> writeArtifact(ui.Image image, String fileName) async {
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    expect(png, isNotNull, reason: 'PNG encode of the $fileName artifact failed.');
+    expect(png, isNotNull,
+        reason: 'PNG encode of the $fileName artifact failed.');
     final dir = Directory('${_repoRoot().path}/build/hips_artifacts');
     dir.createSync(recursive: true);
     final file = File('${dir.path}/$fileName');
@@ -220,25 +225,30 @@ void main() {
     final image = await renderAt(zoom);
     addTearDown(image.dispose);
     final pixels = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    expect(pixels, isNotNull, reason: 'raw RGBA read of the $fileName mosaic failed');
+    expect(pixels, isNotNull,
+        reason: 'raw RGBA read of the $fileName mosaic failed');
     expect(_hasNonBackdropPixels(pixels!, _backdrop), isTrue,
-        reason: 'At zoom $zoom the layer must composite visible imagery over the '
+        reason:
+            'At zoom $zoom the layer must composite visible imagery over the '
             'backdrop (the mosaic must not be blank).');
 
     await writeArtifact(image, fileName);
   }
 
-  test('hips_tiles_zoom_0_5x: framing canvas + HiPS layer at 0.5x composites '
+  test(
+      'hips_tiles_zoom_0_5x: framing canvas + HiPS layer at 0.5x composites '
       'a registered, non-blank mosaic', () async {
     await verifyZoom(0.5, 'hips_tiles_zoom_0_5x.png');
   });
 
-  test('hips_tiles_zoom_1x: framing canvas + HiPS layer at 1x composites a '
+  test(
+      'hips_tiles_zoom_1x: framing canvas + HiPS layer at 1x composites a '
       'registered, non-blank mosaic', () async {
     await verifyZoom(1.0, 'hips_tiles_zoom_1x.png');
   });
 
-  test('hips_tiles_zoom_4x: framing canvas + HiPS layer at 4x composites a '
+  test(
+      'hips_tiles_zoom_4x: framing canvas + HiPS layer at 4x composites a '
       'registered, non-blank mosaic', () async {
     await verifyZoom(4.0, 'hips_tiles_zoom_4x.png');
   });

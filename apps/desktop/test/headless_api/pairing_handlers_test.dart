@@ -149,76 +149,79 @@ void main() {
     });
 
     test(
-        'GET /api/pairing/active returns active sessions for admin tokens',
-        () async {
-      // Start a fresh pairing session that does NOT get verified — it
-      // must show up in the active list.
-      final start = await pairingService.startPairing();
+      'GET /api/pairing/active returns active sessions for admin tokens',
+      () async {
+        // Start a fresh pairing session that does NOT get verified — it
+        // must show up in the active list.
+        final start = await pairingService.startPairing();
 
-      final list = await _request(
-        client,
-        baseUri,
-        '/api/pairing/active',
-        token: 'admin-token',
-      );
+        final list = await _request(
+          client,
+          baseUri,
+          '/api/pairing/active',
+          token: 'admin-token',
+        );
 
-      expect(list.statusCode, HttpStatus.ok);
-      final sessions = list.body['sessions'] as List;
-      expect(sessions, isNotEmpty);
-      final entry = sessions.first as Map<String, dynamic>;
-      expect(entry['code'], equals(start.code));
-      expect(entry['expiresAt'], isA<String>());
-      expect(entry['expiresInSeconds'], isA<int>());
-    });
+        expect(list.statusCode, HttpStatus.ok);
+        final sessions = list.body['sessions'] as List;
+        expect(sessions, isNotEmpty);
+        final entry = sessions.first as Map<String, dynamic>;
+        expect(entry['code'], equals(start.code));
+        expect(entry['expiresAt'], isA<String>());
+        expect(entry['expiresInSeconds'], isA<int>());
+      },
+    );
 
     // P0-10: TokenManager.revokeDevice must cause the in-memory
     // _pairedSessionTokens map to drop the corresponding session token
     // synchronously (via the SessionTokenRevocationListener installed at
     // start() / lazy-construct). A previously-accepted session token must
     // become 403 within the same request lifetime.
-    test('revoking a paired device evicts its session token immediately',
-        () async {
-      final start = await pairingService.startPairing();
-      final verify = await _request(
-        client,
-        baseUri,
-        '/api/pairing/verify',
-        method: 'POST',
-        body: {
-          'code': start.code,
-          'deviceId': 'revoke-target',
-          'deviceName': 'Revoke Target',
-          'deviceType': 'mobile',
-        },
-      );
-      expect(verify.statusCode, HttpStatus.ok);
-      final token = verify.body['token'] as String;
+    test(
+      'revoking a paired device evicts its session token immediately',
+      () async {
+        final start = await pairingService.startPairing();
+        final verify = await _request(
+          client,
+          baseUri,
+          '/api/pairing/verify',
+          method: 'POST',
+          body: {
+            'code': start.code,
+            'deviceId': 'revoke-target',
+            'deviceName': 'Revoke Target',
+            'deviceType': 'mobile',
+          },
+        );
+        expect(verify.statusCode, HttpStatus.ok);
+        final token = verify.body['token'] as String;
 
-      // Sanity: the freshly-minted token is accepted by an endpoint that
-      // takes a control-scope token (the verify path's default scope).
-      final allowed = await _request(
-        client,
-        baseUri,
-        '/api/devices',
-        token: token,
-      );
-      expect(allowed.statusCode, HttpStatus.ok);
+        // Sanity: the freshly-minted token is accepted by an endpoint that
+        // takes a control-scope token (the verify path's default scope).
+        final allowed = await _request(
+          client,
+          baseUri,
+          '/api/devices',
+          token: token,
+        );
+        expect(allowed.statusCode, HttpStatus.ok);
 
-      // Revoke the device. This goes through the SAME PairingService /
-      // TokenManager pair the server uses, so the registered
-      // SessionTokenRevocationListener should fire and drop the token.
-      await pairingService.tokenManager.revokeDevice('revoke-target');
+        // Revoke the device. This goes through the SAME PairingService /
+        // TokenManager pair the server uses, so the registered
+        // SessionTokenRevocationListener should fire and drop the token.
+        await pairingService.tokenManager.revokeDevice('revoke-target');
 
-      final blocked = await _request(
-        client,
-        baseUri,
-        '/api/devices',
-        token: token,
-      );
-      // Revoked tokens are unknown to _scopeForToken; the auth middleware
-      // returns 403 (not 401) — see _scopeForToken null path.
-      expect(blocked.statusCode, HttpStatus.forbidden);
-    });
+        final blocked = await _request(
+          client,
+          baseUri,
+          '/api/devices',
+          token: token,
+        );
+        // Revoked tokens are unknown to _scopeForToken; the auth middleware
+        // returns 403 (not 401) — see _scopeForToken null path.
+        expect(blocked.statusCode, HttpStatus.forbidden);
+      },
+    );
   });
 }
 
@@ -230,10 +233,7 @@ Future<_TestResponse> _request(
   String? token,
   Map<String, dynamic>? body,
 }) async {
-  final request = await client.openUrl(
-    method,
-    baseUri.replace(path: path),
-  );
+  final request = await client.openUrl(method, baseUri.replace(path: path));
   if (token != null) {
     request.headers.set('Authorization', 'Bearer $token');
   }

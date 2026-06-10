@@ -137,10 +137,7 @@ class AuthHandlers {
         'csrfToken': issue.csrfToken,
         'expiresInSeconds': issue.maxAge.inSeconds,
       },
-      headers: {
-        requestIdHeader: requestId,
-        'set-cookie': setCookie,
-      },
+      headers: {requestIdHeader: requestId, 'set-cookie': setCookie},
     );
   }
 

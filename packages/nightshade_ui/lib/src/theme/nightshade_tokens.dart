@@ -153,23 +153,31 @@ abstract final class NightshadeTokens {
   static final BorderRadius borderRadiusXs = BorderRadius.circular(radiusXs);
   static final BorderRadius borderRadiusSm = BorderRadius.circular(radiusSm);
   static final BorderRadius borderRadiusMd = BorderRadius.circular(radiusMd);
-  static final BorderRadius borderRadiusButton =
-      BorderRadius.circular(radiusButton);
+  static final BorderRadius borderRadiusButton = BorderRadius.circular(
+    radiusButton,
+  );
   static final BorderRadius borderRadiusLg = BorderRadius.circular(radiusLg);
   static final BorderRadius borderRadiusXl = BorderRadius.circular(radiusXl);
-  static final BorderRadius borderRadiusFull = BorderRadius.circular(radiusFull);
+  static final BorderRadius borderRadiusFull = BorderRadius.circular(
+    radiusFull,
+  );
 
   // Convenience BorderRadius objects for the in-use migration radii above.
-  static final BorderRadius borderRadiusInline2 =
-      BorderRadius.circular(radiusInline2);
-  static final BorderRadius borderRadiusInline4 =
-      BorderRadius.circular(radiusInline4);
-  static final BorderRadius borderRadiusInline8 =
-      BorderRadius.circular(radiusInline8);
-  static final BorderRadius borderRadiusInline9 =
-      BorderRadius.circular(radiusInline9);
-  static final BorderRadius borderRadiusInline11 =
-      BorderRadius.circular(radiusInline11);
+  static final BorderRadius borderRadiusInline2 = BorderRadius.circular(
+    radiusInline2,
+  );
+  static final BorderRadius borderRadiusInline4 = BorderRadius.circular(
+    radiusInline4,
+  );
+  static final BorderRadius borderRadiusInline8 = BorderRadius.circular(
+    radiusInline8,
+  );
+  static final BorderRadius borderRadiusInline9 = BorderRadius.circular(
+    radiusInline9,
+  );
+  static final BorderRadius borderRadiusInline11 = BorderRadius.circular(
+    radiusInline11,
+  );
 
   // ===========================================================================
   // Animation Durations
@@ -315,29 +323,17 @@ abstract final class NightshadeTokens {
 
   /// Subtle shadow for floating menus and toasts
   static const List<BoxShadow> shadowSm = [
-    BoxShadow(
-      color: Color(0x14000000),
-      blurRadius: 6,
-      offset: Offset(0, 2),
-    ),
+    BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 2)),
   ];
 
   /// Medium shadow for dropdowns and popovers
   static const List<BoxShadow> shadowMd = [
-    BoxShadow(
-      color: Color(0x1F000000),
-      blurRadius: 10,
-      offset: Offset(0, 4),
-    ),
+    BoxShadow(color: Color(0x1F000000), blurRadius: 10, offset: Offset(0, 4)),
   ];
 
   /// Large shadow for dialogs/modals
   static const List<BoxShadow> shadowLg = [
-    BoxShadow(
-      color: Color(0x33000000),
-      blurRadius: 20,
-      offset: Offset(0, 8),
-    ),
+    BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8)),
   ];
 
   // ===========================================================================
@@ -349,11 +345,7 @@ abstract final class NightshadeTokens {
 
   /// Level 2 - Light hover emphasis on interactive panels and drag feedback
   static const List<BoxShadow> elevationLevel2 = [
-    BoxShadow(
-      color: Color(0x14000000),
-      blurRadius: 5,
-      offset: Offset(0, 2),
-    ),
+    BoxShadow(color: Color(0x14000000), blurRadius: 5, offset: Offset(0, 2)),
   ];
 
   /// Level 3 - Floating elevation for modals and dialogs only

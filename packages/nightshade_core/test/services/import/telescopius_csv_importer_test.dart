@@ -16,9 +16,9 @@ import 'package:nightshade_core/src/services/import/telescopius_csv_importer.dar
 void main() {
   group('TelescopiusCsvImporter sniff', () {
     test('detects valid Telescopius CSV', () async {
-      final content =
-          await File('test/services/import/fixtures/telescopius_single.csv')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/telescopius_single.csv',
+      ).readAsString();
       expect(TelescopiusCsvImporter.sniff(content), isTrue);
     });
 
@@ -31,29 +31,42 @@ void main() {
 
   group('TelescopiusCsvImporter RA/Dec parsing', () {
     test('parses canonical HMS RA', () {
-      expect(TelescopiusCsvImporter.parseRaToHours('05h35m17.3s'),
-          closeTo(5.5881, 1e-3));
+      expect(
+        TelescopiusCsvImporter.parseRaToHours('05h35m17.3s'),
+        closeTo(5.5881, 1e-3),
+      );
     });
 
     test('parses negative dec DMS', () {
-      expect(TelescopiusCsvImporter.parseDecToDegrees("-05°23'28\""),
-          closeTo(-5.391, 1e-3));
+      expect(
+        TelescopiusCsvImporter.parseDecToDegrees("-05°23'28\""),
+        closeTo(-5.391, 1e-3),
+      );
     });
 
     test('parses positive dec DMS', () {
-      expect(TelescopiusCsvImporter.parseDecToDegrees("+41°16'09\""),
-          closeTo(41.269, 1e-3));
+      expect(
+        TelescopiusCsvImporter.parseDecToDegrees("+41°16'09\""),
+        closeTo(41.269, 1e-3),
+      );
     });
 
     test('parses decimal hours / degrees', () {
-      expect(TelescopiusCsvImporter.parseRaToHours('5.5881'),
-          closeTo(5.5881, 1e-3));
-      expect(TelescopiusCsvImporter.parseDecToDegrees('-5.391'),
-          closeTo(-5.391, 1e-3));
+      expect(
+        TelescopiusCsvImporter.parseRaToHours('5.5881'),
+        closeTo(5.5881, 1e-3),
+      );
+      expect(
+        TelescopiusCsvImporter.parseDecToDegrees('-5.391'),
+        closeTo(-5.391, 1e-3),
+      );
     });
 
     test('normalizes RA into [0, 24)', () {
-      expect(TelescopiusCsvImporter.parseRaToHours('-1.0'), closeTo(23.0, 1e-6));
+      expect(
+        TelescopiusCsvImporter.parseRaToHours('-1.0'),
+        closeTo(23.0, 1e-6),
+      );
     });
 
     test('clamps Dec to [-90, 90]', () {
@@ -69,9 +82,9 @@ void main() {
 
   group('TelescopiusCsvImporter parse', () {
     test('produces one TargetHeaderNode per single-target row', () async {
-      final content =
-          await File('test/services/import/fixtures/telescopius_single.csv')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/telescopius_single.csv',
+      ).readAsString();
       final root = TelescopiusCsvImporter().parse(content);
       final mapped = CanonicalNodeMapper().map(
         root,
@@ -79,8 +92,9 @@ void main() {
         forceUnsupported: false,
       );
       expect(mapped.unsupported, isEmpty);
-      final targets =
-          mapped.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+      final targets = mapped.sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .toList();
       expect(targets, hasLength(3));
       final names = targets.map((t) => t.targetName).toSet();
       expect(names, containsAll(['M42', 'M31', 'NGC 7000']));
@@ -91,9 +105,9 @@ void main() {
     });
 
     test('groups same-Designation rows into a mosaic', () async {
-      final content =
-          await File('test/services/import/fixtures/telescopius_mosaic_5x5.csv')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/telescopius_mosaic_5x5.csv',
+      ).readAsString();
       final root = TelescopiusCsvImporter().parse(content);
       final mapped = CanonicalNodeMapper().map(
         root,
@@ -128,7 +142,8 @@ void main() {
           '3,TestMosaic,10.17,20.0,90\n';
       final root = TelescopiusCsvImporter().parse(csv);
       final group = root.children.firstWhere(
-          (c) => c.sourceType == 'TelescopiusMosaicGroup');
+        (c) => c.sourceType == 'TelescopiusMosaicGroup',
+      );
       expect(group.children, hasLength(3));
       expect(group.children[0].attributes['rotation'], 0.0);
       expect(group.children[1].attributes['rotation'], 45.0);
@@ -136,17 +151,18 @@ void main() {
     });
 
     test('reads Sub Length / Count / Filter extension columns', () async {
-      final content =
-          await File('test/services/import/fixtures/telescopius_extended.csv')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/telescopius_extended.csv',
+      ).readAsString();
       final root = TelescopiusCsvImporter().parse(content);
       final mapped = CanonicalNodeMapper().map(
         root,
         sequenceName: 'Extended',
         forceUnsupported: false,
       );
-      final exposures =
-          mapped.sequence.nodes.values.whereType<ExposureNode>().toList();
+      final exposures = mapped.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .toList();
       expect(exposures, hasLength(3));
       // Each of M51, M81, NGC 6960 had one exposure block.
       final m51Exp = exposures.firstWhere((e) => e.filter == 'L');
@@ -155,27 +171,32 @@ void main() {
       expect(m51Exp.frameType, FrameType.light);
     });
 
-    test('throws MalformedSourceError when required columns are missing',
-        () async {
-      final content = await File(
-              'test/services/import/fixtures/telescopius_missing_columns.csv')
-          .readAsString();
-      expect(
-        () => TelescopiusCsvImporter().parse(content),
-        throwsA(isA<MalformedSourceError>()),
-      );
-    });
+    test(
+      'throws MalformedSourceError when required columns are missing',
+      () async {
+        final content = await File(
+          'test/services/import/fixtures/telescopius_missing_columns.csv',
+        ).readAsString();
+        expect(
+          () => TelescopiusCsvImporter().parse(content),
+          throwsA(isA<MalformedSourceError>()),
+        );
+      },
+    );
 
     test('throws MalformedSourceError on empty input', () {
-      expect(() => TelescopiusCsvImporter().parse(''),
-          throwsA(isA<MalformedSourceError>()));
+      expect(
+        () => TelescopiusCsvImporter().parse(''),
+        throwsA(isA<MalformedSourceError>()),
+      );
     });
 
     test('preserves unknown extra columns in attributes', () {
       // Avoid inline escaped quotes — those make the Dart source hard to
       // reason about. Use decimal coordinates so we can drop the quoting
       // of cells entirely.
-      const csv = 'Designation,Right Ascension,Declination,Foo,Bar\n'
+      const csv =
+          'Designation,Right Ascension,Declination,Foo,Bar\n'
           'M42,5.5881,-5.391,unknown1,unknown2\n';
       final root = TelescopiusCsvImporter().parse(csv);
       expect(root.children, hasLength(1));
@@ -187,9 +208,9 @@ void main() {
     });
 
     test('mosaic source type group emits sequential container', () async {
-      final content =
-          await File('test/services/import/fixtures/telescopius_mosaic_5x5.csv')
-              .readAsString();
+      final content = await File(
+        'test/services/import/fixtures/telescopius_mosaic_5x5.csv',
+      ).readAsString();
       final root = TelescopiusCsvImporter().parse(content);
       expect(root.children, hasLength(1));
       final group = root.children.first;

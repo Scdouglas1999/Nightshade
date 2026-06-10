@@ -38,11 +38,13 @@ class _FakeColorCalibrationService extends ColorCalibrationService {
     required WcsOverlay? wcs,
     required int channels,
     double? whiteRefBv,
-    double matchToleranceArcsec = ColorCalibrationService.defaultMatchToleranceArcsec,
+    double matchToleranceArcsec =
+        ColorCalibrationService.defaultMatchToleranceArcsec,
     int? maxStars,
     int? aperture,
   }) async {
-    calls.add((masterFits: masterFits, outputFits: outputFits, channels: channels));
+    calls.add(
+        (masterFits: masterFits, outputFits: outputFits, channels: channels));
     if (!succeed) return ColorCalibrationService.skipped(outputFits);
     return ColorCalibrationResult(
       outputPath: outputFits,
@@ -208,7 +210,8 @@ void main() {
       ImagingSessionsCompanion.insert(startTime: DateTime.now()),
     );
 
-    Future<void> addSub(String name, {required double hfr, bool accepted = true}) {
+    Future<void> addSub(String name,
+        {required double hfr, bool accepted = true}) {
       return images.createImage(
         CapturedImagesCompanion.insert(
           filePath: 'C:/subs/$name.fits',
@@ -330,8 +333,8 @@ void main() {
     final written = await c.runDeconvolve();
 
     expect(fakeSeam.finishingCalls['deconvolvePreview'], hasLength(1));
-    expect(
-        fakeSeam.finishingCalls['deconvolvePreview']!.single['inputFits'], fits);
+    expect(fakeSeam.finishingCalls['deconvolvePreview']!.single['inputFits'],
+        fits);
     expect(written, endsWith('_decon.fits'));
     expect(renderCalls.single.outputPng, endsWith('_decon.png'));
     expect(state().reviewedMaster!.deconvolvedPath, written);
@@ -387,7 +390,8 @@ void main() {
 
     final written = await c.runColorCalibration();
     expect(written, isNull);
-    expect(fakeColor.calls, isEmpty, reason: 'no WCS -> calibrate never called');
+    expect(fakeColor.calls, isEmpty,
+        reason: 'no WCS -> calibrate never called');
     expect(state().reviewedMaster!.colorCalibratedPath, isNull);
     expect(state().error, contains('WCS'));
     expect(state().calibrating, isFalse);

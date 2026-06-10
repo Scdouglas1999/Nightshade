@@ -71,7 +71,8 @@ class SyncTargetException implements Exception {
   });
 
   @override
-  String toString() => 'SyncTargetException($kind'
+  String toString() =>
+      'SyncTargetException($kind'
       '${statusCode != null ? ' HTTP $statusCode' : ''}): $message';
 }
 
@@ -116,9 +117,9 @@ class S3SyncTarget implements SyncTarget {
   S3SyncTarget();
 
   Never _unimplemented() => throw UnimplementedError(
-        'S3-compatible sync targets are not implemented yet. '
-        'Use a WebDAV target (Nextcloud, ownCloud, generic WebDAV).',
-      );
+    'S3-compatible sync targets are not implemented yet. '
+    'Use a WebDAV target (Nextcloud, ownCloud, generic WebDAV).',
+  );
 
   @override
   Future<void> ensureDirectory(String path) async => _unimplemented();

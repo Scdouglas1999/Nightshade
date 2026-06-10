@@ -92,7 +92,8 @@ class HipsAttributionBadge extends StatelessWidget {
             .withValues(alpha: NightshadeTokens.opacityHoverBorder),
         borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(
-          color: colors.border.withValues(alpha: NightshadeTokens.opacitySubtle),
+          color:
+              colors.border.withValues(alpha: NightshadeTokens.opacitySubtle),
         ),
       ),
       child: Row(

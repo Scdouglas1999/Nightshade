@@ -102,34 +102,35 @@ class HomeAssistantPlugin extends SequencePlugin {
 
   @override
   List<SequenceNodeDefinition> get nodeDefinitions => [
-        SequenceNodeDefinition(
-          id: 'home_assistant.toggle',
-          name: 'Toggle Home Assistant Entity',
-          category: 'Observatory',
-          description:
-              'Call a Home Assistant service on a specific entity (turn_on, '
-              'turn_off, toggle). Optionally confirm the post-call state.',
-          createNode: (params) {
-            final entity = (params['entityId'] as String? ?? '').trim();
-            final service =
-                (params['service'] as String? ?? 'turn_on').trim().toLowerCase();
-            final confirmSecs =
-                (params['confirmStateAfterSecs'] as num?)?.toInt() ?? 2;
-            final expectedState =
-                (params['expectedState'] as String?)?.trim().toLowerCase();
-            return _HomeAssistantToggleNode(
-              entityId: entity,
-              service: service,
-              confirmStateAfterSecs: confirmSecs,
-              expectedState:
-                  (expectedState == null || expectedState.isEmpty)
-                      ? null
-                      : expectedState,
-              clientBuilder: clientBuilder ?? http.Client.new,
-            );
-          },
-        ),
-      ];
+    SequenceNodeDefinition(
+      id: 'home_assistant.toggle',
+      name: 'Toggle Home Assistant Entity',
+      category: 'Observatory',
+      description:
+          'Call a Home Assistant service on a specific entity (turn_on, '
+          'turn_off, toggle). Optionally confirm the post-call state.',
+      createNode: (params) {
+        final entity = (params['entityId'] as String? ?? '').trim();
+        final service = (params['service'] as String? ?? 'turn_on')
+            .trim()
+            .toLowerCase();
+        final confirmSecs =
+            (params['confirmStateAfterSecs'] as num?)?.toInt() ?? 2;
+        final expectedState = (params['expectedState'] as String?)
+            ?.trim()
+            .toLowerCase();
+        return _HomeAssistantToggleNode(
+          entityId: entity,
+          service: service,
+          confirmStateAfterSecs: confirmSecs,
+          expectedState: (expectedState == null || expectedState.isEmpty)
+              ? null
+              : expectedState,
+          clientBuilder: clientBuilder ?? http.Client.new,
+        );
+      },
+    ),
+  ];
 }
 
 class _HomeAssistantToggleNode implements PluginSequenceNode {
@@ -224,9 +225,7 @@ class _HomeAssistantToggleNode implements PluginSequenceNode {
       final stateUrl = Uri.parse('$baseUrl/api/states/$entityId');
       final stateResponse = await client.get(
         stateUrl,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
+        headers: {'Authorization': 'Bearer $token'},
       );
       if (stateResponse.statusCode != 200) {
         context.logger.warning(
@@ -238,8 +237,7 @@ class _HomeAssistantToggleNode implements PluginSequenceNode {
         return true;
       }
       try {
-        final decoded =
-            jsonDecode(stateResponse.body) as Map<String, dynamic>;
+        final decoded = jsonDecode(stateResponse.body) as Map<String, dynamic>;
         final actualState =
             (decoded['state'] as String?)?.trim().toLowerCase() ?? '';
         if (actualState != expectedState) {

@@ -8,8 +8,9 @@ import 'equipment_retry_defaults.dart';
 // before updating state to prevent updates after disposal.
 
 /// Dome state provider
-final domeStateProvider =
-    StateNotifierProvider<DomeStateNotifier, DomeState>((ref) {
+final domeStateProvider = StateNotifierProvider<DomeStateNotifier, DomeState>((
+  ref,
+) {
   return DomeStateNotifier(ref);
 });
 
@@ -19,8 +20,10 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
 
   DomeStateNotifier(this._ref) : super(const DomeState());
 
-  Future<void> connect(String deviceId,
-      {int maxRetries = kDefaultMaxRetries}) async {
+  Future<void> connect(
+    String deviceId, {
+    int maxRetries = kDefaultMaxRetries,
+  }) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

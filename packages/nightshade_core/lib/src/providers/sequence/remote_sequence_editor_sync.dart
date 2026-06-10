@@ -84,10 +84,7 @@ final remoteSequenceEditorSyncProvider = Provider<void>((ref) {
   });
 });
 
-Future<void> _persistRemoteSequence(
-  Ref ref, {
-  required String reason,
-}) async {
+Future<void> _persistRemoteSequence(Ref ref, {required String reason}) async {
   final backend = ref.read(backendProvider);
   if (backend is! NetworkBackend) return;
 

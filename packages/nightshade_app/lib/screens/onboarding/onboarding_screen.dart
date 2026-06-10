@@ -261,13 +261,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
         return isPhone
             ? _buildPhoneWizard(
-                context, theme, colors, draft,
+                context,
+                theme,
+                colors,
+                draft,
                 onBack: onBack,
                 onSkipStep: onSkipStep,
                 onFirstLight: onFirstLight,
               )
             : _buildWideWizard(
-                context, theme, colors, draft,
+                context,
+                theme,
+                colors,
+                draft,
                 onBack: onBack,
                 onSkipStep: onSkipStep,
                 onFirstLight: onFirstLight,
@@ -717,69 +723,71 @@ class _StepSidebar extends StatelessWidget {
         borderRadius: NightshadeTokens.radiusLg,
         padding: const EdgeInsets.all(12),
         child: ListView(
-        children: OnboardingStep.values.map((step) {
-          final idx = step.order;
-          final isActive = step == currentStep;
-          final isCompleted = idx < currentIdx;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isActive || isCompleted
-                        ? colors.primary
-                        : colors.surfaceAlt,
-                    border: Border.all(
-                      color: isActive
+          children: OnboardingStep.values.map((step) {
+            final idx = step.order;
+            final isActive = step == currentStep;
+            final isCompleted = idx < currentIdx;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isActive || isCompleted
                           ? colors.primary
-                          : isCompleted
-                              ? colors.primary
-                              : colors.border,
+                          : colors.surfaceAlt,
+                      border: Border.all(
+                        color: isActive
+                            ? colors.primary
+                            : isCompleted
+                                ? colors.primary
+                                : colors.border,
+                      ),
+                    ),
+                    child: Center(
+                      child: isCompleted
+                          ? Icon(NightshadeIcons.check,
+                              size: 12,
+                              color: Theme.of(context).colorScheme.onPrimary)
+                          : Icon(
+                              _stepIcons[step] ?? NightshadeIcons.circle,
+                              size: 12,
+                              color: isActive
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : colors.textMuted,
+                            ),
                     ),
                   ),
-                  child: Center(
-                    child: isCompleted
-                        ? Icon(NightshadeIcons.check,
-                            size: 12,
-                            color: Theme.of(context).colorScheme.onPrimary)
-                        : Icon(
-                            _stepIcons[step] ?? NightshadeIcons.circle,
-                            size: 12,
-                            color: isActive
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : colors.textMuted,
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _stepLabels[step] ?? '',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          isActive ? colors.textPrimary : colors.textSecondary,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (step.isOptional)
-                  Tooltip(
-                    message: 'Optional step',
-                    child: Icon(
-                      NightshadeIcons.remove,
-                      size: 10,
-                      color: colors.textMuted,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _stepLabels[step] ?? '',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isActive
+                            ? colors.textPrimary
+                            : colors.textSecondary,
+                        fontWeight:
+                            isActive ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
-            ),
-          );
-        }).toList(),
+                  if (step.isOptional)
+                    Tooltip(
+                      message: 'Optional step',
+                      child: Icon(
+                        NightshadeIcons.remove,
+                        size: 10,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

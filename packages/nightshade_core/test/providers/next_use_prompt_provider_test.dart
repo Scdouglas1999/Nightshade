@@ -22,27 +22,27 @@ import 'package:nightshade_core/src/providers/tutorial_provider.dart'
 
 /// A ready-to-image report: every item green, so `isReadyToImage` is true.
 ReadinessReport _readyReport() => buildReadinessReport(
-      cameraConnected: true,
-      mountConnected: true,
-      hasProfile: true,
-      locationSet: true,
-      outputPathSet: true,
-      plateSolverReady: true,
-      darkLibraryHasCoverage: true,
-      focusKnown: true,
-    );
+  cameraConnected: true,
+  mountConnected: true,
+  hasProfile: true,
+  locationSet: true,
+  outputPathSet: true,
+  plateSolverReady: true,
+  darkLibraryHasCoverage: true,
+  focusKnown: true,
+);
 
 /// A blocked report: no profile -> criticalDevices blocked -> overall blocked.
 ReadinessReport _blockedReport() => buildReadinessReport(
-      cameraConnected: false,
-      mountConnected: false,
-      hasProfile: false,
-      locationSet: false,
-      outputPathSet: false,
-      plateSolverReady: false,
-      darkLibraryHasCoverage: false,
-      focusKnown: false,
-    );
+  cameraConnected: false,
+  mountConnected: false,
+  hasProfile: false,
+  locationSet: false,
+  outputPathSet: false,
+  plateSolverReady: false,
+  darkLibraryHasCoverage: false,
+  focusKnown: false,
+);
 
 void main() {
   group('selectNextUseStep (pure)', () {
@@ -55,8 +55,7 @@ void main() {
       expect(step, isNull);
     });
 
-    test(
-        'returns the first step when ready, nothing complete or '
+    test('returns the first step when ready, nothing complete or '
         'dismissed', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
@@ -121,8 +120,7 @@ void main() {
       expect(step, isNull);
     });
 
-    test(
-        'returns null when steps are split between completed and dismissed '
+    test('returns null when steps are split between completed and dismissed '
         'with full coverage', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
@@ -139,8 +137,7 @@ void main() {
       expect(step, isNull);
     });
 
-    test(
-        'walks in kNextUseSteps order — surfaces the last remaining step '
+    test('walks in kNextUseSteps order — surfaces the last remaining step '
         'when all earlier ones are done', () {
       final allButLast = kNextUseSteps
           .take(kNextUseSteps.length - 1)
@@ -172,8 +169,11 @@ void main() {
     test('every action id round-trips screenId -> actionId', () {
       for (final id in NextUseActionId.values) {
         final screenId = nextUsePromptScreenId(id);
-        expect(nextUseActionIdFromScreenId(screenId), id,
-            reason: '$screenId must map back to $id');
+        expect(
+          nextUseActionIdFromScreenId(screenId),
+          id,
+          reason: '$screenId must map back to $id',
+        );
       }
     });
 
@@ -235,16 +235,18 @@ void main() {
       expect(await resolvePrompt(container), isNull);
     });
 
-    test('dismissed-actions stream still loading -> null (fail-closed)',
-        () async {
-      // An empty stream never emits, so valueOrNull stays null.
-      final container = buildContainer(
-        readiness: _readyReport(),
-        dismissed: null,
-      );
-      final step = await resolvePrompt(container, awaitDismissed: false);
-      expect(step, isNull);
-    });
+    test(
+      'dismissed-actions stream still loading -> null (fail-closed)',
+      () async {
+        // An empty stream never emits, so valueOrNull stays null.
+        final container = buildContainer(
+          readiness: _readyReport(),
+          dismissed: null,
+        );
+        final step = await resolvePrompt(container, awaitDismissed: false);
+        expect(step, isNull);
+      },
+    );
 
     test('ready + nothing complete/dismissed -> first step', () async {
       final container = buildContainer(readiness: _readyReport());
@@ -271,8 +273,7 @@ void main() {
     });
   });
 
-  group('nextUseDismissedActionsProvider (real tutorial_progress round-trip)',
-      () {
+  group('nextUseDismissedActionsProvider (real tutorial_progress round-trip)', () {
     // Proves dismissals persist through the SAME mechanism the rest of the app
     // uses (TutorialProgressDao.dismissPromptForScreen on the tutorial_progress
     // table) and surface back through the provider, keyed by next_use.<id>.
@@ -292,8 +293,9 @@ void main() {
     });
 
     test('fresh database -> no dismissed next-use actions', () async {
-      final dismissed =
-          await container.read(nextUseDismissedActionsProvider.future);
+      final dismissed = await container.read(
+        nextUseDismissedActionsProvider.future,
+      );
       expect(dismissed, isEmpty);
     });
 
@@ -303,52 +305,59 @@ void main() {
         nextUsePromptScreenId(NextUseActionId.configurePlateSolver),
       );
 
-      final dismissed =
-          await container.read(nextUseDismissedActionsProvider.future);
+      final dismissed = await container.read(
+        nextUseDismissedActionsProvider.future,
+      );
       expect(dismissed, {NextUseActionId.configurePlateSolver});
     });
 
-    test('multiple dismissals all surface; non-next_use rows are ignored',
-        () async {
-      final dao = container.read(tutorialProgressDaoProvider);
-      await dao.dismissPromptForScreen(
-        nextUsePromptScreenId(NextUseActionId.buildSmartNight),
-      );
-      await dao.dismissPromptForScreen(
-        nextUsePromptScreenId(NextUseActionId.captureFirstLight),
-      );
-      // A dismissal from an unrelated namespace must be filtered out.
-      await dao.dismissPromptForScreen('some_other_screen');
-      // A dismissal from an unrelated category lives in the same table but is
-      // not a next-use row, so it must be filtered out too.
-      await dao.markDismissed('someOtherCategory');
+    test(
+      'multiple dismissals all surface; non-next_use rows are ignored',
+      () async {
+        final dao = container.read(tutorialProgressDaoProvider);
+        await dao.dismissPromptForScreen(
+          nextUsePromptScreenId(NextUseActionId.buildSmartNight),
+        );
+        await dao.dismissPromptForScreen(
+          nextUsePromptScreenId(NextUseActionId.captureFirstLight),
+        );
+        // A dismissal from an unrelated namespace must be filtered out.
+        await dao.dismissPromptForScreen('some_other_screen');
+        // A dismissal from an unrelated category lives in the same table but is
+        // not a next-use row, so it must be filtered out too.
+        await dao.markDismissed('someOtherCategory');
 
-      final dismissed =
-          await container.read(nextUseDismissedActionsProvider.future);
-      expect(dismissed, {
-        NextUseActionId.buildSmartNight,
-        NextUseActionId.captureFirstLight,
-      });
-    });
+        final dismissed = await container.read(
+          nextUseDismissedActionsProvider.future,
+        );
+        expect(dismissed, {
+          NextUseActionId.buildSmartNight,
+          NextUseActionId.captureFirstLight,
+        });
+      },
+    );
 
-    test('dismissal survives a fresh container over the same database',
-        () async {
-      await container
-          .read(tutorialProgressDaoProvider)
-          .dismissPromptForScreen(
-            nextUsePromptScreenId(NextUseActionId.runAutofocus),
+    test(
+      'dismissal survives a fresh container over the same database',
+      () async {
+        await container
+            .read(tutorialProgressDaoProvider)
+            .dismissPromptForScreen(
+              nextUsePromptScreenId(NextUseActionId.runAutofocus),
+            );
+
+        final second = ProviderContainer(
+          overrides: [databaseProvider.overrideWithValue(db)],
+        );
+        try {
+          final dismissed = await second.read(
+            nextUseDismissedActionsProvider.future,
           );
-
-      final second = ProviderContainer(
-        overrides: [databaseProvider.overrideWithValue(db)],
-      );
-      try {
-        final dismissed =
-            await second.read(nextUseDismissedActionsProvider.future);
-        expect(dismissed, {NextUseActionId.runAutofocus});
-      } finally {
-        second.dispose();
-      }
-    });
+          expect(dismissed, {NextUseActionId.runAutofocus});
+        } finally {
+          second.dispose();
+        }
+      },
+    );
   });
 }

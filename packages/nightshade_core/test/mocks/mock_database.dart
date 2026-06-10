@@ -21,9 +21,7 @@ import 'package:nightshade_core/src/database/database.dart';
 /// });
 /// ```
 NightshadeDatabase createTestDatabase() {
-  return NightshadeDatabase.forTesting(
-    NativeDatabase.memory(),
-  );
+  return NightshadeDatabase.forTesting(NativeDatabase.memory());
 }
 
 /// Helper class for database test fixtures
@@ -171,9 +169,6 @@ class DatabaseTestFixtures {
     required String key,
     required String value,
   }) {
-    return AppSettingsCompanion.insert(
-      key: key,
-      value: value,
-    );
+    return AppSettingsCompanion.insert(key: key, value: value);
   }
 }

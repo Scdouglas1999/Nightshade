@@ -94,7 +94,10 @@ class RelayUplink {
       'ws' || 'http' => 'ws',
       'wss' || 'https' => 'wss',
       _ => throw ArgumentError.value(
-          url, 'relayUrl', 'scheme must be ws, wss, http, or https'),
+        url,
+        'relayUrl',
+        'scheme must be ws, wss, http, or https',
+      ),
     };
     final path = url.path.replaceAll(RegExp(r'/+$'), '');
     return url.replace(scheme: scheme, path: path);
@@ -130,26 +133,43 @@ class RelayUplink {
     final jitter = Random();
     while (_running) {
       try {
-        _setStatus(RelayUplinkStatus(RelayUplinkState.connecting,
-            applianceId: _applianceId));
+        _setStatus(
+          RelayUplinkStatus(
+            RelayUplinkState.connecting,
+            applianceId: _applianceId,
+          ),
+        );
         await _connectOnce();
         // Clean session end (relay restarted, network blip): reset backoff
         // because we did get fully connected.
         backoff = initialBackoff;
       } on _RelayAuthFailure catch (e) {
-        _log('relay refused stored credentials: ${e.message}. '
-            'Delete the relay credentials file to mint a new appliance id, '
-            'or restore the relay state file.');
-        _setStatus(RelayUplinkStatus(RelayUplinkState.authFailed,
-            applianceId: _applianceId, lastError: e.message));
+        _log(
+          'relay refused stored credentials: ${e.message}. '
+          'Delete the relay credentials file to mint a new appliance id, '
+          'or restore the relay state file.',
+        );
+        _setStatus(
+          RelayUplinkStatus(
+            RelayUplinkState.authFailed,
+            applianceId: _applianceId,
+            lastError: e.message,
+          ),
+        );
         return; // terminal — retrying cannot succeed
       } catch (e) {
         if (!_running) break;
         _log('relay uplink attempt failed: $e');
-        _setStatus(RelayUplinkStatus(RelayUplinkState.waitingToRetry,
-            applianceId: _applianceId, lastError: '$e'));
+        _setStatus(
+          RelayUplinkStatus(
+            RelayUplinkState.waitingToRetry,
+            applianceId: _applianceId,
+            lastError: '$e',
+          ),
+        );
         final delayMs =
-            backoff.inMilliseconds + jitter.nextInt(1 + backoff.inMilliseconds ~/ 4);
+            backoff.inMilliseconds +
+            jitter.nextInt(1 + backoff.inMilliseconds ~/ 4);
         await Future<void>.delayed(Duration(milliseconds: delayMs));
         final doubled = backoff * 2;
         backoff = doubled > maxBackoff ? maxBackoff : doubled;
@@ -157,8 +177,13 @@ class RelayUplink {
       }
       if (_running) {
         // Connected session ended without an exception — reconnect promptly.
-        _setStatus(RelayUplinkStatus(RelayUplinkState.waitingToRetry,
-            applianceId: _applianceId, lastError: 'relay connection closed'));
+        _setStatus(
+          RelayUplinkStatus(
+            RelayUplinkState.waitingToRetry,
+            applianceId: _applianceId,
+            lastError: 'relay connection closed',
+          ),
+        );
         await Future<void>.delayed(initialBackoff);
       }
     }
@@ -171,8 +196,10 @@ class RelayUplink {
       client = HttpClient()
         ..badCertificateCallback = (cert, host, port) => true;
     }
-    final ws = await WebSocket.connect(uri.toString(), customClient: client)
-        .timeout(const Duration(seconds: 20));
+    final ws = await WebSocket.connect(
+      uri.toString(),
+      customClient: client,
+    ).timeout(const Duration(seconds: 20));
     ws.pingInterval = const Duration(seconds: 20);
     _ws = ws;
 
@@ -204,9 +231,11 @@ class RelayUplink {
     ws.listen(
       (message) {
         try {
-          session.handleMessage(message is Uint8List
-              ? message
-              : Uint8List.fromList(message as List<int>));
+          session.handleMessage(
+            message is Uint8List
+                ? message
+                : Uint8List.fromList(message as List<int>),
+          );
         } catch (e) {
           _log('protocol error from relay: $e');
           ws.close(WebSocketStatus.protocolError, 'bad frame');
@@ -222,8 +251,12 @@ class RelayUplink {
     );
 
     try {
-      _setStatus(RelayUplinkStatus(RelayUplinkState.registering,
-          applianceId: _applianceId));
+      _setStatus(
+        RelayUplinkStatus(
+          RelayUplinkState.registering,
+          applianceId: _applianceId,
+        ),
+      );
       final stored = await credentialsStore.load();
       session.sendControl({
         'op': 'register',
@@ -231,7 +264,9 @@ class RelayUplink {
         if (stored != null) 'secret': stored.secret,
       });
 
-      final reply = await registered.future.timeout(const Duration(seconds: 15));
+      final reply = await registered.future.timeout(
+        const Duration(seconds: 15),
+      );
       final id = reply['applianceId'];
       if (id is! String || id.isEmpty) {
         throw Exception('relay registration reply lacked an applianceId');
@@ -239,12 +274,14 @@ class RelayUplink {
       _applianceId = id;
       final mintedSecret = reply['secret'];
       if (mintedSecret is String && mintedSecret.isNotEmpty) {
-        await credentialsStore
-            .save(RelayCredentials(applianceId: id, secret: mintedSecret));
+        await credentialsStore.save(
+          RelayCredentials(applianceId: id, secret: mintedSecret),
+        );
         _log('registered NEW appliance id with relay: $id');
       }
       _setStatus(
-          RelayUplinkStatus(RelayUplinkState.connected, applianceId: id));
+        RelayUplinkStatus(RelayUplinkState.connected, applianceId: id),
+      );
       _log('relay uplink connected ($uri, appliance id $id)');
 
       await wsDone.future;
@@ -262,13 +299,12 @@ class RelayUplink {
   /// New logical stream from a phone: dial the local headless server and
   /// pump bytes until either side is done.
   void _acceptStream(MuxStream stream) {
-    Socket.connect(localHost, localPort,
-            timeout: const Duration(seconds: 10))
+    Socket.connect(localHost, localPort, timeout: const Duration(seconds: 10))
         .then((socket) => bridgeSocketToMuxStream(socket, stream))
         .catchError((Object e) {
-      _log('failed to reach local server $localHost:$localPort: $e');
-      stream.reset('local server unreachable');
-    });
+          _log('failed to reach local server $localHost:$localPort: $e');
+          stream.reset('local server unreachable');
+        });
   }
 
   void _setStatus(RelayUplinkStatus status) {

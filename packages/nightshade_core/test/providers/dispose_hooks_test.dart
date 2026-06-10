@@ -34,15 +34,18 @@ void main() {
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-    when(() => mockBackend.eventStream)
-        .thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     container = ProviderContainer(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => _TestBackendNotifier(ref, mockBackend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, mockBackend),
+        ),
       ],
     );
   });
@@ -53,18 +56,19 @@ void main() {
   });
 
   test(
-      'sequenceExecutorProvider runs onDispose hook on container teardown without leaking timers',
-      () {
-    // Force the executor to instantiate. The dispose hook registered via
-    // ref.onDispose must run when the container is disposed below — if any
-    // owned timer survives teardown the test binding will raise a
-    // "Timer is still pending" assertion.
-    final executor = container.read(sequenceExecutorProvider);
-    expect(executor, isNotNull);
+    'sequenceExecutorProvider runs onDispose hook on container teardown without leaking timers',
+    () {
+      // Force the executor to instantiate. The dispose hook registered via
+      // ref.onDispose must run when the container is disposed below — if any
+      // owned timer survives teardown the test binding will raise a
+      // "Timer is still pending" assertion.
+      final executor = container.read(sequenceExecutorProvider);
+      expect(executor, isNotNull);
 
-    // Disposing the container fires ref.onDispose(executor.dispose).
-    container.dispose();
-  });
+      // Disposing the container fires ref.onDispose(executor.dispose).
+      container.dispose();
+    },
+  );
 
   // 2026-05-16 (audit §2.5): the core `targetSearchProvider` (which held a
   // debounce Timer needing dispose-time cancellation) was removed; the

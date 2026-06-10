@@ -38,7 +38,7 @@ class LiveActivityUnsupportedPlatformException implements Exception {
 /// [LiveActivityUnsupportedPlatformException] on non-iOS platforms.
 class LiveActivityService {
   LiveActivityService({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(_channelName);
+    : _channel = channel ?? const MethodChannel(_channelName);
 
   /// Public for tests that need to spy on the channel directly.
   static const String channelName = _channelName;
@@ -167,9 +167,7 @@ class LiveActivityService {
     String? jobState,
   }) async {
     _assertIos('end');
-    final args = <String, dynamic>{
-      'activityId': activityId,
-    };
+    final args = <String, dynamic>{'activityId': activityId};
     if (dismissDate != null) {
       args['dismissDate'] = dismissDate.millisecondsSinceEpoch;
     }

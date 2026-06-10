@@ -92,12 +92,15 @@ class FocusCard extends ConsumerWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Center(
                       child: Text(
                         l10n.text('moveFocuserToSeeHistory'),
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            color: colors.textMuted),
                       ),
                     ),
                   ),
@@ -183,7 +186,9 @@ class _FocusPositionSparkline extends StatelessWidget {
         child: Center(
           child: Text(
             context.l10n.text('noData'),
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
         ),
       );
@@ -255,7 +260,8 @@ class _FocusPositionSparkline extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceOverlay.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
                 child: Text(
                   _formatPosition(currentVal),
@@ -400,7 +406,9 @@ class _FineFocusControls extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             'Fine',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           const SizedBox(width: 4),
           _FineStepButton(
@@ -456,7 +464,8 @@ class _FineStepButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 label,

@@ -109,7 +109,8 @@ class _AutofocusProgressOverlayState
           final screenSize = MediaQuery.sizeOf(context);
           setState(() {
             _offset = Offset(
-              (_offset.dx - details.delta.dx).clamp(0, screenSize.width - width),
+              (_offset.dx - details.delta.dx)
+                  .clamp(0, screenSize.width - width),
               (_offset.dy - details.delta.dy).clamp(
                 minBottomInset,
                 screenSize.height - height,
@@ -233,8 +234,8 @@ class _AutofocusProgressOverlayState
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(
-                                        colors.primary),
+                                    valueColor:
+                                        AlwaysStoppedAnimation(colors.primary),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -295,9 +296,7 @@ class _AutofocusProgressOverlayState
             overlayState.status,
             style: TextStyle(
               fontSize: 10,
-              color: overlayState.hasError
-                  ? colors.error
-                  : colors.textMuted,
+              color: overlayState.hasError ? colors.error : colors.textMuted,
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -355,9 +354,8 @@ class _AutofocusProgressOverlayState
           _buildIconButton(
             icon: LucideIcons.minus,
             tooltip: 'Minimize',
-            onPressed: () => ref
-                .read(autofocusOverlayProvider.notifier)
-                .toggleMinimized(),
+            onPressed: () =>
+                ref.read(autofocusOverlayProvider.notifier).toggleMinimized(),
             colors: colors,
           ),
           const SizedBox(width: 2),
@@ -401,9 +399,8 @@ class _AutofocusProgressOverlayState
           const SizedBox(width: 8),
           _StatBadge(
             label: 'Stars',
-            value: overlayState.starCount > 0
-                ? '${overlayState.starCount}'
-                : '--',
+            value:
+                overlayState.starCount > 0 ? '${overlayState.starCount}' : '--',
             colors: colors,
           ),
         ],
@@ -538,10 +535,8 @@ class _OverlayVCurvePainter extends CustomPainter {
     final hfrs = vcurvePoints.map((p) => p.hfr).toList();
 
     // Use focus range if available, otherwise compute from data
-    final minPos = focusRange?.min ??
-        positions.reduce((a, b) => a < b ? a : b);
-    final maxPos = focusRange?.max ??
-        positions.reduce((a, b) => a > b ? a : b);
+    final minPos = focusRange?.min ?? positions.reduce((a, b) => a < b ? a : b);
+    final maxPos = focusRange?.max ?? positions.reduce((a, b) => a > b ? a : b);
     final minHfr = hfrs.reduce((a, b) => a < b ? a : b);
     final maxHfr = hfrs.reduce((a, b) => a > b ? a : b);
 

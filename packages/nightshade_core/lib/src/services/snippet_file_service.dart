@@ -35,10 +35,7 @@ const String snippetFileKind = 'nightshade.snippet';
 /// every issue together rather than aborting on the first failure so
 /// the user can fix the file in one editing pass.
 class SnippetImportIssue {
-  const SnippetImportIssue({
-    required this.field,
-    required this.message,
-  });
+  const SnippetImportIssue({required this.field, required this.message});
 
   /// JSON-path-style field the issue applies to (e.g. `name`,
   /// `nodeData[0].nodeType`, `checksum`). Empty string for file-level
@@ -104,9 +101,8 @@ class SnippetFileService {
   /// means "let the platform pick".
   final String _defaultDirectory;
 
-  SnippetFileService({
-    String defaultDirectory = '',
-  }) : _defaultDirectory = defaultDirectory;
+  SnippetFileService({String defaultDirectory = ''})
+    : _defaultDirectory = defaultDirectory;
 
   String? get _initialDirectoryOrNull =>
       _defaultDirectory.isEmpty ? null : _defaultDirectory;
@@ -120,10 +116,7 @@ class SnippetFileService {
   String encodeSnippet(TemplateSnippet snippet) {
     final body = _buildBody(snippet);
     final checksum = _checksumOf(body);
-    final envelope = <String, dynamic>{
-      ...body,
-      'checksum': checksum,
-    };
+    final envelope = <String, dynamic>{...body, 'checksum': checksum};
     return const JsonEncoder.withIndent('  ').convert(envelope);
   }
 
@@ -173,10 +166,7 @@ class SnippetFileService {
   /// Overwrites the file if it exists. The parent directory must
   /// already exist — this method does not create it (callers using a
   /// temp dir always have it).
-  Future<void> exportSnippetToPath(
-    TemplateSnippet snippet,
-    String path,
-  ) async {
+  Future<void> exportSnippetToPath(TemplateSnippet snippet, String path) async {
     final jsonString = encodeSnippet(snippet);
     await File(path).writeAsString(jsonString);
   }
@@ -248,12 +238,15 @@ class SnippetFileService {
 
     final kind = decoded['kind'];
     if (kind != snippetFileKind) {
-      issues.add(SnippetImportIssue(
-        field: 'kind',
-        message: 'Expected "$snippetFileKind", got "$kind". '
-            'This may be a Nightshade sequence file (.nseq.json) — '
-            'open it from the sequence editor instead.',
-      ));
+      issues.add(
+        SnippetImportIssue(
+          field: 'kind',
+          message:
+              'Expected "$snippetFileKind", got "$kind". '
+              'This may be a Nightshade sequence file (.nseq.json) — '
+              'open it from the sequence editor instead.',
+        ),
+      );
     }
 
     _validateString(decoded, 'name', issues);
@@ -312,25 +305,24 @@ class SnippetFileService {
   }) {
     final value = json[field];
     if (value == null) {
-      issues.add(SnippetImportIssue(
-        field: field,
-        message: 'Required field is missing',
-      ));
+      issues.add(
+        SnippetImportIssue(field: field, message: 'Required field is missing'),
+      );
       return;
     }
     if (value is! String) {
-      issues.add(SnippetImportIssue(
-        field: field,
-        message:
-            'Expected string, got ${value.runtimeType}',
-      ));
+      issues.add(
+        SnippetImportIssue(
+          field: field,
+          message: 'Expected string, got ${value.runtimeType}',
+        ),
+      );
       return;
     }
     if (!allowEmpty && value.trim().isEmpty) {
-      issues.add(SnippetImportIssue(
-        field: field,
-        message: 'Field must not be empty',
-      ));
+      issues.add(
+        SnippetImportIssue(field: field, message: 'Field must not be empty'),
+      );
     }
   }
 
@@ -340,28 +332,34 @@ class SnippetFileService {
   ) {
     final claimed = json['checksum'];
     if (claimed == null) {
-      issues.add(const SnippetImportIssue(
-        field: 'checksum',
-        message: 'Required field is missing',
-      ));
+      issues.add(
+        const SnippetImportIssue(
+          field: 'checksum',
+          message: 'Required field is missing',
+        ),
+      );
       return;
     }
     if (claimed is! String) {
-      issues.add(SnippetImportIssue(
-        field: 'checksum',
-        message: 'Expected string, got ${claimed.runtimeType}',
-      ));
+      issues.add(
+        SnippetImportIssue(
+          field: 'checksum',
+          message: 'Expected string, got ${claimed.runtimeType}',
+        ),
+      );
       return;
     }
     final body = Map<String, dynamic>.from(json)..remove('checksum');
     final computed = _checksumOf(body);
     if (computed != claimed) {
-      issues.add(SnippetImportIssue(
-        field: 'checksum',
-        message:
-            'Checksum mismatch (file may have been edited or corrupted). '
-            'Expected $computed, got $claimed',
-      ));
+      issues.add(
+        SnippetImportIssue(
+          field: 'checksum',
+          message:
+              'Checksum mismatch (file may have been edited or corrupted). '
+              'Expected $computed, got $claimed',
+        ),
+      );
     }
   }
 
@@ -371,43 +369,51 @@ class SnippetFileService {
   ) {
     final raw = json['nodeData'];
     if (raw == null) {
-      issues.add(const SnippetImportIssue(
-        field: 'nodeData',
-        message: 'Required field is missing',
-      ));
+      issues.add(
+        const SnippetImportIssue(
+          field: 'nodeData',
+          message: 'Required field is missing',
+        ),
+      );
       return;
     }
     if (raw is! List) {
-      issues.add(SnippetImportIssue(
-        field: 'nodeData',
-        message: 'Expected array, got ${raw.runtimeType}',
-      ));
+      issues.add(
+        SnippetImportIssue(
+          field: 'nodeData',
+          message: 'Expected array, got ${raw.runtimeType}',
+        ),
+      );
       return;
     }
     if (raw.isEmpty) {
-      issues.add(const SnippetImportIssue(
-        field: 'nodeData',
-        message: 'Snippet contains no nodes',
-      ));
+      issues.add(
+        const SnippetImportIssue(
+          field: 'nodeData',
+          message: 'Snippet contains no nodes',
+        ),
+      );
       return;
     }
     for (var i = 0; i < raw.length; i++) {
       final node = raw[i];
       if (node is! Map) {
-        issues.add(SnippetImportIssue(
-          field: 'nodeData[$i]',
-          message:
-              'Each node must be a JSON object, got ${node.runtimeType}',
-        ));
+        issues.add(
+          SnippetImportIssue(
+            field: 'nodeData[$i]',
+            message: 'Each node must be a JSON object, got ${node.runtimeType}',
+          ),
+        );
         continue;
       }
       final nodeType = node['nodeType'];
       if (nodeType is! String || nodeType.trim().isEmpty) {
-        issues.add(SnippetImportIssue(
-          field: 'nodeData[$i].nodeType',
-          message:
-              'Each node must have a non-empty "nodeType" string',
-        ));
+        issues.add(
+          SnippetImportIssue(
+            field: 'nodeData[$i].nodeType',
+            message: 'Each node must have a non-empty "nodeType" string',
+          ),
+        );
       }
     }
   }

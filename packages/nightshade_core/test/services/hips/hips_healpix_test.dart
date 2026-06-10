@@ -47,7 +47,8 @@ void main() {
         final h = HealpixNested(order);
         // The mean pixel diameter sets the tolerance: a point inside a pixel is
         // at most ~one pixel diagonal from the pixel center.
-        final meanPixelDiameterDeg = math.sqrt(4.0 * math.pi / h.npix) *
+        final meanPixelDiameterDeg =
+            math.sqrt(4.0 * math.pi / h.npix) *
             180.0 /
             math.pi *
             1.5; // generous diagonal bound
@@ -62,7 +63,8 @@ void main() {
             expect(
               sep,
               lessThan(meanPixelDiameterDeg),
-              reason: 'order $order ($raDeg, $decDeg) -> pix $pix center '
+              reason:
+                  'order $order ($raDeg, $decDeg) -> pix $pix center '
                   '(${center.raDeg}, ${center.decDeg}) sep=$sep deg',
             );
           }
@@ -96,8 +98,11 @@ void main() {
           expect(xyf.y, inInclusiveRange(0, h.nside - 1));
           expect(h.xyfToNest(xyf), pix, reason: 'order $order pix $pix');
         }
-        expect(facesSeen, hasLength(12),
-            reason: 'order $order must touch all 12 base faces');
+        expect(
+          facesSeen,
+          hasLength(12),
+          reason: 'order $order must touch all 12 base faces',
+        );
       }
     });
   });
@@ -112,8 +117,11 @@ void main() {
             // Re-address from the recovered pixel center; the declination sign
             // (which cap) must be preserved through the cap/belt branch.
             final c = h.pix2RaDec(pix);
-            expect(c.decDeg.sign, decDeg.sign,
-                reason: 'order $order ($raDeg, $decDeg) flipped hemisphere');
+            expect(
+              c.decDeg.sign,
+              decDeg.sign,
+              reason: 'order $order ($raDeg, $decDeg) flipped hemisphere',
+            );
             expect(h.ang2pixNest(c.raDeg, c.decDeg), pix);
           }
         }
@@ -167,8 +175,11 @@ void main() {
         final dec = h.pix2RaDec(pix).decDeg;
         final onCap = (dec.abs() - capDec).abs() < 1e-3;
         final onBelt = dec.abs() < 1e-6;
-        expect(onCap || onBelt, isTrue,
-            reason: 'base pix $pix dec=$dec is neither cap nor belt latitude');
+        expect(
+          onCap || onBelt,
+          isTrue,
+          reason: 'base pix $pix dec=$dec is neither cap nor belt latitude',
+        );
       }
     });
   });
@@ -205,9 +216,13 @@ void main() {
           // An edge-adjacent neighbour shares two corners; a corner-adjacent one
           // shares one. With at least 3 valid neighbours there must be several
           // shared corners — proving the mesh edges coincide (no seam gap).
-          expect(sharedCornerCount, greaterThanOrEqualTo(3),
-              reason: 'order $order pix $pix shared only $sharedCornerCount '
-                  'corners with its neighbours');
+          expect(
+            sharedCornerCount,
+            greaterThanOrEqualTo(3),
+            reason:
+                'order $order pix $pix shared only $sharedCornerCount '
+                'corners with its neighbours',
+          );
         }
       }
     });
@@ -218,8 +233,11 @@ void main() {
       expect(corners, hasLength(4));
       // South corner has the lowest dec, north the highest (for a belt pixel).
       final decs = corners.map((c) => c.decDeg).toList();
-      expect(decs[0], lessThanOrEqualTo(decs[2]),
-          reason: 'south corner dec must be <= north corner dec');
+      expect(
+        decs[0],
+        lessThanOrEqualTo(decs[2]),
+        reason: 'south corner dec must be <= north corner dec',
+      );
     });
   });
 
@@ -253,15 +271,19 @@ void main() {
       expect(upTwo, pix >> 4);
     });
 
-    test('order 0 has no parent; max order has no children (errors surface)',
-        () {
-      expect(() => HealpixNested(0).parent(0),
-          throwsA(isA<HealpixArgumentError>()));
-      expect(
-        () => HealpixNested(HealpixNested.maxOrder).children(0),
-        throwsA(isA<HealpixArgumentError>()),
-      );
-    });
+    test(
+      'order 0 has no parent; max order has no children (errors surface)',
+      () {
+        expect(
+          () => HealpixNested(0).parent(0),
+          throwsA(isA<HealpixArgumentError>()),
+        );
+        expect(
+          () => HealpixNested(HealpixNested.maxOrder).children(0),
+          throwsA(isA<HealpixArgumentError>()),
+        );
+      },
+    );
   });
 
   group('input validation surfaces errors (never silent clamp)', () {

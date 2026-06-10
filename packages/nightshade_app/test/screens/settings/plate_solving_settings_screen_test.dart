@@ -279,8 +279,7 @@ void main() {
         reason: 'Catalog hint must name the directory being probed',
       );
       expect(
-        find.widgetWithText(
-            NightshadeButton, 'Browse for catalog directory'),
+        find.widgetWithText(NightshadeButton, 'Browse for catalog directory'),
         findsOneWidget,
       );
       // The three-step quick-start must NOT render when ASTAP is detected.
@@ -297,8 +296,8 @@ void main() {
     });
 
     test('unknown values collapse to auto', () {
-      expect(PlateSolverChoice.fromSerialized('nonsense'),
-          PlateSolverChoice.auto);
+      expect(
+          PlateSolverChoice.fromSerialized('nonsense'), PlateSolverChoice.auto);
       expect(PlateSolverChoice.fromSerialized(''), PlateSolverChoice.auto);
     });
   });

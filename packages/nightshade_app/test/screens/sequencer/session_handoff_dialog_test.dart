@@ -75,8 +75,7 @@ void main() {
     expect(captured![1], SessionHandoffDecision.resume);
   });
 
-  testWidgets('switching to Restart updates the decision map',
-      (tester) async {
+  testWidgets('switching to Restart updates the decision map', (tester) async {
     final co = _fake(2, 'M42');
     Map<int, SessionHandoffDecision>? captured;
     await tester.pumpWidget(_harness(

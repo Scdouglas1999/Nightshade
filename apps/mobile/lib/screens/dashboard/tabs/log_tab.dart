@@ -176,8 +176,9 @@ class _LogTabState extends ConsumerState<LogTab> {
                           _SeverityChip(
                             severity: sev,
                             enabled: _enabledSeverities.contains(sev),
-                            count:
-                                _events.where((e) => e.severity == sev).length,
+                            count: _events
+                                .where((e) => e.severity == sev)
+                                .length,
                             onTap: () => _toggleSeverity(sev),
                           ),
                       ],
@@ -235,8 +236,8 @@ class _LogTabState extends ConsumerState<LogTab> {
                     reverse: true,
                     itemCount: _serverLogEntries.length,
                     itemBuilder: (context, i) {
-                      final entry = _serverLogEntries[
-                          _serverLogEntries.length - 1 - i];
+                      final entry =
+                          _serverLogEntries[_serverLogEntries.length - 1 - i];
                       return _ServerLogEntryTile(entry: entry, colors: colors);
                     },
                   ),
@@ -247,11 +248,12 @@ class _LogTabState extends ConsumerState<LogTab> {
           child: visible.isEmpty
               ? EmptyState(
                   icon: LucideIcons.scrollText,
-                  title:
-                      _events.isEmpty ? 'Waiting for events' : 'Filtered out',
+                  title: _events.isEmpty
+                      ? 'Waiting for events'
+                      : 'Filtered out',
                   body: _events.isEmpty
                       ? 'New events from devices, imaging, and the sequencer '
-                          'will appear here.'
+                            'will appear here.'
                       : 'No events match the current severity filter.',
                 )
               : ListView.builder(
@@ -320,10 +322,7 @@ class _ServerLogEntryTile extends StatelessWidget {
               entry.source != null
                   ? '[${entry.source}] ${entry.message}'
                   : entry.message,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 11,
-              ),
+              style: TextStyle(color: colors.textPrimary, fontSize: 11),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -377,15 +376,17 @@ class _SeverityChip extends StatelessWidget {
         decoration: enabled
             ? NightshadeDecorations.selectedSurface(
                 c,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusFull),
+                borderRadius: BorderRadius.circular(
+                  NightshadeTokens.radiusFull,
+                ),
                 fillAlpha: 0.2,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
                 border: Border.all(color: colors.border),
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusFull),
+                borderRadius: BorderRadius.circular(
+                  NightshadeTokens.radiusFull,
+                ),
               ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -484,10 +485,7 @@ class _EventTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               message,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: colors.textPrimary, fontSize: 12),
             ),
           ],
         ],

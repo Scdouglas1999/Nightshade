@@ -94,9 +94,10 @@ class DeepStarCatalogManager {
   DeepStarCatalogManager({
     String? directory,
     http.Client Function()? clientFactory,
-  })  : directory = directory ??
-            path.join(CatalogManager.instance.catalogDirectory, 'deep_stars'),
-        _clientFactory = clientFactory ?? http.Client.new;
+  }) : directory =
+           directory ??
+           path.join(CatalogManager.instance.catalogDirectory, 'deep_stars'),
+       _clientFactory = clientFactory ?? http.Client.new;
 
   String get _manifestPath => path.join(directory, 'manifest.json');
   String get _configPath => path.join(directory, 'config.json');
@@ -111,14 +112,17 @@ class DeepStarCatalogManager {
     try {
       final file = File(_configPath);
       if (await file.exists()) {
-        final json =
-            (jsonDecode(await file.readAsString()) as Map).cast<String, Object?>();
+        final json = (jsonDecode(await file.readAsString()) as Map)
+            .cast<String, Object?>();
         final url = json['baseUrl'] as String?;
         if (url != null && url.isNotEmpty) return url;
       }
     } catch (e) {
-      developer.log('[DeepStar] config read error: $e',
-          name: 'DeepStarCatalogManager', level: 900);
+      developer.log(
+        '[DeepStar] config read error: $e',
+        name: 'DeepStarCatalogManager',
+        level: 900,
+      );
     }
     return defaultBaseUrl;
   }
@@ -126,8 +130,7 @@ class DeepStarCatalogManager {
   Future<void> setBaseUrl(String url) async {
     final dir = Directory(directory);
     if (!await dir.exists()) await dir.create(recursive: true);
-    await File(_configPath)
-        .writeAsString(jsonEncode({'baseUrl': url.trim()}));
+    await File(_configPath).writeAsString(jsonEncode({'baseUrl': url.trim()}));
   }
 
   // ---------------------------------------------------------------------
@@ -158,8 +161,8 @@ class DeepStarCatalogManager {
     try {
       final meta = File(_metaPath);
       if (await meta.exists()) {
-        final json =
-            (jsonDecode(await meta.readAsString()) as Map).cast<String, Object?>();
+        final json = (jsonDecode(await meta.readAsString()) as Map)
+            .cast<String, Object?>();
         installedAt = DateTime.tryParse(json['installedAt'] as String? ?? '');
       }
     } catch (_) {}
@@ -184,8 +187,9 @@ class DeepStarCatalogManager {
       final response = await client.get(Uri.parse('$base/manifest.json'));
       if (response.statusCode != 200) {
         throw HttpException(
-            'Manifest fetch failed: HTTP ${response.statusCode}',
-            uri: Uri.parse('$base/manifest.json'));
+          'Manifest fetch failed: HTTP ${response.statusCode}',
+          uri: Uri.parse('$base/manifest.json'),
+        );
       }
       return DeepStarManifest.decodeJson(utf8.decode(response.bodyBytes));
     } finally {
@@ -212,22 +216,27 @@ class DeepStarCatalogManager {
     var tilesDone = 0;
 
     void report(String file, {bool verifying = false}) {
-      onProgress?.call(DeepStarDownloadProgress(
-        tilesDone: tilesDone,
-        tilesTotal: manifest.tiles.length,
-        bytesDone: bytesDone,
-        bytesTotal: total,
-        currentFile: file,
-        verifying: verifying,
-      ));
+      onProgress?.call(
+        DeepStarDownloadProgress(
+          tilesDone: tilesDone,
+          tilesTotal: manifest.tiles.length,
+          bytesDone: bytesDone,
+          bytesTotal: total,
+          currentFile: file,
+          verifying: verifying,
+        ),
+      );
     }
 
     final client = _clientFactory();
     try {
       for (final t in manifest.tiles) {
         if (isCancelled != null && await isCancelled()) {
-          developer.log('[DeepStar] download paused/cancelled',
-              name: 'DeepStarCatalogManager', level: 800);
+          developer.log(
+            '[DeepStar] download paused/cancelled',
+            name: 'DeepStarCatalogManager',
+            level: 800,
+          );
           return false;
         }
 
@@ -251,12 +260,12 @@ class DeepStarCatalogManager {
         final response = await client.get(Uri.parse('$base/${t.file}'));
         if (response.statusCode != 200) {
           throw HttpException(
-              'Tile ${t.file} fetch failed: HTTP ${response.statusCode}');
+            'Tile ${t.file} fetch failed: HTTP ${response.statusCode}',
+          );
         }
         final bytes = response.bodyBytes;
         if (sha256.convert(bytes).toString() != t.sha256) {
-          throw FormatException(
-              'Tile ${t.file} failed SHA-256 verification');
+          throw FormatException('Tile ${t.file} failed SHA-256 verification');
         }
         // Sanity: the payload must decode as an NSDT tile.
         DeepStarTile.decode(bytes);
@@ -276,10 +285,12 @@ class DeepStarCatalogManager {
     // All tiles verified: install the manifest + metadata atomically last so
     // a partial download never looks installed.
     await File(_manifestPath).writeAsString(manifest.encodeJson());
-    await File(_metaPath).writeAsString(jsonEncode({
-      'installedAt': DateTime.now().toIso8601String(),
-      'baseUrl': base,
-    }));
+    await File(_metaPath).writeAsString(
+      jsonEncode({
+        'installedAt': DateTime.now().toIso8601String(),
+        'baseUrl': base,
+      }),
+    );
     return true;
   }
 
@@ -289,7 +300,10 @@ class DeepStarCatalogManager {
     final manifest = st.manifest;
     if (manifest == null) {
       return const DeepStarVerifyResult(
-          tilesChecked: 0, missing: [], corrupt: []);
+        tilesChecked: 0,
+        missing: [],
+        corrupt: [],
+      );
     }
     final missing = <String>[];
     final corrupt = <String>[];

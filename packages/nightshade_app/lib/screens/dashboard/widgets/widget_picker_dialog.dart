@@ -96,7 +96,9 @@ class WidgetPickerDialog extends ConsumerWidget {
               ),
               subtitle: Text(
                 definition.subtitle,
-                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12),
               ),
             ),
           );

@@ -101,14 +101,16 @@ void main() {
         [0.0, 1.0],
       ]) {
         final a = hp.xyfToAng(HealpixXyf(ix + c[0], iy + c[1], f));
-        if ((a.raDeg - sky.$1).abs() < 1e-6 && (a.decDeg - sky.$2).abs() < 1e-6) {
+        if ((a.raDeg - sky.$1).abs() < 1e-6 &&
+            (a.decDeg - sky.$2).abs() < 1e-6) {
           return (c[0], c[1]);
         }
       }
       return (-1.0, -1.0);
     }
 
-    double sampleLum(({Uint8List px, int w, int h}) im, double px01, double py01) {
+    double sampleLum(
+        ({Uint8List px, int w, int h}) im, double px01, double py01) {
       final x = (px01 * (im.w - 1)).clamp(0.0, im.w - 1.0).round();
       final y = (py01 * (im.h - 1)).clamp(0.0, im.h - 1.0).round();
       return _lum(im.px, im.w, x, y);
@@ -155,10 +157,10 @@ void main() {
           final lumA = <double>[], lumB = <double>[];
           for (var s = 0; s <= 48; s++) {
             final t = s / 48.0;
-            final ua = conv(
-                a0.$1 + (a1.$1 - a0.$1) * t, a0.$2 + (a1.$2 - a0.$2) * t);
-            final ub = conv(
-                b0.$1 + (b1.$1 - b0.$1) * t, b0.$2 + (b1.$2 - b0.$2) * t);
+            final ua =
+                conv(a0.$1 + (a1.$1 - a0.$1) * t, a0.$2 + (a1.$2 - a0.$2) * t);
+            final ub =
+                conv(b0.$1 + (b1.$1 - b0.$1) * t, b0.$2 + (b1.$2 - b0.$2) * t);
             lumA.add(sampleLum(imA, ua.$1, ua.$2));
             lumB.add(sampleLum(imB, ub.$1, ub.$2));
           }
@@ -175,7 +177,8 @@ void main() {
     final otherScore = meanEdgeCorr(otherTranspose);
 
     expect(painterScore, greaterThan(flipScore + 0.1),
-        reason: 'The painter convention (tx=v, ty=u) must join real neighbouring '
+        reason:
+            'The painter convention (tx=v, ty=u) must join real neighbouring '
             'tiles strictly better than the flipped (tx=v, ty=1-u) map — got '
             'painter=$painterScore vs flip=$flipScore. A flip re-opens the '
             'diagonal content seams that shear stars at high declination.');

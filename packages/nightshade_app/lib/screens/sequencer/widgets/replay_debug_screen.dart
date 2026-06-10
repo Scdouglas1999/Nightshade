@@ -131,12 +131,16 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
           const SizedBox(height: 12),
           Text(
             'No decisions recorded for this run.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize14,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 4),
           Text(
             'Older runs may pre-date the replay log.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ],
       ),
@@ -167,7 +171,8 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
               const SizedBox(width: 6),
               Text(
                 '${filtered.length} of ${all.length} decisions',
-                style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -268,13 +273,16 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
             children: [
               Text(
                 'Time range: $startLabel — $endLabel',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textMuted),
               ),
               if (range.start > 0 || range.end < 1)
                 TextButton(
                   onPressed: () =>
                       setState(() => _timeRange = const RangeValues(0, 1)),
-                  child: const Text('Reset', style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
+                  child: const Text('Reset',
+                      style:
+                          TextStyle(fontSize: NightshadeTypography.fontSize11)),
                 ),
             ],
           ),
@@ -496,7 +504,8 @@ class _DecisionTileState extends State<_DecisionTile> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.statusChip(
                     badgeColor,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ),
                   child: Text(
@@ -512,7 +521,8 @@ class _DecisionTileState extends State<_DecisionTile> {
                 Expanded(
                   child: Text(
                     widget.decision.summary,
-                    style: NightshadeTypography.label.copyWith(color: c.textPrimary),
+                    style: NightshadeTypography.label
+                        .copyWith(color: c.textPrimary),
                   ),
                 ),
                 IconButton(
@@ -536,18 +546,23 @@ class _DecisionTileState extends State<_DecisionTile> {
                 decoration: BoxDecoration(
                   color: c.surfaceAlt,
                   border: Border.all(color: c.border),
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (widget.decision.nodeId != null)
                       Text('Node: ${widget.decision.nodeId}',
-                          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted)),
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: c.textMuted)),
                     if (widget.decision.details.isEmpty)
                       Text(
                         'No extra details.',
-                        style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: c.textMuted),
                       )
                     else
                       Text(
@@ -567,14 +582,16 @@ class _DecisionTileState extends State<_DecisionTile> {
                           onPressed: widget.onAddNote,
                           icon: const Icon(LucideIcons.bookOpen, size: 12),
                           label: const Text('Add note',
-                              style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
+                              style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize11)),
                         ),
                         if (isForensicsLinked)
                           TextButton.icon(
                             onPressed: widget.onJumpToForensics,
                             icon: const Icon(LucideIcons.fileSearch, size: 12),
                             label: const Text('Forensics',
-                                style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
+                                style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize11)),
                           ),
                       ],
                     ),

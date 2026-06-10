@@ -43,13 +43,9 @@ class PushHandlers {
   final EnsurePairingService ensurePairingService;
   final LoggingService logger;
 
-  PushHandlers({
-    required this.ensurePairingService,
-    required this.logger,
-  });
+  PushHandlers({required this.ensurePairingService, required this.logger});
 
-  void _logInfo(String message) =>
-      logger.info(message, source: 'PushHandlers');
+  void _logInfo(String message) => logger.info(message, source: 'PushHandlers');
   void _logWarning(String message) =>
       logger.warning(message, source: 'PushHandlers');
 
@@ -93,7 +89,8 @@ class PushHandlers {
       return jsonForbidden(
         {
           'error': 'forbidden',
-          'message': 'The authenticated session is not an active paired '
+          'message':
+              'The authenticated session is not an active paired '
               'device.',
           'requestId': requestId,
         },
@@ -108,7 +105,8 @@ class PushHandlers {
       return jsonForbidden(
         {
           'error': 'forbidden',
-          'message': 'deviceId does not match the authenticated device. A '
+          'message':
+              'deviceId does not match the authenticated device. A '
               'device may only manage its own push registration.',
           'requestId': requestId,
         },
@@ -155,7 +153,7 @@ class PushHandlers {
           'error': 'unknown_device',
           'message':
               'deviceId is not a paired device. Pair before registering a '
-                  'push token.',
+              'push token.',
           'requestId': requestId,
         },
         headers: {requestIdHeader: requestId},
@@ -192,7 +190,8 @@ class PushHandlers {
       throw BadRequestError(
         field: 'deviceId',
         expected: 'string',
-        message: 'Provide deviceId (delete all of a device\'s tokens) or '
+        message:
+            'Provide deviceId (delete all of a device\'s tokens) or '
             'token (delete one).',
       );
     }
@@ -208,7 +207,8 @@ class PushHandlers {
       return jsonForbidden(
         {
           'error': 'forbidden',
-          'message': 'The authenticated session is not an active paired '
+          'message':
+              'The authenticated session is not an active paired '
               'device.',
           'requestId': requestId,
         },
@@ -253,10 +253,7 @@ class PushHandlers {
       '[push][$requestId] deleted push token(s) '
       '(deviceId=${deviceId ?? '-'}, byToken=${token != null})',
     );
-    return jsonOk(
-      {'status': 'deleted'},
-      headers: {requestIdHeader: requestId},
-    );
+    return jsonOk({'status': 'deleted'}, headers: {requestIdHeader: requestId});
   }
 
   /// `GET /api/push/preferences?deviceId=...` — the device's per-category mute

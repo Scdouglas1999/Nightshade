@@ -67,8 +67,10 @@ void main() {
     );
     addTearDown(provider.dispose);
 
-    final result =
-        await provider.fetchRadarFrames(latitude: 47.6, longitude: -122.3);
+    final result = await provider.fetchRadarFrames(
+      latitude: 47.6,
+      longitude: -122.3,
+    );
 
     expect(result.isSuccess, isTrue);
     expect(captured, isNotNull);
@@ -86,15 +88,20 @@ void main() {
     );
     addTearDown(provider.dispose);
 
-    final result =
-        await provider.fetchRadarFrames(latitude: 47.6, longitude: -122.3);
+    final result = await provider.fetchRadarFrames(
+      latitude: 47.6,
+      longitude: -122.3,
+    );
 
     expect(result.isSuccess, isTrue);
     expect(result.frames, isNotEmpty);
     for (final frame in result.frames) {
       // Every frame must be a UTC instant — never a device-local one.
-      expect(frame.timestamp.isUtc, isTrue,
-          reason: 'frame timestamp ${frame.timestamp} should be UTC');
+      expect(
+        frame.timestamp.isUtc,
+        isTrue,
+        reason: 'frame timestamp ${frame.timestamp} should be UTC',
+      );
     }
 
     // The first frame must be the requested 00:00 UTC instant exactly — i.e.
@@ -118,8 +125,10 @@ void main() {
     );
     addTearDown(provider.dispose);
 
-    final result =
-        await provider.fetchRadarFrames(latitude: 0.0, longitude: 0.0);
+    final result = await provider.fetchRadarFrames(
+      latitude: 0.0,
+      longitude: 0.0,
+    );
     expect(result.isSuccess, isTrue);
     for (final frame in result.frames) {
       expect(frame.opacity, closeTo(0.8, 1e-9));
@@ -132,8 +141,10 @@ void main() {
     );
     addTearDown(provider.dispose);
 
-    final result =
-        await provider.fetchRadarFrames(latitude: 47.6, longitude: -122.3);
+    final result = await provider.fetchRadarFrames(
+      latitude: 47.6,
+      longitude: -122.3,
+    );
     expect(result.isSuccess, isFalse);
     expect(result.errorMessage, isNotNull);
   });

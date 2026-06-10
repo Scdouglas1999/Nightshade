@@ -35,10 +35,7 @@ class JobHandlers {
     }
     final job = jobManager.get(jobId);
     if (job == null) {
-      return jsonNotFound({
-        'error': 'job_not_found',
-        'jobId': jobId,
-      });
+      return jsonNotFound({'error': 'job_not_found', 'jobId': jobId});
     }
     return jsonOk(job.toJson());
   }
@@ -101,10 +98,7 @@ class JobHandlers {
     try {
       final job = jobManager.cancel(jobId);
       if (job == null) {
-        return jsonNotFound({
-          'error': 'job_not_found',
-          'jobId': jobId,
-        });
+        return jsonNotFound({'error': 'job_not_found', 'jobId': jobId});
       }
       return jsonOk(job.toJson());
     } on StateError catch (e) {
@@ -128,10 +122,7 @@ class JobHandlers {
     }
     final job = jobManager.get(jobId);
     if (job == null) {
-      return jsonNotFound({
-        'error': 'job_not_found',
-        'jobId': jobId,
-      });
+      return jsonNotFound({'error': 'job_not_found', 'jobId': jobId});
     }
     if (!job.state.isTerminal) {
       return jsonConflict({
@@ -142,9 +133,6 @@ class JobHandlers {
       });
     }
     final removed = jobManager.purge(jobId);
-    return jsonOk({
-      'jobId': jobId,
-      'purged': removed,
-    });
+    return jsonOk({'jobId': jobId, 'purged': removed});
   }
 }

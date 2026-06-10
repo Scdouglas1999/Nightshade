@@ -12,13 +12,20 @@ class FlatWizardTutorialKeys {
   static GlobalKey? getKey(String? keyId) {
     if (keyId == null) return null;
     switch (keyId) {
-      case 'flat_tabs': return tabs;
-      case 'flat_filter_select': return filterSelect;
-      case 'flat_target_adu': return targetAdu;
-      case 'flat_frame_count': return frameCount;
-      case 'flat_preview': return preview;
-      case 'flat_start_btn': return startBtn;
-      default: return null;
+      case 'flat_tabs':
+        return tabs;
+      case 'flat_filter_select':
+        return filterSelect;
+      case 'flat_target_adu':
+        return targetAdu;
+      case 'flat_frame_count':
+        return frameCount;
+      case 'flat_preview':
+        return preview;
+      case 'flat_start_btn':
+        return startBtn;
+      default:
+        return null;
     }
   }
 }

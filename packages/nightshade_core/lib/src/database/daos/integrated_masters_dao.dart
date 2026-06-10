@@ -24,7 +24,8 @@ class IntegratedMastersDao {
 
   final NightshadeDatabase _db;
 
-  static const String _columns = 'id, target_id, name, master_fits_path, '
+  static const String _columns =
+      'id, target_id, name, master_fits_path, '
       'preview_png_path, sidecar_path, rejection_map_path, status, '
       'accumulation_mode, channels, width, height, frame_count, '
       'total_integration_seconds, filter, settings_json, stats_json, '
@@ -94,30 +95,36 @@ class IntegratedMastersDao {
 
   /// Fetch a master by id, or null when absent.
   Future<IntegratedMaster?> getById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM integrated_masters WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM integrated_masters WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapMaster(rows.first);
   }
 
   /// All masters, newest first.
   Future<List<IntegratedMaster>> getAll() async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM integrated_masters '
-      'ORDER BY created_at DESC, id DESC',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM integrated_masters '
+          'ORDER BY created_at DESC, id DESC',
+        )
+        .get();
     return rows.map(_mapMaster).toList();
   }
 
   /// Masters for a given target, newest first.
   Future<List<IntegratedMaster>> getForTarget(int targetId) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM integrated_masters '
-      'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
-      variables: [Variable<int>(targetId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM integrated_masters '
+          'WHERE target_id = ? ORDER BY created_at DESC, id DESC',
+          variables: [Variable<int>(targetId)],
+        )
+        .get();
     return rows.map(_mapMaster).toList();
   }
 
@@ -129,17 +136,19 @@ class IntegratedMastersDao {
     String? filter,
   }) async {
     final hasFilter = filter != null && filter.trim().isNotEmpty;
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM integrated_masters '
-      'WHERE target_id = ? AND status = ? '
-      '${hasFilter ? 'AND filter = ?' : 'AND (filter IS NULL OR filter = \'\')'} '
-      'ORDER BY created_at DESC, id DESC LIMIT 1',
-      variables: [
-        Variable<int>(targetId),
-        Variable<String>(IntegratedMasterStatus.accumulating.wire),
-        if (hasFilter) Variable<String>(filter.trim()),
-      ],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM integrated_masters '
+          'WHERE target_id = ? AND status = ? '
+          '${hasFilter ? 'AND filter = ?' : 'AND (filter IS NULL OR filter = \'\')'} '
+          'ORDER BY created_at DESC, id DESC LIMIT 1',
+          variables: [
+            Variable<int>(targetId),
+            Variable<String>(IntegratedMasterStatus.accumulating.wire),
+            if (hasFilter) Variable<String>(filter.trim()),
+          ],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapMaster(rows.first);
   }
@@ -183,8 +192,10 @@ class IntegratedMastersDao {
     if (height != null) put('height', Variable<int>(height));
     if (frameCount != null) put('frame_count', Variable<int>(frameCount));
     if (totalIntegrationSeconds != null) {
-      put('total_integration_seconds',
-          Variable<double>(totalIntegrationSeconds));
+      put(
+        'total_integration_seconds',
+        Variable<double>(totalIntegrationSeconds),
+      );
     }
     if (statsJson != null) put('stats_json', Variable<String>(statsJson));
 
@@ -319,8 +330,10 @@ class IntegratedMastersDao {
     }
 
     if (backgroundExtractedPath != null) {
-      put('background_extracted_path',
-          Variable<String>(backgroundExtractedPath));
+      put(
+        'background_extracted_path',
+        Variable<String>(backgroundExtractedPath),
+      );
     }
     if (deconvolvedPath != null) {
       put('deconvolved_path', Variable<String>(deconvolvedPath));
@@ -383,8 +396,7 @@ class IntegratedMastersDao {
         Variable<double>(alignmentResidualPx),
         Variable<int>(accepted ? 1 : 0),
         Variable<String>(rejectionReason),
-        Variable<int>(
-            _toEpochSeconds((foldedAt ?? DateTime.now()).toUtc())),
+        Variable<int>(_toEpochSeconds((foldedAt ?? DateTime.now()).toUtc())),
         Variable<double>(snr),
         Variable<double>(fwhm),
         Variable<double>(eccentricity),
@@ -396,22 +408,26 @@ class IntegratedMastersDao {
   /// source of truth: [MasterAccumulationService] subtracts this from the
   /// freshly-selected subs before an `add`.
   Future<Set<int>> getFoldedImageIds(int masterId) async {
-    final rows = await _db.customSelect(
-      'SELECT image_id FROM integrated_master_frames WHERE master_id = ?',
-      variables: [Variable<int>(masterId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT image_id FROM integrated_master_frames WHERE master_id = ?',
+          variables: [Variable<int>(masterId)],
+        )
+        .get();
     return rows.map((r) => r.read<int>('image_id')).toSet();
   }
 
   /// All fold records for a master, newest first.
   Future<List<IntegratedMasterFrame>> getFramesForMaster(int masterId) async {
-    final rows = await _db.customSelect(
-      'SELECT id, master_id, image_id, weight, alignment_residual_px, '
-      'accepted, rejection_reason, folded_at '
-      'FROM integrated_master_frames WHERE master_id = ? '
-      'ORDER BY folded_at DESC, id DESC',
-      variables: [Variable<int>(masterId)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT id, master_id, image_id, weight, alignment_residual_px, '
+          'accepted, rejection_reason, folded_at '
+          'FROM integrated_master_frames WHERE master_id = ? '
+          'ORDER BY folded_at DESC, id DESC',
+          variables: [Variable<int>(masterId)],
+        )
+        .get();
     return rows.map((r) {
       return IntegratedMasterFrame(
         id: r.read<int>('id'),
@@ -436,8 +452,9 @@ class IntegratedMastersDao {
       sidecarPath: row.readNullable<String>('sidecar_path'),
       rejectionMapPath: row.readNullable<String>('rejection_map_path'),
       status: IntegratedMasterStatus.fromWire(row.read<String>('status')),
-      accumulationMode:
-          AccumulationMode.fromWire(row.read<String>('accumulation_mode')),
+      accumulationMode: AccumulationMode.fromWire(
+        row.read<String>('accumulation_mode'),
+      ),
       channels: row.read<int>('channels'),
       width: row.read<int>('width'),
       height: row.read<int>('height'),
@@ -456,8 +473,9 @@ class IntegratedMastersDao {
       wcsCd1_2: row.readNullable<double>('wcs_cd1_2'),
       wcsCd2_1: row.readNullable<double>('wcs_cd2_1'),
       wcsCd2_2: row.readNullable<double>('wcs_cd2_2'),
-      backgroundExtractedPath:
-          row.readNullable<String>('background_extracted_path'),
+      backgroundExtractedPath: row.readNullable<String>(
+        'background_extracted_path',
+      ),
       deconvolvedPath: row.readNullable<String>('deconvolved_path'),
       starReducedPath: row.readNullable<String>('star_reduced_path'),
       colorCalibratedPath: row.readNullable<String>('color_calibrated_path'),

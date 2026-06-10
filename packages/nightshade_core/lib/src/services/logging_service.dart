@@ -7,13 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 
 /// Log level for filtering
-enum LogLevel {
-  debug,
-  info,
-  warning,
-  error,
-  critical,
-}
+enum LogLevel { debug, info, warning, error, critical }
 
 /// A log entry
 class LogEntry {
@@ -78,7 +72,8 @@ class LogEntry {
     final timestamp = DateTime.tryParse(tsRaw);
     if (timestamp == null) {
       throw FormatException(
-          'LogEntry.fromJson: unparseable timestamp "$tsRaw"');
+        'LogEntry.fromJson: unparseable timestamp "$tsRaw"',
+      );
     }
 
     final messageRaw = json['message'];
@@ -164,14 +159,14 @@ class LoggingService {
     void Function({String? logDirectory})? nativeInitWithLogging,
     void Function()? nativeInit,
     String? Function()? currentLogFileProvider,
-  })  : _applicationSupportDirectoryProvider =
-            applicationSupportDirectoryProvider ??
-                getApplicationSupportDirectory,
-        _nativeInitWithLogging =
-            nativeInitWithLogging ?? bridge_api.apiInitWithLogging,
-        _nativeInit = nativeInit ?? bridge_api.apiInit,
-        _currentLogFileProvider =
-            currentLogFileProvider ?? bridge_api.apiGetCurrentLogFile;
+  }) : _applicationSupportDirectoryProvider =
+           applicationSupportDirectoryProvider ??
+           getApplicationSupportDirectory,
+       _nativeInitWithLogging =
+           nativeInitWithLogging ?? bridge_api.apiInitWithLogging,
+       _nativeInit = nativeInit ?? bridge_api.apiInit,
+       _currentLogFileProvider =
+           currentLogFileProvider ?? bridge_api.apiGetCurrentLogFile;
 
   /// Initialize logging with file output
   Future<void> initialize() async {
@@ -201,10 +196,16 @@ class LoggingService {
       _nativeInitWithLogging(logDirectory: _logDirectory);
 
       _initialized = true;
-      log(LogLevel.info, 'Logging service initialized',
-          source: 'LoggingService');
-      log(LogLevel.info, 'Log directory: $_logDirectory',
-          source: 'LoggingService');
+      log(
+        LogLevel.info,
+        'Logging service initialized',
+        source: 'LoggingService',
+      );
+      log(
+        LogLevel.info,
+        'Log directory: $_logDirectory',
+        source: 'LoggingService',
+      );
     } catch (e) {
       // Fall back to console-only logging
       try {
@@ -223,8 +224,11 @@ class LoggingService {
         );
       }
       _initialized = true;
-      log(LogLevel.warning, 'File logging unavailable: $e',
-          source: 'LoggingService');
+      log(
+        LogLevel.warning,
+        'File logging unavailable: $e',
+        source: 'LoggingService',
+      );
     }
   }
 
@@ -313,16 +317,14 @@ class LoggingService {
     String message, {
     String? source,
     Map<String, Object?>? fields,
-  }) =>
-      log(LogLevel.warning, message, source: source, fields: fields);
+  }) => log(LogLevel.warning, message, source: source, fields: fields);
   void error(String message, {String? source, Map<String, Object?>? fields}) =>
       log(LogLevel.error, message, source: source, fields: fields);
   void critical(
     String message, {
     String? source,
     Map<String, Object?>? fields,
-  }) =>
-      log(LogLevel.critical, message, source: source, fields: fields);
+  }) => log(LogLevel.critical, message, source: source, fields: fields);
 
   /// Get recent logs from memory
   List<LogEntry> getRecentLogs({LogLevel? minLevel}) {
@@ -399,8 +401,11 @@ class LoggingService {
       final file = File(outputPath);
       await file.writeAsString(output.toString());
 
-      log(LogLevel.info, 'Logs exported to: $outputPath',
-          source: 'LoggingService');
+      log(
+        LogLevel.info,
+        'Logs exported to: $outputPath',
+        source: 'LoggingService',
+      );
       return outputPath;
     } catch (e) {
       throw Exception('Failed to export logs: $e');
@@ -487,13 +492,16 @@ class LoggingService {
         }
       }
 
-      log(LogLevel.info, 'Old log files cleared',
-          source: 'LoggingService',
-          fields: {
-            'deletedCount': deleted.length,
-            'freedBytes': freedBytes,
-            if (errors.isNotEmpty) 'errorCount': errors.length,
-          });
+      log(
+        LogLevel.info,
+        'Old log files cleared',
+        source: 'LoggingService',
+        fields: {
+          'deletedCount': deleted.length,
+          'freedBytes': freedBytes,
+          if (errors.isNotEmpty) 'errorCount': errors.length,
+        },
+      );
     } catch (e) {
       log(LogLevel.error, 'Failed to clear logs: $e', source: 'LoggingService');
       errors.add('directory iteration: $e');
@@ -530,8 +538,9 @@ class LoggingService {
   /// path-traversal probes (`..\\nightshade.log` would not match because
   /// the regex is anchored AND the caller pre-strips path separators —
   /// see [_validateLogFilename] in the handler).
-  static final RegExp _logFileNameRegex =
-      RegExp(r'^nightshade\.log(?:\.\d{4}-\d{2}-\d{2})?$');
+  static final RegExp _logFileNameRegex = RegExp(
+    r'^nightshade\.log(?:\.\d{4}-\d{2}-\d{2})?$',
+  );
 
   /// P1-14 — Return file-system metadata for every Nightshade log file
   /// on disk. The headless `/api/logs` listing renders the result
@@ -557,13 +566,15 @@ class LoggingService {
         try {
           final stat = await entity.stat();
           final name = entity.path.split(Platform.pathSeparator).last;
-          infos.add(LogFileInfo(
-            name: name,
-            path: entity.path,
-            sizeBytes: stat.size,
-            modifiedAt: stat.modified,
-            isCurrent: currentLog != null && entity.path == currentLog,
-          ));
+          infos.add(
+            LogFileInfo(
+              name: name,
+              path: entity.path,
+              sizeBytes: stat.size,
+              modifiedAt: stat.modified,
+              isCurrent: currentLog != null && entity.path == currentLog,
+            ),
+          );
         } catch (e) {
           // Mid-iteration rotation can break per-entry stat; skip the
           // affected entry and log via dart:developer (not this service)
@@ -634,11 +645,11 @@ class LogFileInfo {
   });
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        'sizeBytes': sizeBytes,
-        'modifiedAt': modifiedAt.toUtc().toIso8601String(),
-        'isCurrent': isCurrent,
-      };
+    'name': name,
+    'sizeBytes': sizeBytes,
+    'modifiedAt': modifiedAt.toUtc().toIso8601String(),
+    'isCurrent': isCurrent,
+  };
 }
 
 /// P1-14 — Result envelope for [LoggingService.clearLogs]. Reports the
@@ -657,10 +668,10 @@ class ClearLogsResult {
   });
 
   Map<String, Object?> toJson() => {
-        'deletedFiles': deletedFiles,
-        'freedBytes': freedBytes,
-        if (errors.isNotEmpty) 'errors': errors,
-      };
+    'deletedFiles': deletedFiles,
+    'freedBytes': freedBytes,
+    if (errors.isNotEmpty) 'errors': errors,
+  };
 }
 
 /// Provider for the logging service

@@ -53,7 +53,8 @@ class AutoIntegrationService {
     final enabled = await _isEnabled();
     if (!enabled) return AutoIntegrationResult.disabled;
 
-    final images = await _ref.read(imagesDaoProvider).getImagesForSession(sessionId);
+    final images =
+        await _ref.read(imagesDaoProvider).getImagesForSession(sessionId);
     final accepted = images
         .where((i) => i.frameType == 'light' && i.isAccepted)
         .toList(growable: false);
@@ -65,8 +66,9 @@ class AutoIntegrationService {
     }
 
     final settings = await _loadDefaultSettings();
-    final targetId =
-        accepted.map((i) => i.targetId).firstWhere((id) => id != null, orElse: () => null);
+    final targetId = accepted
+        .map((i) => i.targetId)
+        .firstWhere((id) => id != null, orElse: () => null);
     final targetName = targetId != null
         ? (await _ref.read(targetsDaoProvider).getTargetById(targetId))?.name
         : null;
@@ -153,8 +155,8 @@ class AutoIntegrationService {
             outcomes.fold<int>(0, (a, o) => a + o.result.framesIntegrated);
         batchRejected =
             outcomes.fold<int>(0, (a, o) => a + o.result.framesRejected);
-        batchSeconds =
-            outcomes.fold<double>(0, (a, o) => a + o.result.totalIntegrationSec);
+        batchSeconds = outcomes.fold<double>(
+            0, (a, o) => a + o.result.totalIntegrationSec);
         batchMasters = outcomes.length;
         firstBatchMasterId =
             outcomes.isNotEmpty ? outcomes.first.masterId : null;
@@ -321,8 +323,9 @@ class AutoIntegrationService {
   }
 
   Future<bool> _isEnabled() async {
-    final raw =
-        await _ref.read(settingsDaoProvider).getSetting(kAutoIntegrateSettingKey);
+    final raw = await _ref
+        .read(settingsDaoProvider)
+        .getSetting(kAutoIntegrateSettingKey);
     return raw == 'true';
   }
 

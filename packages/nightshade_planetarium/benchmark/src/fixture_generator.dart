@@ -56,7 +56,8 @@ StressFixture generateStressFixture() {
   );
   final planets = _planets();
 
-  final composition = '''
+  final composition =
+      '''
 Seeded synthetic worst-case stress scene (seed 0x${kFixtureSeed.toRadixString(16)}).
 Anchor: RA ${kAnchorRaHours}h Dec $kAnchorDecDeg deg, patch +/-$kPatchHalfWidthDeg deg.
 Stars: $kStarCount over mag $kStarMagBright..$kStarMagFaint (steep faint-end power law).
@@ -107,13 +108,15 @@ List<Star> _generateStars(math.Random rng) {
     final mag = kStarMagBright + (kStarMagFaint - kStarMagBright) * (u * u);
     // B-V color index spread -0.3..1.8 so the color-graded sprite path runs.
     final colorIndex = -0.3 + rng.nextDouble() * 2.1;
-    stars.add(Star(
-      id: 'BENCH-STAR-$i',
-      name: 'BENCH-STAR-$i',
-      coordinates: CelestialCoordinate(ra: ra, dec: dec),
-      magnitude: double.parse(mag.toStringAsFixed(3)),
-      colorIndex: double.parse(colorIndex.toStringAsFixed(3)),
-    ));
+    stars.add(
+      Star(
+        id: 'BENCH-STAR-$i',
+        name: 'BENCH-STAR-$i',
+        coordinates: CelestialCoordinate(ra: ra, dec: dec),
+        magnitude: double.parse(mag.toStringAsFixed(3)),
+        colorIndex: double.parse(colorIndex.toStringAsFixed(3)),
+      ),
+    );
   }
   return stars;
 }
@@ -144,16 +147,18 @@ List<DeepSkyObject> _generateDsos(math.Random rng) {
     final minor = major * axisRatio;
     final pa = rng.nextDouble() * 180.0;
     final mag = 6.0 + rng.nextDouble() * 7.0; // 6..13
-    dsos.add(DeepSkyObject(
-      id: 'BENCH-DSO-$i',
-      name: 'BENCH-DSO-$i',
-      coordinates: CelestialCoordinate(ra: ra, dec: dec),
-      type: type,
-      magnitude: double.parse(mag.toStringAsFixed(2)),
-      sizeArcMin: double.parse(major.toStringAsFixed(2)),
-      minorAxisArcMin: double.parse(minor.toStringAsFixed(2)),
-      positionAngle: double.parse(pa.toStringAsFixed(1)),
-    ));
+    dsos.add(
+      DeepSkyObject(
+        id: 'BENCH-DSO-$i',
+        name: 'BENCH-DSO-$i',
+        coordinates: CelestialCoordinate(ra: ra, dec: dec),
+        type: type,
+        magnitude: double.parse(mag.toStringAsFixed(2)),
+        sizeArcMin: double.parse(major.toStringAsFixed(2)),
+        minorAxisArcMin: double.parse(minor.toStringAsFixed(2)),
+        positionAngle: double.parse(pa.toStringAsFixed(1)),
+      ),
+    );
   }
   return dsos;
 }
@@ -172,26 +177,54 @@ List<ConstellationData> _generateConstellations(math.Random rng) {
     for (var s = 0; s < segCount; s++) {
       final nra = pra + (rng.nextDouble() * 2 - 1) * 1.2; // up to ~1.2h step
       final ndec = (pdec + (rng.nextDouble() * 2 - 1) * 8.0).clamp(-89.0, 89.0);
-      lines.add(ConstellationLine(
-        start: CelestialCoordinate(ra: pra, dec: pdec),
-        end: CelestialCoordinate(ra: nra, dec: ndec),
-      ));
+      lines.add(
+        ConstellationLine(
+          start: CelestialCoordinate(ra: pra, dec: pdec),
+          end: CelestialCoordinate(ra: nra, dec: ndec),
+        ),
+      );
       pra = nra;
       pdec = ndec;
     }
-    out.add(ConstellationData(
-      abbreviation: 'B$f',
-      name: 'Bench Figure $f',
-      lines: lines,
-      center: CelestialCoordinate(ra: cra, dec: cdec),
-    ));
+    out.add(
+      ConstellationData(
+        abbreviation: 'B$f',
+        name: 'Bench Figure $f',
+        lines: lines,
+        center: CelestialCoordinate(ra: cra, dec: cdec),
+      ),
+    );
   }
   return out;
 }
 
 List<PlanetData> _planets() => const [
-      PlanetData(name: 'Jupiter', ra: 6.4, dec: 6.0, magnitude: -2.3, color: 0xFFFFD180),
-      PlanetData(name: 'Mars', ra: 5.6, dec: 8.0, magnitude: 0.9, color: 0xFFFF7043),
-      PlanetData(name: 'Saturn', ra: 7.1, dec: 2.0, magnitude: 0.6, color: 0xFFFFE082),
-      PlanetData(name: 'Venus', ra: 4.9, dec: 1.0, magnitude: -4.0, color: 0xFFFFFFFF),
-    ];
+  PlanetData(
+    name: 'Jupiter',
+    ra: 6.4,
+    dec: 6.0,
+    magnitude: -2.3,
+    color: 0xFFFFD180,
+  ),
+  PlanetData(
+    name: 'Mars',
+    ra: 5.6,
+    dec: 8.0,
+    magnitude: 0.9,
+    color: 0xFFFF7043,
+  ),
+  PlanetData(
+    name: 'Saturn',
+    ra: 7.1,
+    dec: 2.0,
+    magnitude: 0.6,
+    color: 0xFFFFE082,
+  ),
+  PlanetData(
+    name: 'Venus',
+    ra: 4.9,
+    dec: 1.0,
+    magnitude: -4.0,
+    color: 0xFFFFFFFF,
+  ),
+];

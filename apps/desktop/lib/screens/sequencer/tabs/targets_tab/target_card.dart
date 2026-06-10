@@ -3,7 +3,7 @@ part of '../targets_tab.dart';
 class _TargetCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final dynamic
-      target; // Using dynamic since Target is a database generated type
+  target; // Using dynamic since Target is a database generated type
 
   const _TargetCard({required this.colors, required this.target});
 
@@ -93,11 +93,7 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         borderRadius: BorderRadius.circular(8),
                         bordered: false,
                       ),
-                      child: Icon(
-                        _getTypeIcon(),
-                        size: 24,
-                        color: typeColor,
-                      ),
+                      child: Icon(_getTypeIcon(), size: 24, color: typeColor),
                     ),
                     const SizedBox(width: 16),
 
@@ -137,7 +133,9 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                               const SizedBox(width: 12),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: typeColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
@@ -169,14 +167,18 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                               _InfoChip(
                                 colors: widget.colors,
                                 label: 'RA',
-                                value: CoordinateFormat.ra(widget.target.ra,
-                                    seconds: SecondsPrecision.integerRounded),
+                                value: CoordinateFormat.ra(
+                                  widget.target.ra,
+                                  seconds: SecondsPrecision.integerRounded,
+                                ),
                               ),
                               _InfoChip(
                                 colors: widget.colors,
                                 label: 'Dec',
-                                value: CoordinateFormat.dec(widget.target.dec,
-                                    seconds: SecondsPrecision.integerRounded),
+                                value: CoordinateFormat.dec(
+                                  widget.target.dec,
+                                  seconds: SecondsPrecision.integerRounded,
+                                ),
                               ),
                               if (widget.target.magnitude != null)
                                 _InfoChip(
@@ -203,8 +205,11 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                       children: [
                         Row(
                           children: [
-                            Icon(LucideIcons.camera,
-                                size: 12, color: widget.colors.textMuted),
+                            Icon(
+                              LucideIcons.camera,
+                              size: 12,
+                              color: widget.colors.textMuted,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${widget.target.capturedSubs ?? 0} subs',
@@ -212,7 +217,7 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                 fontSize: 11,
                                 color: widget.colors.textSecondary,
                                 fontFeatures: const [
-                                  FontFeature.tabularFigures()
+                                  FontFeature.tabularFigures(),
                                 ],
                               ),
                             ),
@@ -221,17 +226,21 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(LucideIcons.timer,
-                                size: 12, color: widget.colors.textMuted),
+                            Icon(
+                              LucideIcons.timer,
+                              size: 12,
+                              color: widget.colors.textMuted,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               _formatIntegration(
-                                  widget.target.totalIntegrationSecs ?? 0),
+                                widget.target.totalIntegrationSecs ?? 0,
+                              ),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: widget.colors.textSecondary,
                                 fontFeatures: const [
-                                  FontFeature.tabularFigures()
+                                  FontFeature.tabularFigures(),
                                 ],
                               ),
                             ),
@@ -263,9 +272,12 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         tooltip: 'Add to Sequence',
                         onPressed: () {
                           // Add target to sequence
-                          ref.read(currentSequenceProvider.notifier).addNode(
+                          ref
+                              .read(currentSequenceProvider.notifier)
+                              .addNode(
                                 TargetHeaderNode(
-                                  targetName: widget.target.catalogId ??
+                                  targetName:
+                                      widget.target.catalogId ??
                                       widget.target.name,
                                   raHours: widget.target.ra,
                                   decDegrees: widget.target.dec,
@@ -280,9 +292,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         onPressed: () {
                           showDialog(
                             context: context,
-                            builder: (context) => EditTargetDialog(
-                              target: widget.target,
-                            ),
+                            builder: (context) =>
+                                EditTargetDialog(target: widget.target),
                           );
                         },
                       ),
@@ -351,7 +362,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                   .read(currentSequenceProvider.notifier)
                                   .addNode(
                                     TargetHeaderNode(
-                                      targetName: widget.target.catalogId ??
+                                      targetName:
+                                          widget.target.catalogId ??
                                           widget.target.name,
                                       raHours: widget.target.ra,
                                       decDegrees: widget.target.dec,
@@ -368,8 +380,9 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                             variant: ButtonVariant.outline,
                             onPressed: () async {
                               try {
-                                final deviceService =
-                                    ref.read(deviceServiceProvider);
+                                final deviceService = ref.read(
+                                  deviceServiceProvider,
+                                );
                                 await deviceService.slewMountToCoordinates(
                                   widget.target.ra,
                                   widget.target.dec,
@@ -379,7 +392,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                          'Slewing to ${widget.target.name}'),
+                                        'Slewing to ${widget.target.name}',
+                                      ),
                                     ),
                                   );
                                 }
@@ -387,7 +401,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                        content: Text('Failed to slew: $e')),
+                                      content: Text('Failed to slew: $e'),
+                                    ),
                                   );
                                 }
                               }

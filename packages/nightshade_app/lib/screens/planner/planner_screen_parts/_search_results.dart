@@ -35,7 +35,9 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Searching installed catalogs for "$query"...',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ],
         ),
@@ -44,7 +46,8 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
         padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
         child: Text(
           'Installed catalog lookup failed: $e',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12, color: colors.warning),
         ),
       ),
       data: (matches) {
@@ -172,7 +175,9 @@ class _SimbadResultsSection extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Searching SIMBAD for "$query"…',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           ],
         ),
@@ -181,7 +186,8 @@ class _SimbadResultsSection extends ConsumerWidget {
         padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
         child: Text(
           'SIMBAD lookup failed: $e',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12, color: colors.warning),
         ),
       ),
       data: (matches) {
@@ -191,7 +197,9 @@ class _SimbadResultsSection extends ConsumerWidget {
             padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
             child: Text(
               'SIMBAD found no objects matching "$query".',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           );
         }

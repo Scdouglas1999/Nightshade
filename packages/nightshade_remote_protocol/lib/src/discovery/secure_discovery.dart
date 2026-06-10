@@ -101,8 +101,11 @@ class SecureDiscovery {
     DiscoveryMode mode = DiscoveryMode.pairedOnly,
   }) async {
     if (_socket != null) {
-      developer.log('Server already running',
-          name: 'SecureDiscovery', level: 900);
+      developer.log(
+        'Server already running',
+        name: 'SecureDiscovery',
+        level: 900,
+      );
       return;
     }
 
@@ -116,8 +119,11 @@ class SecureDiscovery {
 
     _socket!.broadcastEnabled = true;
 
-    developer.log('Secure discovery server started in ${mode.name} mode',
-        name: 'SecureDiscovery', level: 800);
+    developer.log(
+      'Secure discovery server started in ${mode.name} mode',
+      name: 'SecureDiscovery',
+      level: 800,
+    );
 
     // Listen for discovery requests.
     //
@@ -243,8 +249,9 @@ class SecureDiscovery {
     // contain `:` (e.g. `native:touptek:zwo:0`), which is exactly the case
     // the old split-on-`:` parser corrupted.
     final rawDeviceId = req['deviceId'];
-    final String? deviceId =
-        rawDeviceId is String && rawDeviceId.isNotEmpty ? rawDeviceId : null;
+    final String? deviceId = rawDeviceId is String && rawDeviceId.isNotEmpty
+        ? rawDeviceId
+        : null;
 
     bool shouldRespond = false;
 
@@ -262,8 +269,9 @@ class SecureDiscovery {
         // Only respond to paired devices
         if (deviceId != null) {
           final device = await _tokenManager.getActivePairedDevices().then(
-              (devices) =>
-                  devices.where((d) => d.deviceId == deviceId).firstOrNull);
+            (devices) =>
+                devices.where((d) => d.deviceId == deviceId).firstOrNull,
+          );
           shouldRespond = device != null;
         } else if (isPairingRequest) {
           // Also respond to pairing requests (so they know we exist)
@@ -394,12 +402,17 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      developer.log('Discovery complete, found ${servers.length} servers',
-          name: 'SecureDiscovery');
+      developer.log(
+        'Discovery complete, found ${servers.length} servers',
+        name: 'SecureDiscovery',
+      );
       return servers;
     } catch (e) {
-      developer.log('Discovery error: $e',
-          name: 'SecureDiscovery', level: 1000);
+      developer.log(
+        'Discovery error: $e',
+        name: 'SecureDiscovery',
+        level: 1000,
+      );
       return servers;
     }
   }
@@ -412,8 +425,10 @@ class SecureDiscovery {
     final seen = <String>{};
 
     try {
-      developer.log('Looking for servers in pairing mode...',
-          name: 'SecureDiscovery');
+      developer.log(
+        'Looking for servers in pairing mode...',
+        name: 'SecureDiscovery',
+      );
 
       final socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -448,12 +463,17 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      developer.log('Found ${servers.length} servers in pairing mode',
-          name: 'SecureDiscovery');
+      developer.log(
+        'Found ${servers.length} servers in pairing mode',
+        name: 'SecureDiscovery',
+      );
       return servers;
     } catch (e) {
-      developer.log('Discovery error: $e',
-          name: 'SecureDiscovery', level: 1000);
+      developer.log(
+        'Discovery error: $e',
+        name: 'SecureDiscovery',
+        level: 1000,
+      );
       return servers;
     }
   }
@@ -530,12 +550,14 @@ class SecureDiscovery {
     if (seen.contains(key)) return;
     seen.add(key);
 
-    servers.add(SecureDiscoveredServer(
-      host: host,
-      signalingPort: signalingPort,
-      serverIdHash: serverIdHash,
-      isPairingMode: isPairingMode,
-    ));
+    servers.add(
+      SecureDiscoveredServer(
+        host: host,
+        signalingPort: signalingPort,
+        serverIdHash: serverIdHash,
+        isPairingMode: isPairingMode,
+      ),
+    );
     developer.log(
       'Found ${requirePairingMode ? "pairing " : ""}server: $host',
       name: 'SecureDiscovery',

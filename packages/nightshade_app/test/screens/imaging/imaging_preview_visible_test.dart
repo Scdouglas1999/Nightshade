@@ -45,7 +45,8 @@ void main() {
       histogram: List<int>.filled(256, 0),
       stats: const ImageStats(mean: 0, stdDev: 0),
       capturedAt: DateTime.utc(2026, 6, 3, 21, 0, 0),
-      settings: const ExposureSettings(exposureTime: 1.0, gain: 100, offset: 10),
+      settings:
+          const ExposureSettings(exposureTime: 1.0, gain: 100, offset: 10),
       filePath: '/tmp/light_001.fits',
     );
 
@@ -64,8 +65,7 @@ void main() {
         reason: 'A published frame must mount the image display widget.');
     final size = tester.getSize(finder);
     expect(size.width, greaterThan(1),
-        reason:
-            'The preview collapsed to zero width — captured frames render '
+        reason: 'The preview collapsed to zero width — captured frames render '
             'blank. The preview column must stretch its children so the '
             'inner (Positioned-only) Stack gets a tight width.');
     expect(size.height, greaterThan(1),

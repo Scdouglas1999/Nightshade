@@ -12,8 +12,11 @@ class SequenceRuns extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// FK to sequences table (nullable because the sequence may be deleted)
-  IntColumn get sequenceId =>
-      integer().nullable().references(Sequences, #id, onDelete: KeyAction.setNull)();
+  IntColumn get sequenceId => integer().nullable().references(
+    Sequences,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   /// Snapshot of the sequence name at the time of execution
   TextColumn get sequenceName => text()();

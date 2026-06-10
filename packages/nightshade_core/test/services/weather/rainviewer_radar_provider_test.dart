@@ -22,25 +22,25 @@ void main() {
         'past': [
           {
             'time': 1234567200,
-            'path': '/v2/radar/1234567200/256/{z}/{x}/{y}/2/1_1.png'
+            'path': '/v2/radar/1234567200/256/{z}/{x}/{y}/2/1_1.png',
           },
           {
             'time': 1234567800,
-            'path': '/v2/radar/1234567800/256/{z}/{x}/{y}/2/1_1.png'
+            'path': '/v2/radar/1234567800/256/{z}/{x}/{y}/2/1_1.png',
           },
           {
             'time': 1234568400,
-            'path': '/v2/radar/1234568400/256/{z}/{x}/{y}/2/1_1.png'
+            'path': '/v2/radar/1234568400/256/{z}/{x}/{y}/2/1_1.png',
           },
         ],
         'nowcast': [
           {
             'time': 1234569000,
-            'path': '/v2/radar/1234569000/256/{z}/{x}/{y}/2/1_1.png'
+            'path': '/v2/radar/1234569000/256/{z}/{x}/{y}/2/1_1.png',
           },
           {
             'time': 1234569600,
-            'path': '/v2/radar/1234569600/256/{z}/{x}/{y}/2/1_1.png'
+            'path': '/v2/radar/1234569600/256/{z}/{x}/{y}/2/1_1.png',
           },
         ],
       },
@@ -125,76 +125,84 @@ void main() {
       );
     });
 
-    test('fetchRadarFrames decodes tiles into a real per-cell intensity grid',
-        () async {
-      provider = RainViewerRadarProvider(
-        httpClient: clientWith(() => http.Response.bytes(
+    test(
+      'fetchRadarFrames decodes tiles into a real per-cell intensity grid',
+      () async {
+        provider = RainViewerRadarProvider(
+          httpClient: clientWith(
+            () => http.Response.bytes(
               heavyRainTilePng(),
               200,
               headers: {'content-type': 'image/png'},
-            )),
-      );
+            ),
+          ),
+        );
 
-      final result = await provider.fetchRadarFrames(
-        latitude: 40.7128,
-        longitude: -74.0060,
-      );
+        final result = await provider.fetchRadarFrames(
+          latitude: 40.7128,
+          longitude: -74.0060,
+        );
 
-      expect(result.isSuccess, isTrue);
-      expect(result.errorMessage, isNull);
-      expect(result.frames.length, equals(5)); // 3 past + 2 nowcast
+        expect(result.isSuccess, isTrue);
+        expect(result.errorMessage, isNull);
+        expect(result.frames.length, equals(5)); // 3 past + 2 nowcast
 
-      for (final frame in result.frames) {
-        // Real spatial data was decoded: a populated grid, not a no-data flag.
-        expect(frame.isNoData, isFalse);
-        expect(frame.intensityGrid, isNotNull);
-        expect(frame.intensityGrid!.isNotEmpty, isTrue);
+        for (final frame in result.frames) {
+          // Real spatial data was decoded: a populated grid, not a no-data flag.
+          expect(frame.isNoData, isFalse);
+          expect(frame.intensityGrid, isNotNull);
+          expect(frame.intensityGrid!.isNotEmpty, isTrue);
 
-        // The whole tile was heavy rain → every sampled cell ~1.0.
-        final sample = frame.intensityGrid![0][0];
-        expect(sample, closeTo(1.0, 1e-6));
+          // The whole tile was heavy rain → every sampled cell ~1.0.
+          final sample = frame.intensityGrid![0][0];
+          expect(sample, closeTo(1.0, 1e-6));
 
-        // Frame bounds are the observer FOV (NOT the whole world anymore).
-        expect(frame.north, lessThan(90.0));
-        expect(frame.south, greaterThan(-90.0));
-        expect(frame.north - frame.south, lessThan(10.0));
-      }
+          // Frame bounds are the observer FOV (NOT the whole world anymore).
+          expect(frame.north, lessThan(90.0));
+          expect(frame.south, greaterThan(-90.0));
+          expect(frame.north - frame.south, lessThan(10.0));
+        }
 
-      // Forecast frames retain their lower animation opacity + flag.
-      final nowcast = result.frames.where((f) => f.isForecast).toList();
-      expect(nowcast.length, equals(2));
-      expect(nowcast.first.opacity, equals(0.85));
-    });
+        // Forecast frames retain their lower animation opacity + flag.
+        final nowcast = result.frames.where((f) => f.isForecast).toList();
+        expect(nowcast.length, equals(2));
+        expect(nowcast.first.opacity, equals(0.85));
+      },
+    );
 
-    test('tile fetch failure yields honest no-data frames (no fabrication)',
-        () async {
-      // Metadata succeeds, but every tile request 404s.
-      provider = RainViewerRadarProvider(
-        httpClient: clientWith(() => http.Response('Not found', 404)),
-      );
+    test(
+      'tile fetch failure yields honest no-data frames (no fabrication)',
+      () async {
+        // Metadata succeeds, but every tile request 404s.
+        provider = RainViewerRadarProvider(
+          httpClient: clientWith(() => http.Response('Not found', 404)),
+        );
 
-      final result = await provider.fetchRadarFrames(
-        latitude: 40.7128,
-        longitude: -74.0060,
-      );
+        final result = await provider.fetchRadarFrames(
+          latitude: 40.7128,
+          longitude: -74.0060,
+        );
 
-      // The fetch as a whole still "succeeds" (the metadata was read) but every
-      // frame is flagged no-data, carrying no fabricated intensity field.
-      expect(result.isSuccess, isTrue);
-      expect(result.frames, isNotEmpty);
-      for (final frame in result.frames) {
-        expect(frame.isNoData, isTrue);
-        expect(frame.intensityGrid, isNull);
-      }
-    });
+        // The fetch as a whole still "succeeds" (the metadata was read) but every
+        // frame is flagged no-data, carrying no fabricated intensity field.
+        expect(result.isSuccess, isTrue);
+        expect(result.frames, isNotEmpty);
+        for (final frame in result.frames) {
+          expect(frame.isNoData, isTrue);
+          expect(frame.intensityGrid, isNull);
+        }
+      },
+    );
 
     test('tile decode failure (garbage bytes) yields no-data frames', () async {
       provider = RainViewerRadarProvider(
-        httpClient: clientWith(() => http.Response.bytes(
-              Uint8List.fromList([0, 1, 2, 3, 4]),
-              200,
-              headers: {'content-type': 'image/png'},
-            )),
+        httpClient: clientWith(
+          () => http.Response.bytes(
+            Uint8List.fromList([0, 1, 2, 3, 4]),
+            200,
+            headers: {'content-type': 'image/png'},
+          ),
+        ),
       );
 
       final result = await provider.fetchRadarFrames(
@@ -318,7 +326,7 @@ void main() {
                 'past': [
                   {
                     'time': 1234567200,
-                    'path': '/v2/radar/1234567200/256/{z}/{x}/{y}/2/1_1.png'
+                    'path': '/v2/radar/1234567200/256/{z}/{x}/{y}/2/1_1.png',
                   },
                   {'path': '/v2/radar/1234567800/256/{z}/{x}/{y}/2/1_1.png'},
                   {'time': 1234568400},
@@ -354,11 +362,13 @@ void main() {
 
     test('timestamp conversion from Unix seconds is correct', () async {
       provider = RainViewerRadarProvider(
-        httpClient: clientWith(() => http.Response.bytes(
-              heavyRainTilePng(),
-              200,
-              headers: {'content-type': 'image/png'},
-            )),
+        httpClient: clientWith(
+          () => http.Response.bytes(
+            heavyRainTilePng(),
+            200,
+            headers: {'content-type': 'image/png'},
+          ),
+        ),
       );
 
       final result = await provider.fetchRadarFrames(
@@ -368,8 +378,9 @@ void main() {
 
       expect(result.isSuccess, isTrue);
       final firstFrame = result.frames.first;
-      final expectedTimestamp =
-          DateTime.fromMillisecondsSinceEpoch(1234567200 * 1000);
+      final expectedTimestamp = DateTime.fromMillisecondsSinceEpoch(
+        1234567200 * 1000,
+      );
       expect(firstFrame.timestamp, equals(expectedTimestamp));
     });
   });

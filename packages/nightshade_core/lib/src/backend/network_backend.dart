@@ -236,28 +236,31 @@ abstract class _NetworkBackendTransport {
     Duration? connectionTimeout,
     http.Client? httpClient,
     bool autoConnectWebSocket = true,
-  })  : scheme = _normalizeScheme(scheme),
-        isRemoteHost = TailnetDetector.isTailscaleEndpoint(serverHost),
-        webSocketHeartbeatInterval =
-            webSocketHeartbeatInterval ?? const Duration(seconds: 15),
-        // Remote/LAN-aware timeout defaults. When the caller passes an explicit
-        // value it always wins (tests, advanced config); otherwise we pick the
-        // ceiling appropriate to the host's reachability tier. LAN behaviour is
-        // byte-for-byte unchanged from before this feature.
-        webSocketHeartbeatTimeout = webSocketHeartbeatTimeout ??
-            (TailnetDetector.isTailscaleEndpoint(serverHost)
-                ? _remoteHeartbeatTimeout
-                : _lanHeartbeatTimeout),
-        requestTimeout = requestTimeout ??
-            (TailnetDetector.isTailscaleEndpoint(serverHost)
-                ? _remoteRequestTimeout
-                : _lanRequestTimeout),
-        _http = httpClient ?? http.Client(),
-        _ownsHttpClient = httpClient == null {
+  }) : scheme = _normalizeScheme(scheme),
+       isRemoteHost = TailnetDetector.isTailscaleEndpoint(serverHost),
+       webSocketHeartbeatInterval =
+           webSocketHeartbeatInterval ?? const Duration(seconds: 15),
+       // Remote/LAN-aware timeout defaults. When the caller passes an explicit
+       // value it always wins (tests, advanced config); otherwise we pick the
+       // ceiling appropriate to the host's reachability tier. LAN behaviour is
+       // byte-for-byte unchanged from before this feature.
+       webSocketHeartbeatTimeout =
+           webSocketHeartbeatTimeout ??
+           (TailnetDetector.isTailscaleEndpoint(serverHost)
+               ? _remoteHeartbeatTimeout
+               : _lanHeartbeatTimeout),
+       requestTimeout =
+           requestTimeout ??
+           (TailnetDetector.isTailscaleEndpoint(serverHost)
+               ? _remoteRequestTimeout
+               : _lanRequestTimeout),
+       _http = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null {
     // Initialize persistent HTTP client with connection pooling
     _httpClient = HttpClient()
       ..idleTimeout = const Duration(seconds: 30)
-      ..connectionTimeout = connectionTimeout ??
+      ..connectionTimeout =
+          connectionTimeout ??
           (isRemoteHost ? _remoteConnectionTimeout : _lanConnectionTimeout);
     // Connect WebSocket immediately. Tests that only exercise the HTTP
     // request/response path can disable this to avoid background timers
@@ -298,10 +301,9 @@ abstract class _NetworkBackendTransport {
     if (queryParameters == null || queryParameters.isEmpty) {
       return base;
     }
-    return base.replace(queryParameters: {
-      ...base.queryParameters,
-      ...queryParameters,
-    });
+    return base.replace(
+      queryParameters: {...base.queryParameters, ...queryParameters},
+    );
   }
 
   /// Build a WebSocket URI for [path] (e.g. `/events`, `/ws/live-view`),
@@ -357,12 +359,11 @@ abstract class _NetworkBackendTransport {
     required String viewerId,
     required String deviceName,
     required String displayName,
-  }) =>
-      _setCollaborationIdentity(
-        viewerId: viewerId,
-        deviceName: deviceName,
-        displayName: displayName,
-      );
+  }) => _setCollaborationIdentity(
+    viewerId: viewerId,
+    deviceName: deviceName,
+    displayName: displayName,
+  );
 
   Future<void> reconnectNow() => _reconnectNow();
 

@@ -199,9 +199,7 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
   /// value, so the UI can never advertise a tailnet host that is no longer up.
   Future<void> _resolveLocalIp() async {
     try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: false,
-      );
+      final interfaces = await NetworkInterface.list(includeLoopback: false);
 
       String? lanIp;
       String? tailscaleV4;
@@ -232,8 +230,7 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
       }
 
       final tailscaleIp = tailscaleV4 ?? tailscaleV6 ?? '';
-      final tailscaleReachable =
-          tailscaleIp.isNotEmpty && !state.bindLocalOnly;
+      final tailscaleReachable = tailscaleIp.isNotEmpty && !state.bindLocalOnly;
 
       state = state.copyWith(
         localIp: lanIp ?? '',
@@ -251,5 +248,5 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
 
 final webServerStateProvider =
     StateNotifierProvider<WebServerStateNotifier, WebServerState>(
-  (ref) => WebServerStateNotifier(),
-);
+      (ref) => WebServerStateNotifier(),
+    );

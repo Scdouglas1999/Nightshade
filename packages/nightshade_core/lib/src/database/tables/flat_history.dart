@@ -11,7 +11,11 @@ class FlatHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// Reference to equipment profile used
-  IntColumn get equipmentProfileId => integer().nullable().references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
+  IntColumn get equipmentProfileId => integer().nullable().references(
+    EquipmentProfiles,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   /// Filter name (e.g., "L", "R", "Ha")
   TextColumn get filterName => text()();

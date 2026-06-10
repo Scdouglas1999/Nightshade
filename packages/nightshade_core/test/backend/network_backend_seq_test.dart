@@ -58,16 +58,18 @@ void main() {
         // Server pushes an event with seq=5; verify the client records it.
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {
-            socket.add(jsonEncode({
-              'type': 'event',
-              'timestamp': 1700000000000,
-              'severity': 'info',
-              'category': 'system',
-              'eventType': 'TestEvent',
-              'data': const <String, dynamic>{},
-              'seq': 5,
-              'serverInstanceId': 'srv-uuid-1',
-            }));
+            socket.add(
+              jsonEncode({
+                'type': 'event',
+                'timestamp': 1700000000000,
+                'severity': 'info',
+                'category': 'system',
+                'eventType': 'TestEvent',
+                'data': const <String, dynamic>{},
+                'seq': 5,
+                'serverInstanceId': 'srv-uuid-1',
+              }),
+            );
           });
           socket.listen((message) {
             final data = jsonDecode(message as String) as Map<String, dynamic>;
@@ -104,16 +106,18 @@ void main() {
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {
             for (var i = 5; i <= 8; i++) {
-              socket.add(jsonEncode({
-                'type': 'event',
-                'timestamp': 1700000000000 + i,
-                'severity': 'info',
-                'category': 'system',
-                'eventType': 'TestEvent',
-                'data': {'i': i},
-                'seq': i,
-                'serverInstanceId': 'srv-uuid-1',
-              }));
+              socket.add(
+                jsonEncode({
+                  'type': 'event',
+                  'timestamp': 1700000000000 + i,
+                  'severity': 'info',
+                  'category': 'system',
+                  'eventType': 'TestEvent',
+                  'data': {'i': i},
+                  'seq': i,
+                  'serverInstanceId': 'srv-uuid-1',
+                }),
+              );
             }
           });
           socket.listen((_) {});
@@ -150,16 +154,18 @@ void main() {
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {
             for (final seq in const [6, 8]) {
-              socket.add(jsonEncode({
-                'type': 'event',
-                'timestamp': 1700000000000 + seq,
-                'severity': 'info',
-                'category': 'system',
-                'eventType': 'TestEvent',
-                'data': {'i': seq},
-                'seq': seq,
-                'serverInstanceId': 'srv-uuid-1',
-              }));
+              socket.add(
+                jsonEncode({
+                  'type': 'event',
+                  'timestamp': 1700000000000 + seq,
+                  'severity': 'info',
+                  'category': 'system',
+                  'eventType': 'TestEvent',
+                  'data': {'i': seq},
+                  'seq': seq,
+                  'serverInstanceId': 'srv-uuid-1',
+                }),
+              );
             }
           });
           socket.listen((_) {});
@@ -199,24 +205,23 @@ void main() {
       },
     );
 
-    test(
-      'reconnect URL includes ?since=<lastSeq>&instance=<uuid>',
-      () async {
-        // After seeing seq=42 with instance=srv-1, the client's next WS
-        // connect must include since=42 & instance=srv-1 as query params.
-        // Each socket handler captures the upgrade query, then pushes a
-        // seq-bearing event on the first connection so the second
-        // connection has a cursor to send back.
-        final capturedQueries = <Map<String, String>>[];
-        var connectionCount = 0;
-        final server = await _startServer(
-          (socket) {
-            final isFirst = ++connectionCount == 1;
-            if (isFirst) {
-              // Deliver seq=42 on the first connect so the client has a
-              // cursor to replay from when it reconnects.
-              Timer(const Duration(milliseconds: 50), () {
-                socket.add(jsonEncode({
+    test('reconnect URL includes ?since=<lastSeq>&instance=<uuid>', () async {
+      // After seeing seq=42 with instance=srv-1, the client's next WS
+      // connect must include since=42 & instance=srv-1 as query params.
+      // Each socket handler captures the upgrade query, then pushes a
+      // seq-bearing event on the first connection so the second
+      // connection has a cursor to send back.
+      final capturedQueries = <Map<String, String>>[];
+      var connectionCount = 0;
+      final server = await _startServer(
+        (socket) {
+          final isFirst = ++connectionCount == 1;
+          if (isFirst) {
+            // Deliver seq=42 on the first connect so the client has a
+            // cursor to replay from when it reconnects.
+            Timer(const Duration(milliseconds: 50), () {
+              socket.add(
+                jsonEncode({
                   'type': 'event',
                   'timestamp': 1700000000000,
                   'severity': 'info',
@@ -225,53 +230,52 @@ void main() {
                   'data': const <String, dynamic>{},
                   'seq': 42,
                   'serverInstanceId': 'srv-1',
-                }));
-              });
-            }
-            socket.listen((message) {
-              final data =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (data['type'] == 'ping') {
-                socket.add(jsonEncode({'type': 'pong'}));
-              }
+                }),
+              );
             });
-          },
-          onWsRequest: (request) =>
-              capturedQueries.add(Map.of(request.uri.queryParameters)),
-        );
-        final backend = NetworkBackend(
-          serverHost: InternetAddress.loopbackIPv4.address,
-          serverPort: server.port,
-          webSocketPort: server.port,
-          webSocketHeartbeatInterval: const Duration(milliseconds: 50),
-          webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
-        );
-        try {
-          // Wait for the seed event so we know the cursor is populated.
-          await backend.eventStream
-              .firstWhere((e) => e.eventType == 'SeedSeqEvent')
-              .timeout(const Duration(seconds: 2));
-          expect(backend.lastSeenEventSeq, 42);
-          expect(backend.serverInstanceId, 'srv-1');
+          }
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
+        },
+        onWsRequest: (request) =>
+            capturedQueries.add(Map.of(request.uri.queryParameters)),
+      );
+      final backend = NetworkBackend(
+        serverHost: InternetAddress.loopbackIPv4.address,
+        serverPort: server.port,
+        webSocketPort: server.port,
+        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+      );
+      try {
+        // Wait for the seed event so we know the cursor is populated.
+        await backend.eventStream
+            .firstWhere((e) => e.eventType == 'SeedSeqEvent')
+            .timeout(const Duration(seconds: 2));
+        expect(backend.lastSeenEventSeq, 42);
+        expect(backend.serverInstanceId, 'srv-1');
 
-          // Force a reconnect. reconnectNow() bypasses the backoff timer
-          // and re-runs connect() immediately.
-          await backend.reconnectNow();
-          // reconnectNow() awaits the connect; the second upgrade should
-          // already have been captured. Give the event loop one turn in
-          // case the server's accept-path hasn't settled.
-          await Future<void>.delayed(const Duration(milliseconds: 50));
+        // Force a reconnect. reconnectNow() bypasses the backoff timer
+        // and re-runs connect() immediately.
+        await backend.reconnectNow();
+        // reconnectNow() awaits the connect; the second upgrade should
+        // already have been captured. Give the event loop one turn in
+        // case the server's accept-path hasn't settled.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-          expect(capturedQueries.length, greaterThanOrEqualTo(2));
-          final reconnectQuery = capturedQueries.last;
-          expect(reconnectQuery['since'], '42');
-          expect(reconnectQuery['instance'], 'srv-1');
-        } finally {
-          backend.dispose();
-          await server.close(force: true);
-        }
-      },
-    );
+        expect(capturedQueries.length, greaterThanOrEqualTo(2));
+        final reconnectQuery = capturedQueries.last;
+        expect(reconnectQuery['since'], '42');
+        expect(reconnectQuery['instance'], 'srv-1');
+      } finally {
+        backend.dispose();
+        await server.close(force: true);
+      }
+    });
 
     test(
       'instance-id mismatch on reconnect: client does NOT send ?since=',
@@ -287,17 +291,18 @@ void main() {
         final capturedQueries = <Map<String, String>>[];
         var connectionCount = 0;
         String currentInstance = 'srv-1';
-        final server =
-            await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
         server.listen((request) async {
           if (request.uri.path == '/api/info') {
             request.response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'version': '2.5.0',
-                'serverInstanceId': currentInstance,
-              }));
+              ..write(
+                jsonEncode({
+                  'version': '2.5.0',
+                  'serverInstanceId': currentInstance,
+                }),
+              );
             await request.response.close();
             return;
           }
@@ -308,16 +313,18 @@ void main() {
             if (isFirst) {
               // Seed seq=10 under srv-1 so the cursor is populated.
               Timer(const Duration(milliseconds: 50), () {
-                socket.add(jsonEncode({
-                  'type': 'event',
-                  'timestamp': 1700000000000,
-                  'severity': 'info',
-                  'category': 'system',
-                  'eventType': 'SeedSeqEvent',
-                  'data': const <String, dynamic>{},
-                  'seq': 10,
-                  'serverInstanceId': 'srv-1',
-                }));
+                socket.add(
+                  jsonEncode({
+                    'type': 'event',
+                    'timestamp': 1700000000000,
+                    'severity': 'info',
+                    'category': 'system',
+                    'eventType': 'SeedSeqEvent',
+                    'data': const <String, dynamic>{},
+                    'seq': 10,
+                    'serverInstanceId': 'srv-1',
+                  }),
+                );
               });
             }
             socket.listen((message) {
@@ -358,12 +365,18 @@ void main() {
 
           expect(capturedQueries.length, greaterThanOrEqualTo(2));
           final reconnectQuery = capturedQueries.last;
-          expect(reconnectQuery.containsKey('since'), isFalse,
-              reason:
-                  'Reconnect after instance change must NOT carry stale since=');
-          expect(reconnectQuery.containsKey('instance'), isFalse,
-              reason:
-                  'Reconnect after instance change must NOT carry stale instance=');
+          expect(
+            reconnectQuery.containsKey('since'),
+            isFalse,
+            reason:
+                'Reconnect after instance change must NOT carry stale since=',
+          );
+          expect(
+            reconnectQuery.containsKey('instance'),
+            isFalse,
+            reason:
+                'Reconnect after instance change must NOT carry stale instance=',
+          );
           // After /api/info disclosed srv-2, the client should have adopted it.
           expect(backend.serverInstanceId, 'srv-2');
           expect(backend.lastSeenEventSeq, isNull);
@@ -384,12 +397,14 @@ void main() {
         // downstream providers can refresh.
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {
-            socket.add(jsonEncode({
-              'type': 'resync_required',
-              'reason': 'instance_changed',
-              'currentSeq': 0,
-              'currentInstance': 'srv-2',
-            }));
+            socket.add(
+              jsonEncode({
+                'type': 'resync_required',
+                'reason': 'instance_changed',
+                'currentSeq': 0,
+                'currentInstance': 'srv-2',
+              }),
+            );
           });
           socket.listen((_) {});
         });
@@ -428,17 +443,19 @@ void main() {
         // The server sets `replay: true` via _encodeStampedEventForWire.
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {
-            socket.add(jsonEncode({
-              'type': 'event',
-              'timestamp': 1700000000000,
-              'severity': 'info',
-              'category': 'system',
-              'eventType': 'ReplayedTestEvent',
-              'data': const <String, dynamic>{},
-              'seq': 12,
-              'serverInstanceId': 'srv-uuid-1',
-              'replay': true,
-            }));
+            socket.add(
+              jsonEncode({
+                'type': 'event',
+                'timestamp': 1700000000000,
+                'severity': 'info',
+                'category': 'system',
+                'eventType': 'ReplayedTestEvent',
+                'data': const <String, dynamic>{},
+                'seq': 12,
+                'serverInstanceId': 'srv-uuid-1',
+                'replay': true,
+              }),
+            );
           });
           socket.listen((_) {});
         });
@@ -474,97 +491,107 @@ void main() {
   // This guards the existing wire format against regressions even though
   // NetworkBackend itself does not yet consult the fields.
   group('NightshadeEvent wire format carries seq/instance metadata', () {
-    test('seq, serverInstanceId, correlatingCommandId round-trip via JSON',
-        () async {
-      final server = await _startServer((socket) {
-        Timer(const Duration(milliseconds: 50), () {
-          socket.add(jsonEncode({
-            'type': 'event',
-            'timestamp': 1700000000000,
-            'severity': 'info',
-            'category': 'system',
-            'eventType': 'MetadataCarrierEvent',
-            'data': const <String, dynamic>{},
-            'seq': 17,
-            'serverInstanceId': 'srv-uuid-42',
-            'correlatingCommandId': '11111111-2222-4333-8444-555555555555',
-          }));
+    test(
+      'seq, serverInstanceId, correlatingCommandId round-trip via JSON',
+      () async {
+        final server = await _startServer((socket) {
+          Timer(const Duration(milliseconds: 50), () {
+            socket.add(
+              jsonEncode({
+                'type': 'event',
+                'timestamp': 1700000000000,
+                'severity': 'info',
+                'category': 'system',
+                'eventType': 'MetadataCarrierEvent',
+                'data': const <String, dynamic>{},
+                'seq': 17,
+                'serverInstanceId': 'srv-uuid-42',
+                'correlatingCommandId': '11111111-2222-4333-8444-555555555555',
+              }),
+            );
+          });
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
         });
-        socket.listen((message) {
-          final data = jsonDecode(message as String) as Map<String, dynamic>;
-          if (data['type'] == 'ping') {
-            socket.add(jsonEncode({'type': 'pong'}));
-          }
+
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: server.port,
+          webSocketPort: server.port,
+          webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+          webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+        );
+        try {
+          final event = await backend.eventStream
+              .firstWhere((e) => e.eventType == 'MetadataCarrierEvent')
+              .timeout(const Duration(seconds: 2));
+
+          expect(event.seq, 17);
+          expect(event.serverInstanceId, 'srv-uuid-42');
+          expect(
+            event.correlatingCommandId,
+            '11111111-2222-4333-8444-555555555555',
+          );
+          expect(event.category, EventCategory.system);
+          expect(event.severity, EventSeverity.info);
+        } finally {
+          backend.dispose();
+          await server.close(force: true);
+        }
+      },
+    );
+
+    test(
+      'events without seq/instance/correlation still parse with nulls',
+      () async {
+        // Backward compatibility: a pre-P1-1 server omits these fields and
+        // the client must accept that without complaint.
+        final server = await _startServer((socket) {
+          Timer(const Duration(milliseconds: 50), () {
+            socket.add(
+              jsonEncode({
+                'type': 'event',
+                'timestamp': 1700000000000,
+                'severity': 'info',
+                'category': 'system',
+                'eventType': 'LegacyEvent',
+                'data': const <String, dynamic>{},
+              }),
+            );
+          });
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
         });
-      });
 
-      final backend = NetworkBackend(
-        serverHost: InternetAddress.loopbackIPv4.address,
-        serverPort: server.port,
-        webSocketPort: server.port,
-        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
-        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
-      );
-      try {
-        final event = await backend.eventStream
-            .firstWhere((e) => e.eventType == 'MetadataCarrierEvent')
-            .timeout(const Duration(seconds: 2));
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: server.port,
+          webSocketPort: server.port,
+          webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+          webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+        );
+        try {
+          final event = await backend.eventStream
+              .firstWhere((e) => e.eventType == 'LegacyEvent')
+              .timeout(const Duration(seconds: 2));
 
-        expect(event.seq, 17);
-        expect(event.serverInstanceId, 'srv-uuid-42');
-        expect(event.correlatingCommandId,
-            '11111111-2222-4333-8444-555555555555');
-        expect(event.category, EventCategory.system);
-        expect(event.severity, EventSeverity.info);
-      } finally {
-        backend.dispose();
-        await server.close(force: true);
-      }
-    });
-
-    test('events without seq/instance/correlation still parse with nulls',
-        () async {
-      // Backward compatibility: a pre-P1-1 server omits these fields and
-      // the client must accept that without complaint.
-      final server = await _startServer((socket) {
-        Timer(const Duration(milliseconds: 50), () {
-          socket.add(jsonEncode({
-            'type': 'event',
-            'timestamp': 1700000000000,
-            'severity': 'info',
-            'category': 'system',
-            'eventType': 'LegacyEvent',
-            'data': const <String, dynamic>{},
-          }));
-        });
-        socket.listen((message) {
-          final data = jsonDecode(message as String) as Map<String, dynamic>;
-          if (data['type'] == 'ping') {
-            socket.add(jsonEncode({'type': 'pong'}));
-          }
-        });
-      });
-
-      final backend = NetworkBackend(
-        serverHost: InternetAddress.loopbackIPv4.address,
-        serverPort: server.port,
-        webSocketPort: server.port,
-        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
-        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
-      );
-      try {
-        final event = await backend.eventStream
-            .firstWhere((e) => e.eventType == 'LegacyEvent')
-            .timeout(const Duration(seconds: 2));
-
-        expect(event.seq, isNull);
-        expect(event.serverInstanceId, isNull);
-        expect(event.correlatingCommandId, isNull);
-      } finally {
-        backend.dispose();
-        await server.close(force: true);
-      }
-    });
+          expect(event.seq, isNull);
+          expect(event.serverInstanceId, isNull);
+          expect(event.correlatingCommandId, isNull);
+        } finally {
+          backend.dispose();
+          await server.close(force: true);
+        }
+      },
+    );
   });
 }
 

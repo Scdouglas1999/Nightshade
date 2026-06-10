@@ -31,7 +31,8 @@ class OpticalTrainDiagnostics {
   bool get hasIssues => issues.isNotEmpty;
 
   /// Single source of truth for the A/B/C/D/F grade derived from this run.
-  OpticalHealthScore get healthScore => OpticalHealthScore.fromDiagnostics(this);
+  OpticalHealthScore get healthScore =>
+      OpticalHealthScore.fromDiagnostics(this);
 }
 
 /// Letter grade buckets shared by the diagnostics screen and any analytics
@@ -120,8 +121,10 @@ class OpticalHealthScore {
     final tiltPenalty = tiltScore.clamp(0.0, 100.0);
     final collPenalty = collimationScore.clamp(0.0, 100.0);
     // Equal-weight blend: tilt and spacing both contribute to field shape.
-    final overall =
-        (100.0 - (tiltPenalty * 0.5 + collPenalty * 0.5)).clamp(0.0, 100.0);
+    final overall = (100.0 - (tiltPenalty * 0.5 + collPenalty * 0.5)).clamp(
+      0.0,
+      100.0,
+    );
     return OpticalHealthScore._(
       tiltScore: tiltPenalty,
       collimationScore: collPenalty,
@@ -178,44 +181,68 @@ class OpticalTrainDiagnosticsService {
         issues: [
           OpticalDiagnosticIssue(
             title: 'No diagnostics data',
-            detail: 'Capture more solved frames to estimate field tilt and collimation.',
+            detail:
+                'Capture more solved frames to estimate field tilt and collimation.',
             severity: OpticalIssueSeverity.info,
           ),
         ],
       );
     }
 
-    final left = _mean(psfTiles
-        .where((tile) => tile.tileCol < _midCol(psfTiles))
-        .map((tile) => tile.medianHfr));
-    final right = _mean(psfTiles
-        .where((tile) => tile.tileCol >= _midCol(psfTiles))
-        .map((tile) => tile.medianHfr));
-    final top = _mean(psfTiles
-        .where((tile) => tile.tileRow < _midRow(psfTiles))
-        .map((tile) => tile.medianHfr));
-    final bottom = _mean(psfTiles
-        .where((tile) => tile.tileRow >= _midRow(psfTiles))
-        .map((tile) => tile.medianHfr));
-    final global = _mean(psfTiles.map((tile) => tile.medianHfr)).clamp(0.1, 100.0);
+    final left = _mean(
+      psfTiles
+          .where((tile) => tile.tileCol < _midCol(psfTiles))
+          .map((tile) => tile.medianHfr),
+    );
+    final right = _mean(
+      psfTiles
+          .where((tile) => tile.tileCol >= _midCol(psfTiles))
+          .map((tile) => tile.medianHfr),
+    );
+    final top = _mean(
+      psfTiles
+          .where((tile) => tile.tileRow < _midRow(psfTiles))
+          .map((tile) => tile.medianHfr),
+    );
+    final bottom = _mean(
+      psfTiles
+          .where((tile) => tile.tileRow >= _midRow(psfTiles))
+          .map((tile) => tile.medianHfr),
+    );
+    final global = _mean(
+      psfTiles.map((tile) => tile.medianHfr),
+    ).clamp(0.1, 100.0);
 
     final horizontalTilt = (left - right).abs() / global;
     final verticalTilt = (top - bottom).abs() / global;
-    final tiltScore = ((horizontalTilt > verticalTilt ? horizontalTilt : verticalTilt) * 100)
-        .clamp(0.0, 100.0);
+    final tiltScore =
+        ((horizontalTilt > verticalTilt ? horizontalTilt : verticalTilt) * 100)
+            .clamp(0.0, 100.0);
 
     final edgeResidual = _mean(
-      residualVectors.where((row) => row.x < 0.25 || row.x > 0.75 || row.y < 0.25 || row.y > 0.75).map(
-            (row) => row.magnitudeArcsec,
-          ),
+      residualVectors
+          .where(
+            (row) =>
+                row.x < 0.25 || row.x > 0.75 || row.y < 0.25 || row.y > 0.75,
+          )
+          .map((row) => row.magnitudeArcsec),
     );
     final centerResidual = _mean(
-      residualVectors.where((row) => row.x >= 0.25 && row.x <= 0.75 && row.y >= 0.25 && row.y <= 0.75).map(
-            (row) => row.magnitudeArcsec,
-          ),
+      residualVectors
+          .where(
+            (row) =>
+                row.x >= 0.25 &&
+                row.x <= 0.75 &&
+                row.y >= 0.25 &&
+                row.y <= 0.75,
+          )
+          .map((row) => row.magnitudeArcsec),
     ).clamp(0.1, 1000.0);
-    final collimationScore = ((edgeResidual / centerResidual - 1.0).clamp(0.0, 2.0) * 50.0)
-        .clamp(0.0, 100.0);
+    final collimationScore =
+        ((edgeResidual / centerResidual - 1.0).clamp(0.0, 2.0) * 50.0).clamp(
+          0.0,
+          100.0,
+        );
 
     final dominantTiltDirection = _dominantTiltDirection(
       left: left,
@@ -246,7 +273,8 @@ class OpticalTrainDiagnosticsService {
       if (tiltScore < 18 && collimationScore < 15)
         const OpticalDiagnosticIssue(
           title: 'Optical train looks stable',
-          detail: 'Field HFR and residual patterns are balanced across the image.',
+          detail:
+              'Field HFR and residual patterns are balanced across the image.',
           severity: OpticalIssueSeverity.info,
         ),
     ];
@@ -260,10 +288,20 @@ class OpticalTrainDiagnosticsService {
   }
 
   int _midCol(List<PsfFieldTileRow> tiles) =>
-      ((tiles.map((tile) => tile.tileCol).fold<int>(0, (a, b) => a > b ? a : b) + 1) / 2).floor();
+      ((tiles
+                      .map((tile) => tile.tileCol)
+                      .fold<int>(0, (a, b) => a > b ? a : b) +
+                  1) /
+              2)
+          .floor();
 
   int _midRow(List<PsfFieldTileRow> tiles) =>
-      ((tiles.map((tile) => tile.tileRow).fold<int>(0, (a, b) => a > b ? a : b) + 1) / 2).floor();
+      ((tiles
+                      .map((tile) => tile.tileRow)
+                      .fold<int>(0, (a, b) => a > b ? a : b) +
+                  1) /
+              2)
+          .floor();
 
   String _dominantTiltDirection({
     required double left,
@@ -284,7 +322,9 @@ class OpticalTrainDiagnosticsService {
   }
 
   double _mean(Iterable<double> values) {
-    final list = values.where((value) => value.isFinite).toList(growable: false);
+    final list = values
+        .where((value) => value.isFinite)
+        .toList(growable: false);
     if (list.isEmpty) {
       return 0.0;
     }

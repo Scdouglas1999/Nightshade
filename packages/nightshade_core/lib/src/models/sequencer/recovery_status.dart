@@ -267,30 +267,31 @@ class RecoveryStatus extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'started_at': startedAt.toUtc().toIso8601String(),
-        'cause':
-            cause.kind == 'Custom' ? {'Custom': cause.customLabel} : cause.kind,
-        'last_attempt_at': lastAttemptAt?.toUtc().toIso8601String(),
-        'attempt_count': attemptCount,
-        'max_attempts': maxAttempts,
-        'retry_interval_secs': retryIntervalSecs,
-        'max_duration_secs': maxDurationSecs,
-        'phase': _phaseWireKey(phase),
-        'last_error': lastError,
-      };
+    'started_at': startedAt.toUtc().toIso8601String(),
+    'cause': cause.kind == 'Custom'
+        ? {'Custom': cause.customLabel}
+        : cause.kind,
+    'last_attempt_at': lastAttemptAt?.toUtc().toIso8601String(),
+    'attempt_count': attemptCount,
+    'max_attempts': maxAttempts,
+    'retry_interval_secs': retryIntervalSecs,
+    'max_duration_secs': maxDurationSecs,
+    'phase': _phaseWireKey(phase),
+    'last_error': lastError,
+  };
 
   @override
   List<Object?> get props => [
-        startedAt,
-        cause,
-        lastAttemptAt,
-        attemptCount,
-        maxAttempts,
-        retryIntervalSecs,
-        maxDurationSecs,
-        phase,
-        lastError,
-      ];
+    startedAt,
+    cause,
+    lastAttemptAt,
+    attemptCount,
+    maxAttempts,
+    retryIntervalSecs,
+    maxDurationSecs,
+    phase,
+    lastError,
+  ];
 }
 
 /// Persisted record of a completed recovery loop. Populated from the Rust
@@ -332,12 +333,12 @@ class RecoveryHistoryEntry extends Equatable {
 
   @override
   List<Object?> get props => [
-        startedAt,
-        endedAt,
-        cause,
-        attempts,
-        recovered,
-        abortedByUser,
-        lastError,
-      ];
+    startedAt,
+    endedAt,
+    cause,
+    attempts,
+    recovered,
+    abortedByUser,
+    lastError,
+  ];
 }

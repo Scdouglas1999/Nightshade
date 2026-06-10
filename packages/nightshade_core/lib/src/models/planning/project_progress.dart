@@ -49,23 +49,23 @@ class FilterProgressLine extends Equatable {
   bool get isComplete => capturedFrames >= goalFrames;
 
   Map<String, dynamic> toJson() => {
-        'filter': filter,
-        'exposureSeconds': exposureSeconds,
-        'goalFrames': goalFrames,
-        'capturedFrames': capturedFrames,
-        'remainingFrames': remainingFrames,
-        'accruedSeconds': accruedSeconds,
-        'goalSeconds': goalSeconds,
-        'isComplete': isComplete,
-      };
+    'filter': filter,
+    'exposureSeconds': exposureSeconds,
+    'goalFrames': goalFrames,
+    'capturedFrames': capturedFrames,
+    'remainingFrames': remainingFrames,
+    'accruedSeconds': accruedSeconds,
+    'goalSeconds': goalSeconds,
+    'isComplete': isComplete,
+  };
 
   @override
   List<Object?> get props => [
-        filter,
-        exposureSeconds,
-        goalFrames,
-        capturedFrames,
-      ];
+    filter,
+    exposureSeconds,
+    goalFrames,
+    capturedFrames,
+  ];
 }
 
 /// Accrued-vs-remaining imaging progress for a single target inside a project.
@@ -123,26 +123,26 @@ class ProjectTargetProgress extends Equatable {
   bool get isComplete => remainingSeconds <= 0.0 && goalSeconds > 0.0;
 
   Map<String, dynamic> toJson() => {
-        'targetId': targetId,
-        'targetName': targetName,
-        'raHours': raHours,
-        'decDegrees': decDegrees,
-        'filters': filters.map((f) => f.toJson()).toList(),
-        'accruedSeconds': accruedSeconds,
-        'goalSeconds': goalSeconds,
-        'remainingSeconds': remainingSeconds,
-        'percentComplete': percentComplete,
-        'isComplete': isComplete,
-      };
+    'targetId': targetId,
+    'targetName': targetName,
+    'raHours': raHours,
+    'decDegrees': decDegrees,
+    'filters': filters.map((f) => f.toJson()).toList(),
+    'accruedSeconds': accruedSeconds,
+    'goalSeconds': goalSeconds,
+    'remainingSeconds': remainingSeconds,
+    'percentComplete': percentComplete,
+    'isComplete': isComplete,
+  };
 
   @override
   List<Object?> get props => [
-        targetId,
-        targetName,
-        raHours,
-        decDegrees,
-        filters,
-      ];
+    targetId,
+    targetName,
+    raHours,
+    decDegrees,
+    filters,
+  ];
 }
 
 /// Roll-up of every target's progress within one [Project].
@@ -162,10 +162,7 @@ class CampaignProgress extends Equatable {
   /// Per-target progress, one entry per attached target.
   final List<ProjectTargetProgress> targets;
 
-  const CampaignProgress({
-    required this.project,
-    required this.targets,
-  });
+  const CampaignProgress({required this.project, required this.targets});
 
   int get totalTargets => targets.length;
 
@@ -204,15 +201,15 @@ class CampaignProgress extends Equatable {
       targets.where((t) => !t.isComplete).toList(growable: false);
 
   Map<String, dynamic> toJson() => {
-        'project': project.toJson(),
-        'targets': targets.map((t) => t.toJson()).toList(),
-        'totalTargets': totalTargets,
-        'completeTargets': completeTargets,
-        'totalAccruedSeconds': totalAccruedSeconds,
-        'totalGoalSeconds': totalGoalSeconds,
-        'totalRemainingSeconds': totalRemainingSeconds,
-        'totalPercentComplete': totalPercentComplete,
-      };
+    'project': project.toJson(),
+    'targets': targets.map((t) => t.toJson()).toList(),
+    'totalTargets': totalTargets,
+    'completeTargets': completeTargets,
+    'totalAccruedSeconds': totalAccruedSeconds,
+    'totalGoalSeconds': totalGoalSeconds,
+    'totalRemainingSeconds': totalRemainingSeconds,
+    'totalPercentComplete': totalPercentComplete,
+  };
 
   @override
   List<Object?> get props => [project, targets];

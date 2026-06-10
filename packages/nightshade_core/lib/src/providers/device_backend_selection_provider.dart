@@ -9,11 +9,15 @@ import '../services/device_service.dart';
 /// When a user selects a specific backend for a device, it's stored here.
 /// If no selection exists, the device uses its recommended backend.
 final deviceBackendSelectionProvider =
-    StateNotifierProvider<DeviceBackendSelectionNotifier, Map<String, DriverType>>((ref) {
-  return DeviceBackendSelectionNotifier();
-});
+    StateNotifierProvider<
+      DeviceBackendSelectionNotifier,
+      Map<String, DriverType>
+    >((ref) {
+      return DeviceBackendSelectionNotifier();
+    });
 
-class DeviceBackendSelectionNotifier extends StateNotifier<Map<String, DriverType>> {
+class DeviceBackendSelectionNotifier
+    extends StateNotifier<Map<String, DriverType>> {
   DeviceBackendSelectionNotifier() : super({});
 
   /// Select a backend for a device
@@ -52,15 +56,19 @@ class DeviceBackendSelectionNotifier extends StateNotifier<Map<String, DriverTyp
 /// Family provider to get the selected backend for a specific device
 ///
 /// Usage: ref.watch(selectedBackendForDeviceProvider('asi294mc pro'))
-final selectedBackendForDeviceProvider =
-    Provider.family<DriverType?, String>((ref, canonicalName) {
+final selectedBackendForDeviceProvider = Provider.family<DriverType?, String>((
+  ref,
+  canonicalName,
+) {
   final selections = ref.watch(deviceBackendSelectionProvider);
   return selections[canonicalName];
 });
 
 /// Provider to check if a device has an explicit backend selection
-final hasExplicitBackendSelectionProvider =
-    Provider.family<bool, String>((ref, canonicalName) {
+final hasExplicitBackendSelectionProvider = Provider.family<bool, String>((
+  ref,
+  canonicalName,
+) {
   final selections = ref.watch(deviceBackendSelectionProvider);
   return selections.containsKey(canonicalName);
 });

@@ -16,16 +16,16 @@ import 'logging_service.dart';
 typedef SwitchBridgeGetMaxFn = Future<int> Function(String deviceId);
 
 /// Type alias for the switch-bridge name fetch.
-typedef SwitchBridgeGetNameFn = Future<String> Function(
-    String deviceId, int switchId);
+typedef SwitchBridgeGetNameFn =
+    Future<String> Function(String deviceId, int switchId);
 
 /// Type alias for the switch-bridge boolean read.
-typedef SwitchBridgeGetStateFn = Future<bool> Function(
-    String deviceId, int switchId);
+typedef SwitchBridgeGetStateFn =
+    Future<bool> Function(String deviceId, int switchId);
 
 /// Type alias for the switch-bridge boolean write.
-typedef SwitchBridgeSetStateFn = Future<void> Function(
-    String deviceId, int switchId, bool state);
+typedef SwitchBridgeSetStateFn =
+    Future<void> Function(String deviceId, int switchId, bool state);
 
 /// Owns the per-channel switch-device refresh + write paths that used to
 /// live inline on `DeviceService`. Extracted as part of the A-10 god-
@@ -51,11 +51,9 @@ typedef SwitchBridgeSetStateFn = Future<void> Function(
 /// MUST call [resetHooks] in `tearDown` to avoid leaking state between
 /// tests.
 class SwitchChannelService {
-  SwitchChannelService({
-    required Ref ref,
-    required NightshadeBackend backend,
-  })  : _ref = ref,
-        _backend = backend;
+  SwitchChannelService({required Ref ref, required NightshadeBackend backend})
+    : _ref = ref,
+      _backend = backend;
 
   final Ref _ref;
   final NightshadeBackend _backend;
@@ -70,8 +68,8 @@ class SwitchChannelService {
   // `switchBridge{GetMax,GetName,GetState,SetState}` instead of
   // `bridge_api.apiSwitch*` directly so the override is centralized.
   @visibleForTesting
-  static SwitchBridgeGetMaxFn switchBridgeGetMax =
-      (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
+  static SwitchBridgeGetMaxFn switchBridgeGetMax = (deviceId) =>
+      bridge_api.apiSwitchGetMax(deviceId: deviceId);
   @visibleForTesting
   static SwitchBridgeGetNameFn switchBridgeGetName = (deviceId, switchId) =>
       bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
@@ -81,7 +79,10 @@ class SwitchChannelService {
   @visibleForTesting
   static SwitchBridgeSetStateFn switchBridgeSetState =
       (deviceId, switchId, state) => bridge_api.apiSwitchSetState(
-          deviceId: deviceId, switchId: switchId, state: state);
+        deviceId: deviceId,
+        switchId: switchId,
+        state: state,
+      );
 
   /// When true, [refreshChannels] and [setChannel] will call the bridge
   /// hooks above unconditionally instead of gating on
@@ -96,15 +97,18 @@ class SwitchChannelService {
   @visibleForTesting
   static void resetHooks() {
     switchBridgeBypassBackendCheck = false;
-    switchBridgeGetMax =
-        (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
+    switchBridgeGetMax = (deviceId) =>
+        bridge_api.apiSwitchGetMax(deviceId: deviceId);
     switchBridgeGetName = (deviceId, switchId) =>
         bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
     switchBridgeGetState = (deviceId, switchId) =>
         bridge_api.apiSwitchGetState(deviceId: deviceId, switchId: switchId);
     switchBridgeSetState = (deviceId, switchId, state) =>
         bridge_api.apiSwitchSetState(
-            deviceId: deviceId, switchId: switchId, state: state);
+          deviceId: deviceId,
+          switchId: switchId,
+          state: state,
+        );
   }
 
   /// Refresh the cached channel snapshot for the currently-connected
@@ -268,7 +272,8 @@ class SwitchChannelService {
         final errSvc = _ref.read(errorServiceProvider);
         errSvc.logDeviceError(
           operation: 'switch_set_state',
-          message: 'Failed to set switch channel $channelIndex to '
+          message:
+              'Failed to set switch channel $channelIndex to '
               '${on ? "on" : "off"}: $e',
           deviceType: 'Switch',
           deviceId: deviceId,
@@ -301,7 +306,8 @@ class SwitchChannelService {
     } on Object catch (loggerErr) {
       // ignore: avoid_print
       print(
-          'SwitchChannelService[$contextTag]: logger emission failed: $loggerErr');
+        'SwitchChannelService[$contextTag]: logger emission failed: $loggerErr',
+      );
     }
   }
 }

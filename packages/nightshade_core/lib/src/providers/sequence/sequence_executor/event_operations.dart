@@ -1,10 +1,11 @@
-﻿part of '../sequence_executor.dart';
+part of '../sequence_executor.dart';
 
 extension _SequenceExecutorEventOperations on SequenceExecutor {
   void _handleSequencerEvent(NightshadeEvent event) {
     _logger.debug(
-        'Received event: type=${event.eventType}, category=${event.category}',
-        source: 'SequenceExecutor');
+      'Received event: type=${event.eventType}, category=${event.category}',
+      source: 'SequenceExecutor',
+    );
 
     // Handle imaging events for image preview during sequences.
     // This MUST be before the category filter since ExposureComplete has
@@ -12,8 +13,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     if (event.category == EventCategory.imaging &&
         event.eventType == 'ExposureComplete') {
       _logger.debug(
-          'ExposureComplete imaging event received - fetching image for preview',
-          source: 'SequenceExecutor');
+        'ExposureComplete imaging event received - fetching image for preview',
+        source: 'SequenceExecutor',
+      );
       final durationSecs =
           (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
       _fetchAndDisplaySequenceImage(durationSecs);
@@ -29,7 +31,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       case 'NodeStarted':
         final nodeId =
             event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
-        final nodeName = event.data['node_type'] as String? ??
+        final nodeName =
+            event.data['node_type'] as String? ??
             event.data['nodeName'] as String?;
         if (nodeId != null) {
           progressNotifier.updateProgress(
@@ -66,13 +69,17 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           message: 'Exposing $exposureDetail',
           currentFilter: filter,
         );
-        final exposureNodeId =
-            _ref.read(sequenceProgressProvider).currentNodeId;
+        final exposureNodeId = _ref
+            .read(sequenceProgressProvider)
+            .currentNodeId;
         if (exposureNodeId != null && total > 0) {
           // frame-1 because exposure just started
           final exposurePercent = (frame - 1) / total * 100.0;
           progressNotifier.updateNodeProgress(
-              exposureNodeId, exposurePercent, exposureDetail);
+            exposureNodeId,
+            exposurePercent,
+            exposureDetail,
+          );
         }
         break;
 
@@ -88,17 +95,21 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         );
         final newCompletedIntegration =
             _ref.read(sequenceProgressProvider).completedIntegrationSecs +
-                durationSecs;
+            durationSecs;
         progressNotifier.updateProgress(
           completedExposures: frame,
           completedIntegrationSecs: newCompletedIntegration,
         );
-        final completedNodeId =
-            _ref.read(sequenceProgressProvider).currentNodeId;
+        final completedNodeId = _ref
+            .read(sequenceProgressProvider)
+            .currentNodeId;
         if (completedNodeId != null) {
           final completedPercent = total > 0 ? (frame / total * 100.0) : 100.0;
           progressNotifier.updateNodeProgress(
-              completedNodeId, completedPercent, 'Completed $frame/$total');
+            completedNodeId,
+            completedPercent,
+            'Completed $frame/$total',
+          );
         }
 
         _fetchAndDisplaySequenceImage(durationSecs);
@@ -115,7 +126,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'TargetStarted':
       case 'TargetChanged':
-        final name = event.data['target_name'] as String? ??
+        final name =
+            event.data['target_name'] as String? ??
             event.data['name'] as String?;
         final ra = (event.data['ra'] as num?)?.toDouble();
         final dec = (event.data['dec'] as num?)?.toDouble();
@@ -134,7 +146,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'TargetCompleted':
-        final name = event.data['target_name'] as String? ??
+        final name =
+            event.data['target_name'] as String? ??
             event.data['name'] as String?;
         progressNotifier.updateProgress(
           message: 'Completed target: ${name ?? 'unknown'}',
@@ -148,7 +161,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final errorNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
         if (errorNodeId != null) {
           progressNotifier.updateNodeProgress(
-              errorNodeId, 0.0, 'Error: $message');
+            errorNodeId,
+            0.0,
+            'Error: $message',
+          );
         }
         break;
 
@@ -174,9 +190,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             progressPercent,
             detail,
           );
-          progressNotifier.updateProgress(
-            message: '$instruction: $detailKind',
-          );
+          progressNotifier.updateProgress(message: '$instruction: $detailKind');
         }
         break;
 
@@ -188,20 +202,24 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final detail = event.data['detail'] as String? ?? '';
 
         _logger.debug(
-            'InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail',
-            source: 'SequenceExecutor');
+          'InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail',
+          source: 'SequenceExecutor',
+        );
 
         // Use node_id from event, fallback to currentNodeId for backwards compatibility
         final targetNodeId =
             nodeId ?? _ref.read(sequenceProgressProvider).currentNodeId;
-        _logger.debug('Updating node progress for: $targetNodeId',
-            source: 'SequenceExecutor');
+        _logger.debug(
+          'Updating node progress for: $targetNodeId',
+          source: 'SequenceExecutor',
+        );
         if (targetNodeId != null) {
           progressNotifier.updateNodeProgress(
-              targetNodeId, progressPercent, detail);
-          progressNotifier.updateProgress(
-            message: '$instruction: $detail',
+            targetNodeId,
+            progressPercent,
+            detail,
           );
+          progressNotifier.updateProgress(message: '$instruction: $detail');
         }
         break;
 
@@ -210,8 +228,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             event.data['trigger_name'] as String? ?? 'Unknown trigger';
         final action = event.data['action'] as String? ?? '';
         _incrementRunStat((stats) => stats.recordTriggerFire());
-        _logger.info('Trigger fired: $triggerName -> $action',
-            source: 'SequenceExecutor');
+        _logger.info(
+          'Trigger fired: $triggerName -> $action',
+          source: 'SequenceExecutor',
+        );
         progressNotifier.updateProgress(
           message: 'Trigger "$triggerName" fired: $action',
         );
@@ -275,11 +295,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // frames). The thumbnail strip uses the on-disk path to load
         // an inline preview the same way it does for rejected frames
         // via `reject_path`.
-        _registerSequenceFrame(
-          event: event,
-          isAccepted: true,
-          grade: 'pass',
-        );
+        _registerSequenceFrame(event: event, isAccepted: true, grade: 'pass');
         // 2026-06-04 follow-up — auto-feed live stacking. When the
         // running sequence contains an enabled LiveStackingNode, every
         // accepted frame is fed into the live stacker + LAN broadcast
@@ -377,20 +393,20 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     unawaited(
       service
           .persistFromBridgeEvent(
-        timestampIso: timestampIso,
-        categoryWireKey: category,
-        summary: summary,
-        detailsJson: detailsJson,
-        nodeId: nodeId,
-        sequenceRunId: effectiveRunId,
-      )
+            timestampIso: timestampIso,
+            categoryWireKey: category,
+            summary: summary,
+            detailsJson: detailsJson,
+            nodeId: nodeId,
+            sequenceRunId: effectiveRunId,
+          )
           .catchError((Object e, StackTrace st) {
-        _logger.warning(
-          'Failed to persist replay decision ($category: $summary): $e',
-          source: 'SequenceExecutor',
-        );
-        return -1;
-      }),
+            _logger.warning(
+              'Failed to persist replay decision ($category: $summary): $e',
+              source: 'SequenceExecutor',
+            );
+            return -1;
+          }),
     );
   }
 
@@ -525,8 +541,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         ? (event.data['save_path'] as String? ?? '')
         : (event.data['reject_path'] as String? ?? '');
     final fileName = filePath.isEmpty ? '' : p.basename(filePath);
-    final rejectionReason =
-        isAccepted ? null : (event.data['reason'] as String?);
+    final rejectionReason = isAccepted
+        ? null
+        : (event.data['reason'] as String?);
     final progress = _ref.read(sequenceProgressProvider);
     final filter = progress.currentFilter;
     final runId = _ref.read(currentRunIdProvider);
@@ -544,7 +561,11 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final loadedSequence = _ref.read(currentSequenceProvider);
     final attribution = loadedSequence == null
         ? const FrameAttribution()
-        : resolveFrameAttribution(loadedSequence, nodeId, currentFilter: filter);
+        : resolveFrameAttribution(
+            loadedSequence,
+            nodeId,
+            currentFilter: filter,
+          );
     if (attribution.exposureSecs == null) {
       _logger.warning(
         'Sequence frame from node $nodeId has no resolvable exposure duration '
@@ -559,8 +580,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         await dao.insertSequenceFrame(
           filePath: filePath,
           fileName: fileName,
-          fileFormat:
-              filePath.toLowerCase().endsWith('.xisf') ? 'xisf' : 'fits',
+          fileFormat: filePath.toLowerCase().endsWith('.xisf')
+              ? 'xisf'
+              : 'fits',
           // Real exposure length from the producing ExposureNode —
           // (see the resolved `attribution` above; column is NOT NULL).
           exposureDuration: attribution.exposureSecs ?? 0.0,
@@ -592,7 +614,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             filter != null &&
             filter.isNotEmpty) {
           try {
-            await _ref.read(campaignsDaoProvider).recordAccepted(
+            await _ref
+                .read(campaignsDaoProvider)
+                .recordAccepted(
                   targetId: attribution.targetId!,
                   filter: filter,
                   capturedAt: DateTime.now(),
@@ -623,7 +647,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     _incrementRunStat((stats) {
       final progress = _ref.read(sequenceProgressProvider);
       stats.recordFrame(
-        target: progress.currentTarget ??
+        target:
+            progress.currentTarget ??
             _ref.read(currentSequenceProvider)?.name ??
             'Sequence',
         filter: (filter != null && filter.isNotEmpty) ? filter : 'Unknown',
@@ -799,7 +824,8 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           config: _liveStackingConfigFor(node),
         );
         final started =
-            _ref.read(liveStackingProvider).status == LiveStackingStatus.running;
+            _ref.read(liveStackingProvider).status ==
+            LiveStackingStatus.running;
         if (!started) {
           final err = _ref.read(liveStackingProvider).errorMessage;
           _logger.error(

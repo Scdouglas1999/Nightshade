@@ -51,7 +51,8 @@ WidgetBuilder mobileDashboardBuilder = (context) {
 
 /// Optional top-level routes registered by an app entry point (e.g. desktop
 /// dev screens). Defaults to empty so mobile/web builds are unaffected.
-final extraTopLevelRoutesProvider = Provider<List<RouteBase>>((ref) => const []);
+final extraTopLevelRoutesProvider =
+    Provider<List<RouteBase>>((ref) => const []);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final extraRoutes = ref.watch(extraTopLevelRoutesProvider);

@@ -93,11 +93,11 @@ class ServerError implements Exception {
   }
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'message': message,
-        if (httpStatus != null) 'httpStatus': httpStatus,
-        if (details != null) 'details': details,
-      };
+    'code': code,
+    'message': message,
+    if (httpStatus != null) 'httpStatus': httpStatus,
+    if (details != null) 'details': details,
+  };
 
   @override
   String toString() {

@@ -34,9 +34,11 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // happens to read a damaged page. We do NOT auto-recover from here —
         // the connection is already live in a background isolate and we
         // cannot rotate the file out from under it safely.
-        final integrityRow =
-            await customSelect('PRAGMA integrity_check;').get();
-        final ok = integrityRow.length == 1 &&
+        final integrityRow = await customSelect(
+          'PRAGMA integrity_check;',
+        ).get();
+        final ok =
+            integrityRow.length == 1 &&
             integrityRow.first.data['integrity_check'] == 'ok';
         if (!ok) {
           // Emit through dart:developer-style logging would be nice, but

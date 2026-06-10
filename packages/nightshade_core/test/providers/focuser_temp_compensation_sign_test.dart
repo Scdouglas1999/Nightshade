@@ -61,8 +61,7 @@ Future<ProviderContainer> _buildContainer({
     ],
   );
   await container.read(appSettingsProvider.future);
-  container.read(sequenceExecutionStateProvider.notifier).state =
-      sequenceState;
+  container.read(sequenceExecutionStateProvider.notifier).state = sequenceState;
   return container;
 }
 
@@ -70,8 +69,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FocuserTempCompensator sign convention (matches Rust executor)', () {
-    test(
-        'negative coefficient + temperature DROP moves focuser OUTWARD '
+    test('negative coefficient + temperature DROP moves focuser OUTWARD '
         '(target > baseline), matching Rust current+delta*coeff', () async {
       final device = _CapturingDeviceService();
       final container = await _buildContainer(
@@ -93,15 +91,21 @@ void main() {
       focuser.updateTemperature(13.0);
       await Future<void>.delayed(Duration.zero);
 
-      expect(device.moves, isNotEmpty,
-          reason: 'a temperature change beyond 1 step should trigger a move');
-      expect(device.moves.single, 5024,
-          reason: 'Dart must add the same delta the Rust executor adds; '
-              'subtracting would move the focuser the wrong direction');
+      expect(
+        device.moves,
+        isNotEmpty,
+        reason: 'a temperature change beyond 1 step should trigger a move',
+      );
+      expect(
+        device.moves.single,
+        5024,
+        reason:
+            'Dart must add the same delta the Rust executor adds; '
+            'subtracting would move the focuser the wrong direction',
+      );
     });
 
-    test(
-        'negative coefficient + temperature RISE moves focuser INWARD '
+    test('negative coefficient + temperature RISE moves focuser INWARD '
         '(target < baseline)', () async {
       final device = _CapturingDeviceService();
       final container = await _buildContainer(
@@ -149,31 +153,33 @@ void main() {
       expect(device.moves.single, 7980);
     });
 
-    test('baseline advances to the applied move so deltas do not double-count',
-        () async {
-      final device = _CapturingDeviceService();
-      final container = await _buildContainer(
-        coefficient: -12.0,
-        device: device,
-      );
-      addTearDown(container.dispose);
-      container.read(focuserTempCompensationProvider);
+    test(
+      'baseline advances to the applied move so deltas do not double-count',
+      () async {
+        final device = _CapturingDeviceService();
+        final container = await _buildContainer(
+          coefficient: -12.0,
+          device: device,
+        );
+        addTearDown(container.dispose);
+        container.read(focuserTempCompensationProvider);
 
-      final focuser = container.read(focuserStateProvider.notifier);
-      focuser.setConnecting('focuser-1');
-      focuser.setConnected();
-      focuser.updatePosition(5000);
-      focuser.updateTemperature(15.0);
-      await Future<void>.delayed(Duration.zero);
+        final focuser = container.read(focuserStateProvider.notifier);
+        focuser.setConnecting('focuser-1');
+        focuser.setConnected();
+        focuser.updatePosition(5000);
+        focuser.updateTemperature(15.0);
+        await Future<void>.delayed(Duration.zero);
 
-      focuser.updateTemperature(13.0); // → 5024
-      await Future<void>.delayed(Duration.zero);
-      // Next step computed against the NEW baseline (13.0 / 5024), not 15.0.
-      focuser.updateTemperature(12.0); // delta = (12-13)*-12 = +12 → 5036
-      await Future<void>.delayed(Duration.zero);
+        focuser.updateTemperature(13.0); // → 5024
+        await Future<void>.delayed(Duration.zero);
+        // Next step computed against the NEW baseline (13.0 / 5024), not 15.0.
+        focuser.updateTemperature(12.0); // delta = (12-13)*-12 = +12 → 5036
+        await Future<void>.delayed(Duration.zero);
 
-      expect(device.moves, <int>[5024, 5036]);
-    });
+        expect(device.moves, <int>[5024, 5036]);
+      },
+    );
   });
 
   group('FocuserTempCompensator stands down during a sequence', () {
@@ -197,41 +203,49 @@ void main() {
       focuser.updateTemperature(10.0); // large drift
       await Future<void>.delayed(Duration.zero);
 
-      expect(device.moves, isEmpty,
-          reason: 'while a sequence runs the Rust temperature_compensation '
-              'instruction owns the focuser; the Dart provider must not '
-              'also issue moves (double-compensation)');
-    });
-
-    test('resumes compensation once the sequence is no longer active',
-        () async {
-      final device = _CapturingDeviceService();
-      final container = await _buildContainer(
-        coefficient: -12.0,
-        device: device,
-        sequenceState: SequenceExecutionState.running,
+      expect(
+        device.moves,
+        isEmpty,
+        reason:
+            'while a sequence runs the Rust temperature_compensation '
+            'instruction owns the focuser; the Dart provider must not '
+            'also issue moves (double-compensation)',
       );
-      addTearDown(container.dispose);
-      container.read(focuserTempCompensationProvider);
-
-      final focuser = container.read(focuserStateProvider.notifier);
-      focuser.setConnecting('focuser-1');
-      focuser.setConnected();
-      focuser.updatePosition(5000);
-      focuser.updateTemperature(15.0); // baseline captured even mid-sequence? No.
-      await Future<void>.delayed(Duration.zero);
-      expect(device.moves, isEmpty);
-
-      // Sequence ends; the next temperature tick captures the baseline and
-      // then compensates on the subsequent tick.
-      container.read(sequenceExecutionStateProvider.notifier).state =
-          SequenceExecutionState.completed;
-      focuser.updateTemperature(15.0); // baseline (5000 / 15.0)
-      await Future<void>.delayed(Duration.zero);
-      focuser.updateTemperature(13.0); // delta = +24 → 5024
-      await Future<void>.delayed(Duration.zero);
-
-      expect(device.moves.single, 5024);
     });
+
+    test(
+      'resumes compensation once the sequence is no longer active',
+      () async {
+        final device = _CapturingDeviceService();
+        final container = await _buildContainer(
+          coefficient: -12.0,
+          device: device,
+          sequenceState: SequenceExecutionState.running,
+        );
+        addTearDown(container.dispose);
+        container.read(focuserTempCompensationProvider);
+
+        final focuser = container.read(focuserStateProvider.notifier);
+        focuser.setConnecting('focuser-1');
+        focuser.setConnected();
+        focuser.updatePosition(5000);
+        focuser.updateTemperature(
+          15.0,
+        ); // baseline captured even mid-sequence? No.
+        await Future<void>.delayed(Duration.zero);
+        expect(device.moves, isEmpty);
+
+        // Sequence ends; the next temperature tick captures the baseline and
+        // then compensates on the subsequent tick.
+        container.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.completed;
+        focuser.updateTemperature(15.0); // baseline (5000 / 15.0)
+        await Future<void>.delayed(Duration.zero);
+        focuser.updateTemperature(13.0); // delta = +24 → 5024
+        await Future<void>.delayed(Duration.zero);
+
+        expect(device.moves.single, 5024);
+      },
+    );
   });
 }

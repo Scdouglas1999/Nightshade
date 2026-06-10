@@ -90,7 +90,8 @@ class UnifiedDevice extends Equatable {
     final scoredBackends = <DriverType, int>{};
 
     for (final backend in availableBackends.keys) {
-      int score = 100 -
+      int score =
+          100 -
           ((_backendPriority[backend] ?? 99) * 10); // Base score from priority
 
       // Remote operation capability (Alpaca and INDI support remote)
@@ -167,10 +168,18 @@ class UnifiedDevice extends Equatable {
     final backends = availableBackends.keys.toList();
 
     backends.sort((a, b) {
-      final scoreA = _getCapabilityScore(a, requireRemoteOperation,
-          preferLinuxCompatible, requireFullFeatureSet);
-      final scoreB = _getCapabilityScore(b, requireRemoteOperation,
-          preferLinuxCompatible, requireFullFeatureSet);
+      final scoreA = _getCapabilityScore(
+        a,
+        requireRemoteOperation,
+        preferLinuxCompatible,
+        requireFullFeatureSet,
+      );
+      final scoreB = _getCapabilityScore(
+        b,
+        requireRemoteOperation,
+        preferLinuxCompatible,
+        requireFullFeatureSet,
+      );
       return scoreB.compareTo(scoreA); // Higher score first
     });
 
@@ -186,10 +195,9 @@ class UnifiedDevice extends Equatable {
     int score = 100 - ((_backendPriority[backend] ?? 99) * 10);
 
     if (requireRemote) {
-      score +=
-          (backend == DriverType.alpaca || backend == DriverType.indi)
-              ? 50
-              : -100;
+      score += (backend == DriverType.alpaca || backend == DriverType.indi)
+          ? 50
+          : -100;
     }
     if (preferLinux) {
       score += backend == DriverType.ascom ? -30 : 20;
@@ -198,8 +206,8 @@ class UnifiedDevice extends Equatable {
       score += backend == DriverType.native
           ? 30
           : backend == DriverType.ascom
-              ? 25
-              : 10;
+          ? 25
+          : 10;
     }
     return score;
   }
@@ -214,8 +222,7 @@ class UnifiedDevice extends Equatable {
   DeviceInfo get activeDevice => availableBackends[activeBackend]!;
 
   /// Check if a specific backend is available for this device
-  bool hasBackend(DriverType backend) =>
-      availableBackends.containsKey(backend);
+  bool hasBackend(DriverType backend) => availableBackends.containsKey(backend);
 
   /// Get the device ID for a specific backend (null if not available)
   String? getDeviceIdForBackend(DriverType backend) =>
@@ -224,8 +231,10 @@ class UnifiedDevice extends Equatable {
   /// List of all available backends, sorted by priority
   List<DriverType> get sortedBackends {
     final backends = availableBackends.keys.toList();
-    backends.sort((a, b) =>
-        (_backendPriority[a] ?? 99).compareTo(_backendPriority[b] ?? 99));
+    backends.sort(
+      (a, b) =>
+          (_backendPriority[a] ?? 99).compareTo(_backendPriority[b] ?? 99),
+    );
     return backends;
   }
 
@@ -253,12 +262,12 @@ class UnifiedDevice extends Equatable {
 
   @override
   List<Object?> get props => [
-        canonicalName,
-        displayName,
-        type,
-        availableBackends,
-        selectedBackend,
-      ];
+    canonicalName,
+    displayName,
+    type,
+    availableBackends,
+    selectedBackend,
+  ];
 
   @override
   String toString() =>

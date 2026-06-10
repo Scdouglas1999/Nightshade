@@ -40,14 +40,19 @@ void main() {
     _MockNetworkBackend backend,
     StreamController<NightshadeEvent> events,
     List<models.AppSettings> writes,
-  }) buildBackend(models.AppSettings initial) {
+  })
+  buildBackend(models.AppSettings initial) {
     final controller = StreamController<NightshadeEvent>.broadcast();
     final backend = _MockNetworkBackend();
     final writes = <models.AppSettings>[];
     when(() => backend.eventStream).thenAnswer((_) => controller.stream);
     when(() => backend.getSettings()).thenAnswer((_) async => initial);
-    when(() => backend.updateSettingsWithCommandId(any(),
-        commandId: any(named: 'commandId'))).thenAnswer((invocation) async {
+    when(
+      () => backend.updateSettingsWithCommandId(
+        any(),
+        commandId: any(named: 'commandId'),
+      ),
+    ).thenAnswer((invocation) async {
       writes.add(invocation.positionalArguments.first as models.AppSettings);
     });
     when(() => backend.updateSettings(any())).thenAnswer((invocation) async {
@@ -66,40 +71,50 @@ void main() {
     );
   }
 
-  test('image grading enable round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'image grading enable round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container
-        .read(appSettingsProvider.notifier)
-        .setEnableImageGrading(true);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setEnableImageGrading(true);
 
-    expect(h.writes, isNotEmpty,
-        reason: 'a remote save must forward the change to the host');
-    expect(h.writes.last.enableImageGrading, isTrue,
-        reason: 'grading flag must be carried by the wire model, not dropped');
-  });
+      expect(
+        h.writes,
+        isNotEmpty,
+        reason: 'a remote save must forward the change to the host',
+      );
+      expect(
+        h.writes.last.enableImageGrading,
+        isTrue,
+        reason: 'grading flag must be carried by the wire model, not dropped',
+      );
+    },
+  );
 
-  test('adaptive-exposure enable round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'adaptive-exposure enable round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container
-        .read(appSettingsProvider.notifier)
-        .setAdaptiveExposureEnabled(true);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setAdaptiveExposureEnabled(true);
 
-    expect(h.writes.last.adaptiveExposureEnabled, isTrue);
-  });
+      expect(h.writes.last.adaptiveExposureEnabled, isTrue);
+    },
+  );
 
   test('non-remotable setting FAILS LOUD on a remote save', () async {
     final h = buildBackend(const models.AppSettings());
@@ -120,8 +135,11 @@ void main() {
       throwsA(isA<UnsupportedError>()),
     );
 
-    expect(h.writes, isEmpty,
-        reason: 'a non-remotable key must never reach the host');
+    expect(
+      h.writes,
+      isEmpty,
+      reason: 'a non-remotable key must never reach the host',
+    );
   });
 
   // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
@@ -233,66 +251,74 @@ void main() {
     expect(h.writes.last.campaignRollupGroupingMode, 'by_target_id');
   });
 
-  test('inbound settings.changed for defaultGain is applied in-place',
-      () async {
-    final h = buildBackend(const models.AppSettings(defaultGain: 100));
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'inbound settings.changed for defaultGain is applied in-place',
+    () async {
+      final h = buildBackend(const models.AppSettings(defaultGain: 100));
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    final initial = await container.read(appSettingsProvider.future);
-    expect(initial.defaultGain, 100);
+      final initial = await container.read(appSettingsProvider.future);
+      expect(initial.defaultGain, 100);
 
-    h.events.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: const {
-        'key': 'defaultGain',
-        'value': 200,
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      h.events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: const {'key': 'defaultGain', 'value': 200},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after!.defaultGain, 200);
-  });
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after!.defaultGain, 200);
+    },
+  );
 
   // Full-night audit 2026-06-04 follow-up (long tail) — the remaining
   // high-value unattended-night knobs (calibration / dark-library / pre-flight
   // / smart-night defaults / site / meridian-flip detail) are now carried by
   // models.AppSettings, so a remote save round-trips instead of failing loud.
-  test('dark-library min coverage round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'dark-library min coverage round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
-    await container
-        .read(appSettingsProvider.notifier)
-        .setDarkLibraryMinCoverage(25);
+      await container.read(appSettingsProvider.future);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setDarkLibraryMinCoverage(25);
 
-    expect(h.writes.last.darkLibraryMinCoverage, 25);
-  });
+      expect(h.writes.last.darkLibraryMinCoverage, 25);
+    },
+  );
 
-  test('pre-flight strictness round-trips (enum carried as its name)',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'pre-flight strictness round-trips (enum carried as its name)',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
-    await container
-        .read(appSettingsProvider.notifier)
-        .setPreflightStrictness(PreflightStrictness.strict);
+      await container.read(appSettingsProvider.future);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setPreflightStrictness(PreflightStrictness.strict);
 
-    expect(h.writes.last.preflightStrictness, 'strict',
-        reason: 'the enum must cross the wire as its .name');
-  });
+      expect(
+        h.writes.last.preflightStrictness,
+        'strict',
+        reason: 'the enum must cross the wire as its .name',
+      );
+    },
+  );
 
   test('smart-night target SNR + max session hours round-trip', () async {
     final h = buildBackend(const models.AppSettings());
@@ -312,184 +338,212 @@ void main() {
     expect(h.writes.last.smartNightMaxSessionHours, 6.5);
   });
 
-  test('calibration (settle threshold) + meridian-flip enable round-trip',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'calibration (settle threshold) + meridian-flip enable round-trip',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
-    await container
-        .read(appSettingsProvider.notifier)
-        .setSettleThreshold(1.25);
-    await container
-        .read(appSettingsProvider.notifier)
-        .setEnableMeridianFlip(false);
+      await container.read(appSettingsProvider.future);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setSettleThreshold(1.25);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setEnableMeridianFlip(false);
 
-    expect(h.writes.last.settleThreshold, 1.25);
-    expect(h.writes.last.enableMeridianFlip, isFalse);
-  });
-
-  test('site (bortle class) round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
-
-    await container.read(appSettingsProvider.future);
-    await container.read(appSettingsProvider.notifier).setBortleClass(3);
-
-    expect(h.writes.last.bortleClass, 3);
-  });
+      expect(h.writes.last.settleThreshold, 1.25);
+      expect(h.writes.last.enableMeridianFlip, isFalse);
+    },
+  );
 
   test(
-      'inbound settings.changed for smartNightTargetSnr is applied in-place',
-      () async {
-    final h = buildBackend(const models.AppSettings(smartNightTargetSnr: 30.0));
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+    'site (bortle class) round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    final initial = await container.read(appSettingsProvider.future);
-    expect(initial.smartNightTargetSnr, 30.0);
+      await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.notifier).setBortleClass(3);
 
-    h.events.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: const {
-        'key': 'smartNightTargetSnr',
-        'value': 55.0,
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(h.writes.last.bortleClass, 3);
+    },
+  );
 
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after!.smartNightTargetSnr, 55.0);
-  });
+  test(
+    'inbound settings.changed for smartNightTargetSnr is applied in-place',
+    () async {
+      final h = buildBackend(
+        const models.AppSettings(smartNightTargetSnr: 30.0),
+      );
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
+
+      final initial = await container.read(appSettingsProvider.future);
+      expect(initial.smartNightTargetSnr, 30.0);
+
+      h.events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: const {'key': 'smartNightTargetSnr', 'value': 55.0},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after!.smartNightTargetSnr, 55.0);
+    },
+  );
 
   // Full-night audit 2026-06-04 follow-up — the high-value unattended-night
   // knobs (autofocus / dither / weather-safety / recovery) are now carried by
   // models.AppSettings, so a remote save round-trips instead of failing loud.
-  test('park-on-unsafe-weather round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'park-on-unsafe-weather round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container
-        .read(appSettingsProvider.notifier)
-        .setParkOnUnsafeWeather(false);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setParkOnUnsafeWeather(false);
 
-    expect(h.writes, isNotEmpty,
-        reason: 'a remote save must forward the change to the host');
-    expect(h.writes.last.parkOnUnsafeWeather, isFalse,
-        reason: 'park-on-unsafe-weather must be carried, not dropped');
-  });
+      expect(
+        h.writes,
+        isNotEmpty,
+        reason: 'a remote save must forward the change to the host',
+      );
+      expect(
+        h.writes.last.parkOnUnsafeWeather,
+        isFalse,
+        reason: 'park-on-unsafe-weather must be carried, not dropped',
+      );
+    },
+  );
 
-  test('dither enable + scale round-trip through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'dither enable + scale round-trip through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container.read(appSettingsProvider.notifier).setDitherEnabled(false);
-    await container.read(appSettingsProvider.notifier).setDitherScale('Large');
+      await container
+          .read(appSettingsProvider.notifier)
+          .setDitherEnabled(false);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setDitherScale('Large');
 
-    expect(h.writes.last.ditherEnabled, isFalse);
-    expect(h.writes.last.ditherScale, 'Large');
-  });
+      expect(h.writes.last.ditherEnabled, isFalse);
+      expect(h.writes.last.ditherScale, 'Large');
+    },
+  );
 
-  test('autofocus disable-guiding round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'autofocus disable-guiding round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container
-        .read(appSettingsProvider.notifier)
-        .setAfDisableGuidingDuringAf(true);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setAfDisableGuidingDuringAf(true);
 
-    expect(h.writes.last.afDisableGuidingDuringAf, isTrue);
-  });
+      expect(h.writes.last.afDisableGuidingDuringAf, isTrue);
+    },
+  );
 
-  test('recovery max-duration round-trips through the remote wire model',
-      () async {
-    final h = buildBackend(const models.AppSettings());
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'recovery max-duration round-trips through the remote wire model',
+    () async {
+      final h = buildBackend(const models.AppSettings());
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    await container.read(appSettingsProvider.future);
+      await container.read(appSettingsProvider.future);
 
-    await container
-        .read(appSettingsProvider.notifier)
-        .setRecoveryDefaultMaxDurationMins(120.0);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setRecoveryDefaultMaxDurationMins(120.0);
 
-    expect(h.writes.last.recoveryDefaultMaxDurationMins, 120.0);
-  });
+      expect(h.writes.last.recoveryDefaultMaxDurationMins, 120.0);
+    },
+  );
 
-  test('inbound settings.changed for ditherScale is applied in-place',
-      () async {
-    final h = buildBackend(const models.AppSettings(ditherScale: 'Medium'));
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'inbound settings.changed for ditherScale is applied in-place',
+    () async {
+      final h = buildBackend(const models.AppSettings(ditherScale: 'Medium'));
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    final initial = await container.read(appSettingsProvider.future);
-    expect(initial.ditherScale, 'Medium');
+      final initial = await container.read(appSettingsProvider.future);
+      expect(initial.ditherScale, 'Medium');
 
-    h.events.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: const {
-        'key': 'ditherScale',
-        'value': 'Large',
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      h.events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: const {'key': 'ditherScale', 'value': 'Large'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after!.ditherScale, 'Large');
-  });
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after!.ditherScale, 'Large');
+    },
+  );
 
-  test('inbound settings.changed for enableImageGrading is applied in-place',
-      () async {
-    final h = buildBackend(const models.AppSettings(enableImageGrading: false));
-    addTearDown(h.events.close);
-    final container = containerFor(h.backend);
-    addTearDown(container.dispose);
+  test(
+    'inbound settings.changed for enableImageGrading is applied in-place',
+    () async {
+      final h = buildBackend(
+        const models.AppSettings(enableImageGrading: false),
+      );
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
 
-    final initial = await container.read(appSettingsProvider.future);
-    expect(initial.enableImageGrading, isFalse);
+      final initial = await container.read(appSettingsProvider.future);
+      expect(initial.enableImageGrading, isFalse);
 
-    h.events.add(NightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: settingsChangedEventType,
-      data: const {
-        'key': 'enableImageGrading',
-        'value': true,
-      },
-    ));
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      h.events.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.system,
+          eventType: settingsChangedEventType,
+          data: const {'key': 'enableImageGrading', 'value': true},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final after = container.read(appSettingsProvider).valueOrNull;
-    expect(after!.enableImageGrading, isTrue);
-  });
+      final after = container.read(appSettingsProvider).valueOrNull;
+      expect(after!.enableImageGrading, isTrue);
+    },
+  );
 }

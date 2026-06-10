@@ -108,7 +108,8 @@ class TopOverlay extends ConsumerWidget {
                     icon: NightshadeIcons.grid,
                     tooltip: 'Coordinate grid',
                     isActive: renderConfig.showCoordinateGrid,
-                    onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
+                    onTap:
+                        ref.read(skyRenderConfigProvider.notifier).toggleGrid,
                   ),
                   SizedBox(width: toggleSpacing),
                   OverlayToggle(
@@ -135,8 +136,9 @@ class TopOverlay extends ConsumerWidget {
                     icon: NightshadeIcons.circle,
                     tooltip: 'Horizon',
                     isActive: renderConfig.showHorizon,
-                    onTap:
-                        ref.read(skyRenderConfigProvider.notifier).toggleHorizon,
+                    onTap: ref
+                        .read(skyRenderConfigProvider.notifier)
+                        .toggleHorizon,
                   ),
                 ],
               ),

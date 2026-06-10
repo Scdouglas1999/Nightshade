@@ -279,7 +279,8 @@ class _NodeTreeView extends ConsumerWidget {
                   duration: const Duration(milliseconds: 150),
                   decoration: isContainerHovered
                       ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline8),
                           border: Border.all(
                             color: colors.primary.withValues(alpha: 0.4),
                             width: 1.5,
@@ -399,7 +400,9 @@ class _NodeTreeView extends ConsumerWidget {
                                 ? 'Tap + to add instructions'
                                 : 'Drop instructions here',
                             style: TextStyle(
-                              fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize11,
+                              fontSize: isMobile
+                                  ? NightshadeTypography.fontSize12
+                                  : NightshadeTypography.fontSize11,
                               color: colors.textMuted.withValues(alpha: 0.5),
                               fontStyle: FontStyle.italic,
                             ),

@@ -169,7 +169,8 @@ class CalibrationHandlers {
   }
 
   Future<Map<String, dynamic>> _defectMapMetadataToJson(
-      DefectMapEntry row) async {
+    DefectMapEntry row,
+  ) async {
     int? fileSize;
     bool fileExists = false;
     final sp = row.filePath;
@@ -279,8 +280,9 @@ class CalibrationHandlers {
           : (lower.endsWith('.fit') ? '.fit' : '.xisf');
       final stem = name.substring(0, name.length - ext.length);
       final maxStem = 120 - ext.length;
-      final safeStem =
-          stem.length <= maxStem ? stem : stem.substring(0, maxStem);
+      final safeStem = stem.length <= maxStem
+          ? stem
+          : stem.substring(0, maxStem);
       name = '$safeStem$ext';
     }
     return name;

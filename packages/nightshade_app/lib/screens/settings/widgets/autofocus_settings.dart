@@ -664,7 +664,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             height: 32,
             decoration: BoxDecoration(
               color: NightshadeColors.of(context).surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusButton),
             ),
             child: Icon(icon,
                 size: 14, color: NightshadeColors.of(context).textSecondary),
@@ -676,7 +677,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
               children: [
                 Text(
                   title,
-                  style: NightshadeTypography.labelSm.copyWith(color: NightshadeColors.of(context).textPrimary),
+                  style: NightshadeTypography.labelSm.copyWith(
+                      color: NightshadeColors.of(context).textPrimary),
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 1),
@@ -806,7 +808,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
               const SizedBox(width: 10),
               Text(
                 'Designated autofocus filter:',
-                style: NightshadeTypography.labelSm.copyWith(color: NightshadeColors.of(context).textPrimary),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: NightshadeColors.of(context).textPrimary),
               ),
               const SizedBox(width: 12),
               SettingsDropdown(
@@ -888,7 +891,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   Widget _tableHeader(String text, {double? width, int? flex}) {
     final child = Text(
       text,
-      style: NightshadeTypography.labelStrongSm.copyWith(color: NightshadeColors.of(context).textSecondary),
+      style: NightshadeTypography.labelStrongSm
+          .copyWith(color: NightshadeColors.of(context).textSecondary),
     );
 
     if (width != null) {

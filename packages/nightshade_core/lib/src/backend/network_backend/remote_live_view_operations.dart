@@ -55,14 +55,16 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
         await channel!.ready;
         // Send the initial subscribe immediately. The server replies
         // with `{type: ready, ...}` then starts pushing frames.
-        channel!.sink.add(jsonEncode({
-          'type': 'subscribe',
-          'deviceId': deviceId,
-          'maxDim': maxDim,
-          'maxFps': maxFps,
-          'jpegQuality': jpegQuality,
-          if (region != null) 'region': region.toJson(),
-        }));
+        channel!.sink.add(
+          jsonEncode({
+            'type': 'subscribe',
+            'deviceId': deviceId,
+            'maxDim': maxDim,
+            'maxFps': maxFps,
+            'jpegQuality': jpegQuality,
+            if (region != null) 'region': region.toJson(),
+          }),
+        );
         wsSub = channel!.stream.listen(
           (raw) {
             if (closed || controller.isClosed) return;
@@ -72,8 +74,9 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
                 if (decoded is! Map) return;
                 final type = decoded['type'];
                 if (type == 'frame_meta') {
-                  pendingMeta = decoded
-                      .map((k, v) => MapEntry(k.toString(), v as Object?));
+                  pendingMeta = decoded.map(
+                    (k, v) => MapEntry(k.toString(), v as Object?),
+                  );
                 } else if (type == 'error') {
                   // Surface non-fatal server-reported errors as stream
                   // errors but don't close the stream — the server will
@@ -81,7 +84,8 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
                   controller.addError(
                     dart_error.NightshadeError(
                       category: dart_error.BackendErrorCategory.system,
-                      message: (decoded['message'] as String?) ??
+                      message:
+                          (decoded['message'] as String?) ??
                           'live-view error: ${decoded['code']}',
                     ),
                   );
@@ -266,7 +270,8 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
     var closed = false;
 
     void logFallback(String reason) {
-      final msg = '[NetworkBackend] live-view: falling back from WebRTC to '
+      final msg =
+          '[NetworkBackend] live-view: falling back from WebRTC to '
           'WS — $reason';
       developer.log(msg, name: 'NetworkBackend', level: 800);
       if (onFallback != null) onFallback(msg);
@@ -279,67 +284,69 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
       firstFrameTimer = null;
       unawaited(webRtcSub?.cancel());
       webRtcSub = null;
-      wsSub = subscribeLiveView(
-        deviceId: deviceId,
-        maxDim: maxDim,
-        maxFps: maxFps,
-        jpegQuality: jpegQuality,
-        region: region,
-      ).listen(
-        (frame) {
-          if (closed || controller.isClosed) return;
-          controller.add(frame);
-        },
-        onError: (Object e) {
-          if (closed || controller.isClosed) return;
-          controller.addError(e);
-          controller.close();
-        },
-        onDone: () {
-          if (closed || controller.isClosed) return;
-          controller.close();
-        },
-      );
+      wsSub =
+          subscribeLiveView(
+            deviceId: deviceId,
+            maxDim: maxDim,
+            maxFps: maxFps,
+            jpegQuality: jpegQuality,
+            region: region,
+          ).listen(
+            (frame) {
+              if (closed || controller.isClosed) return;
+              controller.add(frame);
+            },
+            onError: (Object e) {
+              if (closed || controller.isClosed) return;
+              controller.addError(e);
+              controller.close();
+            },
+            onDone: () {
+              if (closed || controller.isClosed) return;
+              controller.close();
+            },
+          );
     }
 
     void startWebRtc() {
-      webRtcSub = subscribeLiveViewWebRtc(
-        deviceId: deviceId,
-        iceServers: iceServers,
-      ).listen(
-        (frame) {
-          if (closed || controller.isClosed) return;
-          if (!receivedFirstFrame) {
-            receivedFirstFrame = true;
-            firstFrameTimer?.cancel();
-            firstFrameTimer = null;
-          }
-          controller.add(frame);
-        },
-        onError: (Object e) {
-          if (closed || controller.isClosed) return;
-          if (receivedFirstFrame) {
-            // Mid-stream failure: surface the error rather than
-            // silently swap transports — the WS path would not recover
-            // from a peer-side crash any faster than the caller can
-            // re-subscribe.
-            controller.addError(e);
-            controller.close();
-            return;
-          }
-          logFallback('WebRTC error before first frame: $e');
-          switchToWs();
-        },
-        onDone: () {
-          if (closed || controller.isClosed) return;
-          if (receivedFirstFrame) {
-            controller.close();
-          } else {
-            logFallback('WebRTC stream ended before first frame');
-            switchToWs();
-          }
-        },
-      );
+      webRtcSub =
+          subscribeLiveViewWebRtc(
+            deviceId: deviceId,
+            iceServers: iceServers,
+          ).listen(
+            (frame) {
+              if (closed || controller.isClosed) return;
+              if (!receivedFirstFrame) {
+                receivedFirstFrame = true;
+                firstFrameTimer?.cancel();
+                firstFrameTimer = null;
+              }
+              controller.add(frame);
+            },
+            onError: (Object e) {
+              if (closed || controller.isClosed) return;
+              if (receivedFirstFrame) {
+                // Mid-stream failure: surface the error rather than
+                // silently swap transports — the WS path would not recover
+                // from a peer-side crash any faster than the caller can
+                // re-subscribe.
+                controller.addError(e);
+                controller.close();
+                return;
+              }
+              logFallback('WebRTC error before first frame: $e');
+              switchToWs();
+            },
+            onDone: () {
+              if (closed || controller.isClosed) return;
+              if (receivedFirstFrame) {
+                controller.close();
+              } else {
+                logFallback('WebRTC stream ended before first frame');
+                switchToWs();
+              }
+            },
+          );
       firstFrameTimer = Timer(webRtcFirstFrameTimeout, () {
         if (receivedFirstFrame || fellBack || closed) return;
         logFallback(

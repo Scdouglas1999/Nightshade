@@ -48,10 +48,7 @@ void main() {
     });
 
     test('toNightshadeEvent uses SequenceUpdated event type', () {
-      const update = SequenceCatalogUpdate(
-        sequenceId: 3,
-        action: 'deleted',
-      );
+      const update = SequenceCatalogUpdate(sequenceId: 3, action: 'deleted');
 
       expect(update.toNightshadeEvent().eventType, sequenceUpdatedEventType);
       expect(update.toNightshadeEvent().category, EventCategory.sequencer);
@@ -61,9 +58,9 @@ void main() {
   group('sequenceLibrarySyncProvider', () {
     test('invalidates savedSequencesProvider when bus notifies', () async {
       final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer(
-        (_) => const Stream<NightshadeEvent>.empty(),
-      );
+      when(
+        () => backend.eventStream,
+      ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.listFullSequences()).thenAnswer((_) async => []);
 
       final container = ProviderContainer(
@@ -91,43 +88,49 @@ void main() {
       verify(() => backend.listFullSequences()).called(2);
     });
 
-    test('invalidates savedSequencesProvider on SequenceUpdated WS event',
-        () async {
-      final eventController = StreamController<NightshadeEvent>.broadcast();
-      final backend = _MockNetworkBackend();
-      when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
-      when(() => backend.listFullSequences()).thenAnswer((_) async => []);
+    test(
+      'invalidates savedSequencesProvider on SequenceUpdated WS event',
+      () async {
+        final eventController = StreamController<NightshadeEvent>.broadcast();
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => eventController.stream);
+        when(() => backend.listFullSequences()).thenAnswer((_) async => []);
 
-      final container = ProviderContainer(
-        overrides: [
-          backendProvider.overrideWith(
-            (ref) => _FixedBackendNotifier(ref, backend),
-          ),
-        ],
-      );
-      addTearDown(() async {
-        await eventController.close();
-        container.dispose();
-      });
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(() async {
+          await eventController.close();
+          container.dispose();
+        });
 
-      container.read(sequenceLibrarySyncProvider);
+        container.read(sequenceLibrarySyncProvider);
 
-      var fetchCount = 0;
-      container.listen(savedSequencesProvider, (_, __) {
-        fetchCount++;
-      }, fireImmediately: true);
+        var fetchCount = 0;
+        container.listen(savedSequencesProvider, (_, __) {
+          fetchCount++;
+        }, fireImmediately: true);
 
-      await container.read(savedSequencesProvider.future);
-      final before = fetchCount;
+        await container.read(savedSequencesProvider.future);
+        final before = fetchCount;
 
-      eventController.add(
-        const SequenceCatalogUpdate(sequenceId: 9, action: 'saved')
-            .toNightshadeEvent(),
-      );
+        eventController.add(
+          const SequenceCatalogUpdate(
+            sequenceId: 9,
+            action: 'saved',
+          ).toNightshadeEvent(),
+        );
 
-      await Future<void>.delayed(Duration.zero);
-      await container.read(savedSequencesProvider.future);
-      expect(fetchCount, greaterThan(before));
-    });
+        await Future<void>.delayed(Duration.zero);
+        await container.read(savedSequencesProvider.future);
+        expect(fetchCount, greaterThan(before));
+      },
+    );
   });
 }

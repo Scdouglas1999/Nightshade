@@ -181,7 +181,8 @@ class SessionRecoveryDialog extends ConsumerWidget {
         final colors = NightshadeColors.of(ref.context);
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
-            content: const Text('Could not recover the session. Please try again.'),
+            content:
+                const Text('Could not recover the session. Please try again.'),
             backgroundColor: colors.error,
           ),
         );
@@ -199,7 +200,8 @@ class SessionRecoveryDialog extends ConsumerWidget {
         final colors = NightshadeColors.of(ref.context);
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
-            content: const Text('Could not discard the session. Please try again.'),
+            content:
+                const Text('Could not discard the session. Please try again.'),
             backgroundColor: colors.error,
           ),
         );

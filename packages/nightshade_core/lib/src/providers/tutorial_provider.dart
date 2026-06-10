@@ -147,10 +147,12 @@ class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
 /// [tutorialProvider] (which is shared by all the screen tours) because the
 /// wizard has different lifecycle semantics — it's modal, single-shot, and
 /// auto-launched.
-final firstNightWizardProvider = StateNotifierProvider<
-    FirstNightWizardNotifier, FirstNightWizardState>((ref) {
-  return FirstNightWizardNotifier(ref.watch(tutorialDaoProvider));
-});
+final firstNightWizardProvider =
+    StateNotifierProvider<FirstNightWizardNotifier, FirstNightWizardState>((
+      ref,
+    ) {
+      return FirstNightWizardNotifier(ref.watch(tutorialDaoProvider));
+    });
 
 /// True if the first-night wizard should be auto-opened on this launch.
 /// Resolves asynchronously because it has to read the `tutorial_progress`
@@ -206,8 +208,7 @@ class FirstLaunchTourDao {
   /// Resolve the tour's current persistence status — used by the launcher
   /// to decide whether to mount the overlay.
   Future<FirstLaunchTourStatus> getStatus() async {
-    final progress =
-        await _progressDao.getProgress(firstLaunchTourCategory);
+    final progress = await _progressDao.getProgress(firstLaunchTourCategory);
     if (progress == null) {
       return FirstLaunchTourStatus.pending;
     }
@@ -258,8 +259,9 @@ final firstLaunchTourDaoProvider = Provider<FirstLaunchTourDao>((ref) {
 /// via the notifier below can `ref.invalidate` this provider to retrigger
 /// the launcher's gate (used by the Settings → Help "Re-run tutorial"
 /// row to drop the user straight into the overlay without a restart).
-final firstLaunchTourStatusProvider =
-    FutureProvider<FirstLaunchTourStatus>((ref) {
+final firstLaunchTourStatusProvider = FutureProvider<FirstLaunchTourStatus>((
+  ref,
+) {
   return ref.watch(firstLaunchTourDaoProvider).getStatus();
 });
 
@@ -285,10 +287,10 @@ class OnboardingTourNotifier extends StateNotifier<int> {
     required FirstLaunchTourDao dao,
     required Ref ref,
     required int totalCoreSteps,
-  })  : _dao = dao,
-        _ref = ref,
-        _totalCoreSteps = totalCoreSteps,
-        super(0);
+  }) : _dao = dao,
+       _ref = ref,
+       _totalCoreSteps = totalCoreSteps,
+       super(0);
 
   /// True if the optional defect-map step is currently part of the tour.
   bool get defectMapStepUnlocked => _defectMapStepUnlocked;
@@ -378,22 +380,22 @@ const int onboardingTourCoreStepCount = 7;
 /// for us.
 final onboardingTourProvider =
     StateNotifierProvider<OnboardingTourNotifier, int>((ref) {
-  return OnboardingTourNotifier(
-    dao: ref.watch(firstLaunchTourDaoProvider),
-    ref: ref,
-    totalCoreSteps: onboardingTourCoreStepCount,
-  );
-});
+      return OnboardingTourNotifier(
+        dao: ref.watch(firstLaunchTourDaoProvider),
+        ref: ref,
+        totalCoreSteps: onboardingTourCoreStepCount,
+      );
+    });
 
 /// Provider for tutorial state with database persistence
 final tutorialProvider =
     StateNotifierProvider<TutorialNotifier, TutorialProgress>((ref) {
-  final dao = ref.watch(tutorialProgressDaoProvider);
-  final notifier = TutorialNotifier(dao);
-  // Load persisted progress on creation
-  notifier._loadPersistedProgress();
-  return notifier;
-});
+      final dao = ref.watch(tutorialProgressDaoProvider);
+      final notifier = TutorialNotifier(dao);
+      // Load persisted progress on creation
+      notifier._loadPersistedProgress();
+      return notifier;
+    });
 
 /// Registry for tutorial target keys
 final tutorialKeyRegistry = Provider<TutorialKeyRegistry>((ref) {
@@ -404,11 +406,11 @@ final tutorialKeyRegistry = Provider<TutorialKeyRegistry>((ref) {
 /// Tracks which screen IDs have had their contextual tour prompts dismissed.
 final dismissedTourPromptsProvider =
     StateNotifierProvider<DismissedTourPromptsNotifier, Set<String>>((ref) {
-  final dao = ref.watch(tutorialProgressDaoProvider);
-  final notifier = DismissedTourPromptsNotifier(dao);
-  notifier._loadDismissedPrompts();
-  return notifier;
-});
+      final dao = ref.watch(tutorialProgressDaoProvider);
+      final notifier = DismissedTourPromptsNotifier(dao);
+      notifier._loadDismissedPrompts();
+      return notifier;
+    });
 
 /// Manages dismissed tour prompts with database persistence
 class DismissedTourPromptsNotifier extends StateNotifier<Set<String>> {
@@ -519,10 +521,7 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
 
   /// Start a tutorial category
   void startTutorial(TutorialCategory category) {
-    state = state.copyWith(
-      activeCategory: category,
-      currentStepIndex: 0,
-    );
+    state = state.copyWith(activeCategory: category, currentStepIndex: 0);
     // Save initial progress to DB
     _dao.saveProgress(category.name, 0);
   }
@@ -566,7 +565,9 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
   void nextStep() {
     if (state.activeCategory == null) return;
 
-    final steps = TutorialDefinitions.getStepsForCategory(state.activeCategory!);
+    final steps = TutorialDefinitions.getStepsForCategory(
+      state.activeCategory!,
+    );
     if (state.currentStepIndex < steps.length - 1) {
       // Mark current step as completed
       final currentStep = steps[state.currentStepIndex];
@@ -604,7 +605,9 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
   void goToStep(int index) {
     if (state.activeCategory == null) return;
 
-    final steps = TutorialDefinitions.getStepsForCategory(state.activeCategory!);
+    final steps = TutorialDefinitions.getStepsForCategory(
+      state.activeCategory!,
+    );
     if (index >= 0 && index < steps.length) {
       state = state.copyWith(currentStepIndex: index);
 
@@ -618,20 +621,20 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
     if (state.activeCategory == null) return;
 
     // Mark all steps in this category as completed
-    final steps = TutorialDefinitions.getStepsForCategory(state.activeCategory!);
+    final steps = TutorialDefinitions.getStepsForCategory(
+      state.activeCategory!,
+    );
     final newCompleted = Set<String>.from(state.completedSteps)
       ..addAll(steps.map((s) => s.id));
 
-    final wasFirstLight =
-        state.activeCategory == TutorialCategory.firstLight;
+    final wasFirstLight = state.activeCategory == TutorialCategory.firstLight;
 
     // Mark completed in DB
     _dao.markCompleted(state.activeCategory!.name);
 
     state = state.copyWith(
       completedSteps: newCompleted,
-      hasSeenInitialTour:
-          wasFirstLight ? true : state.hasSeenInitialTour,
+      hasSeenInitialTour: wasFirstLight ? true : state.hasSeenInitialTour,
       clearActiveCategory: true,
       currentStepIndex: 0,
     );
@@ -644,10 +647,7 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
       _dao.markDismissed(state.activeCategory!.name);
     }
 
-    state = state.copyWith(
-      clearActiveCategory: true,
-      currentStepIndex: 0,
-    );
+    state = state.copyWith(clearActiveCategory: true, currentStepIndex: 0);
   }
 
   /// Toggle tutorials globally
@@ -708,7 +708,9 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
   /// Get the current step
   TutorialStep? get currentStep {
     if (state.activeCategory == null) return null;
-    final steps = TutorialDefinitions.getStepsForCategory(state.activeCategory!);
+    final steps = TutorialDefinitions.getStepsForCategory(
+      state.activeCategory!,
+    );
     if (state.currentStepIndex >= steps.length) return null;
     return steps[state.currentStepIndex];
   }
@@ -716,7 +718,9 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
   /// Get total steps in current tutorial
   int get totalSteps {
     if (state.activeCategory == null) return 0;
-    return TutorialDefinitions.getStepsForCategory(state.activeCategory!).length;
+    return TutorialDefinitions.getStepsForCategory(
+      state.activeCategory!,
+    ).length;
   }
 
   /// Check if this is the last step

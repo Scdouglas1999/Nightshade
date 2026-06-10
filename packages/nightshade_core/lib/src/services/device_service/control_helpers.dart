@@ -14,7 +14,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
   ///   and swallowed — the camera is already connected; auto-detect is a
   ///   convenience, not a precondition.
   Future<void> _autoApplyRecommendedCameraSettings(
-      String deviceId, String deviceName) async {
+    String deviceId,
+    String deviceName,
+  ) async {
     try {
       final activeProfile = _ref.read(activeEquipmentProfileProvider);
       if (activeProfile == null || activeProfile.id == null) {
@@ -35,8 +37,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
       } catch (e) {
         _safeLog(
           (l) => l.warning(
-              'Auto-detect recommended camera settings failed for $deviceName ($deviceId): $e',
-              source: 'DeviceService'),
+            'Auto-detect recommended camera settings failed for $deviceName ($deviceId): $e',
+            source: 'DeviceService',
+          ),
           'auto-detect-recommended-settings',
         );
         return;
@@ -48,8 +51,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
         if (rec.notes.isNotEmpty) {
           _safeLog(
             (l) => l.info(
-                'Camera $deviceName reported no SDK recommendation: ${rec.notes}',
-                source: 'DeviceService'),
+              'Camera $deviceName reported no SDK recommendation: ${rec.notes}',
+              source: 'DeviceService',
+            ),
             'auto-detect-recommended-settings',
           );
         }
@@ -57,20 +61,23 @@ extension _DeviceServiceControlHelpers on DeviceService {
       }
 
       // Decide what to apply. Never overwrite user values.
-      final int? newGain =
-          (activeProfile.defaultGain == null) ? rec.unityGain : null;
-      final int? newOffset =
-          (activeProfile.defaultOffset == null) ? rec.defaultOffset : null;
+      final int? newGain = (activeProfile.defaultGain == null)
+          ? rec.unityGain
+          : null;
+      final int? newOffset = (activeProfile.defaultOffset == null)
+          ? rec.defaultOffset
+          : null;
 
       if (newGain == null && newOffset == null) {
         // Both already set by the user; surface the recommendation in logs
         // so they can compare manually if interested.
         _safeLog(
           (l) => l.info(
-              'Camera $deviceName advertised recommendation but profile already populated. '
-              'SDK reported: unity_gain=${rec.unityGain}, default_offset=${rec.defaultOffset}. '
-              'Notes: ${rec.notes}',
-              source: 'DeviceService'),
+            'Camera $deviceName advertised recommendation but profile already populated. '
+            'SDK reported: unity_gain=${rec.unityGain}, default_offset=${rec.defaultOffset}. '
+            'Notes: ${rec.notes}',
+            source: 'DeviceService',
+          ),
           'auto-detect-recommended-settings',
         );
         return;
@@ -87,8 +94,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
       } catch (e) {
         _safeLog(
           (l) => l.warning(
-              'Failed to persist auto-detected camera settings to profile ${activeProfile.id}: $e',
-              source: 'DeviceService'),
+            'Failed to persist auto-detected camera settings to profile ${activeProfile.id}: $e',
+            source: 'DeviceService',
+          ),
           'auto-detect-recommended-settings',
         );
         return;
@@ -105,9 +113,10 @@ extension _DeviceServiceControlHelpers on DeviceService {
       }
       _safeLog(
         (l) => l.info(
-            'Auto-applied recommended camera settings from $deviceName: '
-            '${logged.join(", ")} (notes: ${rec.notes})',
-            source: 'DeviceService'),
+          'Auto-applied recommended camera settings from $deviceName: '
+          '${logged.join(", ")} (notes: ${rec.notes})',
+          source: 'DeviceService',
+        ),
         'auto-detect-recommended-settings',
       );
     } catch (e) {
@@ -115,8 +124,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
       // connect flow.
       _safeLog(
         (l) => l.warning(
-            'Unexpected error in auto-detect recommended settings for $deviceId: $e',
-            source: 'DeviceService'),
+          'Unexpected error in auto-detect recommended settings for $deviceId: $e',
+          source: 'DeviceService',
+        ),
         'auto-detect-recommended-settings',
       );
     }
@@ -130,7 +140,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
   /// 2. Session filter names (if set via sessionFilterNamesProvider)
   /// 3. Driver-reported names (no sync needed, already set)
   Future<void> _syncFilterNamesToDriver(
-      String deviceId, List<String> driverNames) async {
+    String deviceId,
+    List<String> driverNames,
+  ) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
     final logger = _ref.read(loggingServiceProvider);
 
@@ -317,8 +329,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
     required List<String> filterNames,
     required int generation,
   }) async {
-    final deadline =
-        DateTime.now().add(DeviceService._filterWheelVerifyTimeout);
+    final deadline = DateTime.now().add(
+      DeviceService._filterWheelVerifyTimeout,
+    );
     final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
 
     while (true) {
@@ -378,7 +391,8 @@ extension _DeviceServiceControlHelpers on DeviceService {
       final appSettings = _ref.read(appSettingsProvider).valueOrNull;
       if (appSettings != null) {
         final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
-            appSettings.afFilterSettingsJson);
+          appSettings.afFilterSettingsJson,
+        );
         final perFilterConfig = afFilterSettings[filterName];
         if (perFilterConfig != null && perFilterConfig.focusOffset != 0) {
           return perFilterConfig.focusOffset;
@@ -495,7 +509,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
         source: 'DeviceService',
       );
       try {
-        _ref.read(uiNotificationProvider.notifier).showWarning(
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showWarning(
               'Focus offset for filter "$filterName" failed: $e — frames may '
               'be out of focus until the focuser is checked.',
               title: 'Filter Focus Offset Failed',

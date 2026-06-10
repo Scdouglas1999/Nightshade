@@ -48,7 +48,8 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -114,7 +115,8 @@ class _AccessActionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -134,7 +136,8 @@ class _AccessActionCard extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: SelectableText(
               url,

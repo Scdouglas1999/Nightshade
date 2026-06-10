@@ -3,12 +3,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 
 /// Position of the tooltip relative to the target widget
-enum NightshadeTooltipPosition {
-  top,
-  bottom,
-  left,
-  right,
-}
+enum NightshadeTooltipPosition { top, bottom, left, right }
 
 /// A styled tooltip with animations and accent shadow.
 ///
@@ -73,11 +68,15 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
       vsync: this,
       duration: widget.animationDuration,
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: NightshadeTokens.curveSnappy),
+      CurvedAnimation(
+        parent: _animController,
+        curve: NightshadeTokens.curveSnappy,
+      ),
     );
   }
 
@@ -167,9 +166,12 @@ class _TooltipOverlay extends StatelessWidget {
     final screenSize = MediaQuery.sizeOf(context);
 
     // Safety check for valid values
-    if (targetSize.width.isNaN || targetSize.height.isNaN ||
-        targetPosition.dx.isNaN || targetPosition.dy.isNaN ||
-        screenSize.width <= 0 || screenSize.height <= 0) {
+    if (targetSize.width.isNaN ||
+        targetSize.height.isNaN ||
+        targetPosition.dx.isNaN ||
+        targetPosition.dy.isNaN ||
+        screenSize.width <= 0 ||
+        screenSize.height <= 0) {
       return const SizedBox.shrink();
     }
 
@@ -195,8 +197,14 @@ class _TooltipOverlay extends StatelessWidget {
     }
 
     // Clamp to screen bounds (ensure positive range)
-    final maxLeft = (screenSize.width - padding).clamp(padding, double.infinity);
-    final maxTop = (screenSize.height - padding).clamp(padding, double.infinity);
+    final maxLeft = (screenSize.width - padding).clamp(
+      padding,
+      double.infinity,
+    );
+    final maxTop = (screenSize.height - padding).clamp(
+      padding,
+      double.infinity,
+    );
     left = left.clamp(padding, maxLeft);
     top = top.clamp(padding, maxTop);
 
@@ -231,7 +239,12 @@ class _TooltipOverlay extends StatelessWidget {
               ),
             );
           },
-          child: _buildTooltipContent(colors, position, targetPosition, targetSize),
+          child: _buildTooltipContent(
+            colors,
+            position,
+            targetPosition,
+            targetSize,
+          ),
         ),
       ),
     );
@@ -262,18 +275,14 @@ class _TooltipOverlay extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceOverlay,
         borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
         boxShadow: NightshadeTokens.shadowMd,
       ),
-      child: richMessage ??
+      child:
+          richMessage ??
           Text(
             message,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textPrimary,
-            ),
+            style: TextStyle(fontSize: 12, color: colors.textPrimary),
           ),
     );
 

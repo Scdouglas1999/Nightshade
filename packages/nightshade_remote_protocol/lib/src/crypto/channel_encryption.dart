@@ -27,7 +27,10 @@ class ChannelEncryption {
 
   /// Create a ChannelEncryption instance from a session token
   /// Uses PBKDF2 with 100,000 iterations for key derivation
-  factory ChannelEncryption.fromToken(String sessionToken, {String salt = 'nightshade.webrtc.v1'}) {
+  factory ChannelEncryption.fromToken(
+    String sessionToken, {
+    String salt = 'nightshade.webrtc.v1',
+  }) {
     final key = _deriveKey(sessionToken, salt);
     return ChannelEncryption._(key);
   }
@@ -116,7 +119,9 @@ class ChannelEncryption {
 
       return plaintext;
     } catch (e) {
-      throw EncryptionException('Decryption failed (possibly tampered data): $e');
+      throw EncryptionException(
+        'Decryption failed (possibly tampered data): $e',
+      );
     }
   }
 
@@ -140,11 +145,13 @@ class ChannelEncryption {
   /// Derive an encryption key from a session token using PBKDF2
   static Uint8List _deriveKey(String sessionToken, String salt) {
     final pbkdf2 = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64))
-      ..init(Pbkdf2Parameters(
-        Uint8List.fromList(utf8.encode(salt)),
-        _pbkdf2Iterations,
-        _keySize,
-      ));
+      ..init(
+        Pbkdf2Parameters(
+          Uint8List.fromList(utf8.encode(salt)),
+          _pbkdf2Iterations,
+          _keySize,
+        ),
+      );
 
     return pbkdf2.process(Uint8List.fromList(utf8.encode(sessionToken)));
   }

@@ -26,7 +26,7 @@ import 'live_activity_service.dart';
 /// fight with the desktop / Android flow).
 class LiveActivityLifecycleController {
   LiveActivityLifecycleController(this._ref, {LiveActivityService? service})
-      : _service = service ?? LiveActivityService();
+    : _service = service ?? LiveActivityService();
 
   final Ref _ref;
   final LiveActivityService _service;
@@ -105,21 +105,16 @@ class LiveActivityLifecycleController {
       return;
     }
 
-    _ref.listen<SequenceExecutionState>(
-      sequenceExecutionStateProvider,
-      (previous, next) {
-        _handleStateChange(previous, next);
-      },
-      fireImmediately: false,
-    );
+    _ref.listen<SequenceExecutionState>(sequenceExecutionStateProvider, (
+      previous,
+      next,
+    ) {
+      _handleStateChange(previous, next);
+    }, fireImmediately: false);
 
-    _ref.listen<SequenceProgress>(
-      sequenceProgressProvider,
-      (previous, next) {
-        _handleProgressChange(next);
-      },
-      fireImmediately: false,
-    );
+    _ref.listen<SequenceProgress>(sequenceProgressProvider, (previous, next) {
+      _handleProgressChange(next);
+    }, fireImmediately: false);
   }
 
   void _handleStateChange(
@@ -198,8 +193,7 @@ class LiveActivityLifecycleController {
       return;
     }
 
-    final jobState =
-        _jobStateForExecution(execState, progress: progress);
+    final jobState = _jobStateForExecution(execState, progress: progress);
     final elapsed = progress.elapsedSecs.round();
     final remaining = progress.estimatedRemainingSecs?.round();
     final targetName = progress.currentTarget?.trim().isNotEmpty == true
@@ -301,8 +295,7 @@ class LiveActivityLifecycleController {
     _activityId = null;
 
     final progress = _ref.read(sequenceProgressProvider);
-    final jobState =
-        _jobStateForExecution(terminalState, progress: progress);
+    final jobState = _jobStateForExecution(terminalState, progress: progress);
     final elapsed = progress.elapsedSecs.round();
     final remaining = progress.estimatedRemainingSecs?.round();
 
@@ -337,10 +330,7 @@ class LiveActivityLifecycleController {
       _logger.error(
         'LiveActivity end failed: $e',
         source: 'LiveActivityLifecycle',
-        fields: <String, Object?>{
-          'activityId': id,
-          'error': e.toString(),
-        },
+        fields: <String, Object?>{'activityId': id, 'error': e.toString()},
       );
     } finally {
       _activeSequenceId = null;
@@ -396,12 +386,13 @@ class LiveActivityLifecycleController {
 /// install the Riverpod listeners. The controller hangs around for the
 /// app's lifetime; `ref.onDispose` only fires if the provider container
 /// itself is torn down (test teardown, hot restart).
-final liveActivityLifecycleProvider =
-    Provider<LiveActivityLifecycleController>((ref) {
-  final controller = LiveActivityLifecycleController(ref);
-  controller.start();
-  ref.onDispose(() {
-    unawaited(controller.dispose());
-  });
-  return controller;
-});
+final liveActivityLifecycleProvider = Provider<LiveActivityLifecycleController>(
+  (ref) {
+    final controller = LiveActivityLifecycleController(ref);
+    controller.start();
+    ref.onDispose(() {
+      unawaited(controller.dispose());
+    });
+    return controller;
+  },
+);

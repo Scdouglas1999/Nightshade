@@ -33,15 +33,18 @@ void main() {
     mockBackend = MockBackend();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
-    when(() => mockBackend.eventStream)
-        .thenAnswer((_) => eventStreamController.stream);
-    when(() => mockBackend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockBackend.eventStream,
+    ).thenAnswer((_) => eventStreamController.stream);
+    when(
+      () => mockBackend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     container = ProviderContainer(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => TestBackendNotifier(ref, mockBackend)),
+        backendProvider.overrideWith(
+          (ref) => TestBackendNotifier(ref, mockBackend),
+        ),
       ],
     );
   });
@@ -51,58 +54,62 @@ void main() {
     container.dispose();
   });
 
-  test('autofocus overlay surfaces malformed progress events as errors',
-      () async {
-    container.read(autofocusOverlayProvider.notifier).onAutofocusStarted();
+  test(
+    'autofocus overlay surfaces malformed progress events as errors',
+    () async {
+      container.read(autofocusOverlayProvider.notifier).onAutofocusStarted();
 
-    eventStreamController.add(
-      NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.warning,
-        category: EventCategory.equipment,
-        eventType: 'AutofocusProgress',
-        data: const {'detail': 'not valid autofocus progress'},
-      ),
-    );
-
-    await Future<void>.delayed(Duration.zero);
-
-    final state = container.read(autofocusOverlayProvider);
-    expect(state.hasError, isTrue);
-    expect(state.status, contains('could not be parsed'));
-  });
-
-  test('calibration complete refreshes calibration data through public API',
-      () async {
-    var fetchCount = 0;
-    when(() => mockBackend.phd2GetCalibrationData()).thenAnswer((_) async {
-      fetchCount++;
-      return const Phd2CalibrationData(
-        isCalibrated: true,
-        rotationAngle: 12.5,
-        raRate: 1.45,
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'AutofocusProgress',
+          data: const {'detail': 'not valid autofocus progress'},
+        ),
       );
-    });
 
-    container.read(phd2ControllerProvider);
-    final guiderNotifier = container.read(guiderStateProvider.notifier);
-    guiderNotifier.setConnecting('phd2_guider', 'PHD2');
-    guiderNotifier.setConnected();
+      await Future<void>.delayed(Duration.zero);
 
-    eventStreamController.add(
-      NightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'CalibrationComplete',
-        data: const <String, dynamic>{},
-      ),
-    );
+      final state = container.read(autofocusOverlayProvider);
+      expect(state.hasError, isTrue);
+      expect(state.status, contains('could not be parsed'));
+    },
+  );
 
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+  test(
+    'calibration complete refreshes calibration data through public API',
+    () async {
+      var fetchCount = 0;
+      when(() => mockBackend.phd2GetCalibrationData()).thenAnswer((_) async {
+        fetchCount++;
+        return const Phd2CalibrationData(
+          isCalibrated: true,
+          rotationAngle: 12.5,
+          raRate: 1.45,
+        );
+      });
 
-    expect(fetchCount, greaterThan(0));
-    final state = container.read(calibrationStateProvider);
-    expect(state.isCalibrated, isTrue);
-  });
+      container.read(phd2ControllerProvider);
+      final guiderNotifier = container.read(guiderStateProvider.notifier);
+      guiderNotifier.setConnecting('phd2_guider', 'PHD2');
+      guiderNotifier.setConnected();
+
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.guiding,
+          eventType: 'CalibrationComplete',
+          data: const <String, dynamic>{},
+        ),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(fetchCount, greaterThan(0));
+      final state = container.read(calibrationStateProvider);
+      expect(state.isCalibrated, isTrue);
+    },
+  );
 }

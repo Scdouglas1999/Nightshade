@@ -42,11 +42,7 @@ const _requiredReleaseNoteHeadings = [
   '## Rollback Plan',
 ];
 
-const _allowedRemoteClientTypes = [
-  'dashboard',
-  'mobile',
-  'headless-api',
-];
+const _allowedRemoteClientTypes = ['dashboard', 'mobile', 'headless-api'];
 
 const _requiredLinuxRuntimeSmokeChecks = [
   'headless_process_started',
@@ -74,13 +70,15 @@ void main() async {
     'checks': checks.map((check) => check.toJson()).toList(),
   };
 
-  await File(_jsonOutputPath)
-      .writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  await File(
+    _jsonOutputPath,
+  ).writeAsString(const JsonEncoder.withIndent('  ').convert(report));
   await File(_markdownOutputPath).writeAsString(_renderMarkdown(checks));
 
   stdout.writeln('Public release external evidence audit complete.');
   stdout.writeln(
-      'Passed checks: ${checks.where((check) => check.passed).length}');
+    'Passed checks: ${checks.where((check) => check.passed).length}',
+  );
   stdout.writeln('Checks: ${checks.length}');
   stdout.writeln('JSON: $_jsonOutputPath');
   stdout.writeln('Markdown: $_markdownOutputPath');
@@ -140,10 +138,7 @@ void _requireStringContains(
   }
 }
 
-void _requireRemoteClientType(
-  Map<String, dynamic> data,
-  List<String> issues,
-) {
+void _requireRemoteClientType(Map<String, dynamic> data, List<String> issues) {
   final value = data['remoteClientType']?.toString().trim() ?? '';
   if (value.isEmpty) {
     issues.add('remoteClientType is required.');
@@ -330,7 +325,8 @@ void _requireWindowsFirewallRule(
   final rule = data['windowsFirewallRule'];
   if (rule is! Map) {
     issues.add(
-        'windowsFirewallRule must record rule name, profile, port, and action.');
+      'windowsFirewallRule must record rule name, profile, port, and action.',
+    );
     return;
   }
   final fields = rule.cast<String, dynamic>();
@@ -356,9 +352,9 @@ void _requireSha256SidecarMatches(
     return;
   }
   final text = file.readAsStringSync().toLowerCase();
-  final hasExpectedHash = RegExp(r'\b[0-9a-f]{64}\b')
-      .allMatches(text)
-      .any((match) => match.group(0) == expected);
+  final hasExpectedHash = RegExp(
+    r'\b[0-9a-f]{64}\b',
+  ).allMatches(text).any((match) => match.group(0) == expected);
   if (!hasExpectedHash) {
     issues.add('$field does not contain packageSha256.');
   }
@@ -427,12 +423,13 @@ void _requireChecklistAuditComplete(List<String> issues) {
   final data = _readEvidence(_checklistAuditPath);
   if (data == null) {
     issues.add(
-        'Checklist audit file is missing or invalid: $_checklistAuditPath.');
+      'Checklist audit file is missing or invalid: $_checklistAuditPath.',
+    );
     return;
   }
   final unchecked = (data['uncheckedItemCount'] as num?)?.toInt();
-  final checkedWithoutEvidence =
-      (data['checkedWithoutEvidenceCount'] as num?)?.toInt();
+  final checkedWithoutEvidence = (data['checkedWithoutEvidenceCount'] as num?)
+      ?.toInt();
   final knownLimitationsReferenced = data['knownLimitationsReferenced'] == true;
   final supportedHardwareReferenced =
       data['supportedHardwareByPlatformReferenced'] == true;
@@ -479,8 +476,9 @@ void _requireReleaseNotesComplete(
   final configuredPath = data['releaseNotesPath']?.toString().trim() ?? '';
   final normalizedPath = _normalizePath(configuredPath);
   if (normalizedPath == _normalizePath(_releaseNotesTemplatePath)) {
-    issues
-        .add('releaseNotesPath must not point to the release notes template.');
+    issues.add(
+      'releaseNotesPath must not point to the release notes template.',
+    );
   }
 
   final content = releaseNotes.readAsStringSync();
@@ -505,9 +503,7 @@ void _requireReleaseNotesComplete(
     'docs/production-readiness/public-release-gate.json',
   ]) {
     if (!content.contains(requiredReference)) {
-      issues.add(
-        'release notes must reference $requiredReference.',
-      );
+      issues.add('release notes must reference $requiredReference.');
     }
   }
 }
@@ -813,7 +809,8 @@ String _renderMarkdown(List<_EvidenceCheck> checks) {
     ..writeln('# Public Release External Evidence')
     ..writeln()
     ..writeln(
-        '- Passed checks: `${checks.where((check) => check.passed).length}`')
+      '- Passed checks: `${checks.where((check) => check.passed).length}`',
+    )
     ..writeln('- Total checks: `${checks.length}`')
     ..writeln('- Template directory: `$_templateDirectory`')
     ..writeln()
@@ -881,12 +878,12 @@ class _EvidenceCheck {
   });
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'label': label,
-        'evidencePath': evidencePath,
-        'templatePath': templatePath,
-        'passed': passed,
-        'requirements': requirements,
-        'issues': issues,
-      };
+    'id': id,
+    'label': label,
+    'evidencePath': evidencePath,
+    'templatePath': templatePath,
+    'passed': passed,
+    'requirements': requirements,
+    'issues': issues,
+  };
 }

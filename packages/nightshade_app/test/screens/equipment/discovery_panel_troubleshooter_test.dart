@@ -115,7 +115,8 @@ void main() {
       expect(find.text('Technical details'), findsOneWidget);
 
       // Pressing "Retry connection" resolves the future to true.
-      await tester.tap(find.widgetWithText(NightshadeButton, 'Retry connection'));
+      await tester
+          .tap(find.widgetWithText(NightshadeButton, 'Retry connection'));
       await tester.pumpAndSettle();
       expect(await showFuture, isTrue);
     });

@@ -116,7 +116,9 @@ class TestFixtures {
 
     // Setup default event stream (empty stream)
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -126,11 +128,14 @@ class TestFixtures {
     final backend = MockBackend();
 
     // All connection attempts fail
-    when(() => backend.connectDevice(any(), any()))
-        .thenThrow(Exception('Failed to connect to device'));
+    when(
+      () => backend.connectDevice(any(), any()),
+    ).thenThrow(Exception('Failed to connect to device'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -140,11 +145,14 @@ class TestFixtures {
     final backend = MockBackend();
 
     // All operations timeout
-    when(() => backend.connectDevice(any(), any()))
-        .thenThrow(Exception('Connection timeout'));
+    when(
+      () => backend.connectDevice(any(), any()),
+    ).thenThrow(Exception('Connection timeout'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(
+      () => backend.polarAlignmentEvents,
+    ).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -155,20 +163,24 @@ void registerMocktailFallbackValues() {
   registerFallbackValue(FrameType.light);
   registerFallbackValue(DeviceType.camera);
   registerFallbackValue(DriverType.simulator);
-  registerFallbackValue(const ExposureSettings(
-    exposureTime: 1.0,
-    gain: 0,
-    offset: 0,
-    binningX: 1,
-    binningY: 1,
-    frameType: FrameType.light,
-  ));
-  registerFallbackValue(const DeviceInfo(
-    id: 'fallback',
-    name: 'Fallback',
-    deviceType: DeviceType.camera,
-    driverType: DriverType.simulator,
-    description: '',
-    driverVersion: '1.0',
-  ));
+  registerFallbackValue(
+    const ExposureSettings(
+      exposureTime: 1.0,
+      gain: 0,
+      offset: 0,
+      binningX: 1,
+      binningY: 1,
+      frameType: FrameType.light,
+    ),
+  );
+  registerFallbackValue(
+    const DeviceInfo(
+      id: 'fallback',
+      name: 'Fallback',
+      deviceType: DeviceType.camera,
+      driverType: DriverType.simulator,
+      description: '',
+      driverVersion: '1.0',
+    ),
+  );
 }

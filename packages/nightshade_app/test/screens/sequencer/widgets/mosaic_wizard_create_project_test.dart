@@ -184,9 +184,11 @@ void main() {
     // the fix the controller dropped it entirely and the service signature had
     // no such parameter.
     expect(args.containsKey('panelTargetId'), isTrue,
-        reason: 'the per-panel target callback must be wired through createProject');
+        reason:
+            'the per-panel target callback must be wired through createProject');
     expect(args['panelTargetId'], isNull,
-        reason: 'ad-hoc wizard centre defers per-panel target assignment to the service');
+        reason:
+            'ad-hoc wizard centre defers per-panel target assignment to the service');
 
     expect(routedId, '314',
         reason: 'routes to /mosaic/<new project id> after create');
@@ -229,7 +231,8 @@ void main() {
       onMosaicRoute: (_) {},
     );
 
-    await tester.tap(find.byKey(const ValueKey('mosaic_generate_sequence_btn')));
+    await tester
+        .tap(find.byKey(const ValueKey('mosaic_generate_sequence_btn')));
     await tester.pumpAndSettle();
 
     // Read the sequence the wizard loaded into the editor.
@@ -243,7 +246,8 @@ void main() {
         sequence!.nodes.values.whereType<TargetHeaderNode>().toList();
     expect(headers, isNotEmpty, reason: '3x3 default => 9 panel headers');
     expect(
-      headers.every((h) => h.minAltitude == const SmartNightSettings().minAltitudeDeg),
+      headers.every(
+          (h) => h.minAltitude == const SmartNightSettings().minAltitudeDeg),
       isTrue,
       reason: 'every panel must gate on the Smart Night minimum altitude floor',
     );

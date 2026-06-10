@@ -40,9 +40,11 @@ void main() {
       // The default container has no FFI backend; DisconnectedBackend
       // raises for every method. The handler must degrade per-section
       // and still produce well-formed JSON.
-      final response = await translateHandlerErrors(handlers.handleSnapshot(
-        Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
-      ));
+      final response = await translateHandlerErrors(
+        handlers.handleSnapshot(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/snapshot')),
+        ),
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], startsWith('application/json'));
@@ -58,60 +60,68 @@ void main() {
       expect(sequencer['progress'], isA<Map>());
     });
 
-    test('frame-thumbnail returns no_camera when no devices are connected',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleFrameThumbnail(
-        Request('GET',
-            Uri.parse('http://localhost/api/run-watch/frame-thumbnail')),
-      ));
+    test(
+      'frame-thumbnail returns no_camera when no devices are connected',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleFrameThumbnail(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/run-watch/frame-thumbnail'),
+            ),
+          ),
+        );
 
-      // The DisconnectedBackend raises on getConnectedDevices(), so we
-      // end up with no candidate camera id and the handler returns
-      // 404 no_camera. The exact body shape is what the client checks
-      // for to decide whether to keep the "no frame yet" placeholder.
-      expect(response.statusCode, HttpStatus.notFound);
-      expect(response.headers['content-type'], startsWith('application/json'));
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'no_camera');
-    });
+        // The DisconnectedBackend raises on getConnectedDevices(), so we
+        // end up with no candidate camera id and the handler returns
+        // 404 no_camera. The exact body shape is what the client checks
+        // for to decide whether to keep the "no frame yet" placeholder.
+        expect(response.statusCode, HttpStatus.notFound);
+        expect(
+          response.headers['content-type'],
+          startsWith('application/json'),
+        );
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'no_camera');
+      },
+    );
 
-    test('SSE responds with text/event-stream and an initial retry hint',
-        () async {
-      final response = handlers.handleEventStream(
-        Request('GET',
-            Uri.parse('http://localhost/api/run-watch/events')),
-      );
+    test(
+      'SSE responds with text/event-stream and an initial retry hint',
+      () async {
+        final response = handlers.handleEventStream(
+          Request('GET', Uri.parse('http://localhost/api/run-watch/events')),
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.headers['content-type'],
-          startsWith('text/event-stream'));
+        expect(response.statusCode, HttpStatus.ok);
+        expect(
+          response.headers['content-type'],
+          startsWith('text/event-stream'),
+        );
 
-      // Pump the controller so the stream emits its first frame
-      // (the `retry:` directive emitted on onListen). Read a single
-      // chunk then cancel so the test does not hang.
-      final completer = Completer<String>();
-      final sub = response
-          .read()
-          .transform(utf8.decoder)
-          .listen((chunk) {
-        if (!completer.isCompleted) completer.complete(chunk);
-      });
-      // Give the stream a turn to deliver onListen output.
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await sub.cancel();
-      if (!completer.isCompleted) {
-        completer.complete('');
-      }
-      final first = await completer.future;
-      // The stream MAY have already terminated before the first chunk
-      // arrived on slow CI; in the happy path we expect the retry hint.
-      // Tolerate both since the test's purpose is to assert the header
-      // contract, not the timing of the very first byte.
-      if (first.isNotEmpty) {
-        expect(first.contains('retry: 5000'), isTrue);
-      }
-    });
+        // Pump the controller so the stream emits its first frame
+        // (the `retry:` directive emitted on onListen). Read a single
+        // chunk then cancel so the test does not hang.
+        final completer = Completer<String>();
+        final sub = response.read().transform(utf8.decoder).listen((chunk) {
+          if (!completer.isCompleted) completer.complete(chunk);
+        });
+        // Give the stream a turn to deliver onListen output.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await sub.cancel();
+        if (!completer.isCompleted) {
+          completer.complete('');
+        }
+        final first = await completer.future;
+        // The stream MAY have already terminated before the first chunk
+        // arrived on slow CI; in the happy path we expect the retry hint.
+        // Tolerate both since the test's purpose is to assert the header
+        // contract, not the timing of the very first byte.
+        if (first.isNotEmpty) {
+          expect(first.contains('retry: 5000'), isTrue);
+        }
+      },
+    );
 
     test('SSE forwards an injected event to a subscribed client', () async {
       // Subscribe an SSE client, push an event into the broadcast
@@ -119,8 +129,7 @@ void main() {
       // containing our eventType. This is the wave-6 round-trip the
       // brief calls out as the integration test for the event stream.
       final response = handlers.handleEventStream(
-        Request('GET',
-            Uri.parse('http://localhost/api/run-watch/events')),
+        Request('GET', Uri.parse('http://localhost/api/run-watch/events')),
       );
 
       final buffer = StringBuffer();
@@ -145,8 +154,7 @@ void main() {
       );
       ctrl.add(event);
 
-      final payload = await received.future
-          .timeout(const Duration(seconds: 2));
+      final payload = await received.future.timeout(const Duration(seconds: 2));
       await sub.cancel();
 
       // SSE framing: event line, id line, data line, terminator.

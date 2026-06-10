@@ -196,8 +196,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           waitUntil: props['waitUntil'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['waitUntil'] as int)
               : null,
-          waitForTwilight:
-              _stringToTwilight(props['waitForTwilight'] as String?),
+          waitForTwilight: _stringToTwilight(
+            props['waitForTwilight'] as String?,
+          ),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -224,8 +225,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           title: props['title'] as String? ?? '',
           message: props['message'] as String? ?? '',
           level: _stringToNotificationLevel(props['level'] as String?),
-          explicitTransports:
-              _parseExplicitTransports(props['explicitTransports']),
+          explicitTransports: _parseExplicitTransports(
+            props['explicitTransports'],
+          ),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -269,12 +271,14 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           // field stays null (pre-budget sequences keep working).
           integrationBudget: props['integrationBudget'] != null
               ? IntegrationBudget.fromJson(
-                  props['integrationBudget'] as Map<String, dynamic>)
+                  props['integrationBudget'] as Map<String, dynamic>,
+                )
               : null,
           // Wave 4 — per-target altitude/time crossings.
           startWhen: props['startWhen'] != null
               ? TargetTrigger.fromJson(
-                  props['startWhen'] as Map<String, dynamic>)
+                  props['startWhen'] as Map<String, dynamic>,
+                )
               : null,
           endWhen: props['endWhen'] != null
               ? TargetTrigger.fromJson(props['endWhen'] as Map<String, dynamic>)
@@ -292,16 +296,17 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
         return LoopNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          conditionType:
-              _stringToLoopCondition(props['conditionType'] as String?),
+          conditionType: _stringToLoopCondition(
+            props['conditionType'] as String?,
+          ),
           repeatCount: (props['repeatCount'] as num?)?.toInt() ?? 1,
           repeatUntil: props['repeatUntil'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['repeatUntil'] as int)
               : null,
-          repeatUntilAltitude:
-              (props['repeatUntilAltitude'] as num?)?.toDouble(),
-          integrationTimeTarget:
-              (props['integrationTimeTarget'] as num?)?.toDouble(),
+          repeatUntilAltitude: (props['repeatUntilAltitude'] as num?)
+              ?.toDouble(),
+          integrationTimeTarget: (props['integrationTimeTarget'] as num?)
+              ?.toDouble(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -325,12 +330,14 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
         return ConditionalNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          conditionType:
-              _stringToConditionalType(props['conditionType'] as String?),
+          conditionType: _stringToConditionalType(
+            props['conditionType'] as String?,
+          ),
           thresholdValue: (props['thresholdValue'] as num?)?.toDouble(),
           thresholdTime: props['thresholdTime'] != null
               ? DateTime.fromMillisecondsSinceEpoch(
-                  props['thresholdTime'] as int)
+                  props['thresholdTime'] as int,
+                )
               : null,
           // Audit C2: optional per-monitor targeting for multi-safety
           // setups. Absent on legacy sequences (deserialises to null,
@@ -347,8 +354,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
         return RecoveryNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          recoveryAction:
-              _stringToRecoveryAction(props['recoveryAction'] as String?),
+          recoveryAction: _stringToRecoveryAction(
+            props['recoveryAction'] as String?,
+          ),
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
           triggerType: _stringToTriggerType(props['triggerType'] as String?),
           triggerThreshold: (props['triggerThreshold'] as num?)?.toDouble(),
@@ -393,8 +401,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
         return MeridianFlipNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          triggerMethod:
-              _stringToMeridianTriggerMethod(props['triggerMethod'] as String?),
+          triggerMethod: _stringToMeridianTriggerMethod(
+            props['triggerMethod'] as String?,
+          ),
           minutesPastMeridian:
               (props['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
           minutesBeforeLimit:
@@ -407,8 +416,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 10.0,
           resumeGuiding: props['resumeGuiding'] as bool? ?? true,
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
-          failureAction:
-              _stringToFlipFailureAction(props['failureAction'] as String?),
+          failureAction: _stringToFlipFailureAction(
+            props['failureAction'] as String?,
+          ),
           // Why: legacy DB rows pre-§1.2 have no flag. Treat absence as
           // `false` (use persisted per-node values verbatim) so existing
           // user sequences keep behavior they had before the wire-up.
@@ -510,22 +520,22 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
               props['finishIterationOnSwitch'] as bool? ?? true,
           swapOnConditionsBelow:
               (props['swapOnConditionsBelow'] as num?)?.toDouble() ??
-                  (props['swap_on_conditions_below'] as num?)?.toDouble(),
+              (props['swap_on_conditions_below'] as num?)?.toDouble(),
           swapHysteresisSecs:
               (props['swapHysteresisSecs'] as num?)?.toDouble() ??
-                  (props['swap_hysteresis_secs'] as num?)?.toDouble() ??
-                  180.0,
+              (props['swap_hysteresis_secs'] as num?)?.toDouble() ??
+              180.0,
           brightnessTierPreferences: _parseBrightnessTierPreferences(
             props['brightnessTierPreferences'] ??
                 props['brightness_tier_preferences'],
           ),
           maxConditionsScoreAgeSecs:
               (props['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
-                  (props['max_conditions_score_age_secs'] as num?)?.toInt() ??
-                  300,
+              (props['max_conditions_score_age_secs'] as num?)?.toInt() ??
+              300,
           minMoonSeparationDeg:
               (props['minMoonSeparationDeg'] as num?)?.toDouble() ??
-                  (props['min_moon_separation_deg'] as num?)?.toDouble(),
+              (props['min_moon_separation_deg'] as num?)?.toDouble(),
           horizonProfile: _schedulerHorizonFromJson(
             props['horizonProfile'] ?? props['horizon_profile'],
           ),
@@ -596,7 +606,8 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           name: dbNode.name,
           mode: LiveStackingMode.fromStorageKey(props['mode'] as String?),
           stackMethod: LiveStackingMethod.fromStorageKey(
-              props['stackMethod'] as String?),
+            props['stackMethod'] as String?,
+          ),
           maxFramesToStack: (props['maxFramesToStack'] as num?)?.toInt() ?? 0,
           broadcastEnabled: props['broadcastEnabled'] as bool? ?? true,
           broadcastPort: (props['broadcastPort'] as num?)?.toInt() ?? 8081,
@@ -688,7 +699,8 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           applyDifferential: props['applyDifferential'] as bool? ?? true,
           quality: props['quality'] is Map
               ? PhotometryQualityGates.fromJson(
-                  (props['quality'] as Map).cast<String, dynamic>())
+                  (props['quality'] as Map).cast<String, dynamic>(),
+                )
               : const PhotometryQualityGates(),
           gain: (props['gain'] as num?)?.toInt(),
           offset: (props['offset'] as num?)?.toInt(),

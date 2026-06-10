@@ -65,8 +65,7 @@ final secretsStoreProvider = Provider<SecretsStore>((ref) {
 /// build and is idempotent. Exposed as a provider so the app shell can
 /// `ref.read` it during startup if it wants to surface migration
 /// progress / errors.
-final notificationSecretsMigrationProvider =
-    FutureProvider<bool>((ref) async {
+final notificationSecretsMigrationProvider = FutureProvider<bool>((ref) async {
   final dao = ref.read(settingsDaoProvider);
   final store = ref.read(secretsStoreProvider);
   return store.migrateFromPlaintext(dao);
@@ -86,18 +85,23 @@ class EmailConfigNotifier extends AsyncNotifier<EmailTransportConfig> {
 
     final dao = ref.read(settingsDaoProvider);
     final secrets = ref.read(secretsStoreProvider);
-    final raw = await dao
-        .getSetting(_transportSettingKey(NotificationTransportKind.email));
+    final raw = await dao.getSetting(
+      _transportSettingKey(NotificationTransportKind.email),
+    );
     EmailTransportConfig base;
     if (raw == null) {
       base = const EmailTransportConfig();
     } else {
       try {
         base = EmailTransportConfig.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
       } catch (e) {
-        developer.log('[NotificationProviders] Bad email config: $e',
-            name: 'NotificationProviders', level: 900);
+        developer.log(
+          '[NotificationProviders] Bad email config: $e',
+          name: 'NotificationProviders',
+          level: 900,
+        );
         base = const EmailTransportConfig();
       }
     }
@@ -112,8 +116,10 @@ class EmailConfigNotifier extends AsyncNotifier<EmailTransportConfig> {
     // the secret.
     await secrets.write(SecretField.emailPassword, config.password);
     final nonSecret = config.copyWith(password: '');
-    await dao.setSetting(_transportSettingKey(NotificationTransportKind.email),
-        jsonEncode(nonSecret.toJson()));
+    await dao.setSetting(
+      _transportSettingKey(NotificationTransportKind.email),
+      jsonEncode(nonSecret.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -123,14 +129,19 @@ class WebhookConfigNotifier extends AsyncNotifier<WebhookTransportConfig> {
   Future<WebhookTransportConfig> build() async {
     final dao = ref.read(settingsDaoProvider);
     final raw = await dao.getSetting(
-        _transportSettingKey(NotificationTransportKind.webhookGeneric));
+      _transportSettingKey(NotificationTransportKind.webhookGeneric),
+    );
     if (raw == null) return const WebhookTransportConfig();
     try {
       return WebhookTransportConfig.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
     } catch (e) {
-      developer.log('[NotificationProviders] Bad webhook config: $e',
-          name: 'NotificationProviders', level: 900);
+      developer.log(
+        '[NotificationProviders] Bad webhook config: $e',
+        name: 'NotificationProviders',
+        level: 900,
+      );
       return const WebhookTransportConfig();
     }
   }
@@ -138,8 +149,9 @@ class WebhookConfigNotifier extends AsyncNotifier<WebhookTransportConfig> {
   Future<void> save(WebhookTransportConfig config) async {
     final dao = ref.read(settingsDaoProvider);
     await dao.setSetting(
-        _transportSettingKey(NotificationTransportKind.webhookGeneric),
-        jsonEncode(config.toJson()));
+      _transportSettingKey(NotificationTransportKind.webhookGeneric),
+      jsonEncode(config.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -150,18 +162,23 @@ class PushoverConfigNotifier extends AsyncNotifier<PushoverTransportConfig> {
     await ref.read(notificationSecretsMigrationProvider.future);
     final dao = ref.read(settingsDaoProvider);
     final secrets = ref.read(secretsStoreProvider);
-    final raw = await dao
-        .getSetting(_transportSettingKey(NotificationTransportKind.pushover));
+    final raw = await dao.getSetting(
+      _transportSettingKey(NotificationTransportKind.pushover),
+    );
     PushoverTransportConfig base;
     if (raw == null) {
       base = const PushoverTransportConfig();
     } else {
       try {
         base = PushoverTransportConfig.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
       } catch (e) {
-        developer.log('[NotificationProviders] Bad pushover config: $e',
-            name: 'NotificationProviders', level: 900);
+        developer.log(
+          '[NotificationProviders] Bad pushover config: $e',
+          name: 'NotificationProviders',
+          level: 900,
+        );
         base = const PushoverTransportConfig();
       }
     }
@@ -177,8 +194,9 @@ class PushoverConfigNotifier extends AsyncNotifier<PushoverTransportConfig> {
     await secrets.write(SecretField.pushoverUserKey, config.userKey);
     final nonSecret = config.copyWith(apiToken: '', userKey: '');
     await dao.setSetting(
-        _transportSettingKey(NotificationTransportKind.pushover),
-        jsonEncode(nonSecret.toJson()));
+      _transportSettingKey(NotificationTransportKind.pushover),
+      jsonEncode(nonSecret.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -189,18 +207,23 @@ class TelegramConfigNotifier extends AsyncNotifier<TelegramTransportConfig> {
     await ref.read(notificationSecretsMigrationProvider.future);
     final dao = ref.read(settingsDaoProvider);
     final secrets = ref.read(secretsStoreProvider);
-    final raw = await dao
-        .getSetting(_transportSettingKey(NotificationTransportKind.telegram));
+    final raw = await dao.getSetting(
+      _transportSettingKey(NotificationTransportKind.telegram),
+    );
     TelegramTransportConfig base;
     if (raw == null) {
       base = const TelegramTransportConfig();
     } else {
       try {
         base = TelegramTransportConfig.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
       } catch (e) {
-        developer.log('[NotificationProviders] Bad telegram config: $e',
-            name: 'NotificationProviders', level: 900);
+        developer.log(
+          '[NotificationProviders] Bad telegram config: $e',
+          name: 'NotificationProviders',
+          level: 900,
+        );
         base = const TelegramTransportConfig();
       }
     }
@@ -214,8 +237,9 @@ class TelegramConfigNotifier extends AsyncNotifier<TelegramTransportConfig> {
     await secrets.write(SecretField.telegramBotToken, config.botToken);
     final nonSecret = config.copyWith(botToken: '');
     await dao.setSetting(
-        _transportSettingKey(NotificationTransportKind.telegram),
-        jsonEncode(nonSecret.toJson()));
+      _transportSettingKey(NotificationTransportKind.telegram),
+      jsonEncode(nonSecret.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -226,18 +250,23 @@ class DiscordConfigNotifier extends AsyncNotifier<DiscordTransportConfig> {
     await ref.read(notificationSecretsMigrationProvider.future);
     final dao = ref.read(settingsDaoProvider);
     final secrets = ref.read(secretsStoreProvider);
-    final raw = await dao
-        .getSetting(_transportSettingKey(NotificationTransportKind.discord));
+    final raw = await dao.getSetting(
+      _transportSettingKey(NotificationTransportKind.discord),
+    );
     DiscordTransportConfig base;
     if (raw == null) {
       base = const DiscordTransportConfig();
     } else {
       try {
         base = DiscordTransportConfig.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
       } catch (e) {
-        developer.log('[NotificationProviders] Bad discord config: $e',
-            name: 'NotificationProviders', level: 900);
+        developer.log(
+          '[NotificationProviders] Bad discord config: $e',
+          name: 'NotificationProviders',
+          level: 900,
+        );
         base = const DiscordTransportConfig();
       }
     }
@@ -251,8 +280,9 @@ class DiscordConfigNotifier extends AsyncNotifier<DiscordTransportConfig> {
     await secrets.write(SecretField.discordWebhookUrl, config.webhookUrl);
     final nonSecret = config.copyWith(webhookUrl: '');
     await dao.setSetting(
-        _transportSettingKey(NotificationTransportKind.discord),
-        jsonEncode(nonSecret.toJson()));
+      _transportSettingKey(NotificationTransportKind.discord),
+      jsonEncode(nonSecret.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -263,18 +293,23 @@ class MqttConfigNotifier extends AsyncNotifier<MqttTransportConfig> {
     await ref.read(notificationSecretsMigrationProvider.future);
     final dao = ref.read(settingsDaoProvider);
     final secrets = ref.read(secretsStoreProvider);
-    final raw = await dao
-        .getSetting(_transportSettingKey(NotificationTransportKind.mqtt));
+    final raw = await dao.getSetting(
+      _transportSettingKey(NotificationTransportKind.mqtt),
+    );
     MqttTransportConfig base;
     if (raw == null) {
       base = const MqttTransportConfig();
     } else {
       try {
         base = MqttTransportConfig.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
       } catch (e) {
-        developer.log('[NotificationProviders] Bad mqtt config: $e',
-            name: 'NotificationProviders', level: 900);
+        developer.log(
+          '[NotificationProviders] Bad mqtt config: $e',
+          name: 'NotificationProviders',
+          level: 900,
+        );
         base = const MqttTransportConfig();
       }
     }
@@ -287,8 +322,10 @@ class MqttConfigNotifier extends AsyncNotifier<MqttTransportConfig> {
     final secrets = ref.read(secretsStoreProvider);
     await secrets.write(SecretField.mqttPassword, config.password ?? '');
     final nonSecret = config.copyWith(clearPassword: true);
-    await dao.setSetting(_transportSettingKey(NotificationTransportKind.mqtt),
-        jsonEncode(nonSecret.toJson()));
+    await dao.setSetting(
+      _transportSettingKey(NotificationTransportKind.mqtt),
+      jsonEncode(nonSecret.toJson()),
+    );
     state = AsyncData(config);
   }
 }
@@ -301,10 +338,14 @@ class RoutingMatrixNotifier extends AsyncNotifier<NotificationRoutingMatrix> {
     if (raw == null) return NotificationRoutingMatrix.defaults();
     try {
       return NotificationRoutingMatrix.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
     } catch (e) {
-      developer.log('[NotificationProviders] Bad routing matrix: $e',
-          name: 'NotificationProviders', level: 900);
+      developer.log(
+        '[NotificationProviders] Bad routing matrix: $e',
+        name: 'NotificationProviders',
+        level: 900,
+      );
       return NotificationRoutingMatrix.defaults();
     }
   }
@@ -312,13 +353,14 @@ class RoutingMatrixNotifier extends AsyncNotifier<NotificationRoutingMatrix> {
   Future<void> save(NotificationRoutingMatrix matrix) async {
     final dao = ref.read(settingsDaoProvider);
     await dao.setSetting(
-        _kRoutingMatrixSettingKey, jsonEncode(matrix.toJson()));
+      _kRoutingMatrixSettingKey,
+      jsonEncode(matrix.toJson()),
+    );
     state = AsyncData(matrix);
   }
 
   Future<void> setEnabled(bool enabled) async {
-    final current =
-        state.valueOrNull ?? NotificationRoutingMatrix.defaults();
+    final current = state.valueOrNull ?? NotificationRoutingMatrix.defaults();
     await save(current.copyWith(enabled: enabled));
   }
 
@@ -326,8 +368,7 @@ class RoutingMatrixNotifier extends AsyncNotifier<NotificationRoutingMatrix> {
     NotificationCategory category,
     NotificationRoutingRule rule,
   ) async {
-    final current =
-        state.valueOrNull ?? NotificationRoutingMatrix.defaults();
+    final current = state.valueOrNull ?? NotificationRoutingMatrix.defaults();
     await save(current.withRule(category, rule));
   }
 }
@@ -338,32 +379,38 @@ class RoutingMatrixNotifier extends AsyncNotifier<NotificationRoutingMatrix> {
 
 final emailTransportConfigProvider =
     AsyncNotifierProvider<EmailConfigNotifier, EmailTransportConfig>(
-        EmailConfigNotifier.new);
+      EmailConfigNotifier.new,
+    );
 
 final webhookTransportConfigProvider =
     AsyncNotifierProvider<WebhookConfigNotifier, WebhookTransportConfig>(
-        WebhookConfigNotifier.new);
+      WebhookConfigNotifier.new,
+    );
 
 final pushoverTransportConfigProvider =
     AsyncNotifierProvider<PushoverConfigNotifier, PushoverTransportConfig>(
-        PushoverConfigNotifier.new);
+      PushoverConfigNotifier.new,
+    );
 
 final telegramTransportConfigProvider =
     AsyncNotifierProvider<TelegramConfigNotifier, TelegramTransportConfig>(
-        TelegramConfigNotifier.new);
+      TelegramConfigNotifier.new,
+    );
 
 final discordTransportConfigProvider =
     AsyncNotifierProvider<DiscordConfigNotifier, DiscordTransportConfig>(
-        DiscordConfigNotifier.new);
+      DiscordConfigNotifier.new,
+    );
 
 final mqttTransportConfigProvider =
     AsyncNotifierProvider<MqttConfigNotifier, MqttTransportConfig>(
-        MqttConfigNotifier.new);
+      MqttConfigNotifier.new,
+    );
 
-final notificationRoutingMatrixProvider = AsyncNotifierProvider<
-    RoutingMatrixNotifier, NotificationRoutingMatrix>(
-  RoutingMatrixNotifier.new,
-);
+final notificationRoutingMatrixProvider =
+    AsyncNotifierProvider<RoutingMatrixNotifier, NotificationRoutingMatrix>(
+      RoutingMatrixNotifier.new,
+    );
 
 /// The NotificationRouter singleton.
 ///
@@ -380,17 +427,23 @@ final notificationRouterProvider = Provider<NotificationRouter>((ref) {
   // default value before the DB read completes). The router applies the
   // real persisted values via the listeners registered below as soon as
   // they arrive.
-  final emailCfg = ref.read(emailTransportConfigProvider).valueOrNull ??
+  final emailCfg =
+      ref.read(emailTransportConfigProvider).valueOrNull ??
       const EmailTransportConfig();
-  final webhookCfg = ref.read(webhookTransportConfigProvider).valueOrNull ??
+  final webhookCfg =
+      ref.read(webhookTransportConfigProvider).valueOrNull ??
       const WebhookTransportConfig();
-  final pushoverCfg = ref.read(pushoverTransportConfigProvider).valueOrNull ??
+  final pushoverCfg =
+      ref.read(pushoverTransportConfigProvider).valueOrNull ??
       const PushoverTransportConfig();
-  final telegramCfg = ref.read(telegramTransportConfigProvider).valueOrNull ??
+  final telegramCfg =
+      ref.read(telegramTransportConfigProvider).valueOrNull ??
       const TelegramTransportConfig();
-  final discordCfg = ref.read(discordTransportConfigProvider).valueOrNull ??
+  final discordCfg =
+      ref.read(discordTransportConfigProvider).valueOrNull ??
       const DiscordTransportConfig();
-  final mqttCfg = ref.read(mqttTransportConfigProvider).valueOrNull ??
+  final mqttCfg =
+      ref.read(mqttTransportConfigProvider).valueOrNull ??
       const MqttTransportConfig();
 
   final inApp = InAppTransport(uiNotifier);
@@ -413,7 +466,8 @@ final notificationRouterProvider = Provider<NotificationRouter>((ref) {
     mqtt,
   ];
 
-  final matrix = ref.read(notificationRoutingMatrixProvider).valueOrNull ??
+  final matrix =
+      ref.read(notificationRoutingMatrixProvider).valueOrNull ??
       NotificationRoutingMatrix.defaults();
   final router = NotificationRouter(transports: transports, matrix: matrix);
   router.attachEventStream(backend.eventStream);

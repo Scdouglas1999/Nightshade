@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -67,8 +67,11 @@ class _MountTabState extends ConsumerState<MountTab> {
     try {
       await backend.mountMoveAxis(id, axis, 0.0);
     } catch (e) {
-      developer.log('mountMoveAxis(0) failed: $e',
-          name: 'MountTab', level: 1000);
+      developer.log(
+        'mountMoveAxis(0) failed: $e',
+        name: 'MountTab',
+        level: 1000,
+      );
     }
   }
 
@@ -102,8 +105,11 @@ class _MountTabState extends ConsumerState<MountTab> {
         backend.mountMoveAxis(id, 0, 0.0).ignore();
         backend.mountMoveAxis(id, 1, 0.0).ignore();
       } catch (e) {
-        developer.log('Mount stop on dispose failed: $e',
-            name: 'MountTab', level: 1000);
+        developer.log(
+          'Mount stop on dispose failed: $e',
+          name: 'MountTab',
+          level: 1000,
+        );
       }
     }
     super.dispose();
@@ -118,7 +124,8 @@ class _MountTabState extends ConsumerState<MountTab> {
       return const EmptyState(
         icon: LucideIcons.move,
         title: 'Mount not connected',
-        body: 'Connect the mount from the Devices tab to enable slew '
+        body:
+            'Connect the mount from the Devices tab to enable slew '
             'controls and tracking.',
       );
     }
@@ -359,9 +366,7 @@ class _RateChip extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? colors.primary : colors.surfaceAlt,
-          border: Border.all(
-            color: selected ? colors.primary : colors.border,
-          ),
+          border: Border.all(color: selected ? colors.primary : colors.border),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -444,9 +449,7 @@ class _Dpad extends StatelessWidget {
                   onStop: onStop,
                 ),
               ),
-              Expanded(
-                child: _StopButton(onPressed: onStopAll),
-              ),
+              Expanded(child: _StopButton(onPressed: onStopAll)),
               Expanded(
                 child: _DpadButton(
                   icon: LucideIcons.arrowRight,
@@ -715,24 +718,28 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
     final ra = CoordinateParser.parseRa(_raCtrl.text);
     final dec = CoordinateParser.parseDec(_decCtrl.text);
     if (ra == null || dec == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid RA or Dec')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid RA or Dec')));
       return;
     }
     await _slewRaDec(ra, dec, label: 'RA $ra / Dec $dec');
   }
 
-  Future<void> _slewRaDec(double raHours, double decDeg,
-      {required String label}) async {
+  Future<void> _slewRaDec(
+    double raHours,
+    double decDeg, {
+    required String label,
+  }) async {
     setState(() => _slewing = true);
     try {
       await ref
           .read(deviceServiceProvider)
           .slewMountToCoordinates(raHours, decDeg);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Slewing to $label')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Slewing to $label')));
       }
     } catch (e) {
       if (mounted) {
@@ -794,17 +801,18 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
           ),
           if (_hits.isNotEmpty) ...[
             const SizedBox(height: 8),
-            ..._hits.map((h) => _HitTile(
-                  hit: h,
-                  busy: _slewing,
-                  onSlew: () => _slewToHit(h),
-                )),
+            ..._hits.map(
+              (h) =>
+                  _HitTile(hit: h, busy: _slewing, onSlew: () => _slewToHit(h)),
+            ),
           ],
           const SizedBox(height: 16),
           Divider(color: colors.border),
           const SizedBox(height: 8),
-          Text('Or enter coordinates manually',
-              style: TextStyle(fontSize: 12, color: colors.textMuted)),
+          Text(
+            'Or enter coordinates manually',
+            style: TextStyle(fontSize: 12, color: colors.textMuted),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -858,11 +866,7 @@ class _HitTile extends StatelessWidget {
   final CatalogSearchResult hit;
   final bool busy;
   final VoidCallback onSlew;
-  const _HitTile({
-    required this.hit,
-    required this.busy,
-    required this.onSlew,
-  });
+  const _HitTile({required this.hit, required this.busy, required this.onSlew});
 
   @override
   Widget build(BuildContext context) {

@@ -18,9 +18,11 @@ void main() {
     test('throws CastFailureException when type does not match', () {
       expect(
         () => safelyCast<int>('not an int', context: 'unit.test["x"]'),
-        throwsA(isA<CastFailureException>()
-            .having((e) => e.context, 'context', 'unit.test["x"]')
-            .having((e) => e.expectedType, 'expectedType', int)),
+        throwsA(
+          isA<CastFailureException>()
+              .having((e) => e.context, 'context', 'unit.test["x"]')
+              .having((e) => e.expectedType, 'expectedType', int),
+        ),
       );
     });
 
@@ -50,8 +52,13 @@ void main() {
     test('throws when non-null but type mismatches', () {
       expect(
         () => safelyCastOpt<int>('x', context: 'phd2.frame'),
-        throwsA(isA<CastFailureException>()
-            .having((e) => e.context, 'context', 'phd2.frame')),
+        throwsA(
+          isA<CastFailureException>().having(
+            (e) => e.context,
+            'context',
+            'phd2.frame',
+          ),
+        ),
       );
     });
   });
@@ -81,18 +88,20 @@ void main() {
           'lat',
           contextPrefix: 'ip',
         ),
-        throwsA(isA<CastFailureException>()
-            .having((e) => e.context, 'context', 'ip["lat"]')),
+        throwsA(
+          isA<CastFailureException>().having(
+            (e) => e.context,
+            'context',
+            'ip["lat"]',
+          ),
+        ),
       );
     });
   });
 
   group('safelyCastIntOpt', () {
     test('accepts int', () {
-      expect(
-        safelyCastIntOpt({'frame': 5}, 'frame', contextPrefix: 'phd2'),
-        5,
-      );
+      expect(safelyCastIntOpt({'frame': 5}, 'frame', contextPrefix: 'phd2'), 5);
     });
 
     test('truncates double to int', () {
@@ -111,13 +120,15 @@ void main() {
 
     test('throws when value is a string', () {
       expect(
-        () => safelyCastIntOpt(
-          {'frame': 'oops'},
-          'frame',
-          contextPrefix: 'phd2',
+        () =>
+            safelyCastIntOpt({'frame': 'oops'}, 'frame', contextPrefix: 'phd2'),
+        throwsA(
+          isA<CastFailureException>().having(
+            (e) => e.context,
+            'context',
+            'phd2["frame"]',
+          ),
         ),
-        throwsA(isA<CastFailureException>()
-            .having((e) => e.context, 'context', 'phd2["frame"]')),
       );
     });
   });

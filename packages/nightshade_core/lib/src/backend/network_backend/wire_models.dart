@@ -42,10 +42,7 @@ class RemoteDirectoryEntry {
   final String name;
   final String path;
 
-  const RemoteDirectoryEntry({
-    required this.name,
-    required this.path,
-  });
+  const RemoteDirectoryEntry({required this.name, required this.path});
 
   factory RemoteDirectoryEntry.fromJson(Map<String, dynamic> json) {
     return RemoteDirectoryEntry(
@@ -450,8 +447,9 @@ class RemoteCatalogStatusResponse {
     if (rawCatalogs is List) {
       for (final entry in rawCatalogs) {
         if (entry is Map) {
-          catalogs
-              .add(RemoteCatalogStatus.fromJson(entry.cast<String, dynamic>()));
+          catalogs.add(
+            RemoteCatalogStatus.fromJson(entry.cast<String, dynamic>()),
+          );
         }
       }
     }

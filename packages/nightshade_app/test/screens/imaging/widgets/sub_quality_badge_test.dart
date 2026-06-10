@@ -70,7 +70,8 @@ const _gradingOn = ScienceSettings(autoFrameGradingEnabled: true);
 const _gradingOff = ScienceSettings(autoFrameGradingEnabled: false);
 
 void main() {
-  testWidgets('renders nothing when there is no captured frame', (tester) async {
+  testWidgets('renders nothing when there is no captured frame',
+      (tester) async {
     await _pumpBadge(tester, stats: null, science: _gradingOn);
 
     expect(find.byType(SubQualityBadge), findsOneWidget);

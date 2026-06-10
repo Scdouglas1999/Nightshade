@@ -163,12 +163,14 @@ extension _DeviceServiceEventHandling on DeviceService {
               .updatePosition(ra, dec, 0.0, 0.0);
         }
         // Smart notification - only show if not on imaging/planetarium screens
-        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+        _ref
+            .read(smartNotificationServiceProvider)
+            .showSuccessIfNotOnScreens(
               message: 'Slew completed',
               relevantScreens: [
                 AppScreen.imaging,
                 AppScreen.planetarium,
-                AppScreen.sequencer
+                AppScreen.sequencer,
               ],
               title: 'Mount',
             );
@@ -193,7 +195,9 @@ extension _DeviceServiceEventHandling on DeviceService {
         _ref.read(mountStateProvider.notifier).setParked(true);
         _ref.read(mountStateProvider.notifier).setTracking(false);
         // Smart notification
-        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+        _ref
+            .read(smartNotificationServiceProvider)
+            .showSuccessIfNotOnScreens(
               message: 'Mount parked',
               relevantScreens: [AppScreen.imaging, AppScreen.equipment],
               title: 'Mount',
@@ -203,7 +207,9 @@ extension _DeviceServiceEventHandling on DeviceService {
       case 'MountUnparked':
         _ref.read(mountStateProvider.notifier).setParked(false);
         // Smart notification
-        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+        _ref
+            .read(smartNotificationServiceProvider)
+            .showSuccessIfNotOnScreens(
               message: 'Mount unparked',
               relevantScreens: [AppScreen.imaging, AppScreen.equipment],
               title: 'Mount',
@@ -337,8 +343,9 @@ extension _DeviceServiceEventHandling on DeviceService {
           deviceId: data['device_id'] as String?,
           status: hbStatus,
           consecutiveFailures: (data['consecutive_failures'] as num?)?.toInt(),
-          lastRttMs:
-              DeviceHeartbeatRouter.coerceIntFromBigInt(data['last_rtt_ms']),
+          lastRttMs: DeviceHeartbeatRouter.coerceIntFromBigInt(
+            data['last_rtt_ms'],
+          ),
         );
         // Polish #5: the heartbeat-lost path no longer emits a standalone
         // `EquipmentEvent::Disconnected` (it was deduped away to stop a
@@ -571,7 +578,8 @@ extension _DeviceServiceEventHandling on DeviceService {
     }
 
     // Check if this is a critical device and sequence is running
-    final isCriticalDevice = deviceType.toLowerCase() == 'camera' ||
+    final isCriticalDevice =
+        deviceType.toLowerCase() == 'camera' ||
         deviceType.toLowerCase() == 'mount';
     if (isCriticalDevice) {
       _handleCriticalDeviceDisconnect(deviceType, deviceId);
@@ -718,8 +726,9 @@ extension _DeviceServiceEventHandling on DeviceService {
 
     // 2. Update the matching device-type state notifier so equipment
     //    cards display the error in their subtitle.
-    final exception =
-        Exception(fullMessage); // setError expects Object — wrap once.
+    final exception = Exception(
+      fullMessage,
+    ); // setError expects Object — wrap once.
     final typeKey = (deviceType ?? '').toLowerCase();
     switch (typeKey) {
       case 'camera':
@@ -806,7 +815,9 @@ extension _DeviceServiceEventHandling on DeviceService {
       // Fallback: try uiNotificationProvider directly so the user
       // still sees the message even if errorService is unavailable.
       try {
-        _ref.read(uiNotificationProvider.notifier).showError(
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
               fullMessage,
               title: '${deviceType ?? "Device"} Error',
               duration: const Duration(seconds: 12),
@@ -829,9 +840,12 @@ extension _DeviceServiceEventHandling on DeviceService {
       _reconnectCoordinator.attemptReconnect(type, deviceId);
 
   Future<void> _handleCriticalDeviceDisconnect(
-          String deviceType, String deviceId) =>
-      _reconnectCoordinator.handleCriticalDeviceDisconnect(
-          deviceType, deviceId);
+    String deviceType,
+    String deviceId,
+  ) => _reconnectCoordinator.handleCriticalDeviceDisconnect(
+    deviceType,
+    deviceId,
+  );
 
   void _handleSequencerEvent(NightshadeEvent event) {
     applySequencerEventToSequenceProviders(_ref.read, event);

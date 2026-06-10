@@ -84,8 +84,7 @@ class TwoPane extends StatelessWidget {
 
         // Stacked (portrait / narrow).
         if (portraitStartHeightFraction != null && h.isFinite) {
-          final startHeight =
-              (h * portraitStartHeightFraction!).clamp(0.0, h);
+          final startHeight = (h * portraitStartHeightFraction!).clamp(0.0, h);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

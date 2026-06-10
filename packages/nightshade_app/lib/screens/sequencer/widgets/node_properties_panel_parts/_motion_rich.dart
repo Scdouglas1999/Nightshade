@@ -6,7 +6,6 @@
 // Polar Alignment.
 part of '../node_properties_panel.dart';
 
-
 class _CenterProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CenterNode node;
@@ -157,8 +156,7 @@ class _AutofocusProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final AutofocusNode node;
 
-  const _AutofocusProperties(
-      {required this.colors, required this.node});
+  const _AutofocusProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -432,13 +430,11 @@ class _AutofocusProperties extends ConsumerWidget {
   }
 }
 
-
 class _RotatorProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final RotatorNode node;
 
-  const _RotatorProperties(
-      {required this.colors, required this.node});
+  const _RotatorProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -605,7 +601,8 @@ class _SlewProperties extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: NightshadeDecorations.tintedBadge(
                   targetGroup != null ? colors.success : colors.warning,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Row(
                   children: [
@@ -646,8 +643,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final MeridianFlipNode node;
 
-  const _MeridianFlipProperties(
-      {required this.colors, required this.node});
+  const _MeridianFlipProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -901,8 +897,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final PolarAlignmentNode node;
 
-  const _PolarAlignmentProperties(
-      {required this.colors, required this.node});
+  const _PolarAlignmentProperties({required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

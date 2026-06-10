@@ -27,22 +27,22 @@ void main() {
       container.dispose();
     });
 
-    test('browse returns allow-listed roots with JSON helper headers',
-        () async {
-      final response =
-          await translateHandlerErrors(handlers.handleBrowseDirectories(
-        Request(
-          'GET',
-          Uri.parse('http://localhost/api/files/browse'),
-        ),
-      ));
+    test(
+      'browse returns allow-listed roots with JSON helper headers',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleBrowseDirectories(
+            Request('GET', Uri.parse('http://localhost/api/files/browse')),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.headers['content-type'], 'application/json');
-      final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['currentPath'], isNull);
-      expect(body['directories'], isA<List>());
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.headers['content-type'], 'application/json');
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['currentPath'], isNull);
+        expect(body['directories'], isA<List>());
+      },
+    );
 
     test('browse reports missing directory as JSON not found', () async {
       final missingPath = Directory.systemTemp
@@ -50,15 +50,16 @@ void main() {
           .path;
       await Directory(missingPath).delete(recursive: true);
 
-      final response =
-          await translateHandlerErrors(handlers.handleBrowseDirectories(
-        Request(
-          'GET',
-          Uri.parse(
-            'http://localhost/api/files/browse?path=${Uri.encodeQueryComponent(missingPath)}',
+      final response = await translateHandlerErrors(
+        handlers.handleBrowseDirectories(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/files/browse?path=${Uri.encodeQueryComponent(missingPath)}',
+            ),
           ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.notFound);
       expect(response.headers['content-type'], 'application/json');
@@ -67,14 +68,15 @@ void main() {
     });
 
     test('validate directory reports required path errors as JSON', () async {
-      final response =
-          await translateHandlerErrors(handlers.handleValidateDirectory(
-        Request(
-          'POST',
-          Uri.parse('http://localhost/api/files/validate'),
-          body: jsonEncode({'path': ''}),
+      final response = await translateHandlerErrors(
+        handlers.handleValidateDirectory(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/files/validate'),
+            body: jsonEncode({'path': ''}),
+          ),
         ),
-      ));
+      );
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');

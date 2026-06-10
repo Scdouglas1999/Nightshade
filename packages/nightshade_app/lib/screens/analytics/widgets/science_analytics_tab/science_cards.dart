@@ -289,7 +289,8 @@ class _LightCurveChartCard extends StatelessWidget {
                       axisNameWidget: Text(
                         'dMag',
                         style: TextStyle(
-                            color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
+                            color: colors.textSecondary,
+                            fontSize: NightshadeTypography.fontSize10),
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -489,7 +490,8 @@ class _PsfHeatmapGrid extends StatelessWidget {
                     margin: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Center(
                       child: Text(
@@ -634,7 +636,9 @@ class _MovingObjectCard extends StatelessWidget {
             if (moving.isEmpty)
               Text(
                 'No candidates detected in current session window.',
-                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12),
               )
             else
               ...moving.take(6).map(
@@ -767,7 +771,9 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
             if (latest == null)
               Text(
                 'No line-ratio products generated yet.',
-                style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12),
+                style: TextStyle(
+                    color: widget.colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize12),
               )
             else ...[
               _MetricLine(

@@ -71,7 +71,8 @@ void main() {
     expect(find.textContaining('Saturated'), findsOneWidget);
   });
 
-  testWidgets('inlineFor returns SizedBox.shrink for an overlay with no gradient',
+  testWidgets(
+      'inlineFor returns SizedBox.shrink for an overlay with no gradient',
       (tester) async {
     await tester.pumpWidget(_harness(
       child: Builder(builder: (context) {

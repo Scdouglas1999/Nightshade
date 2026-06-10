@@ -45,10 +45,7 @@ Future<AppVersionInfo> loadDesktopAppVersion() async {
       'Invalid build number in PackageInfo: ${packageInfo.buildNumber}',
     );
   }
-  return AppVersionInfo(
-    version: packageInfo.version,
-    buildNumber: buildNumber,
-  );
+  return AppVersionInfo(version: packageInfo.version, buildNumber: buildNumber);
 }
 
 /// Initialise the Rust bridge with a log directory under the platform's
@@ -102,9 +99,11 @@ void configureWindowsNativeDllSearchPath() {
 
   final exeDir = path.dirname(Platform.resolvedExecutable);
   final kernel32 = DynamicLibrary.open('kernel32.dll');
-  final setDllDirectory = kernel32.lookupFunction<
-      Int32 Function(Pointer<Utf16>),
-      int Function(Pointer<Utf16>)>('SetDllDirectoryW');
+  final setDllDirectory = kernel32
+      .lookupFunction<
+        Int32 Function(Pointer<Utf16>),
+        int Function(Pointer<Utf16>)
+      >('SetDllDirectoryW');
   final dirPtr = exeDir.toNativeUtf16();
   try {
     final result = setDllDirectory(dirPtr);
@@ -127,9 +126,11 @@ void _setProcessEnvironment(String name, String value) {
 }
 
 void _setPosixEnvironment(String name, String value) {
-  final setenv = DynamicLibrary.process().lookupFunction<
-      Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Int32),
-      int Function(Pointer<Utf8>, Pointer<Utf8>, int)>('setenv');
+  final setenv = DynamicLibrary.process()
+      .lookupFunction<
+        Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Int32),
+        int Function(Pointer<Utf8>, Pointer<Utf8>, int)
+      >('setenv');
   final namePtr = name.toNativeUtf8();
   final valuePtr = value.toNativeUtf8();
   try {
@@ -145,11 +146,11 @@ void _setPosixEnvironment(String name, String value) {
 
 void _setWindowsEnvironment(String name, String value) {
   final kernel32 = DynamicLibrary.open('kernel32.dll');
-  final setEnvironmentVariable = kernel32.lookupFunction<
-      Int32 Function(Pointer<Utf16>, Pointer<Utf16>),
-      int Function(Pointer<Utf16>, Pointer<Utf16>)>(
-    'SetEnvironmentVariableW',
-  );
+  final setEnvironmentVariable = kernel32
+      .lookupFunction<
+        Int32 Function(Pointer<Utf16>, Pointer<Utf16>),
+        int Function(Pointer<Utf16>, Pointer<Utf16>)
+      >('SetEnvironmentVariableW');
   final namePtr = name.toNativeUtf16();
   final valuePtr = value.toNativeUtf16();
   try {

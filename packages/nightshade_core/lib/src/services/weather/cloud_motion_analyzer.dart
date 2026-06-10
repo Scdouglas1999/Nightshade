@@ -36,7 +36,7 @@ enum CloudMotionUnavailableReason {
 /// Exactly one of [motion] / [unavailableReason] is non-null.
 class CloudMotionResult {
   const CloudMotionResult.available(CloudMotion this.motion)
-      : unavailableReason = null;
+    : unavailableReason = null;
 
   const CloudMotionResult.unavailable(
     CloudMotionUnavailableReason this.unavailableReason,
@@ -209,8 +209,9 @@ class CloudMotionAnalyzer {
         continue;
       }
 
-      final timeDiff =
-          currentSnapshot.timestamp.difference(prevSnapshot.timestamp);
+      final timeDiff = currentSnapshot.timestamp.difference(
+        prevSnapshot.timestamp,
+      );
       if (timeDiff.inSeconds <= 0) {
         continue;
       }
@@ -241,10 +242,9 @@ class CloudMotionAnalyzer {
 
       // Sanity check: ignore unrealistic speeds.
       if (speedKmh <= _maxReasonableSpeedKmh) {
-        motionVectors.add(_MotionVector(
-          speedKmh: speedKmh,
-          directionDegrees: direction,
-        ));
+        motionVectors.add(
+          _MotionVector(speedKmh: speedKmh, directionDegrees: direction),
+        );
       }
     }
 
@@ -265,7 +265,8 @@ class CloudMotionAnalyzer {
     }
 
     // Average the motion vectors to smooth out noise
-    final avgSpeed = motionVectors.map((v) => v.speedKmh).reduce((a, b) => a + b) /
+    final avgSpeed =
+        motionVectors.map((v) => v.speedKmh).reduce((a, b) => a + b) /
         motionVectors.length;
 
     // Average direction using circular mean to handle 0/360 wraparound
@@ -322,9 +323,11 @@ class CloudMotionAnalyzer {
       orElse: () => sortedFrames.first,
     );
     final recentSnapshot = sortedFrames
-        .where((f) =>
-            f.timestamp.difference(recentFrame.timestamp).abs() <=
-            _snapshotBucketTolerance)
+        .where(
+          (f) =>
+              f.timestamp.difference(recentFrame.timestamp).abs() <=
+              _snapshotBucketTolerance,
+        )
         .toList();
 
     // Sample grid points in a circular pattern around user
@@ -401,7 +404,8 @@ class CloudMotionAnalyzer {
     // Calculate effective approach speed using dot product
     // This accounts for clouds moving at an angle
     final angleDiff = _normalizeAngle(cloudDirectionDeg - bearingToUser);
-    final approachSpeed = cloudSpeedKmh * math.cos(_degreesToRadians(angleDiff));
+    final approachSpeed =
+        cloudSpeedKmh * math.cos(_degreesToRadians(angleDiff));
 
     if (approachSpeed <= 0) {
       return null;
@@ -417,18 +421,14 @@ class CloudMotionAnalyzer {
   /// Calculate distance between two lat/lon points using Haversine formula.
   ///
   /// Returns distance in kilometers.
-  double calculateDistance(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     final lat1Rad = _degreesToRadians(lat1);
     final lat2Rad = _degreesToRadians(lat2);
     final deltaLatRad = _degreesToRadians(lat2 - lat1);
     final deltaLonRad = _degreesToRadians(lon2 - lon1);
 
-    final a = math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+    final a =
+        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
         math.cos(lat1Rad) *
             math.cos(lat2Rad) *
             math.sin(deltaLonRad / 2) *
@@ -442,18 +442,14 @@ class CloudMotionAnalyzer {
   /// Calculate bearing from point 1 to point 2.
   ///
   /// Returns bearing in degrees (0-360, where 0=N, 90=E, 180=S, 270=W).
-  double calculateBearing(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+  double calculateBearing(double lat1, double lon1, double lat2, double lon2) {
     final lat1Rad = _degreesToRadians(lat1);
     final lat2Rad = _degreesToRadians(lat2);
     final deltaLonRad = _degreesToRadians(lon2 - lon1);
 
     final y = math.sin(deltaLonRad) * math.cos(lat2Rad);
-    final x = math.cos(lat1Rad) * math.sin(lat2Rad) -
+    final x =
+        math.cos(lat1Rad) * math.sin(lat2Rad) -
         math.sin(lat1Rad) * math.cos(lat2Rad) * math.cos(deltaLonRad);
 
     final bearingRad = math.atan2(y, x);
@@ -531,16 +527,14 @@ class CloudMotionAnalyzer {
           math.cos(latRad) * math.sin(angularDistance) * math.cos(bearingRad),
     );
 
-    final destLonRad = lonRad +
+    final destLonRad =
+        lonRad +
         math.atan2(
           math.sin(bearingRad) * math.sin(angularDistance) * math.cos(latRad),
           math.cos(angularDistance) - math.sin(latRad) * math.sin(destLatRad),
         );
 
-    return (
-      _radiansToDegrees(destLatRad),
-      _radiansToDegrees(destLonRad),
-    );
+    return (_radiansToDegrees(destLatRad), _radiansToDegrees(destLonRad));
   }
 
   /// Group chronologically-sorted frames into per-timestamp snapshots.
@@ -553,9 +547,7 @@ class CloudMotionAnalyzer {
     final snapshots = <_Snapshot>[];
     for (final frame in sortedFrames) {
       if (snapshots.isNotEmpty &&
-          frame.timestamp
-                  .difference(snapshots.last.timestamp)
-                  .abs() <=
+          frame.timestamp.difference(snapshots.last.timestamp).abs() <=
               _snapshotBucketTolerance) {
         snapshots.last.frames.add(frame);
       } else {
@@ -676,8 +668,8 @@ class CloudMotionAnalyzer {
 
       // Prefer the frame with the smallest bounding box (most spatially
       // specific) so a fine tile overrides a coarse whole-area frame.
-      final area = (frame.north - frame.south).abs() *
-          (frame.east - frame.west).abs();
+      final area =
+          (frame.north - frame.south).abs() * (frame.east - frame.west).abs();
       if (area < bestArea) {
         bestArea = area;
         bestDensity = _frameDensityAt(frame, lat, lon);
@@ -734,7 +726,10 @@ class CloudMotionAnalyzer {
       sumCos += math.cos(rad);
     }
 
-    final avgRad = math.atan2(sumSin / directions.length, sumCos / directions.length);
+    final avgRad = math.atan2(
+      sumSin / directions.length,
+      sumCos / directions.length,
+    );
     final avgDeg = _radiansToDegrees(avgRad);
 
     return (avgDeg + 360) % 360;
@@ -763,19 +758,13 @@ class _MotionVector {
   final double speedKmh;
   final double directionDegrees;
 
-  _MotionVector({
-    required this.speedKmh,
-    required this.directionDegrees,
-  });
+  _MotionVector({required this.speedKmh, required this.directionDegrees});
 }
 
 /// A single point in time, possibly represented by several frames covering
 /// different geographic bounds (a tiling).
 class _Snapshot {
-  _Snapshot({
-    required this.timestamp,
-    required this.frames,
-  });
+  _Snapshot({required this.timestamp, required this.frames});
 
   /// Capture time of this snapshot (the timestamp of its first frame).
   final DateTime timestamp;
@@ -786,10 +775,7 @@ class _Snapshot {
 
 /// The cloud-density field of one snapshot over the analysis grid.
 class _DensityField {
-  const _DensityField({
-    required this.centroid,
-    required this.isUniform,
-  });
+  const _DensityField({required this.centroid, required this.isUniform});
 
   /// Density-weighted centroid of significant cloud cells, or null when the
   /// snapshot contains no significant clouds.

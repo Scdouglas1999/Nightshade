@@ -127,9 +127,8 @@ void main() {
       // Pull the rendered Containers that have a 2-pixel coloured border —
       // there should be one per tile (plus any siblings inside, but the
       // outer-most tile container is the unique 2px-bordered one).
-      final containers = tester
-          .widgetList<Container>(find.byType(Container))
-          .where((c) {
+      final containers =
+          tester.widgetList<Container>(find.byType(Container)).where((c) {
         final decoration = c.decoration;
         if (decoration is! BoxDecoration) return false;
         return decoration.border != null;
@@ -149,16 +148,14 @@ void main() {
       // Resolve the theme colours so we can assert against them. Pull
       // the extension off any Scaffold child context (the MaterialApp
       // itself doesn't yet have the inherited theme below it).
-      final element =
-          tester.element(find.byType(ExposureNodeThumbnailStrip));
+      final element = tester.element(find.byType(ExposureNodeThumbnailStrip));
       final colors = NightshadeColors.of(element);
       expect(tileBorderColors, contains(colors.success));
       expect(tileBorderColors, contains(colors.warning));
       expect(tileBorderColors, contains(colors.error));
     });
 
-    testWidgets('renders nothing when prefs.enabled is false',
-        (tester) async {
+    testWidgets('renders nothing when prefs.enabled is false', (tester) async {
       await _pumpStrip(
         tester,
         thumbnails: [_thumb(id: 1, filter: 'L', grade: 'pass')],

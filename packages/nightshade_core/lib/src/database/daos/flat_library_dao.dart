@@ -19,7 +19,8 @@ class FlatLibraryDao {
 
   final NightshadeDatabase _db;
 
-  static const String _columns = 'id, file_path, filter, equipment_profile_id, '
+  static const String _columns =
+      'id, file_path, filter, equipment_profile_id, '
       'optical_train_id, temperature, gain, offset, bin_x, bin_y, width, '
       'height, flat_kind, master_frame_count, created_at';
 
@@ -41,12 +42,13 @@ class FlatLibraryDao {
     DateTime? createdAt,
   }) async {
     // Dedup by file path (a master flat is rebuilt to the same path on rerun).
-    final existing = await _db.customSelect(
-      'SELECT id FROM flat_library WHERE file_path = ? LIMIT 1',
-      variables: [Variable<String>(filePath)],
-    ).get();
-    final createdSecs =
-        _toEpochSeconds((createdAt ?? DateTime.now()).toUtc());
+    final existing = await _db
+        .customSelect(
+          'SELECT id FROM flat_library WHERE file_path = ? LIMIT 1',
+          variables: [Variable<String>(filePath)],
+        )
+        .get();
+    final createdSecs = _toEpochSeconds((createdAt ?? DateTime.now()).toUtc());
 
     if (existing.isNotEmpty) {
       final id = existing.first.read<int>('id');
@@ -103,18 +105,22 @@ class FlatLibraryDao {
 
   /// All entries, newest first.
   Future<List<FlatLibraryEntry>> getAllEntries() async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM flat_library ORDER BY created_at DESC, id DESC',
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM flat_library ORDER BY created_at DESC, id DESC',
+        )
+        .get();
     return rows.map(_mapRow).toList();
   }
 
   /// Fetch one entry by id, or null.
   Future<FlatLibraryEntry?> getEntryById(int id) async {
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM flat_library WHERE id = ? LIMIT 1',
-      variables: [Variable<int>(id)],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM flat_library WHERE id = ? LIMIT 1',
+          variables: [Variable<int>(id)],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _mapRow(rows.first);
   }
@@ -161,10 +167,12 @@ class FlatLibraryDao {
       vars.add(Variable<String>(opticalTrainId.trim()));
     }
 
-    final rows = await _db.customSelect(
-      'SELECT $_columns FROM flat_library WHERE ${clauses.join(' AND ')}',
-      variables: vars,
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM flat_library WHERE ${clauses.join(' AND ')}',
+          variables: vars,
+        )
+        .get();
     if (rows.isEmpty) return null;
 
     var candidates = rows.map(_mapRow).toList();

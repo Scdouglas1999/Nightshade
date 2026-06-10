@@ -183,7 +183,9 @@ class _WaitingState extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             'Waiting for first frame…',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted),
           ),
         ],
       ),
@@ -883,7 +885,8 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
               child: Container(
                 decoration: BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusSm),
                   border: Border.all(
                     color: highlight ? colors.primary : colors.border,
                     width: highlight ? 2 : 1,
@@ -913,7 +916,9 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
+                      TextStyle(
+                          fontSize: NightshadeTypography.fontSize9,
+                          color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1136,7 +1141,9 @@ class _InspectPreview extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             'Preview unavailable',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
         ],
       ),

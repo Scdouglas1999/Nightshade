@@ -38,13 +38,12 @@ class SuggestionHandlers {
     // Parse query parameters
     final minAltitude =
         double.tryParse(request.url.queryParameters['minAltitude'] ?? '') ??
-            30.0;
+        30.0;
     final minScore =
         double.tryParse(request.url.queryParameters['minScore'] ?? '') ?? 0.0;
     final maxResults =
         int.tryParse(request.url.queryParameters['maxResults'] ?? '') ?? 20;
-    final sortModeStr =
-        request.url.queryParameters['sortMode'] ?? 'bestScore';
+    final sortModeStr = request.url.queryParameters['sortMode'] ?? 'bestScore';
     final prioritizeIncomplete =
         request.url.queryParameters['prioritizeIncomplete'] == 'true';
     final objectTypesStr = request.url.queryParameters['objectTypes'];
@@ -62,9 +61,9 @@ class SuggestionHandlers {
     final latitude = await database.settingsDao.getObserverLatitude();
     final longitude = await database.settingsDao.getObserverLongitude();
     if (latitude == 0.0 && longitude == 0.0) {
-      return jsonBadRequest(
-        {"error": "No location configured. Set location in settings first."},
-      );
+      return jsonBadRequest({
+        "error": "No location configured. Set location in settings first.",
+      });
     }
 
     // Get all targets
@@ -87,8 +86,9 @@ class SuggestionHandlers {
 
     // Generate suggestions
     final loggingService = container.read(loggingServiceProvider);
-    final suggestionService =
-        TargetSuggestionService(loggingService: loggingService);
+    final suggestionService = TargetSuggestionService(
+      loggingService: loggingService,
+    );
 
     final suggestions = await suggestionService.getSuggestionsForTonight(
       config: config,
@@ -104,10 +104,7 @@ class SuggestionHandlers {
     return jsonOk({
       "suggestions": limited.map((s) => _suggestionToJson(s)).toList(),
       "totalMatching": suggestions.length,
-      "location": {
-        "latitude": latitude,
-        "longitude": longitude,
-      },
+      "location": {"latitude": latitude, "longitude": longitude},
     });
   }
 
@@ -137,7 +134,9 @@ class SuggestionHandlers {
   // ===========================================================================
 
   Future<Response> handleGetTargetScore(
-      Request request, String targetId) async {
+    Request request,
+    String targetId,
+  ) async {
     _logInfo('[API] GET /api/suggestions/score/$targetId');
     final tid = _parsePathId(targetId, 'targetId');
     final database = container.read(databaseProvider);
@@ -160,8 +159,9 @@ class SuggestionHandlers {
 
     // Generate suggestion for this target
     final loggingService = container.read(loggingServiceProvider);
-    final suggestionService =
-        TargetSuggestionService(loggingService: loggingService);
+    final suggestionService = TargetSuggestionService(
+      loggingService: loggingService,
+    );
 
     const config = TargetSuggestionConfig(
       minAltitude: -90, // Include all altitudes
@@ -209,10 +209,7 @@ class SuggestionHandlers {
       'totalScore': s.totalScore,
       'scoreBreakdown': s.scoreBreakdown,
       'warnings': s.warnings
-          .map((w) => {
-                'message': w.message,
-                'severity': w.severity.name,
-              })
+          .map((w) => {'message': w.message, 'severity': w.severity.name})
           .toList(),
       'visibility': {
         'currentAltitude': s.visibility.currentAltitude,

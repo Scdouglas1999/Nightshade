@@ -46,7 +46,8 @@ class _SectionCard extends StatelessWidget {
                     height: 32,
                     decoration: NightshadeDecorations.tintedBadge(
                       colors.primary,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
                     child: Icon(icon, size: 16, color: colors.primary),
                   ),
@@ -57,7 +58,8 @@ class _SectionCard extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                          style: NightshadeTypography.h5
+                              .copyWith(color: colors.textPrimary),
                         ),
                         if (!isExpanded) ...[
                           const SizedBox(height: 2),
@@ -136,7 +138,8 @@ class _IconOption extends StatelessWidget {
                 )
               : Text(
                   icon,
-                  style: const TextStyle(fontSize: NightshadeTypography.fontSize20),
+                  style: const TextStyle(
+                      fontSize: NightshadeTypography.fontSize20),
                 ),
         ),
       ),
@@ -292,7 +295,8 @@ class _DeviceRow extends StatelessWidget {
                 height: 28,
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Icon(icon, size: 14, color: colors.primary),
               ),
@@ -303,7 +307,8 @@ class _DeviceRow extends StatelessWidget {
                   children: [
                     Text(
                       type,
-                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
+                      style: NightshadeTypography.labelQuiet
+                          .copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     // Friendly name text field
@@ -325,15 +330,18 @@ class _DeviceRow extends StatelessWidget {
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 6),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.border),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.border),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.primary),
                           ),
                           filled: true,
@@ -460,7 +468,9 @@ class _DeviceDropdown extends StatelessWidget {
                   ),
                   Text(
                     device.activeBackend.shortLabel,
-                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
+                    style: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize11),
                   ),
                 ],
               ),
@@ -604,23 +614,30 @@ class _FilterRow extends StatelessWidget {
               height: 32,
               child: TextField(
                 controller: nameController,
-                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
+                style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: NightshadeTypography.fontSize13),
                 decoration: InputDecoration(
                   hintText: 'Filter name',
-                  hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
+                  hintStyle: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize13),
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   filled: true,
@@ -636,25 +653,34 @@ class _FilterRow extends StatelessWidget {
             child: TextField(
               controller: offsetController,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
-              style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
+              style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: NightshadeTypography.fontSize13),
               decoration: InputDecoration(
                 hintText: '0',
-                hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
+                hintStyle: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize13),
                 suffixText: 'steps',
-                suffixStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
+                suffixStyle: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize10),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.primary),
                 ),
                 filled: true,

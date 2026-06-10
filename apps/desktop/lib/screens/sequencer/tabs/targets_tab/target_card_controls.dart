@@ -18,10 +18,7 @@ class _InfoChip extends StatelessWidget {
       children: [
         Text(
           '$label: ',
-          style: TextStyle(
-            fontSize: 11,
-            color: colors.textMuted,
-          ),
+          style: TextStyle(fontSize: 11, color: colors.textMuted),
         ),
         Text(
           value,

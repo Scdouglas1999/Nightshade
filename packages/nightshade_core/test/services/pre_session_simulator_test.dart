@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
@@ -17,10 +17,7 @@ void main() {
           child.id: child.copyWith(parentId: target.id),
       };
 
-      return Sequence.create(
-        name: 'Simulation Test',
-        nodes: nodes,
-      );
+      return Sequence.create(name: 'Simulation Test', nodes: nodes);
     }
 
     test('builds Gantt segments from the shared sequence time estimator', () {
@@ -261,8 +258,10 @@ void main() {
       );
 
       expect(result.segments.single.start, startAfter);
-      expect(result.segments.single.end,
-          startAfter.add(const Duration(seconds: 122)));
+      expect(
+        result.segments.single.end,
+        startAfter.add(const Duration(seconds: 122)),
+      );
       expect(result.duration, const Duration(hours: 1, seconds: 122));
     });
 
@@ -387,10 +386,7 @@ void main() {
       );
 
       expect(result.segments.single.start, startWhen);
-      expect(
-        result.duration,
-        const Duration(minutes: 45, seconds: 62),
-      );
+      expect(result.duration, const Duration(minutes: 45, seconds: 62));
     });
 
     test('uses startWhen AltitudeAbove as a target visibility floor', () {

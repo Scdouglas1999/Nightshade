@@ -120,10 +120,7 @@ Future<TlsProvisionResult> provisionTlsContext({
     publicKeyFingerprintSha256: fingerprint,
     certificatePath: resolvedCert,
     privateKeyPath: resolvedKey,
-    validity: (
-      notBefore: validity.notBefore,
-      notAfter: validity.notAfter,
-    ),
+    validity: (notBefore: validity.notBefore, notAfter: validity.notAfter),
   );
 }
 
@@ -151,10 +148,7 @@ Future<void> _generateSelfSignedPair({
   final privateKey = keyPair.privateKey as pc.RSAPrivateKey;
 
   // 2. SAN list — every address a phone might use to reach this host.
-  final sans = <String>{
-    'localhost',
-    '127.0.0.1',
-  };
+  final sans = <String>{'localhost', '127.0.0.1'};
   try {
     final interfaces = await NetworkInterface.list(
       includeLoopback: false,

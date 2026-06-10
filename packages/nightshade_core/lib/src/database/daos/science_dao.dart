@@ -6,19 +6,21 @@ import '../tables/science.dart';
 
 part 'science_dao.g.dart';
 
-@DriftAccessor(tables: [
-  ScienceSessionConfig,
-  PhotometryMeasurements,
-  FramePhotometricCalibration,
-  TransparencySamples,
-  PsfFieldTiles,
-  ScienceFrameQualityMetrics,
-  ScienceTileMetrics,
-  AstrometryResidualVectors,
-  MovingObjectCandidates,
-  LineRatioProducts,
-  PhotometricTransforms,
-])
+@DriftAccessor(
+  tables: [
+    ScienceSessionConfig,
+    PhotometryMeasurements,
+    FramePhotometricCalibration,
+    TransparencySamples,
+    PsfFieldTiles,
+    ScienceFrameQualityMetrics,
+    ScienceTileMetrics,
+    AstrometryResidualVectors,
+    MovingObjectCandidates,
+    LineRatioProducts,
+    PhotometricTransforms,
+  ],
+)
 class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ScienceDaoMixin {
   ScienceDao(NightshadeDatabase db) : super(db);
@@ -29,9 +31,10 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     }
 
     await transaction(() async {
-      final existing = await (select(scienceSessionConfig)
-            ..where((tbl) => tbl.sessionId.equals(config.sessionId!)))
-          .getSingleOrNull();
+      final existing =
+          await (select(scienceSessionConfig)
+                ..where((tbl) => tbl.sessionId.equals(config.sessionId!)))
+              .getSingleOrNull();
 
       final companion = ScienceSessionConfigCompanion(
         sessionId: Value(config.sessionId),
@@ -51,21 +54,22 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
       if (existing == null) {
         await into(scienceSessionConfig).insert(companion);
       } else {
-        await (update(scienceSessionConfig)
-              ..where((tbl) => tbl.id.equals(existing.id)))
-            .write(companion);
+        await (update(
+          scienceSessionConfig,
+        )..where((tbl) => tbl.id.equals(existing.id))).write(companion);
       }
     });
   }
 
   Stream<ScienceSessionConfigRow?> watchSessionConfig(int sessionId) {
-    return (select(scienceSessionConfig)
-          ..where((tbl) => tbl.sessionId.equals(sessionId)))
-        .watchSingleOrNull();
+    return (select(
+      scienceSessionConfig,
+    )..where((tbl) => tbl.sessionId.equals(sessionId))).watchSingleOrNull();
   }
 
   Future<void> insertPhotometryMeasurements(
-      List<PhotometryMeasurementsCompanion> entries) async {
+    List<PhotometryMeasurementsCompanion> entries,
+  ) async {
     if (entries.isEmpty) {
       return;
     }
@@ -78,9 +82,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     List<PhotometryMeasurementsCompanion> entries,
   ) async {
-    await (delete(photometryMeasurements)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      photometryMeasurements,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     if (entries.isEmpty) {
       return;
     }
@@ -90,16 +94,21 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<List<PhotometryMeasurementRow>> watchLightCurve(
-      int sessionId, String objectId) {
+    int sessionId,
+    String objectId,
+  ) {
     return (select(photometryMeasurements)
-          ..where((tbl) =>
-              tbl.sessionId.equals(sessionId) & tbl.objectId.equals(objectId))
+          ..where(
+            (tbl) =>
+                tbl.sessionId.equals(sessionId) & tbl.objectId.equals(objectId),
+          )
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .watch();
   }
 
   Stream<List<PhotometryMeasurementRow>> watchPhotometryForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(photometryMeasurements)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -107,7 +116,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<List<PhotometryMeasurementRow>> getPhotometryForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(photometryMeasurements)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -115,7 +125,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<void> insertFrameCalibration(
-      FramePhotometricCalibrationCompanion calibration) {
+    FramePhotometricCalibrationCompanion calibration,
+  ) {
     return into(framePhotometricCalibration).insert(calibration);
   }
 
@@ -123,14 +134,15 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     FramePhotometricCalibrationCompanion calibration,
   ) async {
-    await (delete(framePhotometricCalibration)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      framePhotometricCalibration,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     await into(framePhotometricCalibration).insert(calibration);
   }
 
   Stream<List<FramePhotometricCalibrationRow>> watchCalibrationsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(framePhotometricCalibration)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -138,7 +150,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<List<FramePhotometricCalibrationRow>> getCalibrationsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(framePhotometricCalibration)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -150,8 +163,10 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int limit = 20,
   }) {
     return (select(framePhotometricCalibration)
-          ..where((tbl) =>
-              tbl.sessionId.equals(sessionId) & tbl.isCalibrated.equals(true))
+          ..where(
+            (tbl) =>
+                tbl.sessionId.equals(sessionId) & tbl.isCalibrated.equals(true),
+          )
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
           ..limit(limit))
         .get();
@@ -165,22 +180,22 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     TransparencySamplesCompanion sample,
   ) async {
-    await (delete(transparencySamples)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      transparencySamples,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     await into(transparencySamples).insert(sample);
   }
 
   Stream<List<TransparencySampleRow>> watchTransparencyForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(transparencySamples)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .watch();
   }
 
-  Future<List<TransparencySampleRow>> getTransparencyForSession(
-      int sessionId) {
+  Future<List<TransparencySampleRow>> getTransparencyForSession(int sessionId) {
     return (select(transparencySamples)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -191,9 +206,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     List<PsfFieldTilesCompanion> tiles,
   ) async {
-    await (delete(psfFieldTiles)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      psfFieldTiles,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     if (tiles.isEmpty) {
       return;
     }
@@ -237,7 +252,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<void> insertFrameQualityMetrics(
-      ScienceFrameQualityMetricsCompanion metrics) {
+    ScienceFrameQualityMetricsCompanion metrics,
+  ) {
     return into(scienceFrameQualityMetrics).insert(metrics);
   }
 
@@ -245,22 +261,23 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     ScienceFrameQualityMetricsCompanion metrics,
   ) async {
-    await (delete(scienceFrameQualityMetrics)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      scienceFrameQualityMetrics,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     await into(scienceFrameQualityMetrics).insert(metrics);
   }
 
   Stream<List<ScienceFrameQualityMetricsRow>>
-      watchFrameQualityMetricsForSession(int sessionId) {
+  watchFrameQualityMetricsForSession(int sessionId) {
     return (select(scienceFrameQualityMetrics)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .watch();
   }
 
-  Future<List<ScienceFrameQualityMetricsRow>>
-      getFrameQualityMetricsForSession(int sessionId) {
+  Future<List<ScienceFrameQualityMetricsRow>> getFrameQualityMetricsForSession(
+    int sessionId,
+  ) {
     return (select(scienceFrameQualityMetrics)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -268,7 +285,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<ScienceFrameQualityMetricsRow?> watchFrameQualityMetricsForImage(
-      int capturedImageId) {
+    int capturedImageId,
+  ) {
     return (select(scienceFrameQualityMetrics)
           ..where((tbl) => tbl.capturedImageId.equals(capturedImageId))
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -280,9 +298,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     List<ScienceTileMetricsCompanion> tiles,
   ) async {
-    await (delete(scienceTileMetrics)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      scienceTileMetrics,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     if (tiles.isEmpty) {
       return;
     }
@@ -292,7 +310,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<void> insertTileMetrics(
-      List<ScienceTileMetricsCompanion> tiles) async {
+    List<ScienceTileMetricsCompanion> tiles,
+  ) async {
     if (tiles.isEmpty) {
       return;
     }
@@ -306,10 +325,11 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     String layerType,
     List<ScienceTileMetricsCompanion> tiles,
   ) async {
-    await (delete(scienceTileMetrics)
-          ..where((tbl) =>
+    await (delete(scienceTileMetrics)..where(
+          (tbl) =>
               tbl.capturedImageId.equals(capturedImageId) &
-              tbl.layerType.equals(layerType)))
+              tbl.layerType.equals(layerType),
+        ))
         .go();
     if (tiles.isEmpty) {
       return;
@@ -346,8 +366,11 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     String layerType,
   ) {
     return (select(scienceTileMetrics)
-          ..where((tbl) =>
-              tbl.sessionId.equals(sessionId) & tbl.layerType.equals(layerType))
+          ..where(
+            (tbl) =>
+                tbl.sessionId.equals(sessionId) &
+                tbl.layerType.equals(layerType),
+          )
           ..orderBy([
             (tbl) => OrderingTerm.desc(tbl.timestamp),
             (tbl) => OrderingTerm.asc(tbl.tileRow),
@@ -360,9 +383,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     List<AstrometryResidualVectorsCompanion> vectors,
   ) async {
-    await (delete(astrometryResidualVectors)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      astrometryResidualVectors,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     if (vectors.isEmpty) {
       return;
     }
@@ -372,7 +395,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<List<AstrometryResidualVectorRow>> watchResidualsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(astrometryResidualVectors)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -380,7 +404,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<List<AstrometryResidualVectorRow>> getResidualsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(astrometryResidualVectors)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -388,7 +413,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<void> insertMovingObjectCandidates(
-      List<MovingObjectCandidatesCompanion> candidates) async {
+    List<MovingObjectCandidatesCompanion> candidates,
+  ) async {
     if (candidates.isEmpty) {
       return;
     }
@@ -401,9 +427,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     int capturedImageId,
     List<MovingObjectCandidatesCompanion> candidates,
   ) async {
-    await (delete(movingObjectCandidates)
-          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
-        .go();
+    await (delete(
+      movingObjectCandidates,
+    )..where((tbl) => tbl.capturedImageId.equals(capturedImageId))).go();
     if (candidates.isEmpty) {
       return;
     }
@@ -413,7 +439,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<List<MovingObjectCandidateRow>> watchMovingObjectsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(movingObjectCandidates)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)]))
@@ -421,7 +448,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Future<List<MovingObjectCandidateRow>> getMovingObjectsForSession(
-      int sessionId) {
+    int sessionId,
+  ) {
     return (select(movingObjectCandidates)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)]))
@@ -432,7 +460,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   /// sessions. Used for multi-night linking -- finding the same object
   /// across different imaging nights for MPC reporting.
   Future<List<MovingObjectCandidateRow>> getMovingObjectsByCandidateId(
-      String candidateId) async {
+    String candidateId,
+  ) async {
     return (select(movingObjectCandidates)
           ..where((tbl) => tbl.candidateId.equals(candidateId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
@@ -442,9 +471,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get all moving object candidates across all sessions, ordered by
   /// timestamp. Used for MPC export multi-night linking.
   Future<List<MovingObjectCandidateRow>> getAllMovingObjectCandidates() async {
-    return (select(movingObjectCandidates)
-          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
-        .get();
+    return (select(
+      movingObjectCandidates,
+    )..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)])).get();
   }
 
   Future<void> insertLineRatioProduct(LineRatioProductsCompanion product) {
@@ -470,7 +499,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   // =========================================================================
 
   Stream<List<FramePhotometricCalibrationRow>>
-      watchSessionlessCalibrationsRecent({int limit = 50}) {
+  watchSessionlessCalibrationsRecent({int limit = 50}) {
     return (select(framePhotometricCalibration)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -478,8 +507,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<TransparencySampleRow>> watchSessionlessTransparencyRecent(
-      {int limit = 50}) {
+  Stream<List<TransparencySampleRow>> watchSessionlessTransparencyRecent({
+    int limit = 50,
+  }) {
     return (select(transparencySamples)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -487,8 +517,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<PsfFieldTileRow>> watchSessionlessPsfTilesRecent(
-      {int limit = 500}) {
+  Stream<List<PsfFieldTileRow>> watchSessionlessPsfTilesRecent({
+    int limit = 500,
+  }) {
     return (select(psfFieldTiles)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([
@@ -501,7 +532,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<List<ScienceFrameQualityMetricsRow>>
-      watchSessionlessFrameQualityMetricsRecent({int limit = 50}) {
+  watchSessionlessFrameQualityMetricsRecent({int limit = 50}) {
     return (select(scienceFrameQualityMetrics)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -509,8 +540,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<ScienceTileMetricRow>> watchSessionlessTileMetricsRecent(
-      {int limit = 500}) {
+  Stream<List<ScienceTileMetricRow>> watchSessionlessTileMetricsRecent({
+    int limit = 500,
+  }) {
     return (select(scienceTileMetrics)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([
@@ -522,8 +554,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<AstrometryResidualVectorRow>> watchSessionlessResidualsRecent(
-      {int limit = 200}) {
+  Stream<List<AstrometryResidualVectorRow>> watchSessionlessResidualsRecent({
+    int limit = 200,
+  }) {
     return (select(astrometryResidualVectors)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -531,8 +564,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<MovingObjectCandidateRow>> watchSessionlessMovingObjectsRecent(
-      {int limit = 50}) {
+  Stream<List<MovingObjectCandidateRow>> watchSessionlessMovingObjectsRecent({
+    int limit = 50,
+  }) {
     return (select(movingObjectCandidates)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)])
@@ -540,8 +574,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<PhotometryMeasurementRow>> watchSessionlessPhotometryRecent(
-      {int limit = 200}) {
+  Stream<List<PhotometryMeasurementRow>> watchSessionlessPhotometryRecent({
+    int limit = 200,
+  }) {
     return (select(photometryMeasurements)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -549,8 +584,9 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<LineRatioProductRow>> watchSessionlessLineRatiosRecent(
-      {int limit = 10}) {
+  Stream<List<LineRatioProductRow>> watchSessionlessLineRatiosRecent({
+    int limit = 10,
+  }) {
     return (select(lineRatioProducts)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)])
@@ -574,25 +610,27 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   // =========================================================================
 
   Future<int> insertPhotometricTransform(
-      PhotometricTransformsCompanion transform) {
+    PhotometricTransformsCompanion transform,
+  ) {
     return into(photometricTransforms).insert(transform);
   }
 
   Future<void> deletePhotometricTransform(int id) {
-    return (delete(photometricTransforms)..where((tbl) => tbl.id.equals(id)))
-        .go();
+    return (delete(
+      photometricTransforms,
+    )..where((tbl) => tbl.id.equals(id))).go();
   }
 
   Stream<List<PhotometricTransformRow>> watchAllTransforms() {
-    return (select(photometricTransforms)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
-        .watch();
+    return (select(
+      photometricTransforms,
+    )..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)])).watch();
   }
 
   Future<List<PhotometricTransformRow>> getAllTransforms() {
-    return (select(photometricTransforms)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
-        .get();
+    return (select(
+      photometricTransforms,
+    )..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)])).get();
   }
 
   Future<PhotometricTransformRow?> getTransformForFilter(
@@ -614,7 +652,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   Stream<List<PhotometricTransformRow>> watchTransformsForProfile(
-      int? equipmentProfileId) {
+    int? equipmentProfileId,
+  ) {
     if (equipmentProfileId == null) {
       return (select(photometricTransforms)
             ..where((tbl) => tbl.equipmentProfileId.isNull())
@@ -622,9 +661,11 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           .watch();
     }
     return (select(photometricTransforms)
-          ..where((tbl) =>
-              tbl.equipmentProfileId.equals(equipmentProfileId) |
-              tbl.equipmentProfileId.isNull())
+          ..where(
+            (tbl) =>
+                tbl.equipmentProfileId.equals(equipmentProfileId) |
+                tbl.equipmentProfileId.isNull(),
+          )
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
         .watch();
   }
@@ -736,8 +777,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     return row.read(expr) ?? 0;
   }
 
-  Future<List<ScienceFrameQualityMetricsRow>>
-      listFrameQualityPaginated({
+  Future<List<ScienceFrameQualityMetricsRow>> listFrameQualityPaginated({
     int? sessionId,
     int limit = 200,
     int offset = 0,

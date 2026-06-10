@@ -102,16 +102,19 @@ class ImagingService {
       // protocol that doesn't expose them) we fall back to the legacy
       // `fastReadout ? 1 : 0` mapping — the same behaviour the panel uses when
       // it hides the read-mode dropdown — rather than forcing index 0.
-      final int? readoutModeIndex =
-          await _resolveReadoutModeIndex(deviceId, settings);
+      final int? readoutModeIndex = await _resolveReadoutModeIndex(
+        deviceId,
+        settings,
+      );
       if (readoutModeIndex != null) {
         try {
           await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
         } catch (e) {
           // Log but don't fail - not all cameras support readout mode switching
           _logger.warning(
-              'Failed to set readout mode (index=$readoutModeIndex): $e',
-              source: 'ImagingService');
+            'Failed to set readout mode (index=$readoutModeIndex): $e',
+            source: 'ImagingService',
+          );
         }
       }
 
@@ -140,11 +143,16 @@ class ImagingService {
 
             cameraNotifier.setExposing(true, progress: progress);
             progressNotifier.updateProgress(
-                elapsed, remainingSecs, progress * 100);
+              elapsed,
+              remainingSecs,
+              progress * 100,
+            );
           } else if (event.eventType == 'ExposureComplete') {
             // Exposure is complete - signal the completer
-            _logger.debug('ExposureComplete event received',
-                source: 'ImagingService');
+            _logger.debug(
+              'ExposureComplete event received',
+              source: 'ImagingService',
+            );
             if (!exposureCompleter.isCompleted) {
               exposureCompleter.complete(true);
             }
@@ -158,8 +166,9 @@ class ImagingService {
             if (!exposureCompleter.isCompleted) {
               final errorMsg =
                   event.data['error'] as String? ?? 'Unknown error';
-              exposureCompleter
-                  .completeError(Exception('Exposure failed: $errorMsg'));
+              exposureCompleter.completeError(
+                Exception('Exposure failed: $errorMsg'),
+              );
             }
           }
         }
@@ -190,9 +199,13 @@ class ImagingService {
             // Timeout - exposure took too long, warn user but still try to retrieve image
             // Events may have been missed but image could still be available
             exposureTimedOut = true;
-            _logger.warning('Exposure timeout reached, checking for image...',
-                source: 'ImagingService');
-            _ref.read(uiNotificationProvider.notifier).showWarning(
+            _logger.warning(
+              'Exposure timeout reached, checking for image...',
+              source: 'ImagingService',
+            );
+            _ref
+                .read(uiNotificationProvider.notifier)
+                .showWarning(
                   'Exposure event not received in time - checking for image. Camera may be unresponsive.',
                   title: 'Exposure Timeout',
                 );
@@ -219,8 +232,9 @@ class ImagingService {
             await backend.cameraAbortExposure(deviceId);
           } catch (e) {
             _logger.warning(
-                'Abort after exposure timeout failed (camera may be disconnected): $e',
-                source: 'ImagingService');
+              'Abort after exposure timeout failed (camera may be disconnected): $e',
+              source: 'ImagingService',
+            );
           }
         }
 
@@ -229,47 +243,56 @@ class ImagingService {
 
         // Get the captured image from backend (remote uses JPEG wire format).
         _logger.debug(
-            'Calling cameraGetLastImage (${backend is NetworkBackend ? 'remote/jpeg' : 'local'})...',
-            source: 'ImagingService');
-        final capturedImage =
-            await backend.cameraGetLastImage(deviceId).timeout(
-          _imageDownloadTimeout,
-          onTimeout: () {
-            throw TimeoutException(
-              'Timed out retrieving image from camera after '
-              '${_imageDownloadTimeout.inSeconds}s',
-            );
-          },
+          'Calling cameraGetLastImage (${backend is NetworkBackend ? 'remote/jpeg' : 'local'})...',
+          source: 'ImagingService',
         );
+        final capturedImage = await backend
+            .cameraGetLastImage(deviceId)
+            .timeout(
+              _imageDownloadTimeout,
+              onTimeout: () {
+                throw TimeoutException(
+                  'Timed out retrieving image from camera after '
+                  '${_imageDownloadTimeout.inSeconds}s',
+                );
+              },
+            );
         _logger.debug(
-            'cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}',
-            source: 'ImagingService');
+          'cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}',
+          source: 'ImagingService',
+        );
 
         if (capturedImage == null) {
           throw Exception('Failed to retrieve captured image');
         }
 
-        _logger.debug('Parsing timestamp: ${capturedImage.timestamp}',
-            source: 'ImagingService');
+        _logger.debug(
+          'Parsing timestamp: ${capturedImage.timestamp}',
+          source: 'ImagingService',
+        );
         // Capture timestamp before any processing - use try-catch for robustness
         DateTime captureTimestamp;
         try {
           captureTimestamp = DateTime.parse(capturedImage.timestamp);
         } catch (e) {
           _logger.warning(
-              'Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time',
-              source: 'ImagingService');
+            'Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time',
+            source: 'ImagingService',
+          );
           // Why: when the bridge timestamp is unparseable we fall back to
           // the user-chosen clock so the recovered timestamp matches the
           // rest of the session's records (audit-handoff §2.1 WIRE-UP #9).
           captureTimestamp = _ref.read(clockProvider).now();
         }
-        _logger.debug('Timestamp parsed: $captureTimestamp',
-            source: 'ImagingService');
+        _logger.debug(
+          'Timestamp parsed: $captureTimestamp',
+          source: 'ImagingService',
+        );
 
         if (exposureTimedOut &&
             captureTimestamp.isBefore(
-                exposureStartedAt.subtract(const Duration(seconds: 5)))) {
+              exposureStartedAt.subtract(const Duration(seconds: 5)),
+            )) {
           // After a timeout, the "last image" can be the PREVIOUS frame
           // still sitting in the camera buffer. Saving it would silently
           // duplicate an old exposure under new metadata — fail loudly
@@ -283,8 +306,10 @@ class ImagingService {
 
         // IMMEDIATELY create CapturedImageData and update providers
         // This ensures the UI shows the image even if file saving fails
-        _logger.debug('Creating CapturedImageData...',
-            source: 'ImagingService');
+        _logger.debug(
+          'Creating CapturedImageData...',
+          source: 'ImagingService',
+        );
         late CapturedImageData imageData;
         try {
           imageData = capturedImageDataFromResult(
@@ -297,21 +322,25 @@ class ImagingService {
                 : CapturePreviewSource.local,
           );
         } catch (e) {
-          _logger.error('Error creating CapturedImageData: $e',
-              source: 'ImagingService');
+          _logger.error(
+            'Error creating CapturedImageData: $e',
+            source: 'ImagingService',
+          );
           rethrow; // This is a critical error, must propagate
         }
 
-        _logger.debug('CapturedImageData created, publishing JPEG preview...',
-            source: 'ImagingService');
+        _logger.debug(
+          'CapturedImageData created, publishing JPEG preview...',
+          source: 'ImagingService',
+        );
         // JPEG/display buffer first; host raw loads in the background when remote.
-        _ref.read(capturePreviewPublisherProvider).publish(
-              _ref,
-              imageData,
-              deviceId,
-            );
-        _logger.debug('Preview published; raw may load in background.',
-            source: 'ImagingService');
+        _ref
+            .read(capturePreviewPublisherProvider)
+            .publish(_ref, imageData, deviceId);
+        _logger.debug(
+          'Preview published; raw may load in background.',
+          source: 'ImagingService',
+        );
 
         // Now save FITS file and persist to database (non-critical operations)
         String? savedFilePath;
@@ -337,22 +366,28 @@ class ImagingService {
             // No output path configured - save to temp directory for annotation/plate solving
             // This ensures live annotation can still work even without a configured save location
             final tempDir = Directory.systemTemp;
-            final nightshadeTemp =
-                Directory(path.join(tempDir.path, 'nightshade_captures'));
+            final nightshadeTemp = Directory(
+              path.join(tempDir.path, 'nightshade_captures'),
+            );
             if (!await nightshadeTemp.exists()) {
               await nightshadeTemp.create(recursive: true);
             }
             // Why: temp capture filenames should reflect the operator's
             // chosen clock so two parallel sessions (one local TZ, one
             // observatory TZ) don't collide on the same epoch millis.
-            final timestamp =
-                _ref.read(clockProvider).now().millisecondsSinceEpoch;
-            savedFilePath =
-                path.join(nightshadeTemp.path, 'capture_$timestamp.fits');
+            final timestamp = _ref
+                .read(clockProvider)
+                .now()
+                .millisecondsSinceEpoch;
+            savedFilePath = path.join(
+              nightshadeTemp.path,
+              'capture_$timestamp.fits',
+            );
             isTempFile = true;
             _logger.debug(
-                'No output path configured, saving to temp: $savedFilePath',
-                source: 'ImagingService');
+              'No output path configured, saving to temp: $savedFilePath',
+              source: 'ImagingService',
+            );
           }
 
           // Call native FITS save API
@@ -408,8 +443,8 @@ class ImagingService {
           final currentPreview = _ref.read(currentImageProvider);
           if (currentPreview != null &&
               currentPreview.capturedAt == imageData.capturedAt) {
-            _ref.read(currentImageProvider.notifier).state =
-                currentPreview.copyWith(filePath: savedFilePath);
+            _ref.read(currentImageProvider.notifier).state = currentPreview
+                .copyWith(filePath: savedFilePath);
           }
           effectiveFilePath = savedFilePath;
         } catch (e) {
@@ -437,8 +472,10 @@ class ImagingService {
           try {
             final calSettings = _ref.read(calibrationSettingsProvider);
             if (calSettings.autoCalibrate) {
-              _logger.info('Auto-calibrating: $savedFilePath',
-                  source: 'ImagingService');
+              _logger.info(
+                'Auto-calibrating: $savedFilePath',
+                source: 'ImagingService',
+              );
               final calibrationService = _ref.read(calibrationServiceProvider);
               final calResult = await calibrationService.calibrateFile(
                 lightPath: savedFilePath,
@@ -451,10 +488,11 @@ class ImagingService {
                 sensorTemperature: cameraState.temperature,
               );
               _logger.info(
-                  'Calibration complete: dark=${calResult.darkApplied}, '
-                  'flat=${calResult.flatApplied}, bias=${calResult.biasApplied} '
-                  '-> ${calResult.outputPath}',
-                  source: 'ImagingService');
+                'Calibration complete: dark=${calResult.darkApplied}, '
+                'flat=${calResult.flatApplied}, bias=${calResult.biasApplied} '
+                '-> ${calResult.outputPath}',
+                source: 'ImagingService',
+              );
               effectiveFilePath = calResult.outputPath;
 
               if (dbImageId != null && effectiveFilePath != savedFilePath) {
@@ -467,15 +505,17 @@ class ImagingService {
               final currentPreview = _ref.read(currentImageProvider);
               if (currentPreview != null &&
                   currentPreview.capturedAt == imageData.capturedAt) {
-                _ref.read(currentImageProvider.notifier).state =
-                    currentPreview.copyWith(filePath: effectiveFilePath);
+                _ref.read(currentImageProvider.notifier).state = currentPreview
+                    .copyWith(filePath: effectiveFilePath);
               }
             }
           } catch (e) {
             // Calibration failure should not prevent the capture from succeeding.
             // Log and notify the user, but do not lose the uncalibrated image.
-            _logger.error('Auto-calibration failed: $e',
-                source: 'ImagingService');
+            _logger.error(
+              'Auto-calibration failed: $e',
+              source: 'ImagingService',
+            );
             final notificationService = _ref.read(notificationServiceProvider);
             await notificationService.notifyError(
               errorTitle: 'Auto-Calibration Failed',
@@ -491,7 +531,9 @@ class ImagingService {
           final sessionState = _ref.read(sessionStateProvider);
           // Science processing is informational-only and runs in background.
           unawaited(
-            _ref.read(scienceProcessingServiceProvider).processCapturedFrame(
+            _ref
+                .read(scienceProcessingServiceProvider)
+                .processCapturedFrame(
                   imagePath: processedFilePath,
                   deviceId: deviceId,
                   capturedImageId: dbImageId,
@@ -502,9 +544,12 @@ class ImagingService {
 
         // Store as session image
         try {
-          _ref.read(sessionImagesProvider.notifier).addImage(
+          _ref
+              .read(sessionImagesProvider.notifier)
+              .addImage(
                 CapturedImage(
-                  id: dbImageId?.toString() ??
+                  id:
+                      dbImageId?.toString() ??
                       DateTime.now().millisecondsSinceEpoch.toString(),
                   filePath: processedFilePath ?? '',
                   capturedAt: imageData.capturedAt,
@@ -514,44 +559,58 @@ class ImagingService {
                 ),
               );
         } catch (e) {
-          _logger.warning('Error adding to session images: $e',
-              source: 'ImagingService');
+          _logger.warning(
+            'Error adding to session images: $e',
+            source: 'ImagingService',
+          );
           // Non-critical, continue
         }
 
         // Reset state BEFORE returning so UI updates immediately
         // Don't rely only on finally block since eventSubscription.cancel() may hang
-        _logger.debug('Resetting capture state before return...',
-            source: 'ImagingService');
+        _logger.debug(
+          'Resetting capture state before return...',
+          source: 'ImagingService',
+        );
         _isCapturing = false;
         cameraNotifier.setExposing(false);
         progressNotifier.reset();
-        _logger.debug('State reset, returning imageData from captureImage',
-            source: 'ImagingService');
+        _logger.debug(
+          'State reset, returning imageData from captureImage',
+          source: 'ImagingService',
+        );
         return imageData;
       } finally {
-        _logger.debug('Inner finally: cancelling event subscription',
-            source: 'ImagingService');
+        _logger.debug(
+          'Inner finally: cancelling event subscription',
+          source: 'ImagingService',
+        );
         // Add timeout to prevent hanging
         try {
           await eventSubscription.cancel().timeout(
             const Duration(seconds: 2),
             onTimeout: () {
-              _logger.warning('eventSubscription.cancel() timed out',
-                  source: 'ImagingService');
+              _logger.warning(
+                'eventSubscription.cancel() timed out',
+                source: 'ImagingService',
+              );
             },
           );
         } catch (e) {
-          _logger.warning('Error cancelling event subscription: $e',
-              source: 'ImagingService');
+          _logger.warning(
+            'Error cancelling event subscription: $e',
+            source: 'ImagingService',
+          );
         }
         _logger.debug('Inner finally complete', source: 'ImagingService');
       }
     } finally {
       // This is a safety net - state should already be reset above
       // but ensure it happens even on exceptions
-      _logger.debug('Outer finally: ensuring state is reset',
-          source: 'ImagingService');
+      _logger.debug(
+        'Outer finally: ensuring state is reset',
+        source: 'ImagingService',
+      );
       _isCapturing = false;
       cameraNotifier.setExposing(false);
       progressNotifier.reset();
@@ -596,8 +655,9 @@ class ImagingService {
       return 0;
     }
     try {
-      final caps =
-          await _ref.read(equipmentCameraCapabilitiesProvider(deviceId).future);
+      final caps = await _ref.read(
+        equipmentCameraCapabilitiesProvider(deviceId).future,
+      );
       return caps?.readoutModes.length ?? 0;
     } catch (e) {
       _logger.warning(
@@ -828,9 +888,7 @@ class ImagingService {
     // capture lands directly in the base directory.
     final segments = expanded.split('/').where((s) => s.isNotEmpty).toList();
     if (segments.isEmpty) {
-      throw Exception(
-        'Naming pattern expanded to an empty path: "$pattern"',
-      );
+      throw Exception('Naming pattern expanded to an empty path: "$pattern"');
     }
     final fileNameStem = segments.removeLast();
     final fileName = '$fileNameStem.$extension';
@@ -940,8 +998,8 @@ List<int> histogram256FromRawU16(Uint16List raw) {
 /// Provider for exposure progress
 final exposureProgressProvider =
     StateNotifierProvider<ExposureProgressNotifier, ExposureProgress>((ref) {
-  return ExposureProgressNotifier();
-});
+      return ExposureProgressNotifier();
+    });
 
 /// Exposure progress notifier
 class ExposureProgressNotifier extends StateNotifier<ExposureProgress> {

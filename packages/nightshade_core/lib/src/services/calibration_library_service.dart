@@ -36,10 +36,10 @@ class CalibrationLibraryService {
     this.headerReader = const FitsHeaderReader(),
     this.thresholds = CalibrationStalenessThresholds.defaults,
     DateTime Function()? now,
-  })  : _db = db,
-        _flatDao = flatLibraryDao,
-        _tagsDao = tagsDao,
-        _now = now ?? DateTime.now;
+  }) : _db = db,
+       _flatDao = flatLibraryDao,
+       _tagsDao = tagsDao,
+       _now = now ?? DateTime.now;
 
   final NightshadeDatabase _db;
   final FlatLibraryDao _flatDao;
@@ -83,30 +83,40 @@ class CalibrationLibraryService {
     }
     if (filter.exposureSeconds != null) {
       records = records
-          .where((r) =>
-              r.exposureSeconds != null &&
-              (r.exposureSeconds! - filter.exposureSeconds!).abs() <=
-                  filter.exposureToleranceSecs)
+          .where(
+            (r) =>
+                r.exposureSeconds != null &&
+                (r.exposureSeconds! - filter.exposureSeconds!).abs() <=
+                    filter.exposureToleranceSecs,
+          )
           .toList();
     }
     if (filter.temperatureMin != null) {
       records = records
-          .where((r) =>
-              r.temperature != null && r.temperature! >= filter.temperatureMin!)
+          .where(
+            (r) =>
+                r.temperature != null &&
+                r.temperature! >= filter.temperatureMin!,
+          )
           .toList();
     }
     if (filter.temperatureMax != null) {
       records = records
-          .where((r) =>
-              r.temperature != null && r.temperature! <= filter.temperatureMax!)
+          .where(
+            (r) =>
+                r.temperature != null &&
+                r.temperature! <= filter.temperatureMax!,
+          )
           .toList();
     }
     final filterName = filter.filter?.trim();
     if (filterName != null && filterName.isNotEmpty) {
       records = records
-          .where((r) =>
-              r.filter != null &&
-              r.filter!.trim().toLowerCase() == filterName.toLowerCase())
+          .where(
+            (r) =>
+                r.filter != null &&
+                r.filter!.trim().toLowerCase() == filterName.toLowerCase(),
+          )
           .toList();
     }
 
@@ -125,7 +135,9 @@ class CalibrationLibraryService {
 
   /// One record by identity, or null. Enriched from the FITS header.
   Future<CalibrationMasterRecord?> getRecord(
-      CalibrationMasterType type, int id) async {
+    CalibrationMasterType type,
+    int id,
+  ) async {
     final all = await _loadAll();
     for (final record in all) {
       if (record.type == type && record.id == id) {
@@ -191,8 +203,8 @@ class CalibrationLibraryService {
       tolerances,
     );
     if (flat == null) {
-      final filterPart = (context.filter == null ||
-              context.filter!.trim().isEmpty)
+      final filterPart =
+          (context.filter == null || context.filter!.trim().isEmpty)
           ? ''
           : ' for filter ${context.filter!.trim()}';
       setWarnings.add(
@@ -223,17 +235,23 @@ class CalibrationLibraryService {
 
   /// Replace the user tags of one master.
   Future<void> setTags(
-      CalibrationMasterType type, int id, List<String> tags) async {
+    CalibrationMasterType type,
+    int id,
+    List<String> tags,
+  ) async {
     final cleaned = [
       for (final t in tags)
-        if (t.trim().isNotEmpty) t.trim()
+        if (t.trim().isNotEmpty) t.trim(),
     ];
     await _tagsDao.upsert(type, id, tags: cleaned);
   }
 
   /// Replace the notes of one master (null/empty clears them).
   Future<void> setNotes(
-      CalibrationMasterType type, int id, String? notes) async {
+    CalibrationMasterType type,
+    int id,
+    String? notes,
+  ) async {
     final cleaned = notes?.trim();
     if (cleaned == null || cleaned.isEmpty) {
       await _tagsDao.upsert(type, id, clearNotes: true);
@@ -258,9 +276,9 @@ class CalibrationLibraryService {
     switch (type) {
       case CalibrationMasterType.dark:
       case CalibrationMasterType.bias:
-        final entry = await (_db.select(_db.darkLibrary)
-              ..where((t) => t.id.equals(id)))
-            .getSingleOrNull();
+        final entry = await (_db.select(
+          _db.darkLibrary,
+        )..where((t) => t.id.equals(id))).getSingleOrNull();
         if (entry != null) {
           found = true;
           if (deleteFile) {
@@ -269,8 +287,9 @@ class CalibrationLibraryService {
               await _deleteFileIfExists(entry.masterDarkPath!);
             }
           }
-          await (_db.delete(_db.darkLibrary)..where((t) => t.id.equals(id)))
-              .go();
+          await (_db.delete(
+            _db.darkLibrary,
+          )..where((t) => t.id.equals(id))).go();
         }
       case CalibrationMasterType.flat:
         final entry = await _flatDao.getEntryById(id);
@@ -282,16 +301,17 @@ class CalibrationLibraryService {
           await _flatDao.deleteEntry(id);
         }
       case CalibrationMasterType.defectMap:
-        final entry = await (_db.select(_db.defectMaps)
-              ..where((t) => t.id.equals(id)))
-            .getSingleOrNull();
+        final entry = await (_db.select(
+          _db.defectMaps,
+        )..where((t) => t.id.equals(id))).getSingleOrNull();
         if (entry != null) {
           found = true;
           if (deleteFile && entry.filePath != null) {
             await _deleteFileIfExists(entry.filePath!);
           }
-          await (_db.delete(_db.defectMaps)..where((t) => t.id.equals(id)))
-              .go();
+          await (_db.delete(
+            _db.defectMaps,
+          )..where((t) => t.id.equals(id))).go();
         }
     }
     if (found) {
@@ -318,70 +338,76 @@ class CalibrationLibraryService {
           ? CalibrationMasterType.bias
           : CalibrationMasterType.dark;
       final tag = tagFor(type, row.id);
-      records.add(CalibrationMasterRecord(
-        type: type,
-        id: row.id,
-        filePath: row.masterDarkPath ?? row.filePath,
-        isMaster: row.masterDarkPath != null,
-        frameCount: row.masterFrameCount,
-        exposureSeconds: row.exposureTime,
-        temperature: row.temperature,
-        gain: row.gain,
-        offset: row.offset,
-        binX: row.binX,
-        binY: row.binY,
-        width: row.width,
-        height: row.height,
-        cameraId: tag?.cameraId,
-        createdAt: row.createdAt,
-        tags: tag?.tags ?? const [],
-        notes: tag?.notes,
-      ));
+      records.add(
+        CalibrationMasterRecord(
+          type: type,
+          id: row.id,
+          filePath: row.masterDarkPath ?? row.filePath,
+          isMaster: row.masterDarkPath != null,
+          frameCount: row.masterFrameCount,
+          exposureSeconds: row.exposureTime,
+          temperature: row.temperature,
+          gain: row.gain,
+          offset: row.offset,
+          binX: row.binX,
+          binY: row.binY,
+          width: row.width,
+          height: row.height,
+          cameraId: tag?.cameraId,
+          createdAt: row.createdAt,
+          tags: tag?.tags ?? const [],
+          notes: tag?.notes,
+        ),
+      );
     }
 
     final flatRows = await _flatDao.getAllEntries();
     for (final row in flatRows) {
       final tag = tagFor(CalibrationMasterType.flat, row.id);
-      records.add(CalibrationMasterRecord(
-        type: CalibrationMasterType.flat,
-        id: row.id,
-        filePath: row.filePath,
-        isMaster: true,
-        frameCount: row.masterFrameCount,
-        temperature: row.temperature,
-        gain: row.gain,
-        offset: row.offset,
-        binX: row.binX,
-        binY: row.binY,
-        filter: row.filter,
-        flatKind: row.flatKind,
-        width: row.width,
-        height: row.height,
-        cameraId: tag?.cameraId,
-        opticalTrainId: row.opticalTrainId,
-        createdAt: row.createdAt,
-        tags: tag?.tags ?? const [],
-        notes: tag?.notes,
-      ));
+      records.add(
+        CalibrationMasterRecord(
+          type: CalibrationMasterType.flat,
+          id: row.id,
+          filePath: row.filePath,
+          isMaster: true,
+          frameCount: row.masterFrameCount,
+          temperature: row.temperature,
+          gain: row.gain,
+          offset: row.offset,
+          binX: row.binX,
+          binY: row.binY,
+          filter: row.filter,
+          flatKind: row.flatKind,
+          width: row.width,
+          height: row.height,
+          cameraId: tag?.cameraId,
+          opticalTrainId: row.opticalTrainId,
+          createdAt: row.createdAt,
+          tags: tag?.tags ?? const [],
+          notes: tag?.notes,
+        ),
+      );
     }
 
     final mapRows = await _db.select(_db.defectMaps).get();
     for (final row in mapRows) {
       final tag = tagFor(CalibrationMasterType.defectMap, row.id);
-      records.add(CalibrationMasterRecord(
-        type: CalibrationMasterType.defectMap,
-        id: row.id,
-        filePath: row.filePath,
-        isMaster: true,
-        frameCount: row.defectivePixelCount,
-        temperature: row.temperatureBucketDecicelsius / 10.0,
-        width: row.width,
-        height: row.height,
-        cameraId: row.cameraId,
-        createdAt: row.lastRebuiltAt,
-        tags: tag?.tags ?? const [],
-        notes: tag?.notes,
-      ));
+      records.add(
+        CalibrationMasterRecord(
+          type: CalibrationMasterType.defectMap,
+          id: row.id,
+          filePath: row.filePath,
+          isMaster: true,
+          frameCount: row.defectivePixelCount,
+          temperature: row.temperatureBucketDecicelsius / 10.0,
+          width: row.width,
+          height: row.height,
+          cameraId: row.cameraId,
+          createdAt: row.lastRebuiltAt,
+          tags: tag?.tags ?? const [],
+          notes: tag?.notes,
+        ),
+      );
     }
 
     return records;
@@ -391,7 +417,8 @@ class CalibrationLibraryService {
   /// header, caching the camera id in `calibration_tags`. Best-effort:
   /// returns the record unchanged when the file is missing or unreadable.
   Future<CalibrationMasterRecord> _enrich(
-      CalibrationMasterRecord record) async {
+    CalibrationMasterRecord record,
+  ) async {
     if (record.type == CalibrationMasterType.defectMap) return record;
     final needsCamera = record.cameraId == null;
     final needsTemp = record.temperature == null;
@@ -419,8 +446,11 @@ class CalibrationLibraryService {
         ? FitsHeaderReader.stringValue(headers, 'INSTRUME')
         : record.cameraId;
     final temperature = needsTemp
-        ? FitsHeaderReader.firstDouble(
-            headers, const ['CCD-TEMP', 'CCD_TEMP', 'SET-TEMP'])
+        ? FitsHeaderReader.firstDouble(headers, const [
+            'CCD-TEMP',
+            'CCD_TEMP',
+            'SET-TEMP',
+          ])
         : record.temperature;
     final filterName = needsFilter
         ? FitsHeaderReader.stringValue(headers, 'FILTER')
@@ -457,20 +487,24 @@ class CalibrationLibraryService {
   ) {
     // Hard requirements: exact gain / offset / binning, compatible camera.
     final candidates = darks
-        .where((r) =>
-            r.gain == ctx.gain &&
-            r.offset == ctx.offset &&
-            r.binX == ctx.binX &&
-            r.binY == ctx.binY &&
-            _cameraCompatible(r, ctx))
+        .where(
+          (r) =>
+              r.gain == ctx.gain &&
+              r.offset == ctx.offset &&
+              r.binX == ctx.binX &&
+              r.binY == ctx.binY &&
+              _cameraCompatible(r, ctx),
+        )
         .toList();
     if (candidates.isEmpty) return null;
 
     final exposureTol = tol.dark.exposureSecs;
     final exact = candidates
-        .where((r) =>
-            r.exposureSeconds != null &&
-            (r.exposureSeconds! - ctx.exposureSeconds).abs() <= exposureTol)
+        .where(
+          (r) =>
+              r.exposureSeconds != null &&
+              (r.exposureSeconds! - ctx.exposureSeconds).abs() <= exposureTol,
+        )
         .toList();
     final scaled = exact.isEmpty;
     var pool = scaled ? candidates : exact;
@@ -480,10 +514,12 @@ class CalibrationLibraryService {
     var tempFellBack = false;
     if (ctx.temperature != null) {
       final within = pool
-          .where((r) =>
-              r.temperature == null ||
-              (r.temperature! - ctx.temperature!).abs() <=
-                  tol.dark.temperatureC)
+          .where(
+            (r) =>
+                r.temperature == null ||
+                (r.temperature! - ctx.temperature!).abs() <=
+                    tol.dark.temperatureC,
+          )
           .toList();
       if (within.isNotEmpty) {
         pool = within;
@@ -531,8 +567,10 @@ class CalibrationLibraryService {
         ' Capture a matching-exposure dark for best results.',
       );
     } else {
-      reasons.add('Exposure ${_fmtSecs(best.exposureSeconds ?? 0)} '
-          '(within ±${exposureTol}s of ${_fmtSecs(ctx.exposureSeconds)})');
+      reasons.add(
+        'Exposure ${_fmtSecs(best.exposureSeconds ?? 0)} '
+        '(within ±${exposureTol}s of ${_fmtSecs(ctx.exposureSeconds)})',
+      );
     }
 
     score = _applyTempScore(
@@ -548,8 +586,10 @@ class CalibrationLibraryService {
 
     if (!best.isMaster) {
       score -= 15;
-      warnings.add('Matched a raw dark frame, not a stacked master — '
-          'stack your darks to reduce injected noise.');
+      warnings.add(
+        'Matched a raw dark frame, not a stacked master — '
+        'stack your darks to reduce injected noise.',
+      );
     } else if (best.frameCount != null) {
       reasons.add('Stacked master of ${best.frameCount} frames');
     }
@@ -571,12 +611,14 @@ class CalibrationLibraryService {
     CalibrationMatchTolerances tol,
   ) {
     final pool = biases
-        .where((r) =>
-            r.gain == ctx.gain &&
-            r.offset == ctx.offset &&
-            r.binX == ctx.binX &&
-            r.binY == ctx.binY &&
-            _cameraCompatible(r, ctx))
+        .where(
+          (r) =>
+              r.gain == ctx.gain &&
+              r.offset == ctx.offset &&
+              r.binX == ctx.binX &&
+              r.binY == ctx.binY &&
+              _cameraCompatible(r, ctx),
+        )
         .toList();
     if (pool.isEmpty) return null;
 
@@ -613,12 +655,14 @@ class CalibrationLibraryService {
   ) {
     final wantFilter = ctx.filter?.trim();
     var pool = flats
-        .where((r) =>
-            r.gain == ctx.gain &&
-            r.offset == ctx.offset &&
-            r.binX == ctx.binX &&
-            r.binY == ctx.binY &&
-            _cameraCompatible(r, ctx))
+        .where(
+          (r) =>
+              r.gain == ctx.gain &&
+              r.offset == ctx.offset &&
+              r.binX == ctx.binX &&
+              r.binY == ctx.binY &&
+              _cameraCompatible(r, ctx),
+        )
         .toList();
     if (wantFilter != null && wantFilter.isNotEmpty) {
       pool = pool
@@ -630,8 +674,11 @@ class CalibrationLibraryService {
     final wantTrain = ctx.opticalTrainId?.trim();
     if (wantTrain != null && wantTrain.isNotEmpty) {
       pool = pool
-          .where((r) =>
-              r.opticalTrainId == null || r.opticalTrainId!.trim() == wantTrain)
+          .where(
+            (r) =>
+                r.opticalTrainId == null ||
+                r.opticalTrainId!.trim() == wantTrain,
+          )
           .toList();
     }
     if (pool.isEmpty) return null;
@@ -640,9 +687,12 @@ class CalibrationLibraryService {
     var tempFellBack = false;
     if (ctx.temperature != null) {
       final within = pool
-          .where((r) =>
-              r.temperature == null ||
-              (r.temperature! - ctx.temperature!).abs() <= tol.flatTemperatureC)
+          .where(
+            (r) =>
+                r.temperature == null ||
+                (r.temperature! - ctx.temperature!).abs() <=
+                    tol.flatTemperatureC,
+          )
           .toList();
       if (within.isNotEmpty) {
         pool = within;
@@ -681,8 +731,10 @@ class CalibrationLibraryService {
         wantTrain.isNotEmpty &&
         best.opticalTrainId == null) {
       score -= 10;
-      warnings.add('Flat has no optical-train tag — verify it was shot with '
-          'the current optical configuration ($wantTrain).');
+      warnings.add(
+        'Flat has no optical-train tag — verify it was shot with '
+        'the current optical configuration ($wantTrain).',
+      );
     }
 
     score = _applyStaleness(score, best, reasons, warnings);
@@ -717,13 +769,17 @@ class CalibrationLibraryService {
     var score = 100.0;
     if (ctx.temperature != null && best.temperature != null) {
       final delta = (best.temperature! - ctx.temperature!).abs();
-      reasons.add('Temperature bucket ${best.temperature!.toStringAsFixed(1)}'
-          '°C (Δ${delta.toStringAsFixed(1)}°C)');
+      reasons.add(
+        'Temperature bucket ${best.temperature!.toStringAsFixed(1)}'
+        '°C (Δ${delta.toStringAsFixed(1)}°C)',
+      );
       if (delta > 5.0) {
         score -= math.min(20.0, 2.0 * delta);
-        warnings.add('Defect map was built ${delta.toStringAsFixed(1)}°C from '
-            'the current sensor temperature — hot-pixel sets shift with '
-            'cooling setpoint.');
+        warnings.add(
+          'Defect map was built ${delta.toStringAsFixed(1)}°C from '
+          'the current sensor temperature — hot-pixel sets shift with '
+          'cooling setpoint.',
+        );
       }
     }
     score = _applyStaleness(score, best, reasons, warnings);
@@ -753,13 +809,15 @@ class CalibrationLibraryService {
     if (ctx.temperature != null && record.temperature != null) {
       final delta = (record.temperature! - ctx.temperature!).abs();
       reasons.add(
-          'Temperature ${record.temperature!.toStringAsFixed(1)}°C '
-          '(Δ${delta.toStringAsFixed(1)}°C, tolerance ±$toleranceC°C)');
+        'Temperature ${record.temperature!.toStringAsFixed(1)}°C '
+        '(Δ${delta.toStringAsFixed(1)}°C, tolerance ±$toleranceC°C)',
+      );
       score -= math.min(20.0, 4.0 * delta);
       if (fellBack || delta > toleranceC) {
         warnings.add(
-            'Sensor temperature differs by ${delta.toStringAsFixed(1)}°C '
-            'from the $label (tolerance ±$toleranceC°C).');
+          'Sensor temperature differs by ${delta.toStringAsFixed(1)}°C '
+          'from the $label (tolerance ±$toleranceC°C).',
+        );
       }
     } else if (record.temperature == null) {
       score -= unknownTempPenalty;
@@ -781,12 +839,16 @@ class CalibrationLibraryService {
     final staleDays = thresholds.staleDaysFor(record.type);
     switch (record.freshness(now, thresholds: thresholds)) {
       case CalibrationFreshness.stale:
-        warnings.add('${_typeLabel(record.type)} is $age days old '
-            '(recommended refresh: every $staleDays days).');
+        warnings.add(
+          '${_typeLabel(record.type)} is $age days old '
+          '(recommended refresh: every $staleDays days).',
+        );
         return score - 15;
       case CalibrationFreshness.aging:
-        reasons.add('$age days old (aging; refresh recommended every '
-            '$staleDays days)');
+        reasons.add(
+          '$age days old (aging; refresh recommended every '
+          '$staleDays days)',
+        );
         return score - 5;
       case CalibrationFreshness.fresh:
         reasons.add('$age day${age == 1 ? '' : 's'} old (fresh)');
@@ -805,13 +867,13 @@ class CalibrationLibraryService {
 
   double _expDelta(CalibrationMasterRecord r, LightFrameContext ctx) =>
       r.exposureSeconds == null
-          ? double.maxFinite
-          : (r.exposureSeconds! - ctx.exposureSeconds).abs();
+      ? double.maxFinite
+      : (r.exposureSeconds! - ctx.exposureSeconds).abs();
 
   double _tempDelta(CalibrationMasterRecord r, LightFrameContext ctx) =>
       (ctx.temperature == null || r.temperature == null)
-          ? double.maxFinite
-          : (r.temperature! - ctx.temperature!).abs();
+      ? double.maxFinite
+      : (r.temperature! - ctx.temperature!).abs();
 
   static double _clampScore(double score) => score.clamp(0.0, 100.0);
 
@@ -841,8 +903,9 @@ class CalibrationLibraryService {
 }
 
 /// Riverpod provider for the [CalibrationLibraryService].
-final calibrationLibraryServiceProvider =
-    Provider<CalibrationLibraryService>((ref) {
+final calibrationLibraryServiceProvider = Provider<CalibrationLibraryService>((
+  ref,
+) {
   return CalibrationLibraryService(
     db: ref.watch(databaseProvider),
     flatLibraryDao: ref.watch(flatLibraryDaoProvider),

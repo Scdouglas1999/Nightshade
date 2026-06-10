@@ -53,18 +53,16 @@ class EquipmentTelemetryStrip extends ConsumerWidget {
     final afResult = ref.watch(autofocusResultProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
 
-    final hasAnyDevice =
-        cameraState.connectionState == DeviceConnectionState.connected ||
-            mountState.connectionState == DeviceConnectionState.connected ||
-            focuserState.connectionState ==
-                DeviceConnectionState.connected ||
-            filterWheelState.connectionState ==
-                DeviceConnectionState.connected ||
-            rotatorState.connectionState == DeviceConnectionState.connected ||
-            guiderState.connectionState == DeviceConnectionState.connected ||
-            domeState.connectionState == DeviceConnectionState.connected ||
-            coverState.connectionState == DeviceConnectionState.connected ||
-            switchState.connectionState == DeviceConnectionState.connected;
+    final hasAnyDevice = cameraState.connectionState ==
+            DeviceConnectionState.connected ||
+        mountState.connectionState == DeviceConnectionState.connected ||
+        focuserState.connectionState == DeviceConnectionState.connected ||
+        filterWheelState.connectionState == DeviceConnectionState.connected ||
+        rotatorState.connectionState == DeviceConnectionState.connected ||
+        guiderState.connectionState == DeviceConnectionState.connected ||
+        domeState.connectionState == DeviceConnectionState.connected ||
+        coverState.connectionState == DeviceConnectionState.connected ||
+        switchState.connectionState == DeviceConnectionState.connected;
 
     if (direction == Axis.vertical) {
       return _VerticalLayout(
@@ -156,8 +154,7 @@ class _HorizontalStrip extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  if (camera.connectionState ==
-                      DeviceConnectionState.connected)
+                  if (camera.connectionState == DeviceConnectionState.connected)
                     _TelemetryItem(
                       colors: colors,
                       icon: LucideIcons.thermometer,
@@ -186,8 +183,7 @@ class _HorizontalStrip extends StatelessWidget {
                           'Pos ${filterWheel.currentPosition ?? '?'}',
                       valueColor: filterWheel.isMoving ? colors.warning : null,
                     ),
-                  if (guider.connectionState ==
-                      DeviceConnectionState.connected)
+                  if (guider.connectionState == DeviceConnectionState.connected)
                     _TelemetryItem(
                       colors: colors,
                       icon: LucideIcons.crosshair,
@@ -199,8 +195,7 @@ class _HorizontalStrip extends StatelessWidget {
                           : 'Idle',
                       valueColor: _guidingRmsColor(guider, colors),
                     ),
-                  if (mount.connectionState ==
-                      DeviceConnectionState.connected)
+                  if (mount.connectionState == DeviceConnectionState.connected)
                     _TelemetryItem(
                       colors: colors,
                       icon: LucideIcons.locateFixed,
@@ -220,8 +215,7 @@ class _HorizontalStrip extends StatelessWidget {
                                   ? colors.textMuted
                                   : colors.error,
                     ),
-                  if (dome.connectionState ==
-                      DeviceConnectionState.connected)
+                  if (dome.connectionState == DeviceConnectionState.connected)
                     _TelemetryItem(
                       colors: colors,
                       icon: LucideIcons.warehouse,
@@ -237,8 +231,8 @@ class _HorizontalStrip extends StatelessWidget {
                       icon: LucideIcons.panelTopClose,
                       label: 'Cover',
                       value: observatoryCoverStatusLabel(cover.coverStatus),
-                      valueColor:
-                          observatoryCoverStatusColor(cover.coverStatus, colors),
+                      valueColor: observatoryCoverStatusColor(
+                          cover.coverStatus, colors),
                     ),
                   if (switchDevice.connectionState ==
                           DeviceConnectionState.connected &&
@@ -379,8 +373,7 @@ class _VerticalLayout extends StatelessWidget {
           name: 'Focuser',
           deviceName: focuser.deviceName,
           statusText: focuser.isMoving ? 'Moving' : 'Idle',
-          statusColor:
-              focuser.isMoving ? colors.warning : colors.textSecondary,
+          statusColor: focuser.isMoving ? colors.warning : colors.textSecondary,
           rows: [
             if (focuser.position != null)
               _TelemetryRow(
@@ -410,9 +403,8 @@ class _VerticalLayout extends StatelessWidget {
           name: 'Filter wheel',
           deviceName: filterWheel.deviceName,
           statusText: filterWheel.isMoving ? 'Changing' : 'Ready',
-          statusColor: filterWheel.isMoving
-              ? colors.warning
-              : colors.textSecondary,
+          statusColor:
+              filterWheel.isMoving ? colors.warning : colors.textSecondary,
           rows: [
             _TelemetryRow(
               colors: colors,
@@ -430,8 +422,7 @@ class _VerticalLayout extends StatelessWidget {
           name: 'Rotator',
           deviceName: rotator.deviceName,
           statusText: rotator.isMoving ? 'Rotating' : 'Idle',
-          statusColor:
-              rotator.isMoving ? colors.warning : colors.textSecondary,
+          statusColor: rotator.isMoving ? colors.warning : colors.textSecondary,
           rows: [
             if (rotator.position != null)
               _TelemetryRow(
@@ -535,8 +526,7 @@ class _VerticalLayout extends StatelessWidget {
               _TelemetryRow(
                 colors: colors,
                 label: 'Flat light',
-                value:
-                    observatoryCalibratorStatusLabel(cover.calibratorStatus),
+                value: observatoryCalibratorStatusLabel(cover.calibratorStatus),
                 valueColor: observatoryCalibratorStatusColor(
                     cover.calibratorStatus, colors),
               ),
@@ -585,7 +575,9 @@ class _VerticalLayout extends StatelessWidget {
           if (blocks.isEmpty)
             Text(
               'No equipment connected',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted),
             )
           else
             for (var i = 0; i < blocks.length; i++) ...[
@@ -732,7 +724,8 @@ class _DeviceBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 name,
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -740,8 +733,7 @@ class _DeviceBlock extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: NightshadeDecorations.statusChip(
                 statusColor,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusXs),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                 bordered: false,
               ),
               child: Text(

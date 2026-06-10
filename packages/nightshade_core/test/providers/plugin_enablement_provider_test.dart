@@ -29,7 +29,9 @@ Future<String?> _readSetting(NightshadeDatabase db) {
 }
 
 Future<void> _seedSetting(NightshadeDatabase db, String value) async {
-  await db.into(db.appSettings).insert(
+  await db
+      .into(db.appSettings)
+      .insert(
         AppSettingsCompanion.insert(
           key: kPluginEnablementSettingKey,
           value: value,
@@ -61,8 +63,7 @@ void main() {
     });
 
     test('absent id (and empty store) reads as enabled by default', () async {
-      final enabled =
-          await container.read(pluginEnablementProvider.future);
+      final enabled = await container.read(pluginEnablementProvider.future);
 
       // Nothing persisted yet → every managed plugin is enabled.
       expect(enabled, unorderedEquals(_allIds));
@@ -79,8 +80,7 @@ void main() {
     test('id explicitly enabled in the store reads as enabled', () async {
       await _seedSetting(database, jsonEncode({_pluginA: true}));
 
-      final enabled =
-          await container.read(pluginEnablementProvider.future);
+      final enabled = await container.read(pluginEnablementProvider.future);
       expect(enabled, unorderedEquals(_allIds));
     });
 
@@ -118,8 +118,7 @@ void main() {
       );
       addTearDown(reopened.dispose);
 
-      final enabled =
-          await reopened.read(pluginEnablementProvider.future);
+      final enabled = await reopened.read(pluginEnablementProvider.future);
       expect(enabled, unorderedEquals([_pluginB, _pluginC]));
     });
 
@@ -137,47 +136,49 @@ void main() {
       expect(jsonDecode((await _readSetting(database))!), {_pluginA: true});
     });
 
-    test('stale persisted id outside the managed set never leaks into the set',
-        () async {
-      // A plugin that was removed from the build but still has a persisted
-      // choice must not appear in the live enabled set.
-      await _seedSetting(
-        database,
-        jsonEncode({'com.test.removed_plugin': true, _pluginB: false}),
-      );
+    test(
+      'stale persisted id outside the managed set never leaks into the set',
+      () async {
+        // A plugin that was removed from the build but still has a persisted
+        // choice must not appear in the live enabled set.
+        await _seedSetting(
+          database,
+          jsonEncode({'com.test.removed_plugin': true, _pluginB: false}),
+        );
 
-      final enabled =
-          await container.read(pluginEnablementProvider.future);
-      expect(enabled, unorderedEquals([_pluginA, _pluginC]));
-    });
+        final enabled = await container.read(pluginEnablementProvider.future);
+        expect(enabled, unorderedEquals([_pluginA, _pluginC]));
+      },
+    );
 
-    test('malformed JSON fails closed to all-enabled with a surfaced log',
-        () async {
-      await _seedSetting(database, '{ this is not json');
+    test(
+      'malformed JSON fails closed to all-enabled with a surfaced log',
+      () async {
+        await _seedSetting(database, '{ this is not json');
 
-      final records = <LogRecord>[];
-      final sub = Logger('PluginEnablementProvider')
-          .onRecord
-          .listen(records.add);
-      addTearDown(sub.cancel);
+        final records = <LogRecord>[];
+        final sub = Logger(
+          'PluginEnablementProvider',
+        ).onRecord.listen(records.add);
+        addTearDown(sub.cancel);
 
-      final enabled =
-          await container.read(pluginEnablementProvider.future);
+        final enabled = await container.read(pluginEnablementProvider.future);
 
-      // Fail closed to the safe fresh-install state: everything enabled.
-      expect(enabled, unorderedEquals(_allIds));
+        // Fail closed to the safe fresh-install state: everything enabled.
+        expect(enabled, unorderedEquals(_allIds));
 
-      // The corruption was surfaced, not silently swallowed.
-      expect(
-        records.where((r) => r.level >= Level.WARNING),
-        isNotEmpty,
-        reason: 'malformed plugin_enablement JSON must be logged',
-      );
-      expect(
-        records.any((r) => r.message.contains('Malformed plugin_enablement')),
-        isTrue,
-      );
-    });
+        // The corruption was surfaced, not silently swallowed.
+        expect(
+          records.where((r) => r.level >= Level.WARNING),
+          isNotEmpty,
+          reason: 'malformed plugin_enablement JSON must be logged',
+        );
+        expect(
+          records.any((r) => r.message.contains('Malformed plugin_enablement')),
+          isTrue,
+        );
+      },
+    );
 
     test('malformed individual entries are skipped and logged', () async {
       // Valid JSON object, but with a non-bool value and a non-string key shape
@@ -188,21 +189,22 @@ void main() {
       );
 
       final records = <LogRecord>[];
-      final sub = Logger('PluginEnablementProvider')
-          .onRecord
-          .listen(records.add);
+      final sub = Logger(
+        'PluginEnablementProvider',
+      ).onRecord.listen(records.add);
       addTearDown(sub.cancel);
 
-      final enabled =
-          await container.read(pluginEnablementProvider.future);
+      final enabled = await container.read(pluginEnablementProvider.future);
 
       // _pluginA's bad entry is ignored → defaults to enabled; _pluginB stays
       // disabled per its valid entry; _pluginC defaults to enabled.
       expect(enabled, unorderedEquals([_pluginA, _pluginC]));
       expect(
-        records.any((r) =>
-            r.level >= Level.WARNING &&
-            r.message.contains('malformed plugin_enablement entry')),
+        records.any(
+          (r) =>
+              r.level >= Level.WARNING &&
+              r.message.contains('malformed plugin_enablement entry'),
+        ),
         isTrue,
       );
     });

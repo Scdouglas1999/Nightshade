@@ -35,8 +35,11 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.search,
-                    size: 16, color: widget.colors.textMuted),
+                Icon(
+                  LucideIcons.search,
+                  size: 16,
+                  color: widget.colors.textMuted,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -67,8 +70,11 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
                       ref.read(sequenceTargetSearchProvider.notifier).state =
                           '';
                     },
-                    child: Icon(LucideIcons.x,
-                        size: 16, color: widget.colors.textMuted),
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 16,
+                      color: widget.colors.textMuted,
+                    ),
                   ),
               ],
             ),
@@ -90,18 +96,20 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
               value: typeFilter,
               hint: Text(
                 'All Types',
-                style:
-                    TextStyle(fontSize: 13, color: widget.colors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.colors.textSecondary,
+                ),
               ),
-              icon: Icon(LucideIcons.chevronDown,
-                  size: 16, color: widget.colors.textMuted),
+              icon: Icon(
+                LucideIcons.chevronDown,
+                size: 16,
+                color: widget.colors.textMuted,
+              ),
               dropdownColor: widget.colors.surface,
               style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
               items: const [
-                DropdownMenuItem(
-                  value: null,
-                  child: Text('All Types'),
-                ),
+                DropdownMenuItem(value: null, child: Text('All Types')),
                 DropdownMenuItem(value: 'Galaxy', child: Text('Galaxies')),
                 DropdownMenuItem(value: 'Nebula', child: Text('Nebulae')),
                 DropdownMenuItem(value: 'Cluster', child: Text('Clusters')),
@@ -158,9 +166,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Imported $importedCount target(s)'),
-                  ),
+                  SnackBar(content: Text('Imported $importedCount target(s)')),
                 );
               }
             } catch (e) {
@@ -215,12 +221,14 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
         await targetsDao.createTarget(
           TargetsCompanion.insert(
             name: name,
-            catalogId:
-                parts.length > 3 ? Value(parts[3]) : const Value.absent(),
+            catalogId: parts.length > 3
+                ? Value(parts[3])
+                : const Value.absent(),
             ra: ra,
             dec: dec,
-            objectType:
-                parts.length > 4 ? Value(parts[4]) : const Value.absent(),
+            objectType: parts.length > 4
+                ? Value(parts[4])
+                : const Value.absent(),
           ),
         );
         imported++;

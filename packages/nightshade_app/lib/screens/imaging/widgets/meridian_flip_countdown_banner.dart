@@ -233,7 +233,8 @@ class _DismissButton extends StatelessWidget {
         containedInkWell: true,
         child: Padding(
           padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
-          child: Icon(NightshadeIcons.close, size: NightshadeTokens.iconSm, color: color),
+          child: Icon(NightshadeIcons.close,
+              size: NightshadeTokens.iconSm, color: color),
         ),
       ),
     );
@@ -283,8 +284,9 @@ _BannerSpec? _resolveSpec(MeridianCountdownState state) {
   // === Armed, live numeric countdown ===
   final isWarning = remaining < MeridianFlipCountdownBanner.kWarningThreshold;
   return _BannerSpec(
-    severity:
-        isWarning ? NightshadeAlertSeverity.warning : NightshadeAlertSeverity.info,
+    severity: isWarning
+        ? NightshadeAlertSeverity.warning
+        : NightshadeAlertSeverity.info,
     icon: LucideIcons.flipHorizontal2,
     title: _BannerTitle(
       text: 'Meridian flip in ',
@@ -383,11 +385,13 @@ class _PierSideChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(NightshadeIcons.move, size: NightshadeTokens.iconXs, color: colors.textMuted),
+          Icon(NightshadeIcons.move,
+              size: NightshadeTokens.iconXs, color: colors.textMuted),
           const SizedBox(width: NightshadeTokens.spaceXs),
           Text(
             'Pier ${_pierLabel(sideOfPier)}',
-            style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
+            style: NightshadeTypography.labelSm
+                .copyWith(color: colors.textSecondary),
           ),
         ],
       ),

@@ -92,8 +92,9 @@ class NightshadeAlert extends StatelessWidget {
       ),
       padding: padding,
       child: Row(
-        crossAxisAlignment:
-            title != null ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        crossAxisAlignment: title != null
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         children: [
           if (showIcon) ...[
             Icon(
@@ -101,7 +102,11 @@ class NightshadeAlert extends StatelessWidget {
               size: compact ? NightshadeTokens.iconSm : NightshadeTokens.iconMd,
               color: iconColor,
             ),
-            SizedBox(width: compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd),
+            SizedBox(
+              width: compact
+                  ? NightshadeTokens.spaceSm
+                  : NightshadeTokens.spaceMd,
+            ),
           ],
           Expanded(
             child: Column(
@@ -111,29 +116,45 @@ class NightshadeAlert extends StatelessWidget {
                 if (title != null) ...[
                   Text(
                     title!,
-                    style: (compact ? NightshadeTypography.labelSm : NightshadeTypography.label)
-                        .copyWith(color: textColor),
+                    style:
+                        (compact
+                                ? NightshadeTypography.labelSm
+                                : NightshadeTypography.label)
+                            .copyWith(color: textColor),
                   ),
                   const SizedBox(height: NightshadeTokens.spaceXs),
                 ],
                 Text(
                   message,
-                  style: (compact ? NightshadeTypography.bodySm : NightshadeTypography.body)
-                      .copyWith(color: textColor.withValues(alpha: 0.9)),
+                  style:
+                      (compact
+                              ? NightshadeTypography.bodySm
+                              : NightshadeTypography.body)
+                          .copyWith(color: textColor.withValues(alpha: 0.9)),
                 ),
               ],
             ),
           ),
           if (action != null) ...[
-            SizedBox(width: compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd),
+            SizedBox(
+              width: compact
+                  ? NightshadeTokens.spaceSm
+                  : NightshadeTokens.spaceMd,
+            ),
             action!,
           ],
           if (onDismiss != null) ...[
-            SizedBox(width: compact ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd),
+            SizedBox(
+              width: compact
+                  ? NightshadeTokens.spaceSm
+                  : NightshadeTokens.spaceMd,
+            ),
             IconButton(
               icon: Icon(
                 LucideIcons.x,
-                size: compact ? NightshadeTokens.iconSm : NightshadeTokens.iconMd,
+                size: compact
+                    ? NightshadeTokens.iconSm
+                    : NightshadeTokens.iconMd,
               ),
               onPressed: onDismiss,
               color: textColor.withValues(alpha: 0.7),
@@ -151,44 +172,45 @@ class NightshadeAlert extends StatelessWidget {
   }
 
   (Color bg, Color border, Color icon, Color text) _getColors(
-      NightshadeColors colors) {
+    NightshadeColors colors,
+  ) {
     return switch (severity) {
       NightshadeAlertSeverity.info => (
-          Color.alphaBlend(
-            colors.info.withValues(alpha: 0.06),
-            colors.surfaceAlt,
-          ),
-          colors.info.withValues(alpha: 0.35),
-          colors.info,
-          colors.textPrimary,
+        Color.alphaBlend(
+          colors.info.withValues(alpha: 0.06),
+          colors.surfaceAlt,
         ),
+        colors.info.withValues(alpha: 0.35),
+        colors.info,
+        colors.textPrimary,
+      ),
       NightshadeAlertSeverity.success => (
-          Color.alphaBlend(
-            colors.success.withValues(alpha: 0.06),
-            colors.surfaceAlt,
-          ),
-          colors.success.withValues(alpha: 0.35),
-          colors.success,
-          colors.textPrimary,
+        Color.alphaBlend(
+          colors.success.withValues(alpha: 0.06),
+          colors.surfaceAlt,
         ),
+        colors.success.withValues(alpha: 0.35),
+        colors.success,
+        colors.textPrimary,
+      ),
       NightshadeAlertSeverity.warning => (
-          Color.alphaBlend(
-            colors.warning.withValues(alpha: 0.06),
-            colors.surfaceAlt,
-          ),
-          colors.warning.withValues(alpha: 0.35),
-          colors.warning,
-          colors.textPrimary,
+        Color.alphaBlend(
+          colors.warning.withValues(alpha: 0.06),
+          colors.surfaceAlt,
         ),
+        colors.warning.withValues(alpha: 0.35),
+        colors.warning,
+        colors.textPrimary,
+      ),
       NightshadeAlertSeverity.error => (
-          Color.alphaBlend(
-            colors.error.withValues(alpha: 0.06),
-            colors.surfaceAlt,
-          ),
-          colors.error.withValues(alpha: 0.35),
-          colors.error,
-          colors.textPrimary,
+        Color.alphaBlend(
+          colors.error.withValues(alpha: 0.06),
+          colors.surfaceAlt,
         ),
+        colors.error.withValues(alpha: 0.35),
+        colors.error,
+        colors.textPrimary,
+      ),
     };
   }
 }
@@ -389,10 +411,7 @@ class NightshadeToastHelper {
           builder: (context, value, child) {
             return Transform.translate(
               offset: Offset(50 * (1 - value), 0),
-              child: Opacity(
-                opacity: value,
-                child: child,
-              ),
+              child: Opacity(opacity: value, child: child),
             );
           },
           child: NightshadeToast(

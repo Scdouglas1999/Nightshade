@@ -65,9 +65,7 @@ void main() {
 
     test('matches by coordinate proximity within tolerance', () {
       final matched = resolveDbTargetForCatalog(
-        candidates: [
-          dbTarget(id: 7, name: 'Rosette', ra: 6.533, dec: 4.95),
-        ],
+        candidates: [dbTarget(id: 7, name: 'Rosette', ra: 6.533, dec: 4.95)],
         targetName: 'NGC 2244',
         catalogId: 'NGC2244',
         raHours: 6.53301,
@@ -79,9 +77,7 @@ void main() {
 
     test('returns null when no candidate matches', () {
       final matched = resolveDbTargetForCatalog(
-        candidates: [
-          dbTarget(id: 1, name: 'M31', ra: 0.7, dec: 41.3),
-        ],
+        candidates: [dbTarget(id: 1, name: 'M31', ra: 0.7, dec: 41.3)],
         targetName: 'M42',
         catalogId: 'M42',
         raHours: 5.58,

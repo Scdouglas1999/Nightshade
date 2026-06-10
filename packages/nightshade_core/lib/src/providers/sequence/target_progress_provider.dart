@@ -65,58 +65,61 @@ class TargetExecutionProgress {
 /// branch-free.
 final targetExecutionProgressProvider =
     Provider.family<TargetExecutionProgress, String>((ref, targetNodeId) {
-  final sequence = ref.watch(currentSequenceProvider);
-  final progress = ref.watch(sequenceProgressProvider);
+      final sequence = ref.watch(currentSequenceProvider);
+      final progress = ref.watch(sequenceProgressProvider);
 
-  if (sequence == null) return TargetExecutionProgress.empty;
-  final root = sequence.nodes[targetNodeId];
-  if (root == null) return TargetExecutionProgress.empty;
+      if (sequence == null) return TargetExecutionProgress.empty;
+      final root = sequence.nodes[targetNodeId];
+      if (root == null) return TargetExecutionProgress.empty;
 
-  int totalFrames = 0;
-  int completedFrames = 0;
-  double totalIntegrationSecs = 0;
-  double completedIntegrationSecs = 0;
+      int totalFrames = 0;
+      int completedFrames = 0;
+      double totalIntegrationSecs = 0;
+      double completedIntegrationSecs = 0;
 
-  // Defense in depth against import-malformed trees that contain cycles.
-  final visited = <String>{targetNodeId};
+      // Defense in depth against import-malformed trees that contain cycles.
+      final visited = <String>{targetNodeId};
 
-  void visit(SequenceNode node) {
-    if (node is ExposureNode && node.isEnabled) {
-      totalFrames += node.count;
-      totalIntegrationSecs += node.totalDurationSecs;
+      void visit(SequenceNode node) {
+        if (node is ExposureNode && node.isEnabled) {
+          totalFrames += node.count;
+          totalIntegrationSecs += node.totalDurationSecs;
 
-      final status = progress.nodeStatuses[node.id];
-      if (status == NodeStatus.success) {
-        // Fully completed: every frame counts.
-        completedFrames += node.count;
-        completedIntegrationSecs += node.totalDurationSecs;
-      } else if (status == NodeStatus.running) {
-        // Partial: derive how many frames have finished within this node
-        // from the per-node progress percent. The executor publishes
-        // 0..100; clamp defensively because some backends round above
-        // 100 on the final tick.
-        final pct = (progress.nodeProgressPercent[node.id] ?? 0).clamp(0, 100);
-        final partial = (node.count * pct / 100.0).floor();
-        completedFrames += partial;
-        completedIntegrationSecs += node.durationSecs * partial;
+          final status = progress.nodeStatuses[node.id];
+          if (status == NodeStatus.success) {
+            // Fully completed: every frame counts.
+            completedFrames += node.count;
+            completedIntegrationSecs += node.totalDurationSecs;
+          } else if (status == NodeStatus.running) {
+            // Partial: derive how many frames have finished within this node
+            // from the per-node progress percent. The executor publishes
+            // 0..100; clamp defensively because some backends round above
+            // 100 on the final tick.
+            final pct = (progress.nodeProgressPercent[node.id] ?? 0).clamp(
+              0,
+              100,
+            );
+            final partial = (node.count * pct / 100.0).floor();
+            completedFrames += partial;
+            completedIntegrationSecs += node.durationSecs * partial;
+          }
+          // pending / failure / skipped / cancelled contribute 0.
+        }
+
+        for (final childId in node.childIds) {
+          if (!visited.add(childId)) continue;
+          final child = sequence.nodes[childId];
+          if (child == null) continue;
+          visit(child);
+        }
       }
-      // pending / failure / skipped / cancelled contribute 0.
-    }
 
-    for (final childId in node.childIds) {
-      if (!visited.add(childId)) continue;
-      final child = sequence.nodes[childId];
-      if (child == null) continue;
-      visit(child);
-    }
-  }
+      visit(root);
 
-  visit(root);
-
-  return TargetExecutionProgress(
-    totalFrames: totalFrames,
-    completedFrames: completedFrames,
-    totalIntegrationSecs: totalIntegrationSecs,
-    completedIntegrationSecs: completedIntegrationSecs,
-  );
-});
+      return TargetExecutionProgress(
+        totalFrames: totalFrames,
+        completedFrames: completedFrames,
+        totalIntegrationSecs: totalIntegrationSecs,
+        completedIntegrationSecs: completedIntegrationSecs,
+      );
+    });

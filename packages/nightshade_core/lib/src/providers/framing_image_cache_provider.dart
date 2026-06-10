@@ -51,10 +51,10 @@ typedef CachedSurveyImageKey = ({
 /// genuine cache miss is represented as a `null` value, not an error.
 final cachedSurveyImageFileProvider =
     FutureProvider.family<File?, CachedSurveyImageKey>((ref, key) async {
-  final service = ref.watch(framingImageCacheServiceProvider);
-  return service.loadCachedSurveyImage(
-    raHours: key.raHours,
-    decDegrees: key.decDegrees,
-    source: key.source,
-  );
-});
+      final service = ref.watch(framingImageCacheServiceProvider);
+      return service.loadCachedSurveyImage(
+        raHours: key.raHours,
+        decDegrees: key.decDegrees,
+        source: key.source,
+      );
+    });

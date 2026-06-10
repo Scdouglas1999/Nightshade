@@ -90,16 +90,22 @@ void main() {
   test('injects float, int, and string keywords in one pass', () async {
     final f = await _writeFixture(tempDir, name: 'inject.fits');
     final r = await writer.updateKeywords(f.path, [
-      FitsKeywordWrite.floating('MAGZP', 24.317,
-          comment: 'Photometric zero point [mag]'),
+      FitsKeywordWrite.floating(
+        'MAGZP',
+        24.317,
+        comment: 'Photometric zero point [mag]',
+      ),
       FitsKeywordWrite.integer('NSTAR', 142, comment: 'Stars used'),
       FitsKeywordWrite.string('MAGZPSRC', 'GAIA-DR3'),
     ]);
 
     expect(r.keywordsInjected, 3);
     expect(r.keywordsUpdated, 0);
-    expect(r.headerGrew, isFalse,
-        reason: 'one header block has 30+ free cards; 3 inserts must fit.');
+    expect(
+      r.headerGrew,
+      isFalse,
+      reason: 'one header block has 30+ free cards; 3 inserts must fit.',
+    );
 
     final magzp = _firstCardFor(f, 'MAGZP');
     expect(magzp, isNotNull);
@@ -117,10 +123,12 @@ void main() {
 
   test('overwriting an existing keyword does not add a duplicate', () async {
     final f = await _writeFixture(tempDir, name: 'overwrite.fits');
-    await writer.updateKeywords(
-        f.path, [FitsKeywordWrite.floating('MAGZP', 1.0)]);
-    final r = await writer.updateKeywords(
-        f.path, [FitsKeywordWrite.floating('MAGZP', 24.5)]);
+    await writer.updateKeywords(f.path, [
+      FitsKeywordWrite.floating('MAGZP', 1.0),
+    ]);
+    final r = await writer.updateKeywords(f.path, [
+      FitsKeywordWrite.floating('MAGZP', 24.5),
+    ]);
 
     expect(r.keywordsInjected, 0);
     expect(r.keywordsUpdated, 1);
@@ -129,8 +137,11 @@ void main() {
     final magzpCards = cards
         .where((c) => c.substring(0, 8).toUpperCase() == 'MAGZP   ')
         .toList();
-    expect(magzpCards, hasLength(1),
-        reason: 'second write must overwrite, not append.');
+    expect(
+      magzpCards,
+      hasLength(1),
+      reason: 'second write must overwrite, not append.',
+    );
     expect(magzpCards.first, contains('24.5'));
   });
 
@@ -148,18 +159,21 @@ void main() {
     modified.setRange(_blockSize, _blockSize * 2, stampedData);
     await f.writeAsBytes(modified, flush: true);
 
-    await writer.updateKeywords(
-        f.path, [FitsKeywordWrite.floating('TRANSPAR', 88.0)]);
+    await writer.updateKeywords(f.path, [
+      FitsKeywordWrite.floating('TRANSPAR', 88.0),
+    ]);
 
     final after = await f.readAsBytes();
     // The data section is everything from the first byte after the new
     // header. Compute by finding END in the rewritten header.
     final endIdx = _findEnd(after);
-    final dataStart =
-        ((endIdx ~/ _cardsPerBlock) + 1) * _blockSize;
+    final dataStart = ((endIdx ~/ _cardsPerBlock) + 1) * _blockSize;
     final readBack = after.sublist(dataStart, dataStart + _blockSize);
-    expect(readBack, stampedData,
-        reason: 'data bytes must be preserved verbatim across writeback.');
+    expect(
+      readBack,
+      stampedData,
+      reason: 'data bytes must be preserved verbatim across writeback.',
+    );
   });
 
   test('grows the header by a block when free cards run out', () async {
@@ -170,7 +184,10 @@ void main() {
     // Inject 35 cards — that's 5 over capacity, forcing a header grow.
     final writes = <FitsKeywordWrite>[
       for (var i = 0; i < 35; i++)
-        FitsKeywordWrite.floating('PAD${i.toString().padLeft(2, '0')}', i.toDouble()),
+        FitsKeywordWrite.floating(
+          'PAD${i.toString().padLeft(2, '0')}',
+          i.toDouble(),
+        ),
     ];
     final r = await writer.updateKeywords(f.path, writes);
     expect(r.headerGrew, isTrue);
@@ -179,8 +196,11 @@ void main() {
     // The data section must be preserved — file size stays consistent:
     // 2 header blocks + 1 data block = 8640 bytes.
     final stat = await f.stat();
-    expect(stat.size, _blockSize * 3,
-        reason: 'after a 1-block grow, file is 2 header + 1 data blocks.');
+    expect(
+      stat.size,
+      _blockSize * 3,
+      reason: 'after a 1-block grow, file is 2 header + 1 data blocks.',
+    );
   });
 
   test('rejects unknown / oversize / multi-typed keywords up-front', () async {
@@ -193,34 +213,45 @@ void main() {
     );
     final originalBytes = await f.readAsBytes();
     final afterFailedAttempt = await f.readAsBytes();
-    expect(afterFailedAttempt, originalBytes,
-        reason: 'a rejected update must never mutate the file on disk.');
+    expect(
+      afterFailedAttempt,
+      originalBytes,
+      reason: 'a rejected update must never mutate the file on disk.',
+    );
   });
 
   test('non-finite float values are refused', () async {
     final f = await _writeFixture(tempDir, name: 'nan.fits');
     expect(
-      () => writer.updateKeywords(
-          f.path, [FitsKeywordWrite.floating('MAGZP', double.nan)]),
+      () => writer.updateKeywords(f.path, [
+        FitsKeywordWrite.floating('MAGZP', double.nan),
+      ]),
       throwsArgumentError,
     );
     expect(
-      () => writer.updateKeywords(
-          f.path, [FitsKeywordWrite.floating('MAGZP', double.infinity)]),
+      () => writer.updateKeywords(f.path, [
+        FitsKeywordWrite.floating('MAGZP', double.infinity),
+      ]),
       throwsArgumentError,
     );
   });
 
-  test('missing END card throws FormatException rather than corrupting', () async {
-    final f = File('${tempDir.path}${Platform.pathSeparator}bad.fits');
-    // 2880 bytes of A's — no END card anywhere.
-    await f.writeAsBytes(Uint8List(_blockSize)..fillRange(0, _blockSize, 0x41));
-    expect(
-      () => writer.updateKeywords(
-          f.path, [FitsKeywordWrite.floating('MAGZP', 1.0)]),
-      throwsFormatException,
-    );
-  });
+  test(
+    'missing END card throws FormatException rather than corrupting',
+    () async {
+      final f = File('${tempDir.path}${Platform.pathSeparator}bad.fits');
+      // 2880 bytes of A's — no END card anywhere.
+      await f.writeAsBytes(
+        Uint8List(_blockSize)..fillRange(0, _blockSize, 0x41),
+      );
+      expect(
+        () => writer.updateKeywords(f.path, [
+          FitsKeywordWrite.floating('MAGZP', 1.0),
+        ]),
+        throwsFormatException,
+      );
+    },
+  );
 }
 
 int _findEnd(Uint8List bytes) {

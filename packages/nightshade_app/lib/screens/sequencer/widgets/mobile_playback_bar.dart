@@ -216,13 +216,15 @@ class _MobilePlaybackButton extends StatelessWidget {
               color: isActive
                   ? NightshadeDecorations.statusChip(
                       colors.success,
-                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
                       bordered: false,
                     ).color
                   : effectiveEnabled
                       ? colors.surfaceAlt
                       : colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActive
                     ? colors.success.withValues(alpha: 0.5)

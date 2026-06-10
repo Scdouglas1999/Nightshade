@@ -138,7 +138,8 @@ class FramingFOVPainter extends CustomPainter {
     iconPainter.layout();
     iconPainter.paint(
       canvas,
-      Offset(center.dx - iconPainter.width / 2, handleY - iconPainter.height / 2),
+      Offset(
+          center.dx - iconPainter.width / 2, handleY - iconPainter.height / 2),
     );
 
     // Draw cardinal directions
@@ -169,8 +170,8 @@ class FramingFOVPainter extends CustomPainter {
       RRect.fromRectAndRadius(
           textBg, const Radius.circular(NightshadeTokens.radiusXs)),
       Paint()
-        ..color =
-            colors.surfaceOverlay.withValues(alpha: NightshadeTokens.opacityHoverBorder),
+        ..color = colors.surfaceOverlay
+            .withValues(alpha: NightshadeTokens.opacityHoverBorder),
     );
     textPainter.paint(
       canvas,
@@ -211,7 +212,8 @@ class FramingFOVPainter extends CustomPainter {
   void _drawCardinalDirections(
       Canvas canvas, Offset center, double width, double height) {
     final style = NightshadeTypography.overline.copyWith(
-      color: colors.textPrimary.withValues(alpha: NightshadeTokens.opacityMuted),
+      color:
+          colors.textPrimary.withValues(alpha: NightshadeTokens.opacityMuted),
       fontWeight: FontWeight.w500,
     );
 
@@ -352,8 +354,8 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
       RRect.fromRectAndRadius(
           textBg, const Radius.circular(NightshadeTokens.radiusXs)),
       Paint()
-        ..color = colors.info
-            .withValues(alpha: NightshadeTokens.opacityStatusFill),
+        ..color =
+            colors.info.withValues(alpha: NightshadeTokens.opacityStatusFill),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -522,8 +524,8 @@ class FramingMosaicGridPainter extends CustomPainter {
     // Draw sequence path if enabled
     if (showSequencePath && panels.length > 1) {
       final pathPaint = Paint()
-        ..color =
-            colors.warning.withValues(alpha: NightshadeTokens.opacityBadgeBorder)
+        ..color = colors.warning
+            .withValues(alpha: NightshadeTokens.opacityBadgeBorder)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -629,8 +631,8 @@ class FramingMosaicGridPainter extends CustomPainter {
       final startY2 = startY + firstPanel.row * stepY;
 
       final startPaint = Paint()
-        ..color =
-            colors.success.withValues(alpha: NightshadeTokens.opacityHoverBorder)
+        ..color = colors.success
+            .withValues(alpha: NightshadeTokens.opacityHoverBorder)
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(

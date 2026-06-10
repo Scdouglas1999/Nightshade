@@ -1,9 +1,9 @@
 part of '../ffi_backend.dart';
 
 mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
-// =========================================================================
-// Sequencer Control
-// =========================================================================
+  // =========================================================================
+  // Sequencer Control
+  // =========================================================================
 
   @override
   Future<void> sequencerStart() async {
@@ -334,19 +334,19 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     await bridge_api.apiSequencerClearDefaultAdaptiveExposure();
   }
 
-// =========================================================================
-// Wave 4 Recovery Mode
-// =========================================================================
-//
-// The Rust bridge exposes:
-//   * `sequencer_recovery_try_now()` -> Result<(), NightshadeError>
-//   * `sequencer_recovery_abort()`   -> Result<(), NightshadeError>
-//   * `sequencer_update_recovery_config(update)` -> Result<(), …>
-//   * `sequencer_get_current_recovery_json()` -> Result<Option<String>, …>
-//   * `sequencer_get_recovery_history_json()` -> Result<String, …>
-//
-// These are reachable via the typed FRB-generated `bridge_api.apiSequencer*`
-// wrappers (Wave 4.5 migration replaced the Wave 4 dynamic-dispatch shims).
+  // =========================================================================
+  // Wave 4 Recovery Mode
+  // =========================================================================
+  //
+  // The Rust bridge exposes:
+  //   * `sequencer_recovery_try_now()` -> Result<(), NightshadeError>
+  //   * `sequencer_recovery_abort()`   -> Result<(), NightshadeError>
+  //   * `sequencer_update_recovery_config(update)` -> Result<(), …>
+  //   * `sequencer_get_current_recovery_json()` -> Result<Option<String>, …>
+  //   * `sequencer_get_recovery_history_json()` -> Result<String, …>
+  //
+  // These are reachable via the typed FRB-generated `bridge_api.apiSequencer*`
+  // wrappers (Wave 4.5 migration replaced the Wave 4 dynamic-dispatch shims).
 
   @override
   Future<void> recoveryTryNow() async {
@@ -400,8 +400,8 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
       final progress = status.totalExposures > 0
           ? status.completedExposures / status.totalExposures
           : (status.totalIntegrationSecs > 0
-              ? status.elapsedSecs / status.totalIntegrationSecs
-              : 0.0);
+                ? status.elapsedSecs / status.totalIntegrationSecs
+                : 0.0);
 
       return SequencerStatus(
         state: status.state,
@@ -432,9 +432,9 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     );
   }
 
-// =========================================================================
-// Checkpoint / Crash Recovery
-// =========================================================================
+  // =========================================================================
+  // Checkpoint / Crash Recovery
+  // =========================================================================
 
   @override
   Future<void> sequencerSetCheckpointDir(String path) async {

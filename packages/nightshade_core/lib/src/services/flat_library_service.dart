@@ -22,8 +22,8 @@ class FlatLibraryService {
   FlatLibraryService({
     required FlatLibraryDao dao,
     required PostSessionSeam seam,
-  })  : _dao = dao,
-        _seam = seam;
+  }) : _dao = dao,
+       _seam = seam;
 
   final FlatLibraryDao _dao;
   final PostSessionSeam _seam;

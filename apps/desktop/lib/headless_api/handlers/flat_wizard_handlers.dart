@@ -50,9 +50,7 @@ class FlatWizardHandlers {
       offset: offset,
     );
 
-    return jsonOk({
-      'result': _flatResultToJson(result),
-    });
+    return jsonOk({'result': _flatResultToJson(result)});
   }
 
   // ===========================================================================
@@ -114,19 +112,18 @@ class FlatWizardHandlers {
     for (var i = 0; i < calibrationsRaw.length; i++) {
       final entry = calibrationsRaw[i];
       if (entry is! Map<String, dynamic>) {
-        throw BadRequestError(
-          field: 'calibrations[$i]',
-          expected: 'object',
-        );
+        throw BadRequestError(field: 'calibrations[$i]', expected: 'object');
       }
-      calibrations.add(FlatResult(
-        filter: requireString(entry, 'filter'),
-        exposure: requireDouble(entry, 'exposure'),
-        adu: requireDouble(entry, 'adu'),
-        success: requireBool(entry, 'success'),
-        iterations: optionalInt(entry, 'iterations') ?? 0,
-        errorMessage: optionalString(entry, 'errorMessage'),
-      ));
+      calibrations.add(
+        FlatResult(
+          filter: requireString(entry, 'filter'),
+          exposure: requireDouble(entry, 'exposure'),
+          adu: requireDouble(entry, 'adu'),
+          success: requireBool(entry, 'success'),
+          iterations: optionalInt(entry, 'iterations') ?? 0,
+          errorMessage: optionalString(entry, 'errorMessage'),
+        ),
+      );
     }
 
     final framesPerFilter = requireInt(payload, 'framesPerFilter', min: 1);
@@ -152,9 +149,7 @@ class FlatWizardHandlers {
       onlySuccessful: onlySuccessful,
     );
 
-    return jsonOk({
-      'sequence': _sequenceToJson(sequence),
-    });
+    return jsonOk({'sequence': _sequenceToJson(sequence)});
   }
 
   // ===========================================================================
@@ -186,9 +181,7 @@ class FlatWizardHandlers {
       offset: offset,
     );
 
-    return jsonOk({
-      'result': _flatResultToJson(result),
-    });
+    return jsonOk({'result': _flatResultToJson(result)});
   }
 
   // ===========================================================================
@@ -235,8 +228,9 @@ class FlatWizardHandlers {
       'isTemplate': sequence.isTemplate,
       'createdAt': sequence.createdAt.millisecondsSinceEpoch,
       'modifiedAt': sequence.modifiedAt.millisecondsSinceEpoch,
-      'nodes':
-          sequence.nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
+      'nodes': sequence.nodes.map(
+        (key, node) => MapEntry(key, _nodeToJson(node)),
+      ),
     };
   }
 

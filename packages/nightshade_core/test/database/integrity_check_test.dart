@@ -42,31 +42,32 @@ void main() {
       expect(report.markerPath, isNull);
     });
 
-    test('reports healthy when integrity_check returns ok on a fresh DB',
-        () async {
-      // Create a real, valid sqlite3 database file. We pre-seed it with a
-      // single table + row so the file has meaningful pages, which makes
-      // the integrity check work harder than on an empty file.
-      final db = sqlite3.open(dbFile.path);
-      db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);');
-      db.execute("INSERT INTO t (name) VALUES ('hello');");
-      db.dispose();
-
-      final report = await runIntegrityCheckAndRecover(dbFile);
-
-      expect(report.wasHealthy, isTrue);
-      expect(report.freshInstall, isFalse);
-      expect(report.recovered, isFalse);
-      // The original file must remain in place untouched.
-      expect(await dbFile.exists(), isTrue);
-      // No backup or marker should have been written on a clean check.
-      final entries = await tempDir.list().toList();
-      expect(entries.length, equals(1));
-      expect(p.basename(entries.first.path), equals('nightshade.db'));
-    });
-
     test(
-        'corrupt DB triggers recovery: backup retained, marker written, '
+      'reports healthy when integrity_check returns ok on a fresh DB',
+      () async {
+        // Create a real, valid sqlite3 database file. We pre-seed it with a
+        // single table + row so the file has meaningful pages, which makes
+        // the integrity check work harder than on an empty file.
+        final db = sqlite3.open(dbFile.path);
+        db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);');
+        db.execute("INSERT INTO t (name) VALUES ('hello');");
+        db.dispose();
+
+        final report = await runIntegrityCheckAndRecover(dbFile);
+
+        expect(report.wasHealthy, isTrue);
+        expect(report.freshInstall, isFalse);
+        expect(report.recovered, isFalse);
+        // The original file must remain in place untouched.
+        expect(await dbFile.exists(), isTrue);
+        // No backup or marker should have been written on a clean check.
+        final entries = await tempDir.list().toList();
+        expect(entries.length, equals(1));
+        expect(p.basename(entries.first.path), equals('nightshade.db'));
+      },
+    );
+
+    test('corrupt DB triggers recovery: backup retained, marker written, '
         'original file rotated', () async {
       // Fabricate a corrupt SQLite file by writing a header-shaped blob
       // that is NOT a valid database. sqlite3.open will either fail with
@@ -90,10 +91,14 @@ void main() {
 
       final report = await runIntegrityCheckAndRecover(dbFile);
 
-      expect(report.recovered, isTrue,
-          reason: 'A corrupt file must be detected and rotated. '
-              'wasHealthy=${report.wasHealthy} freshInstall=${report.freshInstall} '
-              'failureReason=${report.failureReason}');
+      expect(
+        report.recovered,
+        isTrue,
+        reason:
+            'A corrupt file must be detected and rotated. '
+            'wasHealthy=${report.wasHealthy} freshInstall=${report.freshInstall} '
+            'failureReason=${report.failureReason}',
+      );
       expect(report.freshInstall, isFalse);
       expect(report.wasHealthy, isFalse);
       expect(report.backupPath, isNotNull);
@@ -102,8 +107,11 @@ void main() {
 
       // The original DB file must no longer exist (drift's onCreate will
       // recreate it on next open) ...
-      expect(await dbFile.exists(), isFalse,
-          reason: 'Corrupt file should be rotated, not left in place.');
+      expect(
+        await dbFile.exists(),
+        isFalse,
+        reason: 'Corrupt file should be rotated, not left in place.',
+      );
 
       // ... and the backup must still be there so support can extract data.
       final backup = File(report.backupPath!);
@@ -119,41 +127,47 @@ void main() {
       expect(markerContent, contains('reason='));
     });
 
-    test('integrity_check failure with valid-but-damaged DB also recovers',
-        () async {
-      // Create a real SQLite file, then truncate it mid-page so the
-      // header survives (sqlite3.open succeeds) but page-level
-      // integrity_check reports malformation. This exercises the
-      // "open succeeds, integrity_check fails" branch specifically.
-      final db = sqlite3.open(dbFile.path);
-      db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, blob BLOB);');
-      // Insert a row big enough to span multiple pages.
-      final big = Uint8List(64 * 1024);
-      for (var i = 0; i < big.length; i++) {
-        big[i] = i & 0xff;
-      }
-      final stmt = db.prepare('INSERT INTO t (blob) VALUES (?);');
-      stmt.execute([big]);
-      stmt.dispose();
-      db.dispose();
+    test(
+      'integrity_check failure with valid-but-damaged DB also recovers',
+      () async {
+        // Create a real SQLite file, then truncate it mid-page so the
+        // header survives (sqlite3.open succeeds) but page-level
+        // integrity_check reports malformation. This exercises the
+        // "open succeeds, integrity_check fails" branch specifically.
+        final db = sqlite3.open(dbFile.path);
+        db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, blob BLOB);');
+        // Insert a row big enough to span multiple pages.
+        final big = Uint8List(64 * 1024);
+        for (var i = 0; i < big.length; i++) {
+          big[i] = i & 0xff;
+        }
+        final stmt = db.prepare('INSERT INTO t (blob) VALUES (?);');
+        stmt.execute([big]);
+        stmt.dispose();
+        db.dispose();
 
-      // Truncate to the first 8KB. SQLite's first page is intact (4 KB
-      // default page size) so the open succeeds, but the second page
-      // referenced by the overflow chain is now gone.
-      final bytes = await dbFile.readAsBytes();
-      await dbFile.writeAsBytes(bytes.sublist(0, 8192), flush: true);
+        // Truncate to the first 8KB. SQLite's first page is intact (4 KB
+        // default page size) so the open succeeds, but the second page
+        // referenced by the overflow chain is now gone.
+        final bytes = await dbFile.readAsBytes();
+        await dbFile.writeAsBytes(bytes.sublist(0, 8192), flush: true);
 
-      final report = await runIntegrityCheckAndRecover(dbFile);
+        final report = await runIntegrityCheckAndRecover(dbFile);
 
-      // The recovery path must trigger regardless of which sub-branch
-      // (open-time exception vs. failed integrity_check) actually caught
-      // the corruption.
-      expect(report.recovered, isTrue,
-          reason: 'A truncated DB must trigger recovery. '
-              'failureReason=${report.failureReason}');
-      expect(await File(report.backupPath!).exists(), isTrue);
-      expect(await File(report.markerPath!).exists(), isTrue);
-    });
+        // The recovery path must trigger regardless of which sub-branch
+        // (open-time exception vs. failed integrity_check) actually caught
+        // the corruption.
+        expect(
+          report.recovered,
+          isTrue,
+          reason:
+              'A truncated DB must trigger recovery. '
+              'failureReason=${report.failureReason}',
+        );
+        expect(await File(report.backupPath!).exists(), isTrue);
+        expect(await File(report.markerPath!).exists(), isTrue);
+      },
+    );
 
     test('WAL companion files are rotated alongside the main DB', () async {
       // Hand-place a corrupt main file plus a synthetic -wal / -shm pair
@@ -174,23 +188,34 @@ void main() {
       expect(await dbFile.exists(), isFalse);
       // ... and any -wal / -shm files that existed before recovery must
       // also be gone, otherwise a fresh drift open would replay them.
-      expect(await walFile.exists(), isFalse,
-          reason: '-wal sidecar must be rotated alongside the main file.');
-      expect(await shmFile.exists(), isFalse,
-          reason: '-shm sidecar must be rotated alongside the main file.');
+      expect(
+        await walFile.exists(),
+        isFalse,
+        reason: '-wal sidecar must be rotated alongside the main file.',
+      );
+      expect(
+        await shmFile.exists(),
+        isFalse,
+        reason: '-shm sidecar must be rotated alongside the main file.',
+      );
 
       // The companion backups must be co-located with the main backup
       // so support can grab everything in one folder. We don't assert on
       // exact filenames (timestamp-dependent) but on the count.
       final companionBackups = await tempDir
           .list()
-          .where((e) =>
-              e is File &&
-              (p.basename(e.path).endsWith('-wal') ||
-                  p.basename(e.path).endsWith('-shm')))
+          .where(
+            (e) =>
+                e is File &&
+                (p.basename(e.path).endsWith('-wal') ||
+                    p.basename(e.path).endsWith('-shm')),
+          )
           .toList();
-      expect(companionBackups.length, equals(2),
-          reason: 'Both -wal and -shm should have been rotated to backups.');
+      expect(
+        companionBackups.length,
+        equals(2),
+        reason: 'Both -wal and -shm should have been rotated to backups.',
+      );
     });
   });
 
@@ -222,8 +247,11 @@ void main() {
       // The marker file must be unlinked after the first read — the
       // dialog must be one-shot across app launches.
       final secondRead = await consumeRecoveryMarker(tempDir);
-      expect(secondRead, isNull,
-          reason: 'Marker should be cleared after first consumption.');
+      expect(
+        secondRead,
+        isNull,
+        reason: 'Marker should be cleared after first consumption.',
+      );
     });
 
     test('clears every marker when multiple are present', () async {
@@ -236,10 +264,7 @@ void main() {
 
       // Create a synthetic older marker with a hand-rolled filename so
       // we don't have to wait for a millisecond-resolution clock tick.
-      final olderPath = p.join(
-        tempDir.path,
-        '.recovered-on-100.txt',
-      );
+      final olderPath = p.join(tempDir.path, '.recovered-on-100.txt');
       await File(olderPath).writeAsString(
         'db_path=${dbFile.path}\n'
         'recovered_at_utc=1970-01-01T00:00:00.100Z\n'
@@ -251,11 +276,15 @@ void main() {
       // No markers should remain in the directory after consumption.
       final remaining = await tempDir
           .list()
-          .where((e) =>
-              e is File && p.basename(e.path).startsWith('.recovered-on-'))
+          .where(
+            (e) => e is File && p.basename(e.path).startsWith('.recovered-on-'),
+          )
           .toList();
-      expect(remaining, isEmpty,
-          reason: 'All recovery markers must be cleared on consume.');
+      expect(
+        remaining,
+        isEmpty,
+        reason: 'All recovery markers must be cleared on consume.',
+      );
     });
   });
 }

@@ -21,7 +21,9 @@ abstract final class NightshadeSwitchStyle {
 
   static Color darken(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   static Color trackColor(
@@ -35,7 +37,10 @@ abstract final class NightshadeSwitchStyle {
     return colors.surface;
   }
 
-  static Color trackBorderColor(NightshadeColors colors, {required bool selected}) {
+  static Color trackBorderColor(
+    NightshadeColors colors, {
+    required bool selected,
+  }) {
     return selected ? darken(colors.primary, 0.12) : colors.border;
   }
 

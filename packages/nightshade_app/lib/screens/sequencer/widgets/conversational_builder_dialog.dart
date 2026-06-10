@@ -180,7 +180,8 @@ class _ConversationalBuilderDialogState
             const SizedBox(height: 16),
             Text(
               'No AI provider configured',
-              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+              style:
+                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -234,7 +235,9 @@ class _ConversationalBuilderDialogState
             controller: _promptController,
             minLines: 5,
             maxLines: 10,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. "Plan a 4-hour session on the Heart Nebula '
                   'tonight, narrowband HOO with my Ha + OIII filters, '
@@ -267,7 +270,9 @@ class _ConversationalBuilderDialogState
                     child: Text(
                       _error!,
                       style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12, color: colors.error, height: 1.4),
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.error,
+                          height: 1.4),
                     ),
                   ),
                 ],
@@ -366,7 +371,9 @@ class _ConversationalBuilderDialogState
           Expanded(
             child: Text(
               'Candidate targets the AI will see: $preview$more',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
           ),
         ],
@@ -389,13 +396,17 @@ class _ConversationalBuilderDialogState
             _activeRound <= 1
                 ? 'Asking the model…'
                 : 'Asking the model (round $_activeRound of up to 4)…',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textPrimary),
           ),
           const SizedBox(height: 6),
           Text(
             'This can take 10–60s. Self-correction rounds run when the '
             'first reply fails validation.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -452,7 +463,9 @@ class _ConversationalBuilderDialogState
         if (result.totalUsage != null)
           Text(
             formatUsage(result.totalUsage!),
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted),
           ),
         const Spacer(),
         Container(
@@ -464,7 +477,9 @@ class _ConversationalBuilderDialogState
           ),
           child: Text(
             '${result.rounds} ${result.rounds == 1 ? "round" : "rounds"}',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary),
           ),
         ),
       ],
@@ -495,7 +510,9 @@ class _ConversationalBuilderDialogState
           if (sequence.description.isNotEmpty)
             Text(
               sequence.description,
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
             ),
           const SizedBox(height: 12),
           Wrap(
@@ -559,8 +576,9 @@ class _ConversationalBuilderDialogState
                       child: Text(
                         '${t.targetName}'
                         '${t.minAltitude != null ? " (min alt ${t.minAltitude!.toStringAsFixed(0)}°)" : ""}',
-                        style:
-                            TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -587,7 +605,9 @@ class _ConversationalBuilderDialogState
                       .map((p) =>
                           '${p.filterName}: ${p.count}x${p.durationSecs.toStringAsFixed(0)}s')
                       .join('  /  '),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textPrimary),
                 ),
               ),
           ],
@@ -609,7 +629,9 @@ class _ConversationalBuilderDialogState
         const SizedBox(width: 4),
         Text(
           '$label: ',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted),
         ),
         Text(
           value,
@@ -633,7 +655,9 @@ class _ConversationalBuilderDialogState
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text(
               '• [${issue.severity.name}] ${issue.title} — ${issue.description}',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textSecondary),
             ),
           ),
         if (result.validationIssues.length > 8)
@@ -641,7 +665,9 @@ class _ConversationalBuilderDialogState
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               '… and ${result.validationIssues.length - 8} more',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
             ),
           ),
       ],
@@ -667,7 +693,8 @@ class _ConversationalBuilderDialogState
               const SizedBox(width: 8),
               Text(
                 'Refine',
-                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+                style:
+                    NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -676,7 +703,9 @@ class _ConversationalBuilderDialogState
             controller: _refineController,
             minLines: 2,
             maxLines: 4,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. "Use 300s subs instead of 180s" or "Drop SII '
                   'and rebalance the budget".',
@@ -741,7 +770,9 @@ class _ConversationalBuilderDialogState
       child: ExpansionTile(
         title: Text(
           'Show conversation',
-          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+          style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary),
         ),
         tilePadding: EdgeInsets.zero,
         children: [
@@ -750,7 +781,8 @@ class _ConversationalBuilderDialogState
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(
                 'Round ${i + 1}',
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textMuted),
               ),
             ),
             Container(
@@ -758,7 +790,8 @@ class _ConversationalBuilderDialogState
               decoration: BoxDecoration(
                 color: colors.surface,
                 border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: SelectableText(
                 result.rawReplies[i].length > 4000

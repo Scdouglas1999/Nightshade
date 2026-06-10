@@ -109,9 +109,7 @@ Future<Phd2Status> pollPhd2Connected(
 }
 
 /// Best-effort status read; returns disconnected when the host has no client.
-Future<Phd2Status> readPhd2StatusOrDisconnected(
-  GuidingBackend backend,
-) async {
+Future<Phd2Status> readPhd2StatusOrDisconnected(GuidingBackend backend) async {
   try {
     return await backend.phd2GetStatus();
   } catch (_) {

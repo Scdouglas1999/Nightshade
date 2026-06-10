@@ -48,8 +48,8 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       astapPath: response['astapPath'] as String?,
       astrometryPath: response['astrometryPath'] as String?,
       catalogName: response['catalogName'] as String?,
-      catalogMagnitudeLimit:
-          (response['catalogMagnitudeLimit'] as num?)?.toDouble(),
+      catalogMagnitudeLimit: (response['catalogMagnitudeLimit'] as num?)
+          ?.toDouble(),
       catalogPath: response['catalogPath'] as String?,
     );
   }
@@ -202,19 +202,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId) async {
     // Wave 8 Replay Debug — POST through the standard sequencer
     // sub-API; the network backend just forwards primitives.
-    await _post(
-      'sequencer/active-sequence-run-id',
-      {'sequence_run_id': sequenceRunId},
-    );
+    await _post('sequencer/active-sequence-run-id', {
+      'sequence_run_id': sequenceRunId,
+    });
   }
 
   @override
   Future<void> sequencerSetDecisionLoggingEnabled(bool enabled) async {
     // Wave 8 Replay Debug — runtime toggle.
-    await _post(
-      'sequencer/decision-logging-enabled',
-      {'enabled': enabled},
-    );
+    await _post('sequencer/decision-logging-enabled', {'enabled': enabled});
   }
 
   @override
@@ -266,8 +262,9 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   Future<void> sequencerUpdateAutofocusInterval(int everyNFrames) async {
     // Wave 1.5 Pack A: forwarded to the remote host's runtime-config update
     // endpoint. Server side maps to api_sequencer_update_autofocus_interval.
-    await _post(
-        'sequencer/update-autofocus-interval', {'everyNFrames': everyNFrames});
+    await _post('sequencer/update-autofocus-interval', {
+      'everyNFrames': everyNFrames,
+    });
   }
 
   @override
@@ -574,36 +571,41 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<CameraStatus> getCameraStatus(String deviceId) async {
-    final response =
-        await _get('equipment/camera/status', {'deviceId': deviceId});
+    final response = await _get('equipment/camera/status', {
+      'deviceId': deviceId,
+    });
     return CameraStatus.fromJson(response);
   }
 
   @override
   Future<MountStatus> getMountStatus(String deviceId) async {
-    final response =
-        await _get('equipment/mount/status', {'deviceId': deviceId});
+    final response = await _get('equipment/mount/status', {
+      'deviceId': deviceId,
+    });
     return MountStatus.fromJson(response);
   }
 
   @override
   Future<FocuserStatus> getFocuserStatus(String deviceId) async {
-    final response =
-        await _get('equipment/focuser/status', {'deviceId': deviceId});
+    final response = await _get('equipment/focuser/status', {
+      'deviceId': deviceId,
+    });
     return FocuserStatus.fromJson(response);
   }
 
   @override
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    final response =
-        await _get('equipment/filter-wheel/status', {'deviceId': deviceId});
+    final response = await _get('equipment/filter-wheel/status', {
+      'deviceId': deviceId,
+    });
     return FilterWheelStatus.fromJson(response);
   }
 
   @override
   Future<RotatorStatus> getRotatorStatus(String deviceId) async {
-    final response =
-        await _get('equipment/rotator/status', {'deviceId': deviceId});
+    final response = await _get('equipment/rotator/status', {
+      'deviceId': deviceId,
+    });
     return RotatorStatus.fromJson(response);
   }
 
@@ -614,12 +616,17 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
-      final response =
-          await _get('equipment/camera/capabilities', {'deviceId': deviceId});
+      final response = await _get('equipment/camera/capabilities', {
+        'deviceId': deviceId,
+      });
       return CameraCapabilities.fromJson(response);
     } catch (e) {
-      developer.log('Failed to get camera capabilities: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get camera capabilities: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -627,12 +634,17 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
     try {
-      final response =
-          await _get('equipment/mount/capabilities', {'deviceId': deviceId});
+      final response = await _get('equipment/mount/capabilities', {
+        'deviceId': deviceId,
+      });
       return MountCapabilities.fromJson(response);
     } catch (e) {
-      developer.log('Failed to get mount capabilities: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get mount capabilities: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -640,26 +652,37 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
     try {
-      final response =
-          await _get('equipment/focuser/capabilities', {'deviceId': deviceId});
+      final response = await _get('equipment/focuser/capabilities', {
+        'deviceId': deviceId,
+      });
       return FocuserCapabilities.fromJson(response);
     } catch (e) {
-      developer.log('Failed to get focuser capabilities: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get focuser capabilities: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
 
   @override
   Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
-      String deviceId) async {
+    String deviceId,
+  ) async {
     try {
-      final response = await _get(
-          'equipment/filter-wheel/capabilities', {'deviceId': deviceId});
+      final response = await _get('equipment/filter-wheel/capabilities', {
+        'deviceId': deviceId,
+      });
       return FilterWheelCapabilities.fromJson(response);
     } catch (e) {
-      developer.log('Failed to get filter wheel capabilities: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get filter wheel capabilities: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }
@@ -667,12 +690,17 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     try {
-      final response =
-          await _get('equipment/rotator/capabilities', {'deviceId': deviceId});
+      final response = await _get('equipment/rotator/capabilities', {
+        'deviceId': deviceId,
+      });
       return RotatorCapabilities.fromJson(response);
     } catch (e) {
-      developer.log('Failed to get rotator capabilities: $e',
-          name: 'NetworkBackend', level: 1000, error: e);
+      developer.log(
+        'Failed to get rotator capabilities: $e',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
       return null;
     }
   }

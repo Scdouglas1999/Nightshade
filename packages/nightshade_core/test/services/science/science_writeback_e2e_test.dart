@@ -114,119 +114,132 @@ void main() {
     }
   });
 
-  test('full pipeline contract: calibration + transparency round-trip', () async {
-    final cal = FramePhotometricCalibration(
-      capturedImageId: 42,
-      sessionId: 7,
-      timestamp: DateTime.utc(2026, 1, 1, 22, 30),
-      isCalibrated: true,
-      zeroPoint: 24.317,
-      limitingMag5Sigma: 20.85,
-      matchedStarCount: 142,
-      calibrationRms: 0.039,
-      solverId: 'nightshade',
-      catalogSource: PhotometricCatalogSource.localGaia,
-      exposureSeconds: 120.0,
-    );
-    final transparency = TransparencySample(
-      capturedImageId: 42,
-      sessionId: 7,
-      timestamp: DateTime.utc(2026, 1, 1, 22, 30),
-      transparencyPercent: 87.4,
-      extinctionCoefficient: 0.215,
-      qualityBucket: 'good',
-      confidence: 0.78,
-    );
+  test(
+    'full pipeline contract: calibration + transparency round-trip',
+    () async {
+      final cal = FramePhotometricCalibration(
+        capturedImageId: 42,
+        sessionId: 7,
+        timestamp: DateTime.utc(2026, 1, 1, 22, 30),
+        isCalibrated: true,
+        zeroPoint: 24.317,
+        limitingMag5Sigma: 20.85,
+        matchedStarCount: 142,
+        calibrationRms: 0.039,
+        solverId: 'nightshade',
+        catalogSource: PhotometricCatalogSource.localGaia,
+        exposureSeconds: 120.0,
+      );
+      final transparency = TransparencySample(
+        capturedImageId: 42,
+        sessionId: 7,
+        timestamp: DateTime.utc(2026, 1, 1, 22, 30),
+        transparencyPercent: 87.4,
+        extinctionCoefficient: 0.215,
+        qualityBucket: 'good',
+        confidence: 0.78,
+      );
 
-    final updates = ScienceProcessingService.buildScienceWritebackKeywords(
-      calibration: cal,
-      transparency: transparency,
-      buildTag: 'Nightshade 2.5.0',
-    );
+      final updates = ScienceProcessingService.buildScienceWritebackKeywords(
+        calibration: cal,
+        transparency: transparency,
+        buildTag: 'Nightshade 2.5.0',
+      );
 
-    // Pre-write expectations: every keyword the science contract promises
-    // must be present in the build set.
-    expect(updates.map((u) => u.keyword).toList(), [
-      'MAGZP',
-      'MAGZPERR',
-      'MAGZPSRC',
-      'MAGZPNST',
-      'MAGLIM5',
-      'TRANSPAR',
-      'EXTINCT',
-      'NSHA_VER',
-    ]);
+      // Pre-write expectations: every keyword the science contract promises
+      // must be present in the build set.
+      expect(updates.map((u) => u.keyword).toList(), [
+        'MAGZP',
+        'MAGZPERR',
+        'MAGZPSRC',
+        'MAGZPNST',
+        'MAGLIM5',
+        'TRANSPAR',
+        'EXTINCT',
+        'NSHA_VER',
+      ]);
 
-    final fixture = await _writeFixture(tempDir, name: 'e2e.fits');
-    final result = await writer.updateKeywords(fixture.path, updates);
-    expect(result.keywordsInjected, updates.length);
-    expect(result.keywordsUpdated, 0);
+      final fixture = await _writeFixture(tempDir, name: 'e2e.fits');
+      final result = await writer.updateKeywords(fixture.path, updates);
+      expect(result.keywordsInjected, updates.length);
+      expect(result.keywordsUpdated, 0);
 
-    // Read back and verify every value made it through the round-trip with
-    // sane formatting / rounding.
-    final magzp = _firstCardFor(fixture, 'MAGZP');
-    expect(magzp, isNotNull);
-    expect(_floatFromCard(magzp!), closeTo(24.317, 1e-6));
-    expect(magzp, contains('Photometric zero point'));
+      // Read back and verify every value made it through the round-trip with
+      // sane formatting / rounding.
+      final magzp = _firstCardFor(fixture, 'MAGZP');
+      expect(magzp, isNotNull);
+      expect(_floatFromCard(magzp!), closeTo(24.317, 1e-6));
+      expect(magzp, contains('Photometric zero point'));
 
-    final magzperr = _firstCardFor(fixture, 'MAGZPERR');
-    expect(magzperr, isNotNull);
-    expect(_floatFromCard(magzperr!), closeTo(0.039, 1e-6));
+      final magzperr = _firstCardFor(fixture, 'MAGZPERR');
+      expect(magzperr, isNotNull);
+      expect(_floatFromCard(magzperr!), closeTo(0.039, 1e-6));
 
-    final magzpsrc = _firstCardFor(fixture, 'MAGZPSRC');
-    expect(magzpsrc, isNotNull);
-    expect(_stringFromCard(magzpsrc!), 'LOCALGAIA');
+      final magzpsrc = _firstCardFor(fixture, 'MAGZPSRC');
+      expect(magzpsrc, isNotNull);
+      expect(_stringFromCard(magzpsrc!), 'LOCALGAIA');
 
-    final magzpnst = _firstCardFor(fixture, 'MAGZPNST');
-    expect(magzpnst, isNotNull);
-    expect(_intFromCard(magzpnst!), 142);
+      final magzpnst = _firstCardFor(fixture, 'MAGZPNST');
+      expect(magzpnst, isNotNull);
+      expect(_intFromCard(magzpnst!), 142);
 
-    final maglim5 = _firstCardFor(fixture, 'MAGLIM5');
-    expect(maglim5, isNotNull);
-    expect(_floatFromCard(maglim5!), closeTo(20.85, 1e-6));
+      final maglim5 = _firstCardFor(fixture, 'MAGLIM5');
+      expect(maglim5, isNotNull);
+      expect(_floatFromCard(maglim5!), closeTo(20.85, 1e-6));
 
-    final transpar = _firstCardFor(fixture, 'TRANSPAR');
-    expect(transpar, isNotNull);
-    expect(_floatFromCard(transpar!), closeTo(87.4, 1e-6));
+      final transpar = _firstCardFor(fixture, 'TRANSPAR');
+      expect(transpar, isNotNull);
+      expect(_floatFromCard(transpar!), closeTo(87.4, 1e-6));
 
-    final extinct = _firstCardFor(fixture, 'EXTINCT');
-    expect(extinct, isNotNull);
-    expect(_floatFromCard(extinct!), closeTo(0.215, 1e-6));
+      final extinct = _firstCardFor(fixture, 'EXTINCT');
+      expect(extinct, isNotNull);
+      expect(_floatFromCard(extinct!), closeTo(0.215, 1e-6));
 
-    final nshaVer = _firstCardFor(fixture, 'NSHA_VER');
-    expect(nshaVer, isNotNull);
-    expect(_stringFromCard(nshaVer!), 'Nightshade 2.5.0');
+      final nshaVer = _firstCardFor(fixture, 'NSHA_VER');
+      expect(nshaVer, isNotNull);
+      expect(_stringFromCard(nshaVer!), 'Nightshade 2.5.0');
 
-    // Data section must be preserved byte-for-byte. The fixture was 1
-    // header block + 1 data block; after writeback the data should still
-    // be exactly _blockSize zeroes at the file's data offset (which we can
-    // compute by stepping past every header block until the END card).
-    final bytes = await fixture.readAsBytes();
-    var headerBytes = 0;
-    while (headerBytes < bytes.length) {
-      final block = bytes.sublist(headerBytes, headerBytes + _blockSize);
-      headerBytes += _blockSize;
-      final blockStr = String.fromCharCodes(block);
-      if (blockStr.contains(RegExp(r'END\s+'))) break;
-    }
-    expect(bytes.length - headerBytes, _blockSize,
-        reason: 'data section must remain exactly one 2880-byte block');
-    for (var i = headerBytes; i < bytes.length; i++) {
-      expect(bytes[i], 0,
-          reason: 'data byte at offset $i must be untouched after writeback');
-    }
-  });
+      // Data section must be preserved byte-for-byte. The fixture was 1
+      // header block + 1 data block; after writeback the data should still
+      // be exactly _blockSize zeroes at the file's data offset (which we can
+      // compute by stepping past every header block until the END card).
+      final bytes = await fixture.readAsBytes();
+      var headerBytes = 0;
+      while (headerBytes < bytes.length) {
+        final block = bytes.sublist(headerBytes, headerBytes + _blockSize);
+        headerBytes += _blockSize;
+        final blockStr = String.fromCharCodes(block);
+        if (blockStr.contains(RegExp(r'END\s+'))) break;
+      }
+      expect(
+        bytes.length - headerBytes,
+        _blockSize,
+        reason: 'data section must remain exactly one 2880-byte block',
+      );
+      for (var i = headerBytes; i < bytes.length; i++) {
+        expect(
+          bytes[i],
+          0,
+          reason: 'data byte at offset $i must be untouched after writeback',
+        );
+      }
+    },
+  );
 
-  test('empty contract: no calibration and no transparency means no writes',
-      () async {
-    final updates = ScienceProcessingService.buildScienceWritebackKeywords(
-      calibration: null,
-      transparency: null,
-    );
-    expect(updates, isEmpty,
-        reason:
-            'writeback must short-circuit when nothing useful was produced');
-  });
+  test(
+    'empty contract: no calibration and no transparency means no writes',
+    () async {
+      final updates = ScienceProcessingService.buildScienceWritebackKeywords(
+        calibration: null,
+        transparency: null,
+      );
+      expect(
+        updates,
+        isEmpty,
+        reason: 'writeback must short-circuit when nothing useful was produced',
+      );
+    },
+  );
 
   test('partial contract: transparency-only still stamps NSHA_VER', () async {
     final updates = ScienceProcessingService.buildScienceWritebackKeywords(
@@ -241,8 +254,11 @@ void main() {
         confidence: 0.55,
       ),
     );
-    expect(updates.map((u) => u.keyword).toList(),
-        ['TRANSPAR', 'EXTINCT', 'NSHA_VER']);
+    expect(updates.map((u) => u.keyword).toList(), [
+      'TRANSPAR',
+      'EXTINCT',
+      'NSHA_VER',
+    ]);
   });
 
   test('infinite values are silently dropped, never written', () async {

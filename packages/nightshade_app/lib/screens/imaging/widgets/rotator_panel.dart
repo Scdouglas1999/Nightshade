@@ -103,8 +103,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     // reported capabilities. Hide Go-To entirely when canMoveAbsolute is
     // false — the workflow has no analog form. Halt is shown only while
     // moving anyway, but we drop it when the driver can't halt.
-    final rotatorCapsAsync = ref.watch(equipmentRotatorCapabilitiesProvider(
-        _rotatorState.deviceId ?? ''));
+    final rotatorCapsAsync = ref.watch(
+        equipmentRotatorCapabilitiesProvider(_rotatorState.deviceId ?? ''));
     final canMoveAbsolute = gateCapability<RotatorCapabilities>(
       rotatorCapsAsync,
       (c) => c.canMoveAbsolute,
@@ -195,9 +195,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      angle != null
-                          ? '${angle.toStringAsFixed(1)}°'
-                          : '---',
+                      angle != null ? '${angle.toStringAsFixed(1)}°' : '---',
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize18,
                         fontWeight: FontWeight.w700,
@@ -226,7 +224,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           ),
           const SizedBox(height: 8),
           // Mechanical position (if different)
-          if (mechanicalAngle != null && angle != null &&
+          if (mechanicalAngle != null &&
+              angle != null &&
               (mechanicalAngle - angle).abs() > 0.1)
             Text(
               'Mechanical: ${mechanicalAngle.toStringAsFixed(1)}°',
@@ -388,7 +387,8 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onPressed != null;
-    final textColor = isEnabled ? widget.colors.textPrimary : widget.colors.textMuted;
+    final textColor =
+        isEnabled ? widget.colors.textPrimary : widget.colors.textMuted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -401,11 +401,13 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
           decoration: _isHovered && isEnabled
               ? NightshadeDecorations.selectedSurface(
                   widget.colors.primary,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
               : BoxDecoration(
                   color: widget.colors.background,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: widget.colors.border),
                 ),
           child: Text(

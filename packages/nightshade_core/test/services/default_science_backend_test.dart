@@ -35,15 +35,17 @@ void main() {
       expect(pa, closeTo(0.0, 1e-9));
     });
 
-    test('rotation 0: pixel +Y (down in image) ⇒ celestial South (PA 180°)',
-        () {
-      final pa = computePixelMotionPositionAngle(
-        dxPixels: 0.0,
-        dyPixels: 1.0,
-        wcsRotationDegrees: 0.0,
-      );
-      expect(pa, closeTo(180.0, 1e-9));
-    });
+    test(
+      'rotation 0: pixel +Y (down in image) ⇒ celestial South (PA 180°)',
+      () {
+        final pa = computePixelMotionPositionAngle(
+          dxPixels: 0.0,
+          dyPixels: 1.0,
+          wcsRotationDegrees: 0.0,
+        );
+        expect(pa, closeTo(180.0, 1e-9));
+      },
+    );
 
     test('rotation 0: pixel -X (left) ⇒ celestial West (PA 270°)', () {
       final pa = computePixelMotionPositionAngle(
@@ -54,8 +56,7 @@ void main() {
       expect(pa, closeTo(270.0, 1e-9));
     });
 
-    test(
-        'rotation 90 (image rotated CCW, image-up = celestial East): '
+    test('rotation 90 (image rotated CCW, image-up = celestial East): '
         'pixel +X ⇒ celestial South (PA 180°)', () {
       final pa = computePixelMotionPositionAngle(
         dxPixels: 1.0,
@@ -65,8 +66,7 @@ void main() {
       expect(pa, closeTo(180.0, 1e-9));
     });
 
-    test(
-        'rotation 90: pixel +Y (down in image, image-down = celestial West) '
+    test('rotation 90: pixel +Y (down in image, image-down = celestial West) '
         '⇒ celestial West (PA 270°)', () {
       final pa = computePixelMotionPositionAngle(
         dxPixels: 0.0,
@@ -103,8 +103,7 @@ void main() {
       }
     });
 
-    test(
-        'rotating WCS by Δ rotates the reported PA by -Δ (mod 360) '
+    test('rotating WCS by Δ rotates the reported PA by -Δ (mod 360) '
         '— consistency check', () {
       // For a fixed pixel motion, increasing the WCS rotation by Δ degrees
       // must shift the PA by -Δ degrees (mod 360). This catches sign
@@ -127,8 +126,7 @@ void main() {
       expect(diff, closeTo(-delta, 1e-9));
     });
 
-    test('reference vector: dx=3, dy=-4, rot=30° matches hand calculation',
-        () {
+    test('reference vector: dx=3, dy=-4, rot=30° matches hand calculation', () {
       // Hand calculation:
       //   dxUp = 3, dyUp = 4 (pixel-Y flipped)
       //   rot  = 30°, c = √3/2, s = 1/2
@@ -170,7 +168,8 @@ void main() {
     test('dimension-mismatch error carries actionable detail', () {
       const err = LineRatioError(
         code: LineRatioErrorCode.dimensionMismatch,
-        message: 'Narrowband frame dimensions differ: '
+        message:
+            'Narrowband frame dimensions differ: '
             'Ha=4096x2160 OIII=4096x2160 SII=2048x1080.',
       );
       expect(err.code, LineRatioErrorCode.dimensionMismatch);

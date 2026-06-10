@@ -85,8 +85,10 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
 
   /// Encode a stamped event into the WebSocket wire envelope. Returns
   /// null if encoding failed (logged inside).
-  String? _encodeStampedEventForWire(NightshadeEvent stamped,
-      {bool replay = false}) {
+  String? _encodeStampedEventForWire(
+    NightshadeEvent stamped, {
+    bool replay = false,
+  }) {
     try {
       final json = stamped.toJson();
       if (stamped.category == EventCategory.guiding &&
@@ -103,11 +105,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
           }
         }
       }
-      return jsonEncode({
-        'type': 'event',
-        if (replay) 'replay': true,
-        ...json,
-      });
+      return jsonEncode({'type': 'event', if (replay) 'replay': true, ...json});
     } catch (e) {
       _logError('Error encoding event for broadcast: $e');
       return null;
@@ -169,7 +167,8 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
   /// severity (critical-only by default) and supplies its own HMAC-signed
   /// wire frame; see lan_push_broadcaster.dart for the protocol spec.
   void _setPushNotificationStream(
-      Stream<Map<String, dynamic>> notificationStream) {
+    Stream<Map<String, dynamic>> notificationStream,
+  ) {
     _pushNotificationSubscription?.cancel();
     _pushNotificationSubscription = notificationStream.listen(
       (notification) {
@@ -325,15 +324,17 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
       (event) {
         final severity =
             event is UpdateFailedEvent || event is UpdateVerificationFailedEvent
-                ? EventSeverity.error
-                : EventSeverity.info;
-        broadcastEvent(NightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: severity,
-          category: EventCategory.system,
-          eventType: event.type,
-          data: event.data,
-        ));
+            ? EventSeverity.error
+            : EventSeverity.info;
+        broadcastEvent(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: severity,
+            category: EventCategory.system,
+            eventType: event.type,
+            data: event.data,
+          ),
+        );
       },
       onError: (Object error, StackTrace stackTrace) {
         _logError('UpdateController event stream error: $error');

@@ -27,13 +27,16 @@ void main(List<String> args) {
   final items = _parseChecklist(content);
   final checkedItems = items.where((item) => item.checked).toList();
   final uncheckedItems = items.where((item) => !item.checked).toList();
-  final checkedWithoutEvidence =
-      checkedItems.where((item) => !item.hasEvidence).toList();
+  final checkedWithoutEvidence = checkedItems
+      .where((item) => !item.hasEvidence)
+      .toList();
   final sections = _sectionSummaries(items);
-  final knownLimitationsReferenced =
-      content.contains('docs/known-limitations.md');
-  final supportedHardwareReferenced =
-      content.contains('docs/supported-hardware-by-platform.md');
+  final knownLimitationsReferenced = content.contains(
+    'docs/known-limitations.md',
+  );
+  final supportedHardwareReferenced = content.contains(
+    'docs/supported-hardware-by-platform.md',
+  );
 
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -45,22 +48,26 @@ void main(List<String> args) {
     'knownLimitationsReferenced': knownLimitationsReferenced,
     'supportedHardwareByPlatformReferenced': supportedHardwareReferenced,
     'sections': sections.map((section) => section.toJson()).toList(),
-    'checkedWithoutEvidence':
-        checkedWithoutEvidence.map((item) => item.toJson()).toList(),
+    'checkedWithoutEvidence': checkedWithoutEvidence
+        .map((item) => item.toJson())
+        .toList(),
     'uncheckedItems': uncheckedItems.map((item) => item.toJson()).toList(),
   };
 
-  File(_jsonOutputPath)
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
-  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(
-    sections: sections,
-    totalItemCount: items.length,
-    checkedItemCount: checkedItems.length,
-    uncheckedItems: uncheckedItems,
-    checkedWithoutEvidence: checkedWithoutEvidence,
-    knownLimitationsReferenced: knownLimitationsReferenced,
-    supportedHardwareReferenced: supportedHardwareReferenced,
-  ));
+  File(
+    _jsonOutputPath,
+  ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(_markdownOutputPath).writeAsStringSync(
+    _renderMarkdown(
+      sections: sections,
+      totalItemCount: items.length,
+      checkedItemCount: checkedItems.length,
+      uncheckedItems: uncheckedItems,
+      checkedWithoutEvidence: checkedWithoutEvidence,
+      knownLimitationsReferenced: knownLimitationsReferenced,
+      supportedHardwareReferenced: supportedHardwareReferenced,
+    ),
+  );
 
   stdout.writeln('Public release checklist audit complete.');
   stdout.writeln('Checklist items: ${items.length}');
@@ -174,7 +181,8 @@ String _renderMarkdown({
     ..writeln('## Sections')
     ..writeln()
     ..writeln(
-        '| Section | Total | Checked | Unchecked | Checked without evidence |')
+      '| Section | Total | Checked | Unchecked | Checked without evidence |',
+    )
     ..writeln('| --- | ---: | ---: | ---: | ---: |');
 
   for (final section in sections) {
@@ -265,12 +273,12 @@ class _ChecklistItem {
   });
 
   Map<String, Object?> toJson() => {
-        'section': section,
-        'checked': checked,
-        'text': text,
-        'lineNumber': lineNumber,
-        'hasEvidence': hasEvidence,
-      };
+    'section': section,
+    'checked': checked,
+    'text': text,
+    'lineNumber': lineNumber,
+    'hasEvidence': hasEvidence,
+  };
 }
 
 class _SectionSummaryBuilder {
@@ -283,12 +291,12 @@ class _SectionSummaryBuilder {
   _SectionSummaryBuilder(this.name);
 
   _SectionSummary build() => _SectionSummary(
-        name: name,
-        total: total,
-        checked: checked,
-        unchecked: unchecked,
-        checkedWithoutEvidence: checkedWithoutEvidence,
-      );
+    name: name,
+    total: total,
+    checked: checked,
+    unchecked: unchecked,
+    checkedWithoutEvidence: checkedWithoutEvidence,
+  );
 }
 
 class _SectionSummary {
@@ -307,10 +315,10 @@ class _SectionSummary {
   });
 
   Map<String, Object?> toJson() => {
-        'section': name,
-        'total': total,
-        'checked': checked,
-        'unchecked': unchecked,
-        'checkedWithoutEvidence': checkedWithoutEvidence,
-      };
+    'section': name,
+    'total': total,
+    'checked': checked,
+    'unchecked': unchecked,
+    'checkedWithoutEvidence': checkedWithoutEvidence,
+  };
 }

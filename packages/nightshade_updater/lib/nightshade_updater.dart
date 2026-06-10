@@ -37,12 +37,20 @@ class LanPushNotifier {
   static Stream<LanPushEvent> get stream => _controller.stream;
 
   /// Notify that an update was received
-  static void notifyUpdateReceived(UpdateManifest manifest, String stagingPath) {
+  static void notifyUpdateReceived(
+    UpdateManifest manifest,
+    String stagingPath,
+  ) {
     _controller.add(LanPushEvent.received(manifest, stagingPath));
   }
 
   /// Notify progress
-  static void notifyProgress(int received, int total, double progress, String message) {
+  static void notifyProgress(
+    int received,
+    int total,
+    double progress,
+    String message,
+  ) {
     _controller.add(LanPushEvent.progress(received, total, progress, message));
   }
 
@@ -56,8 +64,14 @@ class LanPushNotifier {
 sealed class LanPushEvent {
   const LanPushEvent();
 
-  factory LanPushEvent.received(UpdateManifest manifest, String stagingPath) = LanPushReceivedEvent;
-  factory LanPushEvent.progress(int received, int total, double progress, String message) = LanPushProgressEvent;
+  factory LanPushEvent.received(UpdateManifest manifest, String stagingPath) =
+      LanPushReceivedEvent;
+  factory LanPushEvent.progress(
+    int received,
+    int total,
+    double progress,
+    String message,
+  ) = LanPushProgressEvent;
   factory LanPushEvent.error(String error) = LanPushErrorEvent;
 }
 
@@ -72,7 +86,12 @@ class LanPushProgressEvent extends LanPushEvent {
   final int total;
   final double progress;
   final String message;
-  const LanPushProgressEvent(this.received, this.total, this.progress, this.message);
+  const LanPushProgressEvent(
+    this.received,
+    this.total,
+    this.progress,
+    this.message,
+  );
 }
 
 class LanPushErrorEvent extends LanPushEvent {

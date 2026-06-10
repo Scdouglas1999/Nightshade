@@ -175,7 +175,8 @@ class _ExpandedStretchControls extends StatelessWidget {
         NightshadeSwitchRow(
           label: 'Auto-Stretch',
           value: settings.enabled,
-          labelStyle: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+          labelStyle: NightshadeTypography.labelStrong
+              .copyWith(color: colors.textPrimary),
           onChanged: (value) {
             onSettingsChanged(settings.copyWith(enabled: value));
           },
@@ -664,7 +665,8 @@ class _SliderSetting extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   formatValue(value),
@@ -740,7 +742,8 @@ class _TextButtonState extends State<_TextButton> {
             decoration: BoxDecoration(
               color:
                   _isHovered ? widget.colors.surfaceHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               widget.label,

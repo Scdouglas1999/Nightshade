@@ -64,11 +64,13 @@ extension LocationSettingsSection on AppSettingsNotifier {
 
     if (settings.isNotEmpty) {
       await _saveSettings(settings);
-      _patchState((s) => s.copyWith(
-            latitude: latitude,
-            longitude: longitude,
-            elevation: elevation,
-          ));
+      _patchState(
+        (s) => s.copyWith(
+          latitude: latitude,
+          longitude: longitude,
+          elevation: elevation,
+        ),
+      );
     }
   }
 }
