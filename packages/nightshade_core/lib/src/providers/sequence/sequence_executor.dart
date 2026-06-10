@@ -26,14 +26,14 @@ import '../database_provider.dart'
 import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
-// Wave 5 Agent 2 â€” sky-brightness poll reads the tracker via this
+// Wave 5 Agent 2 — sky-brightness poll reads the tracker via this
 // provider (defined in flat_wizard_provider since the tracker is
 // shared between flat-wizard and adaptive-exposure paths).
 import '../flat_wizard_provider.dart' show skyBrightnessTrackerProvider;
 import '../imaging_provider.dart';
 import '../live_stacking_provider.dart';
 import '../meridian_flip_provider.dart';
-// Wave 6 Pack P â€” plugin-node dispatcher abstraction.
+// Wave 6 Pack P — plugin-node dispatcher abstraction.
 import '../plugin_node_dispatcher.dart';
 import '../replay_debug_provider.dart';
 import '../profiles_provider.dart';
@@ -49,7 +49,7 @@ import '../../services/session_handoff_service.dart'
     show SessionCarryOver, SessionHandoffDecision;
 import '../session_provider.dart';
 import '../settings_provider.dart';
-// Wave 5.5 â€” session-lifecycle hooks: optical-train baseline capture,
+// Wave 5.5 — session-lifecycle hooks: optical-train baseline capture,
 // post-session diagnostics summary, NotificationRouter active-sequence
 // tracking, USB disconnect aggregation.
 import '../../services/optical_train_diagnostics_service.dart'
@@ -98,7 +98,7 @@ const double kCoolerSetpointBandDegC = 1.0;
 /// provider lifetime, even if a sequence is invalidated mid-run.
 final sequenceExecutorProvider = Provider<SequenceExecutor>((ref) {
   final executor = SequenceExecutor(ref);
-  // Owned timers/subscriptions must be torn down with the provider lifetime â€”
+  // Owned timers/subscriptions must be torn down with the provider lifetime —
   // otherwise an invalidation mid-sequence leaks the periodic progress timer,
   // the checkpoint timer, and the native event stream subscription past the
   // disposed Ref. stop() handles the running case; this handles teardown.
@@ -133,7 +133,7 @@ class SequenceExecutor {
   /// future. `null` when no feed is in flight.
   Future<void>? _liveStackingFeedChain;
 
-  /// Wave 5 Agent 2 â€” periodic poller that reads the latest sky brightness
+  /// Wave 5 Agent 2 — periodic poller that reads the latest sky brightness
   /// from `skyBrightnessTrackerProvider` and pushes it to the executor.
   /// The cadence is intentionally generous (10s) because sky brightness
   /// changes slowly; running it faster would just add CPU noise for no
@@ -166,20 +166,20 @@ class SequenceExecutor {
   /// Subscriptions for propagating settings changes to the backend mid-sequence
   final List<ProviderSubscription> _settingsSubscriptions = [];
 
-  /// Wave 5.5 â€” sequence id of the currently running sequence. Held so
+  /// Wave 5.5 — sequence id of the currently running sequence. Held so
   /// the post-session diagnostics summary and the NotificationRouter
   /// override know which sequence just finished even after
   /// `currentSequenceProvider` has been cleared by the UI.
   String? _activeSequenceId;
 
-  /// Wave 5.5 â€” wall-clock start time of the current run. Used to
+  /// Wave 5.5 — wall-clock start time of the current run. Used to
   /// compute the per-session USB disconnect count when building the
   /// post-session diagnostics summary. Distinct from `_startTime`
   /// (which is reset on pause/resume); this one survives until the
   /// post-session hooks have run.
   DateTime? _sessionStartedAt;
 
-  /// Wave 5.5 â€” pre-session optical-train snapshot captured at
+  /// Wave 5.5 — pre-session optical-train snapshot captured at
   /// `start()`. Persists across the run so the post-session finalizer
   /// can publish the baseline alongside the post-session diagnostics
   /// (so the dialog can render "pre" and "post" side by side, even
@@ -223,24 +223,24 @@ class SequenceExecutor {
 
   /// Test-only entry point that returns the JSON the executor will send
   /// to the Rust backend. Exposed so unit tests can assert AppSettings
-  /// defaults propagate correctly (audit-handoff Â§2.1 WIRE-UP #4/#5).
+  /// defaults propagate correctly (audit-handoff §2.1 WIRE-UP #4/#5).
   @visibleForTesting
   String sequenceToJsonForTest(Sequence sequence) => _sequenceToJson(sequence);
 
-  /// Wave 5.5 â€” test entry point for the session-start hooks. Lets
+  /// Wave 5.5 — test entry point for the session-start hooks. Lets
   /// integration tests exercise the optical-train baseline capture +
   /// NotificationRouter override + sessionStart timestamp without
   /// spinning up the full `start()` pipeline (which requires a current
-  /// sequence, settings, validation, native backend, â€¦).
+  /// sequence, settings, validation, native backend, …).
   @visibleForTesting
   void captureSessionStartHooksForTest(String sequenceId) =>
       _captureSessionStartHooks(sequenceId);
 
-  /// Wave 5.5 â€” test entry point for the session-end hooks.
+  /// Wave 5.5 — test entry point for the session-end hooks.
   @visibleForTesting
   void captureSessionEndHooksForTest() => _captureSessionEndHooks();
 
-  /// Wave 6 Pack P â€” test entry point that pumps a synthesised
+  /// Wave 6 Pack P — test entry point that pumps a synthesised
   /// `NightshadeEvent` through the same handler the live native event
   /// subscription uses. Lets unit tests exercise the FrameAccepted /
   /// FrameRejected / PluginNodeRequested handlers without spinning up
@@ -249,7 +249,7 @@ class SequenceExecutor {
   void handleSequencerEventForTest(NightshadeEvent event) =>
       _handleSequencerEvent(event);
 
-  /// Wave 7.5 â€” test entry point for the session-handoff carry-over
+  /// Wave 7.5 — test entry point for the session-handoff carry-over
   /// seed. Lets tests exercise the `Resume` / `Restart` / `ContinueNew`
   /// branches against a mock backend without driving a full sequence
   /// start (which requires Rust, validation, and live settings).
@@ -265,7 +265,7 @@ class SequenceExecutor {
   /// Why: this is the point where per-sequence and per-node values are
   /// combined with global AppSettings defaults. Per-node values always win;
   /// AppSettings is consulted only when the node provides no explicit value
-  /// (audit-handoff Â§2.1 WIRE-UP items #4 and #5).
+  /// (audit-handoff §2.1 WIRE-UP items #4 and #5).
   Future<validation.ValidationResult> validateSequenceForStart(
       Sequence sequence) async {
     final validator = _ref.read(validation.sequenceValidatorProvider);
@@ -285,7 +285,7 @@ class SequenceExecutor {
       throw Exception('No sequence loaded');
     }
 
-    // Audit C3 â€” full pre-flight pass. Every start path (UI button via
+    // Audit C3 — full pre-flight pass. Every start path (UI button via
     // sequence_action_service, headless POST /api/sequencer/start,
     // scheduler autopilot) now reaches this code, so they all see the
     // same equipment / disk-space / dark-library / settings checks the
@@ -293,7 +293,7 @@ class SequenceExecutor {
     final result = await validateSequenceForStart(sequence);
     if (result.hasErrors) {
       // CLAUDE.md: errors are a feature. Surface the entire
-      // [ValidationResult] â€” counts + every issue â€” so the caller can
+      // [ValidationResult] — counts + every issue — so the caller can
       // render all of them. The historical
       // `throw Exception('first error title')` silently dropped the
       // tail and trained users to ignore validation.
@@ -310,11 +310,11 @@ class SequenceExecutor {
         SequenceExecutionState.running;
 
     final sessionNotifier = _ref.read(sessionStateProvider.notifier);
-    // Audit C3 â€” pick option (a): one sequence run == one session. The
+    // Audit C3 — pick option (a): one sequence run == one session. The
     // session row is labelled with the sequence name (which is what the
     // user typed in the sequencer toolbar). Per-target coordinates
     // belong to per-target child rows that the scheduler emits as it
-    // walks the tree â€” we deliberately leave targetRa/targetDec NULL
+    // walks the tree — we deliberately leave targetRa/targetDec NULL
     // here for multi-target sequences instead of arbitrarily picking
     // targetHeaders.first, which would misrepresent the session in the
     // database. A single-target sequence still gets its coordinates so
@@ -339,12 +339,12 @@ class SequenceExecutor {
     _liveStackingArmedForRun = false;
     _liveStackingFeedChain = null;
 
-    // Wave 8 Replay Debug â€” stamp the active sequence_runs.id onto the
+    // Wave 8 Replay Debug — stamp the active sequence_runs.id onto the
     // Rust executor so every subsequent emitted DecisionEvent carries
     // the FK. We push it before sequencerStart() so the first
     // "Sequence started" lifecycle decision the executor emits already
     // has the right run id. Failure to push is logged but does not
-    // abort the run â€” the replay log will simply have null run_ids
+    // abort the run — the replay log will simply have null run_ids
     // for the affected rows, and our Dart-side `_persistReplayDecision`
     // falls back to `currentRunIdProvider`.
     try {
@@ -356,12 +356,12 @@ class SequenceExecutor {
       );
     }
 
-    // Wave 5.5 â€” session-lifecycle hooks.
+    // Wave 5.5 — session-lifecycle hooks.
     //
     // Done AFTER the session notifier + run row exist so the optical
     // train baseline snapshot has a stable dbSessionId to anchor to,
     // and the NotificationRouter override fires while the session is
-    // already in "running" state. Each hook is independent â€” a failure
+    // already in "running" state. Each hook is independent — a failure
     // in one is logged but does not abort the start path. The Rust
     // executor must still start even if diagnostics are unavailable.
     _captureSessionStartHooks(sequence.id);
@@ -489,7 +489,7 @@ class SequenceExecutor {
 
   /// Stop the sequencer.
   ///
-  /// Audit C3 â€” checkpoint preservation:
+  /// Audit C3 — checkpoint preservation:
   ///
   /// Historical bug: this method unconditionally called
   /// `discardCheckpoint()` after stopping, which meant a user who paused
@@ -498,7 +498,7 @@ class SequenceExecutor {
   ///
   /// Resolution: callers now declare intent via [preserveCheckpoint].
   ///   * The UI Stop button (`SequenceActionService.stop`) passes
-  ///     `preserveCheckpoint: true` â€” operator-initiated stops keep the
+  ///     `preserveCheckpoint: true` — operator-initiated stops keep the
   ///     checkpoint so the user can resume later. The session row is
   ///     finalised as `paused-stopped`.
   ///   * The internal completion / error / cancellation finalisers call
@@ -557,7 +557,7 @@ class SequenceExecutor {
       return;
     }
 
-    // Clear checkpoint when stopped gracefully â€” only when the caller
+    // Clear checkpoint when stopped gracefully — only when the caller
     // confirmed this is a natural / abort stop with no intent to resume.
     try {
       await backend.discardCheckpoint();
@@ -575,7 +575,7 @@ class SequenceExecutor {
 
   /// Wave 1.5 Pack A: jump to a specific node by id. Use from the sequence
   /// tree right-click context menu ("Skip to here"). Only meaningful while
-  /// the sequence is running â€” the UI must gate the action on
+  /// the sequence is running — the UI must gate the action on
   /// [SequenceExecutionState.running].
   Future<void> skipToNode(String nodeId) async {
     final backend = _ref.read(backendProvider);
@@ -641,6 +641,14 @@ class SequenceExecutor {
   }
 
   /// Resume sequence from checkpoint
+  ///
+  /// The native `resumeFromCheckpoint()` only PREPARES the executor: it
+  /// loads the checkpointed sequence, marks already-completed nodes, and
+  /// restores trigger state / devices / save path / location from the
+  /// snapshot. Execution only begins on the subsequent `sequencerStart()`,
+  /// which walks the restored tree and short-circuits the marked nodes.
+  /// Skipping that start call leaves the executor Idle while the UI says
+  /// "running" — a resumed night that silently never images.
   Future<void> resumeFromCheckpoint() async {
     final backend = _ref.read(backendProvider);
 
@@ -648,6 +656,73 @@ class SequenceExecutor {
     if (info == null || !info.canResume) {
       throw Exception('No valid checkpoint to resume from');
     }
+
+    // Prepare the native executor from the snapshot first, so the
+    // re-seeding below overrides snapshot values rather than being
+    // overwritten by the restore.
+    await backend.resumeFromCheckpoint();
+
+    // The snapshot reflects the world at checkpoint time. Settings the
+    // user changed since — observer location, safety fail mode, AF
+    // cadence, dither, grading thresholds — must win: the W1 daylight
+    // gate and meridian-flip hour-angle math run off this location.
+    final settings = _ref.read(appSettingsProvider).valueOrNull;
+    if (settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+      await backend.setLocation(ObserverLocation(
+        latitude: settings.latitude,
+        longitude: settings.longitude,
+        elevation: settings.elevation,
+      ));
+    }
+    if (kReleaseMode) {
+      await backend.sequencerSetSimulationMode(false);
+    } else {
+      await backend.sequencerSetSimulationMode(_useSimulationMode);
+    }
+    if (settings != null) {
+      await backend.sequencerSetSafetyFailMode(
+        _safetyFailModeToBackendString(settings.safetyFailMode),
+      );
+    }
+    // Save path: only override the checkpoint's restored path when the
+    // user actually has one configured — pushing null here would clobber
+    // a perfectly good snapshot path with "don't save".
+    final savePath = settings?.imageOutputPath;
+    if (savePath != null && savePath.isNotEmpty) {
+      await backend.sequencerSetSavePath(savePath);
+    }
+    // Device IDs: the checkpoint restored the snapshot's mapping. Only
+    // push fresher IDs when a camera is currently connected — in the
+    // crash-recovery-at-startup case (equipment not reconnected yet) the
+    // snapshot's IDs are the best information we have, and overwriting
+    // them with nulls would strand the resumed run.
+    final cameraState = _ref.read(cameraStateProvider);
+    if (cameraState.connectionState == DeviceConnectionState.connected) {
+      final mountState = _ref.read(mountStateProvider);
+      final focuserState = _ref.read(focuserStateProvider);
+      final filterwheelState = _ref.read(filterWheelStateProvider);
+      final rotatorState = _ref.read(rotatorStateProvider);
+      await backend.sequencerSetDevices(
+        cameraId: cameraState.deviceId,
+        mountId: mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.deviceId
+            : null,
+        focuserId:
+            focuserState.connectionState == DeviceConnectionState.connected
+                ? focuserState.deviceId
+                : null,
+        filterwheelId:
+            filterwheelState.connectionState == DeviceConnectionState.connected
+                ? filterwheelState.deviceId
+                : null,
+        rotatorId:
+            rotatorState.connectionState == DeviceConnectionState.connected
+                ? rotatorState.deviceId
+                : null,
+      );
+    }
+    await _seedRuntimeConfigFromSettings(backend);
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     progressNotifier.updateState(SequenceExecutionState.running);
@@ -660,10 +735,34 @@ class SequenceExecutor {
       message: 'Resuming from checkpoint...',
     );
 
+    // A resumed run still needs a session + run row so frame stats,
+    // replay decisions and the morning report have something to attach
+    // to. sequenceId is unknown post-crash (the checkpoint stores the
+    // Rust-side definition, not the Dart DB id) — null is accepted.
+    final sessionNotifier = _ref.read(sessionStateProvider.notifier);
+    await sessionNotifier.startSession(targetName: info.sequenceName);
+    final runId = await _ref.read(sequenceRunsDaoProvider).startRun(
+          sequenceId: null,
+          sequenceName: info.sequenceName,
+        );
+    _ref.read(currentRunIdProvider.notifier).state = runId;
+    _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
+    _runFinalized = false;
+    _liveStackingArmedForRun = false;
+    _liveStackingFeedChain = null;
+    try {
+      await backend.sequencerSetActiveSequenceRunId(runId);
+    } catch (e) {
+      _logger.warning(
+        'Failed to push active sequence_run_id to Rust executor on resume: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+
     _startTime = DateTime.now();
     _isPaused = false;
-    // Reset the EMA so resume samples â€” which start from the checkpoint
-    // mid-run cadence â€” aren't biased by stale samples from the original
+    // Reset the EMA so resume samples — which start from the checkpoint
+    // mid-run cadence — aren't biased by stale samples from the original
     // session (different exposure length, focuser, etc.).
     _resetEtaState();
     // Seed the frame counter to the checkpoint's completed count so newly
@@ -687,11 +786,31 @@ class SequenceExecutor {
     _startCheckpointTimer();
     _startDiskSpaceWatchdog();
 
+    await _nativeEventSubscription?.cancel();
     _nativeEventSubscription = backend.eventStream.listen(
       _handleSequencerEvent,
+      onError: (e) =>
+          _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
     );
 
-    await backend.resumeFromCheckpoint();
+    _startSettingsWatchers(backend);
+
+    // Actually begin execution: start() walks the restored tree and
+    // short-circuits already-completed nodes — that is what makes the
+    // checkpoint resume real instead of a state-only restore.
+    try {
+      await backend.sequencerStart();
+    } catch (e) {
+      // Roll the UI back so the user sees the failure instead of a
+      // permanently-"running" ghost sequence.
+      _progressTimer?.cancel();
+      _progressTimer = null;
+      _stopSettingsWatchers();
+      progressNotifier.updateState(SequenceExecutionState.failed);
+      _ref.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.failed;
+      rethrow;
+    }
   }
 
   /// Discard the current checkpoint

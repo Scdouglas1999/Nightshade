@@ -338,17 +338,17 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
   /// Translate a single JSON-shaped `(key, value)` from the server into
   /// a copyWith on the in-memory [AppSettingsState]. Unknown keys are a
   /// no-op (a newer host may carry settings this build does not yet
-  /// know about â€” silent skipping preserves forward-compatibility).
+  /// know about — silent skipping preserves forward-compatibility).
   ///
   /// Returns null when the value parses to something the current state
-  /// already has â€” caller checks for that to avoid pointless rebuilds.
+  /// already has — caller checks for that to avoid pointless rebuilds.
   AppSettingsState? _applyJsonSettingChange(
     AppSettingsState current,
     String key,
     dynamic value,
   ) {
-    // The keys mirror `models.AppSettings.toJson()` â€” which is the freezed
-    // JSON projection â€” NOT the database column names. The settings provider
+    // The keys mirror `models.AppSettings.toJson()` — which is the freezed
+    // JSON projection — NOT the database column names. The settings provider
     // already has `_applySettingsMap` for the db-column form; here we only
     // need to handle the remote-JSON form for the keys that round-trip.
     switch (key) {

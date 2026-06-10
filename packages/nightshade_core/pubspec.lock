@@ -780,6 +780,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  nightshade_relay:
+    dependency: transitive
+    description:
+      path: "../../tools/nightshade_relay"
+      relative: true
+    source: path
+    version: "0.1.0"
   nightshade_remote_protocol:
     dependency: "direct main"
     description:

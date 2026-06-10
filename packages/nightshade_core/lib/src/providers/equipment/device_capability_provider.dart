@@ -7,7 +7,7 @@
 //
 // Why a separate file from `providers/capability_provider.dart`:
 //   * The older provider exposes data only and lets every call site decide
-//     how to treat null/error â€” most use a fail-OPEN default (`?? true`).
+//     how to treat null/error — most use a fail-OPEN default (`?? true`).
 //   * This file adds an explicit fail-CLOSED helper (`gateCapability`)
 //     because shipping a dead button is worse than hiding a real one. Errors
 //     are a feature: a missing capability is a loud signal, not a fallback.
@@ -16,9 +16,9 @@
 //     device flushes stale capability data.
 //
 // Refresh model:
-//   * Each provider is a `FutureProvider.family<â€¦?, String>` keyed by
+//   * Each provider is a `FutureProvider.family<…?, String>` keyed by
 //     deviceId. When the deviceId changes (different device selected), Riverpod
-//     rebuilds with the new key automatically â€” no manual invalidation needed.
+//     rebuilds with the new key automatically — no manual invalidation needed.
 //   * For same-deviceId reconnects (e.g., USB reconnect bumping the cooler
 //     state), the equipment state notifier is responsible for invalidating
 //     the matching capability provider on the connected transition. That
@@ -40,7 +40,7 @@ import 'mount_state_provider.dart';
 import 'rotator_state_provider.dart';
 
 // =============================================================================
-// Capability providers â€” typed-Dart returns, null on query failure.
+// Capability providers — typed-Dart returns, null on query failure.
 // =============================================================================
 
 /// Camera capabilities for [deviceId].
@@ -51,7 +51,7 @@ import 'rotator_state_provider.dart';
 ///
 /// Throws when the backend's capability query itself threw (e.g., bridge
 /// crash). Callers MUST treat a thrown future as "capability unknown" and
-/// fail closed â€” see [gateCapability].
+/// fail closed — see [gateCapability].
 final equipmentCameraCapabilitiesProvider =
     FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
@@ -92,7 +92,7 @@ final equipmentRotatorCapabilitiesProvider =
   return backend.getRotatorCapabilities(deviceId);
 });
 
-/// Dome capability fetcher â€” overridable for tests.
+/// Dome capability fetcher — overridable for tests.
 ///
 /// Production calls the FRB bridge directly because the [NightshadeBackend]
 /// abstraction does not yet have a `getDomeCapabilities` method, and adding
@@ -109,7 +109,7 @@ DomeCapabilityFetcher _defaultDomeCapabilityFetcher = (deviceId) async {
 ///
 /// Tests overwrite this in `setUp` to avoid loading the native FFI shim.
 /// The fetcher returns `null` on "capability unknown" and throws on
-/// catastrophic failure â€” the same contract as the other backend.getXCapabilities
+/// catastrophic failure — the same contract as the other backend.getXCapabilities
 /// methods.
 final domeCapabilityFetcherProvider = Provider<DomeCapabilityFetcher>(
   (_) => _defaultDomeCapabilityFetcher,
@@ -145,7 +145,7 @@ DomeCapabilities _fromBridgeDomeCapabilities(bridge_caps.DomeCapabilities src) {
 /// Read a single capability flag from an `AsyncValue<T?>` with fail-CLOSED
 /// semantics. Returns the value of `extract(caps)` when capabilities are
 /// loaded and present; returns `false` when:
-///   * The capability query errored (the bridge threw â€” driver is broken)
+///   * The capability query errored (the bridge threw — driver is broken)
 ///   * The capability query returned null (driver did not report)
 ///
 /// Returns `loadingDefault` (default `false`) while the future is still in
@@ -181,7 +181,7 @@ bool gateCapability<T>(
 /// connected state.
 ///
 /// Why: when a device reconnects (same id, but the driver re-queried), the
-/// reported capability set may have changed â€” e.g., a cooler that was reading
+/// reported capability set may have changed — e.g., a cooler that was reading
 /// `coolerOn: false` on first connect now reads true, or a focuser firmware
 /// flip flipped `tempCompAvailable`. The capability provider caches the result
 /// per family key, so without an invalidate the UI keeps seeing the stale
@@ -259,7 +259,7 @@ void _listenForConnect<T>(
   required void Function(String deviceId) invalidate,
 }) {
   ref.listen<T>(provider, (previous, next) {
-    // Fire only on the disconnected/connecting â†’ connected EDGE so we don't
+    // Fire only on the disconnected/connecting → connected EDGE so we don't
     // thrash the cache on every status tick.
     final wasConnected = previous != null && isConnected(previous);
     final nowConnected = isConnected(next);

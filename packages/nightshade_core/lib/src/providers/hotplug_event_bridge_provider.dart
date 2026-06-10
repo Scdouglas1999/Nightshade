@@ -1,4 +1,4 @@
-﻿// Wave 6B (P2-1) â€” Hot-plug discovery event bridge.
+﻿// Wave 6B (P2-1) — Hot-plug discovery event bridge.
 //
 // The Rust hot-plug watcher in `native/nightshade_native/bridge/src/hotplug.rs`
 // polls the native (vendor SDK) and ASCOM (Windows only) device lists every
@@ -96,7 +96,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
       // regen (see event.rs TODO). The wire shape is:
       //   eventType: 'PropertyChanged'
       //   data.property: 'device_discovered' | 'device_lost'
-      // so a simple eventType filter is not enough â€” we must inspect
+      // so a simple eventType filter is not enough — we must inspect
       // `data.property` to distinguish hot-plug events from the unrelated
       // (and frequent) Mount / Camera / Focuser property-changed traffic.
       if (event.eventType != 'PropertyChanged') return;

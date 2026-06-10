@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../database/daos/science_dao.dart';
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/targets_dao.dart';
 import 'imaging_records_repository.dart';
@@ -31,14 +32,39 @@ class SessionReportService {
   final ImagingRecordsRepository _records;
   final SequenceRunsDao _sequenceRunsDao;
   final TargetsDao _targetsDao;
+  final ScienceDao? _scienceDao;
 
   SessionReportService({
     required ImagingRecordsRepository records,
     required SequenceRunsDao sequenceRunsDao,
     required TargetsDao targetsDao,
+    ScienceDao? scienceDao,
   })  : _records = records,
         _sequenceRunsDao = sequenceRunsDao,
-        _targetsDao = targetsDao;
+        _targetsDao = targetsDao,
+        _scienceDao = scienceDao;
+
+  /// Per-frame REAL SNR from the science pipeline, keyed by captured-image
+  /// id. Fail-soft to empty (science pipeline disabled / table unreadable);
+  /// the background/noise proxy then remains the fallback. The `snr` column
+  /// is non-nullable with a 0.0 default, so defaulted rows (pipeline wrote
+  /// the row but never computed SNR) are skipped rather than treated as a
+  /// genuine reading of zero — mirrors NightAnalysisService._loadScienceSnr.
+  Future<Map<int, double>> _loadScienceSnr(int sessionId) async {
+    final dao = _scienceDao;
+    if (dao == null) return const {};
+    try {
+      final rows = await dao.getFrameQualityMetricsForSession(sessionId);
+      final out = <int, double>{};
+      for (final r in rows) {
+        final id = r.capturedImageId;
+        if (id != null && r.snr > 0) out[id] = r.snr;
+      }
+      return out;
+    } catch (_) {
+      return const {};
+    }
+  }
 
   /// Generate a fresh [SessionReport] for [sessionId].
   ///
@@ -56,7 +82,9 @@ class SessionReportService {
     final lightFrames =
         images.where((i) => i.frameType == 'light').toList(growable: false);
 
-    final targetReports = await _buildTargetReports(lightFrames);
+    final scienceSnrById = await _loadScienceSnr(sessionId);
+    final targetReports =
+        await _buildTargetReports(lightFrames, scienceSnrById);
     final guideStats = _buildGuideStats(lightFrames);
     final mountStats = await _buildMountStats(session);
 
@@ -119,6 +147,7 @@ class SessionReportService {
   /// sessions.
   Future<List<SessionTargetReport>> _buildTargetReports(
     List<CapturedImage> lightFrames,
+    Map<int, double> scienceSnrById,
   ) async {
     if (lightFrames.isEmpty) return const [];
 
@@ -152,7 +181,8 @@ class SessionReportService {
       final filtersMap = entry.value;
       final filterReports = <SessionFilterReport>[];
       for (final fEntry in filtersMap.entries) {
-        filterReports.add(_filterReportFromFrames(fEntry.key, fEntry.value));
+        filterReports.add(
+            _filterReportFromFrames(fEntry.key, fEntry.value, scienceSnrById));
       }
       // Stable order by filter name for diffability between report runs.
       filterReports.sort((a, b) => a.filter.compareTo(b.filter));
@@ -180,6 +210,7 @@ class SessionReportService {
   SessionFilterReport _filterReportFromFrames(
     String filter,
     List<CapturedImage> frames,
+    Map<int, double> scienceSnrById,
   ) {
     final attempted = frames.length;
     final accepted = frames.where((f) => f.isAccepted).toList(growable: false);
@@ -200,21 +231,35 @@ class SessionReportService {
         _meanNonNull(accepted.map((f) => f.guidingRmsTotal));
     final meanSensorTemp = _meanNonNull(accepted.map((f) => f.sensorTemp));
 
-    // SNR proxy: captured_images stores background (mean) and noise (stddev)
-    // from the imaging pipeline. We compute SNR per frame as background/noise
-    // (matches `bridge` event payload), then average. Both fields must be
-    // populated for a frame to contribute.
-    final perFrameSnr = <double>[];
+    // SNR: prefer the science pipeline's REAL per-frame SNR when it exists
+    // for this filter's accepted frames. Only when the science table has
+    // nothing do we fall back to the background/noise PROXY (captured_images
+    // stores background mean and noise stddev from the imaging pipeline) —
+    // and the report flags which one the number is, because the two scales
+    // are not comparable.
+    final scienceSnr = <double>[];
     for (final f in accepted) {
-      final bg = f.background;
-      final n = f.noise;
-      if (bg != null && n != null && n > 0) {
-        perFrameSnr.add(bg / n);
-      }
+      final v = scienceSnrById[f.id];
+      if (v != null) scienceSnr.add(v);
     }
-    final meanSnr = perFrameSnr.isEmpty
-        ? null
-        : perFrameSnr.reduce((a, b) => a + b) / perFrameSnr.length;
+    double? meanSnr;
+    var snrIsProxy = true;
+    if (scienceSnr.isNotEmpty) {
+      meanSnr = scienceSnr.reduce((a, b) => a + b) / scienceSnr.length;
+      snrIsProxy = false;
+    } else {
+      final perFrameSnr = <double>[];
+      for (final f in accepted) {
+        final bg = f.background;
+        final n = f.noise;
+        if (bg != null && n != null && n > 0) {
+          perFrameSnr.add(bg / n);
+        }
+      }
+      meanSnr = perFrameSnr.isEmpty
+          ? null
+          : perFrameSnr.reduce((a, b) => a + b) / perFrameSnr.length;
+    }
 
     // Bucket rejection reasons. Use a placeholder for null/empty so the UI
     // still shows the count.
@@ -236,6 +281,7 @@ class SessionReportService {
       meanFwhm: meanHfr == null ? null : meanHfr * 2.35,
       meanStarCount: meanStarCount,
       meanSnr: meanSnr,
+      snrIsProxy: snrIsProxy,
       meanGuidingRmsTotal: meanGuidingRmsTotal,
       meanSensorTemp: meanSensorTemp,
       rejectionReasons: rejectionReasons,
@@ -530,14 +576,28 @@ class SessionReportService {
         buf.writeln('### ${target.targetName}');
         buf.writeln();
         buf.writeln(
-            '| Filter | Attempted | Accepted | Rejected | Integration | Mean HFR | Mean FWHM | Stars | SNR proxy | Guide RMS |');
+            '| Filter | Attempted | Accepted | Rejected | Integration | Mean HFR | Mean FWHM | Stars | SNR | Guide RMS |');
         buf.writeln(
             '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+        var anyProxySnr = false;
         for (final f in target.filters) {
+          final snrCell = f.meanSnr == null
+              ? '-'
+              : f.snrIsProxy
+                  ? '${formatDouble(f.meanSnr, 1)} *'
+                  : formatDouble(f.meanSnr, 1)!;
+          anyProxySnr = anyProxySnr || (f.meanSnr != null && f.snrIsProxy);
           buf.writeln(
-              '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | ${formatDouble(f.meanSnr, 1) ?? '-'} | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |');
+              '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | $snrCell | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |');
         }
         buf.writeln();
+        if (anyProxySnr) {
+          buf.writeln(
+              '\\* background/noise proxy — the science pipeline did not '
+              'compute real SNR for these frames; not comparable to '
+              'photometric SNR values.');
+          buf.writeln();
+        }
 
         // Rejection rollup, only when there were rejections.
         final rejectionTotals = <String, int>{};

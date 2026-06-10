@@ -337,4 +337,22 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
 
   /// Save a checkpoint of current execution state
   Future<void> saveCheckpoint();
+
+  /// Standalone meridian flip via the canonical native flip engine,
+  /// outside any running sequence. The native side refuses while the
+  /// sequencer is running (the in-sequence trigger owns flips there).
+  Future<void> performMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  });
 }

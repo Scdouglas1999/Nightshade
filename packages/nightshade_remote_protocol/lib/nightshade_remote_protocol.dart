@@ -45,3 +45,22 @@ export 'src/push/push_config.dart';
 export 'src/push/push_jwt.dart';
 export 'src/push/push_token_store.dart';
 export 'src/push/remote_push_delivery.dart';
+
+// v4 couch-grade remote — self-hostable relay tunnel (tools/nightshade_relay).
+// Re-exported so the desktop headless bootstrap (RelayUplink) and the mobile
+// transport (RelayTunnelClient) consume the relay client classes through this
+// package, keeping the wire protocol in one place. The RelayServer itself is
+// only used by the standalone CLI/Docker image and is intentionally NOT
+// re-surfaced here.
+export 'package:nightshade_relay/nightshade_relay.dart'
+    show
+        RelayUplink,
+        RelayUplinkState,
+        RelayUplinkStatus,
+        RelayTunnelClient,
+        RelayTunnelException,
+        RelayCredentials,
+        RelayCredentialsStore,
+        FileRelayCredentialsStore,
+        MemoryRelayCredentialsStore,
+        isValidApplianceId;

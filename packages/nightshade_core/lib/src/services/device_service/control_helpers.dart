@@ -367,6 +367,30 @@ extension _DeviceServiceControlHelpers on DeviceService {
     return 'Position $position';
   }
 
+  /// Resolve the configured focuser offset (steps) for [filterName].
+  ///
+  /// Per-filter autofocus config `focusOffset` takes precedence; otherwise
+  /// the general filter-offset table applies; 0 when unconfigured. Single
+  /// source of truth for both offset application and the connect-time
+  /// baseline seed.
+  int _resolveConfiguredFilterOffset(String filterName) {
+    try {
+      final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+      if (appSettings != null) {
+        final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
+            appSettings.afFilterSettingsJson);
+        final perFilterConfig = afFilterSettings[filterName];
+        if (perFilterConfig != null && perFilterConfig.focusOffset != 0) {
+          return perFilterConfig.focusOffset;
+        }
+      }
+      final filterOffsetState = _ref.read(filterOffsetProvider);
+      return filterOffsetState.offsets[filterName] ?? 0;
+    } on Object {
+      return 0;
+    }
+  }
+
   /// Apply focus offset for a given filter
   ///
   /// Checks if there's a configured offset for this filter and moves
@@ -409,18 +433,7 @@ extension _DeviceServiceControlHelpers on DeviceService {
       }
 
       // Resolve the effective offset for this filter.
-      // Per-filter AF config focusOffset takes precedence if set.
-      int newOffset = 0;
-
-      final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
-          appSettings.afFilterSettingsJson);
-      final perFilterConfig = afFilterSettings[filterName];
-      if (perFilterConfig != null && perFilterConfig.focusOffset != 0) {
-        newOffset = perFilterConfig.focusOffset;
-      } else {
-        final filterOffsetState = _ref.read(filterOffsetProvider);
-        newOffset = filterOffsetState.offsets[filterName] ?? 0;
-      }
+      final newOffset = _resolveConfiguredFilterOffset(filterName);
 
       final filterWheelDeviceId = _ref.read(filterWheelStateProvider).deviceId;
       final offsetKey = filterWheelDeviceId?.isNotEmpty == true
@@ -450,7 +463,17 @@ extension _DeviceServiceControlHelpers on DeviceService {
 
       try {
         await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
-        focuserNotifier.updatePosition(targetPosition);
+        // Verify the focuser actually reached the target before recording
+        // the offset as applied. Recording on send (the old behaviour)
+        // poisons the delta bookkeeping after a stalled/failed move: every
+        // subsequent filter change then computes its delta from an offset
+        // that was never physically applied, walking focus off across the
+        // night with no error anywhere.
+        await _verifyFocuserPosition(
+          deviceId: focuserDeviceId,
+          targetPosition: targetPosition,
+          generation: _focuserVerifyGeneration,
+        );
         _lastAppliedFilterOffsetByWheel[offsetKey] = newOffset;
 
         final loggingService = _ref.read(loggingServiceProvider);
@@ -463,12 +486,24 @@ extension _DeviceServiceControlHelpers on DeviceService {
         focuserNotifier.setMoving(false);
       }
     } catch (e) {
-      // Don't fail filter change if focus offset fails
+      // Don't fail filter change if focus offset fails — but surface it
+      // beyond the log: frames will be soft on this filter until the user
+      // intervenes, which is worth a toast, not just a log line.
       final loggingService = _ref.read(loggingServiceProvider);
       loggingService.error(
         'Failed to apply focus offset for filter "$filterName": $e',
         source: 'DeviceService',
       );
+      try {
+        _ref.read(uiNotificationProvider.notifier).showWarning(
+              'Focus offset for filter "$filterName" failed: $e — frames may '
+              'be out of focus until the focuser is checked.',
+              title: 'Filter Focus Offset Failed',
+            );
+      } on Object {
+        // Notification surface unavailable (headless) — the log entry above
+        // remains the record.
+      }
     }
   }
 }

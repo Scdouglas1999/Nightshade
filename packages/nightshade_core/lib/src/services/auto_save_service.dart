@@ -6,6 +6,7 @@ import '../providers/replay_debug_provider.dart';
 import 'sequence_repository.dart';
 import 'backup_service.dart';
 import 'replay_debug_service.dart';
+import 'sync/sync_service.dart';
 
 /// Configuration for auto-save behavior
 class AutoSaveConfig {
@@ -81,6 +82,12 @@ class AutoSaveService {
   final Future<int> Function()? replayRetentionDays;
   final DateTime Function() clock;
 
+  /// Cloud sync hook — invoked after each SUCCESSFUL automatic backup so
+  /// the opt-in cloud auto-push (SyncService.maybeAutoPush) rides the
+  /// existing daily backup scheduler instead of owning a second timer.
+  /// Errors are swallowed here; the hook records its own failures.
+  final Future<void> Function()? postBackupHook;
+
   AutoSaveConfig _config = const AutoSaveConfig();
   Timer? _sequenceTimer;
   Timer? _backupTimer;
@@ -100,6 +107,7 @@ class AutoSaveService {
     required this.backupService,
     this.replayDebugService,
     this.replayRetentionDays,
+    this.postBackupHook,
     DateTime Function()? clock,
   }) : clock = clock ?? DateTime.now;
 
@@ -317,6 +325,17 @@ class AutoSaveService {
 
         // Clean up old backups
         await _cleanupOldBackups();
+
+        // Cloud sync auto-push (opt-in; no-op unless enabled in settings).
+        final hook = postBackupHook;
+        if (hook != null) {
+          try {
+            await hook();
+          } catch (e) {
+            developer.log('AutoSaveService: post-backup hook failed: $e',
+                name: 'AutoSaveService', level: 900, error: e);
+          }
+        }
       } else {
         developer.log('AutoSaveService: Backup failed: ${result.errorMessage}',
             name: 'AutoSaveService', level: 900);
@@ -482,6 +501,9 @@ final autoSaveServiceProvider = Provider<AutoSaveService>((ref) {
     replayDebugService: replayDebugService,
     replayRetentionDays: () =>
         ref.read(replayDebugRetentionDaysProvider.future),
+    // Cloud sync — opt-in auto-push rides the daily backup cycle.
+    postBackupHook: () =>
+        ref.read(syncServiceProvider).maybeAutoPush(reason: 'daily backup'),
   );
 
   ref.onDispose(() => service.dispose());

@@ -18,8 +18,10 @@ import '../models/phd2_models.dart';
 import '../services/device_service.dart';
 import '../services/logging_service.dart';
 import '../services/phd2_status_poll.dart';
+import '../utils/device_id.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
+import 'ui_notification_provider.dart';
 
 part 'guiding_provider/stats_and_graph.dart';
 part 'guiding_provider/controller.dart';

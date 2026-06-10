@@ -24,7 +24,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         final child = sequence.nodes[childId];
         if (child == null) continue;
         if (child is FilterChangeNode && autoFocusOnFilterChange) {
-          // Look at the next sibling (if any) â€” if it's an AutofocusNode the
+          // Look at the next sibling (if any) — if it's an AutofocusNode the
           // user already arranged for focus to follow the filter change.
           final nextChildId =
               i + 1 < node.childIds.length ? node.childIds[i + 1] : null;
@@ -201,7 +201,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   /// weight [kEtaEmaAlpha].
   ///
   /// Resilient to non-positive samples (e.g., when multiple frames complete
-  /// inside a single timer tick) â€” only positive durations enter the EMA.
+  /// inside a single timer tick) — only positive durations enter the EMA.
   void _recordFrameDurationSample(double secsForFrame) {
     if (!secsForFrame.isFinite || secsForFrame <= 0) return;
     _frameDurations.addLast(secsForFrame);
@@ -233,7 +233,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   ///
   /// Detects newly-completed frames since the last call and feeds their
   /// per-frame elapsed delta into [_recordFrameDurationSample]. Returns
-  /// the predicted remaining seconds = EMA-secs-per-frame Ã— frames-left,
+  /// the predicted remaining seconds = EMA-secs-per-frame × frames-left,
   /// or `null` when no frames have completed yet (so the UI can show
   /// `--` instead of misleading garbage).
   double? _computeSmoothedEta(double elapsedSecs, SequenceProgress progress) {
@@ -408,7 +408,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'title': n.title,
           'message': n.message,
           'level': _notificationLevelToString(n.level),
-          // Wave 5 Agent 5 â€” pass the per-node transport override through
+          // Wave 5 Agent 5 — pass the per-node transport override through
           // to the Rust executor as a Custom-event `data` field so the
           // Dart-side notification router can honour it.
           if (n.explicitTransports != null)
@@ -435,7 +435,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'start_after': n.startAfter?.millisecondsSinceEpoch,
           'end_before': n.endBefore?.millisecondsSinceEpoch,
           'mosaic_panel': n.mosaicPanel?.toJson(),
-          // Wave 8 â€” adaptive swap brightness tier hint. Lowercase wire
+          // Wave 8 — adaptive swap brightness tier hint. Lowercase wire
           // string ('faint'/'medium'/'bright'); `null` => scheduler
           // infers (defaults to medium inside the decision engine).
           'brightness_tier_hint': n.brightnessTierHint?.wireValue,
@@ -524,7 +524,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       case RecoveryNode n:
         // Wave 1.5 Pack A: send the user-configured trigger to Rust. The
         // previous hardcoded `'trigger': null` meant the recovery node
-        // matched ANY error, regardless of the UI selection â€” making the
+        // matched ANY error, regardless of the UI selection — making the
         // trigger-type dropdown a placebo. `toRustTriggerConfig()` mirrors
         // the Rust serde-tagged `Option<TriggerType>` shape.
         return {
@@ -597,7 +597,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'finish_iteration_on_switch': n.finishIterationOnSwitch,
           // Hard moon-avoidance gate (degrees). null => no hard gate.
           'min_moon_separation_deg': n.minMoonSeparationDeg,
-          // Wave 8 â€” adaptive sky-conditions swap. `null` swap threshold
+          // Wave 8 — adaptive sky-conditions swap. `null` swap threshold
           // disables the feature for this scheduler instance.
           'swap_on_conditions_below': n.swapOnConditionsBelow,
           'swap_hysteresis_secs': n.swapHysteresisSecs,
@@ -613,7 +613,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
                       .toList(),
                 },
         };
-      // Wave 7 Science: SciencePhotometry â€” cadence-enforced photometric capture.
+      // Wave 7 Science: SciencePhotometry — cadence-enforced photometric capture.
       case SciencePhotometryNode n:
         return {
           'type': 'SciencePhotometry',
@@ -622,7 +622,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       // Wave 3 Agent 2: SmartExposure multi-filter container instruction.
       case SmartExposureNode n:
         // Auto-resolve the filter index from the active equipment profile
-        // when the row was authored without one â€” matches the
+        // when the row was authored without one — matches the
         // auto-population that ExposureNode and FilterChangeNode already
         // do. Persisting the resolved index makes the executor's
         // ChangeFilter step robust to filter-name typos at runtime.
@@ -650,7 +650,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'batch_size': n.batchSize,
           'loop_until_stopped': n.loopUntilStopped,
         };
-      // Audit Â§11 â€” plugin-contributed instruction. We forward the
+      // Audit §11 — plugin-contributed instruction. We forward the
       // plugin id, node-type id, opaque config JSON, optional display
       // name, and optional per-node timeout verbatim. The Rust executor
       // does NOT introspect `config_json`; when execution reaches this
@@ -666,7 +666,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'display_name': n.name,
           'timeout_secs': n.timeoutSecs,
         };
-      // Wave 7 Agent 2: LiveStacking â€” broadcast / EAA node. The Rust
+      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node. The Rust
       // side serialises field names in snake_case so we mirror that
       // here. `auth_token` and `watermark_text` are emitted as `null`
       // (vs. omitted) for round-trip fidelity with the Rust
@@ -698,7 +698,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   ///    quick-start wizard / canonical importers that opt in), the effective
   ///    `globalMeridianFlipSettingsProvider` snapshot is the source of truth.
   ///    The 16 settings in Sequencer Settings -> Meridian Flip therefore
-  ///    drive node behavior at execution time (audit Â§1.2).
+  ///    drive node behavior at execution time (audit §1.2).
   /// 2. When `node.useGlobalDefaults == false` (user-edited or legacy nodes),
   ///    the per-node fields take priority. The global retry-delays / tracking
   ///    wait minutes still flow through because the node model doesn't carry
@@ -735,7 +735,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       'minutes_before_limit': minutesBeforeLimit,
       'hour_angle_threshold': hourAngleThreshold,
       // Why: only the global model carries tracking-limit wait minutes and
-      // retry delays â€” the per-node fields never existed. These are required
+      // retry delays — the per-node fields never existed. These are required
       // by MeridianFlipConfig regardless of useGlobalDefaults.
       'tracking_limit_wait_minutes': global.trackingLimitWaitMinutes,
       'pause_guiding': pauseGuiding,
@@ -883,14 +883,14 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return 'ParkAndAbort';
       case RecoveryActionType.customBranch:
         return 'CustomBranch';
-      // Wave 5 Agent 4 â€” cloud-motion-aware recovery actions. Names match
+      // Wave 5 Agent 4 — cloud-motion-aware recovery actions. Names match
       // the Rust enum variants so the deserialiser in nightshade_sequencer
       // accepts the bare-string form.
       case RecoveryActionType.pauseAndWaitForClear:
         return 'PauseAndWaitForClear';
       case RecoveryActionType.slewToGapAndContinue:
         return 'SlewToGapAndContinue';
-      // Wave 7 Science â€” transparency-adaptive recovery. Bare-string
+      // Wave 7 Science — transparency-adaptive recovery. Bare-string
       // form because the Rust variant has no payload.
       case RecoveryActionType.switchTargetOrFilter:
         return 'SwitchTargetOrFilter';
@@ -901,7 +901,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   /// (structural + ref-aware + async). This is the single source of truth
   /// for "is this sequence safe to start?".
   ///
-  /// Audit C3 â€” before this consolidation, `start()` only ran the pure
+  /// Audit C3 — before this consolidation, `start()` only ran the pure
   /// structural rules (`defaultSequenceValidators`), so equipment-
   /// connection, disk-space, dark-library, and pre-flight equipment-
   /// health rules were silently skipped for any start path that did not

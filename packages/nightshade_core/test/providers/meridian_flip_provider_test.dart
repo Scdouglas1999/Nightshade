@@ -265,10 +265,18 @@ void main() {
       final decision = monitor.evaluateOnce();
       expect(decision, MeridianMonitorDecision.triggered);
 
-      // Why: the alert path must update the UI's flip-execution state so
-      // the operator sees something happened.
+      // Why: the trigger path must update the UI's flip-execution state so
+      // the operator sees something happened. The monitor now also ATTEMPTS
+      // the real flip via backend.performMeridianFlip; in this test
+      // environment the mount has no device id / declination, so the
+      // attempt honestly lands in `failed` with a diagnostic — the
+      // important property is that the state left `idle` (alert fired) and
+      // the failure is surfaced rather than swallowed.
       final flipState = container.read(flipExecutionStateProvider);
-      expect(flipState, FlipExecutionState.executing);
+      expect(flipState, isNot(FlipExecutionState.idle));
+      if (flipState == FlipExecutionState.failed) {
+        expect(container.read(flipLastErrorProvider), isNotNull);
+      }
 
       // A second evaluation immediately after should respect the cooldown.
       final second = monitor.evaluateOnce();

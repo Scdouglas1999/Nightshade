@@ -151,7 +151,7 @@ class DefaultScienceBackend implements ScienceBackend {
         await measureStars(imagePath, const PhotometryOptions(minSnr: 5.0));
     // WHY: writing a sentinel-RMS isCalibrated:false row would let downstream
     // aggregations (transparency confidence, observation reports) treat the
-    // row as data. Returning null instead means no DB row is inserted â€”
+    // row as data. Returning null instead means no DB row is inserted —
     // "not calibrated" is encoded by absence, not by a fabricated metric.
     if (stars.length < 8) {
       return null;
@@ -244,7 +244,7 @@ class DefaultScienceBackend implements ScienceBackend {
       limitingMag3Sigma: lim3,
       limitingMag5Sigma: lim5,
       matchedStarCount: clipped.length,
-      // WHY: do NOT cap RMS at a sentinel ceiling â€” that would hide poor fits
+      // WHY: do NOT cap RMS at a sentinel ceiling — that would hide poor fits
       // from observation-report aggregates and the science insights panel.
       // High RMS is real data; downstream code already thresholds at 0.2.
       calibrationRms: rms,
@@ -313,9 +313,9 @@ class DefaultScienceBackend implements ScienceBackend {
       extinction = math.max(0.0, -slope);
 
       // Transparency = how much the ACTUAL latest ZP deviates from what
-      // the airmass model PREDICTS.  A clear sky gives residual â‰ˆ 0 â†’
+      // the airmass model PREDICTS.  A clear sky gives residual â‰ˆ 0 →
       // transparency â‰ˆ 100%, regardless of airmass.  Clouds / haze push
-      // the actual ZP below the prediction â†’ transparency < 100%.
+      // the actual ZP below the prediction → transparency < 100%.
       final currentAirmass = withAirmass.last.airmass!.clamp(1.0, 5.0);
       final predictedZp = intercept + slope * currentAirmass;
       final actualZp = withAirmass.last.zeroPoint!;
@@ -512,7 +512,7 @@ class DefaultScienceBackend implements ScienceBackend {
         _deltaMinutes(firstFits.dateObs, lastFits.dateObs, imagePaths.length);
 
     // When 3+ frames are available, measure the middle frame for linear
-    // motion validation â€” a candidate must also appear near the
+    // motion validation — a candidate must also appear near the
     // interpolated position in this frame.
     final midIndex = imagePaths.length ~/ 2;
     final bool hasMiddleFrame = imagePaths.length >= 3 &&

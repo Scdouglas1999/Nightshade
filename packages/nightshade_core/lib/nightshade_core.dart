@@ -189,6 +189,7 @@ export 'src/providers/sequence/exposure_node_thumbnails_provider.dart';
 // (from nightshade_plugins) via `pluginNodeDispatcherOverride()`.
 export 'src/providers/plugin_node_dispatcher.dart';
 export 'src/providers/session_report_provider.dart';
+export 'src/providers/secondary_rig_provider.dart';
 export 'src/providers/campaign_rollup_provider.dart';
 export 'src/providers/import_provider.dart';
 export 'src/providers/session_provider.dart';
@@ -387,6 +388,11 @@ export 'src/services/sky_brightness_tracker.dart';
 export 'src/services/flat_exposure_calculator.dart';
 export 'src/services/backup_service.dart';
 export 'src/services/auto_save_service.dart';
+// Cloud backup/sync — bundle-based push/pull of configuration across
+// machines via WebDAV (Nextcloud / generic). Reuses BackupService bundles.
+export 'src/services/sync/sync_target.dart';
+export 'src/services/sync/webdav_sync_target.dart';
+export 'src/services/sync/sync_service.dart';
 // P2-11 — plugin management (upload/enable/disable/uninstall)
 export 'src/services/plugin_management_service.dart';
 export 'src/services/notification_service.dart';
@@ -412,6 +418,15 @@ export 'src/services/notification/transports/system_push_transport.dart';
 export 'src/services/notification/transports/telegram_transport.dart';
 export 'src/services/notification/transports/webhook_transport.dart';
 export 'src/providers/notification_router_provider.dart';
+
+// v4 couch-grade remote — Home Assistant MQTT auto-discovery.
+//   * Observatory surfaces as one HA device (sensors + binary sensors,
+//     optional pause/abort controls) over the notification transport's
+//     MQTT broker.
+export 'src/services/home_assistant/home_assistant_discovery_config.dart';
+export 'src/services/home_assistant/home_assistant_discovery_service.dart';
+export 'src/services/home_assistant/ha_discovery_payloads.dart';
+export 'src/providers/home_assistant_provider.dart';
 export 'src/services/critical_alert_player.dart';
 export 'src/services/session_export_service.dart';
 export 'src/services/session_report_service.dart';
@@ -521,6 +536,12 @@ export 'src/database/daos/mosaic_projects_dao.dart';
 export 'src/database/daos/mosaic_panels_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
+// Calibration Library Manager (v46): unified browse / tag / auto-match over
+// dark_library, flat_library, and defect_maps + the calibration_tags layer.
+export 'src/models/calibration/calibration_library_models.dart';
+export 'src/services/calibration/fits_header_reader.dart';
+export 'src/services/calibration_library_service.dart';
+export 'src/database/daos/calibration_tags_dao.dart';
 export 'src/services/disk_space_service.dart';
 export 'src/services/disk_space_guard.dart';
 export 'src/services/safe_rig_service.dart';

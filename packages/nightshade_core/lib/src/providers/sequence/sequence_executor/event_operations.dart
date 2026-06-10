@@ -125,7 +125,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         );
         if (name != null && ra != null && dec != null) {
           _logger.debug(
-            'Target changed: $name (RA=${ra.toStringAsFixed(4)}h, Dec=${dec.toStringAsFixed(4)}Â°)',
+            'Target changed: $name (RA=${ra.toStringAsFixed(4)}h, Dec=${dec.toStringAsFixed(4)}°)',
             source: 'SequenceExecutor',
           );
           final sessionNotifier = _ref.read(sessionStateProvider.notifier);
@@ -270,7 +270,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameAccepted':
-        // Wave 6 Pack P â€” the Rust grader now ships `save_path` for
+        // Wave 6 Pack P — the Rust grader now ships `save_path` for
         // accepted frames as well (it already did for rejected
         // frames). The thumbnail strip uses the on-disk path to load
         // an inline preview the same way it does for rejected frames
@@ -290,7 +290,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameRejected':
-        // Wave 6 Thumbnails â€” same as FrameAccepted, but with the
+        // Wave 6 Thumbnails — same as FrameAccepted, but with the
         // reject_path the Rust grader already ships so the strip can
         // surface a "REJECTED" tile that opens the actual file when
         // tapped.
@@ -302,7 +302,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'PluginNodeRequested':
-        // Wave 6 Pack P â€” the Rust executor reached a
+        // Wave 6 Pack P — the Rust executor reached a
         // `NodeType::PluginNode` and is waiting for us to run the
         // plugin and reply with the verdict. Route through the
         // dispatcher provider (overridden by the app layer to plug in
@@ -313,7 +313,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'PluginNodeProgress':
-        // Wave 6 Pack P â€” informational; plugin-authored intermediate
+        // Wave 6 Pack P — informational; plugin-authored intermediate
         // progress payload. The run dashboard's plugin-node panel
         // listens via its own provider; the sequence executor just
         // logs it so the timeline has the breadcrumb.
@@ -327,7 +327,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'DecisionLogged':
-        // Wave 8 Replay Debug â€” persist the structured decision into
+        // Wave 8 Replay Debug — persist the structured decision into
         // the `sequence_decisions` Drift table so the Replay screen
         // can scrub through the run later.
         _persistReplayDecision(event);
@@ -335,7 +335,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     }
   }
 
-  /// Wave 8 Replay Debug â€” persist a `DecisionLogged` payload into
+  /// Wave 8 Replay Debug — persist a `DecisionLogged` payload into
   /// the `sequence_decisions` table via the [ReplayDebugService].
   /// `unawaited` because the executor's event loop must keep pumping;
   /// the service handles its own change-notification, and a write
@@ -362,7 +362,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final rustRunId = event.data['sequence_run_id'] as int?;
     final effectiveRunId = rustRunId ?? _ref.read(currentRunIdProvider);
     if (effectiveRunId == null) {
-      // No active run id â€” the very first lifecycle "Sequence started"
+      // No active run id — the very first lifecycle "Sequence started"
       // decision falls into this window before the Dart row insert
       // completes. We intentionally drop these so the replay log never
       // has dangling rows that can't be joined back to a run.
@@ -394,7 +394,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     );
   }
 
-  /// Wave 6 Pack P â€” route a `PluginNodeRequested` event into the
+  /// Wave 6 Pack P — route a `PluginNodeRequested` event into the
   /// configured dispatcher and post the verdict back through the
   /// bridge.
   ///
@@ -404,7 +404,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   ///     the executor unblocks instead of timing out at the 10-minute
   ///     default.
   ///   * The verdict is posted via
-  ///     `backend.sequencerPluginNodeFinished` â€” same channel pattern
+  ///     `backend.sequencerPluginNodeFinished` — same channel pattern
   ///     as every other sequencer command.
   ///   * We fire-and-forget; the caller (`_handleSequencerEvent`)
   ///     returns immediately so other events keep flowing.
@@ -482,7 +482,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       } catch (e, st) {
         // The reply itself failed. The Rust executor will time out
         // the node at the configured timeout and surface its own
-        // error â€” but we log loudly here so the operator sees the
+        // error — but we log loudly here so the operator sees the
         // cause-of-cause.
         _logger.error(
           'Failed to deliver plugin node verdict for $pluginId/$nodeTypeId '
@@ -495,7 +495,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     }());
   }
 
-  /// Wave 6 Thumbnails â€” translate a typed FrameAccepted / FrameRejected
+  /// Wave 6 Thumbnails — translate a typed FrameAccepted / FrameRejected
   /// event into a captured_images row tagged with the producing node id.
   /// Fire-and-forget; failures are logged so the strip's "errors are a
   /// feature" contract holds, but they never block the run.
@@ -506,7 +506,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   }) {
     final nodeId = event.data['node_id'] as String?;
     if (nodeId == null || nodeId.isEmpty) {
-      // No producing node â€” typically a wizard-driven capture (flat
+      // No producing node — typically a wizard-driven capture (flat
       // wizard, polar-align). Nothing for the sequence-tree strip to
       // hang the row off of, so we skip.
       return;
@@ -514,7 +514,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final hfr = (event.data['hfr'] as num?)?.toDouble();
     final eccentricity = (event.data['eccentricity'] as num?)?.toDouble();
     final starCount = event.data['star_count'] as int?;
-    // Wave 6 Pack P â€” accepted frames now carry the on-disk save_path
+    // Wave 6 Pack P — accepted frames now carry the on-disk save_path
     // alongside the existing rejected-frame reject_path. The thumbnail
     // strip uses whichever field is populated to load the inline
     // preview. `save_path` may legitimately be null on legacy emit
@@ -561,7 +561,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           fileName: fileName,
           fileFormat:
               filePath.toLowerCase().endsWith('.xisf') ? 'xisf' : 'fits',
-          // Real exposure length from the producing ExposureNode â€”
+          // Real exposure length from the producing ExposureNode —
           // (see the resolved `attribution` above; column is NOT NULL).
           exposureDuration: attribution.exposureSecs ?? 0.0,
           targetId: attribution.targetId,
@@ -673,7 +673,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     unawaited(
       _ref.read(sequenceRunsDaoProvider).finishRun(runId, status, statsJson),
     );
-    // Wave 5.5 â€” surface post-session diagnostics + clear the
+    // Wave 5.5 — surface post-session diagnostics + clear the
     // NotificationRouter override. `_finalizeRun` already early-returns
     // when called twice so these hooks fire exactly once per run.
     _captureSessionEndHooks();
@@ -907,7 +907,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   }
 
   // =========================================================================
-  // Wave 5.5 â€” session lifecycle hooks
+  // Wave 5.5 — session lifecycle hooks
   // =========================================================================
 
   /// Capture the optical-train baseline + register the active sequence

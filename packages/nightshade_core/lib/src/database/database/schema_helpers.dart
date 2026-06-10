@@ -618,6 +618,29 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// v46 (Calibration Library Manager): user tags / notes plus the
+  /// FITS-enriched camera-id cache, keyed by `(master_type, master_id)`
+  /// where `master_id` is the row id in the artifact's source table
+  /// (`dark_library` / `flat_library` / `defect_maps`). Raw DDL + plain
+  /// [CalibrationTagsDao], mirroring [FlatLibraryDao].
+  Future<void> _createCalibrationTagsTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS calibration_tags('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'master_type TEXT NOT NULL,'
+      'master_id INTEGER NOT NULL,'
+      "tags_json TEXT NOT NULL DEFAULT '[]',"
+      'notes TEXT,'
+      'camera_id TEXT,'
+      'updated_at INTEGER NOT NULL,'
+      'UNIQUE(master_type, master_id))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_calibration_tags_camera '
+      'ON calibration_tags (camera_id)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

@@ -31,6 +31,11 @@ class GuideStar {
   /// or `null` before the star has been matched at least once.
   final double? residual;
 
+  /// Relative weight this star carries in the sigma-clipped weighted centroid
+  /// (flux/SNR derived). Higher = a brighter, cleaner star that pulls the
+  /// aggregate guide offset harder. 0.0 when the native guider did not supply it.
+  final double weight;
+
   const GuideStar({
     required this.id,
     required this.x,
@@ -39,6 +44,7 @@ class GuideStar {
     this.snr = 0.0,
     this.isLock = false,
     this.residual,
+    this.weight = 0.0,
   });
 
   /// Decode one star from the native `#[frb(ignore)]` JSON shape. Tolerant of
@@ -55,6 +61,7 @@ class GuideStar {
       snr: (json['snr'] as num?)?.toDouble() ?? 0.0,
       isLock: isLock is bool ? isLock : isLock == true,
       residual: residual == null ? null : (residual as num).toDouble(),
+      weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -66,6 +73,7 @@ class GuideStar {
         'snr': snr,
         'is_lock': isLock,
         'residual': residual,
+        'weight': weight,
       };
 
   @override
@@ -77,10 +85,12 @@ class GuideStar {
       other.flux == flux &&
       other.snr == snr &&
       other.isLock == isLock &&
-      other.residual == residual;
+      other.residual == residual &&
+      other.weight == weight;
 
   @override
-  int get hashCode => Object.hash(id, x, y, flux, snr, isLock, residual);
+  int get hashCode =>
+      Object.hash(id, x, y, flux, snr, isLock, residual, weight);
 }
 
 /// Decode the per-star tracked-star list from a raw value that may be either a

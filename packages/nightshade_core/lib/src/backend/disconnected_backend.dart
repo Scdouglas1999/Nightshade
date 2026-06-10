@@ -743,6 +743,24 @@ class DisconnectedBackend
   }
 
   @override
+  Future<void> performMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> discardCheckpoint() async {
     _throwNotConnected();
   }

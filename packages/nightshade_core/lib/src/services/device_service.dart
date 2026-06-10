@@ -356,6 +356,14 @@ class DeviceService {
   Future<void> disconnectFilterWheel() => _disconnectFilterWheel();
   Future<void> connectGuider(String deviceId) => _connectGuider(deviceId);
   Future<void> disconnectGuider() => _disconnectGuider();
+
+  /// Whether [deviceId]'s most recent disconnect was user-initiated (within
+  /// the coordinator's debounce window). Exposed so external watchers —
+  /// e.g. the PHD2 controller's crash-relaunch path — can distinguish a
+  /// deliberate disconnect from a process/link loss.
+  bool isUserInitiatedDisconnect(String deviceId) =>
+      _reconnectCoordinator.isUserInitiatedDisconnect(deviceId);
+
   Future<void> connectDome(String deviceId) => _connectDome(deviceId);
   Future<void> disconnectDome() => _disconnectDome();
   Future<void> connectWeather(String deviceId) => _connectWeather(deviceId);

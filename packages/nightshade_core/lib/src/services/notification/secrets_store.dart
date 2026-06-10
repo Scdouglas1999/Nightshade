@@ -52,6 +52,11 @@ abstract class SecretField {
   static const String telegramBotToken = 'telegram.bot_token';
   static const String discordWebhookUrl = 'discord.webhook_url';
   static const String mqttPassword = 'mqtt.password';
+
+  /// Cloud backup/sync — WebDAV password for the configured sync target
+  /// (see `services/sync/sync_service.dart`). Lives here so it rides the
+  /// same keyring-backed store as the other transport secrets.
+  static const String cloudSyncPassword = 'sync.webdav_password';
 }
 
 /// Minimal interface for the backing secure-storage implementation.

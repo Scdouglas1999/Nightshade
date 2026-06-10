@@ -1,4 +1,4 @@
-﻿// Wave 5.5 â€” provider wiring for the USB / device disconnect log.
+﻿// Wave 5.5 — provider wiring for the USB / device disconnect log.
 //
 // The log itself is a plain `UsbDisconnectLog` value object; this file
 // supplies the Riverpod plumbing that:
@@ -10,7 +10,7 @@
 //      list stays bounded for long unattended sessions.
 //
 // The bridge provider (`usbDisconnectEventBridgeProvider`) MUST be
-// `ref.watch`-ed somewhere in the widget tree to stay alive â€” same
+// `ref.watch`-ed somewhere in the widget tree to stay alive — same
 // pattern as `recoveryEventBridgeProvider`. The Run Dashboard
 // scaffolding does this so the log is populated as soon as the app
 // boots, independent of whether a sequence is running.
@@ -77,7 +77,7 @@ final usbDisconnectEventBridgeProvider = Provider<void>((ref) {
       );
     },
     onError: (Object error) {
-      // Log-only â€” a stream error must not block subsequent events.
+      // Log-only — a stream error must not block subsequent events.
       developer.log(
         '[UsbDisconnectEventBridge] Event stream error: $error',
         name: 'UsbDisconnectEventBridge',
@@ -87,7 +87,7 @@ final usbDisconnectEventBridgeProvider = Provider<void>((ref) {
     },
   );
 
-  // Periodic prune â€” 5 minutes is generous because the read paths
+  // Periodic prune — 5 minutes is generous because the read paths
   // already prune on demand. This only matters for very long unattended
   // sessions that never query the log.
   final pruneTimer = Timer.periodic(

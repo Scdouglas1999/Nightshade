@@ -268,6 +268,14 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         'confidence=${decision.confidence?.toStringAsFixed(3) ?? "n/a"})',
         source: 'DeviceService',
       );
+      // Surface the consultation for the focus UI — the model used to
+      // train and predict entirely silently.
+      _ref.read(lastPredictiveAfStatusProvider.notifier).state =
+          PredictiveAfStatus(
+        at: DateTime.now(),
+        filterName: filterName,
+        decision: decision,
+      );
       return _PredictiveAfContext(
         profileId: profileId,
         filterName: filterName,
@@ -335,6 +343,16 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         '${temperature.toStringAsFixed(2)}C).',
         source: 'DeviceService',
       );
+
+      // Complete the UI status with the converged position so the card can
+      // show prediction-vs-actual error.
+      final lastStatus = _ref.read(lastPredictiveAfStatusProvider);
+      if (lastStatus != null &&
+          lastStatus.filterName == context.filterName &&
+          lastStatus.actualPosition == null) {
+        _ref.read(lastPredictiveAfStatusProvider.notifier).state =
+            lastStatus.withActual(result.bestPosition);
+      }
 
       final predicted = context.predictedPosition;
       if (predicted != null) {

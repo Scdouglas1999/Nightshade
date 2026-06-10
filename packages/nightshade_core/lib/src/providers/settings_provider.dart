@@ -15,7 +15,7 @@ import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
 
 // ============================================================================
-// Section parts â€” AppSettingsNotifier is split across multiple `part` files
+// Section parts — AppSettingsNotifier is split across multiple `part` files
 // under `settings_sections/`. Each section file holds the public setters for
 // one UI / domain section. This keeps each section file â‰¤ ~250 LOC and lets
 // new settings land next to their siblings rather than in a 3900-line conflict
@@ -27,7 +27,7 @@ import '../models/imaging/imaging_models.dart'
 //     coordinating writes across multiple notifiers would re-introduce the
 //     same coupling without the benefit of separation;
 //   * the remote-sync subscription in `build()` applies per-field
-//     `settings.changed` events to one in-memory state â€” splitting the
+//     `settings.changed` events to one in-memory state — splitting the
 //     notifier would force every section notifier to mirror that wiring;
 //   * `part of` lets section files share the notifier's private helpers
 //     (`_saveSetting`, `_patchState`, `_unset`, parse helpers) without
@@ -66,18 +66,18 @@ part 'settings_sections/app_settings_partial_persistence_mapping.dart';
 part 'settings_sections/app_settings_notifier.dart';
 
 // ============================================================================
-// Wave 5 Agent 3 â€” Pre-flight strictness
+// Wave 5 Agent 3 — Pre-flight strictness
 // ============================================================================
 
 /// Pre-flight validation strictness mode. Tunes how aggressively the
 /// pre-flight dialog should warn (or block) on questionable conditions:
 ///
-///   * [lax]     â€” only obvious hardware errors block. Missing darks, stale
+///   * [lax]     — only obvious hardware errors block. Missing darks, stale
 ///                 polar alignment, mild time drift all surface as `info`.
 ///                 Suitable for "experienced user, knows what they're doing".
-///   * [normal]  â€” default. Missing darks / stale alignment / cooler ambient
+///   * [normal]  — default. Missing darks / stale alignment / cooler ambient
 ///                 issues become `warning`. Sequence can still start.
-///   * [strict]  â€” production / unattended imaging. Missing darks and stale
+///   * [strict]  — production / unattended imaging. Missing darks and stale
 ///                 polar alignment become `error` (sequence won't start).
 ///                 Time-sync drift > 30 s is always an error regardless of
 ///                 strictness (it would falsify FITS timestamps).
@@ -139,7 +139,7 @@ PreflightStrictness _parsePreflightStrictness(String? value) {
 /// Runtime, in-memory application-settings state owned by
 /// [AppSettingsNotifier]. Distinct from the persisted/freezed
 /// `AppSettings` model in `models/settings/app_settings.dart`, which is the
-/// Pack G â€” sentinel used by `AppSettingsState.copyWith` to distinguish
+/// Pack G — sentinel used by `AppSettingsState.copyWith` to distinguish
 /// "no change" from "explicitly clear the nullable field". Dart's
 /// `T?` parameter cannot express both "leave alone" and "set to null"
 /// without this trick. Keep this private to the file so callers always
@@ -147,7 +147,7 @@ PreflightStrictness _parsePreflightStrictness(String? value) {
 const Object _unset = Object();
 
 /// Rust-bridge / JSON-persisted snapshot. Renamed from `AppSettings` to
-/// disambiguate (audit-arch Â§2.2).
+/// disambiguate (audit-arch §2.2).
 
 /// Main app settings provider
 final appSettingsProvider =
@@ -159,7 +159,7 @@ final appSettingsProvider =
 ///
 /// The same value is consumed by the Run Dashboard's "time-to-set"
 /// statistic and by the planetarium target-card so both surfaces display
-/// the same number to the second. Falls back to 0Â° (mathematical horizon)
+/// the same number to the second. Falls back to 0° (mathematical horizon)
 /// before settings have loaded.
 final effectiveHorizonDegProvider = Provider<double>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;

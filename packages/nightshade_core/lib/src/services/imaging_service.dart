@@ -169,6 +169,7 @@ class ImagingService {
         // Start the real exposure via backend with gain/offset from UI settings
         // This call may block until the exposure completes (depending on backend)
         // Events are published during the exposure, so the listener above catches them
+        final exposureStartedAt = DateTime.now();
         await backend.cameraStartExposure(
           deviceId: deviceId,
           exposureTime: settings.exposureTime,
@@ -182,11 +183,13 @@ class ImagingService {
 
         // Wait for exposure completion event OR timeout
         // The Completer is completed by the event listener above
+        var exposureTimedOut = false;
         final completed = await exposureCompleter.future.timeout(
           timeoutDuration,
           onTimeout: () {
             // Timeout - exposure took too long, warn user but still try to retrieve image
             // Events may have been missed but image could still be available
+            exposureTimedOut = true;
             _logger.warning('Exposure timeout reached, checking for image...',
                 source: 'ImagingService');
             _ref.read(uiNotificationProvider.notifier).showWarning(
@@ -205,6 +208,20 @@ class ImagingService {
           cameraNotifier.setExposing(false);
           progressNotifier.reset();
           return null;
+        }
+
+        if (exposureTimedOut) {
+          // The camera may genuinely still be mid-exposure (the event was
+          // not merely lost). Abort it so the NEXT frame cannot collide
+          // with a stuck one — aborting an already-complete exposure is a
+          // harmless no-op on every backend.
+          try {
+            await backend.cameraAbortExposure(deviceId);
+          } catch (e) {
+            _logger.warning(
+                'Abort after exposure timeout failed (camera may be disconnected): $e',
+                source: 'ImagingService');
+          }
         }
 
         // Update to downloading state
@@ -249,6 +266,20 @@ class ImagingService {
         }
         _logger.debug('Timestamp parsed: $captureTimestamp',
             source: 'ImagingService');
+
+        if (exposureTimedOut &&
+            captureTimestamp.isBefore(
+                exposureStartedAt.subtract(const Duration(seconds: 5)))) {
+          // After a timeout, the "last image" can be the PREVIOUS frame
+          // still sitting in the camera buffer. Saving it would silently
+          // duplicate an old exposure under new metadata — fail loudly
+          // instead so the user/sequencer knows this frame was lost.
+          throw Exception(
+            'Exposure timed out and the camera returned a stale image '
+            '(captured ${captureTimestamp.toIso8601String()}, exposure '
+            'started ${exposureStartedAt.toIso8601String()}). Frame discarded.',
+          );
+        }
 
         // IMMEDIATELY create CapturedImageData and update providers
         // This ensures the UI shows the image even if file saving fails

@@ -100,24 +100,24 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // / dither / location / filter-offsets values instead of the Rust
     // defaults (autofocus_interval_frames=25, dither pixels=5, location 0/0,
     // empty filter offsets). Previously these were only pushed by the live
-    // settings watchers, which fire only on subsequent changes â€” so a
+    // settings watchers, which fire only on subsequent changes — so a
     // headless start that never visits the Settings UI ran with the wrong
     // cadence silently. Failures are surfaced (not swallowed); a bad seed
     // means the user wants those values to apply and we must abort start
     // rather than run with the wrong cadence.
     await _seedRuntimeConfigFromSettings(backend);
 
-    // Wave 7.5 â€” consult the session-handoff decision for every
+    // Wave 7.5 — consult the session-handoff decision for every
     // TargetHeader with an `integrationBudget` configured. The operator's
     // pre-flight decision (Resume / Restart / Continue New) decides how
     // the Rust `BudgetRegistry` is seeded for this run.
     //
-    // Resume      â†’ pre-credit per-filter integration from the prior
+    // Resume      → pre-credit per-filter integration from the prior
     //               session's carry-over so "Lum: 4h done / 8h target"
     //               persists into the new run.
-    // Restart     â†’ push an empty per-filter map so any stale checkpoint
+    // Restart     → push an empty per-filter map so any stale checkpoint
     //               carry-over is overwritten with zeros.
-    // ContinueNew â†’ omit the target (default behaviour: tracker starts
+    // ContinueNew → omit the target (default behaviour: tracker starts
     //               from zero without zeroing prior state).
     //
     // Done AFTER `_seedRuntimeConfigFromSettings` so the carry-over write
@@ -146,7 +146,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// Why one method instead of inline: keeps the start path readable and
   /// makes the same seed sequence reusable from the headless start path
   /// (`DeviceService.sequencerStart`) once it grows past the simple wrapper.
-  /// Each push is independent â€” a failure on one field still attempts the
+  /// Each push is independent — a failure on one field still attempts the
   /// next, but the first failure is rethrown after the batch so the caller
   /// learns about the misconfiguration before sequencerStart() runs.
   Future<void> _seedRuntimeConfigFromSettings(NightshadeBackend backend) async {
@@ -244,7 +244,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G â€” default image-grading thresholds + reject folder. Without
+    // Pack G — default image-grading thresholds + reject folder. Without
     // this seed the executor's RuntimeConfig stays at the all-None
     // default and "Enable image grading" in Settings has no effect on the
     // next sequence start.
@@ -273,7 +273,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G â€” reject folder path.
+    // Pack G — reject folder path.
     try {
       final settings = _ref.read(appSettingsProvider).valueOrNull;
       if (settings != null) {
@@ -294,7 +294,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G â€” observer / equipment identification so FITS headers carry
+    // Pack G — observer / equipment identification so FITS headers carry
     // OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV. The
     // observer name comes from app settings; everything else from the
     // active equipment profile. Null / empty fields are honestly omitted
@@ -323,7 +323,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       // Telescope focal length / aperture: prefer the dedicated
       // telescope_* fields; fall back to focalLength / aperture (the
       // legacy generic fields on EquipmentProfileModel). 0.0 means
-      // "not configured" â€” emit null in that case.
+      // "not configured" — emit null in that case.
       double? focalLength;
       double? aperture;
       if (profile != null) {
@@ -367,7 +367,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Wave 5 Agent 2 â€” seed the global default sky-brightness adaptive
+    // Wave 5 Agent 2 — seed the global default sky-brightness adaptive
     // exposure config from app settings so a sequence start without a
     // settings round-trip still honours the user's choice. When the
     // master switch is off we explicitly clear the executor's value
@@ -415,22 +415,22 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     }
   }
 
-  /// Wave 7.5 â€” consume `sessionHandoffDecisionProvider` for every
+  /// Wave 7.5 — consume `sessionHandoffDecisionProvider` for every
   /// TargetHeader and push the resolved per-filter carry-over map to
   /// the Rust executor's `BudgetRegistry` seed.
   ///
   /// Three-way semantics, mirroring `SessionHandoffDecision`:
   ///
-  ///   * `Resume`     â†’ write the operator's
+  ///   * `Resume`     → write the operator's
   ///                    `SessionCarryOver.perFilterIntegrationSecs` into
   ///                    the carry-over map. The Rust side credits those
   ///                    frames against the configured budget so the
   ///                    very first IntegrationBudget tick reads
   ///                    "Lum: 4h done / 8h target", not "Lum: 0h done".
-  ///   * `Restart`    â†’ write an explicit empty map for the target id
+  ///   * `Restart`    → write an explicit empty map for the target id
   ///                    so any pre-existing checkpoint state is
   ///                    overwritten with zeros.
-  ///   * `ContinueNew` â†’ omit the target entirely (no carry-over, no
+  ///   * `ContinueNew` → omit the target entirely (no carry-over, no
   ///                    zeroing). Same effect as no prior decision.
   ///
   /// Joins `SessionCarryOver.targetName` against the sequence's
@@ -490,7 +490,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
       final decision = _ref.read(sessionHandoffDecisionProvider(key));
       if (decision == null) {
-        // No pre-flight decision recorded (dialog dismissed) â€” leave
+        // No pre-flight decision recorded (dialog dismissed) — leave
         // the BudgetRegistry to its default zero-credit behaviour.
         continue;
       }
@@ -503,13 +503,13 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
               Map<String, double>.from(entry.perFilterIntegrationSecs);
           break;
         case SessionHandoffDecision.restart:
-          // Empty map â†’ Rust zeroes any prior per-target state. This is
+          // Empty map → Rust zeroes any prior per-target state. This is
           // distinct from "omit", which would leave a stale checkpoint
           // entry untouched.
           carryOverPayload[header.id] = const <String, double>{};
           break;
         case SessionHandoffDecision.continueNew:
-          // Acknowledged but not reused â€” neither seed nor zero.
+          // Acknowledged but not reused — neither seed nor zero.
           break;
       }
     }
@@ -537,7 +537,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// filter offsets).
   void _startSettingsWatchers(NightshadeBackend backend) {
     _stopSettingsWatchers();
-    // Wave 5 Agent 2 â€” kick off the sky-brightness poll. The first
+    // Wave 5 Agent 2 — kick off the sky-brightness poll. The first
     // tick fires 10 s after start (matching the timer cadence); the
     // first user-visible adaptive-exposure decision uses whatever the
     // tracker has at TakeExposure time.
@@ -593,7 +593,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           );
         }
 
-        // Pack G â€” propagate image-grading changes mid-run so the next
+        // Pack G — propagate image-grading changes mid-run so the next
         // exposure honours the user's new thresholds.
         final gradingChanged = prevSettings.enableImageGrading !=
                 nextSettings.enableImageGrading ||
@@ -634,7 +634,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           );
         }
 
-        // Pack G â€” propagate observer name + elevation changes so FITS
+        // Pack G — propagate observer name + elevation changes so FITS
         // headers stay in sync if the user edits Settings mid-run.
         if (prevSettings.observerName != nextSettings.observerName ||
             prevSettings.elevation != nextSettings.elevation) {
@@ -645,7 +645,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           _pushObserverProfile(backend);
         }
 
-        // Wave 5 Agent 2 â€” propagate global adaptive-exposure setting
+        // Wave 5 Agent 2 — propagate global adaptive-exposure setting
         // changes so the next exposure honours the user's edit. We
         // compare all eight inputs in one pass because the executor
         // expects the full config object on every push.
@@ -694,7 +694,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         if (previous == null || next == null) return;
         // EquipmentProfileModel.filterFocusOffsets is already a
         // Map<String,int> in memory; the legacy version of this code
-        // decoded it as JSON which was a runtime bug â€” the analyzer now
+        // decoded it as JSON which was a runtime bug — the analyzer now
         // catches that. Use map equality directly.
         final prevOffsets = previous.filterFocusOffsets;
         final nextOffsets = next.filterFocusOffsets;
@@ -706,7 +706,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           backend.sequencerUpdateFilterOffsets(nextOffsets);
         }
 
-        // Pack G â€” propagate telescope / camera identity changes so FITS
+        // Pack G — propagate telescope / camera identity changes so FITS
         // headers reflect the active equipment profile mid-run (rare but
         // possible when the user swaps profiles between targets).
         if (previous.cameraName != next.cameraName ||
@@ -724,7 +724,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     );
   }
 
-  /// Pack G â€” helper that recomputes the observer profile from the
+  /// Pack G — helper that recomputes the observer profile from the
   /// current settings + active equipment profile and pushes it to the
   /// backend. Used by both the appSettingsProvider and
   /// activeEquipmentProfileProvider watchers because the FITS observer
@@ -790,7 +790,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       sub.close();
     }
     _settingsSubscriptions.clear();
-    // Wave 5 Agent 2 â€” tear down the sky-brightness poll so a stopped
+    // Wave 5 Agent 2 — tear down the sky-brightness poll so a stopped
     // executor stops pushing readings to the (possibly torn-down)
     // backend.
     _skyBrightnessPollTimer?.cancel();
@@ -798,7 +798,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     _lastPushedSkyMag = null;
   }
 
-  /// Wave 5 Agent 2 â€” start the periodic poll that watches the
+  /// Wave 5 Agent 2 — start the periodic poll that watches the
   /// `SkyBrightnessTracker` and pushes its mag/arcsecÂ² reading to the
   /// executor whenever it changes. Suppresses redundant pushes so the
   /// runtime config event stream stays quiet under steady conditions.
@@ -825,7 +825,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           }
         }
       } catch (e) {
-        // Don't let a tracker read failure kill the periodic timer â€”
+        // Don't let a tracker read failure kill the periodic timer —
         // log and keep going. "Errors are a feature" applies to user-
         // visible faults; this is best-effort telemetry.
         _logger.debug(

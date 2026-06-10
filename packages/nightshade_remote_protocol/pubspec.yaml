@@ -22,6 +22,13 @@ dependencies:
   path_provider: ^2.1.0
   path: ^1.8.3
   nsd: ^3.0.0
+  # v4 couch-grade remote: the self-hostable relay tunnel. Pure-Dart package
+  # under tools/ (outside the melos workspace globs), so it is referenced by
+  # an explicit path dependency. Re-exported below so the desktop headless
+  # bootstrap and the mobile transport consume RelayUplink / RelayTunnelClient
+  # without each depending on tools/ directly.
+  nightshade_relay:
+    path: ../../tools/nightshade_relay
 
 dev_dependencies:
   flutter_test:

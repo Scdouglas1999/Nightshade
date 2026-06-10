@@ -981,3 +981,54 @@ final predictiveAfServiceProvider = Provider<PredictiveAfService>((ref) {
   });
   return service;
 });
+
+/// Last predictive-AF consultation, surfaced for the UI (focus model card).
+///
+/// The model previously trained and predicted entirely silently — the
+/// operator had no way to see whether the model trusts itself for a filter,
+/// what it predicted, or how the real sweep compared. Written by the
+/// device-service AF path before (decision) and after (actual outcome) each
+/// sweep.
+class PredictiveAfStatus {
+  final DateTime at;
+  final String filterName;
+  final PredictiveAfDecision decision;
+  /// Best-focus position the real sweep converged to. Null until the sweep
+  /// completes; stays null when the sweep failed.
+  final int? actualPosition;
+
+  const PredictiveAfStatus({
+    required this.at,
+    required this.filterName,
+    required this.decision,
+    this.actualPosition,
+  });
+
+  PredictiveAfStatus withActual(int actualPosition) => PredictiveAfStatus(
+        at: at,
+        filterName: filterName,
+        decision: decision,
+        actualPosition: actualPosition,
+      );
+
+  /// Short human label for the decision band.
+  String get decisionLabel => switch (decision) {
+        InsufficientData() => 'training',
+        ForceAutofocus() => 'low confidence',
+        ApplyDampened() => 'medium confidence',
+        ApplyDirect() => 'high confidence',
+      };
+
+  /// Prediction error in steps once the sweep completed, when the model
+  /// made a prediction at all.
+  int? get predictionErrorSteps {
+    final predicted = decision.targetPosition;
+    final actual = actualPosition;
+    if (predicted == null || actual == null) return null;
+    return actual - predicted;
+  }
+}
+
+/// See [PredictiveAfStatus].
+final lastPredictiveAfStatusProvider =
+    StateProvider<PredictiveAfStatus?>((ref) => null);

@@ -13,7 +13,12 @@ import '../services/logging_service.dart';
 import '../services/notification_service.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
-import 'equipment_provider.dart' show mountStateProvider;
+import 'equipment_provider.dart'
+    show
+        cameraStateProvider,
+        coverCalibratorStateProvider,
+        focuserStateProvider,
+        mountStateProvider;
 import 'sequence_provider.dart' show sequenceExecutionStateProvider;
 import 'settings_provider.dart' show appSettingsProvider;
 
@@ -344,7 +349,7 @@ final isMeridianFlipEnabledProvider = Provider<bool>((ref) {
 /// the scheduler engine already uses an identical inline computation. Lifting
 /// it to a shared helper would be a larger refactor; duplicating the proven
 /// formula here keeps the change local. See
-/// `scheduler_engine.dart:_localSiderealTime` â€” the algorithm is the same.
+/// `scheduler_engine.dart:_localSiderealTime` — the algorithm is the same.
 double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) {
   final t = utc.toUtc();
   int y = t.year;
@@ -409,7 +414,7 @@ enum MeridianMonitorDecision {
   /// Cooldown active from a recent trigger fire.
   cooldown,
 
-  /// A sequence is running â€” let the sequencer own the flip.
+  /// A sequence is running — let the sequencer own the flip.
   sequenceRunning,
 
   /// Trigger condition met and an alert was emitted.
@@ -419,7 +424,7 @@ enum MeridianMonitorDecision {
 /// Watcher that fires meridian-flip alerts when standalone monitoring is on
 /// and the mount crosses the configured trigger condition.
 ///
-/// Why this exists (audit-handoff Â§1.2):
+/// Why this exists (audit-handoff §1.2):
 ///   The Sequencer Settings -> Meridian Flip section exposes a
 ///   `standaloneMonitoringEnabled` toggle. Prior to this wire-up the toggle
 ///   flipped a database row that nothing watched. Operators reasonably expect
@@ -427,26 +432,24 @@ enum MeridianMonitorDecision {
 ///   produces an observable effect: when the mount approaches the meridian,
 ///   *something* must happen.
 ///
-/// Why this implementation alerts rather than auto-flips:
-///   The Rust meridian flip executor is only reachable through the sequencer
-///   today â€” there is no `api_perform_meridian_flip` bridge call. Hijacking
-///   the user's loaded sequence to inject a one-node flip would silently
-///   destroy in-progress edits, which is a worse failure mode than missing
-///   a flip. So when the trigger fires we surface it via:
-///     1. `flipExecutionStateProvider` -> `executing` (UI banner + log
-///        timeline pick this up via the existing event subscribers).
-///     2. `NotificationService.notifyMeridianFlip` â€” routes through the
-///        operator-configured Discord / Pushover / push channels per the
-///        `pushNotificationOnFlip` setting.
-///     3. `LoggingService.warning` so the trigger is captured in diagnostics.
-///   A cooldown prevents re-firing while the operator is acting on the
-///   notification. When a future bridge call exposes a standalone flip path,
-///   the alert step can be replaced with the actual flip without disturbing
-///   the rest of this watcher.
+/// When the trigger fires the monitor does BOTH of:
+///   1. Alert — `flipExecutionStateProvider` -> `executing`,
+///      `NotificationService.notifyMeridianFlip` (Discord / Pushover /
+///      push per `pushNotificationOnFlip`), and a diagnostics log entry.
+///   2. Execute — `backend.performMeridianFlip(...)`, which runs the
+///      canonical native `MeridianFlipExecutor` standalone (same engine,
+///      timeouts, altitude check, re-center and refocus as the in-sequence
+///      path). The native side refuses while a sequence is running, so the
+///      monitor can never double-command the mount; the `evaluateOnce`
+///      sequence-running guard makes that the normal path anyway.
+///   The flip targets the mount's CURRENT coordinates (the object it is
+///   tracking). A cooldown prevents re-firing while a flip is in flight or
+///   the operator is responding to a failure notification.
 class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
   final Ref _ref;
   Timer? _pollTimer;
   DateTime? _lastTriggerAt;
+  bool _flipInFlight = false;
 
   /// Minimum interval between trigger fires.
   ///
@@ -459,7 +462,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
   /// Poll cadence while monitoring is active.
   ///
   /// Why: a 30-second cadence matches the sequencer's trigger evaluation
-  /// frequency â€” finer resolution buys nothing because meridian crossings
+  /// frequency — finer resolution buys nothing because meridian crossings
   /// move slowly (mount sidereal rate is 15"/sec).
   static const Duration _pollInterval = Duration(seconds: 30);
 
@@ -485,7 +488,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     _pollTimer = Timer.periodic(_pollInterval, (_) => evaluateOnce());
   }
 
-  /// Public for tests â€” runs a single poll cycle and returns the decision.
+  /// Public for tests — runs a single poll cycle and returns the decision.
   MeridianMonitorDecision evaluateOnce() {
     final settings = _ref.read(globalMeridianFlipSettingsProvider);
     if (!settings.standaloneMonitoringEnabled) {
@@ -518,7 +521,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     if (appSettings == null ||
         (appSettings.latitude == 0.0 && appSettings.longitude == 0.0)) {
       // Why: HA computation needs a real longitude. Refuse to alert from a
-      // 0,0 default â€” that would be a spurious notification.
+      // 0,0 default — that would be a spurious notification.
       return MeridianMonitorDecision.inactive;
     }
 
@@ -534,8 +537,99 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     }
 
     _emitAlert(settings, ha);
+    unawaited(_executeStandaloneFlip(settings, mount));
     _lastTriggerAt = DateTime.now();
     return MeridianMonitorDecision.triggered;
+  }
+
+  /// Execute the actual flip via the canonical native flip engine.
+  ///
+  /// The historical limitation ("the Rust meridian flip executor is only
+  /// reachable through the sequencer") is gone: `performMeridianFlip` runs
+  /// the same engine standalone, and the native side refuses if a sequence
+  /// is running — so this cannot double-command the mount. The alert above
+  /// still fires first so the operator hears about the flip even if the
+  /// execution then fails.
+  Future<void> _executeStandaloneFlip(
+    MeridianFlipSettings settings,
+    MountState mount,
+  ) async {
+    if (_flipInFlight) return;
+
+    final mountId = mount.deviceId;
+    final ra = mount.ra;
+    final dec = mount.dec;
+    final logger = _ref.read(loggingServiceProvider);
+    if (mountId == null || mountId.isEmpty || ra == null || dec == null) {
+      logger.warning(
+        'Standalone meridian flip skipped: mount id/coordinates unavailable '
+        '(id=$mountId, ra=$ra, dec=$dec) — alert-only.',
+        source: 'MeridianFlipStandaloneMonitor',
+      );
+      _ref.read(flipExecutionStateProvider.notifier).state =
+          FlipExecutionState.failed;
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'Flip not executed: mount coordinates unavailable';
+      return;
+    }
+
+    final cameraState = _ref.read(cameraStateProvider);
+    final focuserState = _ref.read(focuserStateProvider);
+    final coverState = _ref.read(coverCalibratorStateProvider);
+    final cameraId =
+        cameraState.connectionState == DeviceConnectionState.connected
+            ? cameraState.deviceId
+            : null;
+    // Re-center needs a camera for the plate-solve frame; honor the user's
+    // setting only when one is connected.
+    final autoCenter = settings.recenterAfterFlip && cameraId != null;
+
+    _flipInFlight = true;
+    try {
+      await _ref.read(backendProvider).performMeridianFlip(
+            mountId: mountId,
+            cameraId: cameraId,
+            focuserId:
+                focuserState.connectionState == DeviceConnectionState.connected
+                    ? focuserState.deviceId
+                    : null,
+            coverCalibratorId: coverState.connectionState ==
+                    DeviceConnectionState.connected
+                ? coverState.deviceId
+                : null,
+            targetName: 'Standalone flip',
+            targetRaHours: ra,
+            targetDecDegrees: dec,
+            pauseGuiding: settings.pauseGuidingBeforeFlip,
+            autoCenter: autoCenter,
+            refocusAfter: settings.refocusAfterFlip,
+            resumeGuiding: settings.resumeGuidingAfterFlip,
+            settleTimeSecs: settings.settleTimeSeconds,
+          );
+      _ref.read(flipExecutionStateProvider.notifier).state =
+          FlipExecutionState.completed;
+      _ref.read(flipProgressProvider.notifier).state = 100;
+      logger.info(
+        'Standalone meridian flip completed',
+        source: 'MeridianFlipStandaloneMonitor',
+      );
+      if (settings.pushNotificationOnFlip) {
+        unawaited(_ref
+            .read(notificationServiceProvider)
+            .notifyMeridianFlip(isStarting: false)
+            .catchError((Object e, StackTrace s) => false));
+      }
+    } catch (e) {
+      _ref.read(flipExecutionStateProvider.notifier).state =
+          FlipExecutionState.failed;
+      _ref.read(flipLastErrorProvider.notifier).state = e.toString();
+      logger.error(
+        'Standalone meridian flip failed: $e',
+        source: 'MeridianFlipStandaloneMonitor',
+      );
+    } finally {
+      _flipInFlight = false;
+    }
   }
 
   bool _evaluateTrigger(MeridianFlipSettings settings, double ha) {
@@ -551,7 +645,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
       case MeridianTriggerMethod.minutesBeforeLimit:
         // Why: requires mount-advertised tracking-limit time, which is only
         // surfaced inside the Rust sequencer state. Standalone Dart side
-        // has no equivalent today â€” explicitly skip rather than approximate.
+        // has no equivalent today — explicitly skip rather than approximate.
         return false;
       case MeridianTriggerMethod.onTrackingLimitHit:
         // Why: tracking-limit detection lives in the Rust trigger evaluator
@@ -584,7 +678,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     if (settings.pushNotificationOnFlip) {
       // Why: the operator opted into push notifications for flip events.
       // Route through NotificationService so Discord / Pushover / system push
-      // all honor the toggle. Errors here are reported but never propagate â€”
+      // all honor the toggle. Errors here are reported but never propagate —
       // a missed notification must not stall the monitor.
       unawaited(_ref
           .read(notificationServiceProvider)

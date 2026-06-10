@@ -268,7 +268,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       accentColor: settings['accent_color'],
       fontSize: settings['font_size'],
       // ui_scale is carried by the remote wire model, so the partial applier
-      // must map it too â€” otherwise a remote save of the UI scale passes the
+      // must map it too — otherwise a remote save of the UI scale passes the
       // remotable-key guard but never reaches `_toRemoteSettings`.
       uiScale: settings['ui_scale'],
       sidebarCollapsed: settings.containsKey('sidebar_collapsed')
@@ -490,7 +490,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.pushCriticalAlerts,
             )
           : null,
-      // Wave 4 Recovery Mode â€” partial-update path. Each key is only
+      // Wave 4 Recovery Mode — partial-update path. Each key is only
       // honoured if present in the patch, mirroring the rest of this
       // helper.
       recoveryDefaultRetryIntervalMins:
@@ -608,9 +608,9 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       afAutofocusFilterName: settings['af_autofocus_filter_name'],
       afFilterSettingsJson: settings['af_filter_settings'],
-      // Pack G â€” observer name (FITS OBSERVER).
+      // Pack G — observer name (FITS OBSERVER).
       observerName: settings['observer_name'],
-      // Pack G â€” Wave 3 Image Grading. Nullable double / int fields use
+      // Pack G — Wave 3 Image Grading. Nullable double / int fields use
       // the `_unset` sentinel for "no change"; an explicit "null" string
       // clears the field.
       enableImageGrading: settings.containsKey('image_grading_enabled')
@@ -660,7 +660,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                   ? null
                   : settings['image_grading_reject_folder_path'])
               : _unset,
-      // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure partial-update
+      // Wave 5 Agent 2 — Sky-brightness adaptive exposure partial-update
       // wire-up. Required so a remote save of an adaptive-exposure knob
       // (which is carried by the wire model) actually reaches state and is
       // then forwarded to the host by `_toRemoteSettings`.
@@ -711,7 +711,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               ? _parseFilterDoubleMap(
                   settings['adaptive_exposure_per_filter_max_secs'])
               : null,
-      // Wave 5 Agent 3 â€” Pre-flight partial-update wire-up.
+      // Wave 5 Agent 3 — Pre-flight partial-update wire-up.
       preflightStrictness: settings.containsKey('preflight_strictness')
           ? _parsePreflightStrictness(settings['preflight_strictness'])
           : null,
@@ -735,7 +735,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                   current.opticalTrainDriftThreshold,
                 )
               : null,
-      // Wave 6 Agent 1 â€” Smart Night partial-update wiring. The nullable
+      // Wave 6 Agent 1 — Smart Night partial-update wiring. The nullable
       // session-hours knob uses the `_unset` sentinel so a patch can
       // either leave it alone (omit the key) or clear it back to
       // "use full dark window" (pass the literal string "null").
@@ -790,7 +790,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                   current.smartNightPolarAlignmentStaleAfterDays,
                 )
               : null,
-      // Wave 6 Agent 5 â€” Notes prompt opt-out.
+      // Wave 6 Agent 5 — Notes prompt opt-out.
       smartNightSubExposureFloorSecs:
           settings.containsKey('smart_night_sub_exposure_floor_secs')
               ? _parseDouble(
@@ -824,7 +824,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.promptForNotesAfterRun,
             )
           : null,
-      // Wave 7 â€” Session lifecycle. Each key gates the field so a
+      // Wave 7 — Session lifecycle. Each key gates the field so a
       // partial patch can update one knob without resetting the others.
       sessionHandoffAutoPrompt:
           settings.containsKey('session.handoff_auto_prompt')
@@ -848,7 +848,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     );
   }
 
-  /// Pack G â€” string -> nullable double for the grading settings.
+  /// Pack G — string -> nullable double for the grading settings.
   /// Empty / "null" string => null (the user cleared the field); a parse
   /// failure falls back to the prior value to avoid silently zeroing a
   /// threshold.

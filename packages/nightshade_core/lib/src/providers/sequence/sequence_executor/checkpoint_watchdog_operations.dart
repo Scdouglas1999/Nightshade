@@ -28,7 +28,7 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
   ///    abort threshold (default 2 GB), so the in-flight frame finishes
   ///    cleanly rather than the OS killing the writer mid-stream.
   ///
-  /// Skipped silently when no capture path is configured â€” the pre-flight
+  /// Skipped silently when no capture path is configured — the pre-flight
   /// dialog already warns about that and there's nothing useful to monitor.
   void _startDiskSpaceWatchdog() {
     _diskWatchdogSubscription?.cancel();
@@ -82,13 +82,13 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
     try {
       _ref.read(diskSpaceGuardProvider).stop();
     } catch (_) {
-      // Disposed provider â€” ignore.
+      // Disposed provider — ignore.
     }
   }
 
   /// Cancel all owned timers and subscriptions.
   ///
   /// Wired into the owning Provider's `ref.onDispose`. Safe to call even when
-  /// no sequence is running â€” all cancels are null-tolerant. Distinct from
+  /// no sequence is running — all cancels are null-tolerant. Distinct from
   /// `stop()`, which also mutates execution state and ends the session.
 }

@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Variable;
@@ -9,6 +10,7 @@ import '../database/daos/science_dao.dart';
 import '../database/database.dart';
 import '../models/imaging/night_report.dart';
 import '../providers/database_provider.dart';
+import 'optical_train_diagnostics_service.dart';
 
 /// The "Night Doctor" — a deterministic, rule-based analyzer that ingests a
 /// session's (or target's) per-sub time series from `captured_images` (with
@@ -93,8 +95,16 @@ class NightAnalysisService {
       // pathological series we drop that finding rather than the report.
       try {
         findings.addAll(detector(data));
-      } catch (_) {
-        // Skip this detector's contribution; continue the pipeline.
+      } catch (e) {
+        // Skip this detector's contribution; continue the pipeline — but
+        // leave a trace. A silently-skipped detector reads as "no finding",
+        // which is indistinguishable from "checked and healthy"; the log
+        // line is the only way a degraded report can be diagnosed.
+        developer.log(
+          'Night Doctor detector threw and was skipped: $e',
+          name: 'NightAnalysisService',
+          level: 900,
+        );
       }
     }
     findings.sort(_bySeverityDesc);
@@ -141,7 +151,30 @@ class NightAnalysisService {
     } else {
       subs = const [];
     }
-    return NightData(subs);
+    return NightData(
+      subs,
+      opticalDiagnostics: await _loadOpticalDiagnostics(sessionId),
+    );
+  }
+
+  /// Run the optical-train diagnostics (field tilt / collimation) over the
+  /// session's PSF field tiles + astrometric residual vectors. Fail-soft to
+  /// null: the science pipeline not having produced tiles is the common
+  /// case, and the tilt detector then simply stays silent.
+  Future<OpticalTrainDiagnostics?> _loadOpticalDiagnostics(
+      int? sessionId) async {
+    if (sessionId == null) return null;
+    try {
+      final tiles = await _science.getPsfTilesForSession(sessionId);
+      if (tiles.isEmpty) return null;
+      final residuals = await _science.getResidualsForSession(sessionId);
+      return const OpticalTrainDiagnosticsService().analyze(
+        psfTiles: tiles,
+        residualVectors: residuals,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<NightSub>> _toSubs(
@@ -617,16 +650,57 @@ class NightAnalysisService {
     ];
   }
 
-  /// **Tilt / collimation.** Requires per-sub corner-vs-center field data
-  /// (PSF field tiles). `captured_images` carries no field geometry, so without
-  /// the science `PsfFieldTiles` table this detector has no input and stays
-  /// silent — exactly the "skip if no per-sub field data" path the brief calls
-  /// out. (The full corner-asymmetry analysis lives in
-  /// `OpticalTrainDiagnosticsService`; wiring its per-tile output through is a
-  /// later step once the field-tile series is threaded into [NightSub].)
+  /// **Tilt / collimation.** Driven by the session's PSF field tiles +
+  /// astrometric residual vectors via [OpticalTrainDiagnosticsService] —
+  /// the same engine behind the equipment screen's optical-health card, so
+  /// the morning report and the live card can never disagree. Silent when
+  /// the science pipeline produced no tiles for the session (the common
+  /// case for rigs with the science tier disabled).
   List<NightFinding> _detectTiltCollimation(NightData data) {
-    // No per-sub field geometry is plumbed into [NightSub] yet — fail-soft.
-    return const [];
+    final diag = data.opticalDiagnostics;
+    if (diag == null) return const [];
+
+    final findings = <NightFinding>[];
+    if (diag.tiltScore >= OpticalHealthScore.tiltWarnThreshold) {
+      final critical = diag.tiltScore >= OpticalHealthScore.tiltCriticalThreshold;
+      findings.add(NightFinding(
+        id: 'field_tilt',
+        severity: critical
+            ? NightFindingSeverity.critical
+            : NightFindingSeverity.warn,
+        title: 'Field tilt detected '
+            '(score ${diag.tiltScore.toStringAsFixed(0)}/100)',
+        explanation:
+            'Star size (PSF) is systematically uneven across the frame; the '
+            'strongest degradation is toward ${diag.dominantTiltDirection}. '
+            'This pattern held across the night\'s solved frames, which '
+            'points at sensor tilt or a sagging imaging-train connection '
+            'rather than seeing.',
+        advice: 'Check the camera/corrector connection for sag and the '
+            'sensor tilt adjustment (if your camera has a tilt plate). The '
+            'equipment screen\'s optical-health card shows the live '
+            'corner-by-corner breakdown.',
+      ));
+    }
+    if (diag.collimationScore >= OpticalHealthScore.collimationWarnThreshold) {
+      final critical = diag.collimationScore >=
+          OpticalHealthScore.collimationCriticalThreshold;
+      findings.add(NightFinding(
+        id: 'collimation_spacing',
+        severity: critical
+            ? NightFindingSeverity.critical
+            : NightFindingSeverity.warn,
+        title: 'Collimation / spacing mismatch '
+            '(score ${diag.collimationScore.toStringAsFixed(0)}/100)',
+        explanation:
+            'Astrometric residuals grow toward the field edges relative to '
+            'the centre — the signature of optical misalignment or wrong '
+            'corrector/flattener back-spacing, not atmosphere.',
+        advice: 'Verify collimation and the flattener back-focus distance '
+            '(55 mm is typical but check your corrector\'s spec).',
+      ));
+    }
+    return findings;
   }
 
   // ===========================================================================
@@ -775,12 +849,17 @@ class NightSub {
 /// The analyzed night: a time-sorted list of [NightSub]s. Thin wrapper so the
 /// detector signatures read clearly and future cross-sub aggregates have a home.
 class NightData {
-  NightData(List<NightSub> subs)
+  NightData(List<NightSub> subs, {this.opticalDiagnostics})
       : subs = List.unmodifiable(
           [...subs]..sort((a, b) => a.capturedAt.compareTo(b.capturedAt)),
         );
 
   final List<NightSub> subs;
+
+  /// Session-level optical-train diagnostics (field tilt / collimation)
+  /// computed from the science PSF field tiles + astrometric residuals.
+  /// Null when the science pipeline produced no tiles for the session.
+  final OpticalTrainDiagnostics? opticalDiagnostics;
 
   bool get isEmpty => subs.isEmpty;
   int get length => subs.length;

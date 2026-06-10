@@ -13,7 +13,18 @@ class Phd2Controller {
   final NightshadeBackend backend;
   StreamSubscription? _eventSub;
   bool _disposed = false;
+  bool _relaunchInFlight = false;
   LoggingService get _logger => ref.read(loggingServiceProvider);
+
+  /// Escalating waits between crash-relaunch attempts. The first is short
+  /// (PHD2 restarting after a transient crash), the later ones give a
+  /// wedged host time to recover. Bounded so a permanently broken setup
+  /// (uninstalled PHD2, dead remote host) does not loop all night.
+  static const List<Duration> _relaunchDelays = [
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+    Duration(seconds: 30),
+  ];
 
   Phd2Controller(this.ref, this.backend) {
     _init();
@@ -24,6 +35,72 @@ class Phd2Controller {
     ref.read(phd2StateProvider.notifier).state = Phd2State.stopped;
     unawaited(_syncPhd2BackendAfterLinkLost());
     ref.read(guiderStateProvider.notifier).setDisconnected();
+    unawaited(_attemptAutoRelaunch());
+  }
+
+  /// Crash recovery: the Rust socket layer retries the TCP link, but a
+  /// DEAD PHD2 process never re-opens its port — only a relaunch does.
+  /// Each attempt routes through [DeviceService.connectGuider], which
+  /// re-runs `Phd2Launcher.ensureRunning` (spawn if local + port closed)
+  /// before connecting. Skipped entirely for deliberate disconnects and
+  /// when auto-reconnect is disabled for the guider.
+  Future<void> _attemptAutoRelaunch() async {
+    if (_relaunchInFlight || _disposed) return;
+    final deviceService = ref.read(deviceServiceProvider);
+    if (deviceService.isUserInitiatedDisconnect(kPhd2CanonicalId)) {
+      return;
+    }
+    if (!ref.read(guiderStateProvider).autoReconnectEnabled) return;
+
+    _relaunchInFlight = true;
+    try {
+      for (final delay in _relaunchDelays) {
+        await Future.delayed(delay);
+        if (_disposed) return;
+        final state = ref.read(guiderStateProvider);
+        if (state.connectionState == DeviceConnectionState.connected) {
+          return; // something else (native retry, user) already recovered
+        }
+        if (deviceService.isUserInitiatedDisconnect(kPhd2CanonicalId)) {
+          return; // user disconnected while we were waiting — respect it
+        }
+        _logger.warning(
+          'PHD2 link lost — attempting automatic relaunch/reconnect…',
+          source: 'Phd2Controller',
+        );
+        try {
+          await deviceService.connectGuider(kPhd2CanonicalId);
+          _logger.info(
+            'PHD2 automatic relaunch/reconnect succeeded',
+            source: 'Phd2Controller',
+          );
+          return;
+        } catch (e) {
+          _logger.warning(
+            'PHD2 auto-relaunch attempt failed: $e',
+            source: 'Phd2Controller',
+          );
+        }
+      }
+      _logger.error(
+        'PHD2 auto-relaunch gave up after ${_relaunchDelays.length} attempts',
+        source: 'Phd2Controller',
+      );
+      if (_disposed) return;
+      try {
+        ref.read(uiNotificationProvider.notifier).showError(
+              'PHD2 connection lost and automatic relaunch failed after '
+              '${_relaunchDelays.length} attempts. Reconnect the guider '
+              'manually.',
+              title: 'PHD2',
+            );
+      } on Object {
+        // Notification surface unavailable (headless/teardown) — the log
+        // entries above remain the record.
+      }
+    } finally {
+      _relaunchInFlight = false;
+    }
   }
 
   /// Clear Rust registration/storage so status polls and device lists match UI.
@@ -262,7 +339,17 @@ class Phd2Controller {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    final guiderState = ref.read(guiderStateProvider);
+    // PHD2 rejects dither outside the Guiding state with an opaque RPC
+    // error; pre-check so the user (and the sequencer log) gets an
+    // actionable message instead.
+    if (!guiderState.isGuiding) {
+      throw StateError(
+        'Cannot dither: guiding is not active. Start guiding first '
+        '(PHD2 must be in the Guiding state to accept a dither).',
+      );
+    }
+    final guiderId = guiderState.deviceId ?? 'phd2_guider';
     await backend.guiderDither(
       deviceId: guiderId,
       amount: amount,

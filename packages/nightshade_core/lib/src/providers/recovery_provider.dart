@@ -1,25 +1,25 @@
-﻿/// Wave 4 Recovery Mode â€” Riverpod providers for the recovery state machine.
+﻿/// Wave 4 Recovery Mode — Riverpod providers for the recovery state machine.
 ///
 /// Reads:
-///   * the typed bridge event stream â€” `SequencerEvent_Recovery{Started,
+///   * the typed bridge event stream — `SequencerEvent_Recovery{Started,
 ///     Progress,Completed,GaveUp}` carry the full recovery context as
 ///     flat primitive fields. Wave 4 used a pre-FRB-regen workaround that
 ///     tunnelled the recovery context as JSON through the legacy
 ///     `InstructionProgress.detail` channel with a synthetic `_recovery`
 ///     node id; Wave 4.5's regen retires that hack.
-///   * `sequenceProgressProvider` â€” used to derive the `isRecovering`
+///   * `sequenceProgressProvider` — used to derive the `isRecovering`
 ///     boolean even when the live recovery context hasn't arrived yet.
 ///
 /// Exposes:
-///   * `currentRecoveryProvider` â€” `RecoveryStatus?` for the dashboard
+///   * `currentRecoveryProvider` — `RecoveryStatus?` for the dashboard
 ///     banner.
-///   * `recoveryHistoryProvider` â€” list of every completed recovery loop in
+///   * `recoveryHistoryProvider` — list of every completed recovery loop in
 ///     the current run.
-///   * `recoveryControlProvider` â€” command surface (try-now / abort).
-///   * `recoveryAudibleBridgeProvider` â€” side-effect provider that plays
+///   * `recoveryControlProvider` — command surface (try-now / abort).
+///   * `recoveryAudibleBridgeProvider` — side-effect provider that plays
 ///     the platform alert sound on every recovery entry (gated by
 ///     `recoveryAudibleAlertWhenEntered`).
-///   * `recoveryPushBridgeProvider` â€” side-effect provider that enqueues a
+///   * `recoveryPushBridgeProvider` — side-effect provider that enqueues a
 ///     critical push notification on every recovery entry AND exit
 ///     (recovered / gave-up), gated by `pushCriticalAlerts`. The exit push
 ///     carries the "here's what I did" closure so an operator on cellular
@@ -134,8 +134,8 @@ class RecoveryControl {
   ///
   /// Implemented on top of the existing `sequencerSkip()` surface
   /// (`POST /api/sequencer/skip`); the executor's skip handler is
-  /// recovery-aware â€” it clears the recovery loop and continues with the
-  /// next sibling. Audit P1-8 â€” companion phones need a third option
+  /// recovery-aware — it clears the recovery loop and continues with the
+  /// next sibling. Audit P1-8 — companion phones need a third option
   /// beyond Try Now / Abort: "the camera is wedged, but I want the rest
   /// of the run to keep going".
   Future<void> skipNode() async {
@@ -160,7 +160,7 @@ final recoveryControlProvider = Provider<RecoveryControl>(
 
 /// Bridge-event envelope built from a typed `SequencerEvent_Recovery*`
 /// variant. Carries the rebuilt [RecoveryStatus] plus the discriminating
-/// kind + abort flag. Wave 4.5 â€” the JSON-through-detail string parser is
+/// kind + abort flag. Wave 4.5 — the JSON-through-detail string parser is
 /// gone; this comes straight from the FRB-typed payload.
 enum RecoveryEventKind { started, progress, completed, gaveUp }
 
@@ -248,11 +248,11 @@ RecoveryEventEnvelope? _recoveryEnvelopeFromBridge(
 }
 
 // ---------------------------------------------------------------------------
-// Typed â†’ RecoveryStatus reconstruction helpers
+// Typed → RecoveryStatus reconstruction helpers
 // ---------------------------------------------------------------------------
 //
 // The four FRB variants carry identical-shaped payloads (flat primitives
-// only â€” see `bridge/src/event.rs > SequencerEvent::Recovery*`). The Rust
+// only — see `bridge/src/event.rs > SequencerEvent::Recovery*`). The Rust
 // side denormalised the chrono-bearing `RecoveryContext` into ISO-8601
 // strings + flat integers so we can rebuild a `RecoveryStatus` on the
 // Dart side without bridging the Rust struct.
@@ -321,7 +321,7 @@ RecoveryStatus _recoveryStatusFromTypedGaveUp(
   );
 }
 
-/// Shared rebuilder â€” keeps the typed â†’ status mapping in one place so a
+/// Shared rebuilder — keeps the typed → status mapping in one place so a
 /// schema bump touches a single function.
 RecoveryStatus _rebuildRecoveryStatus({
   required String startedAtIso,
@@ -372,7 +372,7 @@ RecoveryCause _causeFromTyped(String kind, String? customLabel) {
     default:
       // CLAUDE.md: "Errors are a feature." An unknown discriminant means
       // the Rust enum grew a variant and we didn't update the Dart
-      // switch â€” surface it instead of silently falling back to a wrong
+      // switch — surface it instead of silently falling back to a wrong
       // cause.
       throw FormatException(
           'Unknown RecoveryCause kind from typed bridge event: $kind');
@@ -421,7 +421,7 @@ void _applyRecoveryEvent(Ref ref, RecoveryEventEnvelope envelope) {
         abortedByUser: false,
         lastError: envelope.context.lastError,
       ));
-      // Recovery succeeded â€” the Rust executor flips back to Running.
+      // Recovery succeeded — the Rust executor flips back to Running.
       // Mirror that on the Dart side so the LED returns to green.
       progressNotifier.updateState(SequenceExecutionState.running);
       break;
@@ -436,7 +436,7 @@ void _applyRecoveryEvent(Ref ref, RecoveryEventEnvelope envelope) {
         abortedByUser: envelope.abortedByUser ?? false,
         lastError: envelope.context.lastError,
       ));
-      // Recovery exhausted â€” the Rust executor flips to Failed.
+      // Recovery exhausted — the Rust executor flips to Failed.
       progressNotifier.updateState(SequenceExecutionState.failed);
       break;
   }
@@ -472,12 +472,12 @@ final recoveryAudibleBridgeProvider = Provider<void>((ref) {
 /// [pushCriticalAlerts].
 ///
 /// Two pushes per recovery loop, so the operator on cellular gets the full
-/// "something broke â€” and here's what I did" story:
+/// "something broke — and here's what I did" story:
 ///   * **Entry** (this listens [currentRecoveryProvider] None->Some): the
 ///     cause label + "entered recovery mode" + first attempt.
 ///   * **Exit** (this listens [recoveryHistoryProvider] for each freshly
-///     appended [RecoveryHistoryEntry]): the *outcome* â€” re-acquired /
-///     parked / gave-up â€” with the recovery action so the alert closes the
+///     appended [RecoveryHistoryEntry]): the *outcome* — re-acquired /
+///     parked / gave-up — with the recovery action so the alert closes the
 ///     loop instead of leaving the operator wondering. Recovery exhaustion
 ///     (`recovered == false`) is the most important escalation: the rig has
 ///     stopped imaging and needs a human.
@@ -515,14 +515,14 @@ final recoveryPushBridgeProvider = Provider<void>((ref) {
     }
   }
 
-  // Entry push â€” fires once on the None -> Some transition.
+  // Entry push — fires once on the None -> Some transition.
   ref.listen<RecoveryStatus?>(
     currentRecoveryProvider,
     (previous, next) {
       if (previous != null) return; // only on entry
       if (next == null) return;
       enqueue(
-        title: 'Recovering â€” ${next.cause.displayLabel}',
+        title: 'Recovering — ${next.cause.displayLabel}',
         body:
             'Sequence entered recovery mode. Attempt 1 of ${next.maxAttempts}.',
         eventType: 'recovery_started_${next.cause.wireKey}',
@@ -530,7 +530,7 @@ final recoveryPushBridgeProvider = Provider<void>((ref) {
     },
   );
 
-  // Exit push â€” fires once per newly appended history entry. The history
+  // Exit push — fires once per newly appended history entry. The history
   // notifier appends exactly one entry on every completed/gaveUp transition
   // (see [_applyRecoveryEvent]), and carries the cause + attempt count +
   // recovered/abortedByUser flags needed for the "here's what I did" copy.
@@ -564,7 +564,7 @@ String _recoveryExitTitle(RecoveryHistoryEntry entry) {
   return 'Recovery failed - ${entry.cause.displayLabel}';
 }
 
-/// "Here's what I did" body for a recovery exit â€” the cause, the action taken,
+/// "Here's what I did" body for a recovery exit — the cause, the action taken,
 /// and the attempt count, so the alert closes the loop the entry push opened.
 String _recoveryExitBody(RecoveryHistoryEntry entry) {
   final attempts =
@@ -584,7 +584,7 @@ String _recoveryExitBody(RecoveryHistoryEntry entry) {
 
 /// Visibility shim so widget tests can drive the bridge from a synthetic
 /// event without reaching into the private helper. The shim is the same
-/// function the production stream subscription calls â€” keeping the test
+/// function the production stream subscription calls — keeping the test
 /// path on the production code path means the end-to-end recovery test
 /// exercises the actual envelope-building logic.
 @visibleForTesting

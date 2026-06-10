@@ -59,7 +59,7 @@ final scienceBackendProvider = Provider<ScienceBackend>((ref) {
 /// given a WCS rotation in degrees.
 ///
 /// WHY: the rotation convention here is "WCS rotation = angle from celestial
-/// North to image up (after the standard pixel-Y â†’ sky-Y flip)", matching
+/// North to image up (after the standard pixel-Y → sky-Y flip)", matching
 /// the FITS CROTA2 sense used by ASTAP and Astrometry.net. Under that
 /// convention the inverse-rotation matrix is the *transpose* of the standard
 /// 2D rotation, which is what we apply here. If a future plate solver

@@ -81,26 +81,34 @@ class CameraWarmupController {
       targetTemp: currentSetpoint,
     );
 
-    _timer = Timer.periodic(tickInterval, (timer) async {
-      if (_cancelled) {
-        timer.cancel();
-        _timer = null;
-        notifier.setWarming(false);
-        return;
-      }
-
+    // One tick of the warm-up state machine. Returns true when warming is
+    // finished (cooler disabled or unrecoverable) so the scheduler stops.
+    //
+    // Deliberately driven by a self-rescheduling one-shot Timer instead of
+    // Timer.periodic: periodic ticks do not wait for the async body, so a
+    // slow cameraSetCooling(enabled: true) from tick N could land AFTER
+    // tick N+1 already disabled the cooler at the power threshold —
+    // silently re-enabling the cooler with no timer left to turn it off.
+    Future<bool> runTick() async {
       final state = _ref.read(cameraStateProvider);
       if (state.connectionState != DeviceConnectionState.connected) {
-        timer.cancel();
-        _timer = null;
-        notifier.setWarming(false);
-        return;
+        _log((l) => l.warning('Warm-up stopped: camera disconnected'));
+        return true;
+      }
+      if (state.deviceId != deviceId) {
+        // Camera was swapped/reconnected under a different id mid-warmup;
+        // the setpoints we are pushing would target the wrong device.
+        _log(
+          (l) => l.warning(
+            'Warm-up stopped: camera device id changed '
+            '($deviceId -> ${state.deviceId})',
+          ),
+        );
+        return true;
       }
 
       final coolerPower = state.coolerPower ?? 0.0;
       if (coolerPower <= 2.0) {
-        timer.cancel();
-        _timer = null;
         try {
           await _backend.cameraSetCooling(
             deviceId: deviceId,
@@ -118,13 +126,10 @@ class CameraWarmupController {
             (l) => l.error('Failed to disable cooler at end of warm-up: $e'),
           );
         }
-        notifier.setWarming(false);
-        return;
+        return true;
       }
 
       if (DateTime.now().difference(warmingStartTime) > maxWarmingDuration) {
-        timer.cancel();
-        _timer = null;
         try {
           await _backend.cameraSetCooling(
             deviceId: deviceId,
@@ -143,8 +148,7 @@ class CameraWarmupController {
                 l.error('Failed to disable cooler after warm-up timeout: $e'),
           );
         }
-        notifier.setWarming(false);
-        return;
+        return true;
       }
 
       currentSetpoint += stepPerTick;
@@ -164,7 +168,35 @@ class CameraWarmupController {
         );
         // Don't cancel on transient errors - try again next tick
       }
-    });
+      return false;
+    }
+
+    void scheduleNextTick() {
+      _timer = Timer(tickInterval, () async {
+        if (_cancelled) {
+          _timer = null;
+          return;
+        }
+        bool finished;
+        try {
+          finished = await runTick();
+        } on Object catch (e) {
+          // A throwing tick must never silently kill the loop with the
+          // cooler still enabled — log and retry next tick; the 30-minute
+          // safety timeout above bounds the worst case.
+          _log((l) => l.error('Warm-up tick failed: $e'));
+          finished = false;
+        }
+        if (finished || _cancelled) {
+          _timer = null;
+          notifier.setWarming(false);
+        } else {
+          scheduleNextTick();
+        }
+      });
+    }
+
+    scheduleNextTick();
   }
 
   /// Cancel any in-progress warm-up. The cooler is left in whatever

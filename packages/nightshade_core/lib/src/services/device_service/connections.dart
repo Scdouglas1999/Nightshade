@@ -176,6 +176,32 @@ extension _DeviceServiceConnections on DeviceService {
       _rotatorVerifyGeneration++;
 
       try {
+        // Best-effort cooler shutdown: ASCOM/INDI driver-side coolers keep
+        // running after the client disconnects, so an intentional
+        // disconnect with the cooler at setpoint would silently keep
+        // pulling power (and surprise the user packing up the rig).
+        // Fail-soft — an unreachable driver must not block the disconnect.
+        if (state.isCooling) {
+          try {
+            await _backend.cameraSetCooling(
+              deviceId: deviceId,
+              enabled: false,
+            );
+            _safeLog(
+              (l) => l.info('Cooler disabled as part of camera disconnect',
+                  source: 'DeviceService'),
+              'disconnect-cooler-off',
+            );
+          } catch (e) {
+            _safeLog(
+              (l) => l.warning(
+                  'Could not disable cooler during disconnect: $e',
+                  source: 'DeviceService'),
+              'disconnect-cooler-off',
+            );
+          }
+        }
+
         // Stop heartbeat monitoring. DeviceHeartbeatRouter.stop is
         // fail-soft: it logs and swallows so the disconnect proceeds
         // even if the driver is already gone.
@@ -412,6 +438,19 @@ extension _DeviceServiceConnections on DeviceService {
         notifier.setDeviceName(deviceName);
         notifier.updatePosition(status.position);
         notifier.setMoving(status.moving);
+
+        // Seed the per-wheel "last applied offset" baseline with the CURRENT
+        // filter's configured offset. The map entry is cleared on disconnect,
+        // so without this seed the first filter change after a reconnect
+        // computes its focuser delta against 0 — double-applying an offset
+        // that is already physically embodied in the focuser position (the
+        // rig was focused with the current filter in place).
+        if (status.position >= 0 &&
+            status.position < status.filterNames.length) {
+          _lastAppliedFilterOffsetByWheel[deviceId] =
+              _resolveConfiguredFilterOffset(
+                  status.filterNames[status.position]);
+        }
 
         // After connection, sync profile/session filter names to the native
         // driver so user-defined names (Ha, OIII, SII, etc.) are used in

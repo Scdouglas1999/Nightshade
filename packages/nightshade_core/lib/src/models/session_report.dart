@@ -41,10 +41,17 @@ class SessionFilterReport {
   /// star count for this filter.
   final double? meanStarCount;
 
-  /// Mean signal-to-noise proxy across accepted frames, computed from the
-  /// captured-image `background / noise` columns. Null when neither field
-  /// was populated.
+  /// Mean signal-to-noise across accepted frames. Sourced from the science
+  /// pipeline's per-frame SNR when available (real photometric SNR);
+  /// otherwise falls back to the captured-image `background / noise`
+  /// proxy — see [snrIsProxy]. Null when neither source has data.
   final double? meanSnr;
+
+  /// True when [meanSnr] is the background/noise PROXY rather than the
+  /// science pipeline's real SNR. Surfaced so exports can label proxy
+  /// values honestly — a proxy of 8 and a real SNR of 45 describe the
+  /// same data, and presenting the former bare as "SNR" misleads.
+  final bool snrIsProxy;
 
   /// Mean guider RMS total ("seeing") across accepted frames in arcsec.
   /// Null when no frame had guiding data for this filter.
@@ -68,6 +75,7 @@ class SessionFilterReport {
     required this.meanFwhm,
     required this.meanStarCount,
     required this.meanSnr,
+    this.snrIsProxy = true,
     required this.meanGuidingRmsTotal,
     required this.meanSensorTemp,
     required this.rejectionReasons,
@@ -83,6 +91,7 @@ class SessionFilterReport {
         'meanFwhm': meanFwhm,
         'meanStarCount': meanStarCount,
         'meanSnr': meanSnr,
+        'snrIsProxy': snrIsProxy,
         'meanGuidingRmsTotal': meanGuidingRmsTotal,
         'meanSensorTemp': meanSensorTemp,
         'rejectionReasons': rejectionReasons,

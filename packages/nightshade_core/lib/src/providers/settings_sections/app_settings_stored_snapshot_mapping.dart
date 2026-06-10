@@ -164,7 +164,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
           _normaliseCriticalAlertSound(allSettings['critical_alert_sound']),
       pushCriticalAlerts: _parseBool(allSettings['push_critical_alerts'], true),
 
-      // Wave 4 Recovery Mode â€” persisted defaults. Missing keys (first
+      // Wave 4 Recovery Mode — persisted defaults. Missing keys (first
       // launch, upgrade from pre-Wave-4 release) fall back to the
       // SGP-matching constructor defaults. Values are clamped here so a
       // pathological persisted setting (zero retry interval, negative
@@ -216,10 +216,10 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       afAutofocusFilterName: allSettings['af_autofocus_filter_name'] ?? '',
       afFilterSettingsJson: allSettings['af_filter_settings'] ?? '{}',
 
-      // Pack G â€” observer name (FITS OBSERVER).
+      // Pack G — observer name (FITS OBSERVER).
       observerName: allSettings['observer_name'] ?? '',
 
-      // Pack G â€” Wave 3 Image Grading. Each `_parseOptionalDouble` /
+      // Pack G — Wave 3 Image Grading. Each `_parseOptionalDouble` /
       // `_parseOptionalInt` returns `null` only when the key is *absent*
       // OR the persisted value is the literal string "null"; an actual
       // numeric value parses normally. This is how the UI lets the user
@@ -254,7 +254,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
               ? null
               : allSettings['image_grading_reject_folder_path'],
 
-      // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure. Per-filter
+      // Wave 5 Agent 2 — Sky-brightness adaptive exposure. Per-filter
       // maps are stored as JSON strings in app_settings; an empty map
       // falls back to the implicit-global behaviour at runtime.
       adaptiveExposureEnabled: _parseBool(
@@ -284,9 +284,9 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       adaptiveExposurePerFilterMaxSecs: _parseFilterDoubleMap(
           allSettings['adaptive_exposure_per_filter_max_secs']),
 
-      // Wave 5 Agent 3 â€” Pre-flight checks. Values are clamped to defend
+      // Wave 5 Agent 3 — Pre-flight checks. Values are clamped to defend
       // against pathological persisted values (zero / negative days, zero
-      // coverage quorum). The drift threshold has no upper bound â€” a user
+      // coverage quorum). The drift threshold has no upper bound — a user
       // who wants the optical-train check silenced can crank it sky-high.
       preflightStrictness:
           _parsePreflightStrictness(allSettings['preflight_strictness']),
@@ -302,7 +302,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['optical_train_drift_threshold'],
         8.0,
       ).clamp(0.1, 1000.0),
-      // Wave 6 Agent 1 â€” Smart Night persisted defaults. Each numeric
+      // Wave 6 Agent 1 — Smart Night persisted defaults. Each numeric
       // knob is clamped to a sane range so a pathological persisted
       // value can't blow up the wizard with a multi-day session or a
       // zero-frame autofocus cadence.
@@ -336,7 +336,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['smart_night_polar_alignment_stale_after_days'],
         7,
       ).clamp(1, 365),
-      // Wave 6 Agent 5 â€” Notes prompt opt-out. Same key the
+      // Wave 6 Agent 5 — Notes prompt opt-out. Same key the
       // NotesService writes through `notesPromptToggleProvider`.
       smartNightSubExposureFloorSecs: _parseDouble(
         allSettings['smart_night_sub_exposure_floor_secs'],
@@ -358,7 +358,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['notes.prompt_after_run'],
         true,
       ),
-      // Wave 7 â€” Session lifecycle persistence.
+      // Wave 7 — Session lifecycle persistence.
       sessionHandoffAutoPrompt: _parseBool(
         allSettings['session.handoff_auto_prompt'],
         true,
@@ -370,7 +370,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       campaignRollupGroupingMode: _parseCampaignGroupingMode(
         allSettings['campaign_rollup.grouping_mode'],
       ),
-      // Wave 8 â€” Adaptive sky-conditions defaults. The weights map is
+      // Wave 8 — Adaptive sky-conditions defaults. The weights map is
       // JSON-encoded under `adaptive_swap.score_weights`; missing /
       // malformed entries fall back to the constructor defaults via the
       // [_parseConditionsScoreWeights] helper.
@@ -392,7 +392,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     );
   }
 
-  /// Wave 8 â€” parse the persisted [conditionsScoreWeights] JSON object.
+  /// Wave 8 — parse the persisted [conditionsScoreWeights] JSON object.
   /// Falls back to the canonical defaults when the value is missing,
   /// malformed, or weighted-key-set-incomplete.
   Map<String, double> _parseConditionsScoreWeights(String? raw) {
@@ -413,16 +413,16 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       }
       return out;
     } catch (_) {
-      // Malformed JSON â€” fall back to defaults so the rest of settings
+      // Malformed JSON — fall back to defaults so the rest of settings
       // load anyway. Per CLAUDE.md we surface this elsewhere (the
       // settings page renders a warning when weights drift from 1.0).
       return defaults;
     }
   }
 
-  /// Wave 7 â€” clamp the grouping mode to the allowed enum-style values.
+  /// Wave 7 — clamp the grouping mode to the allowed enum-style values.
   /// Unknown / empty persists fall through to the default. Keeps the
-  /// rest of the settings codebase free of a separate enum type â€” the
+  /// rest of the settings codebase free of a separate enum type — the
   /// three call sites just compare to the string constants.
   String _parseCampaignGroupingMode(String? value) {
     const allowed = ['by_target_name', 'by_target_id', 'by_user_tag'];
@@ -430,7 +430,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     return value;
   }
 
-  /// Pack G â€” parse a persisted `Optional<double>`. The DAO stores values as
+  /// Pack G — parse a persisted `Optional<double>`. The DAO stores values as
   /// strings; a missing key returns the supplied default (so the master
   /// toggle defaults are honoured on first launch), the literal string
   /// "null" returns null (user explicitly cleared the field), and any
@@ -458,7 +458,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     return value.toLowerCase() == 'true';
   }
 
-  /// Wave 5 Agent 2 â€” parse a JSON-encoded `Map<String, bool>` from
+  /// Wave 5 Agent 2 — parse a JSON-encoded `Map<String, bool>` from
   /// app_settings. Returns an empty map on null / invalid input so the
   /// runtime falls back to the implicit-global behaviour rather than
   /// firing on garbage data.
@@ -474,13 +474,13 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     } catch (_) {
       // Treat parse errors as no-data; CLAUDE.md "errors are a
       // feature" doesn't apply to disk-side persisted values we
-      // don't control the format of â€” fall back to empty rather than
+      // don't control the format of — fall back to empty rather than
       // crashing settings load.
     }
     return const {};
   }
 
-  /// Wave 5 Agent 2 â€” parse a JSON-encoded `Map<String, double>`.
+  /// Wave 5 Agent 2 — parse a JSON-encoded `Map<String, double>`.
   Map<String, double> _parseFilterDoubleMap(String? value) {
     if (value == null || value.isEmpty || value == 'null') {
       return const {};
@@ -493,14 +493,14 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         );
       }
     } catch (_) {
-      // Fall back to empty on parse error â€” see [_parseFilterBoolMap].
+      // Fall back to empty on parse error — see [_parseFilterBoolMap].
     }
     return const {};
   }
 
   /// Normalise the persisted `critical_alert_sound` string into the allowed
   /// values. Unknown strings fall back to the system bell (the safest default
-  /// â€” silence-on-typo would defeat the whole point of an audible alert).
+  /// — silence-on-typo would defeat the whole point of an audible alert).
   String _normaliseCriticalAlertSound(String? value) {
     switch (value) {
       case 'none':

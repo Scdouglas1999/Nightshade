@@ -15,7 +15,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// `correlatingCommandId`s of POSTs this notifier itself originated.
   /// Used to drop our own echoes so a local write doesn't fight the
   /// in-flight UI by overwriting state with the value we just sent.
-  /// Bounded at 64 entries â€” far more than any realistic in-flight
+  /// Bounded at 64 entries — far more than any realistic in-flight
   /// burst, but cheap to keep.
   final List<String> _ownCommandIds = <String>[];
 
@@ -48,7 +48,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   }
 
   /// Cheap, opaque command id generator. We deliberately don't pull
-  /// `package:uuid` for one call site â€” a `timestamp-random` pair is
+  /// `package:uuid` for one call site — a `timestamp-random` pair is
   /// collision-resistant enough for echo-suppression (the id only has
   /// to be unique among an individual client's recent in-flight
   /// writes).
@@ -135,7 +135,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
 
     // [Wave 6B settings sync] tear down any previous subscription before
     // re-binding for the freshly-read backend. `build()` is called every
-    // time the backend changes (FFI â†’ Network â†’ Disconnected etc.) and
+    // time the backend changes (FFI → Network → Disconnected etc.) and
     // each variant needs its own subscription policy. The cancel() future
     // is fire-and-forget; we only care that the listener stops dispatching.
     unawaited(_settingsEventSub?.cancel());

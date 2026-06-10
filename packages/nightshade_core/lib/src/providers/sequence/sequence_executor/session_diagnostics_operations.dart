@@ -14,7 +14,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         source: 'SequenceExecutor',
       );
     } catch (e, st) {
-      // Notification setup failure must never block imaging â€” log and
+      // Notification setup failure must never block imaging — log and
       // continue. The user gets a working sequence with global routing
       // rules instead of per-sequence overrides.
       _logger.warning(
@@ -116,10 +116,10 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           _logger.info(
             'Optical-train drift vs. session-start baseline: '
             '${drift.toStringAsFixed(2)} (tilt '
-            '${_sessionStartBaseline!.tiltScore.toStringAsFixed(1)} â†’ '
+            '${_sessionStartBaseline!.tiltScore.toStringAsFixed(1)} → '
             '${postSnapshot.tiltScore.toStringAsFixed(1)}, '
             'collimation '
-            '${_sessionStartBaseline!.collimationScore.toStringAsFixed(1)} â†’ '
+            '${_sessionStartBaseline!.collimationScore.toStringAsFixed(1)} → '
             '${postSnapshot.collimationScore.toStringAsFixed(1)})',
             source: 'SequenceExecutor',
           );
@@ -131,7 +131,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           source: 'SequenceExecutor',
         );
       } else {
-        // No live PSF/residual data at session end â€” fall back to the
+        // No live PSF/residual data at session end — fall back to the
         // start-of-session baseline (if we captured one) so the
         // dashboard's current snapshot at least shows the entry
         // state instead of stale data from a previous run.
@@ -234,7 +234,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   /// tiles, no live session).
   ///
   /// Uses the same data path as the analytics tab so the values shown
-  /// in the History dialog match the live dashboard â€” pulled directly
+  /// in the History dialog match the live dashboard — pulled directly
   /// from the PSF / residual provider streams rather than re-running
   /// the analysis on raw FITS files.
   OpticalTrainBaseline? _captureOpticalTrainBaseline() {
@@ -246,7 +246,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         _ref.read(sessionResidualVectorsProvider(dbSessionId)).valueOrNull ??
             const [];
     if (psfTiles.isEmpty) {
-      // Nothing solved yet â€” calling analyze() would emit the
+      // Nothing solved yet — calling analyze() would emit the
       // "No diagnostics data" placeholder, which has tilt=0 and
       // collimation=0 and would look like a "zero drift" baseline.
       // Returning null preserves the honest "no data" signal.
@@ -265,10 +265,10 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   ///
   /// The summary surfaces:
   ///   * USB disconnects that occurred during this run (not the rolling
-  ///     24 h window â€” the user already saw earlier flakes the last time
+  ///     24 h window — the user already saw earlier flakes the last time
   ///     they opened the report).
   ///   * Total focuser moves recorded across the run (sourced from
-  ///     `liveSequenceStatsProvider.autofocusRuns` â€” an autofocus run
+  ///     `liveSequenceStatsProvider.autofocusRuns` — an autofocus run
   ///     equals N moves of the focuser).
   ///   * Verbatim warning messages collected by `SequenceRunStats`
   ///     during the run, including filter-lookup fallbacks and any

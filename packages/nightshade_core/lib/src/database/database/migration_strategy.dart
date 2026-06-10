@@ -16,6 +16,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _ensureIntegratedMastersV44Columns();
         await _createNarrowbandCompositesTable();
         await _createMosaicTables();
+        await _createCalibrationTagsTable();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -62,6 +63,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV43(m, from);
         await _upgradeSchemaV44(m, from);
         await _upgradeSchemaV45(m, from);
+        await _upgradeSchemaV46(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

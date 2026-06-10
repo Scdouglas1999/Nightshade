@@ -15,6 +15,7 @@ final sessionReportServiceProvider = Provider<SessionReportService>((ref) {
     records: ref.watch(imagingRecordsRepositoryProvider),
     sequenceRunsDao: ref.watch(sequenceRunsDaoProvider),
     targetsDao: ref.watch(targetsDaoProvider),
+    scienceDao: ref.watch(scienceDaoProvider),
   );
 });
 

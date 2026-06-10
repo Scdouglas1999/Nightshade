@@ -512,15 +512,21 @@ class FrameGradeRunSummary {
   /// Most-recent N decisions (chronological order, oldest first). The
   /// dashboard renders this as a scrollable list.
   final List<FrameGradeEvent> recent;
-  /// HFR samples taken from accepted frames in chronological order; used
-  /// for the HFR sparkline on the dashboard.
+  /// HFR samples from ALL graded frames in chronological order; used for
+  /// the HFR sparkline on the dashboard. Rejected frames are included —
+  /// a focus-drift episode that causes rejections must remain visible in
+  /// the trend, not silently vanish from it.
   final List<double> hfrSparkline;
+  /// Parallel to [hfrSparkline]: true when the sample came from an
+  /// accepted frame, false for a rejected one (rendered distinctly).
+  final List<bool> hfrSparklineAccepted;
 
   const FrameGradeRunSummary({
     required this.accepted,
     required this.rejected,
     required this.recent,
     required this.hfrSparkline,
+    this.hfrSparklineAccepted = const [],
   });
 
   static const empty = FrameGradeRunSummary(
@@ -528,6 +534,7 @@ class FrameGradeRunSummary {
     rejected: 0,
     recent: [],
     hfrSparkline: [],
+    hfrSparklineAccepted: [],
   );
 
   int get total => accepted + rejected;

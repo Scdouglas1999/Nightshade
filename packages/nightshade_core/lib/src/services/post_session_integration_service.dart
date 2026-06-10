@@ -12,7 +12,9 @@ import '../database/database.dart';
 import '../models/imaging/integrated_master.dart';
 import '../models/imaging/integration_curve.dart';
 import '../models/imaging/integration_settings.dart';
+import '../models/calibration/calibration_library_models.dart';
 import '../providers/dark_library_provider.dart';
+import 'calibration_library_service.dart';
 import 'color_calibration_service.dart';
 import 'dark_library_service.dart';
 import 'flat_library_service.dart';
@@ -28,11 +30,18 @@ class ResolvedCalibration {
   final String? biasPath;
   final bool cosmeticCorrection;
 
+  /// Operator-facing warnings produced by the Calibration Library matcher
+  /// while selecting these masters (temperature mismatch, exposure scaling,
+  /// stale flats, …). Empty for pinned/legacy selections. Not part of the
+  /// native bridge JSON — surfaced on [PostSessionIntegrationOutcome].
+  final List<String> warnings;
+
   const ResolvedCalibration({
     this.darkPath,
     this.flatPath,
     this.biasPath,
     this.cosmeticCorrection = true,
+    this.warnings = const [],
   });
 
   Map<String, dynamic> toBridgeJson() => {
@@ -115,10 +124,16 @@ class PostSessionIntegrationOutcome {
   /// The decoded native integration result.
   final IntegrateSessionResult result;
 
+  /// Warnings from the calibration auto-match for this group (see
+  /// [ResolvedCalibration.warnings]). Empty when masters were pinned or no
+  /// matcher is wired.
+  final List<String> calibrationWarnings;
+
   const PostSessionIntegrationOutcome({
     required this.masterId,
     required this.filter,
     required this.result,
+    this.calibrationWarnings = const [],
   });
 }
 
@@ -150,12 +165,14 @@ class PostSessionIntegrationService {
     required DarkLibraryService darkLibrary,
     required FlatLibraryService flatLibrary,
     required PostSessionSeam seam,
+    CalibrationLibraryService? calibrationLibrary,
     MasterPlateSolver? plateSolver,
     MasterColorCalibrator? colorCalibrator,
   })  : _mastersDao = mastersDao,
         _darkLibrary = darkLibrary,
         _flatLibrary = flatLibrary,
         _seam = seam,
+        _calibrationLibrary = calibrationLibrary,
         _plateSolver = plateSolver,
         _colorCalibrator = colorCalibrator;
 
@@ -163,6 +180,12 @@ class PostSessionIntegrationService {
   final DarkLibraryService _darkLibrary;
   final FlatLibraryService _flatLibrary;
   final PostSessionSeam _seam;
+
+  /// Optional Calibration Library matcher. When wired, un-pinned master
+  /// selection routes through [CalibrationLibraryService.match] so the
+  /// transparent scoring + warnings drive the auto-pick; when null the legacy
+  /// per-DAO matching ([DarkLibraryService] / [FlatLibraryService]) is used.
+  final CalibrationLibraryService? _calibrationLibrary;
 
   /// Optional fail-soft plate-solver for the finished master FITS, injected at
   /// the provider boundary (where the `PlateSolveService` Riverpod `_ref`
@@ -200,6 +223,7 @@ class PostSessionIntegrationService {
     int? targetId,
     String? targetName,
     String? biasPath,
+    ResolvedCalibration? pinnedCalibration,
     bool generatePreview = true,
     double? hintRaHours,
     double? hintDecDegrees,
@@ -217,11 +241,15 @@ class PostSessionIntegrationService {
       final filterValue =
           filterBucket == noFilterBucket ? null : filterBucket;
 
-      final calibration = await _resolveCalibration(
-        subs: groupSubs,
-        biasPath: biasPath,
-        cosmeticCorrection: settings.cosmeticCorrection,
-      );
+      // A user-pinned calibration set bypasses auto-matching entirely (it is
+      // applied verbatim to every filter group); otherwise the Calibration
+      // Library / legacy DAOs pick the masters.
+      final calibration = pinnedCalibration ??
+          await _resolveCalibration(
+            subs: groupSubs,
+            biasPath: biasPath,
+            cosmeticCorrection: settings.cosmeticCorrection,
+          );
 
       final masterFitsPath = outputFitsPathBuilder(filterBucket);
       final previewPath =
@@ -303,6 +331,7 @@ class PostSessionIntegrationService {
         masterId: masterId,
         filter: filterValue,
         result: result,
+        calibrationWarnings: calibration.warnings,
       ));
     }
 
@@ -867,6 +896,35 @@ class PostSessionIntegrationService {
     final binY = anchor.binY;
     final temperature = anchor.sensorTemp;
 
+    // Preferred path: the Calibration Library's transparent matcher (scored
+    // picks + operator-facing warnings). The legacy DAO path below remains
+    // for callers constructed without the library service.
+    final library = _calibrationLibrary;
+    if (library != null) {
+      final matchSet = await library.match(LightFrameContext(
+        gain: gain,
+        offset: offset,
+        exposureSeconds: anchor.exposureDuration,
+        temperature: temperature,
+        filter: anchor.filter,
+        binX: binX,
+        binY: binY,
+      ));
+      final explicitBias =
+          (biasPath != null && biasPath.trim().isNotEmpty) ? biasPath : null;
+      return ResolvedCalibration(
+        darkPath: matchSet.dark?.record.filePath,
+        flatPath: matchSet.flat?.record.filePath,
+        // An explicit bias override wins; otherwise only auto-fill the bias
+        // when no dark matched (a matched dark already carries the bias
+        // signal — supplying both would double-subtract the pedestal).
+        biasPath: explicitBias ??
+            (matchSet.dark == null ? matchSet.bias?.record.filePath : null),
+        cosmeticCorrection: cosmeticCorrection,
+        warnings: matchSet.allWarnings,
+      );
+    }
+
     final dark = await _darkLibrary.findMatchingDark(
       exposureTime: anchor.exposureDuration,
       gain: gain,
@@ -1002,6 +1060,10 @@ final postSessionIntegrationServiceProvider =
     darkLibrary: ref.watch(darkLibraryServiceProvider),
     flatLibrary: ref.watch(flatLibraryServiceProvider),
     seam: ref.watch(postSessionSeamProvider),
+    // Calibration Library Manager: routes un-pinned master selection through
+    // the transparent scored matcher so its warnings reach the outcome /
+    // morning report.
+    calibrationLibrary: ref.watch(calibrationLibraryServiceProvider),
     // Catalog colour calibration of the finished master, wired at the provider
     // boundary (where the `ColorCalibrationService` + its on-disk HYG catalog
     // live). The closure delegates to `ColorCalibrationService.calibrate`, which
