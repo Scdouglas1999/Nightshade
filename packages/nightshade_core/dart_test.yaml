@@ -43,3 +43,13 @@ tags:
   # (NIGHTSHADE_LIVE_NETWORK=1) is the single switch that enables real fetches,
   # keeping CI and default `flutter test` runs offline and deterministic.
   live-network:
+
+  # The golden tag covers pixel-diff / perceptual golden tests whose baselines
+  # are host-specific (GPU rasteriser + font hinting differ across OSes). The
+  # committed baselines were captured on one host and produce ~1-1.5% diffs on
+  # others, so these are EXCLUDED from `melos run test` (Linux CI + default
+  # local runs) via `--exclude-tags golden` and run opt-in via
+  # `melos run test:golden`. Registered here so `dart test` recognises the tag;
+  # not hard-skipped in config so the opt-in command can still select it.
+  # See docs/testing/golden-tests.md.
+  golden:

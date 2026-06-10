@@ -220,8 +220,12 @@ void main() {
   /// Pumps the real [FramingScreen] and returns the measured, sidebar-excluded
   /// canvas size plus the two painters the canvas built for the survey
   /// background and the equipment FOV reticle.
-  Future<({Size canvasSize, FramingSurveyImagePainter survey, FramingFOVPainter fov})>
-      pumpAndExtract(WidgetTester tester, FramingState seed) async {
+  Future<
+      ({
+        Size canvasSize,
+        FramingSurveyImagePainter survey,
+        FramingFOVPainter fov
+      })> pumpAndExtract(WidgetTester tester, FramingState seed) async {
     await pumpAppScreen(
       tester,
       const FramingScreen(),
@@ -254,7 +258,8 @@ void main() {
 
   testWidgets(
       'framing_fov_reticle_uses_survey_plate_scale: the FOV rectangle is '
-      'registered to the survey background scale to within 1px', (tester) async {
+      'registered to the survey background scale to within 1px',
+      (tester) async {
     final extracted = await pumpAndExtract(tester, seededState());
 
     // --- Guard 1: both painters share the survey-published plate scale. ----
@@ -323,7 +328,8 @@ void main() {
             'window the plate-scale math would be off by the sidebar width.');
     expect(
         extracted.canvasSize.width, closeTo(_surfaceSize.width - 320 - 10, 1.0),
-        reason: 'Canvas width must equal surface width minus the controls panel '
+        reason:
+            'Canvas width must equal surface width minus the controls panel '
             '(initialPanelWidth 320) and the 10px resize handle. This pins the '
             'bounded LayoutBuilder region.');
   });
@@ -348,7 +354,8 @@ void main() {
 
   testWidgets(
       'framing_canvas_golden: the composed survey background + co-registered '
-      'FOV reticle renders pixel-stably under rotation', (tester) async {
+      'FOV reticle renders pixel-stably under rotation',
+      tags: 'golden', (tester) async {
     // C9 golden: lock the actual rendered framing canvas (survey background +
     // equipment FOV reticle, rotated) so a regression in the plate-scale
     // registration or the overlay transform composition is caught visually,

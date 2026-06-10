@@ -224,8 +224,7 @@ void main() {
       framingProvider
           .overrideWith((ref) => _SeededFramingNotifier(ref, seededFraming())),
       hipsFramingEnabledProvider.overrideWith((ref) => false),
-      hipsTileFetcherProvider
-          .overrideWithValue(_FakeFetcher(_propsWithCredit)),
+      hipsTileFetcherProvider.overrideWithValue(_FakeFetcher(_propsWithCredit)),
     ]));
     await tester.pump();
 
@@ -248,8 +247,7 @@ void main() {
         ),
       ),
       hipsFramingEnabledProvider.overrideWith((ref) => true),
-      hipsTileFetcherProvider
-          .overrideWithValue(_FakeFetcher(_propsWithCredit)),
+      hipsTileFetcherProvider.overrideWithValue(_FakeFetcher(_propsWithCredit)),
     ]));
     await tester.pump();
 
@@ -270,8 +268,7 @@ void main() {
       framingProvider
           .overrideWith((ref) => _SeededFramingNotifier(ref, seededFraming())),
       hipsFramingEnabledProvider.overrideWith((ref) => true),
-      hipsTileFetcherProvider
-          .overrideWithValue(_FakeFetcher(_propsWithCredit)),
+      hipsTileFetcherProvider.overrideWithValue(_FakeFetcher(_propsWithCredit)),
       hipsResidentTilesProvider.overrideWith(
         (ref) => _SeededResidentNotifier(loader, HipsResidentSnapshot.empty),
       ),
@@ -282,7 +279,8 @@ void main() {
     // The wiring mounts only the attribution badge; the streamed tile mosaic is
     // composed inside FramingCanvas (not present in this isolated wiring host).
     expect(find.byType(HipsTileLayer), findsNothing,
-        reason: 'The wiring no longer mounts the tile layer — that lives inside '
+        reason:
+            'The wiring no longer mounts the tile layer — that lives inside '
             'FramingCanvas, under the FOV overlays.');
     expect(find.byType(HipsAttributionBadge), findsOneWidget,
         reason: 'Active → the attribution badge is mounted (it gates its own '
@@ -310,8 +308,7 @@ void main() {
       framingProvider
           .overrideWith((ref) => _SeededFramingNotifier(ref, seededFraming())),
       hipsFramingEnabledProvider.overrideWith((ref) => true),
-      hipsTileFetcherProvider
-          .overrideWithValue(_FakeFetcher(_propsWithCredit)),
+      hipsTileFetcherProvider.overrideWithValue(_FakeFetcher(_propsWithCredit)),
       hipsResidentTilesProvider.overrideWith(
         (ref) => _SeededResidentNotifier(loader, snapshotWithImagery(allsky)),
       ),
@@ -329,7 +326,7 @@ void main() {
 
   testWidgets(
       'golden + sample: composed badge over imagery renders the survey credit',
-      (tester) async {
+      tags: 'golden', (tester) async {
     final allsky = (await tester.runAsync(
       () => _solidImage(32, 32, const Color(0xFF335577)),
     ))!;
@@ -349,8 +346,7 @@ void main() {
       framingProvider
           .overrideWith((ref) => _SeededFramingNotifier(ref, seededFraming())),
       hipsFramingEnabledProvider.overrideWith((ref) => true),
-      hipsTileFetcherProvider
-          .overrideWithValue(_FakeFetcher(_propsWithCredit)),
+      hipsTileFetcherProvider.overrideWithValue(_FakeFetcher(_propsWithCredit)),
       hipsResidentTilesProvider.overrideWith(
         (ref) => _SeededResidentNotifier(loader, snapshotWithImagery(allsky)),
       ),

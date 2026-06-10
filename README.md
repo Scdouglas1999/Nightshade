@@ -209,9 +209,9 @@ melos run dev            # FRB codegen + Rust build + copy native libs + run des
 
 ### Toolchain
 
-- **Windows:** Visual Studio 2022 with "Desktop development with C++". LLVM/Clang on PATH for FRB/ffigen. Flutter 3.35+ (Linux release build uses 3.35.5; analyzer/test CI in `ci.yml` pins 3.24.0, so a contributor on 3.24.0 matches CI's analyze/test jobs). Rust stable, 2021 edition. Melos via `dart pub global activate melos`.
-- **Linux:** `build-essential`, `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `libsecret-1-dev`, `libjsoncpp-dev`. Flutter 3.35+, Rust stable. Vendor udev rules for native USB cameras where applicable.
-- **macOS:** Xcode Command Line Tools. Code signing for device builds. Flutter 3.35+, Rust stable.
+- **Windows:** Visual Studio 2022 with "Desktop development with C++". LLVM/Clang on PATH for FRB/ffigen. Flutter 3.44.1 (all CI jobs — analyze/test/release on every OS — pin 3.44.1, matching the Dart 3.12 / analyzer 10 toolchain; use 3.44.1 locally so your `dart format` and `flutter analyze` match CI). Rust stable, 2021 edition. Melos via `dart pub global activate melos`.
+- **Linux:** `build-essential`, `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `libsecret-1-dev`, `libjsoncpp-dev`. Flutter 3.44.1, Rust stable. Vendor udev rules for native USB cameras where applicable.
+- **macOS:** Xcode Command Line Tools. Code signing for device builds. Flutter 3.44.1, Rust stable.
 
 If codegen or the FFI boundary misbehaves, start with [docs/FRB_TROUBLESHOOTING.md](docs/FRB_TROUBLESHOOTING.md).
 

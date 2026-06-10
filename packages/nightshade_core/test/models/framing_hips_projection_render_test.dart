@@ -1,3 +1,10 @@
+// Tagged "golden" so the perceptual/pixel-diff golden gate is excluded by
+// `melos run test` (Linux CI + default local runs) and opt-in via
+// `melos run test:golden`. Baselines are host-specific; see
+// docs/testing/golden-tests.md.
+@Tags(['golden'])
+library;
+
 // Visual verification + golden for the shared framing sky<->screen projection.
 //
 // [FramingSkyProjection] is pure math, but its whole job is to register sky
@@ -56,46 +63,48 @@ const _fovHeightDeg = 0.9;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('renders projection registration golden + .hips_verify sample',
-      () async {
-    final view = FramingProjectionView(
-      plateScale: _plateScale,
-      previewFovDegrees: _plateScale.surveyFovWidthDeg,
-      centerRaHours: _centerRaHours,
-      centerDecDegrees: _centerDecDegrees,
-      zoom: _zoom,
-      panX: _pan.dx,
-      panY: _pan.dy,
-      rotationDegrees: _rotationDegrees,
-    );
-    final proj = FramingSkyProjection.fromView(_canvasSize, view);
+  test(
+    'renders projection registration golden + .hips_verify sample',
+    () async {
+      final view = FramingProjectionView(
+        plateScale: _plateScale,
+        previewFovDegrees: _plateScale.surveyFovWidthDeg,
+        centerRaHours: _centerRaHours,
+        centerDecDegrees: _centerDecDegrees,
+        zoom: _zoom,
+        panX: _pan.dx,
+        panY: _pan.dy,
+        rotationDegrees: _rotationDegrees,
+      );
+      final proj = FramingSkyProjection.fromView(_canvasSize, view);
 
-    final image = await _renderRegistration(proj);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    expect(bytes, isNotNull);
-    final pngBytes = bytes!.buffer.asUint8List();
+      final image = await _renderRegistration(proj);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      expect(bytes, isNotNull);
+      final pngBytes = bytes!.buffer.asUint8List();
 
-    // 1) Write the human-inspectable sample artifact and print its path.
-    final repoRoot = _findRepoRoot();
-    final verifyDir = Directory('${repoRoot.path}/.hips_verify');
-    if (!verifyDir.existsSync()) {
-      verifyDir.createSync(recursive: true);
-    }
-    final samplePath =
-        '${verifyDir.path}/framing_hips_projection_registration.png';
-    File(samplePath).writeAsBytesSync(pngBytes, flush: true);
-    // ignore: avoid_print
-    print('HIPS_VERIFY_SAMPLE: $samplePath');
+      // 1) Write the human-inspectable sample artifact and print its path.
+      final repoRoot = _findRepoRoot();
+      final verifyDir = Directory('${repoRoot.path}/.hips_verify');
+      if (!verifyDir.existsSync()) {
+        verifyDir.createSync(recursive: true);
+      }
+      final samplePath =
+          '${verifyDir.path}/framing_hips_projection_registration.png';
+      File(samplePath).writeAsBytesSync(pngBytes, flush: true);
+      // ignore: avoid_print
+      print('HIPS_VERIFY_SAMPLE: $samplePath');
 
-    // 2) Lock the rendering as a golden. matchesGoldenFile accepts a
-    //    Future<List<int>> of PNG bytes directly.
-    await expectLater(
-      Future<List<int>>.value(pngBytes),
-      matchesGoldenFile('goldens/framing_hips_projection_registration.png'),
-    );
+      // 2) Lock the rendering as a golden. matchesGoldenFile accepts a
+      //    Future<List<int>> of PNG bytes directly.
+      await expectLater(
+        Future<List<int>>.value(pngBytes),
+        matchesGoldenFile('goldens/framing_hips_projection_registration.png'),
+      );
 
-    image.dispose();
-  });
+      image.dispose();
+    },
+  );
 }
 
 /// Render: survey background draw rect + projected RA/Dec graticule + FOV
@@ -173,7 +182,11 @@ Future<ui.Image> _renderRegistration(FramingSkyProjection proj) async {
   for (double ra = raStartHours; ra <= raEndHours + 1e-9; ra += raStep) {
     final path = Path();
     var first = true;
-    for (double dec = decStartDeg; dec <= decEndDeg + 1e-9; dec += decStep / 4) {
+    for (
+      double dec = decStartDeg;
+      dec <= decEndDeg + 1e-9;
+      dec += decStep / 4
+    ) {
       final p = proj.raDecToScreen(ra, dec);
       if (first) {
         path.moveTo(p.dx, p.dy);
@@ -203,13 +216,21 @@ Future<ui.Image> _renderRegistration(FramingSkyProjection proj) async {
   const halfDecDeg = _fovHeightDeg / 2;
   final fovCorners = <Offset>[
     proj.raDecToScreen(
-        _centerRaHours - halfRaHours, _centerDecDegrees + halfDecDeg),
+      _centerRaHours - halfRaHours,
+      _centerDecDegrees + halfDecDeg,
+    ),
     proj.raDecToScreen(
-        _centerRaHours + halfRaHours, _centerDecDegrees + halfDecDeg),
+      _centerRaHours + halfRaHours,
+      _centerDecDegrees + halfDecDeg,
+    ),
     proj.raDecToScreen(
-        _centerRaHours + halfRaHours, _centerDecDegrees - halfDecDeg),
+      _centerRaHours + halfRaHours,
+      _centerDecDegrees - halfDecDeg,
+    ),
     proj.raDecToScreen(
-        _centerRaHours - halfRaHours, _centerDecDegrees - halfDecDeg),
+      _centerRaHours - halfRaHours,
+      _centerDecDegrees - halfDecDeg,
+    ),
   ];
   final fovPath = Path()..addPolygon(fovCorners, true);
   canvas.drawPath(
@@ -229,10 +250,7 @@ Future<ui.Image> _renderRegistration(FramingSkyProjection proj) async {
   }
 
   final picture = recorder.endRecording();
-  return picture.toImage(
-    _canvasSize.width.round(),
-    _canvasSize.height.round(),
-  );
+  return picture.toImage(_canvasSize.width.round(), _canvasSize.height.round());
 }
 
 /// Walk up from the test's working directory to the monorepo root (the dir that

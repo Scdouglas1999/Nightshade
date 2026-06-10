@@ -1,3 +1,10 @@
+// Tagged "golden" so the perceptual/pixel-diff golden gate is excluded by
+// `melos run test` (Linux CI + default local runs) and opt-in via
+// `melos run test:golden`. Baselines are host-specific; see
+// docs/testing/golden-tests.md.
+@Tags(['golden'])
+library;
+
 // Component C8 — visual golden + sample render for the HiPS framing tile mosaic.
 //
 // This locks the actual composited output of [HipsTileLayerPainter] so a

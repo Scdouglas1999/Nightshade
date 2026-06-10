@@ -278,8 +278,22 @@ scripts:
     description: Format all packages
 
   test:
-    run: dart run melos exec --concurrency=1 --flutter -- flutter test
-    description: Run tests in all packages
+    # Excludes the `golden` tag: pixel-diff / perceptual golden baselines are
+    # host-specific (GPU rasteriser + font hinting differ across OSes), so they
+    # produce ~1-1.5% false-positive diffs on a non-baseline host and would make
+    # CI (ubuntu-latest) and default local runs untrustworthy. Run them on the
+    # baseline host with `melos run test:golden`. See
+    # docs/testing/golden-tests.md.
+    run: dart run melos exec --concurrency=1 --flutter -- flutter test --exclude-tags golden
+    description: Run tests in all packages (golden pixel-diff tests excluded)
+
+  test:golden:
+    # Opt-in: run ONLY the host-specific golden / perceptual pixel-diff tests.
+    # Run this on the host the committed baselines were captured on, or after
+    # re-baselining with `flutter test --update-goldens --tags golden`. See
+    # docs/testing/golden-tests.md.
+    run: dart run melos exec --concurrency=1 --flutter -- flutter test --tags golden
+    description: Run ONLY golden pixel-diff tests (host-specific baselines)
 
   # ==========================================================================
   # Production Builds

@@ -1,3 +1,10 @@
+// Tagged "golden" so the perceptual/pixel-diff golden gate is excluded by
+// `melos run test` (Linux CI + default local runs) and opt-in via
+// `melos run test:golden`. Baselines are host-specific; see
+// docs/testing/golden-tests.md.
+@Tags(['golden'])
+library;
+
 // Golden / perceptual-diff gate for the planetarium benchmark.
 //
 // Two modes, selected by the BENCHMARK_GOLDEN_MODE environment variable:
@@ -31,46 +38,46 @@ void main() {
       .toLowerCase()
       .trim();
 
-  test('benchmark golden checkpoints (${mode.isEmpty ? "compare" : mode})',
-      () async {
-    final fixture = StressFixture.load();
-    final timeline = buildBenchmarkTimeline(
-      anchorRaHours: kAnchorRaHours,
-      anchorDecDeg: kAnchorDecDeg,
-      frameCount: 180,
-    );
-
-    if (mode == 'capture') {
-      await captureGoldens(fixture, timeline);
-      // ignore: avoid_print
-      print('Captured ${goldenCheckpoints(timeline).length} golden checkpoints '
-          'to ${goldensDir()}/');
-      return;
-    }
-
-    final comparisons = await compareGoldens(fixture, timeline);
-    expect(comparisons, isNotEmpty);
-
-    for (final c in comparisons) {
-      // ignore: avoid_print
-      print(c.toString());
-    }
-
-    final missing = comparisons.where((c) => c.baselineMissing).toList();
-    expect(
-      missing,
-      isEmpty,
-      reason:
-          'Missing baseline goldens: ${missing.map((c) => c.name).join(", ")}. '
-          'Run with BENCHMARK_GOLDEN_MODE=capture to create them.',
-    );
-
-    for (final c in comparisons) {
-      expect(
-        c.passed,
-        isTrue,
-        reason: 'Golden checkpoint regressed: $c',
+  test(
+    'benchmark golden checkpoints (${mode.isEmpty ? "compare" : mode})',
+    () async {
+      final fixture = StressFixture.load();
+      final timeline = buildBenchmarkTimeline(
+        anchorRaHours: kAnchorRaHours,
+        anchorDecDeg: kAnchorDecDeg,
+        frameCount: 180,
       );
-    }
-  });
+
+      if (mode == 'capture') {
+        await captureGoldens(fixture, timeline);
+        // ignore: avoid_print
+        print(
+          'Captured ${goldenCheckpoints(timeline).length} golden checkpoints '
+          'to ${goldensDir()}/',
+        );
+        return;
+      }
+
+      final comparisons = await compareGoldens(fixture, timeline);
+      expect(comparisons, isNotEmpty);
+
+      for (final c in comparisons) {
+        // ignore: avoid_print
+        print(c.toString());
+      }
+
+      final missing = comparisons.where((c) => c.baselineMissing).toList();
+      expect(
+        missing,
+        isEmpty,
+        reason:
+            'Missing baseline goldens: ${missing.map((c) => c.name).join(", ")}. '
+            'Run with BENCHMARK_GOLDEN_MODE=capture to create them.',
+      );
+
+      for (final c in comparisons) {
+        expect(c.passed, isTrue, reason: 'Golden checkpoint regressed: $c');
+      }
+    },
+  );
 }

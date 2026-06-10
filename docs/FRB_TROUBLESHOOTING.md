@@ -3,8 +3,8 @@
 This document captures known issues with flutter_rust_bridge code generation in the Nightshade 2.0 project and their solutions.
 
 ## Environment
-- Flutter: 3.35.5
-- Dart: 3.9.2
+- Flutter: 3.44.1
+- Dart: 3.12.1
 - flutter_rust_bridge: 2.11.1
 - ffigen: 11.0.0
 - Platform: Windows
