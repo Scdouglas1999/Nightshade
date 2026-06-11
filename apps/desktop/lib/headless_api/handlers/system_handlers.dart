@@ -222,6 +222,12 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/sequencer/cloud-motion',
     'POST /api/sequencer/update-conditions-score',
     'GET /api/sequencer/adaptive-swap',
+    'POST /api/sequencer/meridian-flip',
+    'POST /api/sequencer/update-weather-verdict',
+    // Secondary rig (dual-rig dither coordination)
+    'GET /api/sequencer/secondary-rig',
+    'POST /api/sequencer/secondary-rig/start',
+    'POST /api/sequencer/secondary-rig/stop',
     // Equipment Status
     'GET /api/equipment/camera/status',
     'GET /api/equipment/mount/status',
@@ -506,6 +512,20 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/calibration/defect-maps/<id>',
     'DELETE /api/calibration/defect-maps/<id>',
     'POST /api/calibration/defect-maps/<id>/regenerate',
+    // v46 — unified Calibration Library Manager (hyphenated prefix so it
+    // does not collide with the per-table /api/calibration/ surface).
+    'GET /api/calibration-library',
+    'POST /api/calibration-library/match',
+    'PUT /api/calibration-library/<type>/<id>/tags',
+    'DELETE /api/calibration-library/<type>/<id>',
+    // Mobile push token registry + per-device preferences
+    'POST /api/push/register-token',
+    'DELETE /api/push/token',
+    'GET /api/push/preferences',
+    'PUT /api/push/preferences',
+    // Cloud sync
+    'GET /api/sync/status',
+    'POST /api/sync/push',
     // P1-12 — Catalog management (download / upload / verify / etc.)
     'GET /api/catalog/status',
     'GET /api/catalog/available',
