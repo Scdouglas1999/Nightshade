@@ -402,28 +402,43 @@ jobs:
       - name: Run tests with coverage
         run: melos run test -- --coverage
 
-      - name: Generate coverage report
+      - name: Merge per-package coverage reports
+        # `melos run test -- --coverage` writes coverage/lcov.info into EACH
+        # package directory; the old step ran format_coverage against a
+        # nonexistent repo-root coverage/ dir and the job had never passed.
+        # flutter test --coverage already emits lcov, so no format step is
+        # needed — just rebase each file's SF: paths from package-relative
+        # to repo-relative and concatenate.
         run: |
-          dart pub global run coverage:format_coverage \
-            --lcov \
-            --in=coverage \
-            --out=coverage/lcov.info \
-            --report-on=lib
+          rm -f coverage.lcov
+          found=0
+          for f in packages/*/coverage/lcov.info apps/*/coverage/lcov.info; do
+            [ -f "$f" ] || continue
+            found=1
+            pkg_dir=$(dirname "$(dirname "$f")")
+            sed "s|^SF:|SF:$pkg_dir/|" "$f" >> coverage.lcov
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No per-package lcov.info files found" >&2
+            exit 1
+          fi
+          echo "Merged $(grep -c '^SF:' coverage.lcov) source-file records"
+
+      - name: Archive coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov-coverage
+          path: coverage.lcov
 
       - name: Upload coverage to Codecov
-        # The previous config used
-        # `fail_ci_if_error: false`, which silently swallowed upload
-        # failures. Bumping to true so a misconfigured Codecov token or
-        # network blip is visible. The coverage *threshold* itself is
-        # enforced separately via `codecov.yml` at the repo root, which
-        # the codecov-action picks up automatically (target:auto with
-        # threshold:1% → fail on >1% regression).
+        # Best-effort until a CODECOV_TOKEN repo secret is provisioned
+        # (none exists today, so a hard-fail here would keep CI red on a
+        # missing credential rather than a code problem). The merged lcov
+        # is always archived as a build artifact above; flip
+        # fail_ci_if_error to true once the token is added.
         uses: codecov/codecov-action@v4
         with:
-          files: coverage/lcov.info
-          fail_ci_if_error: true
+          files: coverage.lcov
+          fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
-        # Don't break PRs from forks where the token isn't available.
-        # Forked-PR coverage uploads are best-effort; main-branch uploads
-        # are gated.
-        continue-on-error: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        continue-on-error: true

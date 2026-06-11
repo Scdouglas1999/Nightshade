@@ -18,6 +18,12 @@
 //! Use the helper methods like `wait_for_exposure_complete`, `move_focuser_with_timeout`,
 //! and `move_filterwheel_with_timeout` to ensure operations don't block indefinitely.
 
+// c_long is i32 on Windows and i64 on Linux (LP64), so the `as i32` casts on
+// SDK control values are identity on one platform and a real (documented,
+// range-checked-by-contract) narrowing on the other. clippy::unnecessary_cast
+// fires on whichever platform the cast is the identity — allow it file-wide
+// rather than decorating every site; each cast carries its own comment.
+#![allow(clippy::unnecessary_cast)]
 #![allow(dead_code)] // FFI types must match SDK headers even if not all variants are used
 
 use crate::camera::*;
