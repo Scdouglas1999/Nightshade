@@ -132,8 +132,9 @@ class FocusDriftDetector extends NarratorDetector {
   @override
   List<NarratorEventDraft> evaluate(NarratorContext ctx) {
     final baseline = ctx.autofocusHfrBaseline;
-    if (baseline == null || !baseline.isFinite || baseline <= 0)
+    if (baseline == null || !baseline.isFinite || baseline <= 0) {
       return const [];
+    }
 
     final hfrs = ctx.imageStats
         .map((s) => s.hfr)

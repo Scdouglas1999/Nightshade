@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -47,7 +48,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
     }
 
     if (result != null) {
-      ref.read(appSettingsProvider.notifier).setAstapPath(result);
+      unawaited(ref.read(appSettingsProvider.notifier).setAstapPath(result));
     }
   }
 
@@ -68,7 +69,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
     }
 
     if (result != null) {
-      ref.read(appSettingsProvider.notifier).setAstrometryPath(result);
+      unawaited(
+        ref.read(appSettingsProvider.notifier).setAstrometryPath(result),
+      );
     }
   }
 

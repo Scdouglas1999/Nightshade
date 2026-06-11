@@ -46,7 +46,7 @@ void main() {
     });
 
     test('maxAbsoluteMag filters faint bodies', () {
-      final text = '$ceresLine\n$vestaLine';
+      const text = '$ceresLine\n$vestaLine';
       final bright = MpcOrbParser.parseAsteroids(text, maxAbsoluteMag: 3.3);
       // Vesta (H 3.20) passes, Ceres (H 3.34) is filtered.
       expect(bright.map((e) => e.commonName), ['Vesta']);

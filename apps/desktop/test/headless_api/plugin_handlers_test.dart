@@ -58,7 +58,7 @@ void main() {
       }
     });
 
-    Future<Map<String, dynamic>> _doUpload(
+    Future<Map<String, dynamic>> doUpload(
       List<int> bytes, {
       required String filename,
       String? declaredSha,
@@ -96,7 +96,7 @@ void main() {
         'description': 'A sample plugin used by the test suite',
       });
 
-      final body = await _doUpload(bytes, filename: 'sample.nsplugin');
+      final body = await doUpload(bytes, filename: 'sample.nsplugin');
       expect(body['status'], 'installed');
       final manifest = body['manifest'] as Map;
       expect(manifest['id'], 'com.nightshade.sample');
@@ -130,7 +130,7 @@ void main() {
         final actualHash = sha256.convert(bytes).toString();
 
         // Matching hash: ok.
-        await _doUpload(
+        await doUpload(
           bytes,
           filename: 'sha-test.nsplugin',
           declaredSha: actualHash,
@@ -162,7 +162,7 @@ void main() {
         'name': 'Flag Toggle',
         'version': '0.1.0',
       });
-      await _doUpload(bytes, filename: 'flag.nsplugin');
+      await doUpload(bytes, filename: 'flag.nsplugin');
 
       // Disable.
       final disableResponse = await translateHandlerErrors(
@@ -206,7 +206,7 @@ void main() {
         'name': 'To Remove',
         'version': '1.0.0',
       });
-      await _doUpload(bytes, filename: 'toremove.nsplugin');
+      await doUpload(bytes, filename: 'toremove.nsplugin');
 
       final uninstallResponse = await translateHandlerErrors(
         handlers.handleUninstallPlugin(

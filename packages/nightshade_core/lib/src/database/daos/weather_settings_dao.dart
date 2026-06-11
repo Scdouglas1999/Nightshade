@@ -8,7 +8,7 @@ part 'weather_settings_dao.g.dart';
 @DriftAccessor(tables: [WeatherSettings])
 class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$WeatherSettingsDaoMixin {
-  WeatherSettingsDao(NightshadeDatabase db) : super(db);
+  WeatherSettingsDao(super.db);
 
   /// Get the single settings row (first row or null)
   Future<WeatherSettingRow?> getSettings() async {

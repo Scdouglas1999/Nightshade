@@ -1,4 +1,6 @@
 /// Plugin API - Interfaces that plugins must implement
+library;
+
 import 'package:flutter/widgets.dart';
 
 /// Base interface for all Nightshade plugins

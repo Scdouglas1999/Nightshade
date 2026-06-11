@@ -367,24 +367,26 @@ class PluginHost {
   ) async {
     final completer = Completer<void>();
 
-    runZonedGuarded(
-      () async {
-        try {
-          await action();
-          if (!completer.isCompleted) {
-            completer.complete();
+    unawaited(
+      runZonedGuarded(
+        () async {
+          try {
+            await action();
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          } catch (error, stackTrace) {
+            if (!completer.isCompleted) {
+              completer.completeError(error, stackTrace);
+            }
           }
-        } catch (error, stackTrace) {
+        },
+        (error, stackTrace) {
           if (!completer.isCompleted) {
             completer.completeError(error, stackTrace);
           }
-        }
-      },
-      (error, stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      },
+        },
+      ),
     );
 
     try {

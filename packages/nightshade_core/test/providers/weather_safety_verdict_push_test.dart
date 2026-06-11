@@ -7,7 +7,6 @@ import 'package:nightshade_core/src/models/settings/app_settings.dart';
 import 'package:nightshade_core/src/models/weather/weather_models.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/providers/weather_providers.dart';
-import 'package:nightshade_core/src/providers/weather_safety_provider.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/services/safe_rig_service.dart';
 

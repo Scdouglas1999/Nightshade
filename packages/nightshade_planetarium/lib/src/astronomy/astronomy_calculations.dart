@@ -282,8 +282,8 @@ class AstronomyCalculations {
 
     final l = lonDeg * _deg2rad;
     final b = latDeg * _deg2rad;
-    final dGP = deltaGP * _deg2rad;
-    final lO = lOmega * _deg2rad;
+    const dGP = deltaGP * _deg2rad;
+    const lO = lOmega * _deg2rad;
 
     // Declination
     final sinDec =

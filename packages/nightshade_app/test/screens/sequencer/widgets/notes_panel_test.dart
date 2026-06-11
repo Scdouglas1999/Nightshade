@@ -113,10 +113,10 @@ void main() {
     });
 
     testWidgets('renders added / removed / modified sections', (tester) async {
-      final result = SequenceDiffResult(
+      const result = SequenceDiffResult(
         previousName: 'a',
         currentName: 'b',
-        added: const [
+        added: [
           NodeDiffEntry(
             nodeId: 'n1',
             nodeKind: 'TakeExposure',
@@ -124,7 +124,7 @@ void main() {
             changes: [],
           ),
         ],
-        removed: const [
+        removed: [
           NodeDiffEntry(
             nodeId: 'n2',
             nodeKind: 'Dither',
@@ -132,7 +132,7 @@ void main() {
             changes: [],
           ),
         ],
-        modified: const [
+        modified: [
           NodeDiffEntry(
             nodeId: 'n3',
             nodeKind: 'TakeExposure',
@@ -147,7 +147,7 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: NightshadeTheme.dark,
-            home: Scaffold(
+            home: const Scaffold(
               body: SequenceDiffDialog(diff: result),
             ),
           ),

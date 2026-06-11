@@ -215,7 +215,7 @@ class CalibrationService {
 
       // If overwriting in place, back up original
       if (outputPath == null) {
-        final backupPath = '${lightPath}.uncal';
+        final backupPath = '$lightPath.uncal';
         if (!File(backupPath).existsSync()) {
           await File(lightPath).copy(backupPath);
           _logger.info(

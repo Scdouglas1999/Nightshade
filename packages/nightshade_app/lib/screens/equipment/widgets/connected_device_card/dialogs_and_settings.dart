@@ -293,7 +293,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             enableFlip = val;
                           });
                         },
-                        activeColor: colors.primary,
+                        activeThumbColor: colors.primary,
                       ),
                     ],
                   ),
@@ -383,7 +383,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             tempComp = val;
                           });
                         },
-                        activeColor: colors.primary,
+                        activeThumbColor: colors.primary,
                       ),
                     ],
                   ),
@@ -478,7 +478,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             reversed = val;
                           });
                         },
-                        activeColor: colors.primary,
+                        activeThumbColor: colors.primary,
                       ),
                     ],
                   ),
@@ -536,7 +536,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                             slaved = val;
                           });
                         },
-                        activeColor: colors.primary,
+                        activeThumbColor: colors.primary,
                       ),
                     ],
                   ),

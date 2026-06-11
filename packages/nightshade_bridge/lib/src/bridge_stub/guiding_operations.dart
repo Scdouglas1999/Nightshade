@@ -146,7 +146,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       return;
     }
 
-    _phd2Client?.disconnect();
+    unawaited(_phd2Client?.disconnect() ?? Future<void>.value());
     _phd2Client = null;
 
     _eventController.add(

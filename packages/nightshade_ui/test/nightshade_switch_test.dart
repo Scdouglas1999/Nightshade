@@ -64,7 +64,7 @@ void main() {
 
       final track = _trackOf(tester);
       final decoration = track.decoration! as BoxDecoration;
-      final colors = NightshadeColors.dark;
+      const colors = NightshadeColors.dark;
       expect(
         decoration.color,
         NightshadeSwitchStyle.trackColor(colors, selected: true),

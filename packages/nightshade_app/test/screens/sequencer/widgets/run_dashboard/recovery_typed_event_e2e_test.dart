@@ -39,7 +39,7 @@ class _SpyBackend extends DisconnectedBackend {
 }
 
 class _StubBackendNotifier extends BackendNotifier {
-  _StubBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  _StubBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }

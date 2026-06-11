@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/src/coordinate_system.dart';
 import 'package:nightshade_planetarium/src/celestial_object.dart';
-import 'package:nightshade_planetarium/src/catalogs/star_catalog.dart';
 
 void main() {
   group('HYG CSV line parsing', () {
@@ -666,13 +665,8 @@ String _buildNgcLine({
   String cstarBMag = '',
   String cstarVMag = '',
   String messier = '',
-  String ngc = '',
-  String ic = '',
-  String cstarNames = '',
   String identifiers = '',
   String commonName = '',
-  String nedNotes = '',
-  String openNgcNotes = '',
 }) {
   // OpenNGC has ~29 columns separated by semicolons
   // Columns: Name;Type;RA;Dec;Const;MajAx;MinAx;PosAng;B-Mag;V-Mag;

@@ -1,7 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart';
 
 void main() {
   group('ReplayDebugService', () {

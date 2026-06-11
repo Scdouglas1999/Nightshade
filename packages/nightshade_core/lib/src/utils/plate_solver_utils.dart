@@ -239,7 +239,7 @@ class PlateSolverUtils {
             : ['astap', 'astap_cli'];
 
         for (final name in executableNames) {
-          final execPath = '${path}${Platform.pathSeparator}$name';
+          final execPath = '$path${Platform.pathSeparator}$name';
           if (await File(execPath).exists()) {
             return execPath;
           }
@@ -264,7 +264,7 @@ class PlateSolverUtils {
 
   /// Generate a helpful error message when ASTAP is not found
   static String getAstapNotFoundMessage() {
-    final downloadUrl = 'https://www.hnsky.org/astap.htm';
+    const downloadUrl = 'https://www.hnsky.org/astap.htm';
 
     if (Platform.isWindows) {
       return 'ASTAP executable not found.\n\n'
@@ -361,7 +361,7 @@ class PlateSolverUtils {
             : [executableName];
 
         for (final name in execNames) {
-          final execPath = '${path}${Platform.pathSeparator}$name';
+          final execPath = '$path${Platform.pathSeparator}$name';
           if (await File(execPath).exists()) {
             return execPath;
           }

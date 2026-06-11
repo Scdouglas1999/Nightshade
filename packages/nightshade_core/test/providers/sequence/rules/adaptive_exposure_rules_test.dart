@@ -41,7 +41,7 @@ void main() {
     });
 
     test('min > max fires error', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         minExposureSecs: 300,
         maxExposureSecs: 60,
       );
@@ -52,7 +52,7 @@ void main() {
     });
 
     test('min <= 0 fires error', () {
-      final cfg = AdaptiveExposureConfig(minExposureSecs: 0);
+      const cfg = AdaptiveExposureConfig(minExposureSecs: 0);
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(
         issues.where((i) => i.title.contains('min must be > 0')),
@@ -61,7 +61,7 @@ void main() {
     });
 
     test('max <= 0 fires error', () {
-      final cfg = AdaptiveExposureConfig(maxExposureSecs: 0);
+      const cfg = AdaptiveExposureConfig(maxExposureSecs: 0);
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(
         issues.where((i) => i.title.contains('max must be > 0')),
@@ -70,10 +70,10 @@ void main() {
     });
 
     test('per-filter min > effective max fires error', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         minExposureSecs: 5,
         maxExposureSecs: 600,
-        perFilterMinSecs: const {'L': 700},
+        perFilterMinSecs: {'L': 700},
       );
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(
@@ -87,24 +87,24 @@ void main() {
     final rule = AdaptiveExposureNoFilterEnabledRule();
 
     test('empty per-filter map = clean (implicit-global)', () {
-      final cfg = AdaptiveExposureConfig();
+      const cfg = AdaptiveExposureConfig();
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(issues, isEmpty);
     });
 
     test('disabled override = clean', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         enabled: false,
-        perFilterEnabled: const {'L': false, 'R': false},
+        perFilterEnabled: {'L': false, 'R': false},
       );
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(issues, isEmpty);
     });
 
     test('all-disabled per-filter map fires warning', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         enabled: true,
-        perFilterEnabled: const {'L': false, 'R': false, 'B': false},
+        perFilterEnabled: {'L': false, 'R': false, 'B': false},
       );
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(issues, hasLength(1));
@@ -112,9 +112,9 @@ void main() {
     });
 
     test('one filter enabled = clean', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         enabled: true,
-        perFilterEnabled: const {'L': true, 'R': false},
+        perFilterEnabled: {'L': true, 'R': false},
       );
       final issues = rule.validate(_sequenceWith(_exp(adaptive: cfg)));
       expect(issues, isEmpty);
@@ -125,7 +125,7 @@ void main() {
     final rule = AdaptiveExposureNominalOutOfBoundsRule();
 
     test('nominal inside bounds = clean', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         minExposureSecs: 10,
         maxExposureSecs: 600,
       );
@@ -136,7 +136,7 @@ void main() {
     });
 
     test('nominal below min fires warning', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         minExposureSecs: 100,
         maxExposureSecs: 600,
       );
@@ -149,7 +149,7 @@ void main() {
     });
 
     test('nominal above max fires warning', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         minExposureSecs: 5,
         maxExposureSecs: 60,
       );
@@ -162,7 +162,7 @@ void main() {
     });
 
     test('disabled config = clean', () {
-      final cfg = AdaptiveExposureConfig(
+      const cfg = AdaptiveExposureConfig(
         enabled: false,
         minExposureSecs: 100,
         maxExposureSecs: 600,

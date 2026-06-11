@@ -110,7 +110,7 @@ class _LiveStackingPropertiesState
       children: [
         _sectionLabel(theme, 'Broadcast mode'),
         DropdownButtonFormField<LiveStackingMode>(
-          value: node.mode,
+          initialValue: node.mode,
           items: LiveStackingMode.values
               .map((m) => DropdownMenuItem(
                     value: m,
@@ -132,7 +132,7 @@ class _LiveStackingPropertiesState
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Stack combine method'),
         DropdownButtonFormField<LiveStackingMethod>(
-          value: node.stackMethod,
+          initialValue: node.stackMethod,
           items: LiveStackingMethod.values
               .map((m) => DropdownMenuItem(
                     value: m,

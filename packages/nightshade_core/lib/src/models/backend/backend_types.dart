@@ -4,6 +4,7 @@
 /// ```dart
 /// import 'package:nightshade_core/src/models/backend/backend_types.dart';
 /// ```
+library;
 
 export 'autofocus_result.dart';
 export 'builtin_guider_config.dart';

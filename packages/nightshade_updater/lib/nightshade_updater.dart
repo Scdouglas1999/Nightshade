@@ -3,7 +3,7 @@
 /// Provides self-hosted OTA updates with two mechanisms:
 /// - LAN Push: Dev machine pushes updates directly to targets on local network
 /// - Pull-Based: App checks update server on startup, prompts user to download
-library nightshade_updater;
+library;
 
 import 'dart:async';
 import 'src/models/update_manifest.dart';

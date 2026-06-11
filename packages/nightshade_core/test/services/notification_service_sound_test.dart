@@ -14,7 +14,7 @@ void main() {
       // notification dispatch path must call the sound player exactly
       // once when the toggle is on.
       var playCount = 0;
-      final settings = const AppSettingsState(
+      const settings = AppSettingsState(
         notificationsEnabled: true,
         notifyOnSequenceComplete: true,
         soundEnabled: true,
@@ -41,7 +41,7 @@ void main() {
 
     test('does not play sound when soundEnabled is false', () async {
       var playCount = 0;
-      final settings = const AppSettingsState(
+      const settings = AppSettingsState(
         notificationsEnabled: true,
         notifyOnSequenceComplete: true,
         soundEnabled: false,
@@ -69,7 +69,7 @@ void main() {
       'does not play sound when notifications are entirely disabled',
       () async {
         var playCount = 0;
-        final settings = const AppSettingsState(
+        const settings = AppSettingsState(
           notificationsEnabled: false,
           soundEnabled: true,
         );

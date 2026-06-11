@@ -461,8 +461,9 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
       if (o.catalogIds.any((c) {
         final cNormalized = c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
         return cNormalized.contains(normalizedQuery);
-      }))
+      })) {
         return true;
+      }
 
       return false;
     }).toList();

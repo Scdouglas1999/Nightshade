@@ -8,7 +8,7 @@ void main() {
     });
 
     test('strings work', () {
-      final message = 'Hello, tests!';
+      const message = 'Hello, tests!';
       expect(message, contains('tests'));
     });
 

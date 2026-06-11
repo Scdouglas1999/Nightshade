@@ -2,6 +2,7 @@
 ///
 /// These types mirror the Rust capability structs but are pure Dart types,
 /// eliminating the dependency on the FRB bridge types.
+library;
 
 /// Mount tracking rates
 enum TrackingRate { sidereal, lunar, solar, king, custom }

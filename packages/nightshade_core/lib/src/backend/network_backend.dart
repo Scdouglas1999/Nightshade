@@ -22,7 +22,6 @@ import '../models/errors/nightshade_error.dart' as dart_error;
 // envelope ({code, message, details}) into a typed [ServerError] so the
 // mobile companion can branch on the machine-readable `code` instead of
 // substring-matching the message text.
-import '../models/errors/server_error.dart';
 import 'remote_display_jpeg.dart';
 
 part 'network_backend/remote_operations.dart';

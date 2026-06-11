@@ -2,7 +2,7 @@ part of '../../constellation_data.dart';
 
 const _lineFigureSet03 = <ConstellationData>[
   // Lupus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lup',
     name: 'Lupus',
     center: CelestialCoordinate(ra: 15.3, dec: -42),
@@ -31,7 +31,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Corona Borealis
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'CrB',
     name: 'Corona Borealis',
     center: CelestialCoordinate(ra: 15.9, dec: 30),
@@ -66,7 +66,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Coma Berenices
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Com',
     name: 'Coma Berenices',
     center: CelestialCoordinate(ra: 12.8, dec: 23),
@@ -87,7 +87,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Canes Venatici
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'CVn',
     name: 'Canes Venatici',
     center: CelestialCoordinate(ra: 13.1, dec: 40),
@@ -102,7 +102,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Triangulum
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Tri',
     name: 'Triangulum',
     center: CelestialCoordinate(ra: 2.2, dec: 32),
@@ -127,7 +127,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Sagitta
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Sge',
     name: 'Sagitta',
     center: CelestialCoordinate(ra: 19.8, dec: 18.5),
@@ -149,7 +149,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Vulpecula
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Vul',
     name: 'Vulpecula',
     center: CelestialCoordinate(ra: 20.2, dec: 25),
@@ -166,7 +166,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Delphinus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Del',
     name: 'Delphinus',
     center: CelestialCoordinate(ra: 20.7, dec: 13),
@@ -200,7 +200,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Equuleus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Equ',
     name: 'Equuleus',
     center: CelestialCoordinate(ra: 21.2, dec: 8),
@@ -221,7 +221,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Lacerta
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lac',
     name: 'Lacerta',
     center: CelestialCoordinate(ra: 22.5, dec: 45),
@@ -246,7 +246,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Eridanus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Eri',
     name: 'Eridanus',
     center: CelestialCoordinate(ra: 3.3, dec: -29),
@@ -282,7 +282,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Fornax
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'For',
     name: 'Fornax',
     center: CelestialCoordinate(ra: 2.8, dec: -30),
@@ -303,7 +303,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Sculptor
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Scl',
     name: 'Sculptor',
     center: CelestialCoordinate(ra: 0.5, dec: -32),
@@ -324,7 +324,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Cetus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cet',
     name: 'Cetus',
     center: CelestialCoordinate(ra: 1.7, dec: -10),
@@ -356,7 +356,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Phoenix
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Phe',
     name: 'Phoenix',
     center: CelestialCoordinate(ra: 0.9, dec: -48),
@@ -382,7 +382,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Grus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Gru',
     name: 'Grus',
     center: CelestialCoordinate(ra: 22.5, dec: -45),
@@ -408,7 +408,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Pavo
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Pav',
     name: 'Pavo',
     center: CelestialCoordinate(ra: 19.6, dec: -63),
@@ -434,7 +434,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Tucana
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Tuc',
     name: 'Tucana',
     center: CelestialCoordinate(ra: 23.8, dec: -65),
@@ -455,7 +455,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Indus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ind',
     name: 'Indus',
     center: CelestialCoordinate(ra: 21.5, dec: -55),
@@ -476,7 +476,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Microscopium
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Mic',
     name: 'Microscopium',
     center: CelestialCoordinate(ra: 21.0, dec: -36),
@@ -493,7 +493,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Piscis Austrinus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'PsA',
     name: 'Piscis Austrinus',
     center: CelestialCoordinate(ra: 22.3, dec: -31),
@@ -519,7 +519,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Ara
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ara',
     name: 'Ara',
     center: CelestialCoordinate(ra: 17.3, dec: -53),
@@ -548,7 +548,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Corona Australis
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'CrA',
     name: 'Corona Australis',
     center: CelestialCoordinate(ra: 18.6, dec: -40),
@@ -577,7 +577,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Telescopium
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Tel',
     name: 'Telescopium',
     center: CelestialCoordinate(ra: 18.3, dec: -50),
@@ -594,7 +594,7 @@ const _lineFigureSet03 = <ConstellationData>[
   ),
 
   // Norma
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Nor',
     name: 'Norma',
     center: CelestialCoordinate(ra: 16.0, dec: -50),

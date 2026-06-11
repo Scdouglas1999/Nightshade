@@ -44,7 +44,7 @@ void main() {
       expect(updates.single.action, 'saved');
       expect(updates.single.name, 'M42');
 
-      sub.cancel();
+      unawaited(sub.cancel());
     });
 
     test('toNightshadeEvent uses SequenceUpdated event type', () {

@@ -39,7 +39,7 @@ class _SpyBackend extends DisconnectedBackend {
 }
 
 class _StubBackendNotifier extends BackendNotifier {
-  _StubBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  _StubBackendNotifier(super.ref, NightshadeBackend backend) {
     // Replace the default DisconnectedBackend with the spy.
     state = backend;
   }
@@ -223,7 +223,7 @@ void main() {
   });
 
   group('SequencerStatusLed', () {
-    Widget _ledHarness({
+    Widget ledHarness({
       required SequenceExecutionState state,
       bool showLabel = false,
     }) {
@@ -237,14 +237,14 @@ void main() {
     testWidgets('renders "Running" label when sequence is running',
         (tester) async {
       await tester.pumpWidget(
-          _ledHarness(state: SequenceExecutionState.running, showLabel: true));
+          ledHarness(state: SequenceExecutionState.running, showLabel: true));
       await tester.pump();
       expect(find.text('Running'), findsOneWidget);
     });
 
     testWidgets('renders "Recovering" label when sequence is recovering',
         (tester) async {
-      await tester.pumpWidget(_ledHarness(
+      await tester.pumpWidget(ledHarness(
           state: SequenceExecutionState.recovering, showLabel: true));
       await tester.pump();
       expect(find.text('Recovering'), findsOneWidget);
@@ -253,7 +253,7 @@ void main() {
     testWidgets('renders nothing extra when showLabel is false',
         (tester) async {
       await tester
-          .pumpWidget(_ledHarness(state: SequenceExecutionState.recovering));
+          .pumpWidget(ledHarness(state: SequenceExecutionState.recovering));
       await tester.pump();
       expect(find.text('Recovering'), findsNothing);
       // The dot itself is just a Container, no easy text marker — the

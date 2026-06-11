@@ -10,7 +10,7 @@
 /// without `src/database/database.dart` bypass imports.
 ///
 /// See `docs/code-quality/audit-arch.md` §3.2 and §8 #13 (CQ-W4-BARREL-EXPOSE).
-library nightshade_core.database_aliases;
+library;
 
 import 'database.dart' as drift;
 

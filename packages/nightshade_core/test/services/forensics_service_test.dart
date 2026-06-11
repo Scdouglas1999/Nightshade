@@ -2,12 +2,12 @@
 ///
 /// Exercises the DB round-trip path (persist + read back the same
 /// record) and the cause-aggregation summary path.
+library;
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

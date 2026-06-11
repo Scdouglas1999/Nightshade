@@ -31,9 +31,9 @@ class MilkyWayData {
   ) {
     final ra = raDeg * _deg2rad;
     final dec = decDeg * _deg2rad;
-    final raGNP = galacticNorthPoleRA * _deg2rad;
-    final decGNP = galacticNorthPoleDec * _deg2rad;
-    final l0 = galacticAscendingNode * _deg2rad;
+    const raGNP = galacticNorthPoleRA * _deg2rad;
+    const decGNP = galacticNorthPoleDec * _deg2rad;
+    const l0 = galacticAscendingNode * _deg2rad;
 
     // Calculate galactic latitude
     final sinB =
@@ -64,9 +64,9 @@ class MilkyWayData {
   ) {
     final l = lDeg * _deg2rad;
     final b = bDeg * _deg2rad;
-    final l0 = galacticAscendingNode * _deg2rad;
-    final decGNP = galacticNorthPoleDec * _deg2rad;
-    final raGNP = galacticNorthPoleRA * _deg2rad;
+    const l0 = galacticAscendingNode * _deg2rad;
+    const decGNP = galacticNorthPoleDec * _deg2rad;
+    const raGNP = galacticNorthPoleRA * _deg2rad;
 
     // Calculate declination
     final sinDec =

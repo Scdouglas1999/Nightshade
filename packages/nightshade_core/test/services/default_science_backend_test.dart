@@ -159,7 +159,7 @@ void main() {
     });
 
     test('all defined error codes are unique', () {
-      final codes = ScienceCalibrationErrorCode.values;
+      const codes = ScienceCalibrationErrorCode.values;
       expect(codes.toSet().length, codes.length);
     });
   });

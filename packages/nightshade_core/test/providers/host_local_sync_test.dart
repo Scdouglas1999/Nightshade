@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/backend/event_types.dart';
 
 class _MockFfiBackend extends Mock implements FfiBackend {}
 

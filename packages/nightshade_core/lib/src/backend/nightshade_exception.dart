@@ -2,6 +2,7 @@
 ///
 /// This module provides a Dart exception hierarchy that mirrors the Rust
 /// NightshadeError enum, enabling rich error handling across the FFI boundary.
+library;
 
 import 'dart:convert';
 import 'dart:developer' as developer;

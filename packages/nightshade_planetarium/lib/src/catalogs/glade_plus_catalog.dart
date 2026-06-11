@@ -162,8 +162,12 @@ class GladePlusCatalogLoader {
     for (var raCell = minRaCell; raCell <= maxRaCell; raCell++) {
       for (var decCell = minDecCell; decCell <= maxDecCell; decCell++) {
         var normalizedRaCell = raCell;
-        while (normalizedRaCell < 0) normalizedRaCell += 360;
-        while (normalizedRaCell >= 360) normalizedRaCell -= 360;
+        while (normalizedRaCell < 0) {
+          normalizedRaCell += 360;
+        }
+        while (normalizedRaCell >= 360) {
+          normalizedRaCell -= 360;
+        }
 
         final key = '$normalizedRaCell,$decCell';
         final cell = _spatialIndex![key];

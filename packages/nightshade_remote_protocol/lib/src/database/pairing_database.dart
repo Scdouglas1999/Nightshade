@@ -18,7 +18,7 @@ class PairingDatabase extends _$PairingDatabase {
   PairingDatabase() : super(_openConnection());
 
   /// For testing with a custom QueryExecutor
-  PairingDatabase.forTesting(QueryExecutor e) : super(e);
+  PairingDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 3;

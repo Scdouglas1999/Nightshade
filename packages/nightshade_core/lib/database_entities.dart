@@ -1,6 +1,6 @@
 /// Public export shim for DB entity types and settings models needed by
 /// external packages without importing `lib/src/*`.
-library nightshade_core_database_entities;
+library;
 
 export 'src/database/database.dart'
     show

@@ -362,19 +362,25 @@ class AnnotationService {
   ObjectType _inferObjectType(String? catalogType) {
     if (catalogType == null) return ObjectType.unknown;
     final lower = catalogType.toLowerCase();
-    if (lower.contains('galaxy') || lower.contains('gx'))
+    if (lower.contains('galaxy') || lower.contains('gx')) {
       return ObjectType.galaxy;
-    if (lower.contains('nebula') && lower.contains('planetary'))
+    }
+    if (lower.contains('nebula') && lower.contains('planetary')) {
       return ObjectType.planetaryNebula;
-    if (lower.contains('nebula') || lower.contains('neb'))
+    }
+    if (lower.contains('nebula') || lower.contains('neb')) {
       return ObjectType.nebula;
-    if (lower.contains('cluster') && lower.contains('open'))
+    }
+    if (lower.contains('cluster') && lower.contains('open')) {
       return ObjectType.starCluster;
-    if (lower.contains('cluster') && lower.contains('globular'))
+    }
+    if (lower.contains('cluster') && lower.contains('globular')) {
       return ObjectType.starCluster;
+    }
     if (lower.contains('cluster')) return ObjectType.starCluster;
-    if (lower.contains('double') || lower.contains('multiple'))
+    if (lower.contains('double') || lower.contains('multiple')) {
       return ObjectType.doubleStar;
+    }
     if (lower.contains('asterism')) return ObjectType.asterism;
     return ObjectType.unknown;
   }

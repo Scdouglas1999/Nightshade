@@ -305,7 +305,7 @@ class FitsHeaderWriter {
     const separator = '= ';
     // Per FITS 4.4.2.4, the value indicator `= ` occupies bytes 9..10.
     // Total card = 8 keyword + 2 indicator + 70 value/comment area = 80.
-    final remaining = cardSize - 8 - separator.length;
+    const remaining = cardSize - 8 - separator.length;
     var rest = _composeValueAndComment(valuePart, u.comment, remaining);
     if (rest.length > remaining) {
       rest = rest.substring(0, remaining);

@@ -230,7 +230,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                 ),
               ],
             ),
-            SettingsSection(
+            const SettingsSection(
               title: 'Post-session integration',
               children: [
                 SettingRow(
@@ -240,7 +240,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                       'archival master automatically when a sequence run '
                       'completes — wake up to a finished image. The result '
                       'lands in Session Review › Masters.',
-                  trailing: const _AutoIntegrateSwitch(),
+                  trailing: _AutoIntegrateSwitch(),
                   isLast: true,
                 ),
               ],

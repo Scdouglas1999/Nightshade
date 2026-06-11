@@ -1,6 +1,7 @@
 /// Autofocus result types.
 ///
 /// These types mirror the Rust autofocus structs but are pure Dart types.
+library;
 
 /// A single focus data point (position and HFR)
 class FocusDataPoint {

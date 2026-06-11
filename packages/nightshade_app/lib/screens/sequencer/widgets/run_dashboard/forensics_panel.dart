@@ -13,6 +13,7 @@
 ///   the user sees rejections in real time.
 ///
 /// Hidden when no records exist yet — keeps an idle dashboard clean.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

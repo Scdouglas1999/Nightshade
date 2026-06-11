@@ -5,7 +5,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 void main() {
   group('ShellChrome', () {
     test('desktop width thresholds use shell layout breakpoint', () {
-      final breakpoint = ShellChromeMetrics.shellLayoutBreakpoint;
+      const breakpoint = ShellChromeMetrics.shellLayoutBreakpoint;
       expect(ShellChrome.useBottomNavigation(breakpoint - 1), isTrue);
       expect(ShellChrome.useSideNavigation(breakpoint), isTrue);
       expect(ShellChrome.useBottomNavigation(breakpoint), isFalse);

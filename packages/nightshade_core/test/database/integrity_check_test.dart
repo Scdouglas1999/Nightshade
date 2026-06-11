@@ -51,7 +51,7 @@ void main() {
         final db = sqlite3.open(dbFile.path);
         db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);');
         db.execute("INSERT INTO t (name) VALUES ('hello');");
-        db.dispose();
+        db.close();
 
         final report = await runIntegrityCheckAndRecover(dbFile);
 
@@ -143,8 +143,8 @@ void main() {
         }
         final stmt = db.prepare('INSERT INTO t (blob) VALUES (?);');
         stmt.execute([big]);
-        stmt.dispose();
-        db.dispose();
+        stmt.close();
+        db.close();
 
         // Truncate to the first 8KB. SQLite's first page is intact (4 KB
         // default page size) so the open succeeds, but the second page

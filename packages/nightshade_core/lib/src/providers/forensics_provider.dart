@@ -4,6 +4,7 @@
 /// the dashboard panel listens to. The service is constructed lazily
 /// from the global database; tests inject their own service via
 /// `forensicsServiceProvider.overrideWith(...)`.
+library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

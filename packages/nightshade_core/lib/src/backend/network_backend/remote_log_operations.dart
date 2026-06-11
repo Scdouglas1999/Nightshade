@@ -23,7 +23,7 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
     if (entriesRaw is! List) {
       // Malformed payload — surface loudly. A silent empty list would
       // make a broken server look like a quiet one.
-      throw dart_error.NightshadeError(
+      throw const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
         message:
             'GET /api/logs/recent: missing or non-list `entries` field in '

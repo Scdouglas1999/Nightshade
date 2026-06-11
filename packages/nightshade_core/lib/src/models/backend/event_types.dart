@@ -2,6 +2,7 @@
 ///
 /// These types are used to communicate events between the Rust backend
 /// and Dart frontend, as well as across network boundaries for remote operation.
+library;
 
 /// Event severity levels
 enum EventSeverity { info, warning, error, critical }

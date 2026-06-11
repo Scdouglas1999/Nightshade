@@ -232,8 +232,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                       .read(mountCommandServiceProvider)
                                       .togglePark()
                                       .then((result) {
-                                    if (mounted)
+                                    if (mounted) {
                                       context.showCommandActionResult(result);
+                                    }
                                   })
                               : null,
                         ),
@@ -254,8 +255,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                       .read(mountCommandServiceProvider)
                                       .setTracking(!mountState.isTracking)
                                       .then((result) {
-                                    if (mounted)
+                                    if (mounted) {
                                       context.showCommandActionResult(result);
+                                    }
                                   })
                               : null,
                         ),
@@ -277,8 +279,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                   .read(mountCommandServiceProvider)
                                   .abortSlew()
                                   .then((result) {
-                                if (mounted)
+                                if (mounted) {
                                   context.showCommandActionResult(result);
+                                }
                               })
                           : null,
                     ),
@@ -438,8 +441,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                     .read(mountCommandServiceProvider)
                                     .pulseGuide("north")
                                     .then((result) {
-                                  if (mounted)
+                                  if (mounted) {
                                     context.showCommandActionResult(result);
+                                  }
                                 })),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -451,8 +455,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                         .read(mountCommandServiceProvider)
                                         .pulseGuide("west")
                                         .then((result) {
-                                      if (mounted)
+                                      if (mounted) {
                                         context.showCommandActionResult(result);
+                                      }
                                     })),
                             const SizedBox(width: 48),
                             _PulseButton(
@@ -462,8 +467,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                         .read(mountCommandServiceProvider)
                                         .pulseGuide("east")
                                         .then((result) {
-                                      if (mounted)
+                                      if (mounted) {
                                         context.showCommandActionResult(result);
+                                      }
                                     })),
                           ],
                         ),
@@ -474,8 +480,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                                     .read(mountCommandServiceProvider)
                                     .pulseGuide("south")
                                     .then((result) {
-                                  if (mounted)
+                                  if (mounted) {
                                     context.showCommandActionResult(result);
+                                  }
                                 })),
                       ],
                     ),

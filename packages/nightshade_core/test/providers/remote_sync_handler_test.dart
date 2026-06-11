@@ -5,9 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/backend/event_types.dart';
-import 'package:nightshade_core/src/providers/remote_sync_handler.dart';
-import 'package:nightshade_core/src/providers/sequence/sequence_catalog_sync.dart';
 
 import '../services/imaging_service_test.dart' show makeCapturedImageResult;
 
@@ -42,12 +39,12 @@ void main() {
 
       await applyRemoteSyncEvent(
         container,
-        NightshadeEvent(
+        const NightshadeEvent(
           timestamp: 1,
           severity: EventSeverity.info,
           category: EventCategory.equipment,
           eventType: 'Connected',
-          data: const {'device_type': 'mount', 'device_id': 'ascom:mount:0'},
+          data: {'device_type': 'mount', 'device_id': 'ascom:mount:0'},
         ),
       );
 
@@ -149,12 +146,12 @@ void main() {
 
       await applyRemoteSyncEvent(
         container,
-        NightshadeEvent(
+        const NightshadeEvent(
           timestamp: 4,
           severity: EventSeverity.info,
           category: EventCategory.imaging,
           eventType: 'ImageCaptured',
-          data: const {'targetId': 1},
+          data: {'targetId': 1},
         ),
       );
 
@@ -200,12 +197,12 @@ void main() {
 
       await applyRemoteSyncEvent(
         container,
-        NightshadeEvent(
+        const NightshadeEvent(
           timestamp: 5,
           severity: EventSeverity.info,
           category: EventCategory.imaging,
           eventType: 'ImageReady',
-          data: const {'width': 4, 'height': 2},
+          data: {'width': 4, 'height': 2},
         ),
         networkBackend: backend,
       );
@@ -247,12 +244,12 @@ void main() {
         // publisher owns currentImageProvider, so the remote fetch must NOT run.
         await applyRemoteSyncEvent(
           container,
-          NightshadeEvent(
+          const NightshadeEvent(
             timestamp: 6,
             severity: EventSeverity.info,
             category: EventCategory.imaging,
             eventType: 'ImageReady',
-            data: const {'width': 4, 'height': 2},
+            data: {'width': 4, 'height': 2},
           ),
         );
         await pumpEventQueue();
@@ -380,12 +377,12 @@ void main() {
       await pumpEventQueue();
 
       eventController.add(
-        NightshadeEvent(
+        const NightshadeEvent(
           timestamp: 2,
           severity: EventSeverity.info,
           category: EventCategory.equipment,
           eventType: 'Connected',
-          data: const {'device_type': 'camera', 'device_id': 'asi:0'},
+          data: {'device_type': 'camera', 'device_id': 'asi:0'},
         ),
       );
       await pumpEventQueue();

@@ -17,12 +17,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart';
-import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
-import 'package:nightshade_core/src/providers/equipment/mount_state_provider.dart';
-import 'package:nightshade_core/src/providers/meridian_flip_provider.dart';
-import 'package:nightshade_core/src/providers/sequence_provider.dart'
-    show sequenceExecutionStateProvider;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

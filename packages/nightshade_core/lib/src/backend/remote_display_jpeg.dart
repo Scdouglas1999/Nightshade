@@ -20,7 +20,9 @@ CapturedImageResult capturedImageFromRemoteJpegWire({
 
   final decoded = img.decodeImage(jpegBytes);
   if (decoded == null) {
-    throw FormatException('JPEG decode failed for remote last-image payload');
+    throw const FormatException(
+      'JPEG decode failed for remote last-image payload',
+    );
   }
 
   final rgba = decoded.getBytes(order: img.ChannelOrder.rgba);

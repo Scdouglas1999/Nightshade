@@ -11,7 +11,7 @@ import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import '../mocks/mock_backend.dart';
 
 class TestBackendNotifier extends BackendNotifier {
-  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }

@@ -14,7 +14,7 @@ class MockNightshadeBackend extends Mock implements NightshadeBackend {}
 class MockCatalogManager extends Mock implements CatalogManager {}
 
 class TestBackendNotifier extends BackendNotifier {
-  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }

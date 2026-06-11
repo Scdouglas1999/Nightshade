@@ -40,7 +40,7 @@ class _NoOpScienceProcessingService extends ScienceProcessingService {
 
 /// TestBackendNotifier that injects a mock backend into the provider.
 class TestBackendNotifier extends BackendNotifier {
-  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }

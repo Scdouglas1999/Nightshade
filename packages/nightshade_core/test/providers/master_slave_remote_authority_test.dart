@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/backend/event_types.dart';
-import 'package:nightshade_core/src/providers/remote_sync_handler.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 

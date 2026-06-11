@@ -38,7 +38,7 @@ class MpcExportService {
     if (observatoryCode.length != 3) {
       throw ArgumentError(
         'MPC observatory code must be exactly 3 characters, '
-        'got "${observatoryCode}" (${observatoryCode.length} chars)',
+        'got "$observatoryCode" (${observatoryCode.length} chars)',
       );
     }
 
@@ -170,7 +170,7 @@ class MpcExportService {
     required String observatoryCode,
   }) {
     // Columns 1-5: Minor planet number (blank for new discoveries)
-    final numField = '     ';
+    const numField = '     ';
 
     // Columns 6-12: Provisional designation (7 chars, left-padded)
     final desigField = provisionalDesignation.padRight(7).substring(0, 7);

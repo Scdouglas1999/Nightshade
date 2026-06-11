@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -65,7 +66,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
     }
 
     if (result != null) {
-      ref.read(appSettingsProvider.notifier).setPhd2Path(result);
+      unawaited(ref.read(appSettingsProvider.notifier).setPhd2Path(result));
     }
   }
 

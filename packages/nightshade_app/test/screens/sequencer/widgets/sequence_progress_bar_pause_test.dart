@@ -26,7 +26,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
 /// wrappers (MaterialApp/Title/etc.) now insert AnimatedBuilders whose
 /// `animation` is a `ValueNotifier`, which yielded
-///   "type 'ValueNotifier<String?>' is not a subtype of type
+///   "type 'ValueNotifier&lt;String?&gt;' is not a subtype of type
 ///    'AnimationController' in type cast"
 /// after the stash@{1} merge bumped the wrapper tree. Filter to the first
 /// builder whose animation actually IS an AnimationController so we lock
@@ -36,7 +36,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
 /// wrappers (MaterialApp/Title/etc.) insert AnimatedBuilders whose
 /// `animation` is a `ValueNotifier`, which yielded
-///   "type 'ValueNotifier<String?>' is not a subtype of type
+///   "type 'ValueNotifier&lt;String?&gt;' is not a subtype of type
 ///    'AnimationController' in type cast"
 /// after the stash@{1} merge bumped the wrapper tree. SequenceProgressBar
 /// also nests a second AnimatedBuilder (`_PulsingIndicator`'s breathing

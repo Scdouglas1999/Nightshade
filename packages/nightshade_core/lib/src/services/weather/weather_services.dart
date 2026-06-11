@@ -2,7 +2,7 @@
 ///
 /// This barrel file exports all weather service components including
 /// radar data providers and factory classes.
-library weather_services;
+library;
 
 export 'radar_provider.dart';
 export 'radar_provider_factory.dart';

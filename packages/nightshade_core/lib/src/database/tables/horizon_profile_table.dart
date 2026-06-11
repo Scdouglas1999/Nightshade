@@ -7,5 +7,5 @@
 /// Columns:
 ///   id           INTEGER PRIMARY KEY AUTOINCREMENT
 ///   name         TEXT NOT NULL
-///   samples_json TEXT NOT NULL  (JSON array of {"az": <deg>, "alt": <deg>})
+///   samples_json TEXT NOT NULL  (JSON array of `{"az": <deg>, "alt": <deg>}`)
 library;

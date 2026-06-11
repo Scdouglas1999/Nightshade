@@ -21,7 +21,6 @@ import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
 import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
-import 'sequence/sequence_catalog_sync.dart';
 import 'sequence_provider.dart';
 import 'session_provider.dart';
 import 'unified_discovery_provider.dart';

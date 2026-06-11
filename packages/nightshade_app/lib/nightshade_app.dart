@@ -1,5 +1,5 @@
 /// Nightshade App - Unified application package
-library nightshade_app;
+library;
 
 // Main App Widget
 export 'app.dart';

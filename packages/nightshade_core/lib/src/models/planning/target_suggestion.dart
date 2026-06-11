@@ -45,7 +45,7 @@ class TargetWarningConverter
   }
 }
 
-/// JSON converter for List<TargetWarning>
+/// JSON converter for `List<TargetWarning>`
 class TargetWarningListConverter
     implements JsonConverter<List<TargetWarning>, List<dynamic>> {
   const TargetWarningListConverter();

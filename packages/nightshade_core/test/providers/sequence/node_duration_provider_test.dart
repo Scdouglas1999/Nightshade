@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
-import 'package:nightshade_core/src/providers/sequence/node_duration_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
 /// Tests for the tree-row "~2h 14m" rollup provider.
@@ -93,7 +92,7 @@ void main() {
       };
       final container = _containerWith(_seq(root, tree));
 
-      final expoSecs = 60 * 4 + 3.0 * 4; // 252
+      const expoSecs = 60 * 4 + 3.0 * 4; // 252
       expect(
         container.read(nodeRollupDurationProvider(expo.id)).inSeconds,
         expoSecs.round(),

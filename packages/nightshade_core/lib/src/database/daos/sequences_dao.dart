@@ -10,7 +10,7 @@ part 'sequences_dao.g.dart';
 @DriftAccessor(tables: [Sequences, SequenceNodes, Targets])
 class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SequencesDaoMixin {
-  SequencesDao(NightshadeDatabase db) : super(db);
+  SequencesDao(super.db);
 
   /// Get all sequences
   Future<List<Sequence>> getAllSequences() {

@@ -81,7 +81,7 @@ mixin _FfiSessionHeartbeatOperations on _FfiBackendBase {
 
       // Generate thumbnail using Rust FFI function
       // This reads the FITS file, downscales to ~512x512, auto-stretches, and encodes as JPEG
-      final jpegData = await bridge_api.apiGenerateFitsThumbnail(
+      final jpegData = bridge_api.apiGenerateFitsThumbnail(
         filePath: dbImage.filePath,
         maxSize: 512,
       );

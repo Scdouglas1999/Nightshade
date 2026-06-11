@@ -111,7 +111,7 @@ class NodeTimingSection extends ConsumerWidget {
     if (sequence == null) return const SizedBox.shrink();
 
     // Calculate timing for this node
-    final estimator = SequenceTimeEstimator();
+    const estimator = SequenceTimeEstimator();
     final timings = estimator.estimateSequenceTiming(sequence, DateTime.now());
     final nodeTiming = timings.where((t) => t.nodeId == node.id).firstOrNull;
 

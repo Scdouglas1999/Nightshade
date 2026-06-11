@@ -77,7 +77,7 @@ class WeekForecastStrip extends ConsumerWidget {
         if (week.nights.isEmpty) {
           // Available but with nothing to rank (no incomplete targets / empty
           // lookahead). Honest empty state rather than a blank strip.
-          return EmptyState(
+          return const EmptyState(
             icon: LucideIcons.cloudMoon,
             title: 'Nothing to forecast yet',
             body: 'Add targets with integration goals to see the best upcoming '
@@ -89,14 +89,14 @@ class WeekForecastStrip extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
                 NightshadeTokens.spaceLg,
                 NightshadeTokens.spaceLg,
                 NightshadeTokens.spaceLg,
                 0,
               ),
-              child: const SectionHeader(
+              child: SectionHeader(
                 title: 'This Week',
                 subtitle: 'Best nights for your campaign targets',
               ),

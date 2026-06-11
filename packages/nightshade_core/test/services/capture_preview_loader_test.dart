@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +13,7 @@ import '../mocks/mock_backend.dart';
 import '../services/imaging_service_test.dart' show makeCapturedImageResult;
 
 class TestBackendNotifier extends BackendNotifier {
-  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }
@@ -39,7 +38,7 @@ void main() {
     container.dispose();
   });
 
-  CapturedImageData _samplePreview() {
+  CapturedImageData samplePreview() {
     final result = makeCapturedImageResult(width: 4, height: 2);
     return capturedImageDataFromResult(
       capturedImage: result,
@@ -66,7 +65,7 @@ void main() {
     ).thenAnswer((_) async => rawBytes);
 
     final publisher = container.read(capturePreviewPublisherProvider);
-    final preview = _samplePreview();
+    final preview = samplePreview();
 
     publisher.publish(container, preview, 'cam-1');
 
@@ -92,7 +91,7 @@ void main() {
     ).thenThrow(Exception('503 unavailable'));
 
     final publisher = container.read(capturePreviewPublisherProvider);
-    publisher.publish(container, _samplePreview(), 'cam-1');
+    publisher.publish(container, samplePreview(), 'cam-1');
 
     await pumpEventQueue(times: 5);
 
@@ -114,12 +113,12 @@ void main() {
     });
 
     final publisher = container.read(capturePreviewPublisherProvider);
-    final older = _samplePreview();
+    final older = samplePreview();
     publisher.publish(container, older, 'cam-1');
 
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final newer = _samplePreview().copyWith(
+    final newer = samplePreview().copyWith(
       capturedAt: DateTime.utc(2026, 5, 23, 13),
     );
     publisher.publish(container, newer, 'cam-1');

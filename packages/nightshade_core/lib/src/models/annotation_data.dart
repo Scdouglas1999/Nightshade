@@ -261,8 +261,12 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final rho = math.sqrt(xiRad * xiRad + etaRad * etaRad);
     if (rho < 1e-12) {
       var raCenter = ra;
-      while (raCenter < 0) raCenter += 360;
-      while (raCenter >= 360) raCenter -= 360;
+      while (raCenter < 0) {
+        raCenter += 360;
+      }
+      while (raCenter >= 360) {
+        raCenter -= 360;
+      }
       return (ra: raCenter, dec: dec);
     }
     final c = math.atan(rho);
@@ -286,8 +290,12 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final decResult = decRad * (180.0 / 3.141592653589793);
 
     // Normalize RA to 0-360
-    while (raResult < 0) raResult += 360;
-    while (raResult >= 360) raResult -= 360;
+    while (raResult < 0) {
+      raResult += 360;
+    }
+    while (raResult >= 360) {
+      raResult -= 360;
+    }
 
     return (ra: raResult, dec: decResult);
   }

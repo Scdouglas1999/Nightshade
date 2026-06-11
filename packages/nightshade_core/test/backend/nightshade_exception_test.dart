@@ -332,7 +332,7 @@ void main() {
     test('JSON-looking string with truncation falls back to heuristic', () {
       // Why: malformed envelope must surface (via developer.log) and then
       // route through the heuristic classifier per R9.
-      final malformed = '{"category":"connection","message":"timed out"';
+      const malformed = '{"category":"connection","message":"timed out"';
       final ex = NightshadeException.fromError(malformed);
       // The string contains "timed out" so heuristic picks TimeoutException.
       expect(ex, isA<TimeoutException>());

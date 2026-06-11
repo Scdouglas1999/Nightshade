@@ -124,7 +124,7 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
     );
 
     // Also try common localhost ports for ASCOM Remote
-    _tryLocalPorts(servers);
+    unawaited(_tryLocalPorts(servers));
 
     // Wait for timeout
     await Future<void>.delayed(timeout);

@@ -18,7 +18,6 @@ import 'package:nightshade_app/screens/onboarding/steps/optical_train_step.dart'
 import 'package:nightshade_app/screens/onboarding/steps/summary_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/welcome_step.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 NightshadeDatabase _newDb() =>

@@ -216,7 +216,7 @@ class _TextCache {
   /// The TextPainter is cached and reused across frames
   static TextPainter get(String text, TextStyle style) {
     final key =
-        '${text}_${style.fontSize}_${style.color?.toARGB32() ?? 0}_${style.fontWeight?.index ?? 0}';
+        '${text}_${style.fontSize}_${style.color?.toARGB32() ?? 0}_${style.fontWeight?.value ?? 0}';
 
     var painter = _cache[key];
     if (painter == null) {

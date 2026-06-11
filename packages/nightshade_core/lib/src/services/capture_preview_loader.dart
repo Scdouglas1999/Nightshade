@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/disconnected_backend.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
-import '../models/backend/backend_types.dart';
 import '../models/imaging/imaging_models.dart';
 import '../providers/backend_provider.dart';
 import '../providers/imaging_provider.dart';

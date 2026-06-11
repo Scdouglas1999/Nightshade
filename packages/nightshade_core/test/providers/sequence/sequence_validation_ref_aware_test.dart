@@ -28,37 +28,37 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 // ProviderContainer-built ref. We don't need any of the notifier's
 // production behaviour — only the initial state value.
 class _StubCameraNotifier extends CameraStateNotifier {
-  _StubCameraNotifier(Ref ref, CameraStateSnapshot initial) : super(ref) {
+  _StubCameraNotifier(super.ref, CameraStateSnapshot initial) {
     state = initial;
   }
 }
 
 class _StubMountNotifier extends MountStateNotifier {
-  _StubMountNotifier(Ref ref, MountState initial) : super(ref) {
+  _StubMountNotifier(super.ref, MountState initial) {
     state = initial;
   }
 }
 
 class _StubFocuserNotifier extends FocuserStateNotifier {
-  _StubFocuserNotifier(Ref ref, FocuserState initial) : super(ref) {
+  _StubFocuserNotifier(super.ref, FocuserState initial) {
     state = initial;
   }
 }
 
 class _StubFilterWheelNotifier extends FilterWheelStateNotifier {
-  _StubFilterWheelNotifier(Ref ref, FilterWheelState initial) : super(ref) {
+  _StubFilterWheelNotifier(super.ref, FilterWheelState initial) {
     state = initial;
   }
 }
 
 class _StubGuiderNotifier extends GuiderStateNotifier {
-  _StubGuiderNotifier(Ref ref, GuiderState initial) : super(ref) {
+  _StubGuiderNotifier(super.ref, GuiderState initial) {
     state = initial;
   }
 }
 
 class _StubRotatorNotifier extends RotatorStateNotifier {
-  _StubRotatorNotifier(Ref ref, RotatorState initial) : super(ref) {
+  _StubRotatorNotifier(super.ref, RotatorState initial) {
     state = initial;
   }
 }

@@ -1,5 +1,5 @@
 /// Nightshade Bridge - Dart FFI bindings to Rust native code
-library nightshade_bridge;
+library;
 
 export 'src/frb_generated.dart';
 export 'src/event.dart';

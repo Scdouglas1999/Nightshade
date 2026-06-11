@@ -2,9 +2,6 @@ import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-import 'package:nightshade_core/src/database/daos/images_dao.dart';
-import 'package:nightshade_core/src/database/daos/sessions_dao.dart';
-import 'package:nightshade_core/src/database/daos/targets_dao.dart';
 import 'package:nightshade_core/src/database/database.dart'
     hide Sequence, SequenceNode
     show CapturedImage, ImagingSession, Target;
@@ -70,7 +67,7 @@ void main() {
       await db.close();
     });
 
-    Future<int> _createTarget(String name, {String? catalogId}) async {
+    Future<int> createTarget(String name, {String? catalogId}) async {
       return db
           .into(db.targets)
           .insert(
@@ -83,7 +80,7 @@ void main() {
           );
     }
 
-    Future<int> _insertSession({
+    Future<int> insertSession({
       required int targetId,
       required DateTime startTime,
       String status = 'completed',
@@ -97,7 +94,7 @@ void main() {
       );
     }
 
-    Future<void> _insertLight({
+    Future<void> insertLight({
       required int sessionId,
       required int targetId,
       required String filter,
@@ -128,14 +125,14 @@ void main() {
       'detects carry-over for a target imaged on a recent prior night',
       () async {
         final now = DateTime(2026, 5, 18, 22);
-        final targetId = await _createTarget('M31', catalogId: 'M31');
+        final targetId = await createTarget('M31', catalogId: 'M31');
         final previousNight = now.subtract(const Duration(days: 1));
-        final sid = await _insertSession(
+        final sid = await insertSession(
           targetId: targetId,
           startTime: previousNight,
         );
         for (var i = 0; i < 5; i++) {
-          await _insertLight(
+          await insertLight(
             sessionId: sid,
             targetId: targetId,
             filter: 'L',
@@ -170,14 +167,11 @@ void main() {
       'skips targets whose most recent session is older than lookback',
       () async {
         final now = DateTime(2026, 5, 18, 22);
-        final targetId = await _createTarget('M31', catalogId: 'M31');
+        final targetId = await createTarget('M31', catalogId: 'M31');
         // 90 days ago - outside the default 14-day window.
         final ancient = now.subtract(const Duration(days: 90));
-        final sid = await _insertSession(
-          targetId: targetId,
-          startTime: ancient,
-        );
-        await _insertLight(
+        final sid = await insertSession(targetId: targetId, startTime: ancient);
+        await insertLight(
           sessionId: sid,
           targetId: targetId,
           filter: 'L',

@@ -110,8 +110,8 @@ void main() {
         tester,
         const NightshadeDialog(
           title: 'A11y',
-          child: Text('Body'),
           closeButtonSemanticsLabel: 'Dismiss settings',
+          child: Text('Body'),
         ),
       );
 

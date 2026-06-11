@@ -1,4 +1,5 @@
 /// Device types and connection state for Nightshade equipment management.
+library;
 
 /// Device types supported by Nightshade
 enum DeviceType {

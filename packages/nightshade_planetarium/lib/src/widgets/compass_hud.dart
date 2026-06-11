@@ -141,7 +141,7 @@ class _CompassHudPainter extends CustomPainter {
       ..color = Colors.white
       ..style = PaintingStyle.fill;
 
-    final triangleSize = 6.0;
+    const triangleSize = 6.0;
     final topY = center.dy - radius + 2;
 
     final path = Path()
@@ -183,9 +183,9 @@ class _CompassHudPainter extends CustomPainter {
     double compassRadius,
   ) {
     final arcLeft = compassCenter.dx + compassRadius + 8;
-    final arcWidth = 24.0;
+    const arcWidth = 24.0;
     final arcHeight = size.height - 16;
-    final arcTop = 8.0;
+    const arcTop = 8.0;
 
     // Background arc
     final bgRect = RRect.fromRectAndRadius(

@@ -1,4 +1,5 @@
 /// Image capture result types for Nightshade.
+library;
 
 /// Image statistics result
 class ImageStatsResult {

@@ -50,8 +50,9 @@ class CameraStateSnapshot extends Equatable {
   /// Whether the device is healthy (communicated within last 30 seconds)
   bool get isHealthy {
     if (connectionState != DeviceConnectionState.connected) return false;
-    if (lastSuccessfulCommunication == null)
+    if (lastSuccessfulCommunication == null) {
       return true; // Optimistic for new connections
+    }
     return DateTime.now().difference(lastSuccessfulCommunication!).inSeconds <
         30;
   }

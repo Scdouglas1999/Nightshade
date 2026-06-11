@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -407,7 +408,9 @@ class _ObservationLogSettingsState
     );
 
     if (confirmed == true) {
-      ref.read(observationLogNotifierProvider.notifier).deleteLog(log.id);
+      unawaited(
+        ref.read(observationLogNotifierProvider.notifier).deleteLog(log.id),
+      );
     }
   }
 

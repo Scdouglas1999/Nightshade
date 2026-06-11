@@ -5,7 +5,7 @@
 /// aliases via the public barrel and avoid `// ignore: implementation_imports`.
 ///
 /// See `nightshade_core.dart` for the `hide` clauses that motivate these.
-library nightshade_core.legacy_aliases;
+library;
 
 import 'models/tutorial/tutorial_step.dart' as tutorial_step;
 import 'providers/settings_provider.dart' as settings_provider;

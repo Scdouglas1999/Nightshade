@@ -99,13 +99,13 @@ class PluginHandlers {
     }
   }
 
-  /// POST /api/plugins/<id>/enable
+  /// POST `/api/plugins/<id>/enable`
   Future<Response> handleEnablePlugin(Request request, String pluginId) async {
     _logInfo('[API] POST /api/plugins/$pluginId/enable');
     return _setEnabled(pluginId, true);
   }
 
-  /// POST /api/plugins/<id>/disable
+  /// POST `/api/plugins/<id>/disable`
   Future<Response> handleDisablePlugin(Request request, String pluginId) async {
     _logInfo('[API] POST /api/plugins/$pluginId/disable');
     return _setEnabled(pluginId, false);
@@ -126,7 +126,7 @@ class PluginHandlers {
     }
   }
 
-  /// DELETE /api/plugins/<id>
+  /// DELETE `/api/plugins/<id>`
   Future<Response> handleUninstallPlugin(
     Request request,
     String pluginId,

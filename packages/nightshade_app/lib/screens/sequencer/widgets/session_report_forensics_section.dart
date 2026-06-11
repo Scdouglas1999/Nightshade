@@ -9,6 +9,7 @@
 /// the `frame_forensics` table). When the caller only has a Drift
 /// `imaging_sessions.id` and no run-id mapping, an alternative
 /// `[ForensicsSessionSection]` widget below is provided for convenience.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

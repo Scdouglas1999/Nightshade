@@ -4,6 +4,7 @@
 /// sequencer attaches to every rejected frame. The wire-stable
 /// snake_case labels are the contract between Rust and Dart; see
 /// `LikelyCauseExt.fromLabel` for parsing and `.label` for the inverse.
+library;
 
 import 'dart:convert';
 

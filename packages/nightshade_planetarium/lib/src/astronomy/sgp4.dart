@@ -372,7 +372,7 @@ class Sgp4 {
   /// altitude in km).
   static GeodeticPosition eciToGeodetic(EciVector position, double gmst) {
     final r = math.sqrt(position.x * position.x + position.y * position.y);
-    final e2 = 0.006694385000; // WGS-72 first eccentricity squared
+    const e2 = 0.006694385000; // WGS-72 first eccentricity squared
 
     // Longitude
     var lon = math.atan2(position.y, position.x) - gmst;
@@ -421,7 +421,7 @@ class Sgp4 {
     final theta = gmst + lon;
 
     // Observer position in ECI
-    final e2 = 0.006694385000;
+    const e2 = 0.006694385000;
     final c = 1.0 / math.sqrt(1.0 - e2 * sinLat * sinLat);
     final sq = c * (1.0 - e2);
 

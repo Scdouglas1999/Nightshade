@@ -99,8 +99,12 @@ class CelestialGridPainter extends CustomPainter {
     for (var ra = firstRa; ra <= maxRa; ra += spacingDeg) {
       // Normalize RA for display
       var raNorm = ra;
-      while (raNorm < 0) raNorm += 360;
-      while (raNorm >= 360) raNorm -= 360;
+      while (raNorm < 0) {
+        raNorm += 360;
+      }
+      while (raNorm >= 360) {
+        raNorm -= 360;
+      }
       _drawRaLine(canvas, size, ra, raNorm, minDec, maxDec, linePaint);
     }
 
@@ -126,8 +130,12 @@ class CelestialGridPainter extends CustomPainter {
 
       // Normalize RA for skyToPixel
       var raNorm = ra;
-      while (raNorm < 0) raNorm += 360;
-      while (raNorm >= 360) raNorm -= 360;
+      while (raNorm < 0) {
+        raNorm += 360;
+      }
+      while (raNorm >= 360) {
+        raNorm -= 360;
+      }
 
       final pixel = plateSolve.skyToPixelUnclamped(raNorm, dec);
       if (pixel == null) {
@@ -142,7 +150,7 @@ class CelestialGridPainter extends CustomPainter {
       if (!started) {
         path.moveTo(screenX, screenY);
         started = true;
-        if (firstVisiblePoint == null) firstVisiblePoint = point;
+        firstVisiblePoint ??= point;
       } else {
         path.lineTo(screenX, screenY);
       }
@@ -189,7 +197,7 @@ class CelestialGridPainter extends CustomPainter {
       if (!started) {
         path.moveTo(screenX, screenY);
         started = true;
-        if (firstVisiblePoint == null) firstVisiblePoint = point;
+        firstVisiblePoint ??= point;
       } else {
         path.lineTo(screenX, screenY);
       }
@@ -345,8 +353,12 @@ class CelestialGridPainter extends CustomPainter {
   /// Format RA (degrees) as HH:MM
   String _formatRa(double raDeg) {
     var ra = raDeg;
-    while (ra < 0) ra += 360;
-    while (ra >= 360) ra -= 360;
+    while (ra < 0) {
+      ra += 360;
+    }
+    while (ra >= 360) {
+      ra -= 360;
+    }
     final totalHours = ra / 15.0;
     final hours = totalHours.floor();
     final minutes = ((totalHours - hours) * 60).round();

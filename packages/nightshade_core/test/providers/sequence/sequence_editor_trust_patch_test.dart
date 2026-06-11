@@ -2,8 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/models/sequence/template_snippet.dart';
-import 'package:nightshade_core/src/providers/sequence/sequence_editor.dart';
-import 'package:nightshade_core/src/providers/sequence/sequence_editor_exceptions.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
 /// Wave-1 trust-patch coverage: every behaviour the report flagged should be

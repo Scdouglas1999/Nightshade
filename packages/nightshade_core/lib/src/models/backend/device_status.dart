@@ -2,6 +2,7 @@
 ///
 /// These models provide type-safe access to device status information
 /// returned from the backend, replacing dynamic/Map-based access patterns.
+library;
 
 import 'device_capabilities.dart' show TrackingRate;
 import 'device_types.dart' show CameraState, PierSide;

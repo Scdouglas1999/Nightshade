@@ -73,12 +73,12 @@ void main() {
     });
 
     test('reconstructs guiding lost-star for scheduler triggers', () {
-      final coreEvent = core.NightshadeEvent(
+      const coreEvent = core.NightshadeEvent(
         timestamp: 1,
         severity: core.EventSeverity.warning,
         category: core.EventCategory.guiding,
         eventType: 'StarLost',
-        data: const {},
+        data: {},
       );
 
       final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);
@@ -87,12 +87,12 @@ void main() {
     });
 
     test('reconstructs mount park completed for scheduler triggers', () {
-      final coreEvent = core.NightshadeEvent(
+      const coreEvent = core.NightshadeEvent(
         timestamp: 1,
         severity: core.EventSeverity.info,
         category: core.EventCategory.equipment,
         eventType: 'MountParkCompleted',
-        data: const {},
+        data: {},
       );
 
       final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);

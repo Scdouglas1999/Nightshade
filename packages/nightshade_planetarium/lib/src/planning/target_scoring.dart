@@ -666,7 +666,7 @@ class TargetScoringService {
           TargetWarning(
             type: WarningType.settingSoon,
             severity: WarningSeverity.warning,
-            message: 'Setting in ${minutesToSet} minutes',
+            message: 'Setting in $minutesToSet minutes',
             suggestion: 'Start imaging soon or wait for tomorrow',
           ),
         );

@@ -48,7 +48,7 @@
 /// // Register plugin
 /// await pluginHost.registerPlugin(MyPlugin());
 /// ```
-library nightshade_plugins;
+library;
 
 // Core plugin API
 export 'src/plugin_api.dart';

@@ -2,6 +2,7 @@
 ///
 /// These types mirror the Rust error types from `native/bridge/src/error.rs`,
 /// providing structured error information across FFI and network boundaries.
+library;
 
 /// Backend error category classifications.
 ///

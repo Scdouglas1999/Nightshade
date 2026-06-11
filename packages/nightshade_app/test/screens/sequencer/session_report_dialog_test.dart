@@ -21,10 +21,10 @@ SessionReport _fakeReport({
 }) {
   final t = targets ??
       [
-        SessionTargetReport(
+        const SessionTargetReport(
           targetId: 1,
           targetName: 'M42',
-          filters: const [
+          filters: [
             SessionFilterReport(
               filter: 'L',
               framesAttempted: 12,

@@ -1,4 +1,5 @@
 /// Sequencer status and checkpoint types.
+library;
 
 /// Current status of the sequence executor
 class SequencerStatus {

@@ -56,7 +56,7 @@ class SurveyImageRequest {
   /// Generate SkyView API URL
   String get skyViewUrl {
     // STScI SkyView API
-    final baseUrl = 'https://skyview.gsfc.nasa.gov/current/cgi/runquery.pl';
+    const baseUrl = 'https://skyview.gsfc.nasa.gov/current/cgi/runquery.pl';
     final params = {
       'Position': '$raDeg,$decDeg',
       'Survey': source.surveyId,
@@ -77,7 +77,7 @@ class SurveyImageRequest {
   /// Generate Aladin Lite HiPS URL (alternative)
   String get aladinUrl {
     // CDS Aladin HiPS
-    final baseUrl =
+    const baseUrl =
         'https://alasky.cds.unistra.fr/hips-image-services/hips2fits';
     final params = {
       'ra': raDeg.toStringAsFixed(6),

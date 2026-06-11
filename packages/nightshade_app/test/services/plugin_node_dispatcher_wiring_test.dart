@@ -17,8 +17,6 @@
 // plugin into the package, the app boot wires the override, and a
 // sequence containing the plugin's node runs end-to-end.
 
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/services/plugin_node_dispatcher_wiring.dart';

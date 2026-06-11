@@ -11,7 +11,7 @@ part 'sessions_dao.g.dart';
 @DriftAccessor(tables: [ImagingSessions, EquipmentProfiles, Sequences, Targets])
 class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SessionsDaoMixin {
-  SessionsDao(NightshadeDatabase db) : super(db);
+  SessionsDao(super.db);
 
   /// Get all sessions
   Future<List<ImagingSession>> getAllSessions() {

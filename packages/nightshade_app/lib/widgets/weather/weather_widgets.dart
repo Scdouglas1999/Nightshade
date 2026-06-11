@@ -2,7 +2,7 @@
 ///
 /// Provides access to all weather-related UI components for use
 /// throughout the Nightshade application.
-library weather_widgets;
+library;
 
 export 'dashboard_weather_widget.dart';
 export 'location_marker.dart';

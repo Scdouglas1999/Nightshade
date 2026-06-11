@@ -85,8 +85,9 @@ class CampaignRollupService {
     DateTime? firstAt;
     DateTime? lastAt;
     for (final s in sessionRefs) {
-      if (firstAt == null || s.startTime.isBefore(firstAt))
+      if (firstAt == null || s.startTime.isBefore(firstAt)) {
         firstAt = s.startTime;
+      }
       if (lastAt == null || s.startTime.isAfter(lastAt)) lastAt = s.startTime;
     }
 

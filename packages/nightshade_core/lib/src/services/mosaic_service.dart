@@ -392,7 +392,7 @@ class MosaicService {
   }) {
     final panels = generatePanels(config);
     final nodes = <String, SequenceNode>{};
-    final uuid = const Uuid();
+    const uuid = Uuid();
 
     // Reorder panels if using serpentine ordering
     final orderedPanels = options.serpentineOrdering

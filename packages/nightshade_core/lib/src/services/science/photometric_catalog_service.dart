@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -188,7 +189,7 @@ class PhotometricCatalogService {
         );
         return null;
       } finally {
-        _inflight.remove(key);
+        unawaited(_inflight.remove(key));
       }
     });
   }

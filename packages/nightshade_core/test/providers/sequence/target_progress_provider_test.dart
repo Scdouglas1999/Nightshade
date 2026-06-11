@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
-import 'package:nightshade_core/src/providers/sequence/target_progress_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
 /// Tests for the per-target execution progress rollup.

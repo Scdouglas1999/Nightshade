@@ -59,7 +59,9 @@ Future<List<AscomDriver>> discoverAscomDrivers(String deviceType) async {
     final win32 = await _getWin32();
     if (win32 == null) return [];
 
-    final registryPath = r'SOFTWARE\ASCOM\' + deviceType + ' Drivers';
+    final registryPath =
+        r'SOFTWARE\ASCOM\'
+        '$deviceType Drivers';
 
     // Query the registry for ASCOM drivers
     final driverList = await _queryAscomRegistry(registryPath);

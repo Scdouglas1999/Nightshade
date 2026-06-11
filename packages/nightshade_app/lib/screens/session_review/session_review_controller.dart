@@ -560,8 +560,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   }
 
   Future<String> _resolveTitle(String? targetName) async {
-    if (targetName != null && targetName.trim().isNotEmpty)
+    if (targetName != null && targetName.trim().isNotEmpty) {
       return targetName.trim();
+    }
     if (_scope.isSession) {
       final session = await _ref
           .read(sessionsDaoProvider)
@@ -1009,8 +1010,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       state = state.copyWith(masters: masters);
       return result.outputPath;
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         state = state.copyWith(error: 'Color calibration failed: $e');
+      }
       return null;
     } finally {
       if (mounted) state = state.copyWith(calibrating: false);
@@ -1241,8 +1243,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       }
       return outputPath;
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         state = state.copyWith(error: 'Narrowband combine failed: $e');
+      }
       return null;
     } finally {
       if (mounted) state = state.copyWith(combiningNarrowband: false);
@@ -1486,8 +1489,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       if (sq != null && (bq == null || sq > bq)) {
         best = s;
       } else if (sq != null && bq != null && sq == bq) {
-        if ((s.hfr ?? double.infinity) < (best.hfr ?? double.infinity))
+        if ((s.hfr ?? double.infinity) < (best.hfr ?? double.infinity)) {
           best = s;
+        }
       }
     }
     return best;

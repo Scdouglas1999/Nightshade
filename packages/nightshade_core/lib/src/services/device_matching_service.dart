@@ -106,8 +106,9 @@ class DeviceMatchingService {
           if (primary.driverType == candidate.driverType) continue;
 
           // If names are identical but IDs differ, they're separate physical devices
-          if (primary.name == candidate.name && primary.id != candidate.id)
+          if (primary.name == candidate.name && primary.id != candidate.id) {
             continue;
+          }
 
           final candidateNormalized = normalizeName(candidate.name);
 

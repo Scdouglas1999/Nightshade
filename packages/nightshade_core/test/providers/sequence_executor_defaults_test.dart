@@ -68,7 +68,7 @@ Sequence _filterThenExposureSequence() {
     targetName: 'M31',
     raHours: 0,
     decDegrees: 0,
-    childIds: ['filter', 'exp1', 'exp2'],
+    childIds: const ['filter', 'exp1', 'exp2'],
   );
   final filter = FilterChangeNode(
     id: 'filter',
@@ -200,7 +200,7 @@ void main() {
         targetName: 'M81',
         raHours: 0,
         decDegrees: 0,
-        childIds: ['exp1'],
+        childIds: const ['exp1'],
       );
       final exp1 = ExposureNode(
         id: 'exp1',
@@ -246,7 +246,7 @@ void main() {
           targetName: 'M81',
           raHours: 0,
           decDegrees: 0,
-          childIds: ['exp1'],
+          childIds: const ['exp1'],
         );
         final exp1 = ExposureNode(
           id: 'exp1',

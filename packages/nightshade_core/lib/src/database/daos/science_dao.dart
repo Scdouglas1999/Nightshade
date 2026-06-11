@@ -23,7 +23,7 @@ part 'science_dao.g.dart';
 )
 class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ScienceDaoMixin {
-  ScienceDao(NightshadeDatabase db) : super(db);
+  ScienceDao(super.db);
 
   Future<void> upsertSessionConfig(science.ScienceSessionConfig config) async {
     if (config.sessionId == null) {

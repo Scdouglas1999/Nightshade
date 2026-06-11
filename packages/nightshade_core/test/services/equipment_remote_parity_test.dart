@@ -4,17 +4,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart'
     hide CameraState;
-import 'package:nightshade_core/src/models/backend/device_info.dart';
-import 'package:nightshade_core/src/models/backend/device_types.dart';
-import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
-import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
-import 'package:nightshade_core/src/backend/nightshade_backend.dart'
-    hide CameraState;
 import 'package:nightshade_core/src/models/backend/device_types.dart'
     as device_types;
-import 'package:nightshade_core/src/models/backend/event_types.dart';
 import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
 import 'package:nightshade_core/src/providers/remote_sync_handler.dart';
@@ -90,7 +83,7 @@ void main() {
           () => backend.connectDevice(any(), any()),
         ).thenAnswer((_) async {});
         when(() => backend.getMountStatus('simulator:mount-1')).thenAnswer(
-          (_) async => MountStatus(
+          (_) async => const MountStatus(
             connected: true,
             tracking: true,
             slewing: false,
@@ -108,7 +101,7 @@ void main() {
             canSync: true,
             canPulseGuide: true,
             canSetTrackingRate: true,
-            availability: const {},
+            availability: {},
           ),
         );
         when(
@@ -224,12 +217,12 @@ void main() {
 
       await applyRemoteSyncEvent(
         container,
-        NightshadeEvent(
+        const NightshadeEvent(
           timestamp: 1,
           severity: EventSeverity.info,
           category: EventCategory.equipment,
           eventType: 'Connected',
-          data: const {'device_type': 'camera', 'device_id': 'cam-42'},
+          data: {'device_type': 'camera', 'device_id': 'cam-42'},
         ),
       );
 

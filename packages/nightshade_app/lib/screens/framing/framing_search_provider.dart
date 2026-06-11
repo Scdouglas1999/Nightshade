@@ -57,10 +57,12 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
               final nameLower = o.name.toLowerCase();
 
               // Direct matches
-              if (idLower.contains(qLower) || nameLower.contains(qLower))
+              if (idLower.contains(qLower) || nameLower.contains(qLower)) {
                 return true;
-              if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower)))
+              }
+              if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) {
                 return true;
+              }
 
               // Normalized matches
               final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');

@@ -5,6 +5,7 @@
 /// cause we want to assert visibility for) into an in-memory drift DB,
 /// override the `forensicsServiceProvider` to point at our test
 /// service, mount the panel, and assert the rendered text.
+library;
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';

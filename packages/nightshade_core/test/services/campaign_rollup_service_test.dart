@@ -41,13 +41,13 @@ void main() {
       await db.close();
     });
 
-    Future<int> _createTarget(String name) async {
+    Future<int> createTarget(String name) async {
       return db
           .into(db.targets)
           .insert(TargetsCompanion.insert(name: name, ra: 5.6, dec: -5.4));
     }
 
-    Future<int> _insertSession({
+    Future<int> insertSession({
       required int targetId,
       required String name,
       required DateTime startTime,
@@ -79,7 +79,7 @@ void main() {
       return id;
     }
 
-    Future<void> _insertLight({
+    Future<void> insertLight({
       required int sessionId,
       required int targetId,
       required String filter,
@@ -101,9 +101,9 @@ void main() {
     }
 
     test('aggregates per-filter integration across multiple sessions', () async {
-      final targetId = await _createTarget('M42');
+      final targetId = await createTarget('M42');
 
-      final n1 = await _insertSession(
+      final n1 = await insertSession(
         targetId: targetId,
         name: 'Night 1',
         startTime: DateTime.utc(2026, 1, 1, 22),
@@ -112,7 +112,7 @@ void main() {
         successfulExposures: 12,
         totalIntegrationSecs: 720,
       );
-      final n2 = await _insertSession(
+      final n2 = await insertSession(
         targetId: targetId,
         name: 'Night 2',
         startTime: DateTime.utc(2026, 1, 3, 22),
@@ -125,7 +125,7 @@ void main() {
 
       // 5x L + 2x R on night 1
       for (var i = 0; i < 5; i++) {
-        await _insertLight(
+        await insertLight(
           sessionId: n1,
           targetId: targetId,
           filter: 'L',
@@ -133,7 +133,7 @@ void main() {
         );
       }
       for (var i = 0; i < 2; i++) {
-        await _insertLight(
+        await insertLight(
           sessionId: n1,
           targetId: targetId,
           filter: 'R',
@@ -142,7 +142,7 @@ void main() {
       }
       // 10x L on night 2 — mixed case to confirm normalisation
       for (var i = 0; i < 10; i++) {
-        await _insertLight(
+        await insertLight(
           sessionId: n2,
           targetId: targetId,
           filter: 'l',
@@ -194,8 +194,8 @@ void main() {
     test(
       'attaches goals and reports progress, including goal-only filters',
       () async {
-        final targetId = await _createTarget('NGC7000');
-        final sId = await _insertSession(
+        final targetId = await createTarget('NGC7000');
+        final sId = await insertSession(
           targetId: targetId,
           name: 'Pelican',
           startTime: DateTime.utc(2026, 2, 1, 22),
@@ -204,7 +204,7 @@ void main() {
           totalIntegrationSecs: 4 * 180.0,
         );
         for (var i = 0; i < 4; i++) {
-          await _insertLight(
+          await insertLight(
             sessionId: sId,
             targetId: targetId,
             filter: 'Ha',
@@ -251,8 +251,8 @@ void main() {
     );
 
     test('isComplete is true only when every goal is met', () async {
-      final targetId = await _createTarget('Heart');
-      final sId = await _insertSession(
+      final targetId = await createTarget('Heart');
+      final sId = await insertSession(
         targetId: targetId,
         name: 'Done',
         startTime: DateTime.utc(2026, 3, 1, 22),
@@ -261,7 +261,7 @@ void main() {
         totalIntegrationSecs: 1800,
       );
       for (var i = 0; i < 10; i++) {
-        await _insertLight(
+        await insertLight(
           sessionId: sId,
           targetId: targetId,
           filter: 'L',
@@ -291,9 +291,9 @@ void main() {
     test(
       'buildForAllTargets returns entries for targets without sessions',
       () async {
-        final t1 = await _createTarget('Untouched');
-        final t2 = await _createTarget('M101');
-        final sId = await _insertSession(
+        final t1 = await createTarget('Untouched');
+        final t2 = await createTarget('M101');
+        final sId = await insertSession(
           targetId: t2,
           name: 'M101 night',
           startTime: DateTime.utc(2026, 4, 1, 22),
@@ -301,7 +301,7 @@ void main() {
           successfulExposures: 1,
           totalIntegrationSecs: 60,
         );
-        await _insertLight(sessionId: sId, targetId: t2, filter: 'L');
+        await insertLight(sessionId: sId, targetId: t2, filter: 'L');
 
         final all = await service.buildForAllTargets();
         expect(all.keys.toSet(), {t1, t2});

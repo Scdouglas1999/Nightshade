@@ -6,9 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/backend/bridge_event_mapper.dart';
-import 'package:nightshade_core/src/backend/network_backend.dart';
-import 'package:nightshade_core/src/models/backend/event_types.dart' as core;
-import 'package:nightshade_core/src/providers/recovery_provider.dart';
 
 class _NetworkBackendNotifier extends BackendNotifier {
   _NetworkBackendNotifier(super.ref, NightshadeBackend backend) {

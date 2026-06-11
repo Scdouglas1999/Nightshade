@@ -206,8 +206,9 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
       final filtered = working
           .where((v) => (v - med).abs() <= limit)
           .toList(growable: true);
-      if (filtered.length == working.length || filtered.length < 8)
+      if (filtered.length == working.length || filtered.length < 8) {
         return _median(filtered);
+      }
       working = filtered;
     }
     return _median(working);

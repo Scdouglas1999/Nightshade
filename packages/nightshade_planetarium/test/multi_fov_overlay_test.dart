@@ -98,7 +98,7 @@ void main() {
     // The handle sits above the preset center along the short axis.
     final overlayCenter = tester.getCenter(find.byType(MultiFovOverlay));
     final fov = _wideRig.fovDegrees!;
-    final scale = 400 / 2 / (10.0 / 2); // min(w,h)/2 / (fov/2)
+    const scale = 400 / 2 / (10.0 / 2); // min(w,h)/2 / (fov/2)
     final handle = overlayCenter + Offset(0, -(fov.$2 * scale / 2 + 18));
 
     // Drag the handle sideways to induce a rotation.

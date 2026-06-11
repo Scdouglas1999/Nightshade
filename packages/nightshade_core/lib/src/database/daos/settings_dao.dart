@@ -8,7 +8,7 @@ part 'settings_dao.g.dart';
 @DriftAccessor(tables: [AppSettings])
 class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SettingsDaoMixin {
-  SettingsDao(NightshadeDatabase db) : super(db);
+  SettingsDao(super.db);
 
   /// Get a setting by key
   Future<String?> getSetting(String key) async {

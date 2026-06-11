@@ -20,7 +20,7 @@ import 'package:nightshade_core/src/services/device_service.dart';
 import '../mocks/mock_backend.dart';
 
 class _TestBackendNotifier extends BackendNotifier {
-  _TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }

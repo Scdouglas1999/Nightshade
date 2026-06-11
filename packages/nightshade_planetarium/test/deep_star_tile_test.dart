@@ -133,12 +133,12 @@ void main() {
 
   group('DeepStarManifest JSON', () {
     test('round-trips through JSON', () {
-      final manifest = DeepStarManifest(
+      const manifest = DeepStarManifest(
         name: 'Test tier',
         source: 'unit test',
         magnitudeFloor: 11.5,
         magnitudeLimit: 13.0,
-        tiles: const [
+        tiles: [
           DeepStarManifestTile(
             raBand: 1,
             decBand: 2,

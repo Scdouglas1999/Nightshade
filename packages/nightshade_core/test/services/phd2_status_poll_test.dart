@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/services/phd2_status_poll.dart';
 
 class _MockBackend extends Mock implements NightshadeBackend {}
 

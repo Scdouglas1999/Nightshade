@@ -72,14 +72,17 @@ void main() {
     'routes PluginNodeRequested → dispatcher → sequencerPluginNodeFinished',
     () async {
       PluginNodeDispatchRequest? capturedRequest;
-      final dispatcher = (PluginNodeDispatchRequest request) async {
+      Future<PluginNodeDispatchResult> dispatcher(
+        PluginNodeDispatchRequest request,
+      ) async {
         capturedRequest = request;
         return const PluginNodeDispatchResult(
           success: true,
           message: 'delivered',
           structuredDetailJson: '{"phase":"finished","delivery_id":"test-1"}',
         );
-      };
+      }
+
       final container = buildContainer(dispatcher: dispatcher);
       final executor = container.read(sequenceExecutorProvider);
 
@@ -146,12 +149,15 @@ void main() {
   test(
     'failure verdict propagates through to sequencerPluginNodeFinished(success=false)',
     () async {
-      final dispatcher = (PluginNodeDispatchRequest request) async {
+      Future<PluginNodeDispatchResult> dispatcher(
+        PluginNodeDispatchRequest request,
+      ) async {
         return const PluginNodeDispatchResult(
           success: false,
           message: 'HTTP 500',
         );
-      };
+      }
+
       final container = buildContainer(dispatcher: dispatcher);
       final executor = container.read(sequenceExecutorProvider);
 
@@ -204,9 +210,10 @@ void main() {
   test(
     'dispatcher throw is caught and surfaced as a failure verdict',
     () async {
-      final dispatcher = (PluginNodeDispatchRequest request) async {
+      Future<Never> dispatcher(PluginNodeDispatchRequest request) async {
         throw StateError('boom');
-      };
+      }
+
       final container = buildContainer(dispatcher: dispatcher);
       final executor = container.read(sequenceExecutorProvider);
 
@@ -259,10 +266,13 @@ void main() {
   test('network/remote backends leave plugin dispatch to the host', () async {
     when(() => backend.dispatchPluginNodesLocally).thenReturn(false);
     var dispatched = false;
-    final dispatcher = (PluginNodeDispatchRequest request) async {
+    Future<PluginNodeDispatchResult> dispatcher(
+      PluginNodeDispatchRequest request,
+    ) async {
       dispatched = true;
       return const PluginNodeDispatchResult(success: true);
-    };
+    }
+
     final container = buildContainer(dispatcher: dispatcher);
     final executor = container.read(sequenceExecutorProvider);
 

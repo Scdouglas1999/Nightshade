@@ -39,7 +39,7 @@ void main() {
         pixelSizeMicrons: 3.76,
       );
       // scale = 206265 * (pixel_mm) / f = 206265 * 0.00376 / 480.
-      final expected = 206265 * (3.76 / 1000) / 480;
+      const expected = 206265 * (3.76 / 1000) / 480;
       expect(preset.imageScaleArcsecPerPx, closeTo(expected, 1e-3));
       expect(preset.imageScaleArcsecPerPx, closeTo(1.616, 0.01));
     });

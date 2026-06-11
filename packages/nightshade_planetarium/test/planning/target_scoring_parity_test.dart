@@ -36,10 +36,10 @@ void main() {
       // SAME values as the Rust fixture in
       // `native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs::rust_dart_scoring_parity_fixture`.
       final observer = DateTime.utc(2026, 1, 15, 6, 0, 0);
-      final m42 = _Fixture(
+      const m42 = _Fixture(
         id: 'm42',
         name: 'M42',
-        coordinates: const CelestialCoordinate(ra: 5.5880, dec: -5.39),
+        coordinates: CelestialCoordinate(ra: 5.5880, dec: -5.39),
       );
       // Moon ~Pleiades region.
       const moon = (75.0, 18.0);

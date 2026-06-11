@@ -34,16 +34,16 @@ const _headlessLogSource = 'HeadlessMain';
 ///   Linux:   ./build/linux/x64/release/bundle/nightshade_desktop --headless
 ///
 /// Authentication:
-///   --auth-token=<token>  Set a specific authentication token
+///   --auth-token=`<token>`  Set a specific authentication token
 ///                         (admin scope)
-///   --view-token=<token>  Set a read-only monitoring token
-///   --control-token=<token>
+///   --view-token=`<token>`  Set a read-only monitoring token
+///   --control-token=`<token>`
 ///                         Set an imaging-control token
 ///   --require-auth        Generate a random token
 ///   --allow-unauthenticated-lan
 ///                         Bind to the LAN without auth. Unsafe; intended only
 ///                         for isolated development networks.
-///   --cors-origin=<origin>
+///   --cors-origin=`<origin>`
 ///                         Add an origin to the CORS allow-list (may be passed
 ///                         multiple times). Why explicit list: the dashboard's
 ///                         own origin is always allowed, but cross-origin
@@ -56,11 +56,11 @@ const _headlessLogSource = 'HeadlessMain';
 ///   --tls                 (P0-9) Enable transport encryption. Generates a
 ///                         self-signed cert under $APPDATA/server.{crt,key}
 ///                         on first launch and binds HTTPS instead of HTTP.
-///   --tls-cert=<path>     (P0-9) Use the supplied certificate PEM instead
+///   --tls-cert=`<path>`     (P0-9) Use the supplied certificate PEM instead
 ///                         of generating a self-signed one.
-///   --tls-key=<path>      (P0-9) Use the supplied private-key PEM instead
+///   --tls-key=`<path>`      (P0-9) Use the supplied private-key PEM instead
 ///                         of generating a self-signed one.
-///   --relay-url=<url>     v4 couch-grade remote: dial OUT to a self-hosted
+///   --relay-url=`<url>`     v4 couch-grade remote: dial OUT to a self-hosted
 ///                         Nightshade relay (ws(s)://host[:port]) so the rig
 ///                         is reachable from anywhere with no port-forwarding.
 ///                         The appliance id minted on first contact is printed
@@ -85,9 +85,9 @@ const _headlessLogSource = 'HeadlessMain';
 ///   NIGHTSHADE_PAIRING_PRINT_CODES=true
 ///                         Same as --pairing-print-codes.
 ///   NIGHTSHADE_TLS=true   Same as --tls.
-///   NIGHTSHADE_TLS_CERT   Same as --tls-cert=<path>.
-///   NIGHTSHADE_TLS_KEY    Same as --tls-key=<path>.
-///   NIGHTSHADE_RELAY_URL  Same as --relay-url=<url>.
+///   NIGHTSHADE_TLS_CERT   Same as --tls-cert=`<path>`.
+///   NIGHTSHADE_TLS_KEY    Same as --tls-key=`<path>`.
+///   NIGHTSHADE_RELAY_URL  Same as --relay-url=`<url>`.
 ///   NIGHTSHADE_RELAY_ALLOW_INSECURE_TLS=true
 ///                         Same as --relay-allow-insecure-tls.
 void main(List<String> args) async {

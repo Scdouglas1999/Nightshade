@@ -154,7 +154,7 @@ class SolverDetectionCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        _LinkText(
+        const _LinkText(
           url: astapDownloadUrl,
           label: 'Download an ASTAP catalog',
         ),
@@ -193,12 +193,12 @@ class SolverDetectionCard extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 6),
-        _LinkText(
+        const _LinkText(
           url: astapDownloadUrl,
           label: 'Download ASTAP — hnsky.org',
         ),
         const SizedBox(height: 2),
-        _LinkText(
+        const _LinkText(
           url: astrometryDownloadUrl,
           label: 'Install Astrometry.net (Linux/macOS)',
         ),

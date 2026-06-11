@@ -8,7 +8,7 @@ part 'sequence_runs_dao.g.dart';
 @DriftAccessor(tables: [SequenceRuns])
 class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SequenceRunsDaoMixin {
-  SequenceRunsDao(NightshadeDatabase db) : super(db);
+  SequenceRunsDao(super.db);
 
   /// Start a new run record. Returns the row ID.
   Future<int> startRun({

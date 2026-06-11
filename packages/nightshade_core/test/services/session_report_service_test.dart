@@ -40,13 +40,13 @@ void main() {
       await db.close();
     });
 
-    Future<int> _createTarget(String name) async {
+    Future<int> createTarget(String name) async {
       return db
           .into(db.targets)
           .insert(TargetsCompanion.insert(name: name, ra: 5.6, dec: -5.4));
     }
 
-    Future<int> _insertSession({
+    Future<int> insertSession({
       required String name,
       required int? targetId,
       required DateTime startTime,
@@ -68,7 +68,7 @@ void main() {
       );
     }
 
-    Future<void> _insertFrame({
+    Future<void> insertFrame({
       required int sessionId,
       int? targetId,
       String filter = 'L',
@@ -110,8 +110,8 @@ void main() {
     }
 
     test('builds per-filter / per-target rollup with means', () async {
-      final targetId = await _createTarget('M42');
-      final sessionId = await _insertSession(
+      final targetId = await createTarget('M42');
+      final sessionId = await insertSession(
         name: 'Orion Night 1',
         targetId: targetId,
         startTime: DateTime.utc(2026, 1, 1, 22),
@@ -121,7 +121,7 @@ void main() {
       );
 
       // L filter: 2 accepted, 1 rejected
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'L',
@@ -134,7 +134,7 @@ void main() {
         background: 100,
         noise: 5,
       );
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'L',
@@ -147,7 +147,7 @@ void main() {
         background: 110,
         noise: 5,
       );
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'L',
@@ -157,7 +157,7 @@ void main() {
       );
 
       // R filter: 1 accepted
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'R',
@@ -167,7 +167,7 @@ void main() {
       );
 
       // Junk dark frame that must NOT appear in the report.
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'L',
@@ -210,22 +210,22 @@ void main() {
     });
 
     test('guide stats expose unguided fraction and max RMS', () async {
-      final targetId = await _createTarget('NGC7000');
-      final sessionId = await _insertSession(
+      final targetId = await createTarget('NGC7000');
+      final sessionId = await insertSession(
         name: 'Pelican',
         targetId: targetId,
         startTime: DateTime.utc(2026, 2, 1, 22),
         endTime: DateTime.utc(2026, 2, 2, 0),
       );
 
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         rmsRa: 0.4,
         rmsDec: 0.3,
         rmsTotal: 0.5,
       );
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         rmsRa: 0.8,
@@ -233,7 +233,7 @@ void main() {
         rmsTotal: 1.0,
       );
       // Frame with no guide data at all (e.g. unguided exposure).
-      await _insertFrame(sessionId: sessionId, targetId: targetId);
+      await insertFrame(sessionId: sessionId, targetId: targetId);
 
       final report = await service.buildReport(sessionId);
       final gs = report.guideStats;
@@ -245,10 +245,10 @@ void main() {
     test(
       'pulls mount stats from related sequence_runs and session row',
       () async {
-        final targetId = await _createTarget('M31');
+        final targetId = await createTarget('M31');
         final sessionStart = DateTime.utc(2026, 3, 1, 22);
         final sessionEnd = DateTime.utc(2026, 3, 2, 4);
-        final sessionId = await _insertSession(
+        final sessionId = await insertSession(
           name: 'Andromeda',
           targetId: targetId,
           startTime: sessionStart,
@@ -282,14 +282,14 @@ void main() {
     );
 
     test('renderMarkdown emits headings and per-filter rows', () async {
-      final targetId = await _createTarget('Heart');
-      final sessionId = await _insertSession(
+      final targetId = await createTarget('Heart');
+      final sessionId = await insertSession(
         name: 'IC1805',
         targetId: targetId,
         startTime: DateTime.utc(2026, 4, 1, 22),
         endTime: DateTime.utc(2026, 4, 2, 1),
       );
-      await _insertFrame(
+      await insertFrame(
         sessionId: sessionId,
         targetId: targetId,
         filter: 'Ha',
@@ -313,13 +313,13 @@ void main() {
     });
 
     test('handles untargeted captures with synthetic bucket', () async {
-      final sessionId = await _insertSession(
+      final sessionId = await insertSession(
         name: 'Quick capture',
         targetId: null,
         startTime: DateTime.utc(2026, 5, 1, 22),
         endTime: DateTime.utc(2026, 5, 1, 23),
       );
-      await _insertFrame(sessionId: sessionId);
+      await insertFrame(sessionId: sessionId);
 
       final report = await service.buildReport(sessionId);
       expect(report.targets, hasLength(1));

@@ -464,11 +464,11 @@ abstract class AppSettings with _$AppSettings {
 // Extension to provide compatibility getters
 extension AppSettingsExtension on AppSettings {
   /// Get latitude from location or direct field
-  double get effectiveLatitude => this.location?.latitude ?? this.latitude;
+  double get effectiveLatitude => location?.latitude ?? latitude;
 
   /// Get longitude from location or direct field
-  double get effectiveLongitude => this.location?.longitude ?? this.longitude;
+  double get effectiveLongitude => location?.longitude ?? longitude;
 
   /// Get elevation from location or direct field
-  double get effectiveElevation => this.location?.elevation ?? this.elevation;
+  double get effectiveElevation => location?.elevation ?? elevation;
 }

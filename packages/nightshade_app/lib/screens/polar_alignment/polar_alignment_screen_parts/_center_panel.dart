@@ -26,8 +26,8 @@ extension _CenterPanel on _PolarAlignmentScreenState {
             _buildProgressSteps(colors, state),
 
           if (showSolverBanner)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: PlateSolverRequiredBanner(
                 contextMessage:
                     'Polar alignment plate-solves each capture to measure '

@@ -227,7 +227,7 @@ void main() {
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response(responseBody, 200));
 
-        final settings = const TransientAlertSettings();
+        const settings = TransientAlertSettings();
 
         // First call - should hit the API
         final alerts1 = await service.getAllAlerts(settings);
@@ -252,7 +252,7 @@ void main() {
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response(responseBody, 200));
 
-        final settings = const TransientAlertSettings();
+        const settings = TransientAlertSettings();
 
         // Populate cache
         await service.getAllAlerts(settings);
@@ -345,7 +345,7 @@ void main() {
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response(responseBody, 200));
 
-        final settings = const TransientAlertSettings();
+        const settings = TransientAlertSettings();
         final alerts = await service.getAllAlerts(settings);
 
         if (alerts.length >= 2) {

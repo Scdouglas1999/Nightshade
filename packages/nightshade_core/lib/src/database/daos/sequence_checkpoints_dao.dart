@@ -8,7 +8,7 @@ part 'sequence_checkpoints_dao.g.dart';
 @DriftAccessor(tables: [SequenceCheckpoints, Sequences])
 class SequenceCheckpointsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SequenceCheckpointsDaoMixin {
-  SequenceCheckpointsDao(NightshadeDatabase db) : super(db);
+  SequenceCheckpointsDao(super.db);
 
   /// Save or update a checkpoint for a sequence
   /// Uses upsert to ensure only one checkpoint per sequence

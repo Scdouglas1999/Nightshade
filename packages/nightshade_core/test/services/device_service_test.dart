@@ -19,7 +19,7 @@ import 'package:nightshade_core/src/services/device_service.dart';
 import '../mocks/mock_backend.dart';
 
 class TestBackendNotifier extends BackendNotifier {
-  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }
@@ -72,7 +72,7 @@ void main() {
   // ---------------------------------------------------------------------------
   // Helper: build a DeviceInfo for a given type
   // ---------------------------------------------------------------------------
-  DeviceInfo _deviceInfo(DeviceType type, String id, String name) => DeviceInfo(
+  DeviceInfo deviceInfo(DeviceType type, String id, String name) => DeviceInfo(
     id: id,
     name: name,
     deviceType: type,
@@ -91,9 +91,7 @@ void main() {
         const deviceId = TestFixtures.cameraId;
 
         when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
-          (_) async => [
-            _deviceInfo(DeviceType.camera, deviceId, 'Test Camera'),
-          ],
+          (_) async => [deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
         );
         when(
           () => mockBackend.connectDevice(DeviceType.camera, deviceId),
@@ -149,7 +147,7 @@ void main() {
       const deviceId = TestFixtures.cameraId;
 
       when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
-        (_) async => [_deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
+        (_) async => [deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
       );
       when(
         () => mockBackend.connectDevice(DeviceType.camera, deviceId),
@@ -202,7 +200,7 @@ void main() {
       const deviceId = TestFixtures.mountId;
 
       when(() => mockBackend.discoverDevices(DeviceType.mount)).thenAnswer(
-        (_) async => [_deviceInfo(DeviceType.mount, deviceId, 'Test Mount')],
+        (_) async => [deviceInfo(DeviceType.mount, deviceId, 'Test Mount')],
       );
       when(
         () => mockBackend.connectDevice(DeviceType.mount, deviceId),
@@ -283,9 +281,7 @@ void main() {
       const deviceId = TestFixtures.focuserId;
 
       when(() => mockBackend.discoverDevices(DeviceType.focuser)).thenAnswer(
-        (_) async => [
-          _deviceInfo(DeviceType.focuser, deviceId, 'Test Focuser'),
-        ],
+        (_) async => [deviceInfo(DeviceType.focuser, deviceId, 'Test Focuser')],
       );
       when(
         () => mockBackend.connectDevice(DeviceType.focuser, deviceId),
@@ -637,9 +633,7 @@ void main() {
         const deviceId = TestFixtures.cameraId;
 
         when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
-          (_) async => [
-            _deviceInfo(DeviceType.camera, deviceId, 'Test Camera'),
-          ],
+          (_) async => [deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
         );
         when(
           () => mockBackend.connectDevice(DeviceType.camera, deviceId),
@@ -693,7 +687,7 @@ void main() {
 
       // First connect
       when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
-        (_) async => [_deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
+        (_) async => [deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
       );
       when(
         () => mockBackend.connectDevice(DeviceType.camera, deviceId),
@@ -756,8 +750,8 @@ void main() {
 
         when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
           (_) async => [
-            _deviceInfo(DeviceType.camera, firstDeviceId, 'First Camera'),
-            _deviceInfo(DeviceType.camera, secondDeviceId, 'Second Camera'),
+            deviceInfo(DeviceType.camera, firstDeviceId, 'First Camera'),
+            deviceInfo(DeviceType.camera, secondDeviceId, 'Second Camera'),
           ],
         );
         when(
@@ -1134,8 +1128,8 @@ void main() {
   group('Device Discovery', () {
     test('discoverDevices delegates to backend', () async {
       final expectedDevices = [
-        _deviceInfo(DeviceType.camera, 'cam-1', 'Camera 1'),
-        _deviceInfo(DeviceType.camera, 'cam-2', 'Camera 2'),
+        deviceInfo(DeviceType.camera, 'cam-1', 'Camera 1'),
+        deviceInfo(DeviceType.camera, 'cam-2', 'Camera 2'),
       ];
 
       when(
@@ -1374,7 +1368,7 @@ void main() {
       int callCount = 0;
 
       when(() => mockBackend.discoverDevices(DeviceType.camera)).thenAnswer(
-        (_) async => [_deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
+        (_) async => [deviceInfo(DeviceType.camera, deviceId, 'Test Camera')],
       );
       when(
         () => mockBackend.connectDevice(DeviceType.camera, deviceId),

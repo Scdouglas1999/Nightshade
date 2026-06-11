@@ -186,7 +186,7 @@ class _ActionRow extends ConsumerWidget {
                   const SizedBox(height: 12),
                   StatefulBuilder(builder: (ctx, setState) {
                     return DropdownButtonFormField<String>(
-                      value: selectedFilter,
+                      initialValue: selectedFilter,
                       decoration: const InputDecoration(labelText: 'Filter'),
                       items: filterWheel.filterNames
                           .map(

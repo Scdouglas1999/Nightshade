@@ -206,8 +206,9 @@ class SkyCalculations {
       }
       prevAlt = alt;
       prevT = t;
-      if (eveningEnd != null && morningStart != null && t.isAfter(searchEnd))
+      if (eveningEnd != null && morningStart != null && t.isAfter(searchEnd)) {
         break;
+      }
     }
 
     return TwilightTimes(

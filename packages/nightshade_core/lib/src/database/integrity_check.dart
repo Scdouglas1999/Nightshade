@@ -122,7 +122,7 @@ Future<IntegrityRecoveryReport> runIntegrityCheckAndRecover(File dbFile) async {
           .map((row) => row.values.isNotEmpty ? '${row.values.first}' : '?')
           .join('; ');
     } finally {
-      db.dispose();
+      db.close();
     }
   } on SqliteException catch (e) {
     // Why we treat open-time SqliteException as corruption too: SQLite

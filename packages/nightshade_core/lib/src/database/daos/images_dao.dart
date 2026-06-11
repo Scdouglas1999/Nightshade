@@ -111,7 +111,7 @@ class ProducingNodeThumbnail {
 )
 class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ImagesDaoMixin {
-  ImagesDao(NightshadeDatabase db) : super(db);
+  ImagesDao(super.db);
 
   /// Get all images
   Future<List<CapturedImage>> getAllImages() {

@@ -8,7 +8,7 @@ part 'equipment_profiles_dao.g.dart';
 @DriftAccessor(tables: [EquipmentProfiles])
 class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$EquipmentProfilesDaoMixin {
-  EquipmentProfilesDao(NightshadeDatabase db) : super(db);
+  EquipmentProfilesDao(super.db);
 
   /// Get all equipment profiles
   Future<List<EquipmentProfile>> getAllProfiles() =>

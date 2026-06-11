@@ -153,10 +153,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     DateTime? endDate,
   }) async {
     final params = <String, dynamic>{};
-    if (startDate != null)
+    if (startDate != null) {
       params['startDate'] = startDate.millisecondsSinceEpoch.toString();
-    if (endDate != null)
+    }
+    if (endDate != null) {
       params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    }
     final response = await _get(
       'analytics/summary',
       params.isEmpty ? null : params,
@@ -170,10 +172,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     DateTime? endDate,
   }) async {
     final params = <String, dynamic>{};
-    if (startDate != null)
+    if (startDate != null) {
       params['startDate'] = startDate.millisecondsSinceEpoch.toString();
-    if (endDate != null)
+    }
+    if (endDate != null) {
       params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    }
     final response = await _get(
       'analytics/integration-time',
       params.isEmpty ? null : params,
@@ -246,10 +250,12 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     if (minScore != null) params['minScore'] = minScore.toString();
     if (maxResults != null) params['maxResults'] = maxResults.toString();
     if (sortMode != null) params['sortMode'] = sortMode;
-    if (prioritizeIncomplete != null)
+    if (prioritizeIncomplete != null) {
       params['prioritizeIncomplete'] = prioritizeIncomplete.toString();
-    if (objectTypes != null && objectTypes.isNotEmpty)
+    }
+    if (objectTypes != null && objectTypes.isNotEmpty) {
       params['objectTypes'] = objectTypes.join(',');
+    }
     final response = await _get(
       'suggestions/tonight',
       params.isEmpty ? null : params,

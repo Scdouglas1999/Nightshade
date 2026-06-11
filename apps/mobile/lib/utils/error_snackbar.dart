@@ -29,8 +29,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Show a SnackBar describing an API error.
 ///
-/// When [error] is a [ServerError] the SnackBar renders "<message>
-/// (<code>)" with an amber background for 4xx and a red background for
+/// When [error] is a [ServerError] the SnackBar renders
+/// `"<message> (<code>)"` with an amber background for 4xx and a red for
 /// 5xx (or unknown status). Any other exception type falls back to
 /// `error.toString()` with the generic red tint.
 ///
@@ -91,11 +91,11 @@ void showApiError(BuildContext context, Object error) {
   );
 }
 
-/// Show a prefixed API error: "<prefix>: <message> (<code>)".
+/// Show a prefixed API error: `"<prefix>: <message> (<code>)"`.
 ///
 /// Useful when the operator needs additional context that isn't in the
 /// server's message ("Capture failed: rate limited (rate_limited)"). For
-/// non-[ServerError] inputs, formats as "<prefix>: <error>".
+/// non-[ServerError] inputs, formats as `"<prefix>: <error>"`.
 void showApiErrorWithPrefix(BuildContext context, String prefix, Object error) {
   if (error is ServerError) {
     showApiError(

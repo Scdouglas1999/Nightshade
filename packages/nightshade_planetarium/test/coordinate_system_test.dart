@@ -112,7 +112,7 @@ void main() {
         // (altitude of a circumpolar star near the pole ~ dec for northern observers)
         // More precisely, altitude of NCP = latitude, and Polaris is ~0.74 deg from NCP
         const polaris = CelestialCoordinate(ra: 2.53, dec: 89.26);
-        final latitude = 45.0;
+        const latitude = 45.0;
 
         // Use a time when Polaris is observable - the altitude should be
         // approximately equal to the latitude (within about 1 degree for Polaris)
@@ -132,8 +132,8 @@ void main() {
       test('object at celestial equator transit has altitude = 90 - latitude', () {
         // An object at Dec = 0 at transit (hour angle = 0) has altitude = 90 - |lat|
         // For this test, we need to pick a time when RA equals LST (transit)
-        final latitude = 40.0;
-        final longitude = 0.0; // Greenwich
+        const latitude = 40.0;
+        const longitude = 0.0; // Greenwich
 
         // At J2000.0, GMST ~ 18.697 hours, so an object at RA = 18.697h is transiting
         // At transit, hour angle = 0, altitude = 90 - |lat| for Dec = 0
@@ -170,8 +170,8 @@ void main() {
 
       test('object at zenith has altitude 90', () {
         // An object is at zenith when Dec = latitude and HA = 0 (i.e., RA = LST)
-        final latitude = 35.0;
-        final longitude = -100.0;
+        const latitude = 35.0;
+        const longitude = -100.0;
         final time = DateTime.utc(2024, 3, 20, 6, 0, 0);
 
         final jd = _computeJulianDate(time);

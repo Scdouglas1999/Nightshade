@@ -2,7 +2,7 @@ part of '../../constellation_data.dart';
 
 const _lineFigureSet02 = <ConstellationData>[
   // Draco
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Dra',
     name: 'Draco',
     center: CelestialCoordinate(ra: 15.0, dec: 65),
@@ -46,7 +46,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Cepheus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cep',
     name: 'Cepheus',
     center: CelestialCoordinate(ra: 22.0, dec: 65),
@@ -81,7 +81,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Sagittarius
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Sgr',
     name: 'Sagittarius',
     center: CelestialCoordinate(ra: 19.0, dec: -28),
@@ -140,7 +140,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Capricornus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cap',
     name: 'Capricornus',
     center: CelestialCoordinate(ra: 21.0, dec: -18),
@@ -181,7 +181,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Aquarius
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Aqr',
     name: 'Aquarius',
     center: CelestialCoordinate(ra: 22.3, dec: -10),
@@ -220,7 +220,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Pisces
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Psc',
     name: 'Pisces',
     center: CelestialCoordinate(ra: 0.5, dec: 12),
@@ -265,7 +265,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Aries
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ari',
     name: 'Aries',
     center: CelestialCoordinate(ra: 2.5, dec: 22),
@@ -289,7 +289,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Cancer
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cnc',
     name: 'Cancer',
     center: CelestialCoordinate(ra: 8.7, dec: 20),
@@ -319,7 +319,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Libra
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lib',
     name: 'Libra',
     center: CelestialCoordinate(ra: 15.2, dec: -16),
@@ -346,7 +346,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Ophiuchus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Oph',
     name: 'Ophiuchus',
     center: CelestialCoordinate(ra: 17.3, dec: -4),
@@ -385,7 +385,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Serpens (Caput + Cauda as one)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ser',
     name: 'Serpens',
     center: CelestialCoordinate(ra: 16.0, dec: 6),
@@ -421,7 +421,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Hercules
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Her',
     name: 'Hercules',
     center: CelestialCoordinate(ra: 17.4, dec: 27),
@@ -475,7 +475,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Auriga
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Aur',
     name: 'Auriga',
     center: CelestialCoordinate(ra: 6.0, dec: 42),
@@ -518,7 +518,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Canis Minor
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'CMi',
     name: 'Canis Minor',
     center: CelestialCoordinate(ra: 7.6, dec: 6),
@@ -533,7 +533,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Corvus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Crv',
     name: 'Corvus',
     center: CelestialCoordinate(ra: 12.3, dec: -18),
@@ -563,7 +563,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Crater
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Crt',
     name: 'Crater',
     center: CelestialCoordinate(ra: 11.3, dec: -15),
@@ -592,7 +592,7 @@ const _lineFigureSet02 = <ConstellationData>[
   ),
 
   // Centaurus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cen',
     name: 'Centaurus',
     center: CelestialCoordinate(ra: 13.5, dec: -47),

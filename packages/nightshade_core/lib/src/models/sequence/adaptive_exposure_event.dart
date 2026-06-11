@@ -6,6 +6,7 @@
 /// Pre-Wave-5 the dashboard relied on parsing `InstructionProgress.detail`
 /// strings; this typed payload follows the Wave-3 Pack-H model
 /// (`FrameGradeEvent`) and keeps the dashboard free of string parsing.
+library;
 
 /// Reason tag mirroring the Rust `AdaptiveExposureReason`. Plain enum
 /// with a `fromWire` builder so we don't drag in freezed for a five-

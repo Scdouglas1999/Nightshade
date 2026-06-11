@@ -2,7 +2,7 @@ part of '../../constellation_data.dart';
 
 const _lineFigureSet01 = <ConstellationData>[
   // Orion
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ori',
     name: 'Orion',
     center: CelestialCoordinate(ra: 5.5, dec: 0),
@@ -48,7 +48,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Ursa Major (Big Dipper)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'UMa',
     name: 'Ursa Major',
     center: CelestialCoordinate(ra: 11.0, dec: 55),
@@ -101,7 +101,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Cassiopeia
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cas',
     name: 'Cassiopeia',
     center: CelestialCoordinate(ra: 1.0, dec: 60),
@@ -134,7 +134,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Cygnus (Northern Cross)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cyg',
     name: 'Cygnus',
     center: CelestialCoordinate(ra: 20.5, dec: 40),
@@ -163,7 +163,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Leo
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Leo',
     name: 'Leo',
     center: CelestialCoordinate(ra: 10.7, dec: 15),
@@ -205,7 +205,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Scorpius
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Sco',
     name: 'Scorpius',
     center: CelestialCoordinate(ra: 16.9, dec: -30),
@@ -238,7 +238,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Gemini
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Gem',
     name: 'Gemini',
     center: CelestialCoordinate(ra: 7.1, dec: 25),
@@ -273,7 +273,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Pegasus (Great Square)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Peg',
     name: 'Pegasus',
     center: CelestialCoordinate(ra: 22.7, dec: 20),
@@ -312,7 +312,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Andromeda
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'And',
     name: 'Andromeda',
     center: CelestialCoordinate(ra: 0.8, dec: 38),
@@ -332,7 +332,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Taurus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Tau',
     name: 'Taurus',
     center: CelestialCoordinate(ra: 4.5, dec: 17),
@@ -365,7 +365,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Canis Major
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'CMa',
     name: 'Canis Major',
     center: CelestialCoordinate(ra: 6.8, dec: -22),
@@ -394,7 +394,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Lyra
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lyr',
     name: 'Lyra',
     center: CelestialCoordinate(ra: 18.8, dec: 36),
@@ -425,7 +425,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Aquila
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Aql',
     name: 'Aquila',
     center: CelestialCoordinate(ra: 19.7, dec: 3),
@@ -454,7 +454,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Crux (Southern Cross)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cru',
     name: 'Crux',
     center: CelestialCoordinate(ra: 12.5, dec: -60),
@@ -477,7 +477,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Perseus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Per',
     name: 'Perseus',
     center: CelestialCoordinate(ra: 3.4, dec: 42),
@@ -504,7 +504,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Bootes
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Boo',
     name: 'Bootes',
     center: CelestialCoordinate(ra: 14.7, dec: 30),
@@ -540,7 +540,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Virgo
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Vir',
     name: 'Virgo',
     center: CelestialCoordinate(ra: 13.0, dec: -4),
@@ -566,7 +566,7 @@ const _lineFigureSet01 = <ConstellationData>[
   ),
 
   // Ursa Minor (Little Dipper)
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'UMi',
     name: 'Ursa Minor',
     center: CelestialCoordinate(ra: 15.0, dec: 75),

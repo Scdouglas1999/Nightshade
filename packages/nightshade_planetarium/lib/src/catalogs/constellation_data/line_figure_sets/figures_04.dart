@@ -2,7 +2,7 @@ part of '../../constellation_data.dart';
 
 const _lineFigureSet04 = <ConstellationData>[
   // Circinus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cir',
     name: 'Circinus',
     center: CelestialCoordinate(ra: 14.6, dec: -63),
@@ -19,7 +19,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Triangulum Australe
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'TrA',
     name: 'Triangulum Australe',
     center: CelestialCoordinate(ra: 16.1, dec: -65),
@@ -41,7 +41,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Musca
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Mus',
     name: 'Musca',
     center: CelestialCoordinate(ra: 12.5, dec: -70),
@@ -66,7 +66,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Chamaeleon
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cha',
     name: 'Chamaeleon',
     center: CelestialCoordinate(ra: 10.7, dec: -79),
@@ -91,7 +91,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Volans
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Vol',
     name: 'Volans',
     center: CelestialCoordinate(ra: 7.8, dec: -69),
@@ -116,7 +116,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Pictor
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Pic',
     name: 'Pictor',
     center: CelestialCoordinate(ra: 5.7, dec: -53),
@@ -133,7 +133,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Dorado
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Dor',
     name: 'Dorado',
     center: CelestialCoordinate(ra: 5.2, dec: -60),
@@ -154,7 +154,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Reticulum
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ret',
     name: 'Reticulum',
     center: CelestialCoordinate(ra: 3.9, dec: -60),
@@ -179,7 +179,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Horologium
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Hor',
     name: 'Horologium',
     center: CelestialCoordinate(ra: 3.3, dec: -53),
@@ -196,7 +196,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Caelum
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cae',
     name: 'Caelum',
     center: CelestialCoordinate(ra: 4.7, dec: -38),
@@ -213,7 +213,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Columba
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Col',
     name: 'Columba',
     center: CelestialCoordinate(ra: 5.9, dec: -35),
@@ -240,7 +240,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Lepus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lep',
     name: 'Lepus',
     center: CelestialCoordinate(ra: 5.5, dec: -19),
@@ -275,7 +275,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Monoceros
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Mon',
     name: 'Monoceros',
     center: CelestialCoordinate(ra: 7.2, dec: -3),
@@ -296,7 +296,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Hydra
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Hya',
     name: 'Hydra',
     center: CelestialCoordinate(ra: 10.2, dec: -20),
@@ -343,7 +343,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Sextans
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Sex',
     name: 'Sextans',
     center: CelestialCoordinate(ra: 10.3, dec: -2),
@@ -360,7 +360,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Antlia
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Ant',
     name: 'Antlia',
     center: CelestialCoordinate(ra: 10.3, dec: -34),
@@ -377,7 +377,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Pyxis
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Pyx',
     name: 'Pyxis',
     center: CelestialCoordinate(ra: 8.9, dec: -27),
@@ -394,7 +394,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Puppis
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Pup',
     name: 'Puppis',
     center: CelestialCoordinate(ra: 7.3, dec: -32),
@@ -423,7 +423,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Vela
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Vel',
     name: 'Vela',
     center: CelestialCoordinate(ra: 9.4, dec: -47),
@@ -460,7 +460,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Carina
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Car',
     name: 'Carina',
     center: CelestialCoordinate(ra: 8.7, dec: -63),
@@ -499,7 +499,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Octans
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Oct',
     name: 'Octans',
     center: CelestialCoordinate(ra: 22.0, dec: -82),
@@ -520,7 +520,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Mensa
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Men',
     name: 'Mensa',
     center: CelestialCoordinate(ra: 5.4, dec: -77),
@@ -541,7 +541,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Hydrus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Hyi',
     name: 'Hydrus',
     center: CelestialCoordinate(ra: 2.3, dec: -72),
@@ -562,7 +562,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Apus
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Aps',
     name: 'Apus',
     center: CelestialCoordinate(ra: 16.0, dec: -75),
@@ -583,7 +583,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Scutum
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Sct',
     name: 'Scutum',
     center: CelestialCoordinate(ra: 18.7, dec: -10),
@@ -604,7 +604,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Camelopardalis
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Cam',
     name: 'Camelopardalis',
     center: CelestialCoordinate(ra: 6.1, dec: 69),
@@ -625,7 +625,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Lynx
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'Lyn',
     name: 'Lynx',
     center: CelestialCoordinate(ra: 8.0, dec: 48),
@@ -650,7 +650,7 @@ const _lineFigureSet04 = <ConstellationData>[
   ),
 
   // Leo Minor
-  const ConstellationData(
+  ConstellationData(
     abbreviation: 'LMi',
     name: 'Leo Minor',
     center: CelestialCoordinate(ra: 10.2, dec: 33),

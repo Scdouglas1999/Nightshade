@@ -341,7 +341,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       );
       final metaHeader = _headerValue(downloaded.headers, 'x-image-meta');
       if (metaHeader == null || metaHeader.isEmpty) {
-        throw dart_error.NightshadeError(
+        throw const dart_error.NightshadeError(
           category: dart_error.BackendErrorCategory.validation,
           message:
               'GET /api/camera/last-image/jpeg missing x-image-meta header',

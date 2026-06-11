@@ -1,5 +1,5 @@
 /// Nightshade Core - Shared business logic
-library nightshade_core;
+library;
 
 // Database - hide entity names that collide with domain-model classes of the
 // same name. The drift row types for `CapturedImage` / `EquipmentProfile` are

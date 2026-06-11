@@ -182,7 +182,7 @@ class _EquipmentProfilesScreenState
                     setState(() => _selectedProfile = updated);
                   },
                 )
-              : EmptyState.compact(
+              : const EmptyState.compact(
                   icon: LucideIcons.aperture,
                   title: 'Select a profile',
                   body: 'Choose a profile from the list or create a new one',

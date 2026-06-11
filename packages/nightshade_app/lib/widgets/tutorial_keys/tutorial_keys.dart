@@ -1,5 +1,5 @@
 /// Barrel export for all tutorial key files
-library tutorial_keys;
+library;
 
 export 'dashboard_keys.dart';
 export 'equipment_keys.dart';

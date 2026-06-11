@@ -146,7 +146,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     }
   }
 
-  /// DELETE /api/calibration/darks/{id}?deleteFile=<bool>.
+  /// DELETE `/api/calibration/darks/{id}?deleteFile=<bool>`.
   Future<void> deleteDark(int id, {bool deleteFile = false}) async {
     if (deleteFile) {
       await _delete('calibration/darks/$id?deleteFile=true');
@@ -312,7 +312,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     );
   }
 
-  /// DELETE /api/calibration/defect-maps/{id}?deleteFile=<bool>.
+  /// DELETE `/api/calibration/defect-maps/{id}?deleteFile=<bool>`.
   Future<void> deleteDefectMap(int id, {bool deleteFile = false}) async {
     if (deleteFile) {
       await _delete('calibration/defect-maps/$id?deleteFile=true');

@@ -5,8 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/backend/network_backend.dart';
-import 'package:nightshade_core/src/database/database.dart' hide Target;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 

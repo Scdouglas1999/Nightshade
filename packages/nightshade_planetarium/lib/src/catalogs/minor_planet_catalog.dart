@@ -130,7 +130,7 @@ class KeplerianPropagator {
   static const double _j2000 = 2451545.0;
 
   // Obliquity of ecliptic at J2000 in radians
-  static final double _obliquityRad = 23.439291111 * _deg2rad;
+  static const double _obliquityRad = 23.439291111 * _deg2rad;
 
   /// Compute the geocentric RA/Dec of a minor body at a given time.
   static MinorBodyData propagate(MinorBodyElements elements, DateTime time) {
@@ -165,13 +165,13 @@ class KeplerianPropagator {
 
     // Convert to heliocentric ecliptic coordinates
     final omega = elements.argumentOfPerihelion * _deg2rad;
-    final Omega = elements.longitudeOfNode * _deg2rad;
+    final capitalOmega = elements.longitudeOfNode * _deg2rad;
     final i = elements.inclination * _deg2rad;
 
     final cosOmega = math.cos(omega);
     final sinOmega = math.sin(omega);
-    final cosNode = math.cos(Omega);
-    final sinNode = math.sin(Omega);
+    final cosNode = math.cos(capitalOmega);
+    final sinNode = math.sin(capitalOmega);
     final cosI = math.cos(i);
     final sinI = math.sin(i);
 
@@ -275,13 +275,13 @@ class KeplerianPropagator {
     // Eccentricity
     final e = 0.016708634 - 0.000042037 * T;
 
-    final Mrad = M * _deg2rad;
+    final mRad = M * _deg2rad;
 
     // Equation of center
     final C =
-        (1.9146 - 0.004817 * T) * math.sin(Mrad) +
-        0.019993 * math.sin(2 * Mrad) +
-        0.000290 * math.sin(3 * Mrad);
+        (1.9146 - 0.004817 * T) * math.sin(mRad) +
+        0.019993 * math.sin(2 * mRad) +
+        0.000290 * math.sin(3 * mRad);
 
     // Sun's true longitude
     final trueLon = (L + C) * _deg2rad;

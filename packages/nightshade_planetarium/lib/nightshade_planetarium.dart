@@ -1,5 +1,5 @@
 /// Nightshade Planetarium - Flutter GPU sky renderer
-library nightshade_planetarium;
+library;
 
 // Core models
 export 'src/sky_view.dart';

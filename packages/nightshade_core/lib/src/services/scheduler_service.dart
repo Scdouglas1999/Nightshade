@@ -126,8 +126,12 @@ class SchedulerService {
     double lst = gmst / 15.0 + longitudeDegrees / 15.0;
 
     // Normalize to 0-24
-    while (lst < 0) lst += 24.0;
-    while (lst >= 24) lst -= 24.0;
+    while (lst < 0) {
+      lst += 24.0;
+    }
+    while (lst >= 24) {
+      lst -= 24.0;
+    }
 
     return lst;
   }
@@ -528,7 +532,7 @@ class SchedulerService {
 
     // Obliquity of ecliptic
     const epsilon = 23.439;
-    final epsRad = epsilon * math.pi / 180.0;
+    const epsRad = epsilon * math.pi / 180.0;
 
     // Convert to equatorial coordinates
     final ra = math.atan2(

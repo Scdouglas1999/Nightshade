@@ -261,8 +261,8 @@ class BroadcastHandlers {
     required bool showImage,
     required bool hasToken,
   }) {
-    final escapeAttr = _htmlAttrEscape;
-    final escapeText = _htmlTextEscape;
+    const escapeAttr = _htmlAttrEscape;
+    const escapeText = _htmlTextEscape;
     final imgSrc = showImage
         ? '/api/broadcast/live-stack${hasToken ? '?token=…' : ''}'
         : '';

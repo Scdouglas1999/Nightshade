@@ -45,7 +45,7 @@ Future<Uint8List> defaultGenerateFitsThumbnail({
   required String filePath,
   required int maxSize,
 }) async {
-  final bytes = await bridge_api.apiGenerateFitsThumbnail(
+  final bytes = bridge_api.apiGenerateFitsThumbnail(
     filePath: filePath,
     maxSize: maxSize,
   );

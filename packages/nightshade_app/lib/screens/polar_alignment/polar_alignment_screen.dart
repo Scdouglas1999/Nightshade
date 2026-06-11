@@ -89,9 +89,11 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       try {
         // Eagerly transition the state into the adjusting phase so the
         // reticle widget begins rendering before the first solve lands.
-        ref
-            .read(polarAlignmentStateProvider.notifier)
-            .startAllSkyAlignment(config);
+        unawaited(
+          ref
+              .read(polarAlignmentStateProvider.notifier)
+              .startAllSkyAlignment(config),
+        );
         await service.allSky(config: config);
       } catch (e) {
         if (!mounted) return;

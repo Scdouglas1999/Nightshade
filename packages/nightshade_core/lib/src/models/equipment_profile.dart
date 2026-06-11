@@ -85,18 +85,18 @@ extension EquipmentProfileExtension on EquipmentProfile {
   /// Get effective focal length (uses focalLength if set, otherwise telescopeFocalLength)
   double get effectiveFocalLength {
     // Use focalLength field if it's set (> 0), otherwise fall back to telescopeFocalLength
-    return this.focalLength > 0 ? this.focalLength : this.telescopeFocalLength;
+    return focalLength > 0 ? focalLength : telescopeFocalLength;
   }
 
   /// Get effective aperture (uses aperture if set, otherwise telescopeAperture)
   double get effectiveAperture {
     // Use aperture field if it's set (> 0), otherwise fall back to telescopeAperture
-    return this.aperture > 0 ? this.aperture : this.telescopeAperture;
+    return aperture > 0 ? aperture : telescopeAperture;
   }
 
   /// Get computed focal ratio
   double? get computedFocalRatio {
-    if (this.focalRatio != null) return this.focalRatio;
+    if (focalRatio != null) return focalRatio;
     final ap = effectiveAperture;
     final fl = effectiveFocalLength;
     if (ap > 0 && fl > 0) {
