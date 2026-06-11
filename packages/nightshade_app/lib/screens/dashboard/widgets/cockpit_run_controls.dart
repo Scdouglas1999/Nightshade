@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -17,10 +18,18 @@ import '../../sequencer/widgets/preflight_validation_dialog.dart';
 /// Visibility:
 ///   * ACTIVE (running / paused / stopping / recovering) → pause/resume,
 ///     hold-to-stop, and skip controls.
-///   * IDLE with a launchable sequence loaded (has a target or exposures) → a
-///     Start button gated by the pre-flight dialog, plus a "Ready" badge.
-///   * Otherwise (idle with nothing loaded, completed, or failed) → collapses
-///     to a zero-size box so the cockpit gains no chrome.
+///   * INACTIVE (idle / completed / failed) with a launchable sequence loaded
+///     (has a target or exposures) → a Start button gated by the pre-flight
+///     dialog, plus a state badge ("Ready" / "Completed" / "Failed"). Terminal
+///     states matter here: a failed one-tap launch leaves the sequence loaded
+///     and the executor in `failed`, and without a Start affordance the awake
+///     cockpit would be a dead end with nothing clickable.
+///   * INACTIVE with equipment connected but no launchable sequence → a slim
+///     nudge row offering the one-tap tonight flow and the sequencer (the
+///     cockpit is awake because gear is connected, so it must offer a way
+///     forward).
+///   * Otherwise (nothing loaded, nothing connected) → collapses to a
+///     zero-size box; the standby briefing owns that state.
 class CockpitRunControls extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -30,20 +39,23 @@ class CockpitRunControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sequenceExecutionStateProvider);
     final isActive = _isActive(state);
-    final isIdle = state == SequenceExecutionState.idle;
 
     // A sequence is "launchable" once it has at least one target or exposure —
     // i.e. the user has actually built something to image (not the empty
-    // auto-created default). When idle with such a sequence loaded we offer a
-    // Start button so the night can be launched from the cockpit.
+    // auto-created default). When inactive with such a sequence loaded we offer
+    // a Start button so the night can be launched from the cockpit.
     final sequence = ref.watch(currentSequenceProvider);
     final hasLaunchableSequence = sequence != null &&
         (sequence.targetHeaders.isNotEmpty || sequence.totalExposures > 0);
-    final showStart = isIdle && hasLaunchableSequence;
+    final showStart = !isActive && hasLaunchableSequence;
 
-    // Self-hide when there's nothing to control: idle with no loaded sequence,
-    // or a terminal completed / failed state.
-    if (!isActive && !showStart) return const SizedBox.shrink();
+    // The no-sequence nudge only appears when the cockpit is awake because
+    // equipment is connected. When nothing is connected either, the standby
+    // briefing is showing (with its own CTAs) and this strip must stay hidden.
+    final anyDeviceConnected = _anyCoreDeviceConnected(ref);
+    final showNudge = !isActive && !hasLaunchableSequence && anyDeviceConnected;
+
+    if (!isActive && !showStart && !showNudge) return const SizedBox.shrink();
 
     final Widget controls;
     if (showStart) {
@@ -63,6 +75,23 @@ class CockpitRunControls extends ConsumerWidget {
         );
       }
 
+      // After a terminal state the Start button re-arms the same sequence; the
+      // helper text + badge stay honest about how the last attempt ended.
+      final (String readyText, Widget badge) = switch (state) {
+        SequenceExecutionState.failed => (
+            'Run failed — fix the issue and start again.',
+            _StateBadge(colors: colors, state: state),
+          ),
+        SequenceExecutionState.completed => (
+            'Run complete — start another pass.',
+            _StateBadge(colors: colors, state: state),
+          ),
+        _ => (
+            'Sequence ready — start tonight’s run.',
+            _ReadyBadge(colors: colors),
+          ),
+      };
+
       controls = Row(
         children: [
           _ControlButton(
@@ -75,14 +104,44 @@ class CockpitRunControls extends ConsumerWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Sequence ready — start tonight’s run.',
+              readyText,
               style: TextStyle(
                   fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          _ReadyBadge(colors: colors),
+          badge,
+        ],
+      );
+    } else if (showNudge) {
+      controls = Row(
+        children: [
+          _ControlButton(
+            colors: colors,
+            icon: LucideIcons.moonStar,
+            label: 'Image tonight',
+            isActive: true,
+            onPressed: () => context.go('/tonight'),
+          ),
+          const SizedBox(width: 8),
+          _ControlButton(
+            colors: colors,
+            icon: LucideIcons.listOrdered,
+            label: 'Sequencer',
+            onPressed: () => context.go('/sequencer'),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Equipment connected — no sequence loaded.',
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+            ),
+          ),
         ],
       );
     } else {
@@ -169,6 +228,17 @@ class CockpitRunControls extends ConsumerWidget {
       ),
       child: controls,
     );
+  }
+
+  /// Same core-device set the dashboard's standby branch watches, so this
+  /// strip's nudge appears exactly when the cockpit is awake on connectivity.
+  bool _anyCoreDeviceConnected(WidgetRef ref) {
+    bool connected(ProviderListenable<DeviceConnectionState> p) =>
+        ref.watch(p) == DeviceConnectionState.connected;
+    return connected(cameraStateProvider.select((s) => s.connectionState)) ||
+        connected(mountStateProvider.select((s) => s.connectionState)) ||
+        connected(guiderStateProvider.select((s) => s.connectionState)) ||
+        connected(focuserStateProvider.select((s) => s.connectionState));
   }
 
   bool _isActive(SequenceExecutionState state) {
@@ -326,8 +396,8 @@ class _StateBadge extends StatelessWidget {
           LucideIcons.rotateCw,
           'Recovering',
         ),
-      // Inactive states never reach this widget (the strip is hidden), but
-      // the switch must be exhaustive.
+      // Completed/failed appear next to the re-armed Start button; idle never
+      // reaches this widget (the Ready badge covers it).
       SequenceExecutionState.idle => (
           colors.textMuted,
           LucideIcons.circleOff,

@@ -2,371 +2,339 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../sequencer/widgets/smart_night_dialog.dart';
+import 'standby/last_night_recap_card.dart';
+import 'standby/moon_card.dart';
+import 'standby/night_timeline.dart';
+import 'standby/readiness_card.dart';
+import 'standby/tonight_targets_card.dart';
 
-/// Cohesive standby hero shown on the Dashboard when nothing is running.
+/// Full-canvas **Night Briefing** shown on the Dashboard when nothing is
+/// running.
 ///
-/// The Dashboard doubles as the app home screen. When no sequence is active
-/// and the camera isn't manually capturing, each cockpit panel would otherwise
-/// show its own scattered idle state. This replaces all of that with a single
-/// centered hero: a "no run active" message, a primary **Plan Tonight** CTA
-/// (the Smart Night wizard), a last-run summary that deep-links to the
-/// Sequencer, and a compact readiness glance of the core devices.
+/// The Dashboard doubles as the app home screen. Instead of a tiny "No run
+/// active" placeholder floating in an empty canvas, the idle state is the
+/// screen an astrophotographer wants before a session: a night timeline
+/// (sunset → sunrise with the imaging window and a live "now" marker), the
+/// moon, tonight's ranked targets, last night's recap, and an equipment +
+/// storage readiness glance.
 ///
 /// The branch that chooses standby vs. the live cockpit lives in
 /// `dashboard_screen.dart`; this widget assumes it is only built while idle.
+///
+/// Layout is responsive: a centred max-width column on wide screens with a
+/// two-column card grid beneath the full-width timeline; everything stacks into
+/// one scroll column on phone widths. The whole briefing is wrapped in a scroll
+/// view so it never overflows on small landscape phones.
 class CockpitStandby extends ConsumerWidget {
   final NightshadeColors colors;
 
   const CockpitStandby({super.key, required this.colors});
 
+  /// Below this the grid collapses to a single column and the header CTAs wrap.
+  static const double _wideBreakpoint = 1100;
+  static const double _maxContentWidth = 1180;
+
+  /// Below this the live (clock-driven) astronomy widgets — the night timeline
+  /// and the moon disc — are omitted. They watch nightshade_planetarium's
+  /// `observationTimeProvider`, which spins up a 1 s clock the moment it is
+  /// read; the dashboard command bar gates its own clock content on the same
+  /// 900 px threshold, so standby follows suit. This keeps the briefing
+  /// consistent on narrow phones (where a full timeline wouldn't fit anyway)
+  /// and avoids leaking the clock into the cockpit-polish widget tests, which
+  /// render standby at a compact width.
+  static const double _liveAstroBreakpoint = 900;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(
-                LucideIcons.moonStar,
-                size: 40,
-                color: colors.textMuted,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No run active',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize22,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your cockpit is on standby. Build tonight\'s plan to start '
-                'imaging, or open the Sequencer to load an existing sequence.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  height: 1.4,
-                  color: colors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Beginner landing CTA: one tap to frame + plan + run tonight's
-              // best target. The deep Smart Night wizard stays available as the
-              // secondary action below, and the full planner/sequencer remain a
-              // tap away from the /tonight screen's "Advanced" link.
-              Center(
-                child: NightshadeButton(
-                  label: 'Image tonight',
-                  icon: LucideIcons.moonStar,
-                  variant: ButtonVariant.primary,
-                  size: ButtonSize.large,
-                  onPressed: () => context.go('/tonight'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Center(
-                child: NightshadeButton(
-                  label: 'Plan Tonight (advanced)',
-                  icon: LucideIcons.sparkles,
-                  variant: ButtonVariant.outline,
-                  onPressed: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => const SmartNightDialog(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _LastRunSummary(colors: colors),
-              const SizedBox(height: 16),
-              _ReadinessGlance(colors: colors),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= _wideBreakpoint;
+        final liveAstro = constraints.maxWidth >= _liveAstroBreakpoint;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+              child:
+                  _Briefing(colors: colors, wide: wide, liveAstro: liveAstro),
+            ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// One-shot fade/slide entrance, then static. Nothing loops — only the watched
+/// observation-time tick drives the timeline's repaints.
+class _Briefing extends StatefulWidget {
+  final NightshadeColors colors;
+  final bool wide;
+  final bool liveAstro;
+
+  const _Briefing({
+    required this.colors,
+    required this.wide,
+    required this.liveAstro,
+  });
+
+  @override
+  State<_Briefing> createState() => _BriefingState();
+}
+
+class _BriefingState extends State<_Briefing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: NightshadeTokens.durationSlow,
+    )..forward();
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: NightshadeTokens.curveStandard,
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.015),
+      end: Offset.zero,
+    ).animate(_fade);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Header(colors: colors, wide: widget.wide),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            if (widget.liveAstro) ...[
+              NightTimeline(colors: colors),
+              const SizedBox(height: NightshadeTokens.spaceLg),
+            ],
+            _CardGrid(
+              colors: colors,
+              wide: widget.wide,
+              liveAstro: widget.liveAstro,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _LastRunSummary extends ConsumerWidget {
+class _Header extends StatelessWidget {
   final NightshadeColors colors;
+  final bool wide;
 
-  const _LastRunSummary({required this.colors});
+  const _Header({required this.colors, required this.wide});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final runsAsync = ref.watch(sequenceRunsProvider);
-
-    // watchAllRuns() orders by startedAt desc, so the head is the newest run.
-    final lastRun = runsAsync.maybeWhen(
-      data: (runs) => runs.isEmpty ? null : runs.first,
-      orElse: () => null,
-    );
-
-    if (lastRun == null) {
-      return NightshadeCard(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
+  Widget build(BuildContext context) {
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'TONIGHT\'S BRIEFING',
+          style:
+              NightshadeTypography.overline.copyWith(color: colors.textMuted),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
           children: [
-            Icon(LucideIcons.history, size: 16, color: colors.textMuted),
-            const SizedBox(width: 10),
-            Expanded(
+            // Kept verbatim for the cockpit-polish test, which asserts this
+            // exact string still renders in the standby hero.
+            Text(
+              'No run active',
+              style:
+                  NightshadeTypography.h3.copyWith(color: colors.textPrimary),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Flexible(
               child: Text(
-                'No runs yet — your first night will appear here.',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12_5,
-                    color: colors.textMuted),
+                _today(),
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
+      ],
+    );
+
+    final ctas = _Ctas(colors: colors);
+
+    // Wide: title left, CTAs right on one row. Narrow: stack so the buttons
+    // get full width and never overflow on a landscape phone.
+    if (wide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: title),
+          const SizedBox(width: NightshadeTokens.spaceLg),
+          ctas,
+        ],
       );
     }
-
-    return NightshadeCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Icon(
-            _statusIcon(lastRun.status),
-            size: 16,
-            color: _statusColor(lastRun.status, colors),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Last run: ${lastRun.sequenceName}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12_5,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_statusLabel(lastRun.status)} · '
-                  '${_relativeTime(lastRun.startedAt)}',
-                  style: NightshadeTypography.withTabular(
-                    TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          NightshadeButton(
-            label: 'Open last run',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            // History deep-linking by run id isn't a stable route, so we link
-            // to the Sequencer where the History tab surfaces the run list.
-            onPressed: () => context.go('/sequencer'),
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        title,
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        ctas,
+      ],
     );
   }
 
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'completed':
-        return LucideIcons.checkCircle;
-      case 'failed':
-        return LucideIcons.xCircle;
-      case 'aborted':
-        return LucideIcons.octagon;
-      case 'running':
-        return LucideIcons.activity;
-      default:
-        return LucideIcons.history;
-    }
-  }
-
-  Color _statusColor(String status, NightshadeColors colors) {
-    switch (status) {
-      case 'completed':
-        return colors.success;
-      case 'failed':
-      case 'aborted':
-        return colors.error;
-      case 'running':
-        return colors.info;
-      default:
-        return colors.textMuted;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'failed':
-        return 'Failed';
-      case 'aborted':
-        return 'Aborted';
-      case 'running':
-        return 'Running';
-      default:
-        return status.isEmpty
-            ? 'Unknown'
-            : '${status[0].toUpperCase()}${status.substring(1)}';
-    }
-  }
-
-  String _relativeTime(DateTime when) {
-    final diff = DateTime.now().difference(when);
-    if (diff.isNegative) return 'just now';
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) {
-      final m = diff.inMinutes;
-      return '$m minute${m == 1 ? '' : 's'} ago';
-    }
-    if (diff.inHours < 24) {
-      final h = diff.inHours;
-      return '$h hour${h == 1 ? '' : 's'} ago';
-    }
-    final d = diff.inDays;
-    if (d < 30) return '$d day${d == 1 ? '' : 's'} ago';
-    final months = (d / 30).floor();
-    return '$months month${months == 1 ? '' : 's'} ago';
+  static String _today() {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', //
+    ];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final now = DateTime.now();
+    return '${days[now.weekday - 1]} ${months[now.month - 1]} ${now.day}';
   }
 }
 
-/// Compact readiness glance: connection state for the core devices plus the
-/// camera's cooler temperature. Reads the same `*StateProvider` selects the
-/// command bar's quick-stats strip uses so standby and the live cockpit agree.
-class _ReadinessGlance extends ConsumerWidget {
+class _Ctas extends StatelessWidget {
   final NightshadeColors colors;
 
-  const _ReadinessGlance({required this.colors});
+  const _Ctas({required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final cameraTemp =
-        ref.watch(cameraStateProvider.select((s) => s.temperature));
-    final mountConnected =
-        ref.watch(mountStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final guiderConnected =
-        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final focuserConnected =
-        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-
-    final coolerLabel = cameraConnected && cameraTemp != null
-        ? '${cameraTemp.toStringAsFixed(1)}°C'
-        : null;
-
+  Widget build(BuildContext context) {
+    // One primary action. "Image tonight" and "Plan Tonight (advanced)" read
+    // as the same thing to a new user; the wizard is now a quiet ghost action
+    // whose verb ("Plan manually") says how it differs — you choose, instead
+    // of the app choosing for you.
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
+      spacing: NightshadeTokens.spaceSm,
+      runSpacing: NightshadeTokens.spaceSm,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _ReadinessChip(
-          colors: colors,
-          icon: LucideIcons.camera,
-          label: 'Camera',
-          connected: cameraConnected,
-          detail: coolerLabel,
+        NightshadeButton(
+          label: 'Image tonight',
+          icon: LucideIcons.moonStar,
+          variant: ButtonVariant.primary,
+          onPressed: () => context.go('/tonight'),
         ),
-        _ReadinessChip(
-          colors: colors,
-          icon: LucideIcons.move3d,
-          label: 'Mount',
-          connected: mountConnected,
-        ),
-        _ReadinessChip(
-          colors: colors,
-          icon: LucideIcons.crosshair,
-          label: 'Guider',
-          connected: guiderConnected,
-        ),
-        _ReadinessChip(
-          colors: colors,
-          icon: LucideIcons.focus,
-          label: 'Focuser',
-          connected: focuserConnected,
+        Tooltip(
+          message: 'Pick the target and exposures yourself with the '
+              'Smart Night wizard',
+          child: NightshadeButton(
+            label: 'Plan manually',
+            icon: LucideIcons.slidersHorizontal,
+            variant: ButtonVariant.ghost,
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => const SmartNightDialog(),
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-class _ReadinessChip extends StatelessWidget {
+/// The four briefing cards. Wide screens lay them out in two columns
+/// (targets + moon on the left, recap + readiness on the right) using an
+/// IntrinsicHeight-free Row of Expanded columns; narrow screens stack them.
+class _CardGrid extends StatelessWidget {
   final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final bool connected;
-  final String? detail;
+  final bool wide;
+  final bool liveAstro;
 
-  const _ReadinessChip({
+  const _CardGrid({
     required this.colors,
-    required this.icon,
-    required this.label,
-    required this.connected,
-    this.detail,
+    required this.wide,
+    required this.liveAstro,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent = connected ? colors.success : colors.textMuted;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
+    // The moon disc watches the planetarium clock, so it's only shown alongside
+    // the live timeline (>= 900 px). See `_liveAstroBreakpoint`.
+    final moon = liveAstro ? MoonCard(colors: colors) : null;
+    final targets = TonightTargetsCard(colors: colors);
+    final recap = LastNightRecapCard(colors: colors);
+    final readiness = ReadinessCard(colors: colors);
+
+    if (!wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: colors.textMuted),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11_5,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 6),
-          StatusDot(color: accent, size: 8),
-          if (detail != null) ...[
-            const SizedBox(width: 6),
-            Text(
-              detail!,
-              style: NightshadeTypography.withTabular(
-                NightshadeTypography.labelStrongSm.copyWith(
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
+          targets,
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          if (moon != null) ...[
+            moon,
+            const SizedBox(height: NightshadeTokens.spaceLg),
           ],
+          recap,
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          readiness,
         ],
-      ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              targets,
+              if (moon != null) ...[
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                moon,
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceLg),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              readiness,
+              const SizedBox(height: NightshadeTokens.spaceLg),
+              recap,
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

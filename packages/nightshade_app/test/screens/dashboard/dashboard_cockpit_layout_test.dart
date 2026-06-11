@@ -34,6 +34,11 @@ const _cockpitIds = <DashboardWidgetId>[
   DashboardWidgetId.cockpitCloudMotion,
   DashboardWidgetId.cockpitAdaptiveConditions,
   DashboardWidgetId.cockpitLightCurve,
+  DashboardWidgetId.cockpitQuality,
+  DashboardWidgetId.cockpitSessionVitals,
+  DashboardWidgetId.cockpitSkyContext,
+  DashboardWidgetId.cockpitForensics,
+  DashboardWidgetId.cockpitNarrator,
 ];
 
 /// The four individual cockpit panels superseded by the merged tiles. Present
@@ -76,22 +81,57 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('the Night Narrator id round-trips through the string maps', () {
+      const id = DashboardWidgetId.cockpitNarrator;
+      expect(id.storageKey, 'cockpitNarrator');
+      expect(DashboardWidgetIdX.fromStorageKey('cockpitNarrator'), id);
+      expect(DashboardWidgetIdX.fromStorageKey(id.storageKey), id);
+      expect(DashboardZoneX.defaultForWidget(id), DashboardZone.secondary);
+    });
   });
 
-  group('DashboardLayout.defaultLayout (v5 dense cockpit default)', () {
-    test('is version 5', () {
-      expect(DashboardLayout.currentVersion, 5);
-      expect(DashboardLayout.defaultLayout().version, 5);
+  group('Night Narrator cockpit tile', () {
+    test('is registered self-chromed in the secondary zone', () {
+      final def = dashboardWidgetRegistry.firstWhere(
+        (d) => d.id == DashboardWidgetId.cockpitNarrator,
+        orElse: () => fail('cockpitNarrator must have a registry definition.'),
+      );
+      expect(def.title, 'Night Narrator');
+      expect(
+          def.subtitle, "Live interpretation of your session's science data");
+      expect(def.icon, LucideIcons.sparkles);
+      expect(def.defaultZone, DashboardZone.secondary);
+      expect(def.selfChromed, isTrue);
     });
 
-    test('enables exactly the dense merged cockpit set', () {
+    test('ships present-but-disabled in the default layout', () {
+      final layout = DashboardLayout.defaultLayout();
+      final tile = layout.tiles.firstWhere(
+        (t) => t.widgetId == DashboardWidgetId.cockpitNarrator,
+        orElse: () => fail('cockpitNarrator must be present in the default.'),
+      );
+      expect(tile.enabled, isFalse,
+          reason: 'Night Narrator ships opt-in (disabled by default).');
+      expect(tile.zone, DashboardZone.secondary);
+    });
+  });
+
+  group('DashboardLayout.defaultLayout (v6 dense cockpit default)', () {
+    test('is version 6', () {
+      expect(DashboardLayout.currentVersion, 6);
+      expect(DashboardLayout.defaultLayout().version, 6);
+    });
+
+    test('enables exactly the dense merged cockpit set (incl. v6 quality)', () {
       final layout = DashboardLayout.defaultLayout();
       final enabledIds =
           layout.tiles.where((t) => t.enabled).map((t) => t.widgetId).toSet();
 
       // The dense default: the merged now-imaging + frames tiles and guiding
-      // up top, supporting telemetry on the right rail. The superseded panels,
-      // the opt-in cockpit extras, and ALL legacy cards are off.
+      // up top, supporting telemetry (incl. v6 Quality) on the right rail. The
+      // superseded panels, the opt-in cockpit extras (session vitals, sky
+      // context, forensics), and ALL legacy cards are off.
       expect(
         enabledIds,
         unorderedEquals(<DashboardWidgetId>{
@@ -100,9 +140,25 @@ void main() {
           DashboardWidgetId.cockpitGuiding,
           DashboardWidgetId.cockpitEquipmentTelemetry,
           DashboardWidgetId.cockpitWeatherSafety,
+          DashboardWidgetId.cockpitQuality,
           DashboardWidgetId.cockpitTriggerFeed,
         }),
       );
+    });
+
+    test('the new v6 opt-in panels are present but disabled by default', () {
+      final layout = DashboardLayout.defaultLayout();
+      const optIn = <DashboardWidgetId>[
+        DashboardWidgetId.cockpitSessionVitals,
+        DashboardWidgetId.cockpitSkyContext,
+        DashboardWidgetId.cockpitForensics,
+      ];
+      for (final id in optIn) {
+        final tile = layout.tiles.firstWhere((t) => t.widgetId == id,
+            orElse: () => fail('v6 panel $id must be present.'));
+        expect(tile.enabled, isFalse,
+            reason: 'v6 panel $id ships disabled by default.');
+      }
     });
 
     test('keeps the four superseded panels present but disabled', () {
@@ -237,7 +293,7 @@ void main() {
     });
   });
 
-  group('v3/v4 -> v5 migration', () {
+  group('v3/v4/v5 -> v6 migration', () {
     late NightshadeDatabase database;
 
     setUp(() {
@@ -249,7 +305,7 @@ void main() {
     });
 
     /// Persist an older-version layout under the dashboard key, then read
-    /// [dashboardLayoutProvider] which must migrate it to v5.
+    /// [dashboardLayoutProvider] which must migrate it to v6.
     Future<DashboardLayout> migrate(Map<String, dynamic> stored) async {
       await SettingsDao(database)
           .setSetting(_dashboardLayoutKey, jsonEncode(stored));
@@ -262,7 +318,7 @@ void main() {
       return container.read(dashboardLayoutProvider.future);
     }
 
-    test('moves the user onto the dense default and bumps to v5', () async {
+    test('moves the user onto the dense default and bumps to v6', () async {
       // A representative v3 layout: the previous shipped default (live preview +
       // capture enabled, quick stats disabled).
       final storedV3 = {

@@ -26337,6 +26337,732 @@ class GuideRmsHistoryCompanion extends UpdateCompanion<GuideRmsHistoryEntry> {
   }
 }
 
+class $NarratorEventsTable extends NarratorEvents
+    with TableInfo<$NarratorEventsTable, NarratorEventRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NarratorEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES imaging_sessions (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _capturedImageIdMeta = const VerificationMeta(
+    'capturedImageId',
+  );
+  @override
+  late final GeneratedColumn<int> capturedImageId = GeneratedColumn<int>(
+    'captured_image_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES captured_images (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _eventTypeMeta = const VerificationMeta(
+    'eventType',
+  );
+  @override
+  late final GeneratedColumn<String> eventType = GeneratedColumn<String>(
+    'event_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _severityMeta = const VerificationMeta(
+    'severity',
+  );
+  @override
+  late final GeneratedColumn<String> severity = GeneratedColumn<String>(
+    'severity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _headlineMeta = const VerificationMeta(
+    'headline',
+  );
+  @override
+  late final GeneratedColumn<String> headline = GeneratedColumn<String>(
+    'headline',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _evidenceJsonMeta = const VerificationMeta(
+    'evidenceJson',
+  );
+  @override
+  late final GeneratedColumn<String> evidenceJson = GeneratedColumn<String>(
+    'evidence_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dedupeKeyMeta = const VerificationMeta(
+    'dedupeKey',
+  );
+  @override
+  late final GeneratedColumn<String> dedupeKey = GeneratedColumn<String>(
+    'dedupe_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sessionId,
+    capturedImageId,
+    timestamp,
+    eventType,
+    category,
+    severity,
+    headline,
+    body,
+    evidenceJson,
+    dedupeKey,
+    pinned,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'narrator_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NarratorEventRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('captured_image_id')) {
+      context.handle(
+        _capturedImageIdMeta,
+        capturedImageId.isAcceptableOrUnknown(
+          data['captured_image_id']!,
+          _capturedImageIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    }
+    if (data.containsKey('event_type')) {
+      context.handle(
+        _eventTypeMeta,
+        eventType.isAcceptableOrUnknown(data['event_type']!, _eventTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventTypeMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('severity')) {
+      context.handle(
+        _severityMeta,
+        severity.isAcceptableOrUnknown(data['severity']!, _severityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_severityMeta);
+    }
+    if (data.containsKey('headline')) {
+      context.handle(
+        _headlineMeta,
+        headline.isAcceptableOrUnknown(data['headline']!, _headlineMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_headlineMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    }
+    if (data.containsKey('evidence_json')) {
+      context.handle(
+        _evidenceJsonMeta,
+        evidenceJson.isAcceptableOrUnknown(
+          data['evidence_json']!,
+          _evidenceJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dedupe_key')) {
+      context.handle(
+        _dedupeKeyMeta,
+        dedupeKey.isAcceptableOrUnknown(data['dedupe_key']!, _dedupeKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dedupeKeyMeta);
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NarratorEventRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NarratorEventRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}session_id'],
+      ),
+      capturedImageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}captured_image_id'],
+      ),
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}timestamp'],
+      )!,
+      eventType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_type'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      severity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}severity'],
+      )!,
+      headline: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}headline'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      ),
+      evidenceJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}evidence_json'],
+      ),
+      dedupeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dedupe_key'],
+      )!,
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+    );
+  }
+
+  @override
+  $NarratorEventsTable createAlias(String alias) {
+    return $NarratorEventsTable(attachedDatabase, alias);
+  }
+}
+
+class NarratorEventRow extends DataClass
+    implements Insertable<NarratorEventRow> {
+  final int id;
+  final int? sessionId;
+  final int? capturedImageId;
+  final DateTime timestamp;
+
+  /// Stable event id, e.g. `discovery.moving_object`.
+  final String eventType;
+
+  /// `discovery` | `milestone` | `conditions` | `equipment` | `quality`.
+  final String category;
+
+  /// `celebrate` | `success` | `info` | `warning` | `critical`.
+  final String severity;
+
+  /// One sentence, plain language, with concrete numbers.
+  final String headline;
+
+  /// 1–2 sentences: what it means + what to do.
+  final String? body;
+
+  /// Typed micro-visualization payload (see [NarratorEvidence]).
+  final String? evidenceJson;
+
+  /// Engine-level dedupe / cooldown key.
+  final String dedupeKey;
+
+  /// Discoveries pin to the top of feeds.
+  final bool pinned;
+  const NarratorEventRow({
+    required this.id,
+    this.sessionId,
+    this.capturedImageId,
+    required this.timestamp,
+    required this.eventType,
+    required this.category,
+    required this.severity,
+    required this.headline,
+    this.body,
+    this.evidenceJson,
+    required this.dedupeKey,
+    required this.pinned,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<int>(sessionId);
+    }
+    if (!nullToAbsent || capturedImageId != null) {
+      map['captured_image_id'] = Variable<int>(capturedImageId);
+    }
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    map['event_type'] = Variable<String>(eventType);
+    map['category'] = Variable<String>(category);
+    map['severity'] = Variable<String>(severity);
+    map['headline'] = Variable<String>(headline);
+    if (!nullToAbsent || body != null) {
+      map['body'] = Variable<String>(body);
+    }
+    if (!nullToAbsent || evidenceJson != null) {
+      map['evidence_json'] = Variable<String>(evidenceJson);
+    }
+    map['dedupe_key'] = Variable<String>(dedupeKey);
+    map['pinned'] = Variable<bool>(pinned);
+    return map;
+  }
+
+  NarratorEventsCompanion toCompanion(bool nullToAbsent) {
+    return NarratorEventsCompanion(
+      id: Value(id),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      capturedImageId: capturedImageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedImageId),
+      timestamp: Value(timestamp),
+      eventType: Value(eventType),
+      category: Value(category),
+      severity: Value(severity),
+      headline: Value(headline),
+      body: body == null && nullToAbsent ? const Value.absent() : Value(body),
+      evidenceJson: evidenceJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(evidenceJson),
+      dedupeKey: Value(dedupeKey),
+      pinned: Value(pinned),
+    );
+  }
+
+  factory NarratorEventRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NarratorEventRow(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<int?>(json['sessionId']),
+      capturedImageId: serializer.fromJson<int?>(json['capturedImageId']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+      eventType: serializer.fromJson<String>(json['eventType']),
+      category: serializer.fromJson<String>(json['category']),
+      severity: serializer.fromJson<String>(json['severity']),
+      headline: serializer.fromJson<String>(json['headline']),
+      body: serializer.fromJson<String?>(json['body']),
+      evidenceJson: serializer.fromJson<String?>(json['evidenceJson']),
+      dedupeKey: serializer.fromJson<String>(json['dedupeKey']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<int?>(sessionId),
+      'capturedImageId': serializer.toJson<int?>(capturedImageId),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+      'eventType': serializer.toJson<String>(eventType),
+      'category': serializer.toJson<String>(category),
+      'severity': serializer.toJson<String>(severity),
+      'headline': serializer.toJson<String>(headline),
+      'body': serializer.toJson<String?>(body),
+      'evidenceJson': serializer.toJson<String?>(evidenceJson),
+      'dedupeKey': serializer.toJson<String>(dedupeKey),
+      'pinned': serializer.toJson<bool>(pinned),
+    };
+  }
+
+  NarratorEventRow copyWith({
+    int? id,
+    Value<int?> sessionId = const Value.absent(),
+    Value<int?> capturedImageId = const Value.absent(),
+    DateTime? timestamp,
+    String? eventType,
+    String? category,
+    String? severity,
+    String? headline,
+    Value<String?> body = const Value.absent(),
+    Value<String?> evidenceJson = const Value.absent(),
+    String? dedupeKey,
+    bool? pinned,
+  }) => NarratorEventRow(
+    id: id ?? this.id,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    capturedImageId: capturedImageId.present
+        ? capturedImageId.value
+        : this.capturedImageId,
+    timestamp: timestamp ?? this.timestamp,
+    eventType: eventType ?? this.eventType,
+    category: category ?? this.category,
+    severity: severity ?? this.severity,
+    headline: headline ?? this.headline,
+    body: body.present ? body.value : this.body,
+    evidenceJson: evidenceJson.present ? evidenceJson.value : this.evidenceJson,
+    dedupeKey: dedupeKey ?? this.dedupeKey,
+    pinned: pinned ?? this.pinned,
+  );
+  NarratorEventRow copyWithCompanion(NarratorEventsCompanion data) {
+    return NarratorEventRow(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      capturedImageId: data.capturedImageId.present
+          ? data.capturedImageId.value
+          : this.capturedImageId,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      eventType: data.eventType.present ? data.eventType.value : this.eventType,
+      category: data.category.present ? data.category.value : this.category,
+      severity: data.severity.present ? data.severity.value : this.severity,
+      headline: data.headline.present ? data.headline.value : this.headline,
+      body: data.body.present ? data.body.value : this.body,
+      evidenceJson: data.evidenceJson.present
+          ? data.evidenceJson.value
+          : this.evidenceJson,
+      dedupeKey: data.dedupeKey.present ? data.dedupeKey.value : this.dedupeKey,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NarratorEventRow(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('eventType: $eventType, ')
+          ..write('category: $category, ')
+          ..write('severity: $severity, ')
+          ..write('headline: $headline, ')
+          ..write('body: $body, ')
+          ..write('evidenceJson: $evidenceJson, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('pinned: $pinned')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    capturedImageId,
+    timestamp,
+    eventType,
+    category,
+    severity,
+    headline,
+    body,
+    evidenceJson,
+    dedupeKey,
+    pinned,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NarratorEventRow &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.capturedImageId == this.capturedImageId &&
+          other.timestamp == this.timestamp &&
+          other.eventType == this.eventType &&
+          other.category == this.category &&
+          other.severity == this.severity &&
+          other.headline == this.headline &&
+          other.body == this.body &&
+          other.evidenceJson == this.evidenceJson &&
+          other.dedupeKey == this.dedupeKey &&
+          other.pinned == this.pinned);
+}
+
+class NarratorEventsCompanion extends UpdateCompanion<NarratorEventRow> {
+  final Value<int> id;
+  final Value<int?> sessionId;
+  final Value<int?> capturedImageId;
+  final Value<DateTime> timestamp;
+  final Value<String> eventType;
+  final Value<String> category;
+  final Value<String> severity;
+  final Value<String> headline;
+  final Value<String?> body;
+  final Value<String?> evidenceJson;
+  final Value<String> dedupeKey;
+  final Value<bool> pinned;
+  const NarratorEventsCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.eventType = const Value.absent(),
+    this.category = const Value.absent(),
+    this.severity = const Value.absent(),
+    this.headline = const Value.absent(),
+    this.body = const Value.absent(),
+    this.evidenceJson = const Value.absent(),
+    this.dedupeKey = const Value.absent(),
+    this.pinned = const Value.absent(),
+  });
+  NarratorEventsCompanion.insert({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    required String eventType,
+    required String category,
+    required String severity,
+    required String headline,
+    this.body = const Value.absent(),
+    this.evidenceJson = const Value.absent(),
+    required String dedupeKey,
+    this.pinned = const Value.absent(),
+  }) : eventType = Value(eventType),
+       category = Value(category),
+       severity = Value(severity),
+       headline = Value(headline),
+       dedupeKey = Value(dedupeKey);
+  static Insertable<NarratorEventRow> custom({
+    Expression<int>? id,
+    Expression<int>? sessionId,
+    Expression<int>? capturedImageId,
+    Expression<DateTime>? timestamp,
+    Expression<String>? eventType,
+    Expression<String>? category,
+    Expression<String>? severity,
+    Expression<String>? headline,
+    Expression<String>? body,
+    Expression<String>? evidenceJson,
+    Expression<String>? dedupeKey,
+    Expression<bool>? pinned,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (capturedImageId != null) 'captured_image_id': capturedImageId,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (eventType != null) 'event_type': eventType,
+      if (category != null) 'category': category,
+      if (severity != null) 'severity': severity,
+      if (headline != null) 'headline': headline,
+      if (body != null) 'body': body,
+      if (evidenceJson != null) 'evidence_json': evidenceJson,
+      if (dedupeKey != null) 'dedupe_key': dedupeKey,
+      if (pinned != null) 'pinned': pinned,
+    });
+  }
+
+  NarratorEventsCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? sessionId,
+    Value<int?>? capturedImageId,
+    Value<DateTime>? timestamp,
+    Value<String>? eventType,
+    Value<String>? category,
+    Value<String>? severity,
+    Value<String>? headline,
+    Value<String?>? body,
+    Value<String?>? evidenceJson,
+    Value<String>? dedupeKey,
+    Value<bool>? pinned,
+  }) {
+    return NarratorEventsCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      capturedImageId: capturedImageId ?? this.capturedImageId,
+      timestamp: timestamp ?? this.timestamp,
+      eventType: eventType ?? this.eventType,
+      category: category ?? this.category,
+      severity: severity ?? this.severity,
+      headline: headline ?? this.headline,
+      body: body ?? this.body,
+      evidenceJson: evidenceJson ?? this.evidenceJson,
+      dedupeKey: dedupeKey ?? this.dedupeKey,
+      pinned: pinned ?? this.pinned,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (capturedImageId.present) {
+      map['captured_image_id'] = Variable<int>(capturedImageId.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    if (eventType.present) {
+      map['event_type'] = Variable<String>(eventType.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (severity.present) {
+      map['severity'] = Variable<String>(severity.value);
+    }
+    if (headline.present) {
+      map['headline'] = Variable<String>(headline.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (evidenceJson.present) {
+      map['evidence_json'] = Variable<String>(evidenceJson.value);
+    }
+    if (dedupeKey.present) {
+      map['dedupe_key'] = Variable<String>(dedupeKey.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NarratorEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('eventType: $eventType, ')
+          ..write('category: $category, ')
+          ..write('severity: $severity, ')
+          ..write('headline: $headline, ')
+          ..write('body: $body, ')
+          ..write('evidenceJson: $evidenceJson, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('pinned: $pinned')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -26396,6 +27122,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $GuideRmsHistoryTable guideRmsHistory = $GuideRmsHistoryTable(
     this,
   );
+  late final $NarratorEventsTable narratorEvents = $NarratorEventsTable(this);
   late final Index idxProfilesName = Index(
     'idx_profiles_name',
     'CREATE INDEX idx_profiles_name ON equipment_profiles (name)',
@@ -26760,6 +27487,22 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_focus_models_last_used',
     'CREATE INDEX idx_focus_models_last_used ON focus_models (last_used_at)',
   );
+  late final Index idxNarratorEventsSession = Index(
+    'idx_narrator_events_session',
+    'CREATE INDEX idx_narrator_events_session ON narrator_events (session_id)',
+  );
+  late final Index idxNarratorEventsImage = Index(
+    'idx_narrator_events_image',
+    'CREATE INDEX idx_narrator_events_image ON narrator_events (captured_image_id)',
+  );
+  late final Index idxNarratorEventsTimestamp = Index(
+    'idx_narrator_events_timestamp',
+    'CREATE INDEX idx_narrator_events_timestamp ON narrator_events (timestamp)',
+  );
+  late final Index idxNarratorEventsDedupe = Index(
+    'idx_narrator_events_dedupe',
+    'CREATE INDEX idx_narrator_events_dedupe ON narrator_events (session_id, dedupe_key)',
+  );
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao = EquipmentProfilesDao(
     this as NightshadeDatabase,
@@ -26799,6 +27542,9 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final GuideRmsHistoryDao guideRmsHistoryDao = GuideRmsHistoryDao(
     this as NightshadeDatabase,
   );
+  late final NarratorEventsDao narratorEventsDao = NarratorEventsDao(
+    this as NightshadeDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -26836,6 +27582,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     defectMaps,
     focusModels,
     guideRmsHistory,
+    narratorEvents,
     idxProfilesName,
     idxProfilesActive,
     idxSessionsTarget,
@@ -26927,6 +27674,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxFocusModelsProfile,
     idxFocusModelsProfileFilter,
     idxFocusModelsLastUsed,
+    idxNarratorEventsSession,
+    idxNarratorEventsImage,
+    idxNarratorEventsTimestamp,
+    idxNarratorEventsDedupe,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -27204,6 +27955,20 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('focus_models', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'imaging_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('narrator_events', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'captured_images',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('narrator_events', kind: UpdateKind.update)],
     ),
   ]);
 }
@@ -30732,6 +31497,28 @@ final class $$ImagingSessionsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$NarratorEventsTable, List<NarratorEventRow>>
+  _narratorEventsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.narratorEvents,
+        aliasName: $_aliasNameGenerator(
+          db.imagingSessions.id,
+          db.narratorEvents.sessionId,
+        ),
+      );
+
+  $$NarratorEventsTableProcessedTableManager get narratorEventsRefs {
+    final manager = $$NarratorEventsTableTableManager(
+      $_db,
+      $_db.narratorEvents,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_narratorEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ImagingSessionsTableFilterComposer
@@ -31173,6 +31960,31 @@ class $$ImagingSessionsTableFilterComposer
           }) => $$LineRatioProductsTableFilterComposer(
             $db: $db,
             $table: $db.lineRatioProducts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> narratorEventsRefs(
+    Expression<bool> Function($$NarratorEventsTableFilterComposer f) f,
+  ) {
+    final $$NarratorEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.narratorEvents,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NarratorEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.narratorEvents,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -31785,6 +32597,31 @@ class $$ImagingSessionsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> narratorEventsRefs<T extends Object>(
+    Expression<T> Function($$NarratorEventsTableAnnotationComposer a) f,
+  ) {
+    final $$NarratorEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.narratorEvents,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NarratorEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.narratorEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ImagingSessionsTableTableManager
@@ -31815,6 +32652,7 @@ class $$ImagingSessionsTableTableManager
             bool astrometryResidualVectorsRefs,
             bool movingObjectCandidatesRefs,
             bool lineRatioProductsRefs,
+            bool narratorEventsRefs,
           })
         > {
   $$ImagingSessionsTableTableManager(
@@ -31942,6 +32780,7 @@ class $$ImagingSessionsTableTableManager
                 astrometryResidualVectorsRefs = false,
                 movingObjectCandidatesRefs = false,
                 lineRatioProductsRefs = false,
+                narratorEventsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -31960,6 +32799,7 @@ class $$ImagingSessionsTableTableManager
                       db.astrometryResidualVectors,
                     if (movingObjectCandidatesRefs) db.movingObjectCandidates,
                     if (lineRatioProductsRefs) db.lineRatioProducts,
+                    if (narratorEventsRefs) db.narratorEvents,
                   ],
                   addJoins:
                       <
@@ -32258,6 +33098,27 @@ class $$ImagingSessionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (narratorEventsRefs)
+                        await $_getPrefetchedData<
+                          ImagingSession,
+                          $ImagingSessionsTable,
+                          NarratorEventRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ImagingSessionsTableReferences
+                              ._narratorEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ImagingSessionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).narratorEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sessionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -32293,6 +33154,7 @@ typedef $$ImagingSessionsTableProcessedTableManager =
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
         bool lineRatioProductsRefs,
+        bool narratorEventsRefs,
       })
     >;
 typedef $$SequenceNodesTableCreateCompanionBuilder =
@@ -33613,6 +34475,28 @@ final class $$CapturedImagesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$NarratorEventsTable, List<NarratorEventRow>>
+  _narratorEventsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.narratorEvents,
+        aliasName: $_aliasNameGenerator(
+          db.capturedImages.id,
+          db.narratorEvents.capturedImageId,
+        ),
+      );
+
+  $$NarratorEventsTableProcessedTableManager get narratorEventsRefs {
+    final manager = $$NarratorEventsTableTableManager(
+      $_db,
+      $_db.narratorEvents,
+    ).filter((f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_narratorEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CapturedImagesTableFilterComposer
@@ -34097,6 +34981,31 @@ class $$CapturedImagesTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<bool> narratorEventsRefs(
+    Expression<bool> Function($$NarratorEventsTableFilterComposer f) f,
+  ) {
+    final $$NarratorEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.narratorEvents,
+      getReferencedColumn: (t) => t.capturedImageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NarratorEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.narratorEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 }
@@ -34802,6 +35711,31 @@ class $$CapturedImagesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> narratorEventsRefs<T extends Object>(
+    Expression<T> Function($$NarratorEventsTableAnnotationComposer a) f,
+  ) {
+    final $$NarratorEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.narratorEvents,
+      getReferencedColumn: (t) => t.capturedImageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NarratorEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.narratorEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CapturedImagesTableTableManager
@@ -34829,6 +35763,7 @@ class $$CapturedImagesTableTableManager
             bool scienceTileMetricsRefs,
             bool astrometryResidualVectorsRefs,
             bool movingObjectCandidatesRefs,
+            bool narratorEventsRefs,
           })
         > {
   $$CapturedImagesTableTableManager(
@@ -35037,6 +35972,7 @@ class $$CapturedImagesTableTableManager
                 scienceTileMetricsRefs = false,
                 astrometryResidualVectorsRefs = false,
                 movingObjectCandidatesRefs = false,
+                narratorEventsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -35053,6 +35989,7 @@ class $$CapturedImagesTableTableManager
                     if (astrometryResidualVectorsRefs)
                       db.astrometryResidualVectors,
                     if (movingObjectCandidatesRefs) db.movingObjectCandidates,
+                    if (narratorEventsRefs) db.narratorEvents,
                   ],
                   addJoins:
                       <
@@ -35294,6 +36231,27 @@ class $$CapturedImagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (narratorEventsRefs)
+                        await $_getPrefetchedData<
+                          CapturedImage,
+                          $CapturedImagesTable,
+                          NarratorEventRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CapturedImagesTableReferences
+                              ._narratorEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CapturedImagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).narratorEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.capturedImageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -35326,6 +36284,7 @@ typedef $$CapturedImagesTableProcessedTableManager =
         bool scienceTileMetricsRefs,
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
+        bool narratorEventsRefs,
       })
     >;
 typedef $$ImageMetadataTableCreateCompanionBuilder =
@@ -47153,6 +48112,564 @@ typedef $$GuideRmsHistoryTableProcessedTableManager =
       GuideRmsHistoryEntry,
       PrefetchHooks Function()
     >;
+typedef $$NarratorEventsTableCreateCompanionBuilder =
+    NarratorEventsCompanion Function({
+      Value<int> id,
+      Value<int?> sessionId,
+      Value<int?> capturedImageId,
+      Value<DateTime> timestamp,
+      required String eventType,
+      required String category,
+      required String severity,
+      required String headline,
+      Value<String?> body,
+      Value<String?> evidenceJson,
+      required String dedupeKey,
+      Value<bool> pinned,
+    });
+typedef $$NarratorEventsTableUpdateCompanionBuilder =
+    NarratorEventsCompanion Function({
+      Value<int> id,
+      Value<int?> sessionId,
+      Value<int?> capturedImageId,
+      Value<DateTime> timestamp,
+      Value<String> eventType,
+      Value<String> category,
+      Value<String> severity,
+      Value<String> headline,
+      Value<String?> body,
+      Value<String?> evidenceJson,
+      Value<String> dedupeKey,
+      Value<bool> pinned,
+    });
+
+final class $$NarratorEventsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $NarratorEventsTable,
+          NarratorEventRow
+        > {
+  $$NarratorEventsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias(
+        $_aliasNameGenerator(
+          db.narratorEvents.sessionId,
+          db.imagingSessions.id,
+        ),
+      );
+
+  $$ImagingSessionsTableProcessedTableManager? get sessionId {
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
+    final manager = $$ImagingSessionsTableTableManager(
+      $_db,
+      $_db.imagingSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CapturedImagesTable _capturedImageIdTable(_$NightshadeDatabase db) =>
+      db.capturedImages.createAlias(
+        $_aliasNameGenerator(
+          db.narratorEvents.capturedImageId,
+          db.capturedImages.id,
+        ),
+      );
+
+  $$CapturedImagesTableProcessedTableManager? get capturedImageId {
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
+    final manager = $$CapturedImagesTableTableManager(
+      $_db,
+      $_db.capturedImages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$NarratorEventsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $NarratorEventsTable> {
+  $$NarratorEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get headline => $composableBuilder(
+    column: $table.headline,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get evidenceJson => $composableBuilder(
+    column: $table.evidenceJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableFilterComposer get capturedImageId {
+    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableFilterComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NarratorEventsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $NarratorEventsTable> {
+  $$NarratorEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get headline => $composableBuilder(
+    column: $table.headline,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get evidenceJson => $composableBuilder(
+    column: $table.evidenceJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableOrderingComposer get capturedImageId {
+    final $$CapturedImagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NarratorEventsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $NarratorEventsTable> {
+  $$NarratorEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumn<String> get eventType =>
+      $composableBuilder(column: $table.eventType, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get severity =>
+      $composableBuilder(column: $table.severity, builder: (column) => column);
+
+  GeneratedColumn<String> get headline =>
+      $composableBuilder(column: $table.headline, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get evidenceJson => $composableBuilder(
+    column: $table.evidenceJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dedupeKey =>
+      $composableBuilder(column: $table.dedupeKey, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableAnnotationComposer get capturedImageId {
+    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NarratorEventsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $NarratorEventsTable,
+          NarratorEventRow,
+          $$NarratorEventsTableFilterComposer,
+          $$NarratorEventsTableOrderingComposer,
+          $$NarratorEventsTableAnnotationComposer,
+          $$NarratorEventsTableCreateCompanionBuilder,
+          $$NarratorEventsTableUpdateCompanionBuilder,
+          (NarratorEventRow, $$NarratorEventsTableReferences),
+          NarratorEventRow,
+          PrefetchHooks Function({bool sessionId, bool capturedImageId})
+        > {
+  $$NarratorEventsTableTableManager(
+    _$NightshadeDatabase db,
+    $NarratorEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NarratorEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NarratorEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NarratorEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> sessionId = const Value.absent(),
+                Value<int?> capturedImageId = const Value.absent(),
+                Value<DateTime> timestamp = const Value.absent(),
+                Value<String> eventType = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String> severity = const Value.absent(),
+                Value<String> headline = const Value.absent(),
+                Value<String?> body = const Value.absent(),
+                Value<String?> evidenceJson = const Value.absent(),
+                Value<String> dedupeKey = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+              }) => NarratorEventsCompanion(
+                id: id,
+                sessionId: sessionId,
+                capturedImageId: capturedImageId,
+                timestamp: timestamp,
+                eventType: eventType,
+                category: category,
+                severity: severity,
+                headline: headline,
+                body: body,
+                evidenceJson: evidenceJson,
+                dedupeKey: dedupeKey,
+                pinned: pinned,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> sessionId = const Value.absent(),
+                Value<int?> capturedImageId = const Value.absent(),
+                Value<DateTime> timestamp = const Value.absent(),
+                required String eventType,
+                required String category,
+                required String severity,
+                required String headline,
+                Value<String?> body = const Value.absent(),
+                Value<String?> evidenceJson = const Value.absent(),
+                required String dedupeKey,
+                Value<bool> pinned = const Value.absent(),
+              }) => NarratorEventsCompanion.insert(
+                id: id,
+                sessionId: sessionId,
+                capturedImageId: capturedImageId,
+                timestamp: timestamp,
+                eventType: eventType,
+                category: category,
+                severity: severity,
+                headline: headline,
+                body: body,
+                evidenceJson: evidenceJson,
+                dedupeKey: dedupeKey,
+                pinned: pinned,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$NarratorEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({sessionId = false, capturedImageId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (sessionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sessionId,
+                                    referencedTable:
+                                        $$NarratorEventsTableReferences
+                                            ._sessionIdTable(db),
+                                    referencedColumn:
+                                        $$NarratorEventsTableReferences
+                                            ._sessionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (capturedImageId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.capturedImageId,
+                                    referencedTable:
+                                        $$NarratorEventsTableReferences
+                                            ._capturedImageIdTable(db),
+                                    referencedColumn:
+                                        $$NarratorEventsTableReferences
+                                            ._capturedImageIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$NarratorEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $NarratorEventsTable,
+      NarratorEventRow,
+      $$NarratorEventsTableFilterComposer,
+      $$NarratorEventsTableOrderingComposer,
+      $$NarratorEventsTableAnnotationComposer,
+      $$NarratorEventsTableCreateCompanionBuilder,
+      $$NarratorEventsTableUpdateCompanionBuilder,
+      (NarratorEventRow, $$NarratorEventsTableReferences),
+      NarratorEventRow,
+      PrefetchHooks Function({bool sessionId, bool capturedImageId})
+    >;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -47238,4 +48755,6 @@ class $NightshadeDatabaseManager {
       $$FocusModelsTableTableManager(_db, _db.focusModels);
   $$GuideRmsHistoryTableTableManager get guideRmsHistory =>
       $$GuideRmsHistoryTableTableManager(_db, _db.guideRmsHistory);
+  $$NarratorEventsTableTableManager get narratorEvents =>
+      $$NarratorEventsTableTableManager(_db, _db.narratorEvents);
 }

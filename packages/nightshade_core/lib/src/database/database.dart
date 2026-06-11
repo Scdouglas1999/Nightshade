@@ -26,6 +26,7 @@ import 'tables/sequence_runs.dart';
 import 'tables/defect_map_table.dart';
 import 'tables/focus_models.dart';
 import 'tables/guide_rms_history.dart';
+import 'tables/narrator_events.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -43,6 +44,7 @@ import 'daos/observation_logs_dao.dart';
 import 'daos/observing_lists_dao.dart';
 import 'daos/sequence_runs_dao.dart';
 import 'daos/guide_rms_history_dao.dart';
+import 'daos/narrator_events_dao.dart';
 
 part 'database.g.dart';
 part 'database/migration_strategy.dart';
@@ -57,6 +59,7 @@ part 'database/migration_v44.dart';
 part 'database/migration_v45.dart';
 part 'database/migration_v46.dart';
 part 'database/migration_v47.dart';
+part 'database/migration_v48.dart';
 part 'database/schema_helpers.dart';
 part 'database/default_settings.dart';
 part 'database/connection.dart';
@@ -96,6 +99,7 @@ part 'database/connection.dart';
     DefectMaps,
     FocusModels,
     GuideRmsHistory,
+    NarratorEvents,
   ],
   daos: [
     ImagesDao,
@@ -115,6 +119,7 @@ part 'database/connection.dart';
     ObservingListsDao,
     SequenceRunsDao,
     GuideRmsHistoryDao,
+    NarratorEventsDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
@@ -124,7 +129,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 47;
+  int get schemaVersion => 48;
 
   @override
   MigrationStrategy get migration => _buildMigrationStrategy();

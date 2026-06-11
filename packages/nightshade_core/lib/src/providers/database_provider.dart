@@ -12,6 +12,7 @@ import '../database/daos/sequences_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/daos/science_dao.dart';
 import '../database/daos/guide_rms_history_dao.dart';
+import '../database/daos/narrator_events_dao.dart';
 import '../services/imaging_records_repository.dart';
 import 'backend_provider.dart';
 
@@ -62,6 +63,11 @@ final scienceDaoProvider = Provider<ScienceDao>((ref) {
 /// Guide RMS history DAO provider.
 final guideRmsHistoryDaoProvider = Provider<GuideRmsHistoryDao>((ref) {
   return GuideRmsHistoryDao(ref.watch(databaseProvider));
+});
+
+/// Night Narrator events DAO provider.
+final narratorEventsDaoProvider = Provider<NarratorEventsDao>((ref) {
+  return NarratorEventsDao(ref.watch(databaseProvider));
 });
 
 // ============================================================================

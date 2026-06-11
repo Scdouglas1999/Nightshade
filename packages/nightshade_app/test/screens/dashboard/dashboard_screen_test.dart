@@ -240,10 +240,11 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
         ),
-        // Completed sessions show the cockpit grid without introducing active
-        // run-control dependencies. Idle sessions intentionally show standby.
+        // Running shows the cockpit grid. (Terminal states with nothing
+        // loaded/connected now correctly show the standby briefing, so
+        // `completed` no longer forces the grid.)
         sequenceExecutionStateProvider.overrideWith(
-          (ref) => SequenceExecutionState.completed,
+          (ref) => SequenceExecutionState.running,
         ),
       ],
     );
@@ -349,10 +350,11 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
         ),
-        // Completed sessions show the cockpit grid without introducing active
-        // run-control dependencies. Idle sessions intentionally show standby.
+        // Running shows the cockpit grid. (Terminal states with nothing
+        // loaded/connected now correctly show the standby briefing, so
+        // `completed` no longer forces the grid.)
         sequenceExecutionStateProvider.overrideWith(
-          (ref) => SequenceExecutionState.completed,
+          (ref) => SequenceExecutionState.running,
         ),
         // Drive only the camera into connected; the other four subsystems
         // (mount, guider, focuser, filter wheel) stay disconnected via

@@ -267,12 +267,18 @@ final sessionLightCurveProvider =
           ref.watch(sessionPhotometryProvider(args.$1)).valueOrNull ?? const [];
 
       return photometry
-          .where((row) => row.objectId == args.$2)
+          // Drop rows with no measured magnitude: a coerced 0.0 is junk for the
+          // charts (a spurious mag-0 point) and triggers a false ~14-mag
+          // "brightening" in the Narrator's LightCurveEventDetector.
+          .where(
+            (row) =>
+                row.objectId == args.$2 && row.differentialMagnitude != null,
+          )
           .map(
             (row) => LightCurvePoint(
               timestamp: row.timestamp,
               flux: row.flux,
-              differentialMagnitude: row.differentialMagnitude ?? 0.0,
+              differentialMagnitude: row.differentialMagnitude!,
               snr: row.snr ?? 0.0,
               uncertainty: row.uncertainty ?? 0.0,
             ),
@@ -476,12 +482,16 @@ final sessionlessLightCurveProvider =
           ref.watch(sessionlessPhotometryProvider).valueOrNull ?? const [];
 
       return photometry
-          .where((row) => row.objectId == objectId)
+          // Drop rows with no measured magnitude (see sessionLightCurveProvider).
+          .where(
+            (row) =>
+                row.objectId == objectId && row.differentialMagnitude != null,
+          )
           .map(
             (row) => LightCurvePoint(
               timestamp: row.timestamp,
               flux: row.flux,
-              differentialMagnitude: row.differentialMagnitude ?? 0.0,
+              differentialMagnitude: row.differentialMagnitude!,
               snr: row.snr ?? 0.0,
               uncertainty: row.uncertainty ?? 0.0,
             ),

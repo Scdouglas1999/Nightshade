@@ -23,6 +23,7 @@ import 'science_solve_rate_card.dart';
 import 'image_grader_dialog.dart';
 import 'science_status_banner.dart';
 import 'science_surface_explorer.dart';
+import 'night_story_timeline.dart';
 import 'science_timeline_scrubber.dart';
 import 'science_campaign_strip.dart';
 import 'science_trend_cards.dart';
@@ -366,6 +367,21 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                 ),
               ],
             ),
+          const SizedBox(height: 24),
+          // -------------------------------------------------------------
+          // Section: Night Story (Night Narrator surface #3)
+          // -------------------------------------------------------------
+          // The session's narrative timeline — sits right after the insights
+          // panel (which reports what's true *now*) so the user reads the
+          // stateless snapshot and then the temporal story of the night
+          // before diving into the raw photometry/quality charts below.
+          _SectionHeading(
+            colors: colors,
+            label: 'NIGHT STORY',
+            icon: LucideIcons.bookOpen,
+          ),
+          const SizedBox(height: 12),
+          NightStoryTimeline(sessionId: activeSessionId),
           const SizedBox(height: 24),
           // -------------------------------------------------------------
           // Section: Photometry

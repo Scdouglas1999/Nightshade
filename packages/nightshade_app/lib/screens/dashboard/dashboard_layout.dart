@@ -56,6 +56,11 @@ extension DashboardZoneX on DashboardZone {
       DashboardWidgetId.cockpitLightCurve => DashboardZone.secondary,
       DashboardWidgetId.cockpitObservatory => DashboardZone.secondary,
       DashboardWidgetId.cockpitSecondaryRig => DashboardZone.secondary,
+      DashboardWidgetId.cockpitQuality => DashboardZone.secondary,
+      DashboardWidgetId.cockpitSessionVitals => DashboardZone.secondary,
+      DashboardWidgetId.cockpitSkyContext => DashboardZone.secondary,
+      DashboardWidgetId.cockpitForensics => DashboardZone.secondary,
+      DashboardWidgetId.cockpitNarrator => DashboardZone.secondary,
 
       // Primary zone: main content area (hero widgets)
       DashboardWidgetId.livePreview => DashboardZone.primary,
@@ -104,6 +109,18 @@ enum DashboardWidgetId {
   cockpitObservatory,
   cockpitSecondaryRig,
 
+  // Wave: dashboard enrichment (v6). Quality + Frame Forensics registered from
+  // their already-built Run dashboard panels; Session Vitals + Sky Context are
+  // new cockpit panels. Quality ships enabled by default; the rest are opt-in.
+  cockpitQuality,
+  cockpitSessionVitals,
+  cockpitSkyContext,
+  cockpitForensics,
+
+  // Night Narrator (v7). Live, plain-language interpretation of the session's
+  // science data — the dashboard surface of the Narrator feed. Opt-in.
+  cockpitNarrator,
+
   // Legacy control/info cards. Kept for migration + power users, but disabled
   // by default now that the cockpit panels own the dashboard.
   livePreview,
@@ -144,6 +161,11 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       DashboardWidgetId.cockpitLightCurve => 'cockpitLightCurve',
       DashboardWidgetId.cockpitObservatory => 'cockpitObservatory',
       DashboardWidgetId.cockpitSecondaryRig => 'cockpitSecondaryRig',
+      DashboardWidgetId.cockpitQuality => 'cockpitQuality',
+      DashboardWidgetId.cockpitSessionVitals => 'cockpitSessionVitals',
+      DashboardWidgetId.cockpitSkyContext => 'cockpitSkyContext',
+      DashboardWidgetId.cockpitForensics => 'cockpitForensics',
+      DashboardWidgetId.cockpitNarrator => 'cockpitNarrator',
       DashboardWidgetId.livePreview => 'livePreview',
       DashboardWidgetId.captureSettings => 'captureSettings',
       DashboardWidgetId.sequenceStatus => 'sequenceStatus',
@@ -182,6 +204,11 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       'cockpitLightCurve' => DashboardWidgetId.cockpitLightCurve,
       'cockpitObservatory' => DashboardWidgetId.cockpitObservatory,
       'cockpitSecondaryRig' => DashboardWidgetId.cockpitSecondaryRig,
+      'cockpitQuality' => DashboardWidgetId.cockpitQuality,
+      'cockpitSessionVitals' => DashboardWidgetId.cockpitSessionVitals,
+      'cockpitSkyContext' => DashboardWidgetId.cockpitSkyContext,
+      'cockpitForensics' => DashboardWidgetId.cockpitForensics,
+      'cockpitNarrator' => DashboardWidgetId.cockpitNarrator,
       'livePreview' => DashboardWidgetId.livePreview,
       'captureSettings' => DashboardWidgetId.captureSettings,
       'sequenceStatus' => DashboardWidgetId.sequenceStatus,
@@ -333,7 +360,7 @@ class DashboardTileConfig {
 
 @immutable
 class DashboardLayout {
-  /// Layout version 5: Dense cockpit default
+  /// Layout version 6: Dashboard enrichment
   /// - Version 1: Initial layout
   /// - Version 2: Added tile ordering
   /// - Version 3: Zone-based architecture (primary/secondary/tertiary)
@@ -343,7 +370,10 @@ class DashboardLayout {
   ///   exposure progress) and `cockpitFrames` (capped live frame + recent
   ///   strip) supersede their four individual panels (now disabled by default)
   ///   to fit both columns with little-to-no scrolling.
-  static const int currentVersion = 5;
+  /// - Version 6: Quality/forensics registered; session vitals + sky context
+  ///   panels added. Quality joins the right-rail default (enabled); Session
+  ///   Vitals, Sky Context, and Frame Forensics ship present-but-disabled.
+  static const int currentVersion = 6;
 
   final int version;
   final List<DashboardTileConfig> tiles;
@@ -494,11 +524,21 @@ class DashboardLayout {
         order: 4,
         zone: DashboardZone.secondary,
       ),
+      // Quality joins the dense right-rail default (v6): frame accept/reject
+      // rate + HFR trend is core monitoring, and the panel hides itself until
+      // grading produces events, so an idle dashboard stays clean.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitQuality,
+        size: DashboardTileSize.medium,
+        enabled: true,
+        order: 5,
+        zone: DashboardZone.secondary,
+      ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitTriggerFeed,
         size: DashboardTileSize.medium,
         enabled: true,
-        order: 5,
+        order: 6,
         zone: DashboardZone.secondary,
       ),
 
@@ -510,28 +550,28 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.cockpitTargetHeader,
         size: DashboardTileSize.large,
         enabled: false,
-        order: 6,
+        order: 7,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitLiveFrame,
         size: DashboardTileSize.large,
         enabled: false,
-        order: 7,
+        order: 8,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitExposureProgress,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 8,
+        order: 9,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitRecentFrames,
         size: DashboardTileSize.large,
         enabled: false,
-        order: 9,
+        order: 10,
         zone: DashboardZone.primary,
       ),
 
@@ -542,42 +582,60 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.cockpitSessionWarnings,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 10,
+        order: 11,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitFilterIntegration,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 11,
+        order: 12,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitScheduler,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 12,
+        order: 13,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitCloudMotion,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 13,
+        order: 14,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitAdaptiveConditions,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 14,
+        order: 15,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitLightCurve,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 15,
+        order: 16,
+        zone: DashboardZone.secondary,
+      ),
+
+      // New v6 cockpit panels — opt-in. Session Vitals (run efficiency +
+      // counters) and Sky Context (altitude/airmass/moon/darkness) join the
+      // right rail; both degrade to a slim idle row when there's no run/target.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitSessionVitals,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 17,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitSkyContext,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 18,
         zone: DashboardZone.secondary,
       ),
 
@@ -589,77 +647,77 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.livePreview,
         size: DashboardTileSize.large,
         enabled: false,
-        order: 16,
+        order: 19,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.captureSettings,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 17,
+        order: 20,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.sequenceStatus,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 18,
+        order: 21,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.guiding,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 19,
+        order: 22,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.equipmentStatus,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 20,
+        order: 23,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.quickActions,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 21,
+        order: 24,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.mountControl,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 22,
+        order: 25,
         zone: DashboardZone.tertiary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.focus,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 23,
+        order: 26,
         zone: DashboardZone.tertiary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.weather,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 24,
+        order: 27,
         zone: DashboardZone.tertiary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.tonight,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 25,
+        order: 28,
         zone: DashboardZone.tertiary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.alerts,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 26,
+        order: 29,
         zone: DashboardZone.tertiary,
       ),
       // Quick Stats disabled - redundant with Command Bar stats
@@ -667,14 +725,14 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.quickStats,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 27,
+        order: 30,
         zone: DashboardZone.tertiary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.storage,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 28,
+        order: 31,
         zone: DashboardZone.tertiary,
       ),
 
@@ -685,7 +743,7 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.cockpitObservatory,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 29,
+        order: 32,
         zone: DashboardZone.secondary,
       ),
 
@@ -696,7 +754,29 @@ class DashboardLayout {
         widgetId: DashboardWidgetId.cockpitSecondaryRig,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 30,
+        order: 33,
+        zone: DashboardZone.secondary,
+      ),
+
+      // Frame Forensics — opt-in rejection forensics grouped by likely cause.
+      // Disabled by default; hides itself until rejections exist.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitForensics,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 34,
+        zone: DashboardZone.secondary,
+      ),
+
+      // Night Narrator (v7) — live plain-language interpretation of the
+      // session's science data. Opt-in (disabled by default) so existing dense
+      // dashboards aren't reshuffled; degrades to its watching empty state when
+      // no events have fired yet.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitNarrator,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 35,
         zone: DashboardZone.secondary,
       ),
     ];

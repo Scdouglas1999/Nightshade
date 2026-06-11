@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/tutorial_keys/dashboard_keys.dart';
@@ -31,10 +33,15 @@ import '../../sequencer/widgets/run_dashboard/cloud_motion_panel.dart';
 import '../../sequencer/widgets/run_dashboard/adaptive_conditions_panel.dart';
 import '../../sequencer/widgets/run_dashboard/light_curve_panel.dart';
 import '../../sequencer/widgets/run_dashboard/observatory_panel.dart';
+import '../../sequencer/widgets/run_dashboard/quality_panel.dart';
+import '../../sequencer/widgets/run_dashboard/forensics_panel.dart';
 import '../../sequencer/widgets/secondary_rig_card.dart';
 import 'cockpit_recent_frames.dart';
 import 'cockpit_now_imaging.dart';
 import 'cockpit_frames.dart';
+import 'cockpit_session_vitals.dart';
+import 'cockpit_sky_context.dart';
+import 'cockpit_narrator.dart';
 
 typedef DashboardWidgetBuilder = Widget Function(
   BuildContext context,
@@ -239,6 +246,51 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     defaultZone: DashboardZone.secondary,
     selfChromed: true,
     builder: _buildCockpitSecondaryRig,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitQuality,
+    title: 'Quality',
+    subtitle: 'Frame accept/reject rate, HFR trend, and adaptive exposure',
+    icon: LucideIcons.gauge,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitQuality,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitSessionVitals,
+    title: 'Session Vitals',
+    subtitle: 'Integration efficiency and live run counters',
+    icon: LucideIcons.activity,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitSessionVitals,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitSkyContext,
+    title: 'Sky Context',
+    subtitle: 'Altitude, airmass, moon, and darkness window',
+    icon: LucideIcons.orbit,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitSkyContext,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitForensics,
+    title: 'Frame Forensics',
+    subtitle: 'Recent rejections grouped by likely cause',
+    icon: LucideIcons.search,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitForensics,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitNarrator,
+    title: 'Night Narrator',
+    subtitle: "Live interpretation of your session's science data",
+    icon: LucideIcons.sparkles,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitNarrator,
   ),
 
   // ===========================================================================
@@ -499,6 +551,60 @@ Widget _buildCockpitSecondaryRig(
   AnimationController pulseController,
 ) {
   return const SecondaryRigCard();
+}
+
+Widget _buildCockpitQuality(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardQualityPanel();
+}
+
+Widget _buildCockpitSessionVitals(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitSessionVitals();
+}
+
+Widget _buildCockpitSkyContext(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitSkyContext();
+}
+
+// The forensics panel takes a session id (String) so it can backfill and
+// filter live rejections for the active run. Resolve it from the live session
+// state — `dbSessionId` is an int, so stringify it; the panel treats a null id
+// as "live events only" and hides itself (empty state) when no rejections
+// exist, so an idle dashboard stays clean.
+Widget _buildCockpitForensics(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return Consumer(
+    builder: (context, ref, _) {
+      final dbSessionId = ref.watch(
+        sessionStateProvider.select((s) => s.dbSessionId),
+      );
+      return RunDashboardForensicsPanel(
+        sessionId: dbSessionId?.toString(),
+      );
+    },
+  );
+}
+
+Widget _buildCockpitNarrator(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitNarrator();
 }
 
 Widget _buildLivePreview(

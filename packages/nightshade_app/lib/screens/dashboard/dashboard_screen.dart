@@ -104,7 +104,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final hasLoadedSequence = loadedSequence != null &&
         (loadedSequence.targetHeaders.isNotEmpty ||
             loadedSequence.totalExposures > 0);
-    final showStandby = executionState == SequenceExecutionState.idle &&
+    // Terminal states count as inactive here: after a completed or failed run
+    // the executor never returns to `idle` on its own, and requiring exactly
+    // `idle` would strand a user who has since unloaded the sequence and
+    // disconnected on a dead cockpit instead of the briefing.
+    final executionInactive = executionState == SequenceExecutionState.idle ||
+        executionState == SequenceExecutionState.completed ||
+        executionState == SequenceExecutionState.failed;
+    final showStandby = executionInactive &&
         !sessionCapturing &&
         !_isEditing &&
         !anyDeviceConnected &&

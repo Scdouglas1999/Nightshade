@@ -120,10 +120,11 @@ void main() {
           dashboardLayoutProvider.overrideWith(
             () => _SelectiveDashboardLayoutNotifier(_reflowTiles),
           ),
-          // Completed execution shows the cockpit grid instead of the standby
-          // hero.
+          // A running execution shows the cockpit grid instead of the standby
+          // hero. (Terminal states with nothing loaded/connected now correctly
+          // show the briefing, so `completed` no longer forces the grid.)
           sequenceExecutionStateProvider.overrideWith(
-            (ref) => SequenceExecutionState.completed,
+            (ref) => SequenceExecutionState.running,
           ),
         ],
       );
@@ -172,8 +173,10 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(_reflowTiles),
         ),
+        // Running forces the cockpit grid; terminal states with nothing
+        // loaded/connected show the standby briefing instead.
         sequenceExecutionStateProvider.overrideWith(
-          (ref) => SequenceExecutionState.completed,
+          (ref) => SequenceExecutionState.running,
         ),
       ],
     );

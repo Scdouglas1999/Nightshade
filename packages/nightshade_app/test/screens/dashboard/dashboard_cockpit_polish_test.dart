@@ -15,6 +15,7 @@
 // swallowed; anything else still fails the test.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
@@ -27,6 +28,26 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+
+/// Minimal launchable sequence (one exposure) — enough to satisfy the
+/// "has a target or exposures" launchability check.
+Sequence _launchableSequence() {
+  final root = InstructionSetNode(name: 'root');
+  final expo = ExposureNode().copyWith(parentId: root.id);
+  final placedRoot = root.copyWith(childIds: [expo.id]);
+  return Sequence.create(
+    name: 'Test',
+    nodes: {placedRoot.id: placedRoot, expo.id: expo},
+    rootNodeId: placedRoot.id,
+  );
+}
+
+/// Seeds [currentSequenceProvider] with a pre-loaded sequence.
+class _SeedingNotifier extends CurrentSequenceNotifier {
+  _SeedingNotifier(Ref ref, Sequence seed) : super(ref: ref) {
+    loadSequence(seed, discardUnsaved: true);
+  }
+}
 
 /// An all-tiles-disabled layout — keeps observationTimeProvider untouched so
 /// no periodic timer leaks past the test.
@@ -171,8 +192,75 @@ void main() {
     expect(find.text('No run active'), findsOneWidget);
     expect(find.text('Image tonight'), findsOneWidget,
         reason: 'Standby offers the one-tap Image tonight CTA.');
-    expect(find.text('Plan Tonight (advanced)'), findsOneWidget,
-        reason: 'Standby keeps the Smart Night wizard as the secondary CTA.');
+    expect(find.text('Plan manually'), findsOneWidget,
+        reason: 'Standby keeps the Smart Night wizard as a clearly-secondary '
+            '"you choose" action.');
+  });
+
+  testWidgets(
+      'a failed run with a loaded sequence re-arms Start instead of leaving a '
+      'dead cockpit', (tester) async {
+    _swallowKnownOverflows();
+    await pumpAppScreen(
+      tester,
+      const DashboardScreen(),
+      size: const Size(780, 800),
+      settle: false,
+      extraOverrides: [
+        dashboardLayoutProvider.overrideWith(_AllDisabledLayoutNotifier.new),
+        // The one-tap tonight flow loads the sequence BEFORE starting the
+        // executor, so a failed start strands exactly this state: terminal
+        // `failed` + a launchable sequence still loaded.
+        sequenceExecutionStateProvider
+            .overrideWith((ref) => SequenceExecutionState.failed),
+        currentSequenceProvider.overrideWith(
+            (ref) => _SeedingNotifier(ref, _launchableSequence())),
+      ],
+    );
+    await _drainAsyncFrames(tester);
+
+    expect(find.byType(CockpitStandby), findsNothing,
+        reason: 'A loaded sequence keeps the cockpit awake.');
+    expect(find.text('Start'), findsOneWidget,
+        reason: 'Terminal states must re-arm Start — without it the awake '
+            'cockpit has nothing clickable.');
+    expect(find.text('Failed'), findsOneWidget,
+        reason: 'The badge stays honest about how the last attempt ended.');
+  });
+
+  testWidgets(
+      'an awake cockpit with equipment but no sequence offers a way forward',
+      (tester) async {
+    _swallowKnownOverflows();
+    await pumpAppScreen(
+      tester,
+      const DashboardScreen(),
+      size: const Size(780, 800),
+      settle: false,
+      extraOverrides: [
+        dashboardLayoutProvider.overrideWith(_AllDisabledLayoutNotifier.new),
+        sequenceExecutionStateProvider
+            .overrideWith((ref) => SequenceExecutionState.idle),
+        // A connected camera wakes the cockpit (suppresses standby) without
+        // any sequence loaded.
+        cameraStateProvider.overrideWith((ref) {
+          final notifier = CameraStateNotifier(ref);
+          notifier
+            ..setConnecting('test-cam-1', 'Test Camera')
+            ..setConnected();
+          return notifier;
+        }),
+      ],
+    );
+    await _drainAsyncFrames(tester);
+
+    expect(find.byType(CockpitStandby), findsNothing,
+        reason: 'Connected equipment wakes the cockpit.');
+    expect(
+        find.text('Equipment connected — no sequence loaded.'), findsOneWidget);
+    expect(find.text('Image tonight'), findsOneWidget,
+        reason: 'The nudge row must offer the one-tap flow.');
+    expect(find.text('Sequencer'), findsOneWidget);
   });
 
   testWidgets('cockpit (not standby) renders while a sequence is running',

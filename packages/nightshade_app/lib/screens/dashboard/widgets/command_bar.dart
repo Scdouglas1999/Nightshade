@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// nightshade_core also exports a (scheduler) TwilightTimes; the night-context
+// chip uses the planetarium one returned by twilightTimesProvider, so hide the
+// core symbol to keep the name unambiguous in this file.
+import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import 'dashboard_header_actions.dart';
@@ -90,6 +94,10 @@ class DashboardCommandBar extends ConsumerWidget {
                 Expanded(
                   child: _QuickStatsStrip(colors: colors),
                 ),
+                // Night-context chip (darkness countdown + moon). Self-hides
+                // — including its own leading divider — when there's no
+                // location/twilight data to show.
+                _NightContextChip(colors: colors),
                 const SizedBox(width: 24),
                 Container(
                   width: 1,
@@ -124,8 +132,158 @@ class DashboardCommandBar extends ConsumerWidget {
 // reasonable side rail.
 const double _commandBarCompactWidth = 900.0;
 
+/// Which darkness phase the night-context chip should describe, paired with the
+/// l10n key used to format its label.
+enum NightContextKind {
+  /// Before astronomical dusk — counting down to full darkness.
+  beforeDark,
+
+  /// Between astronomical dusk and dawn — counting down remaining darkness.
+  duringDark,
+
+  /// After dawn / daytime — show the upcoming sunset clock time instead.
+  afterDark,
+}
+
+/// Resolved night-context fact: the l10n key + the already-formatted `{time}`
+/// substitution. Returns null when there isn't enough twilight data to say
+/// anything (e.g. no observing location set), so the chip can self-hide.
+class NightContextFact {
+  final NightContextKind kind;
+  final String l10nKey;
+  final String time;
+
+  const NightContextFact({
+    required this.kind,
+    required this.l10nKey,
+    required this.time,
+  });
+}
+
+/// Format a positive [Duration] as a compact "1h 23m" / "12m" countdown.
+String _formatCountdown(Duration d) {
+  final total = d.isNegative ? Duration.zero : d;
+  final hours = total.inHours;
+  final minutes = total.inMinutes % 60;
+  if (hours > 0) return '${hours}h ${minutes}m';
+  return '${minutes}m';
+}
+
+/// Format a [DateTime] as a zero-padded local HH:MM clock string.
+String _formatClock(DateTime t) {
+  final h = t.hour.toString().padLeft(2, '0');
+  final m = t.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
+/// Pure resolver for the night-context chip. Given the day's twilight times and
+/// the current (possibly simulated) time, decide the single most relevant
+/// darkness fact:
+///   * before astronomical dusk  → "Dark in {countdown}"
+///   * during astronomical night → "Dark {countdown} left" (until astro dawn)
+///   * after dawn / daytime       → "Sunset {HH:MM}"
+///
+/// Returns null when the necessary twilight field is missing (no location), so
+/// the caller renders nothing.
+NightContextFact? resolveNightContext(TwilightTimes twilight, DateTime now) {
+  final dusk = twilight.astronomicalDusk;
+  final dawn = twilight.astronomicalDawn;
+
+  // Before dusk: count down to darkness.
+  if (dusk != null && dusk.isAfter(now)) {
+    return NightContextFact(
+      kind: NightContextKind.beforeDark,
+      l10nKey: 'darkIn',
+      time: _formatCountdown(dusk.difference(now)),
+    );
+  }
+
+  // During darkness (past dusk, before dawn): count down remaining dark time.
+  if (dusk != null && !dusk.isAfter(now) && dawn != null && dawn.isAfter(now)) {
+    return NightContextFact(
+      kind: NightContextKind.duringDark,
+      l10nKey: 'darkLeft',
+      time: _formatCountdown(dawn.difference(now)),
+    );
+  }
+
+  // After dawn / daytime: show the next sunset clock time.
+  final sunset = twilight.sunset;
+  if (sunset != null) {
+    return NightContextFact(
+      kind: NightContextKind.afterDark,
+      l10nKey: 'sunsetAt',
+      time: _formatClock(sunset),
+    );
+  }
+
+  return null;
+}
+
+/// RMS guiding-quality grade used to color the command-bar RMS stat.
+enum RmsGrade { good, fair, poor }
+
+/// Grade a total guiding RMS (arcseconds): < 1.0" good, 1.0–2.0" fair,
+/// > 2.0" poor. Only meaningful while actually guiding — callers pass null
+/// otherwise and get null back (no color grade applied).
+RmsGrade? gradeRms(double? rmsArcsec) {
+  if (rmsArcsec == null) return null;
+  if (rmsArcsec < 1.0) return RmsGrade.good;
+  if (rmsArcsec <= 2.0) return RmsGrade.fair;
+  return RmsGrade.poor;
+}
+
+/// Resolve the session-status label/color from the live sequence-engine state,
+/// falling back to manual Capturing/Idle when the sequencer is idle.
+class _SessionStatusView {
+  final String label;
+  final Color color;
+
+  const _SessionStatusView({required this.label, required this.color});
+}
+
+_SessionStatusView _resolveSessionStatus({
+  required SequenceExecutionState seqState,
+  required bool isCapturing,
+  required NightshadeColors colors,
+  required NightshadeLocalizations l10n,
+}) {
+  switch (seqState) {
+    case SequenceExecutionState.running:
+      return _SessionStatusView(
+        label: l10n.text('sequenceRunning'),
+        color: colors.success,
+      );
+    case SequenceExecutionState.paused:
+      return _SessionStatusView(
+        label: l10n.text('sequencePaused'),
+        color: colors.warning,
+      );
+    case SequenceExecutionState.stopping:
+      return _SessionStatusView(
+        label: l10n.text('sequenceStopping'),
+        color: colors.warning,
+      );
+    case SequenceExecutionState.recovering:
+      // Recovering is an active, attention-worthy state — surface it like a
+      // running/recovering sequence rather than collapsing to manual capture.
+      return _SessionStatusView(
+        label: l10n.text('sequenceRunning'),
+        color: colors.warning,
+      );
+    case SequenceExecutionState.idle:
+    case SequenceExecutionState.completed:
+    case SequenceExecutionState.failed:
+      // Sequencer not driving a run — fall back to the manual capture state.
+      return _SessionStatusView(
+        label: isCapturing ? l10n.text('capturing') : l10n.text('idle'),
+        color: isCapturing ? colors.success : colors.textSecondary,
+      );
+  }
+}
+
 /// Session status indicator showing capture state and current target.
-class _SessionStatusIndicator extends StatelessWidget {
+class _SessionStatusIndicator extends ConsumerWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isCapturing;
@@ -139,8 +297,18 @@ class _SessionStatusIndicator extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    final seqState = ref.watch(sequenceExecutionStateProvider);
+    final status = _resolveSessionStatus(
+      seqState: seqState,
+      isCapturing: isCapturing,
+      colors: colors,
+      l10n: l10n,
+    );
+    // The dot glows (vs. a dim idle pulse) whenever there's something live:
+    // an active sequence or a manual capture.
+    final isLive = status.color != colors.textSecondary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -152,8 +320,8 @@ class _SessionStatusIndicator extends StatelessWidget {
               height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isCapturing
-                    ? colors.success
+                color: isLive
+                    ? status.color
                         .withValues(alpha: 0.4 + pulseController.value * 0.4)
                     : colors.textMuted
                         .withValues(alpha: 0.4 + pulseController.value * 0.3),
@@ -168,9 +336,9 @@ class _SessionStatusIndicator extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isCapturing ? l10n.text('capturing') : l10n.text('idle'),
+                status.label,
                 style: NightshadeTypography.labelStrong.copyWith(
-                  color: isCapturing ? colors.success : colors.textSecondary,
+                  color: status.color,
                 ),
               ),
               Text(
@@ -232,9 +400,18 @@ class _QuickStatsStrip extends ConsumerWidget {
         ? focuserPosition.toString()
         : '---';
     final hfrValue = hfr != null ? hfr.toStringAsFixed(2) : '---';
-    final rmsValue = guiderConnected && guiderIsGuiding && guiderRms != null
-        ? '${guiderRms.toStringAsFixed(2)}"'
-        : '---';
+    final isGuiding = guiderConnected && guiderIsGuiding && guiderRms != null;
+    final rmsValue = isGuiding ? '${guiderRms.toStringAsFixed(2)}"' : '---';
+
+    // RMS gets a quality color grade — but only while actually guiding (a
+    // live number to grade). When idle it falls through to the dimmed "---".
+    final rmsGrade = isGuiding ? gradeRms(guiderRms) : null;
+    final Color? rmsColor = switch (rmsGrade) {
+      RmsGrade.good => colors.success,
+      RmsGrade.fair => colors.warning,
+      RmsGrade.poor => colors.error,
+      null => null,
+    };
 
     // Use FittedBox to scale down gracefully on narrower layouts
     return FittedBox(
@@ -270,6 +447,7 @@ class _QuickStatsStrip extends ConsumerWidget {
             label: l10n.text('rms'),
             value: rmsValue,
             colors: colors,
+            valueColor: rmsColor,
           ),
         ],
       ),
@@ -283,15 +461,26 @@ class _CommandBarStat extends StatelessWidget {
   final String value;
   final NightshadeColors colors;
 
+  /// Optional explicit color override for the value text (e.g. RMS quality
+  /// grade). Ignored for placeholder "---" values, which always dim.
+  final Color? valueColor;
+
   const _CommandBarStat({
     required this.icon,
     required this.label,
     required this.value,
     required this.colors,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Dim placeholder ("---") stats so live numbers pop: the value falls back
+    // to textMuted (matching the always-muted icon) when there's no reading,
+    // instead of full-strength textPrimary.
+    final hasValue = value != '---';
+    final valueTextColor =
+        hasValue ? (valueColor ?? colors.textPrimary) : colors.textMuted;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -306,7 +495,7 @@ class _CommandBarStat extends StatelessWidget {
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+                color: valueTextColor,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -317,6 +506,71 @@ class _CommandBarStat extends StatelessWidget {
                   color: colors.textMuted),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Night-context chip for the wide command bar: the most relevant darkness
+/// fact (countdown to dark / dark remaining / next sunset) plus a compact moon
+/// illumination readout. Owns its own leading divider so it disappears wholly
+/// — divider included — when there's no location/twilight data.
+class _NightContextChip extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _NightContextChip({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final twilight = ref.watch(twilightTimesProvider);
+    final now = ref.watch(observationTimeProvider.select((s) => s.time));
+
+    final fact = resolveNightContext(twilight, now);
+    // With no location set the twilight fields are null and resolveNightContext
+    // returns null — render nothing at all (the chip self-hides).
+    if (fact == null) return const SizedBox.shrink();
+
+    final moonInfo = ref.watch(moonInfoProvider);
+    final moonValue = '${moonInfo.illumination.toStringAsFixed(0)}%';
+
+    // duringDark uses moonStar so the darkness fact stays visually distinct
+    // from the plain-moon illumination readout right beside it.
+    final darknessIcon = switch (fact.kind) {
+      NightContextKind.beforeDark => LucideIcons.sunset,
+      NightContextKind.duringDark => LucideIcons.moonStar,
+      NightContextKind.afterDark => LucideIcons.sunset,
+    };
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 24),
+        Container(width: 1, height: 32, color: colors.border),
+        const SizedBox(width: 24),
+        Icon(darknessIcon, size: 14, color: colors.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          l10n.text(fact.l10nKey, params: {'time': fact.time}),
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Icon(LucideIcons.moon, size: 14, color: colors.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          moonValue,
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );

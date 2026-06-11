@@ -24,11 +24,12 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
       }
       final layout = DashboardLayout.fromJson(decoded);
 
-      // Migrate older layouts onto the current default. This fires for v3/v4
-      // users (currentVersion is 5), moving everyone onto the dense cockpit
+      // Migrate older layouts onto the current default. This fires for v3/v4/v5
+      // users (currentVersion is 6), moving everyone onto the dense cockpit
       // default while preserving their show/hide choices where ids overlap.
-      // New merged cockpit ids use their default enabled state; the four
-      // superseded panels are force-disabled (see _migrateToCurrentVersion).
+      // New ids (the merged cockpit tiles, plus the v6 quality/session-vitals/
+      // sky-context/forensics additions) use their default enabled state; the
+      // four superseded panels are force-disabled (see _migrateToCurrentVersion).
       if (layout.version < DashboardLayout.currentVersion) {
         final migrated = _migrateToCurrentVersion(layout);
         await _persist(migrated);
@@ -58,6 +59,9 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     //     enabled; without this the merged tiles would render alongside the old
     //     panels, showing both. The merged ids aren't in old layouts, so they
     //     come in enabled from the defaults — net result is the dense default.
+    // The v6 additions (quality/session-vitals/sky-context/forensics) aren't in
+    // pre-v6 layouts either, so they too take their default enabled state — only
+    // Quality ships enabled, matching defaultLayout().
     const forceDisabled = <DashboardWidgetId>{
       DashboardWidgetId.quickStats,
       DashboardWidgetId.cockpitTargetHeader,

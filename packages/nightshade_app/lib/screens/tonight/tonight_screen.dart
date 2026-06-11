@@ -382,12 +382,15 @@ class _PrimaryAction extends StatelessWidget {
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
+          // The dashboard cockpit is the monitoring surface — hand the user
+          // straight back to it so the GO → watch-it-run loop closes on one
+          // screen instead of bouncing through Imaging.
           NightshadeButton(
-            label: 'Open imaging',
-            icon: LucideIcons.camera,
+            label: 'Watch on dashboard',
+            icon: LucideIcons.layoutDashboard,
             variant: ButtonVariant.outline,
             size: ButtonSize.large,
-            onPressed: () => context.goNamed('imaging'),
+            onPressed: () => context.go('/dashboard'),
           ),
         ],
       );

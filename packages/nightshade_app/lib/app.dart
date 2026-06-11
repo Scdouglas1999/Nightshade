@@ -101,6 +101,11 @@ class NightshadeApp extends ConsumerWidget {
     // the connected camera or active profile so photometry works without
     // manual sensor-spec entry.
     ref.watch(scienceCameraAutoConfigProvider);
+    // Keep the Night Narrator alive for the active session: it is a plain
+    // Provider (recreated when the session id changes) and nothing else
+    // watches it, so without this watch it would never instantiate and no
+    // detector could ever fire. Mirrors the always-on service keepalives above.
+    ref.watch(narratorServiceProvider);
 
     // Get settings
     final settingsAsync = ref.watch(appSettingsProvider);

@@ -16,6 +16,7 @@ import 'custom_annotation_drawing.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
+import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
 import 'overlay_widgets.dart';
 import 'science_hud.dart';
@@ -605,28 +606,45 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         ),
                       ),
 
-                    // Science HUD panel (top-right). Faded with the rest of the
-                    // corner readout chrome on idle.
-                    if (scienceSettings.advancedModeEnabled &&
-                        scienceMode.scienceHudVisible)
-                      Positioned(
-                        top: 56,
-                        right: 16,
-                        child: _fadeChrome(
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                              ),
-                              maxHeight: (viewportSize.height - 72)
-                                  .clamp(120.0, viewportSize.height),
+                    // Top-right science chrome column: the Night Narrator
+                    // ticker (surface #2) over the Science HUD panel. Both fade
+                    // with the rest of the corner readouts on idle. The ticker
+                    // self-gates (hidden when sessionless or the feed is empty)
+                    // and the HUD self-gates on advanced mode, so this column
+                    // occupies zero height until there is something to show and
+                    // the two stack without overlapping when both are present.
+                    Positioned(
+                      top: 56,
+                      right: 16,
+                      child: _fadeChrome(
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: Responsive.previewOverlayMaxWidth(
+                              viewportSize.width,
                             ),
-                            child: SingleChildScrollView(
-                              child: ScienceHudPanel(colors: colors),
-                            ),
+                            maxHeight: (viewportSize.height - 72)
+                                .clamp(120.0, viewportSize.height),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const NarratorTicker(),
+                              if (scienceSettings.advancedModeEnabled &&
+                                  scienceMode.scienceHudVisible) ...[
+                                const SizedBox(
+                                    height: NightshadeTokens.spaceSm),
+                                Flexible(
+                                  child: SingleChildScrollView(
+                                    child: ScienceHudPanel(colors: colors),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
+                    ),
 
                     // Bottom-left histogram overlay
                     Positioned(
