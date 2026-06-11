@@ -22,6 +22,7 @@
 // broadcast.
 
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:nightshade_updater/nightshade_updater.dart';
@@ -261,9 +262,14 @@ class UpdateHandlers {
       final sep = Platform.pathSeparator;
       final idx = exe.lastIndexOf(sep);
       return idx >= 0 ? exe.substring(0, idx) : exe;
-    } catch (_) {
+    } on Object catch (e) {
       // Why: best-effort install-dir resolution; fall back to the OS name
       // rather than failing the request if the executable path can't be parsed.
+      developer.log(
+        'Update handler: could not resolve executable dir, '
+        'falling back to OS name: $e',
+        name: 'nightshade.headless',
+      );
       return Platform.operatingSystem;
     }
   }

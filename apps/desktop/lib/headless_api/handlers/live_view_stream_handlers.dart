@@ -268,9 +268,13 @@ class LiveViewStreamHub {
     for (final socket in List.of(_subs.keys)) {
       try {
         _writeJson(socket, {'type': 'stopped', 'reason': 'server_shutdown'});
-      } catch (_) {
+      } on Object catch (e) {
         // Why: socket may already be dead; we're tearing down the stream, so
         // a failed final write has nothing left to surface.
+        _logger.debug(
+          'Live-view teardown: final stopped-notice write failed: $e',
+          source: 'LiveViewStream',
+        );
       }
       final adapter = _sinkAdapters[socket];
       if (adapter != null) {

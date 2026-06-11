@@ -227,9 +227,13 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
         if (await destination.exists()) {
           await destination.delete();
         }
-      } catch (_) {
+      } on Object catch (e) {
         // Why: best-effort cleanup of a partially-written destination; the
         // BadRequestError thrown immediately below is the surfaced outcome.
+        _logger.debug(
+          'Dark upload: failed to delete empty destination file: $e',
+          source: 'DarkLibraryHandlers',
+        );
       }
       throw BadRequestError(
         field: 'body',

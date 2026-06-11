@@ -130,10 +130,15 @@ class ProfileHandlers {
     settings_models.AppSettings? previous;
     try {
       previous = await backend.getSettings();
-    } catch (_) {
+    } on Object catch (e) {
       // Why: `previous` only feeds an optional change-diff/notification below;
       // if the prior settings can't be read we proceed without the diff
       // rather than failing the update itself.
+      _logger.debug(
+        'Settings update: could not read previous settings for the '
+        'change diff: $e',
+        source: 'ProfileHandlers',
+      );
       previous = null;
     }
 

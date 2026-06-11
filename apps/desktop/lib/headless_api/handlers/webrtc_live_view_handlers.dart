@@ -793,20 +793,32 @@ class _WebRtcLiveViewSession {
     if (inbound != null && !inbound.isClosed) {
       try {
         await inbound.close();
-      } catch (_) {
+      } on Object catch (e) {
         // Why: best-effort teardown — the hub side may have already closed.
+        logger.debug(
+          'WebRTC $sessionId teardown: hub inbound close failed: $e',
+          source: 'WebRtcLiveView',
+        );
       }
     }
     try {
       await _dataChannel?.close();
-    } catch (_) {
+    } on Object catch (e) {
       // Why: best-effort teardown — the connection is already closing.
+      logger.debug(
+        'WebRTC $sessionId teardown: data channel close failed: $e',
+        source: 'WebRtcLiveView',
+      );
     }
     _dataChannel = null;
     try {
       await peerConnection.close();
-    } catch (_) {
+    } on Object catch (e) {
       // Why: best-effort teardown — the connection is already closing.
+      logger.debug(
+        'WebRTC $sessionId teardown: peer connection close failed: $e',
+        source: 'WebRtcLiveView',
+      );
     }
     if (!_iceController.isClosed) {
       await _iceController.close();
