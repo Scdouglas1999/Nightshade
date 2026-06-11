@@ -52,4 +52,5 @@ const _$RadarProviderTypeEnumMap = {
   RadarProviderType.noaa: 'noaa',
   RadarProviderType.rainviewer: 'rainviewer',
   RadarProviderType.openmeteo: 'openmeteo',
+  RadarProviderType.metno: 'metno',
 };

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../models/weather/weather_models.dart';
 import '../radar_provider.dart';
+import '../transient_http_retry.dart';
 
 /// Open-Meteo API provider for cloud cover percentage data.
 ///
@@ -73,8 +74,9 @@ class OpenMeteoCloudProvider extends RadarProvider {
         },
       );
 
-      // Fetch data from API
-      final response = await _httpClient.get(uri);
+      // Fetch data from API, retrying transient 5xx / dropped-TLS blips —
+      // Open-Meteo's single host degrades that way under load.
+      final response = await getWithTransientRetry(_httpClient, uri);
 
       if (response.statusCode != 200) {
         return RadarFetchResult.error(

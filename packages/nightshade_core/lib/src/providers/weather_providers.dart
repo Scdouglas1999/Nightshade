@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../models/weather/weather_models.dart';
+import '../services/weather/transient_http_retry.dart';
+import '../services/weather/providers/metno_cloud_provider.dart';
 import '../services/weather/weather_radar_service.dart';
 import '../services/weather/cloud_motion_analyzer.dart';
 import '../services/weather/weather_alert_service.dart';
@@ -102,6 +104,8 @@ RadarProviderType _parseProviderType(String providerString) {
       return RadarProviderType.rainviewer;
     case 'openmeteo':
       return RadarProviderType.openmeteo;
+    case 'metno':
+      return RadarProviderType.metno;
     default:
       return RadarProviderType.auto;
   }
@@ -141,14 +145,32 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
 
     final client = http.Client();
     try {
-      final response = await client.get(uri);
+      // Retry transient 5xx / dropped-TLS blips (Open-Meteo's single host
+      // degrades that way under load) before giving up for this fetch.
+      final response = await getWithTransientRetry(client, uri);
 
       if (response.statusCode != 200) {
         developer.log(
-          'Cloud cover fetch failed: ${response.statusCode}',
+          'Cloud cover fetch failed: ${response.statusCode}, '
+          'trying MET Norway fallback',
           name: 'Weather',
           level: 900,
         );
+        // Open-Meteo returned a non-200 even after transient retries; fall back
+        // to MET Norway's independent host before giving up. The client is kept
+        // alive by the enclosing finally until this completes.
+        final fallback = await MetNoCloudProvider.fetchCurrentCloudCover(
+          client,
+          latitude,
+          longitude,
+        );
+        if (fallback != null) {
+          developer.log(
+            'Current cloud cover: $fallback% (source: MET Norway)',
+            name: 'Weather',
+          );
+          return fallback;
+        }
         return null;
       }
 
@@ -174,10 +196,36 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
     }
   } catch (e) {
     developer.log(
-      'Error fetching cloud cover: $e',
+      'Error fetching cloud cover: $e, trying MET Norway fallback',
       name: 'Weather',
       level: 1000,
     );
+    // Open-Meteo threw (network error, even after transient retries). The
+    // original client was already closed by the inner finally, so use a fresh
+    // one for the MET Norway fallback.
+    final fallbackClient = http.Client();
+    try {
+      final fallback = await MetNoCloudProvider.fetchCurrentCloudCover(
+        fallbackClient,
+        latitude,
+        longitude,
+      );
+      if (fallback != null) {
+        developer.log(
+          'Current cloud cover: $fallback% (source: MET Norway)',
+          name: 'Weather',
+        );
+        return fallback;
+      }
+    } catch (fallbackError) {
+      developer.log(
+        'MET Norway fallback also failed: $fallbackError',
+        name: 'Weather',
+        level: 1000,
+      );
+    } finally {
+      fallbackClient.close();
+    }
     return null;
   }
 });

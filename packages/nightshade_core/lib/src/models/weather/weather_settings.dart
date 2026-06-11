@@ -19,6 +19,9 @@ enum RadarProviderType {
 
   /// Open-Meteo weather API
   openmeteo,
+
+  /// MET Norway Locationforecast (global cloud forecast, fallback)
+  metno,
 }
 
 /// Weather monitoring and safety settings

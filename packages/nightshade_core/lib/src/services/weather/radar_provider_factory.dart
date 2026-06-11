@@ -9,6 +9,20 @@ class RadarProviderFactory {
   /// Internal registry of providers by type.
   final Map<RadarProviderType, RadarProvider> _providers = {};
 
+  /// Auto-selection priority, most-preferred first.
+  ///
+  /// GOES Satellite shows actual cloud cover (ideal for astrophotography);
+  /// NOAA NEXRAD and RainViewer show precipitation; Open-Meteo provides a
+  /// numerical cloud forecast; MET Norway is the independent numerical fallback
+  /// for when Open-Meteo's single host degrades — hence last.
+  static const List<RadarProviderType> autoPriority = [
+    RadarProviderType.goesSatellite,
+    RadarProviderType.noaa,
+    RadarProviderType.rainviewer,
+    RadarProviderType.openmeteo,
+    RadarProviderType.metno,
+  ];
+
   /// Registers a provider with the factory.
   ///
   /// If a provider of the same type already exists, it will be disposed
@@ -55,19 +69,8 @@ class RadarProviderFactory {
       // Preferred provider doesn't cover location, fall through to auto
     }
 
-    // Auto-select with priority: GOES Satellite > NOAA > RainViewer > OpenMeteo
-    // GOES Satellite shows actual cloud cover (ideal for astrophotography)
-    // NOAA NEXRAD shows precipitation only (rain/snow)
-    // RainViewer provides global precipitation radar
-    // OpenMeteo provides numerical cloud forecast
-    final priorityOrder = [
-      RadarProviderType.goesSatellite,
-      RadarProviderType.noaa,
-      RadarProviderType.rainviewer,
-      RadarProviderType.openmeteo,
-    ];
-
-    for (final type in priorityOrder) {
+    // Auto-select using the shared priority order (most-preferred first).
+    for (final type in autoPriority) {
       final provider = _providers[type];
       if (provider != null && provider.coversLocation(latitude, longitude)) {
         return provider;
@@ -76,6 +79,29 @@ class RadarProviderFactory {
 
     // No provider covers this location
     return null;
+  }
+
+  /// Builds the ordered failover candidate list for a location.
+  ///
+  /// The [selected] provider (the one [selectProvider] chose) leads, followed
+  /// by every other registered provider that covers the location in
+  /// [autoPriority] order, de-duplicated. This lets [WeatherRadarService] try
+  /// the user's choice first and then fall through to alternatives — e.g.
+  /// Open-Meteo → MET Norway — when the leading provider fails outright.
+  List<RadarProvider> failoverCandidates({
+    required double latitude,
+    required double longitude,
+    required RadarProvider selected,
+  }) {
+    final ordered = <RadarProvider>[selected];
+    for (final type in autoPriority) {
+      final provider = _providers[type];
+      if (provider == null) continue;
+      if (provider == selected) continue;
+      if (!provider.coversLocation(latitude, longitude)) continue;
+      ordered.add(provider);
+    }
+    return ordered;
   }
 
   /// Gets a specific provider by type.

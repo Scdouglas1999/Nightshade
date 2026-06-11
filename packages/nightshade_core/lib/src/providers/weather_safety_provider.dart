@@ -211,6 +211,18 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   static const _cloudMotionPushInterval = Duration(seconds: 60);
   static const _adaptiveConditionsPushInterval = Duration(seconds: 30);
 
+  /// `cloudCoverPercentageProvider` is a one-shot FutureProvider: without an
+  /// explicit invalidation its first result (including a transient-failure
+  /// null) is cached for the whole session, so the safety pushes would feed
+  /// the executor the same startup sample all night. Re-fetch on a TTL from
+  /// this notifier's existing push cadence — no extra Timer, so widget tests
+  /// that mount cloud-cover consumers stay timer-leak free. Failures retry
+  /// sooner than successes so an Open-Meteo blip doesn't blind the safety
+  /// triggers for long.
+  static const _cloudCoverTtl = Duration(minutes: 10);
+  static const _cloudCoverErrorRetryTtl = Duration(minutes: 2);
+  DateTime? _cloudCoverFetchedAt;
+
   /// Why: when weather first reads "safe" after an unsafe stretch we wait a
   /// hold-off period before unparking. Astronomical conditions are noisy —
   /// a transient cloud break can read as "safe" for a single sample before
@@ -690,6 +702,27 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     }
   }
 
+  /// Read the current cloud cover, re-fetching when the cached sample is
+  /// older than its TTL (shorter when the last fetch failed). The first call
+  /// stamps the clock without invalidating so it shares whatever fetch the UI
+  /// already triggered.
+  Future<double?> _freshCloudCover() async {
+    final now = DateTime.now();
+    final fetchedAt = _cloudCoverFetchedAt;
+    if (fetchedAt == null) {
+      _cloudCoverFetchedAt = now;
+    } else {
+      final hasValue =
+          _ref.read(cloudCoverPercentageProvider).valueOrNull != null;
+      final ttl = hasValue ? _cloudCoverTtl : _cloudCoverErrorRetryTtl;
+      if (now.difference(fetchedAt) > ttl) {
+        _ref.invalidate(cloudCoverPercentageProvider);
+        _cloudCoverFetchedAt = now;
+      }
+    }
+    return _ref.read(cloudCoverPercentageProvider.future);
+  }
+
   Future<void> _pushCloudMotion() async {
     if (!mounted) return;
     try {
@@ -698,10 +731,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       // grab rather than caching so a manual weather refresh in the UI
       // shows up here immediately.
       final motion = await _ref.read(analyzeCloudMotionProvider.future);
-      final coverAsync = await _ref.read(cloudCoverPercentageProvider.future);
+      final cover = await _freshCloudCover();
       if (!mounted) return;
-
-      final cover = coverAsync;
       // Cloud arrival prediction: present only when the analyzer reports
       // a finite eta (cloudMotion.etaToLocation). If the analyzer has no
       // motion / no nearby clouds, push None so the Rust trigger stays
@@ -755,7 +786,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     try {
       final appSettings = _ref.read(appSettingsProvider).valueOrNull;
       final weather = _ref.read(weatherStateProvider);
-      final cloudCover = await _ref.read(cloudCoverPercentageProvider.future);
+      final cloudCover = await _freshCloudCover();
       if (!mounted) return;
 
       final (_, transparency) = _ref.read(currentScienceSnapshotProvider);

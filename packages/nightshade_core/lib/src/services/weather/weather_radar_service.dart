@@ -73,6 +73,9 @@ class WeatherRadarService {
     _providerFactory.registerProvider(RainViewerRadarProvider());
     // OpenMeteo provides cloud cover forecast data
     _providerFactory.registerProvider(OpenMeteoCloudProvider());
+    // MET Norway is the independent numerical fallback (used when Open-Meteo's
+    // single host degrades). Registered after OpenMeteo; ranked last.
+    _providerFactory.registerProvider(MetNoCloudProvider());
 
     _initialized = true;
     developer.log(
@@ -166,62 +169,89 @@ class WeatherRadarService {
       return errorResult;
     }
 
-    developer.log(
-      'Fetching from ${provider.name}',
-      name: 'WeatherRadarService',
+    // Build the ordered candidate list: the selected provider first, then
+    // every other registered provider covering this location in priority order.
+    // We try each in turn and return the first success, so a degraded primary
+    // (e.g. Open-Meteo's single host) fails over to an independent fallback
+    // (MET Norway) instead of surfacing a dead result to the UI.
+    final candidates = _providerFactory.failoverCandidates(
+      latitude: latitude,
+      longitude: longitude,
+      selected: provider,
     );
 
-    // Fetch radar frames from the selected provider
-    try {
-      final fetched = await provider.fetchRadarFrames(
-        latitude: latitude,
-        longitude: longitude,
-        radiusKm: radiusKm,
+    // Remember the FIRST failure so that, if every candidate fails, we cache an
+    // error that reflects the operator's selected provider rather than the last
+    // fallback's noise.
+    RadarFetchResult? firstFailure;
+    var triedCount = 0;
+
+    for (final candidate in candidates) {
+      triedCount++;
+      developer.log(
+        'Fetching from ${candidate.name}',
+        name: 'WeatherRadarService',
       );
 
-      // Tag the result with the provider's display name so the UI can attribute
-      // the data source. Errors keep their own message; success gets the name.
-      final result = fetched.isSuccess
-          ? fetched.withProviderName(provider.name)
-          : fetched;
-
-      // Cache the result
-      _cachedResult = result;
-      _lastFetchTime = DateTime.now();
-
-      // Broadcast frames to stream listeners
-      if (result.isSuccess) {
-        _framesController.add(result.frames);
-        developer.log(
-          'Fetched ${result.frames.length} frames from ${provider.name}',
-          name: 'WeatherRadarService',
+      RadarFetchResult fetched;
+      try {
+        fetched = await candidate.fetchRadarFrames(
+          latitude: latitude,
+          longitude: longitude,
+          radiusKm: radiusKm,
         );
-      } else {
+      } catch (e, stackTrace) {
+        // A provider should return an error result rather than throw, but guard
+        // anyway so one misbehaving provider can't abort the whole chain.
+        fetched = RadarFetchResult.error(
+          'Unexpected error fetching radar data: $e',
+        );
         developer.log(
-          'Fetch failed - ${result.errorMessage}',
+          'Exception during fetch from ${candidate.name} - $e',
           name: 'WeatherRadarService',
-          level: 900,
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
         );
       }
 
-      return result;
-    } catch (e, stackTrace) {
-      final errorResult = RadarFetchResult.error(
-        'Unexpected error fetching radar data: $e',
-      );
-      _cachedResult = errorResult;
-      _lastFetchTime = DateTime.now();
+      if (fetched.isSuccess) {
+        // Tag with the producing provider's display name for UI attribution.
+        final result = fetched.withProviderName(candidate.name);
+        _cachedResult = result;
+        _lastFetchTime = DateTime.now();
+        _framesController.add(result.frames);
+        developer.log(
+          'Fetched ${result.frames.length} frames from ${candidate.name}',
+          name: 'WeatherRadarService',
+        );
+        return result;
+      }
 
+      firstFailure ??= fetched;
       developer.log(
-        'Exception during fetch - $e',
+        'Provider ${candidate.name} failed - ${fetched.errorMessage}; '
+        'failing over',
         name: 'WeatherRadarService',
-        level: 1000,
-        error: e,
-        stackTrace: stackTrace,
+        level: 900,
       );
-
-      return errorResult;
     }
+
+    // Every candidate failed. Cache the first failure, annotated with how many
+    // providers we tried so the UI/logs make the failover effort visible.
+    final baseMessage =
+        firstFailure?.errorMessage ?? 'All radar providers failed';
+    final errorResult = RadarFetchResult.error(
+      '$baseMessage ($triedCount providers tried)',
+    );
+    _cachedResult = errorResult;
+    _lastFetchTime = DateTime.now();
+    developer.log(
+      'All $triedCount providers failed - $baseMessage',
+      name: 'WeatherRadarService',
+      level: 900,
+    );
+    return errorResult;
   }
 
   /// The most recent fetch result, including provider attribution and fetch
@@ -314,6 +344,8 @@ class WeatherRadarService {
         return RadarProviderType.rainviewer;
       case 'openmeteo':
         return RadarProviderType.openmeteo;
+      case 'metno':
+        return RadarProviderType.metno;
       default:
         developer.log(
           'Unknown provider type: $providerString, defaulting to auto',
