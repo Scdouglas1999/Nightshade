@@ -715,11 +715,27 @@ CREATE TABLE captured_images (
   );
 
   test(
-    'fresh database is at schema 47 with stacked_results table (C3)',
+    'fresh database is at schema 48 with stacked_results table (C3)',
     () async {
       final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
       try {
-        expect(db.schemaVersion, equals(47));
+        expect(db.schemaVersion, equals(48));
+
+        // v48 (Night Narrator): the narrator_events table must exist on a
+        // fresh install (drift createAll) just like on the upgrade path.
+        final narratorRow = await db
+            .customSelect(
+              "SELECT name FROM sqlite_master "
+              "WHERE type='table' AND name='narrator_events'",
+            )
+            .getSingleOrNull();
+        expect(
+          narratorRow != null,
+          isTrue,
+          reason:
+              'onCreate must create the narrator_events table for fresh '
+              'installs (Night Narrator v48).',
+        );
 
         final tableRow = await db
             .customSelect(
@@ -776,7 +792,7 @@ CREATE TABLE captured_images (
           .customSelect('PRAGMA user_version')
           .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-      expect(db.schemaVersion, equals(47));
+      expect(db.schemaVersion, equals(48));
 
       final tableRow = await db
           .customSelect(
@@ -790,6 +806,22 @@ CREATE TABLE captured_images (
         reason:
             'The v38 migration must create the stacked_results table for '
             'in-place upgrades (Stack-and-Share Loop C3).',
+      );
+
+      // The same upgrade pass must also run the v48 branch and create the
+      // Night Narrator table on databases coming from any pre-48 version.
+      final narratorRow = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='narrator_events'",
+          )
+          .getSingleOrNull();
+      expect(
+        narratorRow != null,
+        isTrue,
+        reason:
+            'The v48 migration must create the narrator_events table on '
+            'in-place upgrades (Night Narrator).',
       );
       expect(tableRow!.data['name'], equals('stacked_results'));
 
