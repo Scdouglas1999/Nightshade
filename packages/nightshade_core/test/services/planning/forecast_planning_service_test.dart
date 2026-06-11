@@ -20,13 +20,22 @@ import 'package:nightshade_core/src/services/scheduler/sky_calculations.dart';
 import 'package:nightshade_core/src/services/weather/radar_provider.dart';
 
 void main() {
-  // Mid-latitude site with long winter nights (Colorado-ish), so the dark
-  // window is several hours and easy to fill with hourly frames.
+  // Mid-latitude site with long winter nights, so the dark window is several
+  // hours and easy to fill with hourly frames.
   const lat = 40.0;
-  const lon = -105.0;
 
   // A fixed local-noon anchor; the service buckets nights noon-to-noon.
   final nowLocal = DateTime(2026, 1, 15, 12);
+
+  // Longitude chosen so the synthetic site's SOLAR time matches the test
+  // runner's local clock (15° of longitude per hour of UTC offset). The
+  // service interprets `nowLocal` in runner-local time, so a hardcoded
+  // longitude only lines up in time zones near it — with lon -105 these
+  // tests passed on UTC-5 machines but failed on UTC CI runners, where the
+  // night's dark window straddled the noon-to-noon bucket boundary and the
+  // night was dropped. Deriving lon from the runner's offset keeps local
+  // noon ≈ solar noon in every zone.
+  final lon = nowLocal.timeZoneOffset.inMinutes / 4.0;
 
   /// The astronomical dark window for the night anchored at [noonLocal].
   ({DateTime dusk, DateTime dawn}) darkWindow(DateTime noonLocal) {
