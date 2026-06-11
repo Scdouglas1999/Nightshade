@@ -52,7 +52,18 @@ tppa_live_open.png
 /docs/audits/
 /docs/code-quality/
 /docs/plans/
-/docs/production-readiness/
+# Release-readiness evidence dumps stay local, but the CI gate INPUT files
+# below must be tracked — every CI run reads them (see .github/workflows/
+# ci.yml Analyze + Launch Gate jobs). The 2026-05-17 prune (3a25ef6e)
+# ignored the whole directory and broke every CI run since: the gates'
+# policy/baseline/register inputs vanished from checkouts. Use `*` (not a
+# bare directory ignore) so the negations below can take effect.
+/docs/production-readiness/*
+!/docs/production-readiness/analyzer-policy.yaml
+!/docs/production-readiness/critical-warning-codes.txt
+!/docs/production-readiness/highrisk-baseline.txt
+!/docs/production-readiness/behavioral-audit-register.md
+!/docs/production-readiness/fail_closed_rules.yaml
 /docs/science_mockups/
 # Internal audit / planning / release-inventory docs (kept locally, not public)
 /docs/backend-architecture-audit.md
