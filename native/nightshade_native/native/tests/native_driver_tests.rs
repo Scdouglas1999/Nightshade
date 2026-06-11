@@ -2005,6 +2005,7 @@ static GAIN:AtomicI64=AtomicI64::new(0); static OFFSET:AtomicI64=AtomicI64::new(
 #[repr(C)] struct POACameraProperties{camera_model_name:[c_char;256],user_custom_id:[c_char;16],camera_id:c_int,max_width:c_int,max_height:c_int,bit_depth:c_int,is_color_camera:c_int,is_has_st4_port:c_int,is_has_cooler:c_int,is_usb3_speed:c_int,bayer_pattern:c_int,pixel_size:f64,sn:[c_char;64],sensor_model_name:[c_char;32],local_path:[c_char;256],bins:[c_int;8],img_formats:[c_int;8],is_support_hard_bin:c_int,p_id:c_int,reserved:[c_char;248]}
 #[repr(C)] union POAConfigValue{int_value:c_long,float_value:f64,bool_value:c_int}
 fn write_cstr(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;}}
+// SAFETY: shim writes through the caller-supplied props pointer after a null check.
 fn fill_props(id:c_int,props:*mut POACameraProperties)->c_int{unsafe{if props.is_null(){return 4;} let mut p:POACameraProperties=std::mem::zeroed(); p.camera_id=id; p.max_width=64; p.max_height=48; p.is_usb3_speed=1; p.pixel_size=2.9; p.bins[0]=1; p.bins[1]=2; p.bins[2]=4; p.img_formats[0]=1; p.img_formats[1]=-1; p.is_support_hard_bin=1; match id{101=>{write_cstr(&mut p.camera_model_name,b"Nightshade Fake Poseidon-M Pro"); write_cstr(&mut p.sn,b"POA-COOLED-0001"); write_cstr(&mut p.sensor_model_name,b"IMX571"); p.bit_depth=16; p.is_color_camera=0; p.is_has_st4_port=1; p.is_has_cooler=1; p.bayer_pattern=-1; p.p_id=101;} 202=>{write_cstr(&mut p.camera_model_name,b"Nightshade Fake Neptune-C II"); write_cstr(&mut p.sn,b"POA-GUIDE-0002"); write_cstr(&mut p.sensor_model_name,b"IMX464"); p.bit_depth=12; p.is_color_camera=1; p.is_has_st4_port=0; p.is_has_cooler=0; p.bayer_pattern=1; p.p_id=202;} _=>return 1} *props=p; 0}}
 #[no_mangle] pub extern "C" fn POAGetCameraCount()->c_int{2}
 #[no_mangle] pub extern "C" fn POAGetSDKVersion()->*const c_char{b"fake-playerone-camera-1.0\0".as_ptr() as *const c_char}
@@ -2095,6 +2096,7 @@ use std::sync::atomic::{AtomicI32,Ordering};
 static GAIN:AtomicI32=AtomicI32::new(0); static OFFSET:AtomicI32=AtomicI32::new(0); static BIN_X:AtomicI32=AtomicI32::new(1); static BIN_Y:AtomicI32=AtomicI32::new(1); static SETPOINT:AtomicI32=AtomicI32::new(-1000); static FILTER_POS:AtomicI32=AtomicI32::new(0);
 static mut IMAGE:[u8;384]=[0;384];
 #[repr(C)] struct ArtemisProperties{protocol:c_int,pixels_x:c_int,pixels_y:c_int,pixel_microns_x:c_float,pixel_microns_y:c_float,ccd_flags:c_int,camera_flags:c_int,description:[c_char;40],manufacturer:[c_char;40]}
+// SAFETY: callers pass buffers of >=100 bytes per the fake SDK contract.
 fn write_cstr(buf:*mut c_char,text:&[u8]){unsafe{for i in 0..100{*buf.add(i)=0;} for i in 0..text.len(){*buf.add(i)=text[i] as c_char;}}}
 fn write_fixed(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;}}
 #[no_mangle] pub extern "C" fn ArtemisDeviceCount()->c_int{1}
@@ -2115,6 +2117,7 @@ fn write_fixed(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for 
 #[no_mangle] pub extern "C" fn ArtemisImageReady(_handle:*mut c_void)->c_int{1}
 #[no_mangle] pub extern "C" fn ArtemisExposureTimeRemaining(_handle:*mut c_void)->c_float{0.0}
 #[no_mangle] pub unsafe extern "C" fn ArtemisGetImageData(_handle:*mut c_void,x:*mut c_int,y:*mut c_int,w:*mut c_int,h:*mut c_int,binx:*mut c_int,biny:*mut c_int)->c_int{if !x.is_null(){*x=0;} if !y.is_null(){*y=0;} if !w.is_null(){*w=16;} if !h.is_null(){*h=12;} if !binx.is_null(){*binx=BIN_X.load(Ordering::SeqCst);} if !biny.is_null(){*biny=BIN_Y.load(Ordering::SeqCst);} for i in 0..192{let v=2000u16.wrapping_add(i as u16); IMAGE[i*2]=(v&0xff) as u8; IMAGE[i*2+1]=(v>>8) as u8;} 0}
+// SAFETY: IMAGE is a static test buffer; tests are single-threaded over this fake SDK.
 #[no_mangle] pub extern "C" fn ArtemisImageBuffer(_handle:*mut c_void)->*mut c_void{unsafe{IMAGE.as_mut_ptr() as *mut c_void}}
 #[no_mangle] pub extern "C" fn ArtemisSetCooling(_handle:*mut c_void,setpoint:c_int)->c_int{SETPOINT.store(setpoint,Ordering::SeqCst);0}
 #[no_mangle] pub unsafe extern "C" fn ArtemisCoolingInfo(_handle:*mut c_void,flags:*mut c_int,level:*mut c_int,minlvl:*mut c_int,maxlvl:*mut c_int,setpoint:*mut c_int)->c_int{if !flags.is_null(){*flags=1;} if !level.is_null(){*level=35;} if !minlvl.is_null(){*minlvl=0;} if !maxlvl.is_null(){*maxlvl=100;} if !setpoint.is_null(){*setpoint=SETPOINT.load(Ordering::SeqCst);} 0}
@@ -2175,6 +2178,7 @@ use std::sync::atomic::{AtomicI32,AtomicUsize,Ordering};
 #[repr(C)] struct OgmacamFrameInfoV3{width:c_uint,height:c_uint,flag:c_uint,seq:c_uint}
 static ACTIVE_INDEX:AtomicUsize=AtomicUsize::new(0); static WIDTH:AtomicI32=AtomicI32::new(80); static HEIGHT:AtomicI32=AtomicI32::new(60); static GAIN:AtomicI32=AtomicI32::new(100); static TEMP:AtomicI32=AtomicI32::new(-80);
 fn wide(text:&str)->[u16;64]{let mut out=[0u16;64]; for (i,ch) in text.encode_utf16().take(63).enumerate(){out[i]=ch;} out}
+// SAFETY: OgmacamResolution is repr(C) POD; an all-zero value is a valid bit pattern.
 fn model(index:usize)->*const OgmacamModelV2{let mut res:[OgmacamResolution;16]=unsafe{std::mem::zeroed()}; res[0]=if index==0{OgmacamResolution{width:80,height:60}}else{OgmacamResolution{width:40,height:30}}; let flags=if index==0{0x80|0x20000|0x200|0x08|0x20}else{0x10|0x20}; let name=if index==0{b"OGMA AP26CC\0".as_ptr()}else{b"OGMA GP2000M\0".as_ptr()}; Box::into_raw(Box::new(OgmacamModelV2{name:name as *const c_char,flag:flags,maxspeed:1,preview:1,still:1,maxfanspeed:0,ioctrol:0,xpixsz:3.76,ypixsz:3.76,res}))}
 #[no_mangle] pub unsafe extern "C" fn Ogmacam_EnumV2(devs:*mut OgmacamDeviceV2)->c_uint{if devs.is_null(){return 2;} *devs.add(0)=OgmacamDeviceV2{displayname:wide("OGMA AP26CC"),id:wide("OGMA-COOLED-0001"),model:model(0)}; *devs.add(1)=OgmacamDeviceV2{displayname:wide("OGMA GP2000M"),id:wide("OGMA-GUIDE-0002"),model:model(1)}; 2}
 #[no_mangle] pub extern "C" fn Ogmacam_OpenByIndex(index:c_uint)->*mut c_void{if index>1{return std::ptr::null_mut();} ACTIVE_INDEX.store(index as usize,Ordering::SeqCst); if index==0{WIDTH.store(80,Ordering::SeqCst); HEIGHT.store(60,Ordering::SeqCst);}else{WIDTH.store(40,Ordering::SeqCst); HEIGHT.store(30,Ordering::SeqCst);} (index as usize + 1) as *mut c_void}
@@ -2204,6 +2208,7 @@ static LIST_DOMAIN:AtomicI64=AtomicI64::new(0); static FOCUS_POS:AtomicI64=Atomi
 const FLIDEVICE_CAMERA:c_long=0x100; const FLIDEVICE_FILTERWHEEL:c_long=0x200; const FLIDEVICE_FOCUSER:c_long=0x300;
 unsafe fn put(buf:*mut c_char,len:usize,text:&[u8]){if buf.is_null(){return;} for i in 0..len{*buf.add(i)=0;} for i in 0..text.len().min(len.saturating_sub(1)){*buf.add(i)=text[i] as c_char;}}
 fn kind_from_domain(domain:c_long)->c_long{domain & 0x0f00}
+// SAFETY: path is null-checked before the CStr read; tests pass NUL-terminated literals.
 fn kind_from_path(path:*const c_char)->c_long{unsafe{if path.is_null(){return FLIDEVICE_CAMERA;} let s=CStr::from_ptr(path).to_string_lossy(); if s.contains("focuser"){FLIDEVICE_FOCUSER}else if s.contains("filter"){FLIDEVICE_FILTERWHEEL}else{FLIDEVICE_CAMERA}}}
 #[no_mangle] pub unsafe extern "C" fn FLIOpen(dev:*mut c_long,name:*const c_char,domain:c_long)->c_long{if dev.is_null(){return -1;} let kind=kind_from_domain(domain); let path_kind=kind_from_path(name); if kind!=path_kind{return -2;} *dev=kind; 0}
 #[no_mangle] pub extern "C" fn FLIClose(_dev:c_long)->c_long{0}

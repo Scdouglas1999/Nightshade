@@ -405,6 +405,9 @@ pub(super) unsafe fn extract_safearray_i32(
                 result.push(val as i32);
             } else {
                 let _ = SafeArrayUnaccessData(psa);
+                // SAFETY: `variant` is a live VARIANT we are iterating from the
+                // accessed SAFEARRAY data; reading the discriminant union field
+                // (`vt`) is valid for any initialized VARIANT.
                 let element_vt = unsafe { (*variant.Anonymous.Anonymous).vt.0 };
                 return Err(format!(
                     "SAFEARRAY VT_VARIANT element {index} could not be coerced to i32 (vt={element_vt})"
