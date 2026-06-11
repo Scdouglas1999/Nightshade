@@ -11,6 +11,7 @@ import '../models/sequence/sequence_models.dart'
     show AdaptiveSwapSnapshot, ConditionsScore;
 import '../providers/settings_provider.dart';
 import 'nightshade_backend.dart';
+import 'nightshade_exception.dart' show ConnectionException;
 
 part 'disconnected_backend/profile_and_image.dart';
 
@@ -40,8 +41,10 @@ class DisconnectedBackend
 
   @override
   Never _throwNotConnected() {
-    throw Exception(
-      'Not connected to server. Please connect to a Nightshade Headless Server first.',
+    throw const ConnectionException(
+      message:
+          'Not connected to server. Please connect to a Nightshade Headless Server first.',
+      userMessage: 'Not connected to a Nightshade Headless Server',
     );
   }
 

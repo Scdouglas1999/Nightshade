@@ -14,6 +14,7 @@ import '../providers/unified_discovery_provider.dart';
 import 'smart_notification_service.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
+import '../backend/nightshade_exception.dart' show ConnectionException;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../utils/device_id.dart';

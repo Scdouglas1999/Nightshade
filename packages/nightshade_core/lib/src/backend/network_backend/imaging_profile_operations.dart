@@ -256,7 +256,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     final response = await request.close();
 
     if (response.statusCode != 200) {
-      throw Exception('HTTP ${response.statusCode}: Failed to get thumbnail');
+      throw IoException(
+        message: 'HTTP ${response.statusCode}: Failed to get thumbnail',
+        userMessage: 'Failed to download the image thumbnail',
+      );
     }
 
     final bytes = await consolidateHttpClientResponseBytes(response);
@@ -287,7 +290,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       } on FileSystemException catch (e) {
         // Existing file is unreadable — surface it instead of pretending
         // to start from zero. CLAUDE.md: errors are a feature.
-        throw Exception('Failed to stat partial download at $localPath: $e');
+        throw IoException(
+          message: 'Failed to stat partial download at $localPath: $e',
+          userMessage: 'Could not read the partially downloaded file',
+        );
       }
     }
 
@@ -328,7 +334,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
 
     if (statusCode != 200 && statusCode != 206) {
       await response.drain<void>();
-      throw Exception('HTTP $statusCode: Failed to download image');
+      throw IoException(
+        message: 'HTTP $statusCode: Failed to download image',
+        userMessage: 'Failed to download the image',
+      );
     }
 
     // Get total length for progress tracking. For 206 the response
@@ -473,8 +482,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       }
 
       if (response.statusCode != 200) {
-        throw Exception(
-          'HTTP ${response.statusCode}: Failed to GET imaging/raw-data',
+        throw IoException(
+          message:
+              'HTTP ${response.statusCode}: Failed to GET imaging/raw-data',
+          userMessage: 'Failed to retrieve the raw image data',
         );
       }
 
@@ -527,8 +538,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       }
 
       if (response.statusCode != 200) {
-        throw Exception(
-          'HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture',
+        throw IoException(
+          message:
+              'HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture',
+          userMessage: 'Failed to save the FITS file on the server',
         );
       }
 

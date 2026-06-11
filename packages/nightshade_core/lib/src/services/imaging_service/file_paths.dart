@@ -31,7 +31,10 @@ extension _ImagingServiceFilePaths on ImagingService {
   }) async {
     final basePath = appSettings.imageOutputPath;
     if (basePath.isEmpty) {
-      throw Exception('Image output path not configured');
+      throw const ValidationException(
+        message: 'Image output path not configured',
+        userMessage: 'No image output path is configured',
+      );
     }
 
     // Get naming pattern from imaging provider

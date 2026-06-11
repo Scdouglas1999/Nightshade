@@ -23,6 +23,7 @@ import '../models/errors/nightshade_error.dart' as dart_error;
 // mobile companion can branch on the machine-readable `code` instead of
 // substring-matching the message text.
 import 'remote_display_jpeg.dart';
+import 'nightshade_exception.dart' show IoException, ValidationException;
 
 part 'network_backend/remote_operations.dart';
 part 'network_backend/remote_calibration_catalog_operations.dart';

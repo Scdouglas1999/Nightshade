@@ -18,7 +18,10 @@ extension _NetworkBackendWireDecoding on _NetworkBackendTransport {
       case 'simulator':
         return DriverType.simulator;
       default:
-        throw Exception('Unknown driver type: $str');
+        throw ValidationException(
+          message: 'Unknown driver type: $str',
+          userMessage: 'The server reported an unknown driver type',
+        );
     }
   }
 

@@ -129,13 +129,19 @@ extension _DeviceServiceConnections on DeviceService {
   }) async {
     final cameraState = _ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
-      throw Exception('Camera not connected');
+      throw const ConnectionException(
+        message: 'Camera not connected',
+        userMessage: 'The camera is not connected',
+      );
     }
 
     // Use the connected device's ID from state, not the profile
     final deviceId = cameraState.deviceId;
     if (deviceId == null || deviceId.isEmpty) {
-      throw Exception('No camera device ID available');
+      throw const ConnectionException(
+        message: 'No camera device ID available',
+        userMessage: 'The camera device is not available',
+      );
     }
 
     await _backend.cameraSetCooling(

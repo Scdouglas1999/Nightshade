@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/nightshade_backend.dart';
+import '../backend/nightshade_exception.dart' show ConnectionException;
 import '../models/equipment/equipment_models.dart';
 import '../providers/equipment_provider.dart';
 import 'logging_service.dart';
@@ -40,12 +41,18 @@ class CameraWarmupController {
   Future<void> start({double ratePerMin = 2.0}) async {
     final cameraState = _ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
-      throw Exception('Camera not connected');
+      throw const ConnectionException(
+        message: 'Camera not connected',
+        userMessage: 'The camera is not connected',
+      );
     }
 
     final deviceId = cameraState.deviceId;
     if (deviceId == null || deviceId.isEmpty) {
-      throw Exception('No camera device ID available');
+      throw const ConnectionException(
+        message: 'No camera device ID available',
+        userMessage: 'The camera device is not available',
+      );
     }
 
     // Drop any in-flight warming before we touch state.

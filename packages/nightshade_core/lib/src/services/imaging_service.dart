@@ -22,6 +22,12 @@ import 'imaging_records_repository.dart';
 import '../providers/ui_notification_provider.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
+import '../backend/nightshade_exception.dart'
+    show
+        ConnectionException,
+        DeviceBusyException,
+        ImagingException,
+        ValidationException;
 import 'capture_preview_loader.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
 import '../database/daos/images_dao.dart' show ImagesDao;
@@ -63,13 +69,20 @@ class ImagingService {
     String? producingRunId,
   }) async {
     if (_isCapturing) {
-      throw Exception('Already capturing');
+      throw const DeviceBusyException(
+        message: 'Already capturing',
+        userMessage: 'A capture is already in progress',
+        currentOperation: 'capture',
+      );
     }
 
     // Check camera connected
     final cameraState = _ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
-      throw Exception('Camera not connected');
+      throw const ConnectionException(
+        message: 'Camera not connected',
+        userMessage: 'The camera is not connected',
+      );
     }
 
     _isCapturing = true;
@@ -85,7 +98,10 @@ class ImagingService {
       final deviceId = cameraState.deviceId;
 
       if (deviceId == null) {
-        throw Exception('Camera device ID not available');
+        throw const ConnectionException(
+          message: 'Camera device ID not available',
+          userMessage: 'The camera device is not available',
+        );
       }
 
       // Apply readout mode before starting exposure.
@@ -263,7 +279,10 @@ class ImagingService {
         );
 
         if (capturedImage == null) {
-          throw Exception('Failed to retrieve captured image');
+          throw const ImagingException(
+            message: 'Failed to retrieve captured image',
+            userMessage: 'Could not retrieve the captured image',
+          );
         }
 
         _logger.debug(
@@ -297,10 +316,12 @@ class ImagingService {
           // still sitting in the camera buffer. Saving it would silently
           // duplicate an old exposure under new metadata — fail loudly
           // instead so the user/sequencer knows this frame was lost.
-          throw Exception(
-            'Exposure timed out and the camera returned a stale image '
-            '(captured ${captureTimestamp.toIso8601String()}, exposure '
-            'started ${exposureStartedAt.toIso8601String()}). Frame discarded.',
+          throw ImagingException(
+            message:
+                'Exposure timed out and the camera returned a stale image '
+                '(captured ${captureTimestamp.toIso8601String()}, exposure '
+                'started ${exposureStartedAt.toIso8601String()}). Frame discarded.',
+            userMessage: 'Exposure timed out; the frame was discarded',
           );
         }
 
@@ -847,10 +868,12 @@ class ImagingService {
     }
     if (unknown.isNotEmpty) {
       final sorted = unknown.toList()..sort();
-      throw Exception(
-        'Unknown naming-pattern variable(s) ${sorted.join(', ')} in '
-        'pattern "$pattern". Supported variables: '
-        '${(_patternVariables.toList()..sort()).join(', ')}.',
+      throw ValidationException(
+        message:
+            'Unknown naming-pattern variable(s) ${sorted.join(', ')} in '
+            'pattern "$pattern". Supported variables: '
+            '${(_patternVariables.toList()..sort()).join(', ')}.',
+        userMessage: 'The naming pattern contains unknown variables',
       );
     }
 
@@ -888,7 +911,10 @@ class ImagingService {
     // capture lands directly in the base directory.
     final segments = expanded.split('/').where((s) => s.isNotEmpty).toList();
     if (segments.isEmpty) {
-      throw Exception('Naming pattern expanded to an empty path: "$pattern"');
+      throw ValidationException(
+        message: 'Naming pattern expanded to an empty path: "$pattern"',
+        userMessage: 'The naming pattern produced an empty file path',
+      );
     }
     final fileNameStem = segments.removeLast();
     final fileName = '$fileNameStem.$extension';
