@@ -40,7 +40,7 @@ Every PR runs:
 
 ## House rules
 
-These are non-negotiable per `CLAUDE.md`:
+These are non-negotiable:
 
 1. **No stubs / placeholders.** If you find yourself writing `TODO: implement` or returning a hardcoded value, stop and do the full implementation. Stubs get forgotten.
 2. **Errors are a feature.** Do not silently swallow failures with `try { ... } catch { /* ignore */ }`, `unwrap_or_default()`, or `if let Ok(_) = ...`. Either propagate the error, log it with the appropriate severity, or document why the fallback is correct.
