@@ -265,8 +265,12 @@ class _TriggerConfigurationDialogState
     final colors = NightshadeColors.of(context);
 
     // Footer needs custom alignment (Add Trigger left, Cancel/Save right), so
-    // we pass a single Row as the action slot and let NightshadeDialog's
-    // Footer rely on its existing mainAxisAlignment.end (no-op with one child).
+    // we pass a single Row as the action slot. NightshadeDialog's footer is
+    // a Wrap, which hands its children a bounded maxWidth — the Row (default
+    // MainAxisSize.max) therefore fills the footer and the Spacer pushes
+    // Cancel/Save right. Do NOT wrap this Row in Expanded: flex parent-data
+    // widgets are invalid inside a Wrap and throw "Incorrect use of
+    // ParentDataWidget" at mount.
     return NightshadeDialog(
       title: 'Exposure Triggers',
       icon: NightshadeIcons.notifications,
@@ -275,7 +279,8 @@ class _TriggerConfigurationDialogState
       scrollableBody: false,
       bodyPadding: EdgeInsets.zero,
       actions: [
-        Expanded(
+        SizedBox(
+          width: double.maxFinite,
           child: Row(
             children: [
               NightshadeButton(
