@@ -2338,6 +2338,7 @@ mod tests {
         let version = b"2.5.33\0";
         let versions = [version.as_ptr() as *const c_char, std::ptr::null()];
 
+        // SAFETY: versions is a live, NULL-terminated array of valid C strings.
         let parsed = unsafe { gphoto2_version_from_array(versions.as_ptr()) };
 
         assert_eq!(parsed.as_deref(), Some("libgphoto2 v2.5.33"));
@@ -2345,9 +2346,11 @@ mod tests {
 
     #[test]
     fn gphoto2_version_from_array_rejects_null_inputs() {
+        // SAFETY: the function's contract is to reject NULL explicitly.
         assert!(unsafe { gphoto2_version_from_array(std::ptr::null()) }.is_none());
 
         let versions = [std::ptr::null()];
+        // SAFETY: versions is a live array whose first entry is the NULL terminator.
         assert!(unsafe { gphoto2_version_from_array(versions.as_ptr()) }.is_none());
     }
 }

@@ -28,6 +28,7 @@
 use nightshade_native::traits::{
     NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
 };
+#[cfg(windows)]
 use nightshade_native::vendor::atik;
 #[cfg(windows)]
 use nightshade_native::vendor::fli;
@@ -37,6 +38,7 @@ use nightshade_native::vendor::ioptron;
 use nightshade_native::vendor::lx200;
 #[cfg(windows)]
 use nightshade_native::vendor::moravian;
+#[cfg(windows)]
 use nightshade_native::vendor::player_one;
 use nightshade_native::vendor::qhy;
 use nightshade_native::vendor::skywatcher;
@@ -44,6 +46,7 @@ use nightshade_native::vendor::svbony;
 #[cfg(windows)]
 use nightshade_native::vendor::touptek;
 use nightshade_native::vendor::zwo;
+#[cfg(windows)]
 use nightshade_native::ExposureParams;
 
 // =============================================================================

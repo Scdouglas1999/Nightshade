@@ -199,7 +199,7 @@ mod tests {
 
         let mut snap = std::collections::HashMap::new();
         node.snapshot_loop_iterations(&mut snap);
-        assert_eq!(snap.get(&"loop1".to_string()), Some(&30));
+        assert_eq!(snap.get("loop1"), Some(&30));
 
         // A freshly built tree starts at 0 and is restored to the snapshot.
         let mut fresh = RuntimeNode::from_definition(count_loop_def("loop1", 60));

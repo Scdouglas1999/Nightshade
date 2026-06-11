@@ -334,10 +334,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update -y
-          # libudev-dev: serialport's libudev-sys build script needs the udev
-          # headers + pkg-config entry on Linux (absent on ubuntu-latest).
-          # libraw-dev: the imaging crate links the system libraw (-lraw).
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libudev-dev libraw-dev
+          # Mirror linux-release-build.yml's package list:
+          #   libudev-dev    — serialport's libudev-sys build script
+          #   libraw-dev     — the imaging crate links the system libraw
+          #   libsecret-1-dev / libjsoncpp-dev — flutter_secure_storage_linux
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libudev-dev libraw-dev libsecret-1-dev libjsoncpp-dev
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable

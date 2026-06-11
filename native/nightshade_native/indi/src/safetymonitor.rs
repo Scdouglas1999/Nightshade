@@ -38,124 +38,6 @@ pub struct IndiSafetyMonitor {
     device_name: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    async fn monitor_from_fake_server(
-        payload: &'static [u8],
-        marker_property: &str,
-    ) -> (IndiSafetyMonitor, tokio::task::JoinHandle<()>) {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind fake INDI safety server");
-        let port = listener.local_addr().expect("read listener address").port();
-
-        let server = tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
-            let mut buf = [0_u8; 2048];
-            let _ = socket
-                .read(&mut buf)
-                .await
-                .expect("read initial getProperties");
-            socket
-                .write_all(payload)
-                .await
-                .expect("write fake INDI safety payload");
-            let _ = socket.read(&mut buf).await;
-        });
-
-        let mut timeout_config = crate::IndiTimeoutConfig::default();
-        timeout_config.connection_timeout_secs = 1;
-        let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
-        client.connect().await.expect("connect fake INDI client");
-
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
-        while client
-            .get_property("Safety", marker_property)
-            .await
-            .is_none()
-        {
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "fake INDI property '{}' was not parsed in time",
-                marker_property
-            );
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-
-        (
-            IndiSafetyMonitor::new(Arc::new(RwLock::new(client)), "Safety"),
-            server,
-        )
-    }
-
-    #[tokio::test]
-    async fn is_safe_errors_when_no_safety_indicators_resolve() {
-        let (monitor, server) = monitor_from_fake_server(
-            br#"
-<defTextVector device="Safety" name="UNRELATED" state="Idle" perm="ro">
-  <defText name="VALUE">present</defText>
-</defTextVector>
-"#,
-            "UNRELATED",
-        )
-        .await;
-
-        let err = monitor
-            .is_safe()
-            .await
-            .expect_err("missing INDI safety indicators must be an error");
-        assert!(
-            err.contains("No INDI safety indicators resolved"),
-            "error should identify the missing safety telemetry: {}",
-            err
-        );
-
-        drop(monitor);
-        server.await.expect("fake server should finish");
-    }
-
-    #[tokio::test]
-    async fn is_safe_uses_standard_weather_safe_light_state() {
-        let (monitor, server) = monitor_from_fake_server(
-            br#"
-<defLightVector device="Safety" name="WEATHER_STATUS" state="Idle">
-  <defLight name="WEATHER_SAFE">Ok</defLight>
-</defLightVector>
-"#,
-            "WEATHER_STATUS",
-        )
-        .await;
-
-        assert!(
-            monitor
-                .is_safe()
-                .await
-                .expect("WEATHER_SAFE should resolve"),
-            "WEATHER_SAFE=Ok should report safe"
-        );
-
-        drop(monitor);
-        server.await.expect("fake server should finish");
-    }
-
-    #[tokio::test]
-    async fn silent_driver_returns_error_not_synthetic_unsafe() {
-        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
-        let safety = IndiSafetyMonitor::new(client, "SilentSafety");
-
-        let err = safety
-            .is_safe()
-            .await
-            .expect_err("silent safety monitor must surface an error");
-
-        assert!(err.contains("No INDI safety indicators resolved"));
-        assert!(err.contains("SilentSafety"));
-    }
-}
-
 impl IndiSafetyMonitor {
     /// Create a new INDI safety monitor wrapper
     pub fn new(client: Arc<RwLock<IndiClient>>, device_name: &str) -> Self {
@@ -423,5 +305,125 @@ impl IndiSafetyMonitor {
             .map(|s| s == 3)
             // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn monitor_from_fake_server(
+        payload: &'static [u8],
+        marker_property: &str,
+    ) -> (IndiSafetyMonitor, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake INDI safety server");
+        let port = listener.local_addr().expect("read listener address").port();
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
+            let mut buf = [0_u8; 2048];
+            let _ = socket
+                .read(&mut buf)
+                .await
+                .expect("read initial getProperties");
+            socket
+                .write_all(payload)
+                .await
+                .expect("write fake INDI safety payload");
+            let _ = socket.read(&mut buf).await;
+        });
+
+        let timeout_config = crate::IndiTimeoutConfig {
+            connection_timeout_secs: 1,
+            ..Default::default()
+        };
+        let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
+        client.connect().await.expect("connect fake INDI client");
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while client
+            .get_property("Safety", marker_property)
+            .await
+            .is_none()
+        {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "fake INDI property '{}' was not parsed in time",
+                marker_property
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        (
+            IndiSafetyMonitor::new(Arc::new(RwLock::new(client)), "Safety"),
+            server,
+        )
+    }
+
+    #[tokio::test]
+    async fn is_safe_errors_when_no_safety_indicators_resolve() {
+        let (monitor, server) = monitor_from_fake_server(
+            br#"
+<defTextVector device="Safety" name="UNRELATED" state="Idle" perm="ro">
+  <defText name="VALUE">present</defText>
+</defTextVector>
+"#,
+            "UNRELATED",
+        )
+        .await;
+
+        let err = monitor
+            .is_safe()
+            .await
+            .expect_err("missing INDI safety indicators must be an error");
+        assert!(
+            err.contains("No INDI safety indicators resolved"),
+            "error should identify the missing safety telemetry: {}",
+            err
+        );
+
+        drop(monitor);
+        server.await.expect("fake server should finish");
+    }
+
+    #[tokio::test]
+    async fn is_safe_uses_standard_weather_safe_light_state() {
+        let (monitor, server) = monitor_from_fake_server(
+            br#"
+<defLightVector device="Safety" name="WEATHER_STATUS" state="Idle">
+  <defLight name="WEATHER_SAFE">Ok</defLight>
+</defLightVector>
+"#,
+            "WEATHER_STATUS",
+        )
+        .await;
+
+        assert!(
+            monitor
+                .is_safe()
+                .await
+                .expect("WEATHER_SAFE should resolve"),
+            "WEATHER_SAFE=Ok should report safe"
+        );
+
+        drop(monitor);
+        server.await.expect("fake server should finish");
+    }
+
+    #[tokio::test]
+    async fn silent_driver_returns_error_not_synthetic_unsafe() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let safety = IndiSafetyMonitor::new(client, "SilentSafety");
+
+        let err = safety
+            .is_safe()
+            .await
+            .expect_err("silent safety monitor must surface an error");
+
+        assert!(err.contains("No INDI safety indicators resolved"));
+        assert!(err.contains("SilentSafety"));
     }
 }

@@ -122,8 +122,7 @@ impl FocusPredictionEngine {
             return;
         }
 
-        self.data_points
-            .sort_by(|a, b| a.timestamp_secs.cmp(&b.timestamp_secs));
+        self.data_points.sort_by_key(|p| p.timestamp_secs);
 
         let last_index = self.data_points.len() - 1;
         let target_last_index = self.max_data_points - 1;
@@ -594,8 +593,7 @@ impl PersistedFocusModel {
         // sort first because the caller might insert out-of-order samples
         // (e.g. importing historical data).
         if self.samples.len() > self.max_samples {
-            self.samples
-                .sort_by(|a, b| a.timestamp_secs.cmp(&b.timestamp_secs));
+            self.samples.sort_by_key(|s| s.timestamp_secs);
             let drop_count = self.samples.len() - self.max_samples;
             self.samples.drain(0..drop_count);
         }

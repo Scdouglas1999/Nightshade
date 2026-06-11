@@ -498,6 +498,8 @@ fn sdk_version_from_sdk(sdk: &SvbonySdk) -> Option<String> {
     if ptr.is_null() {
         return None;
     }
+    // SAFETY: ptr was just null-checked; the SDK returns a static NUL-terminated
+    // version string that outlives this call.
     let version = unsafe { CStr::from_ptr(ptr) }
         .to_string_lossy()
         .trim()

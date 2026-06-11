@@ -925,8 +925,10 @@ mod tests {
             }
         });
 
-        let mut timeout_config = nightshade_indi::IndiTimeoutConfig::default();
-        timeout_config.connection_timeout_secs = 1;
+        let timeout_config = nightshade_indi::IndiTimeoutConfig {
+            connection_timeout_secs: 1,
+            ..Default::default()
+        };
         let mut client = nightshade_indi::IndiClient::with_timeout_config(
             "127.0.0.1",
             Some(port),

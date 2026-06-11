@@ -1927,7 +1927,7 @@ mod tests {
             "native:test_hung_camera",
             300.0,
             std::time::Duration::from_millis(20),
-            &crate::api::get_state(),
+            crate::api::get_state(),
             || {
                 let poll_count = Arc::clone(&poll_count);
                 async move {

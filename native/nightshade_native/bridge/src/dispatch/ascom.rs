@@ -8,13 +8,18 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+#[cfg(windows)]
 use crate::dispatch::device_common_metadata::{fetch_api_version, DeviceCommonMetadata};
 // NativeDevice / NativeMount required so the trait methods `connect`,
 // `disconnect`, `get_tracking` — which the ASCOM wrappers implement via the
 // trait — are resolvable here.
+#[cfg(windows)]
 use nightshade_native::traits::{NativeDevice, NativeMount};
+#[cfg(windows)]
 use std::collections::HashMap;
+#[cfg(windows)]
 use std::sync::Arc;
+#[cfg(windows)]
 use tokio::sync::RwLock;
 
 /// Probe an ASCOM typed wrapper for its four ASCOM-Common identification

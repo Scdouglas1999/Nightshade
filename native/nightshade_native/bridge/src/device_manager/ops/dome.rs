@@ -17,6 +17,7 @@
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
+#[cfg(windows)]
 use tracing::warn;
 
 impl DeviceManager {

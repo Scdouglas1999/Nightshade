@@ -10,7 +10,6 @@
 use crate::device::*;
 use crate::device_manager::{DeviceManager, ManagedDevice};
 use crate::event::*;
-use nightshade_native::traits::NativeDevice;
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::time::interval;

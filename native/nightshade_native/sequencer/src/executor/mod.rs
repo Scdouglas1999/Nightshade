@@ -4494,7 +4494,7 @@ impl SequenceExecutor {
                                         alt, ra_hours, dec_deg, lat, lon
                                     );
                                 }
-                                (Some(_), Some(_), _, _) => {
+                                (Some(_), Some(_), _, _) if !altitude_warned_no_location => {
                                     // target known but no
                                     // location — altitude protection is
                                     // effectively disabled. Previously this
@@ -4502,20 +4502,20 @@ impl SequenceExecutor {
                                     // never saw; promote to a user-visible
                                     // ExecutorEvent::Error so the run
                                     // dashboard surfaces it. Still gated by
-                                    // the one-shot sentinel so a permanently
-                                    // unconfigured location doesn't flood the
-                                    // event stream every second.
-                                    if !altitude_warned_no_location {
-                                        let msg = "AltitudeLimit trigger configured but \
-                                             observer location is not set — altitude \
-                                             protection is INACTIVE. Set location in \
-                                             Profile to enable.";
-                                        tracing::warn!("{}", msg);
-                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: msg.to_string(),
-                                        });
-                                        altitude_warned_no_location = true;
-                                    }
+                                    // the one-shot sentinel (the guard above)
+                                    // so a permanently unconfigured location
+                                    // doesn't flood the event stream every
+                                    // second; once warned, this falls to the
+                                    // silent catch-all below.
+                                    let msg = "AltitudeLimit trigger configured but \
+                                         observer location is not set — altitude \
+                                         protection is INACTIVE. Set location in \
+                                         Profile to enable.";
+                                    tracing::warn!("{}", msg);
+                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                        message: msg.to_string(),
+                                    });
+                                    altitude_warned_no_location = true;
                                 }
                                 _ => {
                                     // No target — silent. The trigger evaluator

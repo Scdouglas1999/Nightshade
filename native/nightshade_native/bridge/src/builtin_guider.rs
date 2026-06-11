@@ -2226,23 +2226,25 @@ mod tests {
 
     #[test]
     fn build_tracked_stars_flags_lock_and_serializes() {
-        let mut state = BuiltinGuiderState::default();
-        state.reference_stars = vec![
-            GuideReferenceStar {
-                x: 10.0,
-                y: 12.0,
-                flux: 5000.0,
-                snr: 18.0,
-                last_residual: Some(Vec2 { x: 0.3, y: -0.4 }),
-            },
-            GuideReferenceStar {
-                x: 60.0,
-                y: 64.0,
-                flux: 2000.0,
-                snr: 9.0,
-                last_residual: None,
-            },
-        ];
+        let mut state = BuiltinGuiderState {
+            reference_stars: vec![
+                GuideReferenceStar {
+                    x: 10.0,
+                    y: 12.0,
+                    flux: 5000.0,
+                    snr: 18.0,
+                    last_residual: Some(Vec2 { x: 0.3, y: -0.4 }),
+                },
+                GuideReferenceStar {
+                    x: 60.0,
+                    y: 64.0,
+                    flux: 2000.0,
+                    snr: 9.0,
+                    last_residual: None,
+                },
+            ],
+            ..Default::default()
+        };
         // Lock sits on top of the second reference star.
         state.manual_lock = Some(Vec2 { x: 60.0, y: 64.0 });
 

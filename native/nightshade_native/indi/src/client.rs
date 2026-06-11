@@ -3094,8 +3094,10 @@ mod tests {
             }
         });
 
-        let mut timeout_config = IndiTimeoutConfig::default();
-        timeout_config.connection_timeout_secs = 1;
+        let timeout_config = IndiTimeoutConfig {
+            connection_timeout_secs: 1,
+            ..Default::default()
+        };
         let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
         client.connect().await.expect("connect fake INDI client");
 

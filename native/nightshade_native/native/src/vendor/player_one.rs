@@ -1722,6 +1722,7 @@ impl NativeDevice for PlayerOneFilterWheel {
         let mut props: PWProperties = unsafe { std::mem::zeroed() };
         // SAFETY: player_one_mutex held; handle has just been opened.
         check_poa_pw_error(
+            // SAFETY: player_one_mutex held; handle just opened, props valid.
             unsafe { (sdk.get_pw_properties_by_handle)(self.handle, &mut props) },
             "get filter wheel properties",
         )?;
@@ -1786,6 +1787,7 @@ impl NativeFilterWheel for PlayerOneFilterWheel {
         let mut position = 0;
         // SAFETY: player_one_mutex held; handle is open and position is a valid out-pointer.
         check_poa_pw_error(
+            // SAFETY: player_one_mutex held; handle open, out-pointer valid.
             unsafe { (sdk.get_current_position)(self.handle, &mut position) },
             "get current filter position",
         )?;
@@ -1802,6 +1804,7 @@ impl NativeFilterWheel for PlayerOneFilterWheel {
         let mut state = PWState::Closed;
         // SAFETY: player_one_mutex held; handle is open and state is a valid out-pointer.
         check_poa_pw_error(
+            // SAFETY: player_one_mutex held; handle open, out-pointer valid.
             unsafe { (sdk.get_pw_state)(self.handle, &mut state) },
             "get filter wheel state",
         )?;

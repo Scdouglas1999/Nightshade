@@ -9,7 +9,6 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use crate::error::NightshadeError;
 use crate::timeout_ops::{focuser_move_with_timeout, with_timeout_str, Timeouts};
-use nightshade_native::traits::NativeFocuser;
 use tracing::warn;
 
 impl DeviceManager {

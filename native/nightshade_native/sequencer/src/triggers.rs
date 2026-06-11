@@ -2658,7 +2658,7 @@ mod tests {
         // Force the push timestamp into the past so the verdict is now stale.
         // We do NOT touch `weather_verdict_unsafe` — staleness must not clear it.
         state.weather_verdict_last_update =
-            Some(Instant::now() - std::time::Duration::from_secs(120));
+            Some(stale_instant(std::time::Duration::from_secs(120)));
 
         // Stale-AND-unsafe: predicate true with a 60s window.
         assert!(
@@ -2683,6 +2683,25 @@ mod tests {
         );
     }
 
+    /// An [`Instant`] `age` in the past, clamped to the oldest instant this
+    /// platform can represent. On Windows `Instant` is measured from boot, so
+    /// `Instant::now() - 10_000s` panics with "overflow when subtracting
+    /// duration from instant" on a freshly-booted CI runner; saturating keeps
+    /// the fixture "very stale" without assuming machine uptime.
+    fn stale_instant(age: std::time::Duration) -> Instant {
+        let now = Instant::now();
+        now.checked_sub(age).unwrap_or_else(|| {
+            // Oldest representable instant: walk back as far as we can.
+            let mut probe = std::time::Duration::from_secs(1);
+            let mut oldest = now;
+            while let Some(earlier) = now.checked_sub(probe) {
+                oldest = earlier;
+                probe *= 2;
+            }
+            oldest
+        })
+    }
+
     /// Subsystem 2 step 3: the staleness predicate is scoped to `Some(true)`
     /// only. A stale SAFE / abstaining verdict is harmless (nothing is held), and
     /// a never-pushed verdict has no feed to be stale — both must read NOT stale.
@@ -2699,7 +2718,7 @@ mod tests {
         // Stale SAFE verdict -> not stale-unsafe (nothing is being held).
         state.update_weather_verdict(Some(false));
         state.weather_verdict_last_update =
-            Some(Instant::now() - std::time::Duration::from_secs(10_000));
+            Some(stale_instant(std::time::Duration::from_secs(10_000)));
         assert!(
             !state.is_weather_verdict_stale_unsafe(60),
             "a stale SAFE verdict must not read as stale-unsafe"
@@ -2708,7 +2727,7 @@ mod tests {
         // Stale abstain -> not stale-unsafe.
         state.update_weather_verdict(None);
         state.weather_verdict_last_update =
-            Some(Instant::now() - std::time::Duration::from_secs(10_000));
+            Some(stale_instant(std::time::Duration::from_secs(10_000)));
         assert!(
             !state.is_weather_verdict_stale_unsafe(60),
             "a stale abstain must not read as stale-unsafe"

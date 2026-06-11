@@ -116,26 +116,6 @@ pub(crate) fn infer_indi_device_type_from_name_driver(
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn infer_indi_name_driver_prefers_mount_over_embedded_camera_word() {
-        let inferred =
-            infer_indi_device_type_from_name_driver("Avalon Mount Camera Mount", "Avalon");
-
-        assert_eq!(inferred, Some(DeviceType::Mount));
-    }
-
-    #[test]
-    fn infer_indi_name_driver_still_detects_camera_without_mount_terms() {
-        let inferred = infer_indi_device_type_from_name_driver("ASI294MM Camera", "ZWO CCD");
-
-        assert_eq!(inferred, Some(DeviceType::Camera));
-    }
-}
-
 impl DeviceManager {
     pub(crate) fn parse_indi_device_id(device_id: &str) -> Result<(String, u16, String), String> {
         let parsed = crate::device_id::parse_device_id_cached(device_id)
@@ -603,5 +583,25 @@ impl DeviceManager {
             .into_iter()
             .nth(idx)
             .ok_or_else(|| format!("Switch index {} out of range", index))?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infer_indi_name_driver_prefers_mount_over_embedded_camera_word() {
+        let inferred =
+            infer_indi_device_type_from_name_driver("Avalon Mount Camera Mount", "Avalon");
+
+        assert_eq!(inferred, Some(DeviceType::Mount));
+    }
+
+    #[test]
+    fn infer_indi_name_driver_still_detects_camera_without_mount_terms() {
+        let inferred = infer_indi_device_type_from_name_driver("ASI294MM Camera", "ZWO CCD");
+
+        assert_eq!(inferred, Some(DeviceType::Camera));
     }
 }

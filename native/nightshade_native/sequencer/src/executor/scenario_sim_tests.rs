@@ -662,9 +662,24 @@ async fn scenario3_stale_unsafe_verdict_stays_paused_and_warns_never_resumes() {
     let (manager, state) = manager_with_state().await;
     state.write().await.update_weather_verdict(Some(true));
 
-    // Force the verdict push time into the past so it is STALE (a dead Dart feed).
-    state.write().await.weather_verdict_last_update =
-        Some(std::time::Instant::now() - std::time::Duration::from_secs(600));
+    // Force the verdict push time into the past so it is STALE (a dead Dart
+    // feed). Windows Instants are boot-relative and a fresh CI VM may not be
+    // 600s old yet ("overflow when subtracting duration from instant"), so
+    // saturate to the oldest representable instant — runner uptime is always
+    // well past the 60s staleness window asserted below.
+    state.write().await.weather_verdict_last_update = Some({
+        let now = std::time::Instant::now();
+        now.checked_sub(std::time::Duration::from_secs(600))
+            .unwrap_or_else(|| {
+                let mut probe = std::time::Duration::from_secs(1);
+                let mut oldest = now;
+                while let Some(earlier) = now.checked_sub(probe) {
+                    oldest = earlier;
+                    probe *= 2;
+                }
+                oldest
+            })
+    });
 
     // Observability: the stale-unsafe predicate must read TRUE and must NOT clear
     // the unsafe verdict.

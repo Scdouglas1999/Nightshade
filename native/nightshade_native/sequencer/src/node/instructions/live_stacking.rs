@@ -120,6 +120,13 @@ impl InstructionNode for LiveStackingInstruction {
 }
 
 #[cfg(test)]
+// The broadcast service is process-global state; `broadcast::test_lock()`
+// returns a std MutexGuard that each test deliberately holds across its
+// awaits to serialise the whole test body against other broadcast tests.
+// That is exactly what await_holding_lock warns about in production code,
+// but here the hold IS the synchronisation strategy (single-threaded test
+// runtime, no lock-ordering hazard).
+#[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
     use crate::{LiveStackingConfig, LiveStackingMode, StackMethod};

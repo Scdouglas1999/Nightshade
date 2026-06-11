@@ -519,6 +519,8 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
 
     // SAFETY: atik_mutex held above ensuring single-threaded SDK access; ArtemisDeviceCount
     // takes no arguments and returns a c_int — no pointers involved.
+    // SAFETY: atik_mutex held; ArtemisDeviceCount takes no arguments and is
+    // safe to call whenever the SDK library is loaded.
     let count = unsafe { (sdk.device_count)() };
     let sdk_version = sdk_version_from_sdk(sdk);
     let mut devices = Vec::new();
@@ -601,6 +603,8 @@ pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo
     // The Atik SDK exposes standalone EFW devices by index through
     // ArtemisEFWIsPresent/ArtemisEFWGetDeviceDetails; there is no separate
     // EFW count call, so use ArtemisDeviceCount as the bounded index space.
+    // SAFETY: atik_mutex held; ArtemisDeviceCount takes no arguments and is
+    // safe to call whenever the SDK library is loaded.
     let count = unsafe { (sdk.device_count)() };
     let mut devices = Vec::new();
 
@@ -1755,6 +1759,7 @@ impl NativeDevice for AtikFilterWheel {
         let mut filter_count: c_int = 0;
         // SAFETY: atik_mutex held; handle is connected and `filter_count` is a valid out-pointer.
         check_artemis_error(
+            // SAFETY: atik_mutex held; handle is connected, out-pointer valid.
             unsafe { efw_nmr_position(handle, &mut filter_count) },
             "get EFW filter count",
         )?;
@@ -1837,6 +1842,7 @@ impl NativeFilterWheel for AtikFilterWheel {
         let mut is_moving = false;
         // SAFETY: atik_mutex held; handle is connected and both out-pointers are valid.
         check_artemis_error(
+            // SAFETY: atik_mutex held; handle is connected, out-pointers valid.
             unsafe { efw_get_position(handle, &mut position, &mut is_moving) },
             "get EFW position",
         )?;
@@ -1857,6 +1863,7 @@ impl NativeFilterWheel for AtikFilterWheel {
         let mut is_moving = false;
         // SAFETY: atik_mutex held; handle is connected and both out-pointers are valid.
         check_artemis_error(
+            // SAFETY: atik_mutex held; handle is connected, out-pointers valid.
             unsafe { efw_get_position(handle, &mut position, &mut is_moving) },
             "get EFW moving state",
         )?;

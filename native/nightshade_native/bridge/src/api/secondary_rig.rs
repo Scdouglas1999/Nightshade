@@ -184,7 +184,9 @@ pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<()
 
     // Stop any previously-armed secondary first (one mount, one barrier).
     if let Some(prev) = manager().lock().rig.take() {
-        let _ = prev.stop();
+        // stop() signals the loop synchronously; the returned JoinHandle is
+        // deliberately dropped — we do not wait for the old loop to drain.
+        drop(prev.stop());
     }
 
     // Install the barrier into the sequencer's process-wide slot BEFORE

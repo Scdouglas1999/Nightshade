@@ -224,11 +224,9 @@ pub struct PollerMetrics {
 impl PollerMetrics {
     /// Get the average polling interval
     pub fn average_interval(&self) -> Duration {
-        if self.total_ticks == 0 {
-            Duration::ZERO
-        } else {
-            Duration::from_millis(self.total_interval_ms / self.total_ticks)
-        }
+        self.total_interval_ms
+            .checked_div(self.total_ticks)
+            .map_or(Duration::ZERO, Duration::from_millis)
     }
 
     /// Get the backoff ratio (how often we backed off vs total ticks)

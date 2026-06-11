@@ -48,6 +48,7 @@ fn fli_c_long_to_i32(value: c_long, what: &str) -> Result<i32, NativeError> {
     // need a real range check. Round-trip through i64 to handle both shapes via
     // a single i64::try_from / i32::try_from pair without triggering useless
     // -conversion lints on either platform.
+    #[allow(clippy::unnecessary_cast)] // identity on Linux, real widening on Windows
     let widened: i64 = value as i64;
     i32::try_from(widened)
         .map_err(|_| NativeError::SdkError(format!("FLI {} out of i32 range: {}", what, value)))
@@ -1318,25 +1319,6 @@ impl NativeCamera for FliCamera {
     }
 }
 
-#[cfg(test)]
-mod camera_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn fli_gain_and_offset_writes_report_not_supported() {
-        let mut camera = FliCamera::new("test".to_string());
-
-        assert!(matches!(
-            camera.set_gain(10).await,
-            Err(NativeError::NotSupported)
-        ));
-        assert!(matches!(
-            camera.set_offset(20).await,
-            Err(NativeError::NotSupported)
-        ));
-    }
-}
-
 // =============================================================================
 // FLI Focuser Implementation
 // =============================================================================
@@ -1832,5 +1814,24 @@ impl NativeFilterWheel for FliFilterWheel {
     async fn set_filter_name(&mut self, _position: i32, _name: String) -> Result<(), NativeError> {
         // FLI SDK doesn't support storing filter names
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod camera_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn fli_gain_and_offset_writes_report_not_supported() {
+        let mut camera = FliCamera::new("test".to_string());
+
+        assert!(matches!(
+            camera.set_gain(10).await,
+            Err(NativeError::NotSupported)
+        ));
+        assert!(matches!(
+            camera.set_offset(20).await,
+            Err(NativeError::NotSupported)
+        ));
     }
 }

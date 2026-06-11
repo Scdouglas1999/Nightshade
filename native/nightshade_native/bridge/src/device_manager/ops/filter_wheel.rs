@@ -19,7 +19,6 @@ use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use nightshade_indi::IndiFilterWheel;
-use nightshade_native::traits::NativeFilterWheel;
 
 impl DeviceManager {
     // =========================================================================

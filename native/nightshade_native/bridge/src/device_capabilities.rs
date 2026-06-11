@@ -55,6 +55,7 @@ use tokio::sync::{Mutex, RwLock};
 use crate::device::{CalibratorState, CoverState, TrackingRate};
 
 // Import NativeDevice trait for connect/disconnect methods
+#[cfg(windows)]
 use nightshade_native::traits::NativeDevice;
 
 // =========================================================================

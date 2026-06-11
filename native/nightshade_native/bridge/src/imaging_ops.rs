@@ -1105,7 +1105,7 @@ mod auto_stretch_color_tests {
     fn constant_channel_is_identity() {
         let pixel_count = 16usize;
         let flat = 0x8000u16;
-        let data: Vec<u16> = std::iter::repeat(flat).take(pixel_count * 3).collect();
+        let data: Vec<u16> = std::iter::repeat_n(flat, pixel_count * 3).collect();
         let rgba = auto_stretch_color_image(4, 4, data);
         for px in rgba.chunks_exact(4) {
             assert_eq!(px[0], 127, "constant R → identity midtone");

@@ -43,23 +43,18 @@ use tokio::sync::Notify;
 
 /// Policy for what to do with an in-flight secondary exposure when the primary
 /// announces a pending dither.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InFlightDitherPolicy {
     /// Let the in-flight exposure FINISH if it will complete within the
     /// barrier's max-wait window; otherwise abort it. This is the default —
     /// short subs complete (no wasted frame), long subs get aborted so the
     /// primary is never stalled.
+    #[default]
     CompleteIfShort,
     /// Always abort the in-flight secondary exposure immediately when a dither
     /// is announced. Maximizes primary throughput at the cost of discarding the
     /// partial secondary frame.
     AbortImmediately,
-}
-
-impl Default for InFlightDitherPolicy {
-    fn default() -> Self {
-        Self::CompleteIfShort
-    }
 }
 
 impl InFlightDitherPolicy {

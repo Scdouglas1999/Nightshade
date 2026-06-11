@@ -638,8 +638,10 @@ mod tests {
             twilight: None,
             horizon: None,
         };
-        let mut gated = ScoringWeights::default();
-        gated.min_moon_separation_deg = Some(30.0);
+        let gated = ScoringWeights {
+            min_moon_separation_deg: Some(30.0),
+            ..Default::default()
+        };
 
         // Target ON the moon, bright moon up → gated out.
         let near = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 80.0), &gated);

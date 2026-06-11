@@ -24,6 +24,7 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use crate::error::NightshadeError;
 use crate::timeout_ops::{mount_slew_with_timeout, with_timeout_str, Timeouts};
+#[cfg(windows)]
 use nightshade_native::traits::NativeMount;
 use std::collections::HashMap;
 use tracing::warn;

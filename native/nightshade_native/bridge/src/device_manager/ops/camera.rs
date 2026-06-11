@@ -54,6 +54,7 @@ use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use nightshade_native::camera::{ExposureParams, ImageData};
+#[cfg(windows)]
 use nightshade_native::traits::NativeCamera;
 use std::sync::Arc;
 use tracing::warn;
@@ -660,9 +661,9 @@ impl DeviceManager {
                                             element,
                                             data,
                                             ..
-                                        } => {
-                                            if device == device_name
-                                                && (element == "CCD1" || element == "CCD2")
+                                        } if device == device_name
+                                            && (element == "CCD1" || element == "CCD2") =>
+                                        {
                                             {
                                                 // Parse FITS data
                                                 // Attempt to extract raw image data.

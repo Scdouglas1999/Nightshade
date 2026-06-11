@@ -135,6 +135,7 @@ fn parse_alpaca_device_id(device_id: &str) -> Result<AlpacaConnectionInfo, Strin
 /// # Returns
 /// * `Ok(String)` - The ASCOM ProgID
 /// * `Err(String)` - Descriptive error message for invalid IDs
+#[cfg(windows)]
 fn parse_ascom_device_id(device_id: &str) -> Result<String, String> {
     // Use cached ParsedDeviceId for better performance
     let parsed = parse_device_id_cached(device_id)
