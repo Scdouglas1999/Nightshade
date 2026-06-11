@@ -575,7 +575,14 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       );
     }
 
-    unawaited(() async {
+    // Capture the logger NOW (it is a provider read): the persistence
+    // future below outlives the event handler, and reading providers
+    // through _ref after the container is disposed throws out of an
+    // unhandled async error. Post-await provider reads inside the closure
+    // are additionally guarded on _disposed (a captured logger stays
+    // usable, but a DAO read is not).
+    final logger = _logger;
+    final registration = () async {
       try {
         await dao.insertSequenceFrame(
           filePath: filePath,
@@ -598,7 +605,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           hfr: hfr,
           starCount: starCount,
           eccentricity: eccentricity,
-          logger: _logger,
+          logger: logger,
           sidecarService: sidecarService,
         );
         // Phase B (v43) — ADDITIVE durable-campaign bookkeeping. When an
@@ -613,6 +620,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             attribution.targetId != null &&
             filter != null &&
             filter.isNotEmpty) {
+          if (_disposed) return;
           try {
             await _ref
                 .read(campaignsDaoProvider)
@@ -622,7 +630,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
                   capturedAt: DateTime.now(),
                 );
           } catch (e) {
-            _logger.warning(
+            logger.warning(
               'Phase B: failed to credit campaign for target '
               '${attribution.targetId} filter $filter: $e',
               source: 'SequenceExecutor',
@@ -630,13 +638,19 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           }
         }
       } catch (e) {
-        _logger.warning(
+        logger.warning(
           'Wave 6 Thumbnails: failed to register sequence frame for '
           'node $nodeId ($grade): $e',
           source: 'SequenceExecutor',
         );
       }
-    }());
+    }();
+    _inFlightFrameRegistrations.add(registration);
+    unawaited(
+      registration.whenComplete(
+        () => _inFlightFrameRegistrations.remove(registration),
+      ),
+    );
   }
 
   void _recordRunFrame({

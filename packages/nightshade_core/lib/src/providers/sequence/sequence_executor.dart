@@ -133,6 +133,20 @@ class SequenceExecutor {
   /// future. `null` when no feed is in flight.
   Future<void>? _liveStackingFeedChain;
 
+  /// In-flight fire-and-forget frame-persistence futures from
+  /// [_registerSequenceFrame]. Tracked so (a) tests can await quiescence
+  /// instead of sleeping a wall-clock margin and (b) the disposed guard
+  /// below has a defined set of stragglers it is protecting against.
+  final Set<Future<void>> _inFlightFrameRegistrations = <Future<void>>{};
+
+  /// True once [dispose] has run. Late completions of fire-and-forget
+  /// work (frame persistence, campaign credit) must not read providers
+  /// through [_ref] afterwards — the container may be gone, and the read
+  /// throws "Tried to read a provider from a ProviderContainer that was
+  /// already disposed" out of an unhandled async error.
+  // NOT final: set to true in [dispose].
+  bool _disposed = false;
+
   /// Wave 5 Agent 2 — periodic poller that reads the latest sky brightness
   /// from `skyBrightnessTrackerProvider` and pushes it to the executor.
   /// The cadence is intentionally generous (10s) because sky brightness
@@ -248,6 +262,35 @@ class SequenceExecutor {
   @visibleForTesting
   void handleSequencerEventForTest(NightshadeEvent event) =>
       _handleSequencerEvent(event);
+
+  /// Completes when every live-stacking feed AND fire-and-forget frame
+  /// persistence queued SO FAR has finished (the feed chain serialises
+  /// feeds, so awaiting the current tail covers all frames pumped before
+  /// this call). Tests await this instead of sleeping a wall-clock
+  /// margin — fixed delays were flaky on slow CI runners, where a
+  /// still-running feed outlived the test body and failed it "after
+  /// completion".
+  @visibleForTesting
+  Future<void> get liveStackingFeedSettledForTest async {
+    // Re-read in a loop: a feed step can append to the chain while we
+    // await (e.g. the reference start queued an add), and frame
+    // persistence runs on its own futures outside the chain.
+    while (true) {
+      final tail = _liveStackingFeedChain;
+      final registrations = List.of(_inFlightFrameRegistrations);
+      if (tail == null && registrations.isEmpty) return;
+      try {
+        await Future.wait<void>([if (tail != null) tail, ...registrations]);
+      } catch (_) {
+        // Feed errors are logged and surfaced by the feed itself; this
+        // waiter only cares about quiescence.
+      }
+      if (identical(tail, _liveStackingFeedChain) &&
+          _inFlightFrameRegistrations.isEmpty) {
+        return;
+      }
+    }
+  }
 
   /// Wave 7.5 — test entry point for the session-handoff carry-over
   /// seed. Lets tests exercise the `Resume` / `Restart` / `ContinueNew`
@@ -836,6 +879,7 @@ class SequenceExecutor {
 
   /// Start periodic checkpoint saves (every 30 seconds while running).
   void dispose() {
+    _disposed = true;
     _progressTimer?.cancel();
     _progressTimer = null;
     _checkpointTimer?.cancel();

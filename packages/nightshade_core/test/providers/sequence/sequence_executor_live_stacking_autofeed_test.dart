@@ -225,9 +225,15 @@ void main() {
   });
 
   // Drain the serialised feed chain + microtasks the auto-feed schedules.
-  Future<void> settle() async {
-    for (var i = 0; i < 30; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+  // Awaits the executor's real feed-chain tail instead of sleeping a
+  // wall-clock margin: the old fixed 150 ms loop raced slow CI runners,
+  // where a still-running feed outlived the test body and failed it
+  // "after completion". The trailing zero-delay turns flush work the
+  // teardown path schedules off the chain (broadcast deactivate).
+  Future<void> settle(SequenceExecutor executor) async {
+    await executor.liveStackingFeedSettledForTest;
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(Duration.zero);
     }
   }
 
@@ -246,7 +252,7 @@ void main() {
       executor.handleSequencerEventForTest(
         _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
       );
-      await settle();
+      await settle(executor);
 
       // The first accepted frame must have started the stacker FROM THAT FILE
       // (auto reference) — not been added on top of a hand-picked reference.
@@ -291,14 +297,14 @@ void main() {
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0001.fits', frame: 1),
     );
-    await settle();
+    await settle(executor);
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0002.fits', frame: 2),
     );
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0003.fits', frame: 3),
     );
-    await settle();
+    await settle(executor);
 
     expect(
       fakeStacker.startedFrom,
@@ -332,7 +338,7 @@ void main() {
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
     );
-    await settle();
+    await settle(executor);
 
     expect(fakeStacker.startedFrom, isEmpty);
     expect(fakeStacker.addedFrames, isEmpty);
@@ -355,7 +361,7 @@ void main() {
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
     );
-    await settle();
+    await settle(executor);
 
     expect(fakeStacker.startedFrom, isEmpty);
     expect(
@@ -375,7 +381,7 @@ void main() {
     final executor = container.read(sequenceExecutorProvider);
 
     executor.handleSequencerEventForTest(_frameAccepted(savePath: ''));
-    await settle();
+    await settle(executor);
 
     // The frame is NOT silently added — there is nothing to feed, and the
     // executor logged an error (verified by the absence of any stacker call;
@@ -402,7 +408,7 @@ void main() {
       executor.handleSequencerEventForTest(
         _frameAccepted(savePath: '/captures/m42/L_000$i.fits', frame: i),
       );
-      await settle();
+      await settle(executor);
     }
 
     // Frame 1 = reference (start). Frame 2 = add (stack now has 2 == cap).
@@ -430,7 +436,7 @@ void main() {
     executor.handleSequencerEventForTest(
       _frameAccepted(savePath: '/captures/m42/L_0001.fits'),
     );
-    await settle();
+    await settle(executor);
     expect(
       container.read(liveStackingBroadcastServiceProvider).state.active,
       isTrue,
@@ -447,7 +453,7 @@ void main() {
         data: const {},
       ),
     );
-    await settle();
+    await settle(executor);
 
     expect(
       container.read(liveStackingBroadcastServiceProvider).state.active,
