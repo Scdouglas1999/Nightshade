@@ -503,6 +503,14 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           as _i5.Future<void>);
 
   @override
+  bool isUserInitiatedDisconnect(String? deviceId) =>
+      (super.noSuchMethod(
+            Invocation.method(#isUserInitiatedDisconnect, [deviceId]),
+            returnValue: false,
+          )
+          as bool);
+
+  @override
   _i5.Future<void> connectDome(String? deviceId) =>
       (super.noSuchMethod(
             Invocation.method(#connectDome, [deviceId]),
