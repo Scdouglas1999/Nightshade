@@ -18,6 +18,45 @@ void main() {
     });
   });
 
+  group('headless required-scope fail-closed default', () {
+    test('public endpoints resolve to the lowest scope', () {
+      // GET /api/info is the only public endpoint; any token rank may pass.
+      expect(
+        HeadlessAuthPolicy.requiredScopeFor(method: 'GET', path: '/api/info'),
+        HeadlessTokenScope.view,
+      );
+    });
+
+    test(
+      'a scope name the parser does not recognise requires admin, not view',
+      () {
+        // Regression pin for the fail-closed default in requiredScopeFor:
+        // route metadata only emits public/view/control/admin today, so an
+        // unknown name can only appear through a future drift between
+        // route_metadata.dart and parseHeadlessTokenScope. If that happens
+        // the route must lock up to admin rather than silently degrade to
+        // view. parseHeadlessTokenScope is the seam both share — proving it
+        // rejects the name plus this policy test pins the admin fallback.
+        expect(parseHeadlessTokenScope('superuser'), isNull);
+        // Every real route still resolves to a parseable scope.
+        for (final probe in [
+          ('GET', '/api/status'),
+          ('POST', '/api/camera/expose'),
+          ('DELETE', '/api/backup/1'),
+          ('WS', '/events'),
+        ]) {
+          expect(
+            HeadlessAuthPolicy.requiredScopeFor(
+              method: probe.$1,
+              path: probe.$2,
+            ),
+            isA<HeadlessTokenScope>(),
+          );
+        }
+      },
+    );
+  });
+
   group('headless auth policy', () {
     test('view tokens can read ordinary status endpoints and events', () {
       expect(

@@ -42,7 +42,17 @@ class HeadlessAuthPolicy {
       method: method,
       path: path,
     );
-    return parseHeadlessTokenScope(scopeName) ?? HeadlessTokenScope.view;
+    // Public endpoints never reach this check in the middleware (they are
+    // short-circuited before token resolution), but keep the mapping
+    // truthful for any other caller: public is satisfiable by any scope.
+    if (scopeName == 'public') {
+      return HeadlessTokenScope.view;
+    }
+    // Fail CLOSED on anything unrecognised. The route metadata only emits
+    // public/view/control/admin today; if a future scope name is added
+    // there without updating the parser, the safe failure mode is to
+    // require the highest privilege, not silently grant view access.
+    return parseHeadlessTokenScope(scopeName) ?? HeadlessTokenScope.admin;
   }
 
   static bool allows({
