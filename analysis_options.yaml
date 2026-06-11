@@ -19,6 +19,31 @@ analyzer:
     - "**/frb_generated*.dart"
     - "**/build/**"
     - "**/.dart_tool/**"
+    # ------------------------------------------------------------------
+    # Non-product trees excluded from the repo-root `dart analyze`.
+    # These are NOT melos workspace members and have no product Dart we
+    # analyze from the root; before this exclude they produced ~12.8k
+    # spurious errors. Per-package `dart analyze .` is unaffected (each
+    # package includes this file but analyzes only its own lib/test).
+    #
+    # NOTE: deliberately NOT using "**/target/**" — that glob would also
+    # silence the real source dir packages/nightshade_core/lib/src/models/
+    # target/. The native build artifacts live under native/**/target/ and
+    # are covered by the scoped "native/**" entry below.
+    # ------------------------------------------------------------------
+    # Rust build tree + generated flutter_rust_bridge Dart dumps under
+    # native/nightshade_native/**/target/frb_dump (9,237 errors). No
+    # hand-written Dart lives under native/ outside target/.
+    - "native/**"
+    # Vendored lucide_icons package — analyzed without its own pubspec
+    # context from the root, so every symbol resolves as undefined
+    # (3,574 errors). It carries its own analysis when consumed as a dep.
+    - "third_party/**"
+    # Standalone shelf-based update server script. It has its own
+    # pubspec.yaml (resolved via `dart pub get`) and analyzes clean on
+    # its own, but the repo-root context can't resolve its package: imports
+    # (30 errors), so it is excluded from the root run.
+    - "tools/update_server/**"
   errors:
     # ------------------------------------------------------------------
     # Demoted analyzer diagnostics (NOT linter rules — these are
