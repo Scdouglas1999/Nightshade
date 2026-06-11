@@ -212,7 +212,12 @@ pub fn combine_channels(
             }
         });
 
-    Ok(ImageData::from_f32(width, height, OUT_CHANNELS as u32, &out))
+    Ok(ImageData::from_f32(
+        width,
+        height,
+        OUT_CHANNELS as u32,
+        &out,
+    ))
 }
 
 /// Decode a single-channel master into a flat `f64` plane of exactly

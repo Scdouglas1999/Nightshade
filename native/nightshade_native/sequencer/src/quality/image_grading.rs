@@ -89,7 +89,6 @@ impl ImageQualityCheck {
             || self.eccentricity_threshold.is_some()
             || self.star_count_min.is_some()
     }
-
 }
 
 /// Outcome of grading a single frame.

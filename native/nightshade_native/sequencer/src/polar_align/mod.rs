@@ -426,8 +426,11 @@ where
             // the mechanical axis as the mount is adjusted (P1-3).
             let current_solved = (solve_result.ra_degrees, solve_result.dec_degrees);
             let star_initial = *initial_solved.get_or_insert(current_solved);
-            let (live_axis_ra, live_axis_dec) =
-                math::rotate_axis_by_star_motion((center_ra, center_dec), star_initial, current_solved);
+            let (live_axis_ra, live_axis_dec) = math::rotate_axis_by_star_motion(
+                (center_ra, center_dec),
+                star_initial,
+                current_solved,
+            );
 
             let (az_error_am, alt_error_am, total_error_am) =
                 math::calculate_alignment_error_arcmin(

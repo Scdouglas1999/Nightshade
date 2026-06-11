@@ -1076,12 +1076,7 @@ const F32_FULL_SCALE: f64 = 1.0;
 ///   therefore the same `0.9 · 65535` the ADU path uses. (Rescaling from the data
 ///   *peak* instead would pin the brightest star to full range and the guard would
 ///   wrongly reject every bright star — the bug an earlier draft of this fix had.)
-fn as_u16_image(
-    image: &ImageData,
-    plane: &[f64],
-    width: usize,
-    height: usize,
-) -> (ImageData, f64) {
+fn as_u16_image(image: &ImageData, plane: &[f64], width: usize, height: usize) -> (ImageData, f64) {
     const U16_SAT: f64 = 65535.0 * SATURATION_FRACTION;
 
     if image.pixel_type == crate::PixelType::U16 && image.channels == 1 {
@@ -1101,7 +1096,10 @@ fn as_u16_image(
             .iter()
             .map(|&v| v.round().clamp(0.0, 65535.0) as u16)
             .collect();
-        return (ImageData::from_u16(width as u32, height as u32, 1, &data), U16_SAT);
+        return (
+            ImageData::from_u16(width as u32, height as u32, 1, &data),
+            U16_SAT,
+        );
     }
 
     // Normalized-float plane: rescale from the known [0, 1] full-scale into the
@@ -1112,7 +1110,10 @@ fn as_u16_image(
         .iter()
         .map(|&v| (v * scale).round().clamp(0.0, 65535.0) as u16)
         .collect();
-    (ImageData::from_u16(width as u32, height as u32, 1, &data), U16_SAT)
+    (
+        ImageData::from_u16(width as u32, height as u32, 1, &data),
+        U16_SAT,
+    )
 }
 
 // ============================================================================
@@ -1442,7 +1443,11 @@ mod tests {
         assert!(max_v <= 1.0, "frame must be normalized, peak {max_v}");
 
         for kind in [PsfKind::Gaussian, PsfKind::Moffat, PsfKind::Empirical] {
-            let cfg = PsfEstimateConfig { max_stars: 60, crop: 21, kind };
+            let cfg = PsfEstimateConfig {
+                max_stars: 60,
+                crop: 21,
+                kind,
+            };
             let psf = estimate_psf(&field, &cfg).unwrap_or_else(|e| {
                 panic!("estimate_psf({kind:?}) must succeed on a normalized F32 field, got {e:?}")
             });

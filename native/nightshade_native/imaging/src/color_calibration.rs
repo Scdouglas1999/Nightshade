@@ -134,9 +134,7 @@ pub struct ColorCalibration {
 pub enum ColorCalError {
     /// Fewer than [`MIN_MATCHED_STARS`] matched stars were supplied — the
     /// per-channel fit would be too weakly constrained to trust.
-    #[error(
-        "too few matched stars for color calibration: need at least {MIN_MATCHED_STARS}"
-    )]
+    #[error("too few matched stars for color calibration: need at least {MIN_MATCHED_STARS}")]
     TooFewStars,
     /// A star's `channel_flux` length did not equal the requested channel
     /// count, or `channels` was zero. The flux vector must describe exactly the
@@ -488,43 +486,37 @@ pub fn apply_color_calibration(image: &mut ImageData, cal: &ColorCalibration) {
             let stride = channels * bytes_per_pixel;
             // Each chunk is one interleaved pixel (all channels). Scale channel
             // by channel, round, and clamp into the u16 range.
-            image
-                .data
-                .par_chunks_exact_mut(stride)
-                .for_each(|pixel| {
-                    for (c, scale) in cal.channel_scale.iter().enumerate() {
-                        let off = c * bytes_per_pixel;
-                        let v = u16::from_le_bytes([pixel[off], pixel[off + 1]]) as f64;
-                        let scaled = (v * scale).round().clamp(0.0, 65535.0) as u16;
-                        let b = scaled.to_le_bytes();
-                        pixel[off] = b[0];
-                        pixel[off + 1] = b[1];
-                    }
-                });
+            image.data.par_chunks_exact_mut(stride).for_each(|pixel| {
+                for (c, scale) in cal.channel_scale.iter().enumerate() {
+                    let off = c * bytes_per_pixel;
+                    let v = u16::from_le_bytes([pixel[off], pixel[off + 1]]) as f64;
+                    let scaled = (v * scale).round().clamp(0.0, 65535.0) as u16;
+                    let b = scaled.to_le_bytes();
+                    pixel[off] = b[0];
+                    pixel[off + 1] = b[1];
+                }
+            });
         }
         PixelType::F32 => {
             let bytes_per_pixel = 4;
             let stride = channels * bytes_per_pixel;
-            image
-                .data
-                .par_chunks_exact_mut(stride)
-                .for_each(|pixel| {
-                    for (c, scale) in cal.channel_scale.iter().enumerate() {
-                        let off = c * bytes_per_pixel;
-                        let v = f32::from_le_bytes([
-                            pixel[off],
-                            pixel[off + 1],
-                            pixel[off + 2],
-                            pixel[off + 3],
-                        ]) as f64;
-                        let scaled = (v * scale) as f32;
-                        let b = scaled.to_le_bytes();
-                        pixel[off] = b[0];
-                        pixel[off + 1] = b[1];
-                        pixel[off + 2] = b[2];
-                        pixel[off + 3] = b[3];
-                    }
-                });
+            image.data.par_chunks_exact_mut(stride).for_each(|pixel| {
+                for (c, scale) in cal.channel_scale.iter().enumerate() {
+                    let off = c * bytes_per_pixel;
+                    let v = f32::from_le_bytes([
+                        pixel[off],
+                        pixel[off + 1],
+                        pixel[off + 2],
+                        pixel[off + 3],
+                    ]) as f64;
+                    let scaled = (v * scale) as f32;
+                    let b = scaled.to_le_bytes();
+                    pixel[off] = b[0];
+                    pixel[off + 1] = b[1];
+                    pixel[off + 2] = b[2];
+                    pixel[off + 3] = b[3];
+                }
+            });
         }
         // Other pixel types are not part of the colour-calibration path; leave
         // the image untouched rather than guessing a conversion.
@@ -737,10 +729,7 @@ mod tests {
         let n = pts.len() as f64;
         let mean_x = pts.iter().map(|p| p.0).sum::<f64>() / n;
         let mean_y = pts.iter().map(|p| p.1).sum::<f64>() / n;
-        let sxy: f64 = pts
-            .iter()
-            .map(|&(x, y)| (x - mean_x) * (y - mean_y))
-            .sum();
+        let sxy: f64 = pts.iter().map(|&(x, y)| (x - mean_x) * (y - mean_y)).sum();
         let sxx: f64 = pts.iter().map(|&(x, _)| (x - mean_x).powi(2)).sum();
         let ols_slope = sxy / sxx;
 
@@ -829,7 +818,7 @@ mod tests {
         assert_eq!(out[0], 200); // 100 * 2
         assert_eq!(out[1], 200); // 200 * 1
         assert_eq!(out[2], 150); // 300 * 0.5
-        // R*2 = 100000 → clamped to 65535.
+                                 // R*2 = 100000 → clamped to 65535.
         assert_eq!(out[3], 65535);
         assert_eq!(out[4], 1000);
         assert_eq!(out[5], 1000); // 2000 * 0.5
@@ -854,7 +843,7 @@ mod tests {
         assert!(approx(out[0], 0.2)); // 0.1 * 2
         assert!(approx(out[1], 0.2)); // 0.2 * 1
         assert!(approx(out[2], 0.2)); // 0.4 * 0.5
-        // No clamp: a value > 1.0 stays as-is after scaling.
+                                      // No clamp: a value > 1.0 stays as-is after scaling.
         assert!(approx(out[3], 3.0)); // 1.5 * 2
         assert!(approx(out[4], 0.5));
         assert!(approx(out[5], 0.125)); // 0.25 * 0.5

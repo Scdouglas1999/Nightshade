@@ -1195,7 +1195,8 @@ impl Phd2Client {
         settle_time: f64,
         settle_timeout: f64,
     ) -> Result<(), String> {
-        let waiter = self.dither_arm(amount, ra_only, settle_pixels, settle_time, settle_timeout)?;
+        let waiter =
+            self.dither_arm(amount, ra_only, settle_pixels, settle_time, settle_timeout)?;
         waiter.wait(Self::settle_wait_duration(settle_time, settle_timeout))?;
         Ok(())
     }

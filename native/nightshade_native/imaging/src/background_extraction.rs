@@ -212,7 +212,9 @@ pub enum BackgroundError {
     /// The normal-equation system was singular even with enough samples (e.g.
     /// every surviving sample fell on a single line, so the surface is not
     /// determined transverse to it).
-    #[error("background fit for channel {channel} is singular (samples are degenerate / collinear)")]
+    #[error(
+        "background fit for channel {channel} is singular (samples are degenerate / collinear)"
+    )]
     SingularFit { channel: usize },
 }
 
@@ -339,17 +341,14 @@ pub fn subtract_background(image: &mut ImageData, model: &BackgroundModel) {
     // Option lookup and the preserve_mean branch per pixel.
     let mut channel_params: Vec<Option<(&[f64], f64)>> = Vec::with_capacity(channels);
     for ch in 0..channels {
-        let entry = model
-            .coeffs_per_channel
-            .get(ch)
-            .map(|c| {
-                let add_back = if model.preserve_mean {
-                    model.mean_level.get(ch).copied().unwrap_or(0.0)
-                } else {
-                    0.0
-                };
-                (c.as_slice(), add_back)
-            });
+        let entry = model.coeffs_per_channel.get(ch).map(|c| {
+            let add_back = if model.preserve_mean {
+                model.mean_level.get(ch).copied().unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            (c.as_slice(), add_back)
+        });
         channel_params.push(entry);
     }
     let degree = model.degree;
@@ -1139,7 +1138,10 @@ mod tests {
     struct Lcg(u64);
     impl Lcg {
         fn next_unit(&mut self) -> f64 {
-            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             // Top 24 bits → [0, 1).
             ((self.0 >> 40) as f64) / ((1u64 << 24) as f64)
         }
@@ -1155,7 +1157,15 @@ mod tests {
     }
 
     /// Add a round Gaussian "star" of the given peak/σ to an f64 plane.
-    fn add_star(plane: &mut [f64], width: usize, height: usize, cx: f64, cy: f64, peak: f64, sigma: f64) {
+    fn add_star(
+        plane: &mut [f64],
+        width: usize,
+        height: usize,
+        cx: f64,
+        cy: f64,
+        peak: f64,
+        sigma: f64,
+    ) {
         let r = (3.0 * sigma).ceil() as i32;
         let two_sig_sq = 2.0 * sigma * sigma;
         let cxr = cx.round() as i32;
@@ -1223,12 +1233,7 @@ mod tests {
         let terms = poly_terms(2);
         let coeffs = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
         let (nx, ny) = (0.5_f64, -0.25_f64);
-        let expected = 1.0
-            + 2.0 * nx
-            + 3.0 * ny
-            + 4.0 * nx * nx
-            + 5.0 * nx * ny
-            + 6.0 * ny * ny;
+        let expected = 1.0 + 2.0 * nx + 3.0 * ny + 4.0 * nx * nx + 5.0 * nx * ny + 6.0 * ny * ny;
         let got = eval_poly(&coeffs, &terms, nx, ny);
         assert!(
             (got - expected).abs() < 1e-12,
@@ -1242,7 +1247,10 @@ mod tests {
             let t = k as f64 / 99.0;
             let a = eval_poly(&coeffs, &terms, t, -t);
             let b = eval_poly(&coeffs, &poly_terms(2), t, -t);
-            assert!((a - b).abs() < 1e-12, "hoisted vs fresh terms disagree at t={t}");
+            assert!(
+                (a - b).abs() < 1e-12,
+                "hoisted vs fresh terms disagree at t={t}"
+            );
         }
     }
 
@@ -1385,7 +1393,10 @@ mod tests {
             }
         }
         let before_std = std_dev(&before_vals);
-        assert!(before_std > 100.0, "the planted ramp must be substantial, got std {before_std}");
+        assert!(
+            before_std > 100.0,
+            "the planted ramp must be substantial, got std {before_std}"
+        );
 
         let cfg = BackgroundConfig {
             poly_degree: 2,
@@ -1486,7 +1497,10 @@ mod tests {
                 assert_eq!(channel, 0);
                 assert_eq!(degree, 4);
                 assert_eq!(needed, poly_terms(4).len());
-                assert!(samples <= 9, "3x3 grid yields at most 9 samples, got {samples}");
+                assert!(
+                    samples <= 9,
+                    "3x3 grid yields at most 9 samples, got {samples}"
+                );
             }
             other => panic!("expected TooFewSamples, got {other:?}"),
         }
@@ -1630,8 +1644,16 @@ mod tests {
                 ch1.push(v as f64);
             }
         }
-        assert!(std_dev(&ch0) < 50.0, "channel 0 not flattened, std {}", std_dev(&ch0));
-        assert!(std_dev(&ch1) < 50.0, "channel 1 not flattened, std {}", std_dev(&ch1));
+        assert!(
+            std_dev(&ch0) < 50.0,
+            "channel 0 not flattened, std {}",
+            std_dev(&ch0)
+        );
+        assert!(
+            std_dev(&ch1) < 50.0,
+            "channel 1 not flattened, std {}",
+            std_dev(&ch1)
+        );
     }
 
     #[test]
@@ -1652,8 +1674,8 @@ mod tests {
         // f64 read/write must be exact; unsigned types saturate correctly.
         let cases = [
             (PixelType::U8, 200.0_f64, 200.0_f64),
-            (PixelType::U8, 300.0, 255.0),   // saturates high
-            (PixelType::U8, -5.0, 0.0),      // saturates low
+            (PixelType::U8, 300.0, 255.0), // saturates high
+            (PixelType::U8, -5.0, 0.0),    // saturates low
             (PixelType::U16, 40000.0, 40000.0),
             (PixelType::U16, 70000.0, 65535.0),
             (PixelType::U32, 1_000_000.0, 1_000_000.0),

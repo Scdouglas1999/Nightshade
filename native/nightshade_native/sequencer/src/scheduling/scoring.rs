@@ -651,13 +651,27 @@ mod tests {
         assert!(far.runnable, "target far from the moon must stay runnable");
 
         // Same near target but NO gate configured → runnable (soft score only).
-        let ungated = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 80.0), &ScoringWeights::default());
-        assert!(ungated.runnable, "without a gate the soft score never marks unrunnable");
+        let ungated = score_target(
+            &target(83.9, -5.3),
+            &observer(Some(moon_up), 80.0),
+            &ScoringWeights::default(),
+        );
+        assert!(
+            ungated.runnable,
+            "without a gate the soft score never marks unrunnable"
+        );
 
         // Near a DOWN moon (opposite hemisphere of sky) → gate must not fire.
         let moon_down = (264.0, -5.0);
-        let near_down = score_target(&target(264.1, -5.0), &observer(Some(moon_down), 80.0), &gated);
-        assert!(near_down.runnable, "a moon below the horizon needs no avoidance");
+        let near_down = score_target(
+            &target(264.1, -5.0),
+            &observer(Some(moon_down), 80.0),
+            &gated,
+        );
+        assert!(
+            near_down.runnable,
+            "a moon below the horizon needs no avoidance"
+        );
 
         // Near an up but near-NEW moon (<10% illum) → gate must not fire.
         let near_new = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 3.0), &gated);
@@ -791,7 +805,11 @@ mod tests {
         .unwrap();
         assert!((h.min_altitude_at(0.0) - 10.0).abs() < 1e-9);
         assert!((h.min_altitude_at(90.0) - 30.0).abs() < 1e-9);
-        assert!((h.min_altitude_at(45.0) - 20.0).abs() < 1e-9, "got {}", h.min_altitude_at(45.0));
+        assert!(
+            (h.min_altitude_at(45.0) - 20.0).abs() < 1e-9,
+            "got {}",
+            h.min_altitude_at(45.0)
+        );
     }
 
     #[test]
@@ -922,7 +940,11 @@ mod tests {
         // A flat horizon set just ABOVE M42's current altitude blocks it.
         let blocking = HorizonProfile::flat(alt + 5.0);
         let gated = score_target(&m42, &base(Some(blocking)), &weights);
-        assert!(!gated.runnable, "M42 below a {:.1}° horizon must be gated", alt + 5.0);
+        assert!(
+            !gated.runnable,
+            "M42 below a {:.1}° horizon must be gated",
+            alt + 5.0
+        );
         let reason = gated.skip_reason.as_deref().unwrap_or("");
         assert!(reason.contains("local horizon"), "reason: {reason}");
         assert!(

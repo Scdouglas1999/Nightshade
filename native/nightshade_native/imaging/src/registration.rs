@@ -668,7 +668,10 @@ fn solve_transform_from_stars(
 }
 
 /// Estimate the transform with RANSAC over the correspondence set.
-fn ransac(correspondences: &[Correspondence], config: &RegistrationConfig) -> Option<FittedTransform> {
+fn ransac(
+    correspondences: &[Correspondence],
+    config: &RegistrationConfig,
+) -> Option<FittedTransform> {
     let sample_size = min_correspondences(config.transform_kind);
     let n = correspondences.len();
     if n < sample_size.max(config.min_inliers) {
@@ -997,7 +1000,14 @@ fn warp_frame(
         // A non-invertible transform should never reach here (RANSAC rejects
         // collapsed scales), but if it does, return a black aligned frame
         // rather than panic.
-        None => return ImageData::new(reference.width, reference.height, frame.channels, PixelType::U16),
+        None => {
+            return ImageData::new(
+                reference.width,
+                reference.height,
+                frame.channels,
+                PixelType::U16,
+            )
+        }
     };
 
     let src: Vec<f64> = frame
@@ -1018,9 +1028,7 @@ fn warp_frame(
                     continue;
                 }
                 for c in 0..channels {
-                    let v = sample(
-                        &src, src_w, src_h, channels, stride, c, sx, sy, interp,
-                    );
+                    let v = sample(&src, src_w, src_h, channels, stride, c, sx, sy, interp);
                     row[x * channels + c] = v.round().clamp(0.0, 65535.0) as u16;
                 }
             }
@@ -1706,7 +1714,10 @@ mod tests {
         let reference = ImageData::from_u16(8, 8, 1, &[0u16; 64]);
         let frame = ImageData::from_f32(8, 8, 1, &[0f32; 64]);
         let err = register_frame(&reference, &frame, &config()).unwrap_err();
-        assert_eq!(err, RegistrationError::UnsupportedFramePixelType(PixelType::F32));
+        assert_eq!(
+            err,
+            RegistrationError::UnsupportedFramePixelType(PixelType::F32)
+        );
     }
 
     #[test]

@@ -301,7 +301,10 @@ async fn fixed_frame_count_stops_loop_and_attributes_rig() {
     // clone for the loop.
     let recorder = Arc::new(RecordingOps::new(Duration::from_millis(10)));
     let ops: Arc<dyn nightshade_sequencer::DeviceOps> = recorder.clone();
-    let barrier = Arc::new(DitherBarrier::new(30.0, InFlightDitherPolicy::CompleteIfShort));
+    let barrier = Arc::new(DitherBarrier::new(
+        30.0,
+        InFlightDitherPolicy::CompleteIfShort,
+    ));
 
     let mut config = SecondaryRigConfig::new("cam-secondary", 0.01);
     config.frame_count = Some(3);
@@ -334,7 +337,10 @@ async fn fixed_frame_count_stops_loop_and_attributes_rig() {
             path.contains("WideField"),
             "frame path {path} should be under the rig subfolder"
         );
-        assert!(path.contains("M31"), "frame name should carry target M31: {path}");
+        assert!(
+            path.contains("M31"),
+            "frame name should carry target M31: {path}"
+        );
     }
     let _ = tmp;
 }
@@ -344,14 +350,20 @@ async fn run_until_stopped_terminates_on_stop() {
     let tmp = std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4()));
     let ops: Arc<dyn nightshade_sequencer::DeviceOps> =
         Arc::new(RecordingOps::new(Duration::from_millis(10)));
-    let barrier = Arc::new(DitherBarrier::new(30.0, InFlightDitherPolicy::CompleteIfShort));
+    let barrier = Arc::new(DitherBarrier::new(
+        30.0,
+        InFlightDitherPolicy::CompleteIfShort,
+    ));
 
     let config = SecondaryRigConfig::new("cam-secondary", 0.01); // frame_count None
     let rig = SecondaryRig::start(config, ops, barrier, meta(&tmp));
 
     // Let it capture a few frames.
     tokio::time::sleep(Duration::from_millis(80)).await;
-    assert!(rig.status().running, "run-until-stopped should keep running");
+    assert!(
+        rig.status().running,
+        "run-until-stopped should keep running"
+    );
 
     let handle = rig.stop();
     let _ = tokio::time::timeout(Duration::from_secs(3), handle).await;
@@ -363,7 +375,10 @@ async fn secondary_blocks_while_dither_pending_then_resumes() {
     let tmp = std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4()));
     let ops: Arc<dyn nightshade_sequencer::DeviceOps> =
         Arc::new(RecordingOps::new(Duration::from_millis(10)));
-    let barrier = Arc::new(DitherBarrier::new(30.0, InFlightDitherPolicy::CompleteIfShort));
+    let barrier = Arc::new(DitherBarrier::new(
+        30.0,
+        InFlightDitherPolicy::CompleteIfShort,
+    ));
 
     // Announce a dither BEFORE starting the loop so the first thing it does is
     // park at the gate.
@@ -374,7 +389,10 @@ async fn secondary_blocks_while_dither_pending_then_resumes() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
     let parked = rig.status();
-    assert!(parked.waiting_for_dither, "secondary must park during dither");
+    assert!(
+        parked.waiting_for_dither,
+        "secondary must park during dither"
+    );
     assert_eq!(parked.frames_captured, 0, "no frames while dither pending");
 
     // Release; the loop should now start capturing.

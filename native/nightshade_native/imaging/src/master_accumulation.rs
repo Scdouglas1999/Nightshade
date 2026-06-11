@@ -330,7 +330,9 @@ pub enum MasterError {
     #[error("serialized master has bad magic bytes (not a Nightshade master sidecar)")]
     BadMagic,
     /// The serialized sidecar's version is not [`MASTER_STATE_VERSION`].
-    #[error("serialized master version {got} is unsupported (this build reads version {supported})")]
+    #[error(
+        "serialized master version {got} is unsupported (this build reads version {supported})"
+    )]
     UnsupportedVersion { got: u32, supported: u32 },
     /// The serialized sidecar's metadata header could not be parsed.
     #[error("serialized master metadata is corrupt: {0}")]
@@ -377,10 +379,7 @@ impl IntegratedMaster {
     /// itself contribute a sample to the running sums — it is the anchor, not the
     /// first sub. Fold the first night's subs (including the one chosen as the
     /// reference, if desired) via [`add_frames`](Self::add_frames).
-    pub fn create(
-        reference: &ImageData,
-        cfg: &MasterCreateConfig,
-    ) -> Result<Self, MasterError> {
+    pub fn create(reference: &ImageData, cfg: &MasterCreateConfig) -> Result<Self, MasterError> {
         if reference.width == 0 || reference.height == 0 || reference.channels == 0 {
             return Err(MasterError::ZeroDimension {
                 width: reference.width,
@@ -556,8 +555,7 @@ impl IntegratedMaster {
                         if sw > 0.0 && denom > 0.0 {
                             let mean = st.sum_wx[slot] / sw;
                             // Σw·(x−μ)² = Σwx² − 2μ·Σwx + μ²·Σw = Σwx² − μ²·Σw.
-                            let weighted_sq_dev =
-                                (st.sum_wx2[slot] - mean * mean * sw).max(0.0);
+                            let weighted_sq_dev = (st.sum_wx2[slot] - mean * mean * sw).max(0.0);
                             let var = weighted_sq_dev / denom;
                             let sigma = var.sqrt();
                             if sigma > 0.0 {
@@ -662,9 +660,7 @@ impl IntegratedMaster {
         let header_json = serde_json::to_vec(&header).expect("master header serializes");
 
         let len = self.state.len();
-        let mut out = Vec::with_capacity(
-            4 + 4 + 4 + header_json.len() + len * (8 * 4 + 4 * 2),
-        );
+        let mut out = Vec::with_capacity(4 + 4 + 4 + header_json.len() + len * (8 * 4 + 4 * 2));
         out.extend_from_slice(MASTER_MAGIC);
         out.extend_from_slice(&MASTER_STATE_VERSION.to_le_bytes());
         out.extend_from_slice(&(header_json.len() as u32).to_le_bytes());
@@ -949,13 +945,7 @@ pub fn frame_buffer_for_master(
     image: &ImageData,
     reference: &GeometryReference,
 ) -> Result<Vec<f64>, MasterError> {
-    check_frame_geometry(
-        index,
-        image.width,
-        image.height,
-        image.channels,
-        reference,
-    )?;
+    check_frame_geometry(index, image.width, image.height, image.channels, reference)?;
     reference_to_f64(image)
 }
 
@@ -1102,7 +1092,11 @@ mod tests {
         }
         let weights: Vec<f64> = (0..n).map(|i| 1.0 + (i % 3) as f64).collect();
 
-        let all: Vec<_> = bufs.iter().zip(&weights).map(|(b, &wt)| iframe(b, wt)).collect();
+        let all: Vec<_> = bufs
+            .iter()
+            .zip(&weights)
+            .map(|(b, &wt)| iframe(b, wt))
+            .collect();
         let batch = integrate_frames(
             &all,
             w,
@@ -1416,7 +1410,10 @@ mod tests {
             &reference,
             &MasterCreateConfig {
                 mode: AccumulationMode::RunningWeightedMean {
-                    clip: Some(OnlineClip { low: 3.0, high: 3.0 }),
+                    clip: Some(OnlineClip {
+                        low: 3.0,
+                        high: 3.0,
+                    }),
                 },
                 ..Default::default()
             },
@@ -1431,11 +1428,16 @@ mod tests {
         }
         // One transient.
         let spike = vec![9000.0];
-        let report = master.add_frames(&[iframe(&spike, 1.0)], &[], "spike").unwrap();
+        let report = master
+            .add_frames(&[iframe(&spike, 1.0)], &[], "spike")
+            .unwrap();
         assert_eq!(report.rejected, 1, "the spike must be clipped");
 
         let m = master.finalize().as_f32().unwrap()[0] as f64;
-        assert!((m - 100.0).abs() < 5.0, "finalized pixel {m} should stay near 100");
+        assert!(
+            (m - 100.0).abs() < 5.0,
+            "finalized pixel {m} should stay near 100"
+        );
         // The rejection map must record exactly one rejection at the pixel.
         let rej = master.rejection_map().as_f32().unwrap();
         assert_eq!(rej[0] as u32, 1);
@@ -1496,7 +1498,11 @@ mod tests {
 
         let m = master.finalize().as_f32().unwrap();
         assert!((m[0] as f64 - 10.0).abs() < 1e-4);
-        assert!((m[1] as f64 - 20.0).abs() < 1e-4, "masked junk leaked: {}", m[1]);
+        assert!(
+            (m[1] as f64 - 20.0).abs() < 1e-4,
+            "masked junk leaked: {}",
+            m[1]
+        );
 
         let cov = master.coverage_map().as_f32().unwrap();
         assert_eq!(cov[0] as u32, 3);
@@ -1517,11 +1523,7 @@ mod tests {
         let good = vec![50.0];
         let zero = vec![9999.0];
         let neg = vec![1234.0];
-        let frames = [
-            iframe(&good, 1.0),
-            iframe(&zero, 0.0),
-            iframe(&neg, -1.0),
-        ];
+        let frames = [iframe(&good, 1.0), iframe(&zero, 0.0), iframe(&neg, -1.0)];
         let report = master.add_frames(&frames, &[], "mixed").unwrap();
         assert_eq!(report.frames_added, 1);
         let m = master.finalize().as_f32().unwrap()[0] as f64;
@@ -1534,8 +1536,8 @@ mod tests {
 
     #[test]
     fn deserialize_rejects_bad_magic() {
-        let err = IntegratedMaster::deserialize(b"XXXX\x01\x00\x00\x00\x00\x00\x00\x00")
-            .unwrap_err();
+        let err =
+            IntegratedMaster::deserialize(b"XXXX\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err();
         assert_eq!(err, MasterError::BadMagic);
     }
 

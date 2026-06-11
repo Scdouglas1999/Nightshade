@@ -619,12 +619,9 @@ pub async fn execute_slew(
     // unset (see `daylight_gate_block_reason`).
     if config.use_target_coords {
         let max_sun_alt = resolve_max_sun_altitude(ctx).await;
-        if let Some(reason) = daylight_gate_block_reason(
-            ctx.latitude,
-            ctx.longitude,
-            max_sun_alt,
-            "slew to target",
-        ) {
+        if let Some(reason) =
+            daylight_gate_block_reason(ctx.latitude, ctx.longitude, max_sun_alt, "slew to target")
+        {
             tracing::warn!("{reason}");
             return InstructionResult::failure_with_recovery(reason, DAYLIGHT_GATE_RECOVERY_CODE);
         }
@@ -1738,9 +1735,7 @@ pub async fn execute_exposure_with_renderer(
         // would ruin. Only science-target lights are gated — the flip
         // trigger itself only ever fires for a tracked target.
         if ctx.target_ra.is_some() && ctx.mount_id.is_some() {
-            if let Some(result) =
-                wait_for_meridian_flip_window(ctx, config.duration_secs).await
-            {
+            if let Some(result) = wait_for_meridian_flip_window(ctx, config.duration_secs).await {
                 return result;
             }
         }
@@ -5431,7 +5426,9 @@ async fn wait_for_dome_shutter_state(
                 if status == target {
                     return Ok(DomeShutterWaitOutcome::Confirmed);
                 }
-                if status == "Open" || status == "Closed" || status == "Opening"
+                if status == "Open"
+                    || status == "Closed"
+                    || status == "Opening"
                     || status == "Closing"
                 {
                     saw_definite_state = true;
@@ -5473,9 +5470,7 @@ async fn wait_for_dome_shutter_state(
             );
             tracing::warn!("{msg}");
             if let Some(event_tx) = &ctx.event_tx {
-                let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
-                    message: msg,
-                });
+                let _ = event_tx.send(crate::executor::ExecutorEvent::Error { message: msg });
             }
             return Ok(DomeShutterWaitOutcome::Unconfirmed);
         }
@@ -6319,8 +6314,7 @@ mod tests {
     fn non_disconnect_failure_does_not_set_recovery_pending() {
         let pending = Arc::new(AtomicBool::new(false));
         let result = InstructionResult::failure("Plate solve returned no solution");
-        let status =
-            result.log_and_get_status_with_recovery("Center", None, Some(&pending));
+        let status = result.log_and_get_status_with_recovery("Center", None, Some(&pending));
         assert_eq!(status, NodeStatus::Failure);
         assert!(
             !pending.load(Ordering::Relaxed),
@@ -6448,7 +6442,8 @@ mod tests {
             Ok(())
         }
         async fn dome_get_shutter_status(&self, _id: &str) -> DeviceResult<String> {
-            self.dome_shutter_status_calls.fetch_add(1, Ordering::SeqCst);
+            self.dome_shutter_status_calls
+                .fetch_add(1, Ordering::SeqCst);
             Ok(Self::next_scripted(&self.dome_shutter_states))
         }
 
@@ -6681,9 +6676,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_rotator_move_verified_polls_until_arrival() {
         // Off-target (0°, 0°) then arrives at 45°.
-        let ops = Arc::new(
-            ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0, 0.0, 45.0]),
-        );
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0, 0.0, 45.0]));
         let ctx = ctx_with_ops(ops.clone()).await;
         let cfg = RotatorConfig {
             target_angle: 45.0,
@@ -6722,8 +6715,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_rotator_move_fails_when_target_never_reached() {
         // Always reports 0° — never reaches the 45° target.
-        let ops =
-            Arc::new(ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0]));
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0]));
         let ctx = ctx_with_ops(ops.clone()).await;
         let cfg = RotatorConfig {
             target_angle: 45.0,
@@ -6763,11 +6755,12 @@ mod tests {
     /// polls — that is correct, not a flake.)
     #[tokio::test(start_paused = true)]
     async fn test_park_dome_surfaces_shutter_close_error() {
-        let ops = Arc::new(
-            ScriptedDomeRotatorOps::new().with_dome_close_error("shutter motor jammed"),
-        );
+        let ops =
+            Arc::new(ScriptedDomeRotatorOps::new().with_dome_close_error("shutter motor jammed"));
         let ctx = ctx_with_ops(ops.clone()).await;
-        let cfg = DomeConfig { shutter_only: false };
+        let cfg = DomeConfig {
+            shutter_only: false,
+        };
 
         let result = execute_park_dome(&cfg, &ctx, None).await;
 
@@ -6809,7 +6802,9 @@ mod tests {
                 .with_dome_shutter_states(&["Closing", "Closing", "Closed"]),
         );
         let ctx = ctx_with_ops(ops.clone()).await;
-        let cfg = DomeConfig { shutter_only: false };
+        let cfg = DomeConfig {
+            shutter_only: false,
+        };
 
         let result = execute_park_dome(&cfg, &ctx, None).await;
 
@@ -6838,11 +6833,11 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_park_dome_fails_when_shutter_never_closes() {
         // Reports a real state ("Open") forever but never "Closed".
-        let ops = Arc::new(
-            ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Open"]),
-        );
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Open"]));
         let ctx = ctx_with_ops(ops.clone()).await;
-        let cfg = DomeConfig { shutter_only: false };
+        let cfg = DomeConfig {
+            shutter_only: false,
+        };
 
         let result = execute_park_dome(&cfg, &ctx, None).await;
 
@@ -6869,9 +6864,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_close_dome_surfaces_unconfirmed_when_shutter_never_reports_state() {
         // Never a definite state — the dome cannot report shutter position.
-        let ops = Arc::new(
-            ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Unknown"]),
-        );
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Unknown"]));
         let ctx = ctx_with_ops(ops.clone()).await;
         let cfg = DomeConfig { shutter_only: true };
 

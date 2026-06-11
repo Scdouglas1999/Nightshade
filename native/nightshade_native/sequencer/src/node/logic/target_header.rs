@@ -1242,8 +1242,10 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let (status, ()) =
-            tokio::join!(execute_target_header(&mut node, config, &mut ctx), controller);
+        let (status, ()) = tokio::join!(
+            execute_target_header(&mut node, config, &mut ctx),
+            controller
+        );
 
         assert!(
             observed_running_while_paused.load(Ordering::SeqCst),
@@ -1328,8 +1330,10 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let (status, ()) =
-            tokio::join!(execute_target_header(&mut node, config, &mut ctx), controller);
+        let (status, ()) = tokio::join!(
+            execute_target_header(&mut node, config, &mut ctx),
+            controller
+        );
 
         assert!(
             observed_paused_park.load(Ordering::SeqCst),

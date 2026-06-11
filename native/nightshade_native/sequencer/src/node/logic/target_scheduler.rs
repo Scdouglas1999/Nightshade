@@ -134,7 +134,9 @@ pub async fn execute_target_scheduler(
             now,
             moon: Some(crate::scheduling::ephemeris::moon_equatorial(&now)),
             moon_illumination: crate::scheduling::ephemeris::moon_illumination_percent(&now),
-            twilight: Some(crate::scheduling::ephemeris::twilight_bracket(&now, lat, lon)),
+            twilight: Some(crate::scheduling::ephemeris::twilight_bracket(
+                &now, lat, lon,
+            )),
             // Per-azimuth horizon mask: consulted by `score_target`'s
             // runnable gate so a target behind the local tree-line / roof
             // is filtered out even when it clears the flat altitude floor.

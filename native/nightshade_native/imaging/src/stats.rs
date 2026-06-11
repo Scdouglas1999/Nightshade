@@ -961,11 +961,7 @@ pub fn frame_eccentricity(stars: &[DetectedStar]) -> Option<f64> {
     reliable.sort_by(|a, b| b.flux.total_cmp(&a.flux));
     let take = reliable.len().min(50);
 
-    let mut eccs: Vec<f64> = reliable
-        .iter()
-        .take(take)
-        .map(|s| s.eccentricity)
-        .collect();
+    let mut eccs: Vec<f64> = reliable.iter().take(take).map(|s| s.eccentricity).collect();
     eccs.sort_by(f64::total_cmp);
     Some(eccs[eccs.len() / 2])
 }
@@ -1377,8 +1373,7 @@ mod tests {
             for x in 0..width {
                 let dx = x as f64 - cx;
                 let dy = y as f64 - cy;
-                let v = BACKGROUND
-                    + PEAK * (-(dx * dx) / two_sx_sq - (dy * dy) / two_sy_sq).exp();
+                let v = BACKGROUND + PEAK * (-(dx * dx) / two_sx_sq - (dy * dy) / two_sy_sq).exp();
                 data[(y * width + x) as usize] = v.clamp(0.0, 65535.0) as u16;
             }
         }
@@ -1420,7 +1415,10 @@ mod tests {
         let sigma_minor = 2.0_f64;
         let image = render_elliptical_gaussian_u16(80, 80, 40.0, 40.0, sigma_major, sigma_minor);
         let stars = detect_for_shape(&image);
-        assert!(!stars.is_empty(), "expected detection on elongated Gaussian");
+        assert!(
+            !stars.is_empty(),
+            "expected detection on elongated Gaussian"
+        );
         let star = &stars[0];
 
         let expected = (1.0 - (sigma_minor / sigma_major).powi(2)).sqrt();

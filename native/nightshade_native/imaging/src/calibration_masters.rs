@@ -48,7 +48,9 @@
 //!   where no defect map is available.
 
 use crate::defect_map::{correct_u16_slice, CorrectionMethod, DefectMap, KernelSize};
-use crate::stacking::{combine_master_frames, CombineMethod, MasterFrame, MasterFrameKind, MasterOutputType};
+use crate::stacking::{
+    combine_master_frames, CombineMethod, MasterFrame, MasterFrameKind, MasterOutputType,
+};
 use crate::{calibration::CalibrationError, ImageData, PixelType};
 use rayon::prelude::*;
 
@@ -378,8 +380,7 @@ pub fn cosmetic_correct_transient(
     let width = frame.width;
     let height = frame.height;
     let channels = frame.channels;
-    let expected =
-        (width as usize) * (height as usize) * (channels as usize);
+    let expected = (width as usize) * (height as usize) * (channels as usize);
 
     let mut pixels = frame
         .as_u16()
@@ -416,7 +417,8 @@ pub fn cosmetic_correct_transient(
             for c in 0..ch {
                 // Gather neighbourhood values (excluding the centre) for this
                 // channel.
-                let mut nbr: Vec<f64> = Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
+                let mut nbr: Vec<f64> =
+                    Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
                 for dy in -half..=half {
                     for dx in -half..=half {
                         if dx == 0 && dy == 0 {
@@ -611,8 +613,9 @@ mod tests {
         let with_bias = build_master_flat(&raw, Some(&bias), MasterFlatConfig::default())
             .expect("build with bias");
         // The build without bias subtraction operates on the bias-free vignette.
-        let pedestal_free: Vec<ImageData> =
-            (0..6).map(|_| vignette_flat(16, 16, 40_000.0, 0.5)).collect();
+        let pedestal_free: Vec<ImageData> = (0..6)
+            .map(|_| vignette_flat(16, 16, 40_000.0, 0.5))
+            .collect();
         let without_bias = build_master_flat(&pedestal_free, None, MasterFlatConfig::default())
             .expect("build without bias");
 
@@ -681,8 +684,8 @@ mod tests {
         pixels[(12 * w + 8) as usize] = 0;
         let master = ImageData::from_u16(w, h, 1, &pixels);
 
-        let map = build_defect_map_from_master_dark(&master, -200)
-            .expect("defect map should build");
+        let map =
+            build_defect_map_from_master_dark(&master, -200).expect("defect map should build");
         assert_eq!(map.defective_count(), 2);
         assert!(map.is_defective(5, 5), "hot pixel must be flagged");
         assert!(map.is_defective(8, 12), "cold pixel must be flagged");

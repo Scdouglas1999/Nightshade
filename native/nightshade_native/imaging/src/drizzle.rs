@@ -1379,12 +1379,28 @@ mod tests {
         )
         .unwrap();
         let m = out.master.as_f32().unwrap();
-        assert!((m[0] as f64 - 10.0).abs() < 1e-3, "R must equal frame A, got {}", m[0]);
-        assert!((m[1] as f64 - 20.0).abs() < 1e-3, "G must equal frame A (B excluded), got {}", m[1]);
-        assert!((m[2] as f64 - 30.0).abs() < 1e-3, "B-plane must equal frame A, got {}", m[2]);
+        assert!(
+            (m[0] as f64 - 10.0).abs() < 1e-3,
+            "R must equal frame A, got {}",
+            m[0]
+        );
+        assert!(
+            (m[1] as f64 - 20.0).abs() < 1e-3,
+            "G must equal frame A (B excluded), got {}",
+            m[1]
+        );
+        assert!(
+            (m[2] as f64 - 30.0).abs() < 1e-3,
+            "B-plane must equal frame A, got {}",
+            m[2]
+        );
         // Coverage counts only frame A's one finite drop.
         let cov = out.coverage.as_f32().unwrap();
-        assert!((cov[0] as f64 - 1.0).abs() < 1e-3, "coverage must be 1 (only A counted), got {}", cov[0]);
+        assert!(
+            (cov[0] as f64 - 1.0).abs() < 1e-3,
+            "coverage must be 1 (only A counted), got {}",
+            cov[0]
+        );
     }
 
     #[test]

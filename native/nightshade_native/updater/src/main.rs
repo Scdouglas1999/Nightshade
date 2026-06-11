@@ -1209,10 +1209,11 @@ mod tests {
         let backup = tmp.path().join("backup");
         retain_restore_point(&install, &backup, &log).unwrap();
         let bak = backup_path_for(&install.join("nightshade_bridge.dll"));
-        assert!(!bak.exists(), "stray .bak must not remain in the install dir");
-        let retained = backup
-            .join(RESTORE_POINT_DIR)
-            .join("nightshade_bridge.dll");
+        assert!(
+            !bak.exists(),
+            "stray .bak must not remain in the install dir"
+        );
+        let retained = backup.join(RESTORE_POINT_DIR).join("nightshade_bridge.dll");
         assert!(retained.exists(), "restore point must keep the original");
         assert_eq!(fs::read(&retained).unwrap(), b"old-bridge");
     }
@@ -1284,7 +1285,10 @@ mod tests {
         retain_restore_point(&install, &backup, &log).unwrap();
 
         // Sanity: install now holds v2 and the added file.
-        assert_eq!(fs::read(install.join("nightshade_desktop.exe")).unwrap(), b"v2-exe");
+        assert_eq!(
+            fs::read(install.join("nightshade_desktop.exe")).unwrap(),
+            b"v2-exe"
+        );
         assert!(install.join("extras/added.txt").exists());
         // The install dir must be clean of stray .bak files.
         assert!(!backup_path_for(&install.join("nightshade_desktop.exe")).exists());
@@ -1295,8 +1299,14 @@ mod tests {
         restore_from_restore_point(&install, &restore_root, &log).unwrap();
 
         // The predecessor version is back, and the v2-only file is gone.
-        assert_eq!(fs::read(install.join("nightshade_desktop.exe")).unwrap(), b"v1-exe");
-        assert_eq!(fs::read(install.join("nightshade_bridge.dll")).unwrap(), b"v1-bridge");
+        assert_eq!(
+            fs::read(install.join("nightshade_desktop.exe")).unwrap(),
+            b"v1-exe"
+        );
+        assert_eq!(
+            fs::read(install.join("nightshade_bridge.dll")).unwrap(),
+            b"v1-bridge"
+        );
         assert!(
             !install.join("extras/added.txt").exists(),
             "rollback must delete files the update created"

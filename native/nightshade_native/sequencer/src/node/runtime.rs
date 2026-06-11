@@ -364,7 +364,8 @@ impl Node for RuntimeNode {
             // driver to reconnect and then RETRIES the instruction instead of
             // ending the sequence on a single USB/comms blip.
             other => {
-                execute_instruction_with_disconnect_retry(other, &node_id, &node_type, context).await
+                execute_instruction_with_disconnect_retry(other, &node_id, &node_type, context)
+                    .await
             }
         };
 
@@ -755,4 +756,3 @@ mod resume_short_circuit_tests {
         );
     }
 }
-

@@ -663,11 +663,7 @@ mod tests {
             weight_frames(&qs, &WeightFormula::SnrSquared, &CullPolicy::default()).expect("report");
         let w: Vec<f64> = report.frames.iter().map(|f| f.weight).collect();
         for pair in w.windows(2) {
-            assert!(
-                pair[1] > pair[0],
-                "weight must increase with SNR: {:?}",
-                w
-            );
+            assert!(pair[1] > pair[0], "weight must increase with SNR: {:?}", w);
         }
         // SNR² ⇒ weight ratio = (snr ratio)². Doubling SNR (20→40 i.e. 0.25→1.0
         // of the max-SNR frame) quadruples the weight contribution.
@@ -792,7 +788,10 @@ mod tests {
         };
         let report = weight_frames(&qs, &WeightFormula::SnrSquared, &policy).expect("report");
         // The weak frame is far below half the median weight → recommended.
-        assert!(report.frames[3].recommend_cull, "weak frame should be culled");
+        assert!(
+            report.frames[3].recommend_cull,
+            "weak frame should be culled"
+        );
         assert_eq!(report.recommended_cull_count, 1);
 
         // With min_keep == 4 (== population size) nothing may be culled.

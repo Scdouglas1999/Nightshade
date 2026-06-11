@@ -326,8 +326,7 @@ pub fn integrate_frames(
     }
 
     let frames_integrated = contributing.len();
-    let mean_weight =
-        contributing.iter().map(|f| f.weight).sum::<f64>() / frames_integrated as f64;
+    let mean_weight = contributing.iter().map(|f| f.weight).sum::<f64>() / frames_integrated as f64;
 
     // Output buffers (per channel interleaved, matching ImageData layout).
     let mut master = vec![0.0f64; expected_len];
@@ -559,7 +558,11 @@ fn linear_fit_clip(samples: &mut Vec<Sample>, low: f64, high: f64) {
         if n < 4 {
             break;
         }
-        samples.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal));
+        samples.sort_by(|a, b| {
+            a.value
+                .partial_cmp(&b.value)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // OLS fit of value against rank index (0..n-1).
         let nf = n as f64;
@@ -622,10 +625,7 @@ fn percentile_clip(samples: &mut Vec<Sample>, low: f64, high: f64) {
     let scale = if med.abs() > f64::EPSILON {
         med.abs()
     } else {
-        let max = samples
-            .iter()
-            .map(|s| s.value.abs())
-            .fold(0.0f64, f64::max);
+        let max = samples.iter().map(|s| s.value.abs()).fold(0.0f64, f64::max);
         if max <= 0.0 {
             return;
         }
@@ -645,7 +645,11 @@ fn min_max_clip(samples: &mut Vec<Sample>, n_low: usize, n_high: usize) {
         // over emptying the column on a misconfigured n_low/n_high.
         return;
     }
-    samples.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal));
+    samples.sort_by(|a, b| {
+        a.value
+            .partial_cmp(&b.value)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     // Retain the middle window [n_low, n - n_high).
     let keep: Vec<Sample> = samples[n_low..n - n_high].to_vec();
     *samples = keep;
@@ -682,7 +686,11 @@ fn median(samples: &mut [Sample]) -> f64 {
     if n == 0 {
         return 0.0;
     }
-    samples.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal));
+    samples.sort_by(|a, b| {
+        a.value
+            .partial_cmp(&b.value)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     if n % 2 == 1 {
         samples[n / 2].value
     } else {
@@ -972,8 +980,8 @@ mod tests {
             vec![102.0],
             vec![98.0],
             vec![101.0],
-            vec![10.0],   // low outlier
-            vec![400.0],  // high outlier
+            vec![10.0],  // low outlier
+            vec![400.0], // high outlier
         ];
         let frames: Vec<_> = b.iter().map(|x| frame(x, 1.0)).collect();
         let cfg = IntegrationConfig {
@@ -1130,8 +1138,16 @@ mod tests {
         assert!((master[0] as f64 - 10.0).abs() < 1e-4);
         assert!((master[1] as f64 - 20.0).abs() < 1e-4, "got {}", master[1]);
         let wmap = out.weight_map.unwrap().as_f32().unwrap();
-        assert!((wmap[0] as f64 - 3.0).abs() < 1e-4, "pixel0 weight {}", wmap[0]);
-        assert!((wmap[1] as f64 - 2.0).abs() < 1e-4, "pixel1 weight {}", wmap[1]);
+        assert!(
+            (wmap[0] as f64 - 3.0).abs() < 1e-4,
+            "pixel0 weight {}",
+            wmap[0]
+        );
+        assert!(
+            (wmap[1] as f64 - 2.0).abs() < 1e-4,
+            "pixel1 weight {}",
+            wmap[1]
+        );
     }
 
     #[test]

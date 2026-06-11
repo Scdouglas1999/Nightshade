@@ -273,7 +273,10 @@ impl WcsProjection {
         let r = (xi * xi + eta * eta).sqrt();
         if r < 1e-15 {
             // At the tangent point exactly.
-            return (normalize_deg(self.crval1_rad.to_degrees()), self.crval2_rad.to_degrees());
+            return (
+                normalize_deg(self.crval1_rad.to_degrees()),
+                self.crval2_rad.to_degrees(),
+            );
         }
         let rho = r.atan();
         let sin_rho = rho.sin();
@@ -308,8 +311,7 @@ impl WcsProjection {
         }
         // Standard coordinates (radians) on the tangent plane.
         let xi = (cos_dec * sin_dra) / cos_c;
-        let eta =
-            (self.cos_dec0 * sin_dec - self.sin_dec0 * cos_dec * cos_dra) / cos_c;
+        let eta = (self.cos_dec0 * sin_dec - self.sin_dec0 * cos_dec * cos_dra) / cos_c;
         // Radians → degrees (intermediate world coordinates).
         let xi_deg = xi.to_degrees();
         let eta_deg = eta.to_degrees();
@@ -703,7 +705,12 @@ fn median(values: &mut [f64]) -> f64 {
 }
 
 /// Compute and stash each panel's integer canvas bounding box.
-fn compute_footprints(panels: &mut [DecodedPanel], out_proj: &WcsProjection, out_w: u32, out_h: u32) {
+fn compute_footprints(
+    panels: &mut [DecodedPanel],
+    out_proj: &WcsProjection,
+    out_w: u32,
+    out_h: u32,
+) {
     for p in panels.iter_mut() {
         let w = p.width as f64;
         let h = p.height as f64;
@@ -774,7 +781,13 @@ fn solve_panel_photometry(
     out_proj: &WcsProjection,
 ) -> (Vec<PanelPhotometry>, usize) {
     let n = panels.len();
-    let mut corrections = vec![PanelPhotometry { gain: 1.0, offset: 0.0 }; n];
+    let mut corrections = vec![
+        PanelPhotometry {
+            gain: 1.0,
+            offset: 0.0
+        };
+        n
+    ];
 
     // Collect pairwise (scale, offset) relating panel j onto panel i's scale.
     // estimate_normalization regresses reference-on-frame: with reference = v_i,
@@ -825,7 +838,9 @@ fn solve_panel_photometry(
     );
     let offset = solve_anchored_chain(
         n,
-        pairs.iter().map(|&(i, j, _, o)| (i, j, log_gain[i].exp() * o)),
+        pairs
+            .iter()
+            .map(|&(i, j, _, o)| (i, j, log_gain[i].exp() * o)),
     );
 
     for k in 0..n {
@@ -844,10 +859,7 @@ fn solve_panel_photometry(
 // Index loops are clearer than iterators here: we mutate symmetric matrix
 // entries (`a[i][j]` *and* `a[j][i]`) keyed by the same indices.
 #[allow(clippy::needless_range_loop)]
-fn solve_anchored_chain(
-    n: usize,
-    edges: impl Iterator<Item = (usize, usize, f64)>,
-) -> Vec<f64> {
+fn solve_anchored_chain(n: usize, edges: impl Iterator<Item = (usize, usize, f64)>) -> Vec<f64> {
     // Build the (n×n) Laplacian-style normal matrix A and RHS b for
     //   minimise Σ_(i,j) (x_j − x_i − d_ij)²
     // Each edge contributes to A[i][i]+=1, A[j][j]+=1, A[i][j]-=1, A[j][i]-=1,
@@ -1193,7 +1205,13 @@ pub fn stitch_mosaic(
         // Still count overlaps for the stats (cheap, footprint-only).
         let pairs = count_overlaps(&decoded);
         (
-            vec![PanelPhotometry { gain: 1.0, offset: 0.0 }; decoded.len()],
+            vec![
+                PanelPhotometry {
+                    gain: 1.0,
+                    offset: 0.0
+                };
+                decoded.len()
+            ],
             pairs,
         )
     };
@@ -1205,8 +1223,15 @@ pub fn stitch_mosaic(
     };
 
     // --- Render. ---
-    let (master_data, coverage_data) =
-        render_canvas(&decoded, &photometry, &out_proj, out_w, out_h, channels, cfg);
+    let (master_data, coverage_data) = render_canvas(
+        &decoded,
+        &photometry,
+        &out_proj,
+        out_w,
+        out_h,
+        channels,
+        cfg,
+    );
 
     let master = ImageData::from_f32(out_w, out_h, channels as u32, &master_data);
     let coverage = ImageData::from_f32(out_w, out_h, 1, &coverage_data);
@@ -1286,7 +1311,15 @@ mod tests {
     }
 
     /// Build a panel master by sampling `sky_field` through a given WCS.
-    fn synth_panel(wcs: &WcsInfo, w: u32, h: u32, ra0: f64, dec0: f64, gain: f64, offset: f64) -> MosaicPanel {
+    fn synth_panel(
+        wcs: &WcsInfo,
+        w: u32,
+        h: u32,
+        ra0: f64,
+        dec0: f64,
+        gain: f64,
+        offset: f64,
+    ) -> MosaicPanel {
         let proj = WcsProjection::new(wcs).unwrap();
         let mut data = vec![0.0f32; (w * h) as usize];
         for y in 0..h {
@@ -1420,7 +1453,10 @@ mod tests {
         let a = synth_panel(&wcs_a, 256, 256, 10.0, 0.0, 1.0, 0.0);
         let b = synth_panel(&wcs_b, 256, 256, 10.0, 0.0, 1.0, 0.0);
         let err = stitch_mosaic(&[a, b], &MosaicStitchConfig::default()).unwrap_err();
-        assert!(matches!(err, MosaicError::CanvasTooLarge { .. }), "got {err:?}");
+        assert!(
+            matches!(err, MosaicError::CanvasTooLarge { .. }),
+            "got {err:?}"
+        );
     }
 
     // ----- single panel round-trips to ~itself -----
@@ -1457,8 +1493,7 @@ mod tests {
                 if sx < 2.0 || sy < 2.0 || sx > 125.0 || sy > 125.0 {
                     continue;
                 }
-                let expected =
-                    original[(sy.round() as usize) * 128 + (sx.round() as usize)] as f64;
+                let expected = original[(sy.round() as usize) * 128 + (sx.round() as usize)] as f64;
                 let got = stitched[oy * ow + ox] as f64;
                 if expected.abs() > 1.0 {
                     max_rel = max_rel.max((got - expected).abs() / expected.abs());
@@ -1466,8 +1501,14 @@ mod tests {
                 }
             }
         }
-        assert!(checked > 20, "expected many interior comparisons, got {checked}");
-        assert!(max_rel < 0.02, "single-panel self-reproduction rel err {max_rel}");
+        assert!(
+            checked > 20,
+            "expected many interior comparisons, got {checked}"
+        );
+        assert!(
+            max_rel < 0.02,
+            "single-panel self-reproduction rel err {max_rel}"
+        );
     }
 
     // ----- two overlapping panels: seamless, doubled coverage -----
@@ -1522,8 +1563,14 @@ mod tests {
                 }
             }
         }
-        assert!(single > 100, "expected a single-coverage region, got {single}");
-        assert!(doubled > 100, "expected a 2x-coverage overlap, got {doubled}");
+        assert!(
+            single > 100,
+            "expected a single-coverage region, got {single}"
+        );
+        assert!(
+            doubled > 100,
+            "expected a 2x-coverage overlap, got {doubled}"
+        );
 
         // Seam invisible: in the overlap, the stitched value must match the
         // sky field (both panels sampled the same field, hard-averaged).

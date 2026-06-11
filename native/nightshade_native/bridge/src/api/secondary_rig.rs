@@ -123,9 +123,7 @@ impl Default for SecondaryRigStatusApi {
 /// still coordinates the *secondary* side (it gates on `dither_pending`), but
 /// the *primary* only consults the barrier it captured at start; a future
 /// enhancement could push a live barrier into the running executor.
-pub async fn api_secondary_rig_start(
-    config: SecondaryRigConfigApi,
-) -> Result<(), NightshadeError> {
+pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<(), NightshadeError> {
     if config.exposure_secs <= 0.0 {
         return Err(NightshadeError::InvalidParameter(
             "exposure_secs must be positive".to_string(),
@@ -137,8 +135,7 @@ pub async fn api_secondary_rig_start(
         ));
     }
 
-    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy)
-        .unwrap_or_default();
+    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy).unwrap_or_default();
     let max_wait = if config.dither_max_wait_secs > 0.0 {
         config.dither_max_wait_secs
     } else {

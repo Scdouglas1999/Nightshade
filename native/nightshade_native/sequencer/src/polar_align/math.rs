@@ -181,7 +181,11 @@ pub(super) fn rotate_axis_by_star_motion(
     if cross_mag < 1e-12 {
         return axis;
     }
-    let k = (cross.0 / cross_mag, cross.1 / cross_mag, cross.2 / cross_mag);
+    let k = (
+        cross.0 / cross_mag,
+        cross.1 / cross_mag,
+        cross.2 / cross_mag,
+    );
     let angle = cross_mag.atan2(dot);
     let (sin_t, cos_t) = (angle.sin(), angle.cos());
 

@@ -344,7 +344,12 @@ pub fn estimate_normalization(
 /// offset)` is bilinearly interpolated from the cell-centre lattice. Non-finite
 /// pixels are left untouched (they carry no signal to correct and propagating
 /// NaN through the integration is handled there).
-pub fn apply_normalization(frame: &mut [f64], coeffs: &NormalizationCoeffs, width: usize, height: usize) {
+pub fn apply_normalization(
+    frame: &mut [f64],
+    coeffs: &NormalizationCoeffs,
+    width: usize,
+    height: usize,
+) {
     match &coeffs.local {
         None => {
             for v in frame.iter_mut() {
@@ -754,9 +759,15 @@ mod tests {
         let frame = reference.clone();
         let mask = CoverageMask::full(w, h);
 
-        let coeffs =
-            estimate_normalization(&frame, &reference, &mask, w, h, &NormalizationConfig::default())
-                .unwrap();
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
         assert!((coeffs.scale - 1.0).abs() < 1e-6, "scale {}", coeffs.scale);
         assert!(coeffs.offset.abs() < 1e-6, "offset {}", coeffs.offset);
     }
@@ -789,9 +800,15 @@ mod tests {
         frame[nan_idx] = f64::NAN;
 
         let mask = CoverageMask::new(w, h, valid).unwrap();
-        let coeffs =
-            estimate_normalization(&frame, &reference, &mask, w, h, &NormalizationConfig::default())
-                .unwrap();
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
 
         // Despite the poisoned border and NaN, the true affine relation is
         // recovered from the covered, finite pixels.
@@ -827,9 +844,15 @@ mod tests {
         let frame = vec![500.0; w * h];
         let mask = CoverageMask::full(w, h);
 
-        let coeffs =
-            estimate_normalization(&frame, &reference, &mask, w, h, &NormalizationConfig::default())
-                .unwrap();
+        let coeffs = estimate_normalization(
+            &frame,
+            &reference,
+            &mask,
+            w,
+            h,
+            &NormalizationConfig::default(),
+        )
+        .unwrap();
         // Flat frames have no slope information AND too few samples -> identity.
         assert_eq!(coeffs, NormalizationCoeffs::identity());
     }

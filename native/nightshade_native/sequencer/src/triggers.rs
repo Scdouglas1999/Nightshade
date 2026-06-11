@@ -1795,9 +1795,7 @@ impl TriggerManager {
             if let TriggerType::MeridianFlip { config } = &trigger.trigger_type {
                 if meridian_method.is_none() {
                     meridian_method = Some(config.trigger_method);
-                    if config.trigger_method
-                        == crate::MeridianTriggerMethod::MinutesPastMeridian
-                    {
+                    if config.trigger_method == crate::MeridianTriggerMethod::MinutesPastMeridian {
                         meridian_minutes = Some(config.minutes_past_meridian);
                     }
                 }
@@ -2238,7 +2236,10 @@ mod tests {
         // NOT advance the counter — it counts frames, not ticks. Without the
         // fix this would have bumped the count toward firing within one sub.
         assert!(!trigger.check(&state).await);
-        assert_eq!(trigger.hfr_bad_frame_count, 1, "same frame must not re-count");
+        assert_eq!(
+            trigger.hfr_bad_frame_count, 1,
+            "same frame must not re-count"
+        );
 
         // Frame 2: bad - still not enough
         state.update_hfr(4.0);

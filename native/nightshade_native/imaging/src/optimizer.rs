@@ -450,9 +450,7 @@ pub fn recommend_subset(
 fn rank_by_weight_desc(weights: &[f64]) -> Vec<usize> {
     let mut order: Vec<usize> = (0..weights.len()).collect();
     // sort_by is stable, so equal weights retain ascending original-index order.
-    order.sort_by(|&a, &b| {
-        sanitize_weight(weights[b]).total_cmp(&sanitize_weight(weights[a]))
-    });
+    order.sort_by(|&a, &b| sanitize_weight(weights[b]).total_cmp(&sanitize_weight(weights[a])));
     order
 }
 
@@ -510,7 +508,10 @@ mod tests {
         // With equal weights and noises the weighted mean collapses to
         // SNR(k) = √k · SNR₁. Check the analytic law point by point.
         let snr1 = curve[0].snr;
-        assert!((snr1 - 10.0).abs() < 1e-9, "single-sub SNR should equal the per-sub SNR, got {snr1}");
+        assert!(
+            (snr1 - 10.0).abs() < 1e-9,
+            "single-sub SNR should equal the per-sub SNR, got {snr1}"
+        );
         for (i, p) in curve.iter().enumerate() {
             let k = (i + 1) as f64;
             let expected = (k).sqrt() * 10.0;
@@ -525,7 +526,11 @@ mod tests {
 
         // SNR is strictly increasing (monotone up) — every sub helps.
         for w in curve.windows(2) {
-            assert!(w[1].snr > w[0].snr, "equal-quality SNR must climb: {:?}", curve);
+            assert!(
+                w[1].snr > w[0].snr,
+                "equal-quality SNR must climb: {:?}",
+                curve
+            );
         }
 
         // FWHM of an all-equal prefix is just the common FWHM.
@@ -534,11 +539,23 @@ mod tests {
         assert!((curve[n - 1].cumulative_integration_s - 60.0 * n as f64).abs() < 1e-9);
 
         // The recommendation must keep every sub (nothing is net-negative).
-        let rec = recommend_subset(&qualities, &weights, &exposures, &OptimizerConfig::default())
-            .expect("recommendation");
-        assert_eq!(rec.keep_n, n, "all equal subs should be kept: {}", rec.reason);
+        let rec = recommend_subset(
+            &qualities,
+            &weights,
+            &exposures,
+            &OptimizerConfig::default(),
+        )
+        .expect("recommendation");
+        assert_eq!(
+            rec.keep_n, n,
+            "all equal subs should be kept: {}",
+            rec.reason
+        );
         assert_eq!(rec.kept_indices.len(), n);
-        assert!(rec.predicted_snr_gain_pct.abs() < 1e-9, "no gain from culling equal subs");
+        assert!(
+            rec.predicted_snr_gain_pct.abs() < 1e-9,
+            "no gain from culling equal subs"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -575,10 +592,19 @@ mod tests {
             curve[total - 2].snr
         );
 
-        let rec = recommend_subset(&qualities, &weights, &exposures, &OptimizerConfig::default())
-            .expect("recommendation");
+        let rec = recommend_subset(
+            &qualities,
+            &weights,
+            &exposures,
+            &OptimizerConfig::default(),
+        )
+        .expect("recommendation");
         // It must drop exactly the bad sub.
-        assert_eq!(rec.keep_n, good_n, "should keep the good subs only: {}", rec.reason);
+        assert_eq!(
+            rec.keep_n, good_n,
+            "should keep the good subs only: {}",
+            rec.reason
+        );
         assert!(
             !rec.kept_indices.contains(&bad_index),
             "the bad sub (original index {bad_index}) must be dropped; kept = {:?}",
@@ -630,8 +656,7 @@ mod tests {
             aggressiveness: 0.0,
             min_keep: 999,
         };
-        let rec_over =
-            recommend_subset(&qualities, &weights, &exposures, &cfg_over).expect("rec");
+        let rec_over = recommend_subset(&qualities, &weights, &exposures, &cfg_over).expect("rec");
         assert_eq!(rec_over.keep_n, total, "min_keep clamps to N, not beyond");
     }
 
@@ -699,7 +724,10 @@ mod tests {
             &qualities,
             &weights,
             &exposures,
-            &OptimizerConfig { aggressiveness: 0.0, min_keep: 1 },
+            &OptimizerConfig {
+                aggressiveness: 0.0,
+                min_keep: 1,
+            },
         )
         .expect("rec")
         .keep_n;
@@ -707,7 +735,10 @@ mod tests {
             &qualities,
             &weights,
             &exposures,
-            &OptimizerConfig { aggressiveness: 1.0, min_keep: 1 },
+            &OptimizerConfig {
+                aggressiveness: 1.0,
+                min_keep: 1,
+            },
         )
         .expect("rec")
         .keep_n;
@@ -735,10 +766,17 @@ mod tests {
         ];
         let weights = vec![5.0, 1.0, 9.0];
         let exposures = vec![60.0, 60.0, 60.0];
-        let cfg = OptimizerConfig { aggressiveness: 1.0, min_keep: 1 };
+        let cfg = OptimizerConfig {
+            aggressiveness: 1.0,
+            min_keep: 1,
+        };
         let rec = recommend_subset(&qualities, &weights, &exposures, &cfg).expect("rec");
         assert_eq!(rec.keep_n, 2);
-        assert_eq!(rec.kept_indices, vec![2, 0], "top-2 by weight, original indices, ranked");
+        assert_eq!(
+            rec.kept_indices,
+            vec![2, 0],
+            "top-2 by weight, original indices, ranked"
+        );
     }
 
     #[test]
@@ -746,8 +784,8 @@ mod tests {
         // exposures shorter than the population ⇒ missing count as 0 s.
         let qualities = vec![
             quality(10.0, 5.0, 3.0),
-            quality(8.0, 6.0, 0.0),   // no measurable FWHM (skipped from avg)
-            quality(0.0, 0.0, 0.0),   // fully degenerate noise (skipped from SNR)
+            quality(8.0, 6.0, 0.0), // no measurable FWHM (skipped from avg)
+            quality(0.0, 0.0, 0.0), // fully degenerate noise (skipped from SNR)
         ];
         let weights = vec![1.0, 1.0, 1.0];
         let exposures = vec![60.0]; // only the first has an exposure
@@ -768,8 +806,13 @@ mod tests {
         assert!(curve[2].snr.is_finite() && curve[2].snr >= 0.0);
 
         // recommend_subset must not panic on this input.
-        let rec = recommend_subset(&qualities, &weights, &exposures, &OptimizerConfig::default())
-            .expect("rec");
+        let rec = recommend_subset(
+            &qualities,
+            &weights,
+            &exposures,
+            &OptimizerConfig::default(),
+        )
+        .expect("rec");
         assert!(rec.keep_n >= 1 && rec.keep_n <= 3);
     }
 
@@ -778,11 +821,19 @@ mod tests {
         let qualities = vec![quality(12.0, 4.0, 2.0)];
         let weights = vec![1.0];
         let exposures = vec![300.0];
-        let rec = recommend_subset(&qualities, &weights, &exposures, &OptimizerConfig::default())
-            .expect("rec");
+        let rec = recommend_subset(
+            &qualities,
+            &weights,
+            &exposures,
+            &OptimizerConfig::default(),
+        )
+        .expect("rec");
         assert_eq!(rec.keep_n, 1);
         assert_eq!(rec.kept_indices, vec![0]);
-        assert_eq!(rec.predicted_snr_gain_pct, 0.0, "keeping the only sub is a no-op");
+        assert_eq!(
+            rec.predicted_snr_gain_pct, 0.0,
+            "keeping the only sub is a no-op"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -804,7 +855,10 @@ mod tests {
         let exposures = vec![60.0; n];
 
         for aggr in [0.0, 0.5, 0.7, 1.0] {
-            let cfg = OptimizerConfig { aggressiveness: aggr, min_keep: 1 };
+            let cfg = OptimizerConfig {
+                aggressiveness: aggr,
+                min_keep: 1,
+            };
             let rec = recommend_subset(&qualities, &weights, &exposures, &cfg).expect("rec");
             assert_eq!(
                 rec.keep_n, n,
@@ -817,7 +871,8 @@ mod tests {
                 rec.predicted_snr_gain_pct >= -1e-9,
                 "aggressiveness={aggr}: recommendation must never predict an SNR loss, \
                  got {}% ({})",
-                rec.predicted_snr_gain_pct, rec.reason
+                rec.predicted_snr_gain_pct,
+                rec.reason
             );
             // The reason must never libel equal-weight subs as "low-weight".
             assert!(
@@ -840,7 +895,9 @@ mod tests {
         // Tiny deterministic LCG so the random populations are reproducible.
         let mut state: u64 = 0xDEAD_BEEF_CAFE_F00D;
         let mut next = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (state >> 11) as f64 / (1u64 << 53) as f64
         };
 
@@ -860,15 +917,18 @@ mod tests {
             let exposures = vec![60.0; n];
 
             for aggr in [0.0, 0.5, 0.7, 1.0] {
-                let cfg = OptimizerConfig { aggressiveness: aggr, min_keep: 1 };
-                let rec = recommend_subset(&qualities, &weights, &exposures, &cfg)
-                    .expect("rec");
+                let cfg = OptimizerConfig {
+                    aggressiveness: aggr,
+                    min_keep: 1,
+                };
+                let rec = recommend_subset(&qualities, &weights, &exposures, &cfg).expect("rec");
                 assert!(
                     rec.predicted_snr_gain_pct >= -1e-9,
                     "trial {trial} (n={n}, aggr={aggr}): predicted SNR loss {}% — the \
                      recommender must never drop captured subs for a self-predicted loss \
                      ({})",
-                    rec.predicted_snr_gain_pct, rec.reason
+                    rec.predicted_snr_gain_pct,
+                    rec.reason
                 );
                 assert!(
                     rec.keep_n >= 1 && rec.keep_n <= n,

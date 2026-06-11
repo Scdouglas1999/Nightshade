@@ -48,11 +48,11 @@ pub use background_extraction::*; // NEW: Export background-extraction types
 pub use buffer_pool::*;
 pub use calibration::*;
 pub use calibration_masters::*; // NEW: Export master-flat / cosmetic-correction types
+pub use camera::*;
 pub use channel_combine::*; // NEW: Export channel-combination types
 pub use color_calibration::*; // NEW: Export color-calibration types
-pub use camera::*;
-pub use deconvolution::*; // NEW: Export deconvolution types
 pub use debayer::*;
+pub use deconvolution::*; // NEW: Export deconvolution types
 pub use drizzle::*; // NEW: Export drizzle types
 pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types

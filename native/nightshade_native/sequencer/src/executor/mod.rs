@@ -2456,7 +2456,8 @@ impl SequenceExecutor {
                 // weaker than the Dart W1 gate it backstops. When the Dart side
                 // pushed its `SchedulerConfig.maxSunAltitudeDegrees`, that exact
                 // value is used.
-                let max_sun_altitude_degrees = match runtime_config.read().max_sun_altitude_degrees {
+                let max_sun_altitude_degrees = match runtime_config.read().max_sun_altitude_degrees
+                {
                     Some(v) if v.is_finite() => v,
                     _ => crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
                 };
@@ -3928,9 +3929,7 @@ impl SequenceExecutor {
                                     ctx.phase = crate::recovery::RecoveryPhase::GaveUp;
                                     break;
                                 }
-                                crate::recovery::AttemptOutcome::PauseForOperator {
-                                    message,
-                                } => {
+                                crate::recovery::AttemptOutcome::PauseForOperator { message } => {
                                     tracing::warn!(
                                         "[RECOVERY] Cause {:?} escalated to operator Pause: {}",
                                         ctx.cause,
@@ -5002,9 +5001,10 @@ impl SequenceExecutor {
                                             ),
                                         });
                                     }
-                                    if let (Some(dome_id), Some(e)) =
-                                        (&trigger_action_context.dome_id, &safe_state.dome_close_error)
-                                    {
+                                    if let (Some(dome_id), Some(e)) = (
+                                        &trigger_action_context.dome_id,
+                                        &safe_state.dome_close_error,
+                                    ) {
                                         let _ = event_tx_clone2.send(ExecutorEvent::Error {
                                             message: format!(
                                                 "ParkAndAbort: failed to close dome '{}': {} — \
@@ -6621,7 +6621,8 @@ mod tests {
     #[test]
     fn default_max_sun_altitude_matches_dart_nautical_darkness() {
         assert_eq!(
-            crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES, -12.0,
+            crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
+            -12.0,
             "native daylight-gate default must mirror the Dart scheduler's -12° \
              default so the twilight gap is closed"
         );
@@ -7682,8 +7683,7 @@ mod tests {
     #[tokio::test]
     async fn guide_star_lost_recovery_fails_closed_when_start_errors() {
         // guider_start itself errors → recovery must fail closed.
-        let ops: SharedDeviceOps =
-            std::sync::Arc::new(ReacquireGuiderOps::new(true, false));
+        let ops: SharedDeviceOps = std::sync::Arc::new(ReacquireGuiderOps::new(true, false));
         let outcome = recover_guide_star(&ops).await;
         assert!(
             matches!(outcome, crate::recovery::AttemptOutcome::Failed { .. }),

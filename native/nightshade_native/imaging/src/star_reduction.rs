@@ -422,7 +422,11 @@ fn plane_to_u16_image(plane: &[f64], width: u32, height: u32) -> ImageData {
     let inv_range = 1.0 / (hi - lo);
     let data: Vec<u16> = plane
         .par_iter()
-        .map(|&v| (((v - lo) * inv_range) * 60000.0).clamp(0.0, 65535.0).round() as u16)
+        .map(|&v| {
+            (((v - lo) * inv_range) * 60000.0)
+                .clamp(0.0, 65535.0)
+                .round() as u16
+        })
         .collect();
     ImageData::from_u16(width, height, 1, &data)
 }
@@ -467,29 +471,27 @@ fn build_star_mask(
 
     // For each row, accumulate the max contribution of every disk that reaches
     // it. We only iterate disks whose vertical extent covers the row.
-    mask.par_chunks_mut(width)
-        .enumerate()
-        .for_each(|(y, row)| {
-            let yf = y as f64;
-            for d in &disks {
-                let dy = yf - d.cy;
-                if dy.abs() > d.outer {
-                    continue;
-                }
-                // Horizontal half-extent of the outer disk at this row.
-                let half = (d.outer * d.outer - dy * dy).max(0.0).sqrt();
-                let x0 = ((d.cx - half).floor().max(0.0)) as usize;
-                let x1 = ((d.cx + half).ceil().min((width - 1) as f64)) as usize;
-                for (x, cell) in row.iter_mut().enumerate().take(x1 + 1).skip(x0) {
-                    let dx = x as f64 - d.cx;
-                    let r = (dx * dx + dy * dy).sqrt();
-                    let w = disk_weight(r, d.core, d.outer);
-                    if w > *cell {
-                        *cell = w;
-                    }
+    mask.par_chunks_mut(width).enumerate().for_each(|(y, row)| {
+        let yf = y as f64;
+        for d in &disks {
+            let dy = yf - d.cy;
+            if dy.abs() > d.outer {
+                continue;
+            }
+            // Horizontal half-extent of the outer disk at this row.
+            let half = (d.outer * d.outer - dy * dy).max(0.0).sqrt();
+            let x0 = ((d.cx - half).floor().max(0.0)) as usize;
+            let x1 = ((d.cx + half).ceil().min((width - 1) as f64)) as usize;
+            for (x, cell) in row.iter_mut().enumerate().take(x1 + 1).skip(x0) {
+                let dx = x as f64 - d.cx;
+                let r = (dx * dx + dy * dy).sqrt();
+                let w = disk_weight(r, d.core, d.outer);
+                if w > *cell {
+                    *cell = w;
                 }
             }
-        });
+        }
+    });
 
     mask
 }
@@ -505,7 +507,7 @@ fn disk_weight(r: f64, core: f64, outer: f64) -> f32 {
         0.0
     } else {
         let t = (r - core) / (outer - core); // 0 → 1 across the feather
-        // Raised cosine: 1 at t=0, 0 at t=1, zero slope at both ends.
+                                             // Raised cosine: 1 at t=0, 0 at t=1, zero slope at both ends.
         (0.5 * (1.0 + (std::f64::consts::PI * t).cos())) as f32
     }
 }
@@ -517,40 +519,38 @@ fn erode_plane(plane: &[f64], width: usize, height: usize, radius: i32) -> Vec<f
     let r = radius.max(1);
     let r_sq = (r * r) as f64;
     let mut out = vec![0.0f64; width * height];
-    out.par_chunks_mut(width)
-        .enumerate()
-        .for_each(|(y, row)| {
-            for (x, cell) in row.iter_mut().enumerate() {
-                let mut min_v = f64::INFINITY;
-                for dy in -r..=r {
-                    let yy = y as i32 + dy;
-                    if yy < 0 || yy >= height as i32 {
+    out.par_chunks_mut(width).enumerate().for_each(|(y, row)| {
+        for (x, cell) in row.iter_mut().enumerate() {
+            let mut min_v = f64::INFINITY;
+            for dy in -r..=r {
+                let yy = y as i32 + dy;
+                if yy < 0 || yy >= height as i32 {
+                    continue;
+                }
+                let dy_sq = (dy * dy) as f64;
+                if dy_sq > r_sq {
+                    continue;
+                }
+                let dx_max = (r_sq - dy_sq).sqrt().floor() as i32;
+                let base = yy as usize * width;
+                for dx in -dx_max..=dx_max {
+                    let xx = x as i32 + dx;
+                    if xx < 0 || xx >= width as i32 {
                         continue;
                     }
-                    let dy_sq = (dy * dy) as f64;
-                    if dy_sq > r_sq {
-                        continue;
-                    }
-                    let dx_max = (r_sq - dy_sq).sqrt().floor() as i32;
-                    let base = yy as usize * width;
-                    for dx in -dx_max..=dx_max {
-                        let xx = x as i32 + dx;
-                        if xx < 0 || xx >= width as i32 {
-                            continue;
-                        }
-                        let v = plane[base + xx as usize];
-                        if v < min_v {
-                            min_v = v;
-                        }
+                    let v = plane[base + xx as usize];
+                    if v < min_v {
+                        min_v = v;
                     }
                 }
-                *cell = if min_v.is_finite() {
-                    min_v
-                } else {
-                    plane[y * width + x]
-                };
             }
-        });
+            *cell = if min_v.is_finite() {
+                min_v
+            } else {
+                plane[y * width + x]
+            };
+        }
+    });
     out
 }
 
@@ -603,7 +603,11 @@ fn background_radius(stars: &[DetectedStar]) -> i32 {
         return MIN_BACKGROUND_RADIUS_PX;
     }
     // Use a high HFR percentile so the window clears even the larger stars.
-    let mut hfrs: Vec<f64> = stars.iter().map(|s| s.hfr).filter(|h| h.is_finite()).collect();
+    let mut hfrs: Vec<f64> = stars
+        .iter()
+        .map(|s| s.hfr)
+        .filter(|h| h.is_finite())
+        .collect();
     if hfrs.is_empty() {
         return MIN_BACKGROUND_RADIUS_PX;
     }
@@ -761,7 +765,13 @@ mod tests {
     /// Encircled-energy "size" proxy: count of pixels above a fixed threshold
     /// over background within a window around a centre. A smaller star covers
     /// fewer above-threshold pixels.
-    fn star_footprint(image: &ImageData, cx: usize, cy: usize, background: u16, win: usize) -> usize {
+    fn star_footprint(
+        image: &ImageData,
+        cx: usize,
+        cy: usize,
+        background: u16,
+        win: usize,
+    ) -> usize {
         let w = image.width as usize;
         let h = image.height as usize;
         let thresh = background as u32 + 200; // well above flat background
@@ -976,7 +986,10 @@ mod tests {
             ..cfg
         };
         let out_e = reduce_stars(&input, &cfg_e).unwrap();
-        assert_eq!(out_e.data, input.data, "strength=0 erosion must be identity");
+        assert_eq!(
+            out_e.data, input.data,
+            "strength=0 erosion must be identity"
+        );
     }
 
     #[test]
@@ -1065,7 +1078,10 @@ mod tests {
         // A far-corner background pixel must be byte-identical.
         let corner_in = &input.data[0..4];
         let corner_out = &out.data[0..4];
-        assert_eq!(corner_in, corner_out, "f32 background must be byte-identical");
+        assert_eq!(
+            corner_in, corner_out,
+            "f32 background must be byte-identical"
+        );
     }
 
     /// Assert that every pixel the (re-derived) star mask did not touch is
@@ -1215,7 +1231,10 @@ mod tests {
         assert_eq!(disk_weight(10.0, 3.0, 6.0), 0.0);
         // Midpoint of the feather → 0.5 (raised cosine at t=0.5).
         let mid = disk_weight(4.5, 3.0, 6.0);
-        assert!((mid - 0.5).abs() < 1e-6, "feather midpoint should be 0.5, got {mid}");
+        assert!(
+            (mid - 0.5).abs() < 1e-6,
+            "feather midpoint should be 0.5, got {mid}"
+        );
         // Monotonically decreasing across the feather.
         let a = disk_weight(3.5, 3.0, 6.0);
         let b = disk_weight(5.5, 3.0, 6.0);

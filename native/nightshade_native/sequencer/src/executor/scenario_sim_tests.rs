@@ -761,9 +761,15 @@ async fn scenario4_dawn_approaching_fires_and_parks() {
     // The park path the dawn trigger drives: park the mount (end-of-night safe).
     let ops_concrete = Arc::new(ScriptedDeviceOps::new());
     let ops: SharedDeviceOps = ops_concrete.clone();
-    let outcome =
-        park_and_close_safe_state(&ops, Some("mount-1"), Some("cover-1"), Some("dome-1"), 1, 0.0)
-            .await;
+    let outcome = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        1,
+        0.0,
+    )
+    .await;
     assert!(outcome.fully_safe(), "end-of-night park sweep must succeed");
     assert!(ops_concrete.index_of("mount_park:mount-1").is_some());
 }
@@ -1056,8 +1062,11 @@ async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
         }
     });
 
-    let mut ctx =
-        crate::recovery::RecoveryContext::new(RecoveryCause::ConsecutiveRejectsExceeded, 30.0, 600.0);
+    let mut ctx = crate::recovery::RecoveryContext::new(
+        RecoveryCause::ConsecutiveRejectsExceeded,
+        30.0,
+        600.0,
+    );
     ctx.attempt_count = 4;
 
     let escalation_state = super::RecoveryEscalationState {
@@ -1091,9 +1100,7 @@ async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
     let tracking_idx = ops_concrete
         .index_of("mount_set_tracking:mount-1:true")
         .unwrap_or_else(|| {
-            panic!(
-                "attended escalation MUST re-enable tracking before pausing; calls={calls:?}"
-            )
+            panic!("attended escalation MUST re-enable tracking before pausing; calls={calls:?}")
         });
 
     // (2) It happened BEFORE the run was flipped to Paused (no untracked-exposed
@@ -1148,8 +1155,11 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
     // Drain events so the bounded channel never lags the sender.
     let drainer = tokio::spawn(async move { while rx.recv().await.is_ok() {} });
 
-    let mut ctx =
-        crate::recovery::RecoveryContext::new(RecoveryCause::ConsecutiveRejectsExceeded, 30.0, 600.0);
+    let mut ctx = crate::recovery::RecoveryContext::new(
+        RecoveryCause::ConsecutiveRejectsExceeded,
+        30.0,
+        600.0,
+    );
     ctx.attempt_count = 4;
 
     let escalation_state = super::RecoveryEscalationState {

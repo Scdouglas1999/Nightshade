@@ -1061,9 +1061,9 @@ pub async fn park_and_close_safe_state(
     park_retry_delay_secs: f64,
 ) -> SafeStateOutcome {
     let park = match mount_id {
-        Some(id) => Some(
-            try_park_with_retry(device_ops, id, park_max_retries, park_retry_delay_secs).await,
-        ),
+        Some(id) => {
+            Some(try_park_with_retry(device_ops, id, park_max_retries, park_retry_delay_secs).await)
+        }
         None => None,
     };
 
@@ -1717,8 +1717,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn park_and_close_safe_state_reports_unsafe_on_unconfirmable_shutter() {
         let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Unknown", false));
-        let outcome =
-            park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
+        let outcome = park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
         assert!(
             outcome.dome_close_error.is_some(),
             "an unconfirmable shutter must record a dome_close_error"
@@ -1731,8 +1730,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn park_and_close_safe_state_reports_unsafe_when_shutter_read_fails() {
         let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("", true));
-        let outcome =
-            park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
+        let outcome = park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
         assert!(outcome.dome_close_error.is_some());
         assert!(!outcome.fully_safe());
     }

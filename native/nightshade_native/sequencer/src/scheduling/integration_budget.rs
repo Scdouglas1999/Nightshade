@@ -737,8 +737,14 @@ mod tests {
 
     #[test]
     fn count_zero_frames_or_zero_secs_yields_no_cap() {
-        assert_eq!(count_budget(&[("Ha", 0, 300.0)]).resolved_filter_cap("Ha"), None);
-        assert_eq!(count_budget(&[("Ha", 60, 0.0)]).resolved_filter_cap("Ha"), None);
+        assert_eq!(
+            count_budget(&[("Ha", 0, 300.0)]).resolved_filter_cap("Ha"),
+            None
+        );
+        assert_eq!(
+            count_budget(&[("Ha", 60, 0.0)]).resolved_filter_cap("Ha"),
+            None
+        );
         // Both-zero → not active at all.
         assert!(!count_budget(&[("Ha", 0, 0.0)]).is_active());
     }
@@ -811,10 +817,7 @@ mod tests {
         let rows = s.count_progress(&b);
         assert_eq!(
             rows,
-            vec![
-                ("Ha".to_string(), 47, 60),
-                ("OIII".to_string(), 5, 30),
-            ]
+            vec![("Ha".to_string(), 47, 60), ("OIII".to_string(), 5, 30),]
         );
     }
 

@@ -291,7 +291,8 @@ impl DitherBarrier {
     /// SECONDARY: mark the in-flight exposure as finished (or aborted). Wakes
     /// any primary waiting in [`Self::wait_for_secondary_clear`].
     pub fn mark_exposure_finished(&self) {
-        self.secondary_expected_finish_ms.store(0, Ordering::Relaxed);
+        self.secondary_expected_finish_ms
+            .store(0, Ordering::Relaxed);
         self.secondary_exposing.store(false, Ordering::Release);
         self.secondary_cleared.notify_waiters();
     }
@@ -505,7 +506,9 @@ impl SecondaryRig {
             run_secondary_loop(loop_state.clone(), device_ops, barrier, meta).await;
             loop_state.running.store(false, Ordering::Release);
             loop_state.exposing.store(false, Ordering::Release);
-            loop_state.waiting_for_dither.store(false, Ordering::Release);
+            loop_state
+                .waiting_for_dither
+                .store(false, Ordering::Release);
         });
         Self { state, handle }
     }
@@ -552,7 +555,10 @@ pub async fn run_secondary_loop(
         }
     }
 
-    let save_dir = meta.save_base.as_ref().map(|base| base.join(&config.rig_label));
+    let save_dir = meta
+        .save_base
+        .as_ref()
+        .map(|base| base.join(&config.rig_label));
     if let Some(dir) = &save_dir {
         if let Err(e) = tokio::fs::create_dir_all(dir).await {
             tracing::error!(
@@ -732,7 +738,8 @@ async fn capture_secondary_frame(
     // Frame attribution: tag the rig so multi-rig sessions can split subs.
     ctx.rig_label = Some(config.rig_label.clone());
 
-    let file_name = secondary_file_name(meta.target_name.as_deref(), &config.rig_label, frame_index);
+    let file_name =
+        secondary_file_name(meta.target_name.as_deref(), &config.rig_label, frame_index);
     let full_path = match save_dir {
         Some(dir) => dir.join(&file_name),
         None => std::path::PathBuf::from(&file_name),
@@ -764,7 +771,13 @@ fn secondary_file_name(target: Option<&str>, rig_label: &str, frame_index: u32) 
 
 fn sanitize_component(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -775,7 +788,10 @@ mod tests {
 
     #[tokio::test]
     async fn barrier_blocks_secondary_while_dither_pending() {
-        let barrier = Arc::new(DitherBarrier::new(30.0, InFlightDitherPolicy::CompleteIfShort));
+        let barrier = Arc::new(DitherBarrier::new(
+            30.0,
+            InFlightDitherPolicy::CompleteIfShort,
+        ));
         let cancel = AtomicBool::new(false);
         barrier.begin_dither();
 
@@ -790,7 +806,10 @@ mod tests {
         });
 
         tokio::time::sleep(Duration::from_millis(150)).await;
-        assert!(!waiter.is_finished(), "secondary must stay blocked during dither");
+        assert!(
+            !waiter.is_finished(),
+            "secondary must stay blocked during dither"
+        );
         barrier.end_dither();
 
         let elapsed = waiter.await.unwrap();
@@ -810,7 +829,10 @@ mod tests {
 
     #[tokio::test]
     async fn in_flight_short_exposure_completes_before_dither() {
-        let barrier = Arc::new(DitherBarrier::new(30.0, InFlightDitherPolicy::CompleteIfShort));
+        let barrier = Arc::new(DitherBarrier::new(
+            30.0,
+            InFlightDitherPolicy::CompleteIfShort,
+        ));
         // Secondary starts a 0.2s sub that will finish well within max-wait.
         barrier.mark_exposure_started(0.2);
 
@@ -844,7 +866,10 @@ mod tests {
         let cleared = barrier.wait_for_secondary_clear().await;
         let waited = start.elapsed();
 
-        assert!(!cleared, "must report forced-proceed when secondary never clears");
+        assert!(
+            !cleared,
+            "must report forced-proceed when secondary never clears"
+        );
         assert_eq!(barrier.forced_proceed_count(), 1);
         // Bounded: it gave up close to max_wait (0.3s), nowhere near 3600s.
         assert!(waited < Duration::from_secs(2), "waited {waited:?}");
