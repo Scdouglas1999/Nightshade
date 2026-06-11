@@ -82,10 +82,19 @@ class DeepStarVerifyResult {
 /// hash are skipped, so "pause" simply stops the run and a later download
 /// call continues where it left off.
 class DeepStarCatalogManager {
-  /// Default base URL: a locally self-hosted tileset. Generate one with
-  /// `tools/catalog_prep/make_deep_star_tiles.py` and serve it with e.g.
-  /// `python3 -m http.server 8765` from the output directory.
-  static const String defaultBaseUrl =
+  /// Default base URL: intentionally empty. No official tileset is published
+  /// yet, and shipping a loopback placeholder (the old
+  /// `http://localhost:8765/...` dev default) meant a fresh install's
+  /// Download button could only ever fail with connection-refused. Users
+  /// supply a host in Settings; developers can self-host a generated tileset
+  /// (`tools/catalog_prep/make_deep_star_tiles.py`, then e.g.
+  /// `python3 -m http.server 8765` from the output directory).
+  static const String defaultBaseUrl = '';
+
+  /// The pre-4.0.1 shipping default. Any config.json that persisted it (the
+  /// settings card wrote the field on every download attempt) is treated as
+  /// unset, so existing installs migrate onto the empty default too.
+  static const String _legacyLoopbackBaseUrl =
       'http://localhost:8765/nightshade_deep_stars';
 
   final String directory;
@@ -115,7 +124,9 @@ class DeepStarCatalogManager {
         final json = (jsonDecode(await file.readAsString()) as Map)
             .cast<String, Object?>();
         final url = json['baseUrl'] as String?;
-        if (url != null && url.isNotEmpty) return url;
+        if (url != null && url.isNotEmpty && url != _legacyLoopbackBaseUrl) {
+          return url;
+        }
       }
     } catch (e) {
       developer.log(
@@ -165,7 +176,15 @@ class DeepStarCatalogManager {
             .cast<String, Object?>();
         installedAt = DateTime.tryParse(json['installedAt'] as String? ?? '');
       }
-    } catch (_) {}
+    } catch (e) {
+      // Metadata is cosmetic (install date in Settings); a corrupt or
+      // unreadable meta file must not block status reporting, but log it so
+      // a damaged install directory is visible in diagnostics.
+      developer.log(
+        'DeepStarCatalog: failed to read install metadata: $e',
+        name: 'nightshade.planetarium',
+      );
+    }
 
     return DeepStarStatus(
       manifest: manifest,
@@ -182,6 +201,12 @@ class DeepStarCatalogManager {
   /// Fetch the remote manifest from the configured base URL.
   Future<DeepStarManifest> fetchRemoteManifest({String? baseUrl}) async {
     final base = _normalizeBase(baseUrl ?? await getBaseUrl());
+    if (base.isEmpty) {
+      throw StateError(
+        'No tileset host configured. Enter a base URL first — see '
+        'tools/catalog_prep/README.md for generating and hosting a tileset.',
+      );
+    }
     final client = _clientFactory();
     try {
       final response = await client.get(Uri.parse('$base/manifest.json'));
@@ -334,7 +359,15 @@ class DeepStarCatalogManager {
       if (name == 'config.json') continue;
       try {
         await entity.delete(recursive: true);
-      } catch (_) {}
+      } catch (e) {
+        // Keep deleting the rest of the tileset — one locked tile (e.g. an
+        // open file handle on Windows) should not strand the other files —
+        // but record what was left behind.
+        developer.log(
+          'DeepStarCatalog: failed to delete ${entity.path}: $e',
+          name: 'nightshade.planetarium',
+        );
+      }
     }
   }
 

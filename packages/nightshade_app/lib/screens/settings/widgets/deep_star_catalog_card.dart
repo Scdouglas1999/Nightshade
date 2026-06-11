@@ -182,9 +182,12 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
             TextField(
               controller: _urlController,
               enabled: !_busy,
+              // Rebuild so the Download button enables as soon as a URL is
+              // typed (and the helper note below disappears).
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: 'Tileset base URL',
-                hintText: DeepStarCatalogManager.defaultBaseUrl,
+                hintText: 'https://your-host/nightshade_deep_stars',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -193,6 +196,19 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                 fontSize: NightshadeTypography.fontSize13,
               ),
             ),
+            if (_urlController.text.trim().isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'No official tileset is published yet — point this at a '
+                'tileset you host yourself (see tools/catalog_prep in the '
+                'Nightshade repository).',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize11,
+                  height: 1.4,
+                ),
+              ),
+            ],
             if (isInstalled) ...[
               const SizedBox(height: 12),
               Text(
@@ -239,7 +255,11 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                       : (isInstalled ? 'Re-download / Resume' : 'Download'),
                   icon: NightshadeIcons.download,
                   variant: ButtonVariant.primary,
-                  onPressed: _busy ? null : _download,
+                  // Disabled until a host is entered: with no URL the request
+                  // can only fail, so don't offer it.
+                  onPressed: (_busy || _urlController.text.trim().isEmpty)
+                      ? null
+                      : _download,
                 ),
                 if (_busy)
                   NightshadeButton(

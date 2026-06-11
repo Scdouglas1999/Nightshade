@@ -190,7 +190,14 @@ class ElementRefreshService {
         return (jsonDecode(await file.readAsString()) as Map)
             .cast<String, Object?>();
       }
-    } catch (_) {}
+    } catch (e) {
+      // A corrupt meta file only loses the "last refreshed" bookkeeping; the
+      // next save rewrites it. Log so repeated parse failures are visible.
+      developer.log(
+        'ElementRefreshService: failed to read refresh metadata: $e',
+        name: 'nightshade.planetarium',
+      );
+    }
     return {};
   }
 

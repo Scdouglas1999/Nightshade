@@ -30,7 +30,15 @@ final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
   Future.delayed(const Duration(milliseconds: 400), () {
     try {
       index.warmGrid();
-    } catch (_) {}
+    } catch (e) {
+      // Warm-up is purely a latency optimization — the grid lazily builds on
+      // first use anyway — but a throwing warm path means real queries will
+      // hit the same error, so surface it.
+      developer.log(
+        'Spatial index grid warm-up failed: $e',
+        name: 'nightshade.planetarium',
+      );
+    }
   });
   return index;
 });
@@ -45,7 +53,15 @@ final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
   Future.delayed(const Duration(milliseconds: 400), () {
     try {
       index.warmGrid();
-    } catch (_) {}
+    } catch (e) {
+      // Warm-up is purely a latency optimization — the grid lazily builds on
+      // first use anyway — but a throwing warm path means real queries will
+      // hit the same error, so surface it.
+      developer.log(
+        'Spatial index grid warm-up failed: $e',
+        name: 'nightshade.planetarium',
+      );
+    }
   });
   return index;
 });
