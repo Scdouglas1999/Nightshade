@@ -4,7 +4,7 @@ import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
 import 'equipment_retry_defaults.dart';
 
-// DEV-P2-1: switch device state provider, mirroring the safety-monitor
+// Switch device state provider, mirroring the safety-monitor
 // shape (Audit C1). The notifier owns the connect-with-retry loop and the
 // `autoReconnectEnabled` flag that `DeviceService._getAutoReconnectFor`
 // consults when a Disconnected event arrives.
@@ -85,7 +85,7 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectSwitch();
     } catch (_) {
-      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+      // DeviceService logs; notifier always clears connection state.
     } finally {
       setDisconnected();
     }

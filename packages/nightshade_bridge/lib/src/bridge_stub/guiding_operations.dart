@@ -582,7 +582,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     //
     // Why: route every field through safelyCast* so a malformed PHD2 reply
     // surfaces a structured CastFailureException with the offending field
-    // name (audit-rust Â§1.4) instead of a bare TypeError.
+    // name instead of a bare TypeError.
     const ctx = 'phd2GetStarImage.result';
     final frame = safelyCastIntOpt(result, 'frame', contextPrefix: ctx) ?? 0;
     final width = safelyCastIntOpt(result, 'width', contextPrefix: ctx) ?? size;
@@ -730,8 +730,8 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     // for guide rates in pixels/second.
     //
     // Why: any of these can be absent (older PHD2 builds) or wrong-typed
-    // (PHD2 plugin shims) â€” surface the offending field name via
-    // CastFailureException rather than a bare TypeError (audit-rust Â§1.4).
+    // (PHD2 plugin shims) — surface the offending field name via
+    // CastFailureException rather than a bare TypeError.
     const ctx = 'phd2GetCalibrationData.result';
     final xAngle = safelyCastDoubleOpt(result, 'xAngle', contextPrefix: ctx);
     final yAngle = safelyCastDoubleOpt(result, 'yAngle', contextPrefix: ctx);

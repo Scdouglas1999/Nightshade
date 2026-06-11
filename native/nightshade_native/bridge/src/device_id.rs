@@ -73,7 +73,7 @@ impl CacheMetrics {
 
     /// Get the cache hit rate as a percentage (0.0 to 100.0)
     pub fn hit_rate(&self) -> f64 {
-        // Why (audit-rust §1.4): hit/miss counters are u64 atomics; u64 →
+        // Why: hit/miss counters are u64 atomics; u64 →
         // f64 precision loss is bounded by the mantissa (53 bits) — for
         // hit-rate-as-percentage display, any imprecision past 10^15 cache
         // operations is invisible.
@@ -118,7 +118,7 @@ pub struct DeviceIdCache {
 impl DeviceIdCache {
     /// Create a new cache with the specified capacity.
     ///
-    /// # `unwrap_or` policy (audit-rust §4.3)
+    /// # `unwrap_or` policy
     ///
     /// * `NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap())`
     ///   — caller-supplied zero capacity is treated as "use the default"
@@ -735,7 +735,7 @@ impl ParsedDeviceId {
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing device type"))?
             .to_lowercase();
 
-        // Why (audit-rust §4.3): simulator instance index defaults to 0
+        // Why: simulator instance index defaults to 0
         // when the suffix is malformed or absent. Real driver IDs go
         // through stricter parsing; the simulator is a developer-only
         // device family where "instance 0" is the legacy fallback that
@@ -947,7 +947,7 @@ impl ParsedDeviceId {
 /// Parse a base URL into protocol, host, and port
 fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
     // Expected format: http://host:port or https://host:port
-    // Why (audit-rust §4.3): `strip_prefix` returns None only when the
+    // Why: `strip_prefix` returns None only when the
     // prefix does not match, but we've already gated each branch with
     // `starts_with` of the same prefix; the fallback `""` is unreachable
     // but cheaper than `expect("checked above")`. Empty remainder would
@@ -1042,7 +1042,7 @@ impl std::fmt::Display for ParsedDeviceId {
 // =========================================================================
 
 #[cfg(test)]
-// `unwrap_or` policy (audit-rust §4.3): the test helpers in this module
+// `unwrap_or` policy: the test helpers in this module
 // use `unwrap_or_else(|e| panic!(...))` as a richer-message replacement
 // for `expect`. These are NOT silent fallbacks — they fail the test loud
 // with the vendor name and parse error embedded in the panic message.
@@ -1069,7 +1069,7 @@ mod tests {
         assert_eq!(
             parsed.alpaca_base_url(),
             Some("http://192.168.1.100:11111"),
-            "base_url must not duplicate the port (FB-P0-1/FB-P0-2)"
+            "base_url must not duplicate the port (FB-/FB-)"
         );
     }
 

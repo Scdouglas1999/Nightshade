@@ -6,7 +6,7 @@ import 'logging_service.dart';
 
 /// Routes native heartbeat events to [deviceHeartbeatHealthProvider]
 /// and owns the per-device start/stop helpers DeviceService uses from
-/// its connect/disconnect flows (DEV-P3-2).
+/// its connect/disconnect flows.
 ///
 /// Pulled out of `DeviceService` so the heartbeat concern lives in one
 /// file. Every dispatch is wrapped in a fail-soft try/catch: the

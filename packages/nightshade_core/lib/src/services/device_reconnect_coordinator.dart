@@ -22,7 +22,7 @@ import 'notification_service.dart';
 ///   * suppress-during-backend-swap state,
 ///   * the post-reconnect "should I resume a paused sequence?" check.
 ///
-/// Extracted from `DeviceService` (DEV-P1-1 + DV-P0-3) because the
+/// Extracted from `DeviceService` ( + ) because the
 /// reconnect state machine had no business being inlined alongside the
 /// connect/disconnect command layer. DeviceService now drives this
 /// coordinator from its device-event handlers; the coordinator never

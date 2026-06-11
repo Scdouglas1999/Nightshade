@@ -84,7 +84,7 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
 
   void _safeLogDisconnectError(String deviceType, Object error) {
     // Disconnect errors are logged but must not leave the UI showing
-    // "connected with error" — setDisconnected runs in finally (DV-P0-7).
+    // "connected with error" — setDisconnected runs in finally.
     try {
       // ignore: avoid_print
       print('CameraStateNotifier: disconnect $deviceType failed: $error');
@@ -94,7 +94,7 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
-    // DEV-P3-4: preserve `lastError` across the Connecting transition so
+    // Preserve `lastError` across the Connecting transition so
     // the equipment card can keep showing the most recent driver error
     // while the reconnect is in flight. It is cleared only when the
     // device actually reaches Connected (see [setConnected]), or when

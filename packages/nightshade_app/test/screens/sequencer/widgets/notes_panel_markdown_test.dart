@@ -1,4 +1,4 @@
-// Wave 6 Pack O — verify that note bodies in TargetNotesSection render
+// Verify that note bodies in TargetNotesSection render
 // markdown via flutter_markdown's MarkdownBody widget (instead of a
 // plain Text). We don't try to grok the rendered glyphs (that's
 // flutter_markdown's own responsibility); we just confirm that:

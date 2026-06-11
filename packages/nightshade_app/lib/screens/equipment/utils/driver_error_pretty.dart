@@ -1,6 +1,6 @@
-// DEV-P3-4: Driver-agnostic pretty-printer for raw device error messages.
+// Driver-agnostic pretty-printer for raw device error messages.
 //
-// The DEV-P0-5 device error pipeline drops the raw driver error message
+// The device error pipeline drops the raw driver error message
 // into the device state's [DeviceError.message] field unchanged. That is
 // the right thing to do for the audit trail, but the raw text is often
 // hostile to the user — e.g. ASCOM hands back bare HRESULTs like

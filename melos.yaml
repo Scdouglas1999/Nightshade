@@ -118,7 +118,7 @@ scripts:
 
   audit:cargo-duplicates:
     run: cd native/nightshade_native && cargo tree --duplicates --workspace
-    description: Surface duplicate semver versions of the same crate in the Rust workspace (audit-rust §5.3)
+    description: Surface duplicate semver versions of the same crate in the Rust workspace
 
 
   audit:ui-consistency:

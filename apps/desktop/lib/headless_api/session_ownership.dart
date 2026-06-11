@@ -1,4 +1,4 @@
-// P1-5: session ownership for the headless API server.
+// session ownership for the headless API server.
 //
 // Without ownership, two phones can race on `POST /api/sequencer/start` or
 // `POST /api/mount/slew` and conflicts resolve at the driver level with

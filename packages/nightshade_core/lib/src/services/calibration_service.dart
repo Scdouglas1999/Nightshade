@@ -148,7 +148,7 @@ class CalibrationService {
         darkPath == null &&
         exposureTime != null &&
         gain != null) {
-      // IMG-P0-2: route through the unified tolerances provider so the
+      // Route through the unified tolerances provider so the
       // runtime matcher and the coverage UI agree on what counts as a
       // matching dark.
       final tolerances = _ref.read(darkLibraryMatchTolerancesProvider);
@@ -325,7 +325,7 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   void _applyLoadedSettings(Map<String, String> settings) {
     // Why: the dark-library UI historically wrote to
     // `dark_library.auto_subtract` while the imaging pipeline only read
-    // `calibration.auto_calibrate`. Audit-handoff §2.1 unifies both
+    // `calibration.auto_calibrate`. This unifies both
     // surfaces against the calibration store. If the user has a
     // pre-unification value in the legacy key and the calibration key
     // has not yet been set, lift the legacy value forward. This runs

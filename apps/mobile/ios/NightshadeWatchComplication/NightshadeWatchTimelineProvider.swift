@@ -1,6 +1,6 @@
 // NightshadeWatchTimelineProvider.swift
 //
-// Wave 7D — WidgetKit TimelineProvider for the Nightshade watch
+// WidgetKit TimelineProvider for the Nightshade watch
 // complication.
 //
 // Data path:

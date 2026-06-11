@@ -163,7 +163,7 @@ impl DeviceManager {
 
         let can_set_tracking_rate = prop.perm != nightshade_indi::IndiPermission::ReadOnly;
         for element in prop.elements {
-            // Why (audit-rust §4.3): `IndiClient::get_switch` returns
+            // Why: `IndiClient::get_switch` returns
             // `Option<bool>` — `None` means "INDI client has not yet received
             // a definition for this device.property.element pair" (the
             // background reader publishes asynchronously). We are looping
@@ -587,7 +587,7 @@ impl DeviceManager {
         index: i32,
     ) -> Result<nightshade_indi::IndiSwitchInfo, String> {
         let switches = self.indi_get_all_switches(device_id).await?;
-        // Why (audit-rust §1.4): a negative i32 wraps to a huge usize which
+        // Why: a negative i32 wraps to a huge usize which
         // would trip the immediate `idx >= switches.len()` check below; the
         // structured "out of range" error replaces what would otherwise be
         // a buffer-overrun-fault, so the cast is bounded by the next line.

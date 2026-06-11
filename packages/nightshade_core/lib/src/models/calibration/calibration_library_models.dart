@@ -291,7 +291,7 @@ class LightFrameContext {
 }
 
 /// Tolerances consulted by [CalibrationLibraryService.match]. Dark exposure /
-/// temperature tolerances reuse the IMG-P0-2-unified
+/// temperature tolerances reuse the unified
 /// [DarkLibraryMatchTolerances] so the library manager can never disagree
 /// with the coverage UI or the runtime DAO matcher.
 class CalibrationMatchTolerances {

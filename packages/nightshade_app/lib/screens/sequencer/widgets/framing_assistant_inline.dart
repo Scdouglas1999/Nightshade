@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — inline framing assistant for the sequencer.
+// Inline framing assistant for the sequencer.
 //
 // Wraps the planetarium's `FramingView` widget in a sequencer-friendly
 // modal. The user picks a target from the properties panel, taps

@@ -1208,7 +1208,7 @@ void main() {
     test('from_storage_key_unknown_defaults_to_broadcast_only', () {
       // PHASE-2-NOTE: from_storage_key falls back to broadcastOnly for
       // unknown / null keys. This is a SILENT FALLBACK that violates
-      // the CLAUDE.md "errors are a feature" rule — but it's existing
+      // the errors are a feature here rule — but it's existing
       // behaviour, so the test pins it. The Phase 2 conversion has the
       // OPPORTUNITY to tighten this, but should only do so if the
       // brief explicitly requests it. Default behaviour: preserve.

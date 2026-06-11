@@ -1,4 +1,4 @@
-// Wave 7E — Saved servers screen.
+// Saved servers screen.
 //
 // Surfaces every server the operator has paired with so they can roam
 // between rigs without re-running discovery / re-pairing. Composes

@@ -13,7 +13,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// mobile that hasn't reached a server yet) without forcing the
 /// backend to invent another enum value just for UI.
 ///
-/// P2-13: `connecting` is separate from `reconnecting` so the very
+/// `connecting` is separate from `reconnecting` so the very
 /// first handshake says "Connecting" rather than "Reconnecting" (the
 /// latter implies a prior successful session). Both map to amber/
 /// pulsing visuals but the messaging differs.
@@ -28,7 +28,7 @@ enum RemoteConnectionStatus {
 
 /// Compact pill-style indicator showing the live state of the
 /// [NetworkBackend] WebSocket session. Designed for the mobile shell's
-/// title-bar slot (audit P1-15 bug 5) but reusable anywhere a small
+/// title-bar slot but reusable anywhere a small
 /// "is the remote rig reachable?" chip is wanted.
 ///
 /// When the current backend is not a [NetworkBackend] (e.g. the host

@@ -89,7 +89,7 @@ void main() {
     container.dispose();
   });
 
-  group('DV-P0-3: user-initiated disconnect suppresses auto-reconnect', () {
+  group('user-initiated disconnect suppresses auto-reconnect', () {
     test(
       'disconnectCamera prevents reconnect after Disconnected event',
       () async {
@@ -128,7 +128,7 @@ void main() {
     );
   });
 
-  group('DV-P0-7: notifier disconnect always reaches disconnected state', () {
+  group('notifier disconnect always reaches disconnected state', () {
     test(
       'CameraStateNotifier.disconnect clears state when backend throws',
       () async {
@@ -179,7 +179,7 @@ void main() {
     );
   });
 
-  group('DV-P0-8: event stream onError resubscribes', () {
+  group('event stream onError resubscribes', () {
     test('equipment events continue after stream error', () async {
       const deviceId = TestFixtures.mountId;
 
@@ -209,7 +209,7 @@ void main() {
     });
   });
 
-  group('DV-P0-1: backend swap resets equipment notifiers', () {
+  group('backend swap resets equipment notifiers', () {
     test('disconnect clears connected camera state', () async {
       const deviceId = TestFixtures.cameraId;
 
@@ -227,7 +227,7 @@ void main() {
     });
   });
 
-  group('DV-P0-2: backend swap waits for in-flight operations', () {
+  group('backend swap waits for in-flight operations', () {
     test(
       'disconnect waits for connect operation before swapping backend',
       () async {
@@ -274,7 +274,7 @@ void main() {
     );
   });
 
-  group('DV-P0-4: connect avoids discovery sweeps', () {
+  group('connect avoids discovery sweeps', () {
     test(
       'connectCamera uses connected-device lookup for display name only',
       () async {
@@ -305,7 +305,7 @@ void main() {
     );
   });
 
-  group('DV-P0-5: connectProfile sequential abort', () {
+  group('connectProfile sequential abort', () {
     test('stops after first failure and emits progress', () async {
       const cameraId = TestFixtures.cameraId;
       const mountId = TestFixtures.mountId;
@@ -336,7 +336,7 @@ void main() {
     });
   });
 
-  group('XC-P0-4: critical disconnect checkpoints before pause', () {
+  group('critical disconnect checkpoints before pause', () {
     test(
       'running sequence saves checkpoint before pausing on camera disconnect',
       () async {

@@ -1,4 +1,4 @@
-// P1-14 — Tests for LoggingService's logEntryStream broadcast.
+// Tests for LoggingService's logEntryStream broadcast.
 //
 // The headless API `/api/logs/tail` SSE handler depends on every public
 // log method emitting on the broadcast stream. These tests verify that

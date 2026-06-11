@@ -1,6 +1,6 @@
 //! ASCOM mount STA-thread wrapper.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All `ascom_caps.can_*.unwrap_or(false)` and `m.can_*().unwrap_or(false)`
 //! calls in this file follow the ASCOM ITelescope optional-property contract:
@@ -653,7 +653,7 @@ impl NativeMount for AscomMountWrapper {
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         // Pulse guide takes the duration plus a buffer
-        // Why (audit-rust §1.4): `duration_ms` is u32 pulse-guide
+        // Why: `duration_ms` is u32 pulse-guide
         // milliseconds (≤ a few thousand for real guiding); u32 → u64
         // widening, exact.
         let timeout = Duration::from_millis(u64::from(duration_ms)) + Timeouts::short_slew();

@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — tests for the live-stacking broadcast service.
+// Tests for the live-stacking broadcast service.
 //
 // Covers the three failure modes the brief calls out:
 //   * Frame published → broadcast endpoint serves a JPEG.
@@ -184,7 +184,7 @@ void main() {
       expect(svc.authorize('any'), isFalse);
     });
 
-    test('watermark template renders Wave 4 tokens', () {
+    test('watermark template renders tokens', () {
       final c = _container();
       addTearDown(c.dispose);
       final svc = c.read(liveStackingBroadcastServiceProvider);
@@ -431,7 +431,7 @@ void main() {
   });
 
   // ===========================================================================
-  // Wave 7.5 — master kill switch (Settings → "Disable broadcast everywhere")
+  // Master kill switch (Settings → "Disable broadcast everywhere")
   // ===========================================================================
   group('LiveStackingBroadcastService master kill switch', () {
     test('killSwitchEnabled defaults to false', () {

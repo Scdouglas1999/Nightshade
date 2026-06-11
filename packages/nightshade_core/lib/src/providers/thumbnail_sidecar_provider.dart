@@ -1,4 +1,4 @@
-// P1-13: Provider wiring for the captured-frame thumbnail sidecar service.
+// Provider wiring for the captured-frame thumbnail sidecar service.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

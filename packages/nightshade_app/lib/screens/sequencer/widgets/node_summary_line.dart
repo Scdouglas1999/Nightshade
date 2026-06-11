@@ -1,12 +1,13 @@
 // =============================================================================
 // node_summary_line.dart — the row-level renderer for a node's at-a-glance
-// summary. Turns the pure [SummaryFragment] list from `node_summary.dart` (C1)
+// summary. Turns the pure [SummaryFragment] list from `node_summary.dart`
 // into design-system chips + muted text, and wires editable chips to the
-// anchored inline editors in `node_summary_inline_editors.dart` (C3).
+// anchored inline editors in `node_summary_inline_editors.dart`.
 // =============================================================================
 //
 // This widget replaces the old raw-`fontSize` subtitle in the sequencer tree.
-// It owns ZERO domain logic and ZERO formatting: C1 already produced the terse,
+// It owns ZERO domain logic and ZERO formatting: `node_summary.dart` already
+// produced the terse,
 // capped (1-3) fragment list and decided which fragments are editable. This
 // layer only paints them and routes taps.
 //
@@ -19,7 +20,7 @@
 // to its node's color family.
 //
 // EDIT ROUTING: a tapped [EditableFragment] calls [showInlineNodeEditor]
-// (C3), which commits through `currentSequenceProvider.notifier.updateNode`
+// which commits through `currentSequenceProvider.notifier.updateNode`
 // — the same path the full properties panel uses (undo/redo + autosave +
 // `modifiedAt` for free). Tapping is gated on [canEditSequenceProvider]: while
 // the sequence is running we render the editable fragment as a plain,

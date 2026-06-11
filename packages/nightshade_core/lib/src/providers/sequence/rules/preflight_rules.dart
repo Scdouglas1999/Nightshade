@@ -17,7 +17,7 @@ import '../../settings_provider.dart';
 import '../sequence_validation.dart';
 
 // =============================================================================
-// Wave 5 Agent 3 — Pre-flight check validation rules
+// Pre-flight check validation rules
 // =============================================================================
 //
 // These rules wire the existing `dark_library_service`,
@@ -123,7 +123,7 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
       requirements: requirements,
       entries: entries,
       minCoverage: settings.darkLibraryMinCoverage,
-      // IMG-P0-2: same tolerances the runtime calibration matcher uses, so
+      // Same tolerances the runtime calibration matcher uses, so
       // the pre-flight badge and `findMatchingDark` agree.
       tolerances: ref.read(darkLibraryMatchTolerancesProvider),
     );

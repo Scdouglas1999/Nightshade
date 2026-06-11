@@ -1,7 +1,7 @@
 //! Meridian Flip Executor — the canonical engine for meridian flips.
 //!
 //! Both the explicit `MeridianFlip` instruction node and the trigger-driven
-//! `RecoveryAction::MeridianFlip` route through this executor (audit §1.6 — the
+//! `RecoveryAction::MeridianFlip` route through this executor — the
 //! pre-existing two-implementation split was unifying-required so users got the
 //! same timeouts, altitude check, autofocus parameters, settle behaviour,
 //! plate-solve handling, pier-side telemetry fallback, abort behaviour, and
@@ -10,7 +10,7 @@
 //! Pre-flip rustdoc invariants checked here:
 //! - Target altitude is ≥ `MIN_POST_FLIP_ALTITUDE_DEG`.
 //! - If a cover/calibrator is configured, the cover is *not* closed
-//!   (audit §1.19 — a covered camera makes plate-solve fail and triggers
+//!   (a covered camera makes plate-solve fail and triggers
 //!   `AbortAndPark` unnecessarily).
 //! - Mount reports it can flip (the caller is expected to gate on this; the
 //!   executor logs warnings but does not refuse if the capability check is
@@ -31,7 +31,7 @@ use crate::meridian_events::{FlipEventEmitter, FlipStep, MeridianFlipEvent, Pier
 use crate::triggers::TriggerState;
 use crate::{AutofocusConfig, FlipFailureAction, MeridianFlipConfig};
 
-// AUDIT-FIX-5B (audit-handoff §4.3): the formerly-constant defaults
+// AUDIT-FIX-5B: the formerly-constant defaults
 // FLIP_COORDINATE_TOLERANCE_DEG / SAFETY_ACTION_RETRY_COUNT /
 // SAFETY_ACTION_RETRY_DELAY_SECS / MIN_POST_FLIP_ALTITUDE_DEG have moved to
 // fields on `MeridianFlipConfig`. The numeric defaults still match the prior
@@ -59,7 +59,7 @@ pub enum FlipResult {
 /// Context for executing a meridian flip.
 ///
 /// `cancellation_token`, `trigger_state`, `cover_calibrator_id`, and
-/// `autofocus_config` were added in audit §1.6 / §1.19 to backport behaviour
+/// `autofocus_config` were added to backport behaviour
 /// that the older `instructions::execute_meridian_flip` had: cancel-during-settle
 /// must propagate, success must call `TriggerState::mark_flip_performed`, the
 /// pre-flip cover check needs the cover device id, and post-flip refocus must
@@ -72,7 +72,7 @@ pub struct FlipContext {
     pub camera_id: Option<String>,
     pub focuser_id: Option<String>,
     /// Optional dust-cover / flat-panel device id. When set, the executor
-    /// refuses to flip while the cover is closed (audit §1.19).
+    /// refuses to flip while the cover is closed.
     pub cover_calibrator_id: Option<String>,
     /// Cancellation token shared with the wider sequence executor so a Stop
     /// command propagates into long waits (settle, slew). When `None`, the
@@ -80,10 +80,10 @@ pub struct FlipContext {
     pub cancellation_token: Option<Arc<AtomicBool>>,
     /// Trigger state. When set, a successful flip will call
     /// `TriggerState::mark_flip_performed()` so subsequent trigger evaluations
-    /// know not to fire again on the same target. Audit §1.6.
+    /// know not to fire again on the same target.
     pub trigger_state: Option<Arc<RwLock<TriggerState>>>,
     /// User-tuned autofocus parameters used by the post-flip refocus step.
-    /// `None` falls back to `AutofocusConfig::default()`. Audit §1.6.
+    /// `None` falls back to `AutofocusConfig::default()`.
     pub autofocus_config: Option<AutofocusConfig>,
     /// Phase G — dry-run / simulate flag. When `true`, the executor walks the
     /// full pre-flight and step sequence (altitude check, cover check, build
@@ -103,7 +103,7 @@ pub struct MeridianFlipExecutor {
     device_ops: SharedDeviceOps,
     event_emitter: FlipEventEmitter,
     event_tx: Option<mpsc::Sender<MeridianFlipEvent>>,
-    /// Wave 1.5 Pack A: parent executor's broadcast handle for ExecutorEvent.
+    /// parent executor's broadcast handle for ExecutorEvent.
     /// Plumbed into the post-flip refocus InstructionContext so FITS-save
     /// failures and other instruction-level errors surface to UI subscribers.
     executor_event_tx: Option<broadcast::Sender<ExecutorEvent>>,
@@ -129,7 +129,7 @@ impl MeridianFlipExecutor {
         self
     }
 
-    /// Wave 1.5 Pack A: set the parent executor's broadcast handle so the
+    /// set the parent executor's broadcast handle so the
     /// post-flip refocus inherits the same event surface as the rest of the
     /// sequence. Without this the refocus's FITS-save failures and per-step
     /// errors emit only to the tracing log (silent for the user).
@@ -202,7 +202,7 @@ impl MeridianFlipExecutor {
             );
         }
 
-        // Audit §1.19: Pre-flip cover/calibrator state check. A closed dust cap
+        // Pre-flip cover/calibrator state check. A closed dust cap
         // makes plate-solve fail post-flip, which would trigger the configured
         // failure action (potentially AbortAndPark). Refuse upfront with a clear
         // error so the user is told to open the cover instead of finding a
@@ -270,7 +270,7 @@ impl MeridianFlipExecutor {
             }
         }
 
-        // Audit §1.6 backport: capture the mount's tracking state BEFORE we touch
+        // capture the mount's tracking state BEFORE we touch
         // it so cancel paths can restore it. The instruction-path implementation
         // had this; the executor previously left tracking off after a cancel.
         let pre_flip_tracking = match self.device_ops.mount_is_tracking(&ctx.mount_id).await {
@@ -296,7 +296,7 @@ impl MeridianFlipExecutor {
             }
         };
 
-        // Audit §1.6 backport: capture pre-flip coordinates so the
+        // capture pre-flip coordinates so the
         // pier-side-Unknown verification path can fall back to coordinate
         // convergence (the executor previously returned Unknown silently).
         let pre_flip_coords = match self.device_ops.mount_get_coordinates(&ctx.mount_id).await {
@@ -356,7 +356,7 @@ impl MeridianFlipExecutor {
                         new_pier_side,
                         duration_secs: duration,
                     });
-                    // Audit §1.6: always mark the flip as performed on success so
+                    // always mark the flip as performed on success so
                     // trigger evaluation does not re-fire for the same target.
                     if let Some(ts) = ctx.trigger_state.as_ref() {
                         let mut state = ts.write().await;
@@ -369,7 +369,7 @@ impl MeridianFlipExecutor {
                 }
                 Err(e) => {
                     if self.is_cancelled(ctx) {
-                        // Audit §1.6 backport: restore tracking on cancel if we
+                        // restore tracking on cancel if we
                         // recorded it as on before the flip. The executor used
                         // to leave tracking off, the instruction path didn't.
                         self.restore_tracking_on_cancel(ctx, pre_flip_tracking)
@@ -382,7 +382,7 @@ impl MeridianFlipExecutor {
                     }
 
                     if attempt < max_attempts {
-                        // Audit §1.20: previously `.unwrap_or(60.0)` — silently
+                        // previously `.unwrap_or(60.0)` — silently
                         // ignored a 30s user setting once the array was exhausted.
                         // Now: if the user provided values, saturate on the LAST
                         // entry; if the array is empty AND retries are configured,
@@ -492,7 +492,7 @@ impl MeridianFlipExecutor {
                             action_taken: action_str.to_string(),
                         });
 
-                        // Audit §1.10: Execute failure action and propagate any
+                        // Execute failure action and propagate any
                         // error. Park failures must NOT be silently dropped — a
                         // failed park after a failed flip can leave the mount
                         // at a hard limit.
@@ -557,7 +557,7 @@ impl MeridianFlipExecutor {
         pre_flip_pier_side: PierSide,
     ) -> Result<PierSide, String> {
         let mut new_pier_side = PierSide::Unknown;
-        // Audit §1.6 backport: track whether the flip *itself* (slew + pier-side
+        // track whether the flip *itself* (slew + pier-side
         // verify) has succeeded. If the auto-center plate-solve fails AFTER the
         // flip succeeded, we warn instead of treating the whole flip as failed —
         // the mount is on the correct pier side, just slightly off centre. The
@@ -599,7 +599,7 @@ impl MeridianFlipExecutor {
                 }
                 FlipStep::ResumingTracking => self.resume_tracking(ctx).await,
                 FlipStep::PlateSolvingAndCentering => {
-                    // Audit §1.6 backport: if the flip itself succeeded (slew +
+                    // if the flip itself succeeded (slew +
                     // pier-side verify) but plate-solve fails, warn and treat
                     // the flip as a success — same as the instruction-path
                     // implementation. The mount is correctly on the new pier
@@ -750,7 +750,7 @@ impl MeridianFlipExecutor {
         let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(600);
         loop {
             if self.is_cancelled(ctx) {
-                // Audit §1.10: explicit error logging on abort_slew failure during
+                // explicit error logging on abort_slew failure during
                 // a cancellation path — silent drop here would mask a stuck mount.
                 if let Err(e) = self.device_ops.mount_abort_slew(mount_id).await {
                     tracing::error!(
@@ -767,7 +767,7 @@ impl MeridianFlipExecutor {
             }
 
             if tokio::time::Instant::now() > slew_timeout {
-                // Audit §1.10: log abort_slew failure during timeout path.
+                // log abort_slew failure during timeout path.
                 if let Err(e) = self.device_ops.mount_abort_slew(mount_id).await {
                     tracing::error!(
                         "[MERIDIAN] mount_abort_slew failed after slew timeout: {}",
@@ -826,7 +826,7 @@ impl MeridianFlipExecutor {
             return Ok(new_pier_side);
         }
 
-        // Audit §1.6 backport: pier side is unavailable (either before, after,
+        // pier side is unavailable (either before, after,
         // or both). Fall back to coordinate convergence — the instruction-path
         // implementation did this and the executor previously just returned
         // Unknown without verifying.
@@ -949,7 +949,7 @@ impl MeridianFlipExecutor {
         let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
         loop {
             if self.is_cancelled(ctx) {
-                // Audit §1.10: log abort_slew failure during cancellation.
+                // log abort_slew failure during cancellation.
                 if let Err(e) = self.device_ops.mount_abort_slew(&ctx.mount_id).await {
                     tracing::error!(
                         "[MERIDIAN] mount_abort_slew failed during cancellation of centering slew: {}",
@@ -965,7 +965,7 @@ impl MeridianFlipExecutor {
             }
 
             if tokio::time::Instant::now() > slew_timeout {
-                // Audit §1.10: log abort_slew failure during timeout.
+                // log abort_slew failure during timeout.
                 if let Err(e) = self.device_ops.mount_abort_slew(&ctx.mount_id).await {
                     tracing::error!(
                         "[MERIDIAN] mount_abort_slew failed after centering slew timeout: {}",
@@ -1007,19 +1007,19 @@ impl MeridianFlipExecutor {
             }
         };
 
-        // Audit §1.6: pull autofocus parameters from the user equipment profile
+        // pull autofocus parameters from the user equipment profile
         // (passed via FlipContext::autofocus_config). When the caller did not
         // supply one, fall back to AutofocusConfig::default(), which now (audit
         // §1.7) carries every engine-tunable field. Previously hardcoded to
         // steps_out=7 / step_size=100 / exposure=3.0 ignoring user config.
-        // Why (audit-rust §4.3): documented constructor-default contract on
+        // Why: documented constructor-default contract on
         // Option<AutofocusConfig> — None means "use defaults".
         let af_config = ctx.autofocus_config.clone().unwrap_or_default();
 
         // Determine the effective cancellation token for autofocus. Prefer the
         // shared sequence token so a Stop command propagates; fall back to the
         // executor's internal abort flag.
-        // Why (audit-rust §4.3): Option<CancellationToken> override — None means
+        // Why: Option<CancellationToken> override — None means
         // "use the executor's own abort flag", documented in the field doc.
         let cancel_token = ctx
             .cancellation_token
@@ -1047,7 +1047,7 @@ impl MeridianFlipExecutor {
             device_ops: self.device_ops.clone(),
             trigger_state: ctx.trigger_state.clone(),
             filter_focus_offsets: std::collections::HashMap::new(),
-            // Wave 1.5 Pack A: inherit the parent executor's broadcast handle
+            // inherit the parent executor's broadcast handle
             // so the post-flip refocus's instruction-level errors (FITS-save
             // failure on the test exposure, etc.) reach UI subscribers. When
             // the flip is invoked outside the live executor (unit tests) the
@@ -1057,7 +1057,7 @@ impl MeridianFlipExecutor {
             device_disconnect_recovery_pending: std::sync::Arc::new(
                 std::sync::atomic::AtomicBool::new(false),
             ),
-            // Wave 3 Image Grading: meridian-flip refocus does not save FITS
+            // Image Grading: meridian-flip refocus does not save FITS
             // frames itself (autofocus uses in-memory star detection only),
             // so empty defaults are correct here.
             session_id: String::new(),
@@ -1081,10 +1081,10 @@ impl MeridianFlipExecutor {
             frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
             default_quality_check: None,
             reject_folder_path: None,
-            // Wave 7 Agent 3: meridian-flip refocus does not save FITS
+            // meridian-flip refocus does not save FITS
             // frames so the defect-map slot stays empty.
             defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 — Forensics: meridian-flip refocus does not save
+            // Forensics: meridian-flip refocus does not save
             // FITS frames or grade them; start empty Arcs.
             forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
                 std::collections::VecDeque::new(),
@@ -1095,7 +1095,7 @@ impl MeridianFlipExecutor {
             )),
             current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
             current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 Replay Debug — meridian flip refocus does not emit
+            // Replay Debug — meridian flip refocus does not emit
             // decisions; sender starts None.
             decision_tx: None,
             active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
@@ -1126,7 +1126,7 @@ impl MeridianFlipExecutor {
                 Ok(())
             }
             crate::NodeStatus::Failure => {
-                // Why (audit-rust §4.3): autofocus result `message: Option<String>` —
+                // Why: autofocus result `message: Option<String>` —
                 // failure is already encoded in `NodeStatus::Failure`. Generic message
                 // when no specific diagnostic was attached.
                 let error = result
@@ -1256,13 +1256,13 @@ impl MeridianFlipExecutor {
     }
 
     fn calculate_hour_angle(&self, ra_hours: f64) -> f64 {
-        // HA = LST - RA. Audit §1.6 deleted the duplicate jd/LST helpers
+        // HA = LST - RA.6 deleted the duplicate jd/LST helpers
         // here and routed through the meridian module so a future LST tweak
         // (e.g. nutation correction) lands in one place.
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
 
-        // Why (audit-rust §4.3): get_observer_location() returns None when no location
+        // Why: get_observer_location() returns None when no location
         // has been configured in the user profile. The fallback (longitude=0, Greenwich)
         // logs a WARN to the trace; meridian flips computed with longitude=0 will be off
         // by up-to-12 hours of meridian time but the flip itself is a *post-meridian*
@@ -1309,7 +1309,7 @@ impl MeridianFlipExecutor {
         false
     }
 
-    /// Audit §1.6 backport: restore the mount's pre-flip tracking state when a
+    /// restore the mount's pre-flip tracking state when a
     /// cancel happens mid-flip. The instruction-path implementation did this;
     /// the executor previously left tracking off. Errors are *logged*, not
     /// dropped — but we do not return them since this is already a cancel path.
@@ -1332,7 +1332,7 @@ impl MeridianFlipExecutor {
         }
     }
 
-    /// Audit §1.10: explicit, retried, error-propagating failure-action handler.
+    /// explicit, retried, error-propagating failure-action handler.
     /// Replaces the previous `let _ = mount_park(...)` pattern: on error, log
     /// at error level, retry up to N times with delay, emit a critical
     /// notification, and return Err so the executor's failure result reflects
@@ -1364,7 +1364,7 @@ impl MeridianFlipExecutor {
             FlipFailureAction::AbortAndPark => {
                 tracing::warn!("[MERIDIAN] Flip failed - aborting and parking");
 
-                // Audit §1.10: stop tracking with retries + explicit error logging.
+                // stop tracking with retries + explicit error logging.
                 let retry_count = self.config.safety_action_retry_count;
                 if let Err(e) = self
                     .retry_safety_action("mount_set_tracking(false)", || async {
@@ -1394,7 +1394,7 @@ impl MeridianFlipExecutor {
                     // before park, but the park itself is the safety-critical step.
                 }
 
-                // Audit §1.10: abort any in-flight slew with retries + explicit
+                // abort any in-flight slew with retries + explicit
                 // error logging. Some mounts will refuse a park while slewing.
                 if let Err(e) = self
                     .retry_safety_action("mount_abort_slew", || async {
@@ -1411,7 +1411,7 @@ impl MeridianFlipExecutor {
                     // but still accept park.
                 }
 
-                // Audit §1.10: park with retries + critical event on failure.
+                // park with retries + critical event on failure.
                 // Park failure after a flip failure is the worst-case scenario:
                 // the mount may already be at a hard limit. Emit a critical
                 // notification so the UI surfaces a top-level alert AND return
@@ -1481,7 +1481,7 @@ impl MeridianFlipExecutor {
         }
     }
 
-    /// Audit §1.10: retry helper for safety-critical device operations. Logs
+    /// retry helper for safety-critical device operations. Logs
     /// every failed attempt at error level; sleeps `safety_action_retry_delay_secs`
     /// between attempts. Returns the last error after exhaustion. Retry count
     /// and delay come from `MeridianFlipConfig` (AUDIT-FIX-5B / §4.3).
@@ -1645,7 +1645,7 @@ mod tests {
         steps
     }
 
-    /// Audit §1.6: verify the unified executor reuses meridian::julian_day rather
+    /// verify the unified executor reuses meridian::julian_day rather
     /// than carrying its own duplicate.
     #[test]
     fn test_calculate_hour_angle_uses_meridian_julian_day() {
@@ -1931,7 +1931,7 @@ mod tests {
             _hint_scale: Option<f64>,
         ) -> DeviceResult<PlateSolveResult> {
             // Return success with the hint coordinates so total_offset==0.
-            // Why (audit-rust §4.3): this is a test-only mock device op.
+            // Why: this is a test-only mock device op.
             // The hint-less case yields (0,0) which still satisfies the
             // "total_offset==0" invariant the test asserts; production
             // plate-solve always supplies hints from the mount pointing.
@@ -2093,7 +2093,7 @@ mod tests {
         }
     }
 
-    /// Audit §1.6: pier-side telemetry unavailable — verification falls back to
+    /// pier-side telemetry unavailable — verification falls back to
     /// coordinate convergence and SUCCEEDS when the mount is on-target.
     #[tokio::test]
     async fn test_pier_side_fallback_uses_coordinates_when_unknown() {
@@ -2130,7 +2130,7 @@ mod tests {
         }
     }
 
-    /// Audit §1.6: when cancellation is requested mid-settle, tracking should
+    /// when cancellation is requested mid-settle, tracking should
     /// be restored back to its pre-flip state rather than left off.
     #[tokio::test]
     async fn test_cancel_during_settle_restores_tracking() {
@@ -2181,7 +2181,7 @@ mod tests {
         );
     }
 
-    /// Audit §1.6: post-flip refocus uses the user-supplied AutofocusConfig
+    /// post-flip refocus uses the user-supplied AutofocusConfig
     /// (FlipContext::autofocus_config) — the executor must NOT silently fall
     /// back to hardcoded steps_out=7 / step_size=100 / exposure=3.0.
     #[tokio::test]
@@ -2214,7 +2214,7 @@ mod tests {
         assert_eq!(observed.backlash_compensation, 200);
         assert!((observed.outlier_rejection_sigma - 4.5).abs() < 1e-9);
 
-        // And the From-impl propagation into the engine config (audit §1.7)
+        // And the From-impl propagation into the engine config
         // must carry every field through.
         let engine: crate::autofocus::AutofocusConfig = (&user_af).into();
         assert_eq!(engine.step_size, 250);
@@ -2226,7 +2226,7 @@ mod tests {
         let _ = executor;
     }
 
-    /// Audit §1.19: cover closed → flip refused with a clear error.
+    /// cover closed → flip refused with a clear error.
     #[tokio::test]
     async fn test_pre_flip_cover_closed_refuses_flip() {
         let state = Arc::new(MockDeviceOpsState::default());
@@ -2251,7 +2251,7 @@ mod tests {
         }
     }
 
-    /// Audit §1.20: empty retry_delays_secs with max_retries>0 → fail loudly,
+    /// empty retry_delays_secs with max_retries>0 → fail loudly,
     /// do NOT silently fall back to 60 seconds.
     #[tokio::test]
     async fn test_empty_retry_delays_with_retries_fails_loudly() {
@@ -2293,7 +2293,7 @@ mod tests {
         }
     }
 
-    /// Audit §1.10: AbortAndPark with park_failures > retry count → executor
+    /// AbortAndPark with park_failures > retry count → executor
     /// returns Failed and emits a critical-level notification, NOT silently
     /// pretending the failure action succeeded.
     #[tokio::test]
@@ -2366,7 +2366,7 @@ mod tests {
     }
 
     // ========================================================================
-    // AUDIT-FIX-5B (audit-handoff §4.3): magic-number-to-config promotions.
+    // AUDIT-FIX-5B: magic-number-to-config promotions.
     // Each test demonstrates that changing the configurable value flips the
     // executor's behaviour — without the test the field would compile-pass
     // but silently be ignored.

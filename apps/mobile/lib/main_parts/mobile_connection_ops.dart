@@ -29,7 +29,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   // operators who need to verify the value during pairing.
   bool _accessTokenVisible = false;
 
-  // WebSocket-driven liveness replaces the old 5 s HTTP poll (audit §3.6).
+  // WebSocket-driven liveness replaces the old 5 s HTTP poll.
   // The NetworkBackend already runs a ping/pong heartbeat and a backoff
   // reconnector; this state machine just translates its connection-state
   // stream into UI banners and a final tear-down once the grace expires.
@@ -187,7 +187,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
             // v4 relay: the session is dead — drop the loopback tunnel too.
             unawaited(_closeActiveRelayTunnel());
             ref.read(connectionStaleProvider.notifier).state = false;
-            // Audit P1-18: reset the once-per-lifetime checkpoint flag so
+            // Audit reset the once-per-lifetime checkpoint flag so
             // a future reconnect re-runs the resume dialog if the server
             // now has a fresh interrupted sequence to recover. Without
             // this, dropping mid-session and reconnecting in the same
@@ -698,7 +698,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
     });
 
     try {
-      // Audit §3.7: do not persist last-server based on synthetic
+      // do not persist last-server based on synthetic
       // metadata. Track whether the /api/info call actually returned
       // server-supplied fields; if it didn't, we still allow the user
       // to connect for this session but refuse to write the server to
@@ -756,8 +756,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         });
 
         if (fetched != null) {
-          // Only persist after fetchServerInfo confirmed real metadata
-          // (audit §3.7). Otherwise we'd cache the manual-entry
+          // Only persist after fetchServerInfo confirmed real metadata.
+          // Otherwise we'd cache the manual-entry
           // hardcoded version='2.0.0' / signalingPort=45678 lies.
           await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
         } else {
@@ -770,10 +770,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
 
         // Update global backend state to use NetworkBackend.
         //
-        // P2-2: also wire up the collaboration identity so the backend
+        // also wire up the collaboration identity so the backend
         // can emit a `collaboration.join` frame as soon as the WS upgrade
         // completes. The viewerId we derive matches what the server
-        // computes from the authenticated bearer (see P2-15 +
+        // computes from the authenticated bearer (see +
         // computeServerFingerprint) so the join is a no-op override
         // rather than an impersonation attempt for hosts with auth on;
         // for auth-off hosts the value still gives the operator a stable
@@ -802,7 +802,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
               collaborationDisplayName: collabIdentity.displayName,
             );
 
-        // Start monitoring the WS heartbeat (audit §3.6)
+        // Start monitoring the WS heartbeat
         _startConnectionMonitor();
 
         // Phase E (iOS): register this device's APNs token with the desktop so
@@ -1132,7 +1132,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
                 );
               }
             } catch (e) {
-              // [Wave 6D error parsing] — surface parsed ServerError
+              // [error parsing] — surface parsed ServerError
               // {code, message} via the shared mobile helper so the
               // operator sees a machine-actionable code instead of
               // "Exception: Future was already completed."

@@ -53,14 +53,12 @@ Generated files are committed but tagged `linguist-generated=true` in `.gitattri
 
 ## Where to put new code
 
-See `CLAUDE.md` § "Where to Make Changes" for the canonical table. Quick reference:
-
 - UI for desktop only: `apps/desktop/lib/`
 - UI shared across platforms: `packages/nightshade_app/lib/`
 - Business logic / providers: `packages/nightshade_core/lib/src/`
 - Rust device drivers: `native/nightshade_native/{ascom,indi,alpaca,native}/`
 - Rust automation / sequencer: `native/nightshade_native/sequencer/`
 
-## Workflow waves
-
-The active cleanup work is tracked in `docs/code-quality/v2.5.x-roadmap.md`. Agents pick scope from §4 (per-wave decomposition); humans pick from §3 (ship plan). Each task file in `docs/code-quality/` (`audit-arch.md`, `audit-dart.md`, `audit-rust.md`, `audit-tests.md`, `audit-observe.md`) is cross-referenced from the roadmap.
+When in doubt, follow the package layering: `apps` depend on `packages`,
+`nightshade_app` depends on `nightshade_core`, and `nightshade_core` is the
+only Dart package that talks to the Rust bridge directly.

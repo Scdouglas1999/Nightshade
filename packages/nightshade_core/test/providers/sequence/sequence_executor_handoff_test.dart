@@ -1,4 +1,4 @@
-// Wave 7.5 — verifies that SequenceExecutor consumes
+// Verifies that SequenceExecutor consumes
 // `sessionHandoffDecisionProvider(family)` at start() and pushes the
 // resolved per-target carry-over map into the Rust backend via
 // `sequencerUpdatePendingIntegrationCarryOver`.

@@ -758,7 +758,7 @@ void main() {
   });
 
   // ==========================================================================
-  // Wave 4 — Per-target altitude crossings (TargetTrigger model + validators)
+  // Per-target altitude crossings (TargetTrigger model + validators)
   // ==========================================================================
 
   group('TargetTrigger JSON round-trip', () {

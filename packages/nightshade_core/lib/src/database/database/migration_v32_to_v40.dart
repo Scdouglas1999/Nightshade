@@ -2,7 +2,7 @@ part of '../database.dart';
 
 extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
   Future<void> _upgradeSchemaV32ToV40(Migrator m, int from) async {
-    // Version 32: Wave 8 — Frame-Failure Forensics persistence.
+    // Version 32: Frame-Failure Forensics persistence.
     //
     // Adds the `frame_forensics` table where every rejected frame's
     // classified cause + evidence + environment snapshot is persisted.
@@ -31,7 +31,7 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
       await _createFrameForensicsTable();
     }
 
-    // Version 33: Wave 8 Replay Debug — `sequence_decisions` table.
+    // Version 33: Replay Debug — `sequence_decisions` table.
     //
     // The Rust executor emits a structured `DecisionEvent` for every
     // material decision (scheduler pick, trigger firing, recovery
@@ -125,7 +125,7 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
     }
 
     // Version 36: Promote switch device to a first-class equipment-profile
-    // device (DEV-P2-1). Mirrors v35's safety-monitor promotion: prior to
+    // device. Mirrors v35's safety-monitor promotion: prior to
     // this column, a connected switch device had to be re-selected manually
     // every session because there was no profile column to persist it.
     // The column is nullable so existing profiles upgrade cleanly without
@@ -142,7 +142,7 @@ extension _NightshadeDatabaseMigrationV32ToV40 on NightshadeDatabase {
       }
     }
 
-    // Version 37 (P1-13): Sidecar thumbnail caching for captured images.
+    // Version 37 : Sidecar thumbnail caching for captured images.
     //
     // Mobile/Pi gallery load was dominated by 200+ cold FITS reads, one
     // per thumbnail request. The fix is to write a `.thumb.jpg` next to

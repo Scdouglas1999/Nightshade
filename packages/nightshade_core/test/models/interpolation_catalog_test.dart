@@ -1,4 +1,4 @@
-// Wave 4 — Dart-side parity tests for the variable catalog. The Rust
+// Dart-side parity tests for the variable catalog. The Rust
 // catalog at `expressions/catalog.rs::variable_catalog` is the canonical
 // source of truth; this test verifies that:
 //

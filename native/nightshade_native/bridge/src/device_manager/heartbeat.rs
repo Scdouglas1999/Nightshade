@@ -204,7 +204,7 @@ impl DeviceManager {
     /// Errors (Err) are reserved for unrecognized device ids / unsupported
     /// device types — those indicate a programming bug, not a transient
     /// outage, so we surface them loudly instead of silently treating them
-    /// as `false` (CLAUDE.md: "errors are a feature").
+    /// as `false` ("errors are a feature").
     async fn perform_simulator_health_check(
         device_id: &str,
         device_type: &DeviceType,
@@ -621,7 +621,7 @@ impl DeviceManager {
 
     /// Stop heartbeat monitoring for a device
     ///
-    /// Why (DEV-P1-6): `start_heartbeat_with_config` calls this defensively
+    /// Why: `start_heartbeat_with_config` calls this defensively
     /// before starting a new heartbeat. On a fresh connect there is no task
     /// to stop, so we must NOT emit a spurious `HeartbeatStopped` event in
     /// that case — the UI treats every such event as a real stop and the
@@ -708,7 +708,7 @@ impl DeviceManager {
         let devices = self.devices.read().await;
 
         if let Some(device) = devices.get(device_id) {
-            // Why (audit-rust §4.3): device-not-yet-communicated → 0
+            // Why: device-not-yet-communicated → 0
             // (epoch). Paired with the `is_healthy = false` branch below
             // that explicitly checks `is_none()` — so the (0, false)
             // result distinguishes "never talked" from "talked, healthy
@@ -743,7 +743,7 @@ impl DeviceManager {
     /// Check if heartbeat is active for a device
     pub async fn is_heartbeat_active(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
-        // Why (audit-rust §4.3): unregistered device → "no heartbeat
+        // Why: unregistered device → "no heartbeat
         // active". The UI uses this to decide whether to show the
         // heartbeat-pulse indicator; absence-of-device = no indicator
         // is the correct visual state.

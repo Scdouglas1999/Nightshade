@@ -2,19 +2,19 @@
 //
 // These pin the three jank fixes documented in the trigger-config dialog:
 //
-//   J-X1: The threshold/debounce text fields must not rebuild a fresh
+//   Controller stability: the threshold/debounce text fields must not rebuild a fresh
 //         `TextEditingController` on every frame. We test this indirectly by
 //         confirming that the field's controller survives setState() cycles
 //         and that pumping more characters than the initial value appends
 //         (rather than replacing) — i.e. fast typing isn't dropped.
 //
-//   J-X2: Drift triggers store independent RA and Dec pixel thresholds and
+//   Drift RA/Dec round-trip: drift triggers store independent RA and Dec pixel thresholds and
 //         round-trip both through `toNativeJson` / `fromNativeJson`. The
 //         executor (`TriggerCondition::DriftAbove { ra_px, dec_px }` in
 //         `native/nightshade_native/sequencer/src/lib.rs`) compares each
 //         axis with its own threshold, so the Dart model must surface both.
 //
-//   J-X3: Changing condition type in the edit dialog must reset the
+//   Type-switch reset: changing condition type in the edit dialog must reset the
 //         threshold to the new type's default, because the underlying
 //         physical unit changes (arcsec / pixels / pixels-per-axis).
 //
@@ -30,9 +30,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // ------------------------------------------------------------------
-  // J-X2: ExposureTriggerConfig round-trip.
+  // ExposureTriggerConfig round-trip.
   // ------------------------------------------------------------------
-  group('ExposureTriggerConfig — J-X2 drift RA/Dec round-trip', () {
+  group('ExposureTriggerConfig — drift RA/Dec round-trip', () {
     test('drift triggers serialise RA and Dec independently', () {
       final cfg = ExposureTriggerConfig(
         condition: TriggerConditionType.drift,
@@ -99,9 +99,9 @@ void main() {
   });
 
   // ------------------------------------------------------------------
-  // J-X3: switching condition type resets threshold to the new default.
+  // Switching condition type resets threshold to the new default.
   // ------------------------------------------------------------------
-  group('TriggerConfigurationDialog — J-X3 type-switch resets threshold', () {
+  group('TriggerConfigurationDialog — type-switch resets threshold', () {
     Future<void> openEditForFirstTrigger(WidgetTester tester) async {
       // Open the edit dialog by tapping the edit icon on the first row.
       await tester.tap(find.byTooltip('Edit'));
@@ -187,9 +187,9 @@ void main() {
   });
 
   // ------------------------------------------------------------------
-  // J-X1: TextEditingController stability — typing must not drop chars.
+  // TextEditingController stability — typing must not drop chars.
   // ------------------------------------------------------------------
-  group('TriggerConfigurationDialog — J-X1 controller stability', () {
+  group('TriggerConfigurationDialog — controller stability', () {
     testWidgets(
       'the threshold field controller is reused across rebuilds; fast typing '
       'is not eaten',
@@ -233,13 +233,13 @@ void main() {
         // Capture the controller identity, then simulate a sequence of
         // edits and verify it's the same controller object after each
         // pump. If the widget were to rebuild a fresh controller on every
-        // frame (the J-X1 bug), this assertion would fire.
+        // frame (the controller-stability bug), this assertion would fire.
         final initialController =
             tester.widget<TextField>(fieldFinder).controller;
         expect(initialController, isNotNull);
 
         // Simulate fast typing: enter a multi-character value. With the
-        // J-X1 bug (fresh controller per build) the framework would treat
+        // controller-stability bug (fresh controller per build) the framework would treat
         // each keystroke as a brand-new editing session and characters
         // would be silently lost. With the fix, the controller's text
         // reflects exactly what was typed.
@@ -248,7 +248,7 @@ void main() {
         expect(
           tester.widget<TextField>(fieldFinder).controller,
           same(initialController),
-          reason: 'J-X1: controller must persist across rebuilds — a fresh '
+          reason: 'controller must persist across rebuilds — a fresh '
               'controller per build drops characters during fast typing.',
         );
         // While the field is still focused, the text must equal exactly

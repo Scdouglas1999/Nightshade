@@ -1,7 +1,7 @@
-//! Wave 8 — Frame-Failure Forensics: structured "why did this frame fail?"
+//! Frame-Failure Forensics: structured "why did this frame fail?"
 //! classification.
 //!
-//! Image Grading (Wave 3) decides Pass/Reject for a frame but only emits a
+//! Image Grading decides Pass/Reject for a frame but only emits a
 //! one-line `reason` ("HFR 5.21 px exceeds absolute threshold 3.50 px"). The
 //! user is left wondering whether that 5.21 px HFR is a one-off cloud
 //! passage, a slow seeing degradation, a guiding failure, focus walking off,
@@ -10,7 +10,7 @@
 //! This module produces a structured cause + evidence list every time a
 //! frame is rejected. The classifier is heuristic — we don't have ground
 //! truth, so we explicitly report `Unknown` when the evidence is weak rather
-//! than pick a default category. (CLAUDE.md "errors are a feature": a
+//! than pick a default category. ("errors are a feature": a
 //! silent fallback to "always SeeingSpike" would mask the genuinely
 //! interesting cases.)
 //!

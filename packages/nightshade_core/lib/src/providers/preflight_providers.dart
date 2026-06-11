@@ -6,7 +6,7 @@ import '../services/time_sync_service.dart';
 import 'database_provider.dart';
 
 // =============================================================================
-// Wave 5 Agent 3 — Pre-flight wiring providers
+// Pre-flight wiring providers
 // =============================================================================
 //
 // Riverpod providers that surface the data the pre-flight validation rules
@@ -89,7 +89,7 @@ final opticalTrainBaselineProvider = StateProvider<OpticalTrainBaseline?>(
 );
 
 /// Current optical-train snapshot supplied by the post-session pipeline
-/// (or by the test harness). Wave 5 Agent 3 fills this from the live
+/// (or by the test harness). The pipeline fills this from the live
 /// diagnostics stream when a sequence finishes; the pre-flight rule
 /// reads it to compare against [opticalTrainBaselineProvider].
 ///

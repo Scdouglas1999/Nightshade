@@ -1,5 +1,5 @@
 // Part of ../node_properties_panel.dart -- migrated from the former
-// instruction_node_properties library (Wave 4 consolidation). The richer
+// instruction_node_properties library. The richer
 // exposure editor: duration + sky-brightness recommendation card, count,
 // frame type, filter, binning/gain/offset profile-default tracking, dither,
 // the adaptive-exposure sub-section, and a Run Test Exposure action.
@@ -404,7 +404,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
             ),
           ),
 
-          // Wave 5 Agent 2 — sky-brightness adaptive exposure block.
+          // Sky-brightness adaptive exposure block.
           // Off by default; expanding shows the SNR / reference / min /
           // max controls + per-filter overrides.
           const SizedBox(height: 12),
@@ -713,7 +713,7 @@ class _ExposureRecommendationCard extends StatelessWidget {
 }
 
 // ============================================================================
-// Wave 5 Agent 2 — Sky-brightness adaptive exposure UI block for the
+// Sky-brightness adaptive exposure UI block for the
 // _ExposureProperties panel. Off by default; expanding shows SNR / reference
 // / min / max + per-filter overrides + a live preview the user can glance
 // at to see what the next burst will actually capture at.

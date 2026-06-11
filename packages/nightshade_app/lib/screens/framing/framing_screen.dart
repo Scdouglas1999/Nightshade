@@ -240,7 +240,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
             },
           ),
         ),
-        // GPU HiPS framing attribution chrome (C8). The streamed tile
+        // GPU HiPS framing attribution chrome. The streamed tile
         // mosaic itself is composed INSIDE FramingCanvas's Stack — above
         // the single-cutout survey snapshot and UNDER the grid / FOV /
         // equipment overlays — so the imagery never hides the FOV

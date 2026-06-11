@@ -33,19 +33,19 @@ class TargetSchedulerNode extends SequenceNode {
   /// Prevents abandoning a partially-completed exposure burst. Default true.
   final bool finishIterationOnSwitch;
 
-  /// Wave 8 — conditions-score floor below which adaptive swap engages.
+  /// Conditions-score floor below which adaptive swap engages.
   /// `null` disables the feature for this scheduler instance.
   final double? swapOnConditionsBelow;
 
-  /// Wave 8 — minimum seconds between consecutive adaptive swaps
+  /// Minimum seconds between consecutive adaptive swaps
   /// (hysteresis). Default 180s (3 minutes).
   final double swapHysteresisSecs;
 
-  /// Wave 8 — per-tier conditions-score floors. Defaults follow the
+  /// Per-tier conditions-score floors. Defaults follow the
   /// brief (faint ≥ 70, medium ≥ 50, bright ≥ 30).
   final BrightnessTierPreferences brightnessTierPreferences;
 
-  /// Wave 8 — score readings older than this are treated as missing
+  /// Score readings older than this are treated as missing
   /// telemetry and the scheduler falls back to the ordinary ranking.
   /// Default 300s (5 minutes).
   final int maxConditionsScoreAgeSecs;
@@ -235,7 +235,7 @@ class TargetSchedulerNode extends SequenceNode {
 }
 
 // =============================================================================
-// Wave 3 Agent 2: SmartExposure — multi-filter container instruction
+// SmartExposure — multi-filter container instruction
 // =============================================================================
 
 /// One row in a [SmartExposureNode]'s filter plan.

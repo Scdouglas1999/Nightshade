@@ -6,13 +6,13 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Run Dashboard Quality Panel (Wave 3 Image Grading).
+/// Run Dashboard Quality Panel (Image Grading).
 ///
 /// Subscribes to the active backend's event stream and reads the typed
-/// `FrameAccepted` / `FrameRejected` payloads produced by the Pack H
+/// `FrameAccepted` / `FrameRejected` payloads produced by the typed
 /// bridge dispatch (`SequencerEvent::FrameAccepted` / `FrameRejected`).
 ///
-/// Pre-Pack-H this code parsed `InstructionProgress.detail` strings with
+/// Previously this code parsed `InstructionProgress.detail` strings with
 /// regex. That parser has been deleted — every metric the panel needs
 /// (HFR, eccentricity, star count, reject reason, consecutive-reject
 /// counter) now arrives as typed data via [FrameGradeEvent.fromTypedData].
@@ -20,7 +20,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Hidden when grading is disabled in settings AND no events have arrived
 /// (an idle dashboard stays clean).
 ///
-/// Wave 5 Agent 2 — the panel also surfaces the most recent sky-brightness
+/// The panel also surfaces the most recent sky-brightness
 /// adaptive-exposure decision so the user sees live sky brightness +
 /// nominal/adapted exposure pair on the dashboard.
 class RunDashboardQualityPanel extends ConsumerWidget {
@@ -181,7 +181,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
               ),
             ),
           ],
-          // Wave 5 Agent 2 — adaptive-exposure status row. Embedded
+          // Adaptive-exposure status row. Embedded
           // inside the quality panel so the user has one place to look
           // for "is the rig adapting tonight?".
           if (adaptive != null) ...[
@@ -196,7 +196,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
   }
 }
 
-/// Wave 5 Agent 2 — slim banner used when adaptive-exposure has fired
+/// Slim banner used when adaptive-exposure has fired
 /// but no image-grading events have arrived yet (e.g. grading disabled).
 class _AdaptiveExposureBanner extends StatelessWidget {
   const _AdaptiveExposureBanner({required this.event, required this.colors});
@@ -213,7 +213,7 @@ class _AdaptiveExposureBanner extends StatelessWidget {
   }
 }
 
-/// Wave 5 Agent 2 — the inline body that renders the live adaptive-
+/// The inline body that renders the live adaptive-
 /// exposure state for the quality panel.
 class _AdaptiveExposureInline extends StatelessWidget {
   const _AdaptiveExposureInline({
@@ -303,7 +303,7 @@ class _GradeRow extends StatelessWidget {
     final isReject = event.isReject;
     final icon = isReject ? LucideIcons.x : LucideIcons.check;
     final iconColor = isReject ? colors.warning : colors.primary;
-    // Pack H: the typed payload carries HFR / star count directly, so the
+    // The typed payload carries HFR / star count directly, so the
     // dashboard surfaces them on every row instead of swallowing them into
     // a parsed reason string.
     final metricChips = <String>[];
@@ -446,7 +446,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       state = FrameGradeRunSummary.empty;
       return;
     }
-    // Pack H: only the typed grading variants drive the panel. We no
+    // Only the typed grading variants drive the panel. We no
     // longer parse `InstructionProgress.detail` strings — the regex
     // pipeline has been removed entirely.
     if (event.eventType != 'FrameAccepted' &&
@@ -500,7 +500,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
 /// Per-run quality summary fed by the backend event stream.
 ///
-/// Pack H: removed the duplicate `ref.onDispose(notifier.dispose)` —
+/// Removed the duplicate `ref.onDispose(notifier.dispose)` —
 /// Riverpod's StateNotifierProvider already auto-disposes the notifier
 /// when the container shuts down, so the manual hook was triggering
 /// `Bad state: Tried to use _QualityNotifier after dispose was called`
@@ -511,7 +511,7 @@ final runDashboardQualitySummaryProvider =
 });
 
 // ============================================================================
-// Wave 5 Agent 2 — Sky-brightness adaptive exposure surface
+// Sky-brightness adaptive exposure surface
 // ============================================================================
 //
 // Mirrors the `_QualityNotifier` pattern: subscribe to the active backend

@@ -1,4 +1,4 @@
-// Wave 6 Thumbnails — widget tests for the inline frame thumbnail strip
+// Widget tests for the inline frame thumbnail strip
 // rendered under each ExposureNode in the sequence tree.
 //
 // Pins:

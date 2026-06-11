@@ -1,13 +1,13 @@
-// Wave 6 Pack P — verify the SequenceExecutor's FrameAccepted handling
+// Verify the SequenceExecutor's FrameAccepted handling
 // now consumes the `save_path` field that the Rust grader emits on
 // accepted frames.
 //
-// Before Pack P, `_registerSequenceFrame` left `file_path` blank for
+// Previously, `_registerSequenceFrame` left `file_path` blank for
 // accepted frames (the Rust grader did not ship the path on the
 // FrameAccepted event). The thumbnail strip showed a colour-bordered
 // placeholder tile.
 //
-// After Pack P, accepted frames carry the on-disk save path via the
+// Now, accepted frames carry the on-disk save path via the
 // `save_path` field on `SequencerEvent::FrameAccepted` → `event.data`,
 // and the inserted `captured_images` row's `file_path` column holds it.
 // The thumbnail strip then renders the inline preview the same way it
@@ -98,7 +98,7 @@ void main() {
             'star_count': 145,
             'accepted_total': 1,
             'rejected_total': 0,
-            // The new save_path field introduced by Pack P.
+            // The save_path field carried on accepted frames.
             'save_path': savePath,
           },
         ),

@@ -1,4 +1,4 @@
-// Wave 6D P2-14 — Battery-aware mobile throttling.
+// Battery-aware mobile throttling.
 //
 // PowerService already exists for low-battery *warning* surfaces (notification
 // pop, wake-lock release at critical thresholds). BatteryService is the

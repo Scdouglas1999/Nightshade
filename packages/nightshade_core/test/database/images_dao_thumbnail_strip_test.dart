@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 
-/// Wave 6 Thumbnails — unit tests for the producing-node provenance
+/// Thumbnail — unit tests for the producing-node provenance
 /// helpers added to `ImagesDao` in v30.
 ///
 /// We exercise the raw-DDL columns (producing_node_id, producing_run_id,

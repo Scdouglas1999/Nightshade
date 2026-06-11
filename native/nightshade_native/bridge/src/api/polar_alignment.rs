@@ -1,8 +1,8 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 //
-// # `as`-cast policy (audit-rust §1.4)
+// # `as`-cast policy
 //
 // Numeric casts in this file cluster into:
 // - **Image dim u32 → u32** (lines 109, 110, 135, 136, 792, 793): `image.width`
@@ -219,7 +219,7 @@ pub async fn api_start_polar_alignment(
     })?;
 
     // Spawn background task for polar alignment.
-    // Why (audit-rust §4.3): each unwrap_or here applies the documented
+    // Why: each unwrap_or here applies the documented
     // Nightshade default surfaced in the Polar-Align wizard UI when the
     // FFI caller omits the optional field:
     //   - gain/offset 0 → "keep camera's current value" (start_exposure
@@ -1127,7 +1127,7 @@ pub async fn api_start_all_sky_polar_alignment(
 
     let device_ops = create_unified_device_ops();
 
-    // Wave 1.5 Pack A: hand the alignment task its own executor-event bridge
+    // hand the alignment task its own executor-event bridge
     // so instruction-level failures (e.g. FITS-save error on a polar-align
     // exposure) reach the same NightshadeEvent stream the rest of the app
     // listens to. The status_cb/image_cb callbacks below cover the alignment
@@ -1163,7 +1163,7 @@ pub async fn api_start_all_sky_polar_alignment(
             filter_focus_offsets: std::collections::HashMap::new(),
             event_tx: Some(event_tx_for_align),
             recovery_request_tx: None,
-            // Wave 3 Image Grading: polar alignment does not write FITS
+            // Image Grading: polar alignment does not write FITS
             // frames into the sequencer's save_path; the alignment images
             // go through a separate dedicated channel. Empty defaults
             // satisfy the InstructionContext shape without lying.
@@ -1188,11 +1188,11 @@ pub async fn api_start_all_sky_polar_alignment(
             frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
             default_quality_check: None,
             reject_folder_path: None,
-            // Wave 7 Agent 3 — defect map state. Polar alignment captures
+            // defect map state. Polar alignment captures
             // do not go through the sequencer save_path; defect maps are
             // not applied here, so pass an empty slot.
             defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 — Forensics: polar alignment does not grade frames.
+            // Forensics: polar alignment does not grade frames.
             forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
                 std::collections::VecDeque::new(),
             )),
@@ -1202,7 +1202,7 @@ pub async fn api_start_all_sky_polar_alignment(
             )),
             current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
             current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 Replay Debug — one-shot bridge API doesn't emit
+            // Replay Debug — one-shot bridge API doesn't emit
             // decisions (no associated sequence_runs row).
             decision_tx: None,
             active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),

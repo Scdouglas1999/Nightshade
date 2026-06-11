@@ -4,7 +4,7 @@ const int oneMiB = 1024 * 1024;
 const int defaultMaxRequestBodyBytes = oneMiB;
 const int imageProcessingMaxRequestBodyBytes = 64 * oneMiB;
 const int backupUploadMaxRequestBodyBytes = 256 * oneMiB;
-// P1-12 — catalog archives are capped at 1 GiB per audit. HYG is
+// catalog archives are capped at 1 GiB per audit. HYG is
 // ~35 MB decompressed, GLADE+ complete is ~2 GB so the cap rejects the
 // full GLADE+ tier (operators must use the standard tier or stage the
 // file out-of-band).
@@ -23,19 +23,19 @@ int requestBodyLimitForPath(String path) {
     return backupUploadMaxRequestBodyBytes;
   }
 
-  // P1-10 — calibration dark upload may carry a master dark up to ~200 MB
+  // calibration dark upload may carry a master dark up to ~200 MB
   // from a full-frame camera. Share the backup-upload cap so a single
   // ceiling governs all multipart-style uploads.
   if (path == '/api/calibration/darks/upload') {
     return backupUploadMaxRequestBodyBytes;
   }
 
-  // P1-12 — catalog upload (air-gap install path).
+  // catalog upload (air-gap install path).
   if (path == '/api/catalog/upload') {
     return catalogUploadMaxRequestBodyBytes;
   }
 
-  // P2-11 — plugin archives are small (manifests + small code bundles),
+  // plugin archives are small (manifests + small code bundles),
   // but a few MB ceiling is reasonable so the operator can ship
   // assets alongside. Share the backup-upload cap.
   if (path == '/api/plugins/upload') {
@@ -123,7 +123,7 @@ Map<String, dynamic> buildOpenApiSpec({
     'openapi': '3.0.3',
     'info': {
       'title': 'Nightshade Headless API',
-      // P1-1/P1-4 — minor bump for the additive event sequencing
+      // minor bump for the additive event sequencing
       // (`seq`, `serverInstanceId`, `replay`, `resync_required`) and
       // command/event correlation (`commandId`, `correlatingCommandId`).
       // Existing clients ignore the new fields; no breaking change.
@@ -236,7 +236,7 @@ String? highRiskAuditActionFor({required String method, required String path}) {
     return 'file_browse';
   }
 
-  // P1-14 — log-file downloads are audited so an operator can trace
+  // log-file downloads are audited so an operator can trace
   // who pulled a log archive after an incident. Treated like
   // `/api/files/browse`: read-only but sensitive enough to warrant
   // an audit row. The route uses a `<filename>` parameter so we
@@ -247,14 +247,14 @@ String? highRiskAuditActionFor({required String method, required String path}) {
     }
   }
 
-  // P1-11 — DELETE /api/system/update/staged is destructive but uses the
+  // DELETE /api/system/update/staged is destructive but uses the
   // DELETE method. The remaining update audit actions live in
   // `_highRiskAuditActions` below and are matched via the POST branch.
   if (method.toUpperCase() == 'DELETE' && path == '/api/system/update/staged') {
     return 'update_discard_staged';
   }
 
-  // P1-10 — every DELETE on the calibration surface is destructive and
+  // every DELETE on the calibration surface is destructive and
   // worth auditing. The parameterised path (`/api/calibration/darks/123`)
   // is matched here on both the templated and instantiated forms; the
   // templated path appears in the route enumeration list while the
@@ -265,7 +265,7 @@ String? highRiskAuditActionFor({required String method, required String path}) {
     if (_isCalibrationDefectMapPath(path)) {
       return 'calibration_defect_map_delete';
     }
-    // P1-12 — DELETE /api/catalog/<name> removes a star/DSO catalog
+    // DELETE /api/catalog/<name> removes a star/DSO catalog
     // from disk. Plate solving stops working until the catalog is
     // re-downloaded, so this is destructive enough to audit.
     if (_isCatalogNamedPath(path)) return 'catalog_delete';
@@ -275,7 +275,7 @@ String? highRiskAuditActionFor({required String method, required String path}) {
     return null;
   }
 
-  // P1-13: per-row thumbnail regeneration. Templated path is
+  // per-row thumbnail regeneration. Templated path is
   // `/api/images/<imageId>/regenerate-thumbnail`; instantiated paths
   // carry a numeric id. Audited (but not in the high-risk rate tier)
   // because it does a one-shot FFI re-encode per call.
@@ -286,7 +286,7 @@ String? highRiskAuditActionFor({required String method, required String path}) {
   return _highRiskAuditActions[path];
 }
 
-/// P1-13 — matches the parameterised
+/// matches the parameterised
 /// `/api/images/<imageId>/regenerate-thumbnail` route and its concrete
 /// request paths (`/api/images/42/regenerate-thumbnail`). Both the
 /// templated form (route-enumeration list) and the instantiated form
@@ -297,7 +297,7 @@ bool _isRegenerateThumbnailPath(String path) {
   return path.endsWith('/regenerate-thumbnail');
 }
 
-/// P1-14 — matches the parameterised `/api/logs/files/<filename>/download`
+/// matches the parameterised `/api/logs/files/<filename>/download`
 /// route and its concrete request paths (`/api/logs/files/nightshade.log/
 /// download`). We accept both the templated form (used by the
 /// route-enumeration list) and the instantiated form (used at request
@@ -308,7 +308,7 @@ bool _isLogDownloadPath(String path) {
   return path.endsWith('/download');
 }
 
-/// P1-10 — matches `/api/calibration/darks/<id>` (and the templated
+/// matches `/api/calibration/darks/<id>` (and the templated
 /// `<id>` form used in the route enumeration). Used by the DELETE audit
 /// branch. Returns false for the collection root `/api/calibration/darks`
 /// because DELETE there is not a valid route.
@@ -334,7 +334,7 @@ bool _isCalibrationDefectMapPath(String path) {
   return !tail.contains('/');
 }
 
-/// P1-12 — matches `/api/catalog/<name>` (and the templated `<name>`
+/// matches `/api/catalog/<name>` (and the templated `<name>`
 /// form used in the route enumeration). Used by the DELETE audit and
 /// admin-scope branches. Excludes the sibling `status` / `available` /
 /// `download` / `upload` / `verify` / `reload` paths because those are
@@ -379,7 +379,7 @@ String requiredAuthScopeNameForEndpoint({
     return 'public';
   }
 
-  // P0-3: `/api/pairing/active` lists active pairing-session codes, which
+  // `/api/pairing/active` lists active pairing-session codes, which
   // are credentials in transit. Admin-only across every method so a paired
   // control-scope phone cannot read freshly-minted codes the operator is
   // sharing out-of-band.
@@ -392,7 +392,7 @@ String requiredAuthScopeNameForEndpoint({
     return 'admin';
   }
 
-  // P1-11: DELETE /api/system/update/staged (destructive — wipes staging
+  // DELETE /api/system/update/staged (destructive — wipes staging
   // tree). All non-GET methods on the update surface are admin so a
   // control-scope token cannot, for example, DELETE the staged update
   // a paired admin operator queued for installation.
@@ -401,7 +401,7 @@ String requiredAuthScopeNameForEndpoint({
     return 'admin';
   }
 
-  // P1-10: calibration library scope.
+  // calibration library scope.
   //
   //   GET   /api/calibration/...                  → view
   //   POST  /api/calibration/darks/upload          → admin (file upload)
@@ -444,7 +444,7 @@ String requiredAuthScopeNameForEndpoint({
     return 'control';
   }
 
-  // P1-12: catalog management scope.
+  // catalog management scope.
   //
   //   GET    /api/catalog/status        → view
   //   GET    /api/catalog/available     → view
@@ -496,7 +496,7 @@ const _adminOnlyPathPrefixes = {
   '/api/sync',
   '/api/files',
   '/api/settings',
-  // P2-11 — plugin management. List (GET /api/plugins) is admin-scope
+  // plugin management. List (GET /api/plugins) is admin-scope
   // because it exposes installed-plugin metadata that a paired control
   // phone shouldn't see; every mutating method is destructive by design
   // (upload installs code-adjacent assets, delete drops the archive).
@@ -506,17 +506,17 @@ const _adminOnlyPathPrefixes = {
 const _adminOnlyPaths = {
   '/api/self-test',
   '/api/session-handoff',
-  // P1-14 — destructive / synthetic log operations. Reading is view
+  // destructive / synthetic log operations. Reading is view
   // scope; mutating is admin only.
   '/api/logs/clear',
   '/api/logs/test-entry',
-  // P1-13 — sidecar thumbnail backfill walks every captured-image row
+  // sidecar thumbnail backfill walks every captured-image row
   // and invokes the Rust FFI per missing sidecar. On Pi-class SD storage
   // this can run for several minutes and produce significant I/O — admin
   // scope so a paired control-phone can't accidentally kick off a
   // session-wide rebuild during live capture.
   '/api/images/backfill-thumbnails',
-  // P1-11 — OTA update mutating endpoints. The two GET endpoints
+  // OTA update mutating endpoints. The two GET endpoints
   // (`/api/system/version`, `/api/system/update/status`,
   // `/api/system/update/staged`) stay at view scope so a paired phone
   // operator can monitor without being able to trigger a download.
@@ -525,7 +525,7 @@ const _adminOnlyPaths = {
   '/api/system/update/apply',
   '/api/system/update/abort',
   '/api/system/update/rollback',
-  // P1-12 — catalog mutating endpoints. Status + available stay at view
+  // catalog mutating endpoints. Status + available stay at view
   // scope so a paired control phone can render a "catalogs missing"
   // banner; everything that changes state is admin-only.
   '/api/catalog/download',
@@ -534,7 +534,7 @@ const _adminOnlyPaths = {
   '/api/catalog/reload',
 };
 
-/// P0-3 — pairing-session diagnostic endpoint(s). Admin-only across every
+/// pairing-session diagnostic endpoint(s). Admin-only across every
 /// method because the response body contains live pairing codes that the
 /// operator may be sharing out of band. Keeping the table separate from
 /// `_adminOnlyPaths` makes it explicit that this set covers GETs too,
@@ -559,11 +559,11 @@ const _controlPathPrefixes = [
   '/api/cover/',
   '/api/backup/',
   '/api/files/',
-  // P1-11 — system / OTA update endpoints. Most do nothing destructive
+  // system / OTA update endpoints. Most do nothing destructive
   // on their own but the underlying work is heavy (HTTP fetch, file
   // staging) so we rate-limit them like the rest of the control surface.
   '/api/system/',
-  // P1-10 — calibration library mutating endpoints. Rate-limited like
+  // calibration library mutating endpoints. Rate-limited like
   // the rest of the control surface so a runaway client cannot pummel
   // the DB with delete loops or upload-and-delete cycles.
   '/api/calibration/',
@@ -591,28 +591,28 @@ const _highRiskControlPaths = {
   '/api/sequencer/start',
   '/api/sequencer/stop',
   '/api/sequencer/resume',
-  // P1-14 — clear permanently deletes log files, test-entry can be
+  // clear permanently deletes log files, test-entry can be
   // abused as a write amplifier; both belong in the high-risk tier
   // so an aggressive client gets throttled to 12 calls/min.
   '/api/logs/clear',
   '/api/logs/test-entry',
-  // P1-11 — OTA update apply / rollback / discard. Apply triggers a
+  // OTA update apply / rollback / discard. Apply triggers a
   // server-process restart, rollback is destructive, and a malicious
   // client repeatedly hammering these endpoints could DoS the
   // operator. 12 calls/min is plenty for legitimate use.
   '/api/system/update/apply',
   '/api/system/update/rollback',
   '/api/system/update/staged',
-  // P1-10 — calibration uploads and the on-disk verifier are destructive
+  // calibration uploads and the on-disk verifier are destructive
   // / I/O-heavy. The fine-grained DELETE paths are handled via the
   // calibration DELETE branch in `highRiskAuditActionFor` rather than
   // being enumerated here, because each id-bearing instance is unique.
   '/api/calibration/darks/upload',
   '/api/calibration/darks/backfill-sizes',
-  // P1-13 — sidecar thumbnail backfill: heavy-I/O FFI walk over every
+  // sidecar thumbnail backfill: heavy-I/O FFI walk over every
   // captured-image row. 12 calls/min is plenty for legitimate retries.
   '/api/images/backfill-thumbnails',
-  // P1-12 — catalog management. Download triggers a multi-MB HTTPS
+  // catalog management. Download triggers a multi-MB HTTPS
   // fetch + decompression + atomic rename; verify computes SHA-256
   // over multi-MB files; both are heavy and should be throttled to
   // 12 calls/min so a misbehaving client cannot pummel the upstream
@@ -642,28 +642,28 @@ const _highRiskAuditActions = {
   '/api/sequencer/start': 'sequence_start',
   '/api/sequencer/stop': 'sequence_stop',
   '/api/sequencer/resume': 'sequence_resume',
-  // P1-14 — destructive log operations. Audit row records who and
+  // destructive log operations. Audit row records who and
   // when, status comes from the response code in the middleware.
   '/api/logs/clear': 'log_clear',
   '/api/logs/test-entry': 'log_test_entry',
-  // P1-11 — OTA update audit trail. `update_discard_staged` is matched
+  // OTA update audit trail. `update_discard_staged` is matched
   // via the DELETE branch above; the rest are POST.
   '/api/system/update/download': 'update_download',
   '/api/system/update/apply': 'update_apply',
   '/api/system/update/rollback': 'update_rollback',
-  // P1-10 — calibration mutating endpoints. `calibration_dark_delete` and
+  // calibration mutating endpoints. `calibration_dark_delete` and
   // friends are matched via the DELETE branch in highRiskAuditActionFor
   // because the id is parameterised. The POST paths are concrete and live
   // in this table.
   '/api/calibration/darks/upload': 'calibration_dark_upload',
   '/api/calibration/darks/backfill-sizes': 'calibration_backfill',
-  // P1-12 — catalog mutating endpoints. The DELETE audit action is
+  // catalog mutating endpoints. The DELETE audit action is
   // resolved via `_isCatalogNamedPath` above because the path is
   // parameterised.
   '/api/catalog/download': 'catalog_download',
   '/api/catalog/upload': 'catalog_upload',
   '/api/catalog/verify': 'catalog_verify',
-  // P1-13 — thumbnail-cache mutations. The backfill walks every row +
+  // thumbnail-cache mutations. The backfill walks every row +
   // invokes the Rust FFI for each missing sidecar (heavy I/O on Pi SD
   // storage); the regenerate endpoint is a per-row escape hatch when a
   // FITS is replaced out-of-band. The regenerate POST is matched via
@@ -683,7 +683,7 @@ class RateLimitDecision {
   final int maxRequests;
   final int retryAfterSeconds;
 
-  /// P2-6: which bucket — endpoint window or per-token route-class — produced
+  /// which bucket — endpoint window or per-token route-class — produced
   /// this decision. `endpoint` is the legacy sliding-window check tied to a
   /// (clientKey, method, path) triple; `token-<class>` is the new token-
   /// bucket gate keyed by (tokenId, routeClass). Surfaced so 429 responses
@@ -700,7 +700,7 @@ class RateLimitDecision {
   });
 }
 
-/// P2-6: per-token route class. NAT collapses many phones onto a single
+/// per-token route class. NAT collapses many phones onto a single
 /// public IP, so an IP-keyed rate limit either treats every device behind
 /// the NAT as one client (DoS by neighbour) or wastes the gate entirely.
 /// Keying the bucket on the authenticated token + a coarse route class
@@ -768,7 +768,7 @@ TokenRouteClass tokenRouteClassFor({
   if (normalizedPath == '/api/camera/live-view/frame') {
     return TokenRouteClass.liveView;
   }
-  // Wave 7A — WebRTC live-view signalling endpoints share the
+  // WebRTC live-view signalling endpoints share the
   // live-view bucket because the SSE candidate stream + ICE POSTs
   // burst during session setup (potentially many candidates per
   // second on a complex network) and we don't want a paired phone
@@ -833,7 +833,7 @@ class TokenBucketConfig {
   double refillPerMicrosecond() => refillTokens / refillPeriod.inMicroseconds;
 }
 
-/// P2-6: token-bucket rate limiter keyed by `(tokenId, route_class)`.
+/// token-bucket rate limiter keyed by `(tokenId, route_class)`.
 ///
 /// In-memory only — counters reset on server restart. Memory bound: one
 /// bucket per (token × class) pair, evicted by LRU once the table exceeds

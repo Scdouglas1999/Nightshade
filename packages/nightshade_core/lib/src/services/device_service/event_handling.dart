@@ -6,7 +6,7 @@ extension _DeviceServiceEventHandling on DeviceService {
 
   /// Resolve a display name without running discovery. Falls back to
   /// [getConnectedDevices] when the backend already knows this device
-  /// (DV-P0-4).
+  ///.
   Future<String> _resolveDeviceDisplayName(
     DeviceType type,
     String deviceId,
@@ -93,10 +93,10 @@ extension _DeviceServiceEventHandling on DeviceService {
         _handleDeviceDisconnected(deviceType, deviceId);
         break;
 
-      // DEV-P0-5: surface driver errors published from Rust via
+      // Surface driver errors published from Rust via
       // report_error / connect_device_internal / heartbeat. Previously
       // dropped on the floor — the user never saw the actual driver
-      // message. Per CLAUDE.md "errors are a feature", we route the
+      // message. "errors are a feature", we route the
       // payload through the structured errorService (which also pushes
       // to UI notifications) AND set the matching device state to
       // error so the equipment card subtitle renders it.
@@ -316,14 +316,14 @@ extension _DeviceServiceEventHandling on DeviceService {
         break;
 
       // ---------------------------------------------------------------
-      // DEV-P3-2: Heartbeat-health routing.
+      // Heartbeat-health routing.
       //
       // The Rust heartbeat monitor publishes status changes via the
       // equipment EventBus. We forward them into the dedicated
       // `deviceHeartbeatHealthProvider` so per-device cards can render
       // a colored indicator without each card subscribing to the
       // entire equipment event stream itself. Connection-state
-      // notifiers (DEV-P0-1) and the driver-error handler (DEV-P0-5)
+      // notifiers and the driver-error handler
       // are intentionally untouched here — heartbeat health is a
       // separate gradient layered on top of connection state.
       //
@@ -461,7 +461,7 @@ extension _DeviceServiceEventHandling on DeviceService {
         break;
       case 'switch':
       case 'switch_':
-        // DEV-P2-1: switch device now has a first-class state provider.
+        // Switch device now has a first-class state provider.
         final notifier = _ref.read(switchStateProvider.notifier);
         notifier.setConnecting(deviceId, resolvedName);
         notifier.setConnected();
@@ -541,7 +541,7 @@ extension _DeviceServiceEventHandling on DeviceService {
         break;
       case 'switch':
       case 'switch_':
-        // DEV-P2-1: switch device now has a first-class state provider.
+        // Switch device now has a first-class state provider.
         _ref
             .read(switchStateProvider.notifier)
             .setConnecting(deviceId, resolvedName);
@@ -559,11 +559,11 @@ extension _DeviceServiceEventHandling on DeviceService {
   void _handleDeviceDisconnected(String? deviceType, String? deviceId) {
     if (deviceType == null || deviceId == null) return;
 
-    // DEV-P3-2: clear the heartbeat health entry so the per-card
+    // Clear the heartbeat health entry so the per-card
     // indicator falls back to "unknown" (gray dot) rather than getting
     // stuck on the last-known value. Done unconditionally up-front so
     // a clear failure here cannot block the existing connection-state
-    // teardown below (DEV-P0-1 / DEV-P0-5 paths).
+    // teardown below ( /  paths).
     _heartbeat.clearDevice(deviceId);
 
     // Log the disconnection event with timestamp
@@ -588,7 +588,7 @@ extension _DeviceServiceEventHandling on DeviceService {
     // Update connection state based on device type
     switch (deviceType.toLowerCase()) {
       case 'camera':
-        // DEV-P1-4: only tear down camera-scoped polling state if the
+        // Only tear down camera-scoped polling state if the
         // disconnect event is for the camera we're actually tracking.
         // A stale event for a previously-disconnected camera must not
         // kill polling/IDs for the CURRENT camera. We still flip the
@@ -658,10 +658,10 @@ extension _DeviceServiceEventHandling on DeviceService {
         unawaited(_attemptReconnect(DeviceType.safetyMonitor, deviceId));
         break;
 
-      // DEV-P0-1: cover calibrator + switch cases. Previously these
+      // Cover calibrator + switch cases. Previously these
       // device types would never propagate a Disconnected event to the
       // UI — cards stayed "connected" until app restart. Cover
-      // calibrator has a state provider; switch does not yet (DEV-P2-1)
+      // calibrator has a state provider; switch does not yet
       // so we log loudly and surface a UI notification so the user
       // knows the device is gone.
       case 'covercalibrator':
@@ -672,7 +672,7 @@ extension _DeviceServiceEventHandling on DeviceService {
 
       case 'switch':
       case 'switch_':
-        // DEV-P2-1: switch device now has a first-class state provider,
+        // Switch device now has a first-class state provider,
         // so disconnects route through `setDisconnected` and the
         // standard auto-reconnect path — same shape as safety monitor.
         _ref.read(switchStateProvider.notifier).setDisconnected();
@@ -681,7 +681,7 @@ extension _DeviceServiceEventHandling on DeviceService {
     }
   }
 
-  /// DEV-P0-5: Handle a driver/heartbeat error event published from Rust.
+  /// Handle a driver/heartbeat error event published from Rust.
   ///
   /// Three responsibilities:
   ///   1. Always log (driver, device id, message, error code if any).
@@ -766,7 +766,7 @@ extension _DeviceServiceEventHandling on DeviceService {
         break;
       case 'switch':
       case 'switch_':
-        // DEV-P2-1: switch device now has a first-class state provider,
+        // Switch device now has a first-class state provider,
         // so driver errors surface in the equipment card subtitle.
         _ref.read(switchStateProvider.notifier).setError(exception);
         break;

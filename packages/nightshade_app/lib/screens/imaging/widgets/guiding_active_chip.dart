@@ -35,7 +35,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// value `"` to match that established convention; there is no pixel domain to
 /// reconcile and no scale conversion to apply.
 ///
-/// The host (C6) positions this chip at the bottom-left of the preview.
+/// The host widget positions this chip at the bottom-left of the preview.
 class GuidingActiveChip extends ConsumerWidget {
   const GuidingActiveChip({super.key});
 

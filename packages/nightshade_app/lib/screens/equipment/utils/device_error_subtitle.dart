@@ -1,4 +1,4 @@
-// DEV-P3-4 / Onboarding C3: shared widget that renders the subtitle line for
+// Shared widget that renders the subtitle line for
 // a device card. When the device is in error state it surfaces a plain-language
 // headline drawn from the connection-troubleshooter knowledge base (the same
 // classifier that powers ConnectionTroubleshooterDialog), with the FULL raw

@@ -6,7 +6,7 @@
 //! - Thumbnail generation
 //! - Progress callbacks
 
-// Why: post audit §6.7, `process_tiled`/`process_with_progress` are sync
+// Why: post, `process_tiled`/`process_with_progress` are sync
 // CPU-bound functions; demo no longer needs `.await` for those calls.
 use nightshade_imaging::{
     generate_thumbnail, process_tiled, process_with_progress, ImageData, MappedFitsReader,

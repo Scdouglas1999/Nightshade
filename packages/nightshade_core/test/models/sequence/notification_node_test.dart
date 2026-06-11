@@ -1,4 +1,4 @@
-// Wave 5 Agent 5 — NotificationNode explicit-transports round-trip tests.
+// NotificationNode explicit-transports round-trip tests.
 //
 // The model gained an `explicitTransports` field. We need to make sure:
 //   * Default construction = null (legacy nodes inherit the matrix rule).

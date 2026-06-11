@@ -288,7 +288,7 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
       ParallelNode _ ||
       ConditionalNode _ ||
       RecoveryNode _ ||
-      // Wave 3 Agent 1: TargetScheduler is a container — children are the
+      // TargetScheduler is a container — children are the
       // candidate TargetHeaders the scheduler picks from.
       TargetSchedulerNode _ => true,
       ExposureNode _ ||
@@ -317,17 +317,17 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
       CloseCoverNode _ ||
       CalibratorOnNode _ ||
       CalibratorOffNode _ ||
-      // Wave 3 Agent 2: SmartExposure is a *leaf* in the Dart tree — all
+      // SmartExposure is a *leaf* in the Dart tree — all
       // per-filter behaviour is encoded in `plans` and Rust dispatches the
       // batches internally via the InstructionRegistry. The Dart node
       // intentionally has no childIds so the editor must not accept drops
       // onto it.
       SmartExposureNode _ ||
-      // Wave 7 Agent 2: LiveStacking is a leaf side-effect instruction
+      // LiveStacking is a leaf side-effect instruction
       // — it arms the broadcast service and returns. Any child would
       // never execute.
       LiveStackingNode _ ||
-      // Wave 7 Science: SciencePhotometry is a leaf — the per-frame
+      // Science: SciencePhotometry is a leaf — the per-frame
       // photometric capture is fully encoded in the node's config.
       SciencePhotometryNode _ ||
       // Audit §11 — plugin nodes are leaves. The plugin author owns

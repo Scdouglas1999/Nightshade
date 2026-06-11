@@ -4,7 +4,7 @@
 /// the server before doing any work:
 ///   * `GET /api/info` — server name, build version, API-version
 ///     envelope, pairing support, fingerprint, scope list, full
-///     endpoint catalog, and the P1-1 replay-buffer cursor.
+///     endpoint catalog, and the replay-buffer cursor.
 ///   * `GET /api/status` — sequencer state snapshot (the lightweight
 ///     poll endpoint mobile clients use to render the run badge).
 ///   * `GET /api/self-test` — full release-quality probe: platform
@@ -53,7 +53,7 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/openapi.json',
     'POST /api/pairing/start',
     'POST /api/pairing/verify',
-    // P0-3: admin-only diagnostic listing currently-valid pairing
+    // admin-only diagnostic listing currently-valid pairing
     // codes so a headless operator on a paired admin client can
     // retrieve the code without watching stdout.
     'GET /api/pairing/active',
@@ -83,10 +83,10 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/camera/last-image',
     'GET /api/camera/last-image/jpeg',
     'GET /api/camera/live-view/frame',
-    // P2-10 — push-based live-view streaming. Listed alongside the pull
+    // push-based live-view streaming. Listed alongside the pull
     // endpoint so OpenAPI consumers see both options.
     'WS /ws/live-view',
-    // Wave 7A — WebRTC datachannel live-view signalling. Operator
+    // WebRTC datachannel live-view signalling. Operator
     // POSTs an SDP offer, server replies with answer; ICE candidates
     // trickle via POST and an SSE replay channel; DELETE tears down.
     'POST /api/webrtc/live-view/offer',
@@ -279,7 +279,7 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/images/<imageId>',
     'PUT /api/images/<imageId>',
     'GET /api/images/<imageId>/thumbnail',
-    // P1-13: thumbnail cache management.
+    // thumbnail cache management.
     'POST /api/images/backfill-thumbnails',
     'POST /api/images/<imageId>/regenerate-thumbnail',
     'GET /api/images/<imageId>/download',
@@ -458,18 +458,18 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/focus-model/should-refocus',
     'GET /api/focus-model/export',
     'POST /api/focus-model/import',
-    // P1-2 / P1-3 — Long-running operation jobs
+    // Long-running operation jobs
     'GET /api/jobs',
     'GET /api/jobs/<jobId>',
     'POST /api/jobs/<jobId>/cancel',
     'DELETE /api/jobs/<jobId>',
-    // P1-5 — Session ownership
+    // Session ownership
     'GET /api/session/owner',
     'GET /api/session/status',
     'POST /api/session/claim',
     'POST /api/session/take-over',
     'POST /api/session/release',
-    // P1-11 — System / OTA update endpoints
+    // System / OTA update endpoints
     'GET /api/system/version',
     'POST /api/system/update/check',
     'GET /api/system/update/status',
@@ -482,18 +482,18 @@ List<String> availableHeadlessEndpoints() {
     // WebSocket
     'WS /api/ws',
     'WS /events',
-    // Wave 6 — Run-Watch (phone/tablet monitoring SPA)
+    // Run-Watch (phone/tablet monitoring SPA)
     'GET /api/run-watch/snapshot',
     'GET /api/run-watch/frame-thumbnail',
     'GET /api/run-watch/events',
-    // P1-14 — Remote log retrieval / tail
+    // Remote log retrieval / tail
     'GET /api/logs',
     'GET /api/logs/recent',
     'GET /api/logs/files/<filename>/download',
     'GET /api/logs/tail',
     'POST /api/logs/clear',
     'POST /api/logs/test-entry',
-    // P1-10 — Remote calibration library management
+    // Remote calibration library management
     'GET /api/calibration/darks',
     'POST /api/calibration/darks',
     'POST /api/calibration/darks/upload',
@@ -526,7 +526,7 @@ List<String> availableHeadlessEndpoints() {
     // Cloud sync
     'GET /api/sync/status',
     'POST /api/sync/push',
-    // P1-12 — Catalog management (download / upload / verify / etc.)
+    // Catalog management (download / upload / verify / etc.)
     'GET /api/catalog/status',
     'GET /api/catalog/available',
     'POST /api/catalog/download',
@@ -535,9 +535,9 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/catalog/reload',
     'DELETE /api/catalog/<name>',
 
-    // P2-8 — Read-only DB endpoints (paginated)
+    // Read-only DB endpoints (paginated)
     'GET /api/sequence-runs',
-    // Wave 7B — session replay scrubber: per-run detail + paginated events
+    // session replay scrubber: per-run detail + paginated events
     // + paginated frames. Order in registration matters (specific paths
     // before catch-all) but the advertised set is unordered.
     'GET /api/sequence-runs/<runId>',
@@ -549,7 +549,7 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/db/dark-library',
     'GET /api/db/flat-history',
 
-    // P2-11 — Plugin management
+    // Plugin management
     'GET /api/plugins',
     'POST /api/plugins/upload',
     'POST /api/plugins/<pluginId>/enable',
@@ -636,7 +636,7 @@ class SystemHandlers {
 
   /// `GET /api/info` — server discovery envelope. Returns the build
   /// version, API-version envelope, fingerprint, paired/scoped auth
-  /// metadata, the P1-1 replay-buffer cursor, and the full endpoint
+  /// metadata, the replay-buffer cursor, and the full endpoint
   /// catalog so a remote client can render its capabilities map
   /// without polling individual probes.
   Future<Response> handleInfo(Request request) async {
@@ -662,7 +662,7 @@ class SystemHandlers {
       'authScopes': view.availableAuthScopes(),
       'pairingSupported': true,
       'fingerprint': view.fingerprint(),
-      // P1-1: surface the sequencing + replay state so a reconnecting
+      // surface the sequencing + replay state so a reconnecting
       // client can decide between `?since=` replay and a full
       // `/api/run-watch/snapshot` rehydrate without guessing.
       'serverInstanceId': view.instanceId(),
@@ -676,7 +676,7 @@ class SystemHandlers {
         '/api/pairing/start',
         '/api/pairing/verify',
         '/dashboard',
-        // Wave 6: the run-watch SPA bundle is auth-exempt so the
+        // the run-watch SPA bundle is auth-exempt so the
         // phone can load it before pairing. The /api/run-watch/*
         // endpoints themselves still require a Bearer token.
         '/run-watch',

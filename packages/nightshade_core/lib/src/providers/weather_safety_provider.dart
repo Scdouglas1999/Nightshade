@@ -186,7 +186,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   Timer? _snoozeTimer;
   Timer? _periodicEvalTimer;
   Timer? _resumeDelayTimer;
-  // Wave 5 Agent 4 — periodic push of the cloud-motion analyzer output to
+  // Periodic push of the cloud-motion analyzer output to
   // the Rust executor. Independent of the 5-min evaluation tick so the
   // Rust-side cloud-aware triggers see fresh data even between full
   // re-evaluations.
@@ -206,7 +206,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
 
-  /// Wave 5 Agent 4 — push cadence for cloud-motion data into the Rust
+  /// Push cadence for cloud-motion data into the Rust
   /// executor. 60 seconds matches the brief's "every 60s say".
   static const _cloudMotionPushInterval = Duration(seconds: 60);
   static const _adaptiveConditionsPushInterval = Duration(seconds: 30);
@@ -235,7 +235,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   WeatherSafetyNotifier(this._ref) : super(WeatherSafetyState.initial()) {
     _subscribeToAlerts();
     _startPeriodicEvaluation();
-    // Wave 5 Agent 4 — start the cloud-motion forwarding loop so the Rust
+    // Start the cloud-motion forwarding loop so the Rust
     // sequencer's cloud-aware triggers see live data the first time the
     // notifier is constructed (typically at app launch).
     _startCloudMotionPush();
@@ -576,7 +576,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   }
 
   // -------------------------------------------------------------------------
-  // Wave 5 Agent 4 — cloud-motion forwarding to the Rust executor.
+  // Cloud-motion forwarding to the Rust executor.
   //
   // The Rust cloud-aware triggers (`CloudArrivingIn`, `CloudOpeningIn`,
   // `CloudCoverThreshold`) cannot run radar analysis themselves; we push

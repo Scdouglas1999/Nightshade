@@ -1,4 +1,4 @@
-// Wave 7C — Voice Control Service
+// Voice Control Service
 //
 // Bridges the running sequence state to platform-native voice assistants:
 //

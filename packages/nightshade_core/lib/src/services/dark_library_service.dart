@@ -73,7 +73,7 @@ class DarkLibraryService {
   /// - Master darks are preferred over individual raw frames.
   /// - Among matches, the closest temperature match wins.
   ///
-  /// IMG-P0-2: the tolerances object MUST be the same one consulted by
+  /// The tolerances object MUST be the same one consulted by
   /// `DarkLibraryCoverageService`. Resolve it from
   /// `darkLibraryMatchTolerancesProvider` at the caller so the coverage UI
   /// and the runtime matcher cannot drift apart again.
@@ -372,7 +372,7 @@ class DarkLibraryService {
   ///   Same conversion as `-32`.
   ///
   /// Any other `BITPIX` is rejected with a `FormatException` that lists the
-  /// supported encodings (errors are a feature — see CLAUDE.md).
+  /// supported encodings (errors are a feature here).
   ///
   /// When float samples fall outside `[0, 65535]` after BZERO/BSCALE scaling,
   /// the parser saturates them and emits a single warning per file via
@@ -434,7 +434,7 @@ class DarkLibraryService {
     }
 
     // Reject unsupported BITPIX loudly — list the supported encodings so the
-    // user can fix their pipeline (errors are a feature, per CLAUDE.md).
+    // user can fix their pipeline (errors are a feature here).
     const supportedBitpix = <int>[16, -32, -64];
     if (!supportedBitpix.contains(bitpix)) {
       throw FormatException(

@@ -105,7 +105,7 @@ void unsafeRuntimeStub() {
       'new high-risk marker compared to baseline should fail',
     );
 
-    // §7B.5: path-only allowlist entries must be rejected with exit 2.
+    // Path-only allowlist entries must be rejected with exit 2.
     await _writePathOnlyAllowlistFixture(temp);
     final pathOnlyResult = await _runAudit(
       script,
@@ -138,7 +138,7 @@ void allowed() {
   throw UnimplementedError('allowlisted release fixture');
 }
 ''');
-  // §7B.5: path-only allowlist entries are rejected; require path:line or
+  // Path-only allowlist entries are rejected; require path:line or
   // path:line:exact_text granularity.
   await _writeFile(
     root,

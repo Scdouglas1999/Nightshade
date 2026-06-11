@@ -148,7 +148,7 @@ void main() {
 
     group('revokeDevice', () {
       test('delegates to database revokeDevice', () async {
-        // P0-10: revokeDevice now also reads the device row first so it can
+        // revokeDevice now also reads the device row first so it can
         // surface the session token to the revocation listener. Stub the
         // read with a non-null device so the path executes both sides.
         when(() => mockDb.getPairedDevice('dev-1')).thenAnswer(
@@ -302,7 +302,7 @@ void main() {
       );
     });
 
-    group('verifySessionToken (P0-10 expiry)', () {
+    group('verifySessionToken (expiry)', () {
       test(
         'returns expired when device token is past its expires_at',
         () async {
@@ -403,7 +403,7 @@ void main() {
       });
     });
 
-    group('revokeDevice (P0-10 propagation)', () {
+    group('revokeDevice (propagation)', () {
       test('invokes the revocation listener with the session token', () async {
         final device = _fakePairedDevice(
           deviceId: 'dev-revoked',

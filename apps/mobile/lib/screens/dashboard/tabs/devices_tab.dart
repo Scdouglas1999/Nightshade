@@ -45,7 +45,7 @@ class DevicesTab extends ConsumerWidget {
           const _MountCard(),
           const SizedBox(height: 12),
           const _FocuserCard(),
-          // Wave 5C: surface the temperature-compensation focus model when
+          // surface the temperature-compensation focus model when
           // the focuser is connected AND the active profile already has
           // collected focus data points. We gate on profile + connection
           // here so the FocusModelCurveCard never renders its "Focuser not
@@ -74,7 +74,7 @@ class DevicesTab extends ConsumerWidget {
           const _FilterWheelCard(),
           const SizedBox(height: 12),
           const _GuiderCard(),
-          // Wave 5A: surface live guide-health (sparkline + RMS + state)
+          // surface live guide-health (sparkline + RMS + state)
           // only when the guider is actually connected. The card hides
           // itself when disconnected too, but checking here keeps the
           // disconnected-state copy from duplicating _GuiderCard's
@@ -553,7 +553,7 @@ class _GuiderCard extends ConsumerWidget {
   }
 }
 
-// [Wave 6D error parsing] — delegate to the shared helper so every
+// [error parsing] — delegate to the shared helper so every
 // devices-tab catch path benefits from envelope parsing + severity tint.
 void _showError(BuildContext context, Object e) {
   showApiError(context, e);

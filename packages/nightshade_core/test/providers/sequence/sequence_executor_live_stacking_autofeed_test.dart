@@ -2,7 +2,7 @@
 //
 // Before this wiring, the Rust LiveStacking instruction node armed a
 // broadcast session but nothing on the Dart side ever fed accepted frames
-// into the stacker / LAN broadcast (see the OSC-scope note in
+// into the stacker / LAN broadcast (see the single-frame OSC note in
 // native/.../node/instructions/live_stacking.rs). The feature was inert in
 // production: the broadcast served `{"active": false}` for the whole run.
 //

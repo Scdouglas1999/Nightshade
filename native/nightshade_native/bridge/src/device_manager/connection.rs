@@ -201,7 +201,7 @@ impl DeviceManager {
 
     /// Calculate backoff delay for reconnection
     pub(crate) fn calculate_backoff_delay(&self, attempts: u32) -> u64 {
-        // Why (audit-rust §1.4): u64 (initial_delay_secs) → f64 has bounded
+        // Why: u64 (initial_delay_secs) → f64 has bounded
         // precision loss for any realistic config (seconds, not nanoseconds).
         // u32 → i32 for `powi` saturates at i32::MAX (~2B retries) which is
         // unreachable; the result is then clamped by `min(max_delay_secs)`.
@@ -320,7 +320,7 @@ impl DeviceManager {
         // never overwrite the user's `Disconnected` with `Connected` and
         // never publish a misleading event.
         //
-        // Errors are a feature (CLAUDE.md): if the dispatch happened to
+        // Errors are a feature: if the dispatch happened to
         // succeed we deliberately discard that success so the user sees their
         // disconnect honored. The reconnection_loop already special-cases
         // `RECONNECT_CANCELED_MSG` to suppress the "attempt failed" event.
@@ -420,7 +420,7 @@ impl DeviceManager {
     ///   convention used by every `device_id.starts_with("sim_")` branch in
     ///   `bridge::api::devices`). An unrecognized id returns `Err` —
     ///   silent fallbacks would let typoed sim ids appear "connected" without
-    ///   any backing state. Errors are a feature (CLAUDE.md).
+    ///   any backing state. Errors are a feature.
     /// * Dispatches by `DeviceInfo.device_type`. Device types without a
     ///   `simulation.rs` singleton (Dome, Weather, SafetyMonitor, Switch,
     ///   CoverCalibrator, Guider) return `Err` so we never claim "connected"
@@ -562,7 +562,7 @@ impl DeviceManager {
             }
         }
 
-        // DEV-P1-3: Trip any in-flight reconnect attempt's cancel token. This
+        // Trip any in-flight reconnect attempt's cancel token. This
         // must happen AFTER releasing the `devices` write lock above (lock
         // ordering: `devices` then `reconnect_cancel_tokens`) but BEFORE we
         // begin tearing down driver-specific state — otherwise a reconnect
@@ -592,7 +592,7 @@ impl DeviceManager {
         if device_info.id == crate::builtin_guider::device_id() {
             record_disconnect!("Built-in guider", crate::builtin_guider::disconnect().await);
         }
-        // DEV-P1-8: PHD2 has its own out-of-band disconnect path (the PHD2
+        // PHD2 has its own out-of-band disconnect path (the PHD2
         // client storage lives outside the per-driver maps below). If a user
         // disconnects PHD2 via the generic `disconnect_device` route, we have
         // to mirror the built-in-guider check above so the PHD2 socket is
@@ -940,7 +940,7 @@ impl DeviceManager {
     /// Heartbeat threshold reached: mark the device unhealthy and mirror registry state.
     ///
     /// Real reconnection is handled exclusively by `reconnection_loop` when
-    /// `auto_reconnect` is enabled (FB-P0-5); the heartbeat task must not sleep
+    /// `auto_reconnect` is enabled (FB-); the heartbeat task must not sleep
     /// and pretend to reconnect.
     pub(crate) async fn handle_heartbeat_lost(
         &self,

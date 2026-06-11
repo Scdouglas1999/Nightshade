@@ -1,4 +1,4 @@
-// Wave 8 — Predictive autofocus settings + per-camera/filter model viewer.
+// Predictive autofocus settings + per-camera/filter model viewer.
 //
 // Lives next to the legacy `autofocus_settings.dart` so a user clicking the
 // "Autofocus" entry in the side bar sees the new "Predictive" subsection

@@ -342,7 +342,7 @@ class NightshadeApi {
   // /api/camera/subframe endpoint: ASCOM cameras only commit these at
   // StartExposure time, so a standalone setter would either no-op or
   // fight the next expose body. The dashboard sends them per-expose.
-  // These no-op shims keep the audit §2.17 endpoint names alive in the
+  // These no-op shims keep the endpoint names alive in the
   // client surface so future code can call them uniformly.
   async cameraSetBinning(_deviceId, _binX, _binY) {
     return { status: 'queued', message: 'Binning applies on next Expose' };
@@ -554,7 +554,7 @@ class NightshadeApi {
     return this._get('/api/targets/search?query=' + encodeURIComponent(query || ''));
   }
 
-  // Mount Slew helpers — names match the audit §2.17 brief. mountSlewToRaDec
+  // Mount Slew helpers — names match the brief. mountSlewToRaDec
   // and mountAbortSlew are aliases over the existing mountSlew / mountAbort
   // to keep app.js handlers readable.
   async mountSlewToRaDec(deviceId, raHours, decDeg) {

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  group('DarkLibraryDao.findBestMatch — IMG-P0-2 tolerance unification', () {
+  group('DarkLibraryDao.findBestMatch — tolerance unification', () {
     late NightshadeDatabase database;
     late DarkLibraryDao dao;
 
@@ -21,7 +21,7 @@ void main() {
       'regression: an exact 60.0s dark MUST match a 60.0s light frame request '
       'with the default tolerances',
       () async {
-        // Why: before the IMG-P0-2 fix this DAO used ±0.001s and could
+        // Why: before the fix this DAO used ±0.001s and could
         // silently return null for matching floating-point exposures
         // depending on representation, while the coverage UI used ±1.0s
         // and said "all darks present". The unified ±0.5s default MUST

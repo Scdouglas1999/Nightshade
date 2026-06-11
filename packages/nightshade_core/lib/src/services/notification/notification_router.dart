@@ -289,7 +289,7 @@ class NotificationRouter {
   void _onEvent(NightshadeEvent event) {
     if (!_matrix.enabled) return;
 
-    // Wave 5 Agent 5 — NotificationNode emits a sequencer event of type
+    // NotificationNode emits a sequencer event of type
     // `Notification` whose data carries title/message/level/transports.
     // It bypasses the auto-classifier because the user's chosen
     // explicit_transports must override the matrix's `custom` rule.
@@ -307,7 +307,7 @@ class NotificationRouter {
       return;
     }
 
-    // P1-11 — OTA "update available" is an operator-driven system event the
+    // OTA "update available" is an operator-driven system event the
     // shared classifier deliberately does not route to a notification
     // category. The (now demoted) PushNotificationService used to surface it
     // as a phone push from its own subscription; since that subscription is

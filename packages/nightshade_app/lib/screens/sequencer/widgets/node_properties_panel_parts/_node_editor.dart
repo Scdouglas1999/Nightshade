@@ -142,7 +142,7 @@ class _NodeEditor extends ConsumerWidget {
   }
 
   Widget _buildTypeSpecificProperties(WidgetRef ref) {
-    // P3-8: dispatch is a Dart-3 switch expression. The old 30-arm if/else
+    // Dispatch is a Dart-3 switch expression. The old 30-arm if/else
     // chain was both hard to read and easy to break — adding a node type
     // meant remembering to update an inert `else if` slot. The switch keeps
     // every branch in one visual scan and binds the typed node directly

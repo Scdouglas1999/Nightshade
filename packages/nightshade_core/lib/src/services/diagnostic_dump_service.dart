@@ -84,7 +84,7 @@ class _GatherOutcome {
 /// - `logs/<basename>`            one entry per rotated log file, raw text
 ///
 /// Every gather step is wrapped so one failure cannot abort the whole dump.
-/// Per CLAUDE.md "Errors are a feature": gather failures are logged at
+/// Errors are a feature here: gather failures are logged at
 /// `error` level **and** preserved verbatim inside the failed entry's body so
 /// the bug-report reader sees exactly what went wrong.
 class DiagnosticDumpService {

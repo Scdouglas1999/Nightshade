@@ -108,7 +108,7 @@ class _NoteTile extends StatelessWidget {
             ),
           if (note.body.isNotEmpty) ...[
             const SizedBox(height: 6),
-            // Wave 6 Pack O — render note bodies as markdown so **bold**,
+            // Render note bodies as markdown so **bold**,
             // links, code-fences, and bullet lists land the way the user
             // typed them. `MarkdownBody` does not support a hard
             // `maxLines` clamp; we approximate it by truncating the
@@ -195,7 +195,7 @@ class _NoteTile extends StatelessWidget {
 }
 
 // =============================================================================
-// Wave 6 Pack O — Markdown rendering helpers for _NoteTile
+// Markdown rendering helpers for _NoteTile
 // =============================================================================
 
 /// Truncate the note body to ~`maxLines * 80` characters before passing

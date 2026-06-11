@@ -289,7 +289,7 @@ fn skywatcher_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // already hardcodes `SYNSCAN_BAUD_RATE = 9600` and the discovery routine
         // probes the `SYNSCAN_DISCOVERY_BAUD_RATES = [115200, 9600]` list directly.
         // Routing baud-rate selection through quirks would force a second source of
-        // truth that nothing currently reads. See audit DEV-P0-3.
+        // truth that nothing currently reads.
         //
         // REMOVED: `Timing(DelayBetweenCommands(50))` until `send_command` actually
         // consumes it. Keeping it live made the quirks DB look effective when it was not.
@@ -298,7 +298,7 @@ fn skywatcher_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // does not currently differentiate models post-discovery (mount name is
         // always `Sky-Watcher (PORT)`), so the `ModelContains("EQ6"|"GTi")` matcher
         // never fires. Wiring requires plumbing a version-query result into the
-        // mount struct's `name` field. Tracked as DEV-P2-3.
+        // mount struct's `name` field. Not yet wired.
     ]
 }
 
@@ -314,7 +314,7 @@ fn ioptron_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // both: `IOPTRON_BAUD_RATE`/`IOPTRON_BAUD_RATE_FAST` constants for baud
         // selection (with fallback logic in connect()) and the "#" terminator
         // baked into the `send_command` framing. The quirks were never queried
-        // by anything outside the diagnostics display. See audit DEV-P0-3.
+        // by anything outside the diagnostics display.
         //
         // CEM/GEM model-specific quirks DEFERRED: same reason as Sky-Watcher —
         // iOptron mount model is derived from `GET_MOUNT_VERSION` at connect time
@@ -322,7 +322,7 @@ fn ioptron_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // quirks lookup is `"iOptron {model} ({port})"` which does happen to
         // include the model substring, but the existing quirk policies
         // (GotoPrecisionArcsec, SyncRequiresAlignment) have no consumers in the
-        // codebase yet. Tracked as DEV-P2-3.
+        // codebase yet.
     ]
 }
 
@@ -338,15 +338,14 @@ fn lx200_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // `LX200_BAUD_RATE = 9600` and the "#" terminator in its `send_command`
         // implementation, plus a multi-baud `DISCOVERY_BAUD_RATES` probe list.
         // The OnStep-specific 115200 override quirk is also redundant because
-        // the discovery probe already tries 115200 first. See audit DEV-P0-3.
+        // the discovery probe already tries 115200 first.
         //
         // REMOVED: `Timing(DelayBetweenCommands(100))` until `send_command` actually
         // consumes it. Keeping it live made the quirks DB look effective when it was not.
         // LX200GPS and OnStep model-specific Mount quirks DEFERRED: model name
         // matching depends on `GET_PRODUCT_NAME` populating `self.name` at
         // connect-time (which does happen), but the consuming code (mount slew
-        // policy / goto-precision UI) has no quirk-aware path yet. Tracked as
-        // DEV-P2-3.
+        // policy / goto-precision UI) has no quirk-aware path yet.
     ]
 }
 
@@ -436,8 +435,8 @@ impl QuirkMatcher {
 ///
 /// Malformed IDs (fewer than 2 segments, or unrecognised protocol) log
 /// loudly and return an empty quirk list — silent fallthrough would
-/// hide misconfigured devices for months. See CLAUDE.md "Errors are a
-/// feature".
+/// hide misconfigured devices for months — errors are a feature
+/// here.
 ///
 /// # Arguments
 /// * `device_id` - The full device identifier
@@ -614,7 +613,7 @@ mod tests {
         // ASI camera driver, so the database deliberately omits a
         // Temperature::ScaleFactor quirk for ZWO cameras (it would double-
         // scale). Only the ASI294-specific SkipFirstRead quirk should be
-        // present. See audit DEV-P0-3.
+        // present.
         let has_skip_first = quirks
             .iter()
             .any(|q| matches!(q, Quirk::Temperature(TemperatureQuirk::SkipFirstRead)));
@@ -664,7 +663,7 @@ mod tests {
     fn test_skywatcher_baud_rate_quirk_removed() {
         // Sanity check that the RequiredBaudRate quirk for Sky-Watcher was
         // removed (duplicate of `SYNSCAN_BAUD_RATE` hardcoded in driver). If
-        // this test fails, somebody re-added a duplicate; re-read DEV-P0-3.
+        // this test fails, somebody re-added a duplicate.
         let quirks = get_vendor_quirks(&NativeVendor::SkyWatcher);
         let has_baud = quirks.iter().any(|q| {
             matches!(
@@ -763,7 +762,7 @@ mod tests {
     }
 
     // =========================================================================
-    // DEV-P2-2: Touptek brand-aware quirks lookup
+    // Touptek brand-aware quirks lookup
     // =========================================================================
     //
     // Touptek IDs are 4-part: `native:touptek:{brand}:{idx}`. The lookup

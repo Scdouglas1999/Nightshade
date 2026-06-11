@@ -2,7 +2,7 @@ part of '../device_service.dart';
 
 extension _DeviceServiceProfileConnections on DeviceService {
   /// Connect all devices from a profile sequentially with per-device timeout
-  /// and early abort on failure (DV-P0-5).
+  /// and early abort on failure.
   ///
   /// Imaging-chain devices (camera → mount → focuser → filter wheel) abort
   /// the remainder when any link fails because they often share USB hubs.
@@ -105,7 +105,7 @@ extension _DeviceServiceProfileConnections on DeviceService {
     );
   }
 
-  /// DEV-P1-5: parallel "Connect All" with per-device progress.
+  /// Parallel "Connect All" with per-device progress.
   ///
   /// Returns a [Stream] of [DeviceConnectProgress] events that the caller
   /// (typically the equipment screen) can subscribe to so each device card
@@ -247,7 +247,7 @@ extension _DeviceServiceProfileConnections on DeviceService {
   /// Disconnect all devices
   ///
   /// Each device-type disconnect now throws [DeviceNotConnectedException]
-  /// when the matching state provider has no `deviceId` (DEV-P2-6). For a
+  /// when the matching state provider has no `deviceId`. For a
   /// bulk-disconnect sweep that is the normal case (most equipment profiles
   /// list only a handful of devices), so we silence that specific exception
   /// and let every other failure (driver error, stale handle, timeout, …)

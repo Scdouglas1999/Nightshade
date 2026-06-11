@@ -49,7 +49,7 @@ impl InstructionNode for CoolCameraInstruction {
             .await
             .log_and_get_status_with_context("Cool Camera", &ctx);
 
-        // Pack G — stamp the cooler set-point onto the ExecutionContext so
+        // stamp the cooler set-point onto the ExecutionContext so
         // every subsequent TakeExposure's FITS header carries SET-TEMP.
         // This sticks until another CoolCamera / WarmCamera changes it.
         // We populate on Success only — a failed cool command should not

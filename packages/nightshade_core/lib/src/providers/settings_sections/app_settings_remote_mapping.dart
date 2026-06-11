@@ -38,7 +38,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       useSimulationMode: remote.useSimulationMode,
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
-      // Wave 3 Image Grading — carried by the wire model so an unattended
+      // Image Grading — carried by the wire model so an unattended
       // night driven from a phone keeps its Pass/Reject thresholds.
       enableImageGrading: remote.enableImageGrading,
       imageGradingHfrThresholdPx: remote.imageGradingHfrThresholdPx,
@@ -49,7 +49,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       imageGradingMaxConsecutiveRejects:
           remote.imageGradingMaxConsecutiveRejects,
       imageGradingRejectFolderPath: remote.imageGradingRejectFolderPath,
-      // Wave 5 Sky-brightness adaptive exposure — global defaults + per-filter
+      // Sky-brightness adaptive exposure — global defaults + per-filter
       // overrides round-trip so adaptive subs work when planned remotely.
       adaptiveExposureEnabled: remote.adaptiveExposureEnabled,
       adaptiveExposureTargetSnr: remote.adaptiveExposureTargetSnr,
@@ -211,7 +211,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       updateCheckIntervalHours: previous?.updateCheckIntervalHours ?? 24,
       skippedUpdateVersion: previous?.skippedUpdateVersion ?? '',
       safetyFailMode: settings.safetyFailMode,
-      // Wave 3 Image Grading — push the live thresholds to the host so a
+      // Image Grading — push the live thresholds to the host so a
       // remote save doesn't silently revert them to model defaults.
       enableImageGrading: settings.enableImageGrading,
       imageGradingHfrThresholdPx: settings.imageGradingHfrThresholdPx,
@@ -222,7 +222,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       imageGradingMaxConsecutiveRejects:
           settings.imageGradingMaxConsecutiveRejects,
       imageGradingRejectFolderPath: settings.imageGradingRejectFolderPath,
-      // Wave 5 Sky-brightness adaptive exposure.
+      // Sky-brightness adaptive exposure.
       adaptiveExposureEnabled: settings.adaptiveExposureEnabled,
       adaptiveExposureTargetSnr: settings.adaptiveExposureTargetSnr,
       adaptiveExposureReferenceMag: settings.adaptiveExposureReferenceMag,
@@ -455,7 +455,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           return current.copyWith(safetyFailMode: _parseSafetyFailMode(value));
         }
         return null;
-      // Wave 3 Image Grading — keys mirror models.AppSettings.toJson().
+      // Image Grading — keys mirror models.AppSettings.toJson().
       // The nullable threshold fields accept `null` explicitly (user cleared
       // the field) which copyWith honours via its `_unset` sentinel pattern.
       case 'enableImageGrading':
@@ -503,7 +503,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is String
             ? current.copyWith(imageGradingRejectFolderPath: value)
             : null;
-      // Wave 5 Sky-brightness adaptive exposure.
+      // Sky-brightness adaptive exposure.
       case 'adaptiveExposureEnabled':
         return value is bool
             ? current.copyWith(adaptiveExposureEnabled: value)

@@ -29,7 +29,7 @@ impl EquatorialCoordProperty {
 /// Pick the equatorial coordinate vector for reads, writes, and slew-busy checks.
 ///
 /// INDI standard GOTO/sync examples use `EQUATORIAL_EOD_COORD` when present; J2000 is
-/// used only when the driver does not define the of-date vector (audit ND-P0-13).
+/// used only when the driver does not define the of-date vector (audit ND-).
 fn resolve_equatorial_coord_property(has_eod: bool, has_j2000: bool) -> EquatorialCoordProperty {
     if has_eod {
         EquatorialCoordProperty::OfDate
@@ -125,7 +125,7 @@ impl IndiMount {
     /// Detect which equatorial coordinate vector this mount uses (J2000 vs of-date).
     ///
     /// Resolved via `get_property_state` on connect and on first use; reads, slews, syncs,
-    /// and slew-busy checks all use the same property (audit ND-P0-13).
+    /// and slew-busy checks all use the same property (audit ND-).
     async fn equatorial_coord_property(&self) -> EquatorialCoordProperty {
         if let Some(prop) = *self.equatorial_coord_property.read().await {
             return prop;
@@ -331,7 +331,7 @@ impl IndiMount {
     /// * `Ok(false)` — the property is defined but `PARK` is `Off`.
     /// * `Err(IndiError::PropertyNotFound)` — the driver has not (yet)
     ///   defined `TELESCOPE_PARK`. The UI must surface "unknown" rather than
-    ///   "not parked"; per audit §5.15 a disconnected mount should never look
+    ///   "not parked"; a disconnected mount should never look
     ///   like "alive but stationary".
     pub async fn try_is_parked(&self) -> Result<bool, IndiError> {
         let client = self.client.read().await;
@@ -388,7 +388,7 @@ impl IndiMount {
     /// * `Ok(true)` — the mount's primary equatorial coordinate property is `Busy`.
     /// * `Ok(false)` — the property is defined and not `Busy`.
     /// * `Err(IndiError::PropertyNotFound)` — the property has not been
-    ///   defined yet, so the mount may not be initialised. Per audit §5.15
+    ///   defined yet, so the mount may not be initialised. Per
     ///   this is distinct from "definitely not slewing".
     pub async fn try_is_slewing(&self) -> Result<bool, IndiError> {
         let coord = self.equatorial_coord_property().await;
@@ -512,7 +512,7 @@ impl IndiMount {
     /// Set slew rate index using driver-advertised `TELESCOPE_SLEW_RATE` element names.
     ///
     /// Prefers standard INDI names (`SLEW_GUIDE`, `SLEW_CENTERING`, `SLEW_FIND`, `SLEW_MAX`)
-    /// instead of hard-coded `1x`/`MAX` labels (audit ND-P1-12).
+    /// instead of hard-coded `1x`/`MAX` labels (audit ND-).
     pub async fn set_slew_rate(&self, rate: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
         let rate_clamped = rate.max(0);

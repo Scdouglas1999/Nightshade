@@ -370,7 +370,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           // Bug-report bundle: zip up logs/profile/sequence/system info into
           // one attachment. Lives at /diagnostics/dump (not under /settings)
           // so support links can deep-link past the settings tree.
-          // See audit-observe.md §4c / CQ-W6-DIAG-DUMP.
           GoRoute(
             path: '/diagnostics/dump',
             name: 'diagnostics-dump',

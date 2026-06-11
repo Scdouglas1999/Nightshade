@@ -22,11 +22,11 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 
   /// Connect to a remote server and wait for the WebSocket event stream.
   ///
-  /// P2-2: when `collaborationViewerId` and `collaborationDisplayName` are
+  /// When `collaborationViewerId` and `collaborationDisplayName` are
   /// supplied, the backend will emit a `collaboration.join` frame after
   /// the WS upgrade completes so the server can populate its viewer slot
   /// list. The server overrides the viewerId with the authenticated
-  /// principal's digest (P2-15) when auth is enabled; supplying it from
+  /// principal's digest when auth is enabled; supplying it from
   /// the client is still useful for (a) unauthenticated deployments and
   /// (b) keeping the wire shape consistent.
   Future<void> connect(
@@ -98,7 +98,7 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 
   /// Quiesce the outgoing [DeviceService], reset equipment notifiers, then
   /// dispose the old backend. Fail-closed: quiesce timeout propagates so
-  /// callers know the swap did not complete cleanly (DV-P0-2).
+  /// callers know the swap did not complete cleanly.
   Future<void> _swapBackend(NightshadeBackend newBackend) async {
     final oldBackend = state;
     if (identical(oldBackend, newBackend)) {
@@ -193,7 +193,7 @@ final diagnosticsBackendProvider = Provider<DiagnosticsBackend>((ref) {
   return ref.watch(backendProvider);
 });
 
-/// P2-13: surface the WebSocket-level connection state of the current
+/// Surface the WebSocket-level connection state of the current
 /// [NetworkBackend] as a Riverpod stream. Distinct from OS-level WiFi
 /// state (NetworkService) so the chip in the mobile UI can render the
 /// two signals separately and stop conflating "WiFi up" with "WebSocket

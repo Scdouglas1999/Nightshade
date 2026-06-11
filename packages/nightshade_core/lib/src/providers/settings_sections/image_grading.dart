@@ -1,4 +1,4 @@
-// Pack G — Wave 3 Image Grading defaults. Owns the live-frame Pass/Reject
+// Image Grading defaults. Owns the live-frame Pass/Reject
 // thresholds the executor consults to auto-reject obviously-bad frames
 // (catastrophic focus drift, trailed stars, clouds rolling in, etc.).
 //
@@ -15,11 +15,11 @@
 // Does NOT own:
 //   * Per-node `quality_check` overrides on TakeExposure nodes — those live
 //     in the sequence model, not in app settings.
-//   * Adaptive exposure (which is a separate Wave 5 system) → see
+// * Adaptive exposure (which is a separate system) → see
 //     `adaptive_exposure.dart`.
 part of '../settings_provider.dart';
 
-/// Setters for Pack G live-frame Pass/Reject grading defaults.
+/// Setters for live-frame Pass/Reject grading defaults.
 extension ImageGradingSettingsSection on AppSettingsNotifier {
   /// Master switch: when false, live frame Pass/Reject grading is disabled
   /// at the executor level. Per-node `quality_check` on TakeExposure

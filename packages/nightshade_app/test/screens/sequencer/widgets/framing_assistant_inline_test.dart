@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Frame Target inline assistant tests.
+// Frame Target inline assistant tests.
 //
 // Pins:
 //   * the assistant renders the target name in the header,

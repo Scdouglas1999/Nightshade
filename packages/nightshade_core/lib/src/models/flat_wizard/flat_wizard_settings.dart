@@ -37,7 +37,7 @@ abstract class FlatWizardGlobalSettings with _$FlatWizardGlobalSettings {
     /// Create filter subfolders
     @Default(true) bool createFilterSubfolders,
 
-    // AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+    // Magic-number defaults promoted from
     // hardcoded constants in flat_wizard_service.dart.
 
     /// Per-frame download timeout (seconds). Was hardcoded

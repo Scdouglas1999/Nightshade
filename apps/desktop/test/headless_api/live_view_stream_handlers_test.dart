@@ -1,4 +1,4 @@
-// P2-10 — LiveViewStreamHub tests.
+// LiveViewStreamHub tests.
 //
 // The hub runs the producer loop only while subscribers are attached. We
 // drive it via the `attachRaw` test seam with an in-memory channel pair

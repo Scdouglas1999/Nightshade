@@ -1,8 +1,8 @@
-// Wave 3 Agent 1: TargetScheduler Run Dashboard panel.
+// TargetScheduler Run Dashboard panel.
 //
-// Pack H migration: this panel now consumes the typed
+// This panel consumes the typed
 // `SequencerEvent.schedulerDecision` variant produced by the bridge's
-// `typed_sequencer_event_from_progress_detail` dispatch. Pre-Pack-H the
+// `typed_sequencer_event_from_progress_detail` dispatch. Previously the
 // panel matched on `SequencerEvent.instructionProgress` with
 // `instruction == 'Scheduler'` and parsed the detail string. The string
 // parser has been removed — every field (picked target, score, full
@@ -15,7 +15,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// One scheduler decision row as surfaced to the panel. Pack H: every
+/// One scheduler decision row as surfaced to the panel. Every
 /// field is read straight off the typed
 /// `SequencerEvent.schedulerDecision` variant; no string parsing involved.
 class SchedulerDecisionView {
@@ -85,7 +85,7 @@ final recentSchedulerDecisionsProvider =
 
 SchedulerDecisionView? _maybeSchedulerDecision(
     bridge_event.NightshadeEvent event) {
-  // Pack H: the typed SchedulerDecision variant is the canonical
+  // The typed SchedulerDecision variant is the canonical
   // source. Pattern-match through EventPayload → SequencerEvent →
   // SchedulerDecision; ignore everything else.
   final payload = event.payload;
@@ -186,7 +186,7 @@ class _DecisionRow extends StatelessWidget {
     final accent = decision.picked ? colors.success : colors.warning;
     final icon =
         decision.picked ? LucideIcons.checkCircle2 : LucideIcons.alertTriangle;
-    // Pack H: show the top three rows of the typed score table so the
+    // Show the top three rows of the typed score table so the
     // user can see ranked candidates at a glance. The full list is in
     // `decision.scores`; this is a summary surface.
     final topScores = decision.scores.take(3).toList(growable: false);

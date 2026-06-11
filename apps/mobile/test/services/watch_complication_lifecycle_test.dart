@@ -1,4 +1,4 @@
-// Wave 7D — Tests for the Apple Watch complication lifecycle throttle.
+// Tests for the Apple Watch complication lifecycle throttle.
 //
 // The watch complication's `WidgetCenter.reloadAllTimelines()` is a system
 // call we deliberately do NOT want to fire on every sequence-progress

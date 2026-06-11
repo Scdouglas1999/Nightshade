@@ -204,7 +204,7 @@ class DefaultScienceBackend implements ScienceBackend {
     );
     // WHY: a non-finite zero-point or RMS means the fit is structurally
     // broken (e.g. all magnitudes collapsed to the same value, or one slipped
-    // through the isFinite filter). Per CLAUDE.md, surface this as an error
+    // through the isFinite filter). Surface this as an error
     // rather than persisting a poisoned calibration row.
     if (!zeroPoint.isFinite || !rms.isFinite) {
       throw ScienceCalibrationError(

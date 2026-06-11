@@ -17,7 +17,7 @@ import 'weather_state_provider.dart';
 ///
 /// Called when the active [NightshadeBackend] is swapped so UI does not
 /// continue showing devices as connected against a backend that never
-/// opened them (DV-P0-1).
+/// opened them.
 void resetAllEquipmentStateNotifiers(Ref ref) {
   ref.read(cameraStateProvider.notifier).setDisconnected();
   ref.read(mountStateProvider.notifier).setDisconnected();

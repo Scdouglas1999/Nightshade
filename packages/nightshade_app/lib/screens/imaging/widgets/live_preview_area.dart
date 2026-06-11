@@ -593,7 +593,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                             if (currentImage.rawLoadStatus !=
                                 RawLoadStatus.idle)
                               const SizedBox(width: 6),
-                            // IMG-P1-4: surface whether the on-disk frame
+                            // Surface whether the on-disk frame
                             // backing the current preview has actually been
                             // through the calibration pipeline. The provider
                             // only reports true when the saved file path

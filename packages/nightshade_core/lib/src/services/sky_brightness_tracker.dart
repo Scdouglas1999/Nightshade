@@ -15,7 +15,7 @@ class SkyBrightnessTracker {
   /// Minimum samples needed for rate calculation
   static const _minSamples = 2;
 
-  /// Wave 5 Agent 2 — calibration anchor for converting ADU/sec to
+  /// Calibration anchor for converting ADU/sec to
   /// mag/arcsec² for the sky-brightness adaptive exposure path. We
   /// pin a single reference point (one ADU/sec rate measured at a
   /// known mag/arcsec² sky brightness) and use Pogson's relation to
@@ -43,7 +43,7 @@ class SkyBrightnessTracker {
     }
   }
 
-  /// Wave 5 Agent 2 — convert the latest ADU/sec reading to
+  /// Convert the latest ADU/sec reading to
   /// mag/arcsec² using the configured calibration anchor.
   ///
   /// Pogson's relation: m₁ - m₂ = -2.5·log₁₀(F₁/F₂). With F₁ =

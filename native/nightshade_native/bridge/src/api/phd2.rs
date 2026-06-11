@@ -1,6 +1,6 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
@@ -127,7 +127,7 @@ pub async fn api_phd2_connect(
     host: Option<String>,
     port: Option<u16>,
 ) -> Result<(), NightshadeError> {
-    // Why (audit-rust §4.3): localhost + PHD2 default port 4400 are the
+    // Why: localhost + PHD2 default port 4400 are the
     // documented PHD2 defaults from the PHD2 EventMonitoring wiki and the
     // Nightshade PHD2-settings UI placeholder values.
     let host = nightshade_imaging::normalize_phd2_tcp_host(
@@ -436,7 +436,7 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
         NightshadeError::OperationFailed(format!("Failed to get PHD2 state: {}", e))
     })?;
 
-    // Why (audit-rust §4.3): pixel scale is reported only after PHD2 has
+    // Why: pixel scale is reported only after PHD2 has
     // selected a star and run a calibration; before that, the RPC errors.
     // 0.0 communicates "not yet calibrated" to the UI guiding panel, which
     // hides the arc-sec/pixel readout when the value is non-positive.

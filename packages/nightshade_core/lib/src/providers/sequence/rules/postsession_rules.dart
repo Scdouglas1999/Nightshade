@@ -3,7 +3,7 @@ import '../../preflight_providers.dart';
 import '../sequence_validation.dart';
 
 // =============================================================================
-// Wave 5 Agent 3 — Post-session diagnostics
+// Post-session diagnostics
 // =============================================================================
 //
 // Post-session checks do NOT plug into the SequenceValidator pipeline —

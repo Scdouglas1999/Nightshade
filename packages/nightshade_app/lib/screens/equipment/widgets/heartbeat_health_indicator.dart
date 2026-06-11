@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// DEV-P3-2: Per-device heartbeat-health dot.
+/// Per-device heartbeat-health dot.
 ///
 /// Rendered inline in the device-card header (and reusable anywhere a
 /// caller has a device id and wants the same visual). Subscribes to
@@ -12,8 +12,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Three colors:
 ///   * Green: heartbeat is healthy (or the device just recovered).
 ///   * Amber: heartbeat reported degraded / reconnecting — tooltip
-///            carries the actual reason (CLAUDE.md "errors are a
-///            feature": never paper over a real signal).
+///            carries the actual reason (errors are a feature:
+///            never paper over a real signal).
 ///   * Gray:  no heartbeat data for this device (e.g. heartbeat was
 ///            never started, or the device just disconnected and the
 ///            entry was cleared).
@@ -103,7 +103,7 @@ class HeartbeatHealthIndicator extends ConsumerWidget {
   }
 
   String _buildTooltip(DeviceHeartbeatHealthState state, String label) {
-    // CLAUDE.md: surface the actual reason verbatim — never replace it
+    // Surface the actual reason verbatim — never replace it
     // with a generic "something went wrong" string.
     final buf = StringBuffer('Heartbeat: $label');
     if (state.reason != null && state.reason!.isNotEmpty) {

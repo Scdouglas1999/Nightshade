@@ -1,6 +1,6 @@
 import '../models/sequence/sequence_models.dart';
 
-/// Wave 6 Agent 5 — structural diff between two [Sequence] snapshots.
+/// Structural diff between two [Sequence] snapshots.
 ///
 /// The diff is tree-aware rather than text-based: comparing two stored
 /// JSON blobs as strings is useless for the operator ("the order of

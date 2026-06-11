@@ -87,11 +87,11 @@ class NightshadeException implements Exception {
   ///
   /// If decoding fails on input that *looked* like JSON (starts with `{`),
   /// the malformed payload is logged via `dart:developer` and we fall back to
-  /// heuristic classification. Surfacing the failure is required by CLAUDE.md
+  /// heuristic classification. Surfacing the failure is required here
   /// ("Errors are a feature").
   ///
   /// TODO(v2.7): remove heuristic fallback once all Rust error paths emit
-  /// structured JSON. Tracked under audit-observe §10 / roadmap R9.
+  /// structured JSON.
   factory NightshadeException.fromError(
     Object error, [
     StackTrace? stackTrace,

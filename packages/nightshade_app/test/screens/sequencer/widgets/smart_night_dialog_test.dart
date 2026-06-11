@@ -1,4 +1,4 @@
-// Wave 6 — Smart Night dialog widget smoke test.
+// Smart Night dialog widget smoke test.
 //
 // Pins the wizard's public surface:
 //   * the dialog opens via SmartNightDialog() and shows the step

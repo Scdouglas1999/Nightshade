@@ -44,7 +44,7 @@ pub async fn execute_children_sequential(
             tracing::debug!("Execution cancelled before child {}", i);
             return NodeStatus::Cancelled;
         }
-        // P1-11/P1-12: honor an operator Pause / recovery freeze at the
+        // honor an operator Pause / recovery freeze at the
         // instruction boundary. Previously `is_paused` was consulted nowhere
         // in the node tree, so a Pause showed "Paused" in the UI while the rig
         // kept slewing/exposing. Block here until resumed; unwind if the

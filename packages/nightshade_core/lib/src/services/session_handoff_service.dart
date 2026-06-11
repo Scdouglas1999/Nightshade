@@ -7,7 +7,7 @@ import '../database/database.dart' show CapturedImage, ImagingSession, Target;
 import '../models/sequence/sequence_models.dart';
 import 'quick_start_service.dart';
 
-/// Wave 7 — One unfinished previous-session carry-over for a target.
+/// One unfinished previous-session carry-over for a target.
 ///
 /// "Last night you got 4h12m on M31 toward an 8h budget. Resume?"
 ///
@@ -188,7 +188,7 @@ class SessionHandoffBundle {
 
 /// Serializes the current session state so another device can resume it.
 ///
-/// Wave 7 — also detects multi-night carry-over (was the same target
+/// Also detects multi-night carry-over (was the same target
 /// imaged on a prior session?) so the pre-flight dialog can offer a
 /// Resume / Restart / Continue choice.
 class SessionHandoffService {
@@ -204,7 +204,7 @@ class SessionHandoffService {
        _imagesDao = imagesDao,
        _targetsDao = targetsDao;
 
-  /// Wave 7 — Build a list of [SessionCarryOver] entries for the
+  /// Build a list of [SessionCarryOver] entries for the
   /// targets referenced by the supplied sequence.
   ///
   /// Targets are matched by **catalog id first, then case-insensitive

@@ -1,7 +1,7 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
-  /// than silently degrading; CLAUDE.md "errors are a feature").
+  /// than silently degrading; errors are a feature here.
   Future<List<LogEntry>> fetchRecentServerLogs({
     int limit = 200,
     String? severityMin,

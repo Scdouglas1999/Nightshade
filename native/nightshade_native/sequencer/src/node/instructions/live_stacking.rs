@@ -1,4 +1,4 @@
-//! Wave 7 Agent 2: LiveStacking instruction node.
+//! LiveStacking instruction node.
 //!
 //! Arms the broadcast service for the EAA / outreach feature. The
 //! instruction itself is **side-effect-only and non-blocking**: it

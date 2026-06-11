@@ -26,14 +26,14 @@ import '../database_provider.dart'
 import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
-// Wave 5 Agent 2 — sky-brightness poll reads the tracker via this
+// Sky-brightness poll reads the tracker via this
 // provider (defined in flat_wizard_provider since the tracker is
 // shared between flat-wizard and adaptive-exposure paths).
 import '../flat_wizard_provider.dart' show skyBrightnessTrackerProvider;
 import '../imaging_provider.dart';
 import '../live_stacking_provider.dart';
 import '../meridian_flip_provider.dart';
-// Wave 6 Pack P — plugin-node dispatcher abstraction.
+// Plugin-node dispatcher abstraction.
 import '../plugin_node_dispatcher.dart';
 import '../replay_debug_provider.dart';
 import '../profiles_provider.dart';
@@ -49,7 +49,7 @@ import '../../services/session_handoff_service.dart'
     show SessionCarryOver, SessionHandoffDecision;
 import '../session_provider.dart';
 import '../settings_provider.dart';
-// Wave 5.5 — session-lifecycle hooks: optical-train baseline capture,
+// Session-lifecycle hooks: optical-train baseline capture,
 // post-session diagnostics summary, NotificationRouter active-sequence
 // tracking, USB disconnect aggregation.
 import '../../services/optical_train_diagnostics_service.dart'
@@ -147,7 +147,7 @@ class SequenceExecutor {
   // NOT final: set to true in [dispose].
   bool _disposed = false;
 
-  /// Wave 5 Agent 2 — periodic poller that reads the latest sky brightness
+  /// Periodic poller that reads the latest sky brightness
   /// from `skyBrightnessTrackerProvider` and pushes it to the executor.
   /// The cadence is intentionally generous (10s) because sky brightness
   /// changes slowly; running it faster would just add CPU noise for no
@@ -180,20 +180,20 @@ class SequenceExecutor {
   /// Subscriptions for propagating settings changes to the backend mid-sequence
   final List<ProviderSubscription> _settingsSubscriptions = [];
 
-  /// Wave 5.5 — sequence id of the currently running sequence. Held so
+  /// Sequence id of the currently running sequence. Held so
   /// the post-session diagnostics summary and the NotificationRouter
   /// override know which sequence just finished even after
   /// `currentSequenceProvider` has been cleared by the UI.
   String? _activeSequenceId;
 
-  /// Wave 5.5 — wall-clock start time of the current run. Used to
+  /// Wall-clock start time of the current run. Used to
   /// compute the per-session USB disconnect count when building the
   /// post-session diagnostics summary. Distinct from `_startTime`
   /// (which is reset on pause/resume); this one survives until the
   /// post-session hooks have run.
   DateTime? _sessionStartedAt;
 
-  /// Wave 5.5 — pre-session optical-train snapshot captured at
+  /// Pre-session optical-train snapshot captured at
   /// `start()`. Persists across the run so the post-session finalizer
   /// can publish the baseline alongside the post-session diagnostics
   /// (so the dialog can render "pre" and "post" side by side, even
@@ -237,11 +237,11 @@ class SequenceExecutor {
 
   /// Test-only entry point that returns the JSON the executor will send
   /// to the Rust backend. Exposed so unit tests can assert AppSettings
-  /// defaults propagate correctly (audit-handoff §2.1 WIRE-UP #4/#5).
+  /// defaults propagate correctly
   @visibleForTesting
   String sequenceToJsonForTest(Sequence sequence) => _sequenceToJson(sequence);
 
-  /// Wave 5.5 — test entry point for the session-start hooks. Lets
+  /// Test entry point for the session-start hooks. Lets
   /// integration tests exercise the optical-train baseline capture +
   /// NotificationRouter override + sessionStart timestamp without
   /// spinning up the full `start()` pipeline (which requires a current
@@ -250,11 +250,11 @@ class SequenceExecutor {
   void captureSessionStartHooksForTest(String sequenceId) =>
       _captureSessionStartHooks(sequenceId);
 
-  /// Wave 5.5 — test entry point for the session-end hooks.
+  /// Test entry point for the session-end hooks.
   @visibleForTesting
   void captureSessionEndHooksForTest() => _captureSessionEndHooks();
 
-  /// Wave 6 Pack P — test entry point that pumps a synthesised
+  /// Test entry point that pumps a synthesised
   /// `NightshadeEvent` through the same handler the live native event
   /// subscription uses. Lets unit tests exercise the FrameAccepted /
   /// FrameRejected / PluginNodeRequested handlers without spinning up
@@ -292,7 +292,7 @@ class SequenceExecutor {
     }
   }
 
-  /// Wave 7.5 — test entry point for the session-handoff carry-over
+  /// Test entry point for the session-handoff carry-over
   /// seed. Lets tests exercise the `Resume` / `Restart` / `ContinueNew`
   /// branches against a mock backend without driving a full sequence
   /// start (which requires Rust, validation, and live settings).
@@ -306,8 +306,7 @@ class SequenceExecutor {
   ///
   /// Why: this is the point where per-sequence and per-node values are
   /// combined with global AppSettings defaults. Per-node values always win;
-  /// AppSettings is consulted only when the node provides no explicit value
-  /// (audit-handoff §2.1 WIRE-UP items #4 and #5).
+  /// AppSettings is consulted only when the node provides no explicit value.
   Future<validation.ValidationResult> validateSequenceForStart(
     Sequence sequence,
   ) async {
@@ -335,7 +334,7 @@ class SequenceExecutor {
     // pre-flight dialog already enforced.
     final result = await validateSequenceForStart(sequence);
     if (result.hasErrors) {
-      // CLAUDE.md: errors are a feature. Surface the entire
+      // Errors are a feature here. Surface the entire
       // [ValidationResult] — counts + every issue — so the caller can
       // render all of them. The historical
       // `throw Exception('first error title')` silently dropped the
@@ -382,7 +381,7 @@ class SequenceExecutor {
     _liveStackingArmedForRun = false;
     _liveStackingFeedChain = null;
 
-    // Wave 8 Replay Debug — stamp the active sequence_runs.id onto the
+    // Replay Debug — stamp the active sequence_runs.id onto the
     // Rust executor so every subsequent emitted DecisionEvent carries
     // the FK. We push it before sequencerStart() so the first
     // "Sequence started" lifecycle decision the executor emits already
@@ -399,7 +398,7 @@ class SequenceExecutor {
       );
     }
 
-    // Wave 5.5 — session-lifecycle hooks.
+    // Session-lifecycle hooks.
     //
     // Done AFTER the session notifier + run row exist so the optical
     // train baseline snapshot has a stable dbSessionId to anchor to,
@@ -622,7 +621,7 @@ class SequenceExecutor {
     await backend.sequencerSkip();
   }
 
-  /// Wave 1.5 Pack A: jump to a specific node by id. Use from the sequence
+  /// Jump to a specific node by id. Use from the sequence
   /// tree right-click context menu ("Skip to here"). Only meaningful while
   /// the sequence is running — the UI must gate the action on
   /// [SequenceExecutionState.running].

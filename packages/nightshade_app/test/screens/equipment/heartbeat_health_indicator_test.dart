@@ -1,4 +1,4 @@
-// DEV-P3-2 — widget tests for [HeartbeatHealthIndicator].
+// Widget tests for [HeartbeatHealthIndicator].
 //
 // We render the indicator inside a minimal `MaterialApp` with a real
 // `ProviderContainer` (via `ProviderScope.overrides`) and exercise
@@ -109,7 +109,7 @@ void main() {
 
     expect(dotColor(tester), colors.warning);
 
-    // CLAUDE.md "errors are a feature": tooltip must carry the actual
+    // Errors are a feature: tooltip must carry the actual
     // failure count and the RTT, not a generic "something went wrong".
     final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
     expect(tooltip.message, contains('Degraded'));

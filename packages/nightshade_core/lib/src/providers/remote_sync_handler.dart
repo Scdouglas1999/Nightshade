@@ -85,7 +85,7 @@ Future<void> applyRemoteSyncEvent(
     case EventCategory.job:
     case EventCategory.session:
     case EventCategory.catalog:
-      // P1-2/P1-3/P1-5/P1-12 — no remote-sync invalidations needed; these
+      // /// no remote-sync invalidations needed; these
       // categories are end-state notifications consumed by UI widgets
       // (toasts, progress badges) rather than caches.
       break;
@@ -728,7 +728,7 @@ dynamic _readDeviceNotifier(Object reader, DeviceType deviceType) {
     case DeviceType.coverCalibrator:
       return _read(reader, coverCalibratorStateProvider.notifier);
     case DeviceType.switch_:
-      // DEV-P2-1: switch device now has a first-class connection notifier.
+      // Switch device now has a first-class connection notifier.
       return _read(reader, switchStateProvider.notifier);
   }
 }

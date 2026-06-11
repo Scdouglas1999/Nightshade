@@ -5,14 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// These settings are UI-shell concerns that don't belong in the cross-
 /// platform desktop AppSettings model (which is mirrored to the headless
-/// server). Audit §3.13 added [androidImmersiveSticky] so users who want
+/// server).13 added [androidImmersiveSticky] so users who want
 /// status bar / battery / clock visible can opt out of fullscreen.
 class MobilePreferences {
   MobilePreferences(this._prefs);
 
   static const _kAndroidImmersiveSticky = 'mobile.androidImmersiveSticky';
 
-  // Wave 7A — WebRTC live-view transport toggle. When true (default),
+  // WebRTC live-view transport toggle. When true (default),
   // the camera-tab subscribes via `NetworkBackend.subscribeLiveViewAuto`
   // which tries the WebRTC datachannel first and falls back to the WS
   // push protocol on explicit (logged) failure. When false, the tab
@@ -21,7 +21,7 @@ class MobilePreferences {
   // some Android skins has buggy ICE state machines).
   static const _kPreferWebRtcLiveView = 'mobile.preferWebRtcLiveView';
 
-  // Wave 6D / P2-12 — sticky first-run-setup completion flag. When set, the
+  // sticky first-run-setup completion flag. When set, the
   // app skips the first-run wizard even if the server later loses its
   // profiles/catalogs/imageOutputPath (e.g. the operator manually wipes
   // the data dir on the desktop). Without this latch, the wizard would
@@ -57,7 +57,7 @@ class MobilePreferences {
     await _prefs.setBool(_kAndroidImmersiveSticky, value);
   }
 
-  /// Wave 7A — prefer the WebRTC datachannel for the live-view stream.
+  /// prefer the WebRTC datachannel for the live-view stream.
   /// Defaults to true; when false the camera tab uses the legacy WS
   /// push (`subscribeLiveView`) directly. Persisted across launches so
   /// a user that needs the WS path on a specific network does not have

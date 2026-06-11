@@ -84,7 +84,7 @@ class EquipmentScreen extends ConsumerStatefulWidget {
 }
 
 class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
-  /// UI-P0-6: bumped on any profile mutation so delete-undo cannot race edits.
+  /// Bumped on any profile mutation so delete-undo cannot race edits.
   int _profileMutationEpoch = 0;
 
   void _bumpProfileMutationEpoch() {
@@ -476,7 +476,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       context.showInfoSnackBar('Connecting devices...');
     }
     // The connect path uses the profile's persisted device ids and does not
-    // depend on a fresh scan (DEV-P1-7); startup discovery already populated
+    // depend on a fresh scan; startup discovery already populated
     // the "Available Devices" sidebar, and device topology rarely changes
     // mid-session. So refresh the sidebar in the background with a long
     // freshness window rather than blocking the connect on a redundant
@@ -487,7 +487,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       discoveryNotifier.discoverIfNeeded(maxAge: const Duration(minutes: 10)),
     );
 
-    // DEV-P1-5: parallel connect with per-device progress. We push each
+    // Parallel connect with per-device progress. We push each
     // event into [deviceConnectionProgressProvider] so the per-device
     // chips can render live status, and we tally counts locally for the
     // post-sweep snackbar summary.

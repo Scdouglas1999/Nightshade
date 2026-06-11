@@ -40,7 +40,7 @@ class ImagingForegroundService {
         isOnceEvent: false,
         autoRunOnBoot: false,
         allowWakeLock: true,
-        // P1-16b / audit §7 bug 10: some OEM aggressive battery firmware
+        // some OEM aggressive battery firmware
         // (Xiaomi, Huawei, Samsung) releases WiFi when the screen is off
         // even with a foreground service running, which silently kills
         // the WS mid-sequence. Holding a WiFi lock for the lifetime of
@@ -59,7 +59,7 @@ class ImagingForegroundService {
   /// already whitelisted) the app.
   ///
   /// Safe to call multiple times; the OS only prompts when the current
-  /// state is "not whitelisted". P1-16a / audit §7 bug 3.
+  /// state is "not whitelisted".
   Future<bool> requestIgnoreBatteryOptimization() async {
     try {
       return await FlutterForegroundTask.requestIgnoreBatteryOptimization();
@@ -142,7 +142,7 @@ class ImagingForegroundService {
         : 0;
 
     // Render completed/total plus a percentage so the operator can see
-    // long-sequence progress at a glance (audit §3.9).
+    // long-sequence progress at a glance.
     final percentText = _percentComplete > 0
         ? ' (${_percentComplete.toStringAsFixed(0)}%)'
         : '';
@@ -210,12 +210,11 @@ class ImagingTaskHandler extends TaskHandler {
     // listener will overwrite it the moment the first progress event
     // lands. Writing a hardcoded placeholder from this handler would
     // race with the main isolate and clobber the real progress text.
-    // See P1-16c / audit §7 bug 12.
   }
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    // P1-16c / audit §7 bug 12: this used to call
+    // This used to call
     // `FlutterForegroundTask.updateService` every 5 s with a hardcoded
     // "Sequence running..." text, which clobbered whatever real progress
     // text the main isolate's `updateProgress()` last wrote. The real

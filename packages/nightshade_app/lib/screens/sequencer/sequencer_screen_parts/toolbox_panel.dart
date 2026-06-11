@@ -154,7 +154,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                 _NodePaletteContent(colors: widget.colors),
                 // Snippet Palette
                 _SnippetPaletteContent(colors: widget.colors),
-                // Wave 5 Agent 1 — Target Queue panel mirrors the
+                // Target Queue panel mirrors the
                 // planetarium's queue and lets the user drag queued
                 // targets onto the sequence tree.
                 TargetQueuePanel(colors: widget.colors),

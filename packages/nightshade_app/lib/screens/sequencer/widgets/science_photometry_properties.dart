@@ -1,10 +1,10 @@
-// Wave 7.5 — Properties editor for the SciencePhotometryNode (Wave 7
-// Science). One vertical scroll of form fields mapped onto the
+// Properties editor for the SciencePhotometryNode. One vertical
+// scroll of form fields mapped onto the
 // SciencePhotometryConfig the Rust runtime consumes. The reference-star
 // list is rendered as removable chips with a quick-add text field so an
 // operator with an AAVSO comp-star chart can type IDs in sequence.
 //
-// canEdit gating from Wave 1.5 Pack B is honoured at the dispatching
+// canEdit gating is honoured at the dispatching
 // `_NodeEditor` boundary; this widget therefore receives interaction
 // events only when the sequence is editable.
 

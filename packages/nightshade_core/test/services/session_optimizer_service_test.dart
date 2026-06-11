@@ -445,7 +445,7 @@ void main() {
     );
 
     // ---------------------------------------------------------------
-    // Wave 7 — post-session analyze() insights
+    // Post-session analyze() insights
     // ---------------------------------------------------------------
 
     test('analyze surfaces altitudeWindow insight from trace data', () {

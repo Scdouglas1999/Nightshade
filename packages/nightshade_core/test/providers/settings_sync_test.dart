@@ -1,4 +1,4 @@
-// Wave 6B (P2-4) — Live settings-change push events.
+// Live settings-change push events.
 //
 // Verifies that when the headless server emits a `settings.changed`
 // event over its WS, every connected client's `AppSettingsNotifier`

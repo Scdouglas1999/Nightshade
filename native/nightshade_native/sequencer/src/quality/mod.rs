@@ -1,4 +1,4 @@
-//! Wave 3 Image Grading: live image grading + auto-reject.
+//! Image Grading: live image grading + auto-reject.
 //!
 //! See [`image_grading`] for the grading types and entry point.
 

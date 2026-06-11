@@ -12,7 +12,7 @@
 /// MUST route through here rather than re-deriving the logic.
 ///
 /// Format conventions (mirrors `native/nightshade_native/bridge/src/device_id.rs`,
-/// the canonical Rust parser — see CLAUDE.md "Device IDs"):
+/// the canonical Rust parser — see the canonical device-ID rules):
 ///   - `ascom:<prog_id>`                       (Windows ASCOM COM driver)
 ///   - `alpaca:<proto>://<host>:<port>:<type>:<num>` (cross-platform ASCOM HTTP)
 ///   - `indi:<host>:<port>:<device_name>`      (Linux/macOS INDI server)
@@ -27,7 +27,7 @@
 ///                                               `native:builtin_guider:...` id
 ///                                               became canonical)
 ///
-/// DEV-P1-7 rationale (preserved from the old `device_id_utils.dart`): the
+/// Rationale (preserved from the old `device_id_utils.dart`): the
 /// connect methods on `DeviceService` only do a cheap *structural* format
 /// check via [isValidDeviceIdFormat] before delegating to the backend. They
 /// do NOT validate that the device exists or is reachable — that is the
@@ -213,7 +213,7 @@ bool _isPhd2Token(String lower) =>
 /// Returns `true` if [deviceId] looks like a Nightshade-formatted device id.
 ///
 /// The check is purely structural — it does NOT confirm the device exists.
-/// (Preserved from the old `device_id_utils.dart`; DEV-P1-7.)
+/// (Preserved from the old `device_id_utils.dart`;.)
 bool isValidDeviceIdFormat(String deviceId) {
   if (deviceId.isEmpty) return false;
   if (kKnownDeviceIdSingletons.contains(deviceId)) return true;

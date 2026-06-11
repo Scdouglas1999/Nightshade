@@ -1,4 +1,4 @@
-// Wave 6E — Live-view stream frame model.
+// Live-view stream frame model.
 //
 // Emitted by `NetworkBackend.subscribeLiveView()` once per JPEG frame
 // pushed from the server's `/ws/live-view` socket. The actual JPEG bytes

@@ -14,7 +14,7 @@ final connectionStaleProvider = StateProvider<bool>((_) => false);
 /// During the 30-second grace window the operator now also gets a
 /// "Retry" button so they can force an immediate reconnect attempt
 /// instead of waiting for the exponential-backoff timer to fire
-/// (audit P1-15 bug 6). The button is a no-op when the current
+/// The button is a no-op when the current
 /// backend is not a [NetworkBackend] (e.g. host-side desktop).
 class ConnectionStaleBanner extends ConsumerStatefulWidget {
   const ConnectionStaleBanner({super.key});

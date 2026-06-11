@@ -143,7 +143,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 // / 96m") states so we never stack two indicators.
                 _buildProgressRow(),
 
-                // Wave 6 Agent 5 — per-target notes journal. Renders
+                // Per-target notes journal. Renders
                 // the latest 2 notes for this target with a "View all"
                 // affordance opening the full list. Notes are keyed by
                 // [TargetHeaderNode.targetName] (display name; catalog

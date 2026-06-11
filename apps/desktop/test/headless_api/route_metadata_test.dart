@@ -299,12 +299,12 @@ void main() {
     });
   });
 
-  // P2-6: per-token / route-class token bucket. Verifies bucket math,
+  // per-token / route-class token bucket. Verifies bucket math,
   // refill, and the route classifier so the runtime middleware can rely
   // on (a) the classifier never returning the wrong class for known
   // hot endpoints and (b) the bucket producing actionable Retry-After
   // values when exhausted.
-  group('TokenBucketRateLimiter (P2-6)', () {
+  group('TokenBucketRateLimiter', () {
     test('classifies live-view, image downloads, reads and writes', () {
       expect(
         tokenRouteClassFor(method: 'GET', path: '/api/camera/live-view/frame'),
@@ -406,7 +406,7 @@ void main() {
 
     test('isolates buckets per (tokenId, routeClass) pair', () {
       // Distinct tokens MUST NOT share a bucket — that was the whole
-      // point of the P2-6 refactor away from IP-keyed buckets. Verify
+      // point of the refactor away from IP-keyed buckets. Verify
       // by exhausting one token's read bucket and asserting a different
       // token still has a fresh budget.
       final limiter = TokenBucketRateLimiter(

@@ -55,13 +55,13 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
 
   @override
   Future<void> updateSettings(models.AppSettings settings) async {
-    // [Wave 6B settings sync] forward through the dedicated overload so
+    // Forward through the dedicated overload so
     // origin-filtering callers can stamp a command id without changing
     // the public interface of NightshadeBackend.
     return updateSettingsWithCommandId(settings, commandId: null);
   }
 
-  /// [Wave 6B settings sync] Variant of [updateSettings] that stamps the
+  /// Variant of [updateSettings] that stamps the
   /// outgoing POST with an `X-Nightshade-Command-Id` header so the
   /// `settings.changed` events that come back over the WS carry the
   /// `correlatingCommandId` and the calling client can ignore its own
@@ -274,10 +274,10 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   }) async {
     final uri = _apiUri('images/$imageId/download');
 
-    // P0-5 — opportunistic resume. If a partial file already exists at
+    // Opportunistic resume. If a partial file already exists at
     // [localPath] from a prior aborted attempt, send `Range: bytes=N-`
     // to ask the server to continue. A server that supports Range
-    // (post-P0-5 Nightshade) replies with 206 + `content-range`; an
+    // (a newer build Nightshade) replies with 206 + `content-range`; an
     // older/naive server ignores the header and returns 200 with the
     // entire body — we detect that and start over from byte 0.
     final file = File(localPath);
@@ -289,7 +289,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         resumeOffset = await file.length();
       } on FileSystemException catch (e) {
         // Existing file is unreadable — surface it instead of pretending
-        // to start from zero. CLAUDE.md: errors are a feature.
+        // to start from zero. Errors are a feature here.
         throw IoException(
           message: 'Failed to stat partial download at $localPath: $e',
           userMessage: 'Could not read the partially downloaded file',

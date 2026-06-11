@@ -45,7 +45,7 @@ import '../../models/hips/hips_tile_id.dart';
 /// This type is **pure Dart + `dart:ui`** — it has no dependency on the Flutter
 /// widget layer and performs no I/O or decoding itself; it is solely the
 /// residency/eviction policy over already-decoded tiles produced by the
-/// fetch/decode pipeline (C5).
+/// fetch/decode pipeline.
 class HipsTileCache {
   /// Hard upper bound on the number of resident decoded tiles.
   ///
@@ -127,7 +127,7 @@ class HipsTileCache {
 
   /// Whether a tile is resident **without** affecting recency.
   ///
-  /// Use this for de-duplicating in-flight fetch requests (C5): checking
+  /// Use this for de-duplicating in-flight fetch requests: checking
   /// presence must not promote a tile to MRU, otherwise a flurry of
   /// "is it loaded yet?" probes would keep stale tiles alive.
   bool contains(HipsTileId id) {

@@ -39,7 +39,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Get backends that are available on this platform
     final backends = _getAvailableBackends();
 
-    // UI-P0-4: clear stale grouped/raw results before rescan so a failed or
+    // Clear stale grouped/raw results before rescan so a failed or
     // partial scan never leaves yesterday's devices on screen.
     state = _discoveringStateForBackends(backends);
 
@@ -93,7 +93,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   }) async {
     _cancelled = false;
 
-    // UI-P0-4: drop this backend's stale devices as soon as rescan starts.
+    // Drop this backend's stale devices as soon as rescan starts.
     state = _discoveringStateForBackends([backend], mergeWithExisting: true);
 
     // Discover
@@ -166,7 +166,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Otherwise, selectively rediscover only the stale backends
     _cancelled = false;
 
-    // UI-P0-4: clear stale devices for backends being rescanned.
+    // Clear stale devices for backends being rescanned.
     state = _discoveringStateForBackends(
       staleBackends,
       mergeWithExisting: true,
@@ -437,7 +437,7 @@ final unifiedSafetyMonitorsProvider = Provider<List<UnifiedDevice>>((ref) {
   return discovery.getDevicesByType(DeviceType.safetyMonitor);
 });
 
-/// Provider for unified switch devices (DEV-P2-1).
+/// Provider for unified switch devices.
 final unifiedSwitchesProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
   return discovery.getDevicesByType(DeviceType.switch_);

@@ -54,7 +54,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                   // whether to run dark/flat/bias correction on captured
                   // frames. Writing through the calibration notifier keeps
                   // the dark-library UI and the calibration pipeline in
-                  // sync (audit-handoff §2.1 WIRE-UP item #6).
+                  // sync.
                   ref
                       .read(calibrationSettingsProvider.notifier)
                       .setAutoCalibrate(value);

@@ -3,7 +3,7 @@
 //! Tests for the native driver implementations.
 //! Some tests require hardware to be connected, others can run without hardware.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Two patterns appear in this test file:
 //!

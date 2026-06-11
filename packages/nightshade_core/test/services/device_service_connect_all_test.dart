@@ -1,11 +1,11 @@
-/// DEV-P1-7 / DEV-P1-5 regression tests.
+/// /  regression tests.
 ///
-/// DEV-P1-7: connect methods no longer run a precondition `discoverDevices`
+/// Connect methods no longer run a precondition `discoverDevices`
 ///   sweep. Well-formed device ids are accepted directly; malformed ids
 ///   throw [InvalidDeviceIdException] up front; backend errors still
 ///   propagate.
 ///
-/// DEV-P1-5: `connectAllFromProfile` connects every configured device in
+/// `connectAllFromProfile` connects every configured device in
 ///   parallel and emits a [DeviceConnectProgress] stream so the UI can
 ///   render per-device chips without blocking on the slowest device.
 library;
@@ -111,9 +111,9 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // DEV-P1-7: connect methods reject malformed ids without doing discovery.
+  // Connect methods reject malformed ids without doing discovery.
   // -------------------------------------------------------------------------
-  group('DEV-P1-7: connect format check', () {
+  group('connect format check', () {
     test('connectCamera with malformed id throws InvalidDeviceIdException '
         'and never calls discoverDevices/connectDevice', () async {
       final service = container.read(deviceServiceProvider);
@@ -137,7 +137,7 @@ void main() {
 
       // Critically: we do NOT stub discoverDevices. The previous
       // implementation would have called it as a precondition and failed
-      // with "Camera not found". After DEV-P1-7 we go straight to
+      // with "Camera not found". After we go straight to
       // connectDevice.
       when(
         () => mockBackend.connectDevice(DeviceType.camera, deviceId),
@@ -263,9 +263,9 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // DEV-P1-5: connectAllFromProfile streams per-device progress events.
+  // ConnectAllFromProfile streams per-device progress events.
   // -------------------------------------------------------------------------
-  group('DEV-P1-5: connectAllFromProfile', () {
+  group('connectAllFromProfile', () {
     EquipmentProfileModel buildProfile({
       String? cameraId,
       String? mountId,
@@ -488,7 +488,7 @@ void main() {
 
     test('malformed device id surfaces as a per-device failed event, not a '
         'stream error', () async {
-      // DEV-P1-7 + DEV-P1-5 interplay: a bad id in the profile must not
+      // +  interplay: a bad id in the profile must not
       // poison the entire sweep. The connect call throws
       // InvalidDeviceIdException, which the parallel dispatcher routes
       // onto the stream as a `failed` event so the sibling device can

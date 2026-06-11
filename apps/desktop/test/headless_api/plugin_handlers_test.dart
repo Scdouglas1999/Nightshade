@@ -1,4 +1,4 @@
-// P2-11 — Tests for the plugin management headless surface.
+// Tests for the plugin management headless surface.
 //
 // Covers:
 //   * upload + verify SHA-256 round-trip (happy path).

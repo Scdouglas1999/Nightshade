@@ -6,7 +6,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(cameraStateProvider.notifier);
 
-      // DEV-P1-7: skip the discovery precondition. We used to run a full
+      // Skip the discovery precondition. We used to run a full
       // `discoverDevices(camera)` sweep and reject any unknown id with
       // "Camera not found: $id" — that made a reconnect of a known-good
       // device fail whenever a discovery transient (USB blip, backend
@@ -56,7 +56,7 @@ extension _DeviceServiceConnections on DeviceService {
           );
         }
 
-        // IMG-P3-2: auto-detect manufacturer-recommended gain/offset from the
+        // Auto-detect manufacturer-recommended gain/offset from the
         // camera SDK and populate the active equipment profile when the user
         // has NOT explicitly set those values. We never overwrite an existing
         // profile value — the SDK recommendation is a starting point, not an
@@ -174,7 +174,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(cameraStateProvider.notifier);
       final state = _ref.read(cameraStateProvider);
 
-      // Audit DEV-P2-6: surface "nothing connected" as a typed precondition
+      // Audit surface "nothing connected" as a typed precondition
       // instead of a silent no-op so the equipment screen's bulk-disconnect
       // sweep can distinguish "already disconnected" (skip cleanly) from
       // "real disconnect failure" (toast + log).
@@ -234,7 +234,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(mountStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('mount', deviceId);
@@ -295,7 +295,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(mountStateProvider.notifier);
       final state = _ref.read(mountStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('mount');
@@ -320,7 +320,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(focuserStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('focuser', deviceId);
@@ -362,7 +362,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(focuserStateProvider.notifier);
       final state = _ref.read(focuserStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('focuser');
@@ -385,7 +385,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(filterWheelStateProvider.notifier);
       final logger = _ref.read(loggingServiceProvider);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('filter wheel', deviceId);
@@ -476,7 +476,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(filterWheelStateProvider.notifier);
       final state = _ref.read(filterWheelStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('filter wheel');
@@ -541,7 +541,7 @@ extension _DeviceServiceConnections on DeviceService {
       }
 
       // Standard guider connection (ASCOM/Alpaca/INDI).
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('guider', deviceId);
@@ -568,7 +568,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(guiderStateProvider.notifier);
       final state = _ref.read(guiderStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('guider');
@@ -594,7 +594,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(domeStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('dome', deviceId);
@@ -621,7 +621,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(domeStateProvider.notifier);
       final state = _ref.read(domeStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('dome');
@@ -642,7 +642,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(weatherStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('weather station', deviceId);
@@ -669,7 +669,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(weatherStateProvider.notifier);
       final state = _ref.read(weatherStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('weather station');
@@ -690,7 +690,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(safetyMonitorStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('safety monitor', deviceId);
@@ -717,7 +717,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(safetyMonitorStateProvider.notifier);
       final state = _ref.read(safetyMonitorStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('safety monitor');
@@ -735,7 +735,7 @@ extension _DeviceServiceConnections on DeviceService {
 
   /// Connect to a switch device.
   ///
-  /// DEV-P2-1: switch is a first-class device type with its own state
+  /// Switch is a first-class device type with its own state
   /// provider and equipment-profile column. The Rust bridge exposes
   /// per-channel get/set under `api_switch_*`; per-channel UI is future
   /// work (see [SwitchState] docs) but the connect/disconnect path is
@@ -744,7 +744,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(switchStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('switch', deviceId);
@@ -762,7 +762,7 @@ extension _DeviceServiceConnections on DeviceService {
         // per-channel toggles. Only attempted when the active backend is
         // the local FfiBackend (NetworkBackend would need a separate REST
         // endpoint that does not exist yet — tracked as follow-up).
-        // Failures here MUST NOT abort the connect (CLAUDE.md "errors
+        // Failures here MUST NOT abort the connect (errors are a feature here
         // are a feature" — surface as a warning but keep the device
         // marked connected).
         await _refreshSwitchChannels();
@@ -779,7 +779,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(switchStateProvider.notifier);
       final state = _ref.read(switchStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('switch');
@@ -815,7 +815,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(rotatorStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('rotator', deviceId);
@@ -842,7 +842,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(rotatorStateProvider.notifier);
       final state = _ref.read(rotatorStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('rotator');
@@ -863,7 +863,7 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(coverCalibratorStateProvider.notifier);
 
-      // DEV-P1-7: format check only; backend is the source of truth for
+      // Format check only; backend is the source of truth for
       // reachability. See [connectCamera] for the full rationale.
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('cover calibrator', deviceId);
@@ -890,7 +890,7 @@ extension _DeviceServiceConnections on DeviceService {
       final notifier = _ref.read(coverCalibratorStateProvider.notifier);
       final state = _ref.read(coverCalibratorStateProvider);
 
-      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      // Audit see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         throw const DeviceNotConnectedException('cover calibrator');

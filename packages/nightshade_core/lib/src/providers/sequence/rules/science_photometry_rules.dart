@@ -1,7 +1,7 @@
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-/// Wave 7 Science: SciencePhotometry validation rules.
+/// Science: SciencePhotometry validation rules.
 ///
 /// These rules cover the three failure modes the brief calls out:
 ///   * non-photometric filter (warning) — frames captured through Ha /

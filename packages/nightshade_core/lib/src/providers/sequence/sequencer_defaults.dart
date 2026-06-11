@@ -19,7 +19,7 @@ class SequencerDefaults {
   final int autofocusStepsOut;
   final double autofocusExposureDuration;
 
-  /// Wave 1.5 Pack A: cadence (frames between autofocus runs) for the
+  /// Cadence (frames between autofocus runs) for the
   /// standard `AutofocusInterval` trigger seeded into every executor. The
   /// Rust default in `nightshade_sequencer::default_autofocus_interval_frames()`
   /// is 25, which is wildly wrong for both very-short (5 s) and very-long
@@ -44,7 +44,7 @@ class SequencerDefaults {
   final BinningMode exposureBinning;
   final int exposureDitherEvery;
 
-  // Wave 7 Agent 2: LiveStacking defaults (palette + properties editor)
+  // LiveStacking defaults (palette + properties editor)
   /// Default TCP port the broadcast endpoints bind to. 8081 keeps clear
   /// of the headless API server's default (8080) and the dashboard.
   final int livestackingDefaultPort;
@@ -67,7 +67,7 @@ class SequencerDefaults {
   /// chooser in Settings.
   final LiveStackingThumbnailSize livestackingDefaultThumbnailSize;
 
-  /// Wave 7.5 — master kill switch. When true, every LiveStackingNode
+  /// Master kill switch. When true, every LiveStackingNode
   /// at runtime has `broadcastEnabled` forced to false (the stack still
   /// builds in memory but the broadcast endpoint returns 404). Distinct
   /// from `livestackingPublicByDefault`, which only flips per-node
@@ -165,7 +165,7 @@ class SequencerDefaults {
   }
 }
 
-/// Wave 7.5 — friendly thumbnail-size preset for the Settings UI.
+/// Friendly thumbnail-size preset for the Settings UI.
 ///
 /// Maps to width × height pairs the broadcast service consumes. The
 /// LiveStacking properties editor still exposes width / height directly
@@ -238,7 +238,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
               '3.0',
         ) ??
         3.0;
-    // Wave 1.5 Pack A: persisted autofocus-interval cadence.
+    // Persisted autofocus-interval cadence.
     final autofocusIntervalFrames =
         int.tryParse(
           await settingsDao.getSetting('sequencer_autofocus_interval_frames') ??
@@ -316,7 +316,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
         ) ??
         1;
 
-    // Wave 7 Agent 2: LiveStacking defaults.
+    // LiveStacking defaults.
     final livestackingPort =
         int.tryParse(
           await settingsDao.getSetting('livestacking_default_port') ?? '8081',
@@ -375,7 +375,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     );
   }
 
-  /// Wave 7 Agent 2: persist the LiveStacking palette defaults so a
+  /// Persist the LiveStacking palette defaults so a
   /// "drop a Live Stacking node" emits a node with the user's preferred
   /// port / stack method / watermark template.
   Future<void> updateLiveStackingDefaults({
@@ -456,7 +456,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       state = state.copyWith(autofocusExposureDuration: exposureDuration);
     }
     if (intervalFrames != null) {
-      // Wave 1.5 Pack A: persist and push to the live executor so the
+      // Persist and push to the live executor so the
       // autofocus-interval trigger cadence updates without a sequence reload.
       // Validation: Rust rejects 0; clamp here as well so the UI doesn't
       // round-trip a value that the backend will refuse.

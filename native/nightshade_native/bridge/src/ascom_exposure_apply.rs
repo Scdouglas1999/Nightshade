@@ -1,6 +1,6 @@
 //! Platform-independent ASCOM per-frame exposure-parameter application.
 //!
-//! P0-5 (2026-06-02 sequencer audit): the ASCOM camera worker historically
+//! (2026-06-02 sequencer audit): the ASCOM camera worker historically
 //! received `ExposureParams` carrying gain/offset/binning/subframe but only
 //! called `start_exposure(duration, true)` — it never read or applied those
 //! fields. Every frame shot at the camera's *current* settings, a silent
@@ -132,7 +132,7 @@ pub fn apply_exposure_params<C: ExposureApplyTarget>(
 }
 
 // =============================================================================
-// Tests — P0-5 regression guard. These run on every platform (the module is
+// Tests — regression guard. These run on every platform (the module is
 // NOT `#[cfg(windows)]`-gated, unlike the COM worker) so a future refactor that
 // drops the gain/offset/binning apply, reorders binning vs. geometry, or
 // swallows a setter error is caught in the Linux/CI dev loop.
@@ -244,7 +244,7 @@ mod tests {
         calls.iter().position(|c| c == name)
     }
 
-    /// P0-5 (1)+(2): gain/offset/binning are actually applied, and binning is
+    /// (1)+(2): gain/offset/binning are actually applied, and binning is
     /// set BEFORE the frame geometry (NumX/NumY are in binned pixels).
     #[test]
     fn applies_gain_offset_binning_before_geometry() {
@@ -278,7 +278,7 @@ mod tests {
         );
     }
 
-    /// P0-5 (3): None gain/offset must leave the camera's current value
+    /// (3): None gain/offset must leave the camera's current value
     /// unchanged — set_gain / set_offset are NOT called.
     #[test]
     fn none_gain_offset_leaves_camera_unchanged() {
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(cam.set_offset, None);
     }
 
-    /// P0-5 (4): bin 1x1 still drives the binning setters (not skipped as a
+    /// (4): bin 1x1 still drives the binning setters (not skipped as a
     /// "no-op") — a prior frame may have left the camera at 2x2.
     #[test]
     fn bin_one_still_calls_binning_setters() {
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(cam.set_num_y, Some(800));
     }
 
-    /// P0-5 (5): a setter failure (here set_gain) aborts the apply with an
+    /// (5): a setter failure (here set_gain) aborts the apply with an
     /// error — the exposure must fail closed rather than shoot at the wrong
     /// settings.
     #[test]
@@ -333,7 +333,7 @@ mod tests {
         assert_eq!(cam.set_offset, None, "offset must not run after gain fails");
     }
 
-    /// P0-5 fail-closed on binning: a binning setter failure aborts before any
+    /// fail-closed on binning: a binning setter failure aborts before any
     /// geometry/gain/offset is touched.
     #[test]
     fn binning_setter_failure_aborts_before_geometry() {

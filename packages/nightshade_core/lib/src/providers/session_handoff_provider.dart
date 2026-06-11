@@ -7,7 +7,7 @@ import 'settings_provider.dart';
 
 /// Service provider for SessionHandoffService.
 ///
-/// Wave 7 — wires the DAOs so the service can perform multi-night
+/// Wires the DAOs so the service can perform multi-night
 /// carry-over detection. The original device-to-device handoff API
 /// (`exportBundle` / `describe`) still works without DAOs because the
 /// constructor parameters are optional.
@@ -19,7 +19,7 @@ final sessionHandoffServiceProvider = Provider<SessionHandoffService>((ref) {
   );
 });
 
-/// Wave 7 — carry-over detection for the current in-editor sequence.
+/// Carry-over detection for the current in-editor sequence.
 ///
 /// Auto-invalidates when the sequence model changes (i.e. a target is
 /// added/removed). Returns an empty list when no recent prior sessions
@@ -53,7 +53,7 @@ final sessionCarryOverProvider =
       }
     });
 
-/// Wave 7 — controls whether the carry-over pre-flight dialog auto-opens.
+/// Controls whether the carry-over pre-flight dialog auto-opens.
 ///
 /// Mirrors the [AppSettingsState.sessionHandoffAutoPrompt] toggle so the
 /// pre-flight widget can synchronously read the current value without
@@ -63,7 +63,7 @@ final sessionHandoffAutoPromptProvider = Provider<bool>((ref) {
   return settings?.sessionHandoffAutoPrompt ?? true;
 });
 
-/// Wave 7 — operator's last decision for a given target id. Pre-flight
+/// Operator's last decision for a given target id. Pre-flight
 /// uses this to avoid re-prompting on the same sequence after the
 /// user has chosen Restart / Continue New (Resume can be revoked by
 /// opening the banner from the menu).

@@ -6794,8 +6794,8 @@ class SequencerEvent_FrameAccepted extends SequencerEvent {
  final  int acceptedTotal;
 /// Running count of rejected frames for the whole run.
  final  int rejectedTotal;
-/// Wave 6 Pack P — on-disk save path of the accepted frame, so
-/// the Wave 6 thumbnail strip can render an inline preview of
+/// On-disk save path of the accepted frame, so
+/// the thumbnail strip can render an inline preview of
 /// accepted frames the same way it already does for rejected
 /// frames via `FrameRejected.reject_path`. `None` for legacy /
 /// non-grading emit sites that did not thread the path through.
@@ -8217,13 +8217,13 @@ class SystemEvent_Notification extends SystemEvent {
  final  String title;
  final  String message;
  final  String level;
-/// Wave 5.5 Pack M follow-up — per-NotificationNode override list of
+/// Per-NotificationNode override list of
 /// NotificationTransportKind names (Dart enum, serialised as strings).
 /// The Dart NotificationRouter consumes this field to bypass the
 /// matrix's `custom` rule and dispatch to the user-picked transports
 /// directly. `None` or empty = use matrix routing.
  final  List<String>? _explicitTransports;
-/// Wave 5.5 Pack M follow-up — per-NotificationNode override list of
+/// Per-NotificationNode override list of
 /// NotificationTransportKind names (Dart enum, serialised as strings).
 /// The Dart NotificationRouter consumes this field to bypass the
 /// matrix's `custom` rule and dispatch to the user-picked transports

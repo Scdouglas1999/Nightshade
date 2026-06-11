@@ -23,7 +23,7 @@ import 'package:nightshade_core/src/providers/sequence/sequence_executor.dart';
 
 void main() {
   group('ETA smoothing constants', () {
-    test('window size is 10 (audit-handoff §7 ETA smoothing)', () {
+    test('window size is 10', () {
       expect(kEtaWindowSize, 10);
     });
 

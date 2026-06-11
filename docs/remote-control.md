@@ -321,7 +321,7 @@ auth key. The scaffold in `ApnsRemotePushDelivery` throws
 
 ## OTA updates (headless)
 
-P1-11 exposes the full OTA update flow over the headless API so a paired
+The headless API exposes the full OTA update flow so a paired
 phone operator can drive updates without physical access to the host.
 The endpoints wrap the existing `UpdateService` (HTTPS-pull) and the LAN
 push receiver (`LanPushReceiver`, TCP port `45680`); the signing /
@@ -430,7 +430,7 @@ For LAN push updates (dev-machine -> rig), allow inbound TCP on `45680`.
 A freshly imaged server (new Raspberry Pi install, or server reinstall) has
 no star/DSO catalogs on disk. Plate solving will fail and target search will
 return nothing until catalogs are downloaded. The headless API exposes a
-full management surface (P1-12) so a remote operator can populate the
+full management surface so a remote operator can populate the
 server's catalog directory without SSH or the local GUI.
 
 ### Catalogs the server knows how to install
@@ -534,8 +534,8 @@ the new files.
 
 `DELETE /api/catalog/<name>` removes the data file + metadata sidecar.
 `status` will report `missing` afterwards; subsequent plate solves
-against a removed catalog will fail with a clear error (per
-CLAUDE.md's "errors are a feature" policy).
+against a removed catalog will fail with a clear error (per the
+CONTRIBUTING.md "errors are a feature" house rule).
 
 ## Further reading
 

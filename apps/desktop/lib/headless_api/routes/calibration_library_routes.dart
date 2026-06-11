@@ -2,7 +2,7 @@
 /// (browse / auto-match / tag) over darks, flats, biases, and defect maps.
 ///
 /// Counterpart to `handlers/calibration_library_handlers.dart`. Distinct
-/// prefix (`/api/calibration-library`) from the P1-10 per-table CRUD surface
+/// prefix (`/api/calibration-library`) from the per-table CRUD surface
 /// (`/api/calibration/*`): this is the library *view* + transparent matcher.
 /// Order constraint: the literal `match` sub-path MUST register before the
 /// `<type>/<id>` parameterised routes on the same prefix.

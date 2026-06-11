@@ -17,7 +17,7 @@
 //! - $TELESCOPE - Telescope name
 //! - $SEQUENCE - Sequence name
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Every `unwrap_or` site here substitutes a documented per-token default
 //! for missing metadata on the `NamingContext`. The contract is:
@@ -418,7 +418,7 @@ impl FrameCounter {
 
     /// Get current frame number without incrementing
     pub fn current(&self, key: &str) -> u32 {
-        // Why (audit-rust §4.3): no entry for key → counter has never been incremented →
+        // Why: no entry for key → counter has never been incremented →
         // current() returns 0 — the documented zero-base convention. This is read-only
         // and pairs with `next()` which inserts-or-increments.
         *self.counters.get(key).unwrap_or(&0)
@@ -496,7 +496,7 @@ pub fn scan_for_next_frame_number(
     test_context.frame_number = Some(0);
 
     let test_path = pattern.generate(&test_context);
-    // Why (audit-rust §4.3): `Path::parent()` returns None only for the empty path or
+    // Why: `Path::parent()` returns None only for the empty path or
     // root. If `pattern.generate` produced a parent-less path (e.g. on a misconfigured
     // pattern with no directory tokens), scanning the original base_dir is the
     // semantically-correct fallback — we want to count siblings of the test path.

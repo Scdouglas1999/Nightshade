@@ -186,7 +186,7 @@ Response rangeNotSatisfiableResponse(int totalLength, {String? reason}) {
     throw const FormatException('Range header has no byte spec');
   }
   if (spec.contains(',')) {
-    // Multi-range requests are explicitly out of scope per P0-5.
+    // Multi-range requests are explicitly out of scope.
     throw const FormatException('Multi-range requests are not supported');
   }
   final dashIdx = spec.indexOf('-');

@@ -54,7 +54,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     if (overlay == null) return;
 
     final canEdit = ref.read(canEditSequenceProvider);
-    // Wave 1.5 Pack A: "Skip to here" is only meaningful while the sequence
+    // "Skip to here" is only meaningful while the sequence
     // is running/paused. canEdit is FALSE in those states — the inverse of
     // what we need — so we read the live execution state directly.
     final executionState = ref.read(sequenceExecutionStateProvider);
@@ -157,7 +157,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     // Insert Above / Insert Below require a parent slot. The root
     // sequence node has no parent, so those entries are permanently
     // disabled on the root with a tooltip explaining why — avoids the
-    // pre-Wave 1.5 behaviour where clicking them on the root silently
+    // earlier behaviour where clicking them on the root silently
     // returned without any feedback.
     final isRoot = node.parentId == null;
     const rootDisabledReason =
@@ -178,7 +178,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         : null;
 
     return [
-      // Wave 1.5 Pack A: "Skip to here" — only enabled while a sequence is
+      // "Skip to here" — only enabled while a sequence is
       // running. Mutating: false because skipping does not edit the
       // sequence definition; the disabledReason teaches the user the entry
       // requires a live run when the executor is idle.
@@ -285,7 +285,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         await _confirmAndDelete(context, ref, sequence, node);
         break;
       case _TreeMenuAction.skipToHere:
-        // Wave 1.5 Pack A: route through SequenceExecutor.skipToNode which
+        // Route through SequenceExecutor.skipToNode which
         // proxies to the backend `sequencerSkipToNode` method (the Rust side
         // maps to the new api_sequencer_skip_to_node FRB binding). Errors
         // surface as a snackbar so the user sees when the jump was rejected
@@ -467,7 +467,6 @@ enum _TreeMenuAction {
   disable,
   enable,
   delete,
-  // Wave 1.5 Pack A
   skipToHere,
 }
 

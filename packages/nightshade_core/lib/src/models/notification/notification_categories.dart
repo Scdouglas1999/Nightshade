@@ -1,6 +1,6 @@
 // Notification routing categories and per-transport configuration models.
 //
-// Why this file exists: Wave 1.5 Pack C wired the critical-event push path
+// Why this file exists: wired the critical-event push path
 // (PushNotificationService), but only a fixed set of toggles. Users need
 // per-event-type routing across multiple transports (the "NINA Ground
 // Station" UX): "send target-complete to Pushover, send weather-unsafe to
@@ -222,7 +222,7 @@ class NotificationRoutingRule extends Equatable {
   /// seconds. `0` disables debouncing.
   final int debounceSeconds;
 
-  /// Custom message template (uses Wave 4 Agent 3's interpolation engine).
+  /// Custom message template (uses the interpolation engine).
   /// `null` falls back to the per-category default template baked into
   /// the router.
   final String? titleTemplate;

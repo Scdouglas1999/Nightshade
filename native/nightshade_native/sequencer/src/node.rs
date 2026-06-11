@@ -162,7 +162,7 @@ mod tests {
         }
     }
 
-    /// P1-7: a node restored as Success from a checkpoint (via mark_completed)
+    /// a node restored as Success from a checkpoint (via mark_completed)
     /// must short-circuit on the next execute() instead of re-running. A
     /// childless Count loop is a clean observable: if it re-runs it advances
     /// current_iteration to the count; if it short-circuits it stays 0.
@@ -189,7 +189,7 @@ mod tests {
         );
     }
 
-    /// P1-8: a Loop's current_iteration must survive a checkpoint round-trip
+    /// a Loop's current_iteration must survive a checkpoint round-trip
     /// so a resumed Count loop continues from where it stopped rather than
     /// restarting at iteration 1.
     #[test]
@@ -399,7 +399,7 @@ mod tests {
     // §1.1 — concurrent writes to trigger state must never drop on
     // contention with a reading monitor. This used to be a node.rs concern
     // because `try_write` was called from a sync progress callback; the
-    // current code uses `write().await` (audit-rust §1.1) so the contract
+    // current code uses `write().await` so the contract
     // is the same regardless of which file holds the callback.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn trigger_state_writes_are_never_dropped_under_monitor_contention() {

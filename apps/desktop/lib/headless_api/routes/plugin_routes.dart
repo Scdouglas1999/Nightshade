@@ -1,4 +1,4 @@
-/// Declarative route table for the P2-11 plugin-management surface.
+/// Declarative route table for the plugin-management surface.
 ///
 /// Counterpart to `handlers/plugin_handlers.dart`. The upload endpoint
 /// uses the raw body for the archive bytes; the `filename` and

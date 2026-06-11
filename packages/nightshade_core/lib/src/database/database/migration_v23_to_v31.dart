@@ -150,8 +150,8 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       );
     }
 
-    // Version 29: Per-target / per-run notes/journal entries (Wave 6
-    // Agent 5). Managed with raw DDL — same convention as the v27
+    // Version 29: Per-target / per-run notes/journal entries.
+    // Managed with raw DDL — same convention as the v27
     // scheduler tables and the v28 defect_maps table — so the
     // migration lands without forcing a drift codegen pass. The
     // accompanying [NotesService] performs all reads/writes via
@@ -201,7 +201,7 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
       );
     }
 
-    // Version 30: Inline frame thumbnails (Wave 6 Agent 4 — Thumbnails).
+    // Version 30: Inline frame thumbnails (Thumbnails).
     //
     // Add provenance + grading columns to `captured_images` so each
     // captured frame can be tied back to the ExposureNode that
@@ -304,7 +304,7 @@ extension _NightshadeDatabaseMigrationV23ToV31 on NightshadeDatabase {
     //
     // Adds the `focus_models` table that stores the learned linear
     // regression between focuser temperature and best-focus position,
-    // keyed by (equipment_profile_id, filter_name). Powers the Wave 8
+    // keyed by (equipment_profile_id, filter_name). Powers the
     // predictive autofocus feature — confidence-gated prediction,
     // cross-session persistence, and drift-detection notifications.
     //

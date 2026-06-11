@@ -1,12 +1,12 @@
-/// Wave 4 Recovery Mode — Riverpod providers for the recovery state machine.
+/// Recovery Mode — Riverpod providers for the recovery state machine.
 ///
 /// Reads:
 ///   * the typed bridge event stream — `SequencerEvent_Recovery{Started,
 ///     Progress,Completed,GaveUp}` carry the full recovery context as
-///     flat primitive fields. Wave 4 used a pre-FRB-regen workaround that
+/// flat primitive fields. An earlier build used a pre-FRB-regen workaround that
 ///     tunnelled the recovery context as JSON through the legacy
 ///     `InstructionProgress.detail` channel with a synthetic `_recovery`
-///     node id; Wave 4.5's regen retires that hack.
+/// node id; a later regen retires that hack.
 ///   * `sequenceProgressProvider` — used to derive the `isRecovering`
 ///     boolean even when the live recovery context hasn't arrived yet.
 ///
@@ -136,7 +136,7 @@ class RecoveryControl {
   /// Implemented on top of the existing `sequencerSkip()` surface
   /// (`POST /api/sequencer/skip`); the executor's skip handler is
   /// recovery-aware — it clears the recovery loop and continues with the
-  /// next sibling. Audit P1-8 — companion phones need a third option
+  /// next sibling. Audit — companion phones need a third option
   /// beyond Try Now / Abort: "the camera is wedged, but I want the rest
   /// of the run to keep going".
   Future<void> skipNode() async {
@@ -161,7 +161,7 @@ final recoveryControlProvider = Provider<RecoveryControl>(
 
 /// Bridge-event envelope built from a typed `SequencerEvent_Recovery*`
 /// variant. Carries the rebuilt [RecoveryStatus] plus the discriminating
-/// kind + abort flag. Wave 4.5 — the JSON-through-detail string parser is
+/// kind + abort flag. The JSON-through-detail string parser is
 /// gone; this comes straight from the FRB-typed payload.
 enum RecoveryEventKind { started, progress, completed, gaveUp }
 
@@ -377,7 +377,7 @@ RecoveryCause _causeFromTyped(String kind, String? customLabel) {
     case 'Custom':
       return RecoveryCause.custom(customLabel ?? '');
     default:
-      // CLAUDE.md: "Errors are a feature." An unknown discriminant means
+      // Errors are a feature here. An unknown discriminant means
       // the Rust enum grew a variant and we didn't update the Dart
       // switch — surface it instead of silently falling back to a wrong
       // cause.

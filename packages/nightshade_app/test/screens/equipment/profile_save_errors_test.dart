@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/equipment/utils/profile_save_errors.dart';
 
 void main() {
-  group('profileSaveErrorMessage — UI-P0-5', () {
+  group('profileSaveErrorMessage', () {
     test('maps unique constraint to actionable text', () {
       final message = profileSaveErrorMessage(
         Exception(

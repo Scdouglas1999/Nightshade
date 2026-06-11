@@ -112,7 +112,7 @@ const Map<String, String> _defaultSettings = {
   'science.overlay.analysis_grid_cols': '32',
   'dark_library.auto_subtract': 'false',
   'dark_library.temp_tolerance': '2.0',
-  // Wave 8 predictive autofocus defaults. See migration v31 + PredictiveAfService.
+  // Predictive autofocus defaults. See migration v31 + PredictiveAfService.
   'predictive_af.enabled': 'true',
   'predictive_af.min_samples_for_trust': '8',
   'predictive_af.high_confidence_threshold': '0.8',

@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Target Queue panel for the sequencer Builder.
+// Target Queue panel for the sequencer Builder.
 //
 // Bridges the planetarium's `target_queue_provider` (a user-curated
 // wishlist of targets) into the sequencer authoring surface. Drag a

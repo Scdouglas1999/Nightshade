@@ -1,4 +1,4 @@
-// P1-10 — Wire-level model classes for the headless calibration API.
+// Wire-level model classes for the headless calibration API.
 //
 // These classes live alongside the existing `dark_library_match_tolerances.dart`
 // in the calibration models subdirectory. They mirror the JSON wire shapes

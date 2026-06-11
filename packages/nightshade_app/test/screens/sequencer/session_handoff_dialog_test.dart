@@ -1,4 +1,4 @@
-// Widget tests for the Wave 7 session-handoff carry-over dialog.
+// Widget tests for the session-handoff carry-over dialog.
 //
 // We exercise rendering and the basic decision-pick path. The dialog
 // reads carry-over data from its constructor arg, so we don't need

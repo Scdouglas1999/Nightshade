@@ -1,4 +1,4 @@
-// Wave 7A — NetworkBackend WebRTC live-view client tests.
+// NetworkBackend WebRTC live-view client tests.
 //
 // We cannot exercise a real libwebrtc peer connection from a flutter
 // unit test (the platform channel is not registered), but we CAN
@@ -19,7 +19,7 @@
 // public stream and observing it close cleanly when the offer is
 // rejected.
 //
-// CLAUDE.md: errors are loud. A 4xx from the offer endpoint MUST
+// Errors are loud here. A 4xx from the offer endpoint MUST
 // produce a stream error, never an empty stream.
 
 import 'dart:async';

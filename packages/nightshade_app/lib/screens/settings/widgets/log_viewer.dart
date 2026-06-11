@@ -76,7 +76,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   void _refreshLogs() {
-    // [Wave 6E log tail] — when the active backend is a NetworkBackend we
+    // Log tail — when the active backend is a NetworkBackend we
     // pull from /api/logs/recent so a remote session shows the host's
     // logs, not the local (empty) ring buffer. The local LoggingService
     // path is preserved for FFI / disconnected backends.
@@ -226,7 +226,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Future<void> _clearLogs() async {
-    // [Wave 6E log tail] — Clear on a remote session must target the
+    // Log tail — Clear on a remote session must target the
     // server's log files; otherwise the operator presses Clear and sees
     // no change because we're clearing the local (already-empty) buffer.
     final backend = ref.read(backendProvider);

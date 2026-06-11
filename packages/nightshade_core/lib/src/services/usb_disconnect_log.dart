@@ -1,4 +1,4 @@
-// Wave 5.5 — USB / device disconnect log.
+// USB / device disconnect log.
 //
 // Captures every device disconnect (or transient device-error severity
 // event) emitted on the backend event stream with a wall-clock timestamp,
@@ -14,7 +14,7 @@
 //     current run anyway.
 //   * Persisting through Drift would mean a new table, a schema bump,
 //     and migration code for a metric that's already cheap to recompute
-//     from in-memory state. CLAUDE.md flags over-engineering as a
+// from in-memory state. flags over-engineering as a
 //     failure mode; matching the codebase's existing
 //     `recoveryHistoryProvider` pattern (also in-memory per-run) is the
 //     simpler shape.

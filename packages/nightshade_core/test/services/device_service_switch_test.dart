@@ -1,14 +1,14 @@
-// DEV-P2-1: DeviceService switch-device tests.
+// DeviceService switch-device tests.
 //
 // Mirrors the safety-monitor test coverage shape:
 //   * connectSwitch happy path → backend called, state Connected
-//   * connectSwitch rejects malformed device IDs up-front (P1-7 format guard)
+//   * connectSwitch rejects malformed device IDs up-front (format guard)
 //   * connectSwitch error path resets state to Disconnected and rethrows
 //   * disconnectSwitch on a connected device → backend called, state cleared
 //   * SwitchStateNotifier basic CRUD (setConnecting / setConnected /
 //     setDisconnected / setError / setAutoReconnect / setChannels)
 //
-// DEV-P2-1 follow-up adds per-channel UI coverage:
+// Follow-up adds per-channel UI coverage:
 //   * refreshSwitchChannels polls get_max + per-channel name/state and
 //     populates the snapshot
 //   * setSwitchChannel writes via the bridge then mutates the cached
@@ -191,7 +191,7 @@ void main() {
     test(
       'connectSwitch throws InvalidDeviceIdException for malformed id',
       () async {
-        // DEV-P1-7: format check rejects ids without a recognized driver
+        // Format check rejects ids without a recognized driver
         // prefix. Backend must NOT be contacted.
         const deviceId = 'no-prefix-bare-id';
 
@@ -313,7 +313,7 @@ void main() {
         isFalse,
         reason:
             'Auto-reconnect preference must persist across disconnects '
-            '(DEV-P1-1 contract).',
+            '( contract).',
       );
     });
 
@@ -486,7 +486,7 @@ void main() {
     });
 
     test('throws and does NOT mutate state when the bridge fails', () async {
-      // CLAUDE.md "errors are a feature" — silent fallbacks would lie
+      // Errors are a feature here — silent fallbacks would lie
       // about hardware state.
       const deviceId = TestFixtures.switchId;
       final notifier = container.read(switchStateProvider.notifier);

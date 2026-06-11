@@ -5,7 +5,7 @@
 // files under `test/` are not exportable across packages (Dart's test-layout
 // convention). The package boundary forces this duplication — keep both
 // helpers thin and behaviourally identical so tests work the same on either
-// side of the boundary. See docs/code-quality/audit-tests.md §6.
+// side of the boundary.
 
 import 'package:drift/native.dart';
 import 'package:nightshade_core/src/database/database.dart';

@@ -6,7 +6,7 @@ import 'package:nightshade_core/src/models/defect_map.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/defect_map_provider.dart';
 
-/// Wave 7 Agent 3 — unit tests for the per-camera defect-map settings
+/// Unit tests for the per-camera defect-map settings
 /// provider. Verifies that:
 ///   1. Defaults are correct (auto-apply off, kernel 3, method median,
 ///      save_original off).

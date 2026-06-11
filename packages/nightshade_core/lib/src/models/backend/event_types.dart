@@ -7,7 +7,7 @@ library;
 /// Event severity levels
 enum EventSeverity { info, warning, error, critical }
 
-// [Wave 6B settings sync] Canonical event-type string broadcast over the WS
+// Canonical event-type string broadcast over the WS
 // `/events` channel when a single setting changes on the headless host. The
 // payload `data` map carries `{ key, value, changedAt }`. Distinct from the
 // coarse `HostStateChanged + entityType: settings` envelope which only tells
@@ -17,7 +17,7 @@ enum EventSeverity { info, warning, error, critical }
 // `commandId` they received in the POST /api/settings response.
 const String settingsChangedEventType = 'settings.changed';
 
-// Wave 6B (P2-1) — Hot-plug discovery wire event types. The Rust side
+// Hot-plug discovery wire event types. The Rust side
 // publishes these as `EquipmentEvent::PropertyChanged { property:
 // 'device_discovered' | 'device_lost', value: <json> }` (see
 // `native/nightshade_native/bridge/src/hotplug.rs`). The Dart provider
@@ -39,20 +39,20 @@ enum EventCategory {
   system,
   polarAlignment,
 
-  /// P1-2/P1-3: long-running job lifecycle events (autofocus, plate-solve,
+  /// /long-running job lifecycle events (autofocus, plate-solve,
   /// center-on-target, polar alignment, mosaic plan, etc.). Events in this
   /// category carry `data: {jobId, operation, progress?, message?, result?,
   /// error?}` so clients can correlate progress and completion back to the
   /// originating `POST /api/.../start` response.
   job,
 
-  /// P1-5: session-ownership lifecycle events. Broadcast when an operator
+  /// Session-ownership lifecycle events. Broadcast when an operator
   /// claims, releases, is taken over, or is auto-released after a heartbeat
   /// timeout. `data: {clientId, clientName, reason?, previousOwner?}` so
   /// the displaced client can show a toast attribution.
   session,
 
-  /// P1-12: catalog management lifecycle events. Broadcast for star/DSO/
+  /// Catalog management lifecycle events. Broadcast for star/DSO/
   /// annotation catalog downloads, hash-verification runs, uninstall, and
   /// reload triggered via `/api/catalog/...`. `data` is event-specific —
   /// see [CatalogHandlers] for the per-event shape. Catalog ops are owned
@@ -70,7 +70,7 @@ class NightshadeEvent {
   final String eventType;
   final Map<String, dynamic> data;
 
-  /// P1-1: monotonic server-assigned sequence number, present on events
+  /// Monotonic server-assigned sequence number, present on events
   /// emitted by the headless API server. Null when the event is constructed
   /// locally (FFI bridge, NetworkBackend synthetic events) or by a server
   /// that pre-dates this field.
@@ -81,13 +81,13 @@ class NightshadeEvent {
   /// rehydrate.
   final int? seq;
 
-  /// P1-1: random UUID generated once at server start, mirrored onto every
+  /// Random UUID generated once at server start, mirrored onto every
   /// outbound event. A change in this value between two events tells the
   /// client the server has restarted and the local sequence cursor is
   /// stale.
   final String? serverInstanceId;
 
-  /// P1-4: command-id of the originating REST POST that the server
+  /// Command-id of the originating REST POST that the server
   /// best-effort matched against this event. Null on events that have no
   /// matching command (e.g. background telemetry).
   final String? correlatingCommandId;
@@ -184,8 +184,8 @@ class NightshadeEvent {
         ? Map<String, dynamic>.from(rawData)
         : <String, dynamic>{};
 
-    // P1-1 / P1-4: read optional sequencing + correlation metadata. The
-    // fields are omitted by pre-P1-1 servers and by FFI-originated events,
+    // / read optional sequencing + correlation metadata. The
+    // fields are omitted by an earlier build servers and by FFI-originated events,
     // so accept null without complaint.
     final rawSeq = payload['seq'];
     final seq = switch (rawSeq) {

@@ -3,7 +3,7 @@
 //! A bare `tokio::spawn(async move { ... })` whose `JoinHandle` is dropped
 //! gives no signal when the spawned task panics: the future silently dies,
 //! the feature stops working, and no log line is emitted. That violates
-//! the "errors are a feature" rule in CLAUDE.md — see audit-rust.md §2.1.
+//! the "errors are a feature" rule (see the CONTRIBUTING.md house rules).
 //!
 //! This module provides two supervisors:
 //!
@@ -436,7 +436,7 @@ mod tests {
         );
     }
 
-    /// Property test for the audit-rust §2.1 requirement directly:
+    /// Property test for the requirement directly:
     /// when a supervised future panics, the outer `JoinHandle` MUST resolve
     /// successfully (the supervisor swallows the JoinError), and the
     /// on_panic hook MUST fire — so a caller can never end up with a

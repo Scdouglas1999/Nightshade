@@ -1,4 +1,4 @@
-// Wave 4 — Widget tests for the variable picker. Verifies the picker's
+// Widget tests for the variable picker. Verifies the picker's
 // core contract: opening the menu, inserting at the cursor, escaping
 // existing text, and rendering the preview row.
 

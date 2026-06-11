@@ -23,7 +23,7 @@ export 'phd2_status.dart';
 export 'remote_api_compatibility.dart';
 export 'sequencer_status.dart';
 export '../errors/nightshade_error.dart';
-// [Wave 6D error parsing] — surface the headless-envelope ServerError so
+// Error parsing: surface the headless-envelope ServerError so
 // mobile (and any other client) can pattern-match on `code` + `message`
 // instead of stringifying opaque exceptions.
 export '../errors/server_error.dart';

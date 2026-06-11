@@ -54,7 +54,7 @@ class HeadlessApiServer {
   static const _requestIdContextKey = ctx.requestIdContextKey;
   static const _requestIdHeader = ctx.requestIdHeader;
 
-  /// P2-6 / P2-15: Shelf request-context key holding the SHA-256 digest of
+  /// Shelf request-context key holding the SHA-256 digest of
   /// the authenticated bearer token. Set by [_authMiddleware] once a token
   /// resolves to a valid scope; consumed by the rate limiter and the
   /// WebSocket upgrade path. We never propagate the raw token through the
@@ -63,7 +63,7 @@ class HeadlessApiServer {
   /// secret to a log file.
   static const _authIdentityContextKey = ctx.authIdentityContextKey;
 
-  /// P2-6: shelf request-context key holding the bound [route_metadata.
+  /// shelf request-context key holding the bound [route_metadata.
   /// TokenRouteClass] for this request. Memoised in the auth middleware so
   /// the rate-limit middleware doesn't have to re-classify the path.
   static const _authRouteClassContextKey = ctx.authRouteClassContextKey;
@@ -96,14 +96,14 @@ class HeadlessApiServer {
   /// app bypass CORS. See §2.27 in 2026-05-09-v250-audit-fixes.md.
   final List<String> corsAllowedOrigins;
 
-  /// P0-3: when true, every successful `POST /api/pairing/start` prints the
+  /// when true, every successful `POST /api/pairing/start` prints the
   /// raw pairing code to stdout (alongside the existing structured-log
   /// breadcrumb). Intended for headless operators on Pi/embedded hosts who
   /// otherwise have no way to see the code. Defaults to false because the
   /// GUI desktop bootstrap surfaces the code in its own UI.
   final bool pairingPrintCodes;
 
-  /// P0-9: optional TLS context. When supplied, the server is bound with
+  /// optional TLS context. When supplied, the server is bound with
   /// `shelf_io.serve(..., securityContext: tlsContext)` so the entire
   /// transport (HTTP + WebSocket upgrade) speaks HTTPS/WSS. Plain HTTP
   /// remains the default when null. The SHA-256 fingerprint surfaced via
@@ -111,13 +111,13 @@ class HeadlessApiServer {
   /// set — see [_serverFingerprint].
   final SecurityContext? tlsContext;
 
-  /// P0-9: when TLS is active, the SHA-256 hex digest of the certificate's
+  /// when TLS is active, the SHA-256 hex digest of the certificate's
   /// SubjectPublicKeyInfo DER. Used to overwrite the token-derived
   /// fingerprint with a cert-pinned identity anchor. Plain HTTP mode leaves
   /// this null and falls back to the token-derived fingerprint.
   final String? tlsPublicKeyFingerprint;
 
-  /// P1-1: capacity of the in-memory ring buffer that backs WS replay on
+  /// capacity of the in-memory ring buffer that backs WS replay on
   /// reconnect. Default 5000 events â‰ˆ 5 MB at 1 KB/event. Tuned per-deploy
   /// for memory-constrained hosts (Pi 4 / Pi 5).
   final int eventReplayBufferSize;
@@ -126,7 +126,7 @@ class HeadlessApiServer {
   final List<WebSocketChannel> _sockets = [];
   final Map<WebSocketChannel, String> _socketViewerIds = {};
 
-  /// P2-15: SHA-256 digest of the bearer token that authenticated each
+  /// SHA-256 digest of the bearer token that authenticated each
   /// connected socket. Populated at upgrade time from the request context
   /// that `_authMiddleware` stashed. Used as the canonical `viewerId` for
   /// `collaboration.join` messages — any client-supplied value is ignored.
@@ -151,7 +151,7 @@ class HeadlessApiServer {
   final route_metadata.EndpointRateLimiter _rateLimiter =
       route_metadata.EndpointRateLimiter();
 
-  /// P2-6: per-token / route-class bucket. Independent of the legacy
+  /// per-token / route-class bucket. Independent of the legacy
   /// endpoint window so a single token can hit dozens of different
   /// endpoints without exhausting one shared counter, while still being
   /// throttled if it floods one route class. Keys are derived from the
@@ -174,13 +174,13 @@ class HeadlessApiServer {
   // from the configured token table: pairing tokens live in PairingDatabase
   // (Drift) and must not mutate the immutable configured-token map.
   //
-  // P0-2: this map is now hydrated from `PairedDevices` at [start()] so
+  // this map is now hydrated from `PairedDevices` at [start()] so
   // server restarts no longer evict already-paired clients.
-  // P0-10: entries are evicted synchronously by [_evictPairedSessionToken]
+  // entries are evicted synchronously by [_evictPairedSessionToken]
   // when the TokenManager surfaces a revoke / expiry event.
   final Map<String, HeadlessTokenScope> _pairedSessionTokens = {};
 
-  /// P0-10: periodic sweep that walks `PairedDevices` and drops expired
+  /// periodic sweep that walks `PairedDevices` and drops expired
   /// rows + evicts revoked entries from [_pairedSessionTokens]. Interval is
   /// configurable mainly for tests; production runs at 60s.
   Timer? _tokenSweepTimer;
@@ -189,29 +189,29 @@ class HeadlessApiServer {
   /// SHA-256 host fingerprint surfaced in `/api/info` and desktop QR codes.
   late final String _serverFingerprint;
 
-  /// P1-1: random UUID generated once at server construction time. Mirrored
+  /// random UUID generated once at server construction time. Mirrored
   /// onto every outbound event and returned by /api/info. Clients use a
   /// mismatch to detect a server restart and abandon their seq cursor.
   late final String _serverInstanceId;
 
-  /// P1-1: monotonically increasing event sequence number, starts at 1
+  /// monotonically increasing event sequence number, starts at 1
   /// for the first broadcast event of this server instance. Wraps would
   /// require ~9.2 quintillion events which is well past practical for
   /// the buffer's lifetime.
   int _eventSeq = 0;
 
-  /// P1-1: ring buffer of recently broadcast events for WS replay on
+  /// ring buffer of recently broadcast events for WS replay on
   /// reconnect.
   late final EventReplayBuffer _eventReplayBuffer;
 
-  /// P1-4: correlates command IDs from action handlers with later events.
+  /// correlates command IDs from action handlers with later events.
   late final CommandCorrelator _commandCorrelator;
 
   /// Periodic sweep that evicts expired pending commands from the
   /// correlator. Cheap to run; the table is usually tiny.
   Timer? _commandCorrelatorSweepTimer;
 
-  /// P1-2/P1-3: long-running operation manager. Autofocus, plate-solve,
+  /// long-running operation manager. Autofocus, plate-solve,
   /// center-on-target, polar alignment, and similar multi-minute ops
   /// register as Jobs and return `{jobId}` immediately rather than
   /// holding the HTTP connection open.
@@ -222,7 +222,7 @@ class HeadlessApiServer {
   /// the worst-case age bounded without busy-looping.
   Timer? _jobSweepTimer;
 
-  /// P1-5: tracks which client currently owns the rig. Destructive
+  /// tracks which client currently owns the rig. Destructive
   /// endpoints (sequencer start, mount slew, dome open, ...) require
   /// the caller to be the operator or return 409 with a take-over hint.
   late final SessionOwnershipManager _sessionOwnership;
@@ -293,7 +293,7 @@ class HeadlessApiServer {
   late final SchedulerHandlers _schedulerHandlers;
   late final FocusModelHandlers _focusModelHandlers;
 
-  // Wave 6 — Run-Watch (phone/tablet monitoring).
+  // Run-Watch (phone/tablet monitoring).
   // The handler exposes /api/run-watch/{snapshot,frame-thumbnail,events}.
   // Backed by a fan-out broadcast stream over `backend.eventStream` so the
   // SSE handler can have any number of concurrent phone clients without
@@ -301,65 +301,65 @@ class HeadlessApiServer {
   late final RunWatchHandlers _runWatchHandlers;
   StreamController<NightshadeEvent>? _runWatchEventBroadcast;
 
-  // Wave 7 Agent 2 — live-stacking broadcast endpoints.
+  // live-stacking broadcast endpoints.
   late final BroadcastHandlers _broadcastHandlers;
 
-  // P2-10 — push-based live-view streaming over /ws/live-view. Backed by
+  // push-based live-view streaming over /ws/live-view. Backed by
   // a long-lived [LiveViewStreamHub] so subscriber state survives socket
   // churn and the JPEG-encode pipeline only runs while >=1 subscriber is
   // attached.
   late final LiveViewStreamHandlers _liveViewStreamHandlers;
   late final LiveViewStreamHub _liveViewStreamHub;
 
-  // Wave 7A — WebRTC datachannel fan-out for the same producer. Sessions
+  // WebRTC datachannel fan-out for the same producer. Sessions
   // attach to [_liveViewStreamHub] via its public attachRaw entry point
   // so we do NOT duplicate the JPEG-encode pipeline; the WebRTC handler
   // is just a parallel transport for the existing frames.
   late final WebRtcLiveViewHandlers _webRtcLiveViewHandlers;
 
-  // P1-2 / P1-3 — long-running job model handlers.
+  // long-running job model handlers.
   late final JobHandlers _jobHandlers;
 
-  // P1-5 — session ownership handlers.
+  // session ownership handlers.
   late final SessionOwnershipHandlers _sessionOwnershipHandlers;
 
-  // P1-14 — remote log retrieval + tail SSE for mobile diagnostics.
+  // remote log retrieval + tail SSE for mobile diagnostics.
   late final LogHandlers _logHandlers;
 
-  // P1-10 — remote calibration library management (darks / flats /
+  // remote calibration library management (darks / flats /
   // defect maps). Constructed unconditionally; the routes are always wired
   // because every deployment has the Drift tables backing them.
   late final CalibrationHandlers _calibrationHandlers;
 
   // v46 — unified Calibration Library Manager (browse / match / tag) over the
-  // darks / flats / biases / defect maps. Distinct from the per-table P1-10
+  // darks / flats / biases / defect maps. Distinct from the per-table
   // surface above. Constructed unconditionally; routes always wired.
   late final CalibrationLibraryHandlers _calibrationLibraryHandlers;
 
-  // P1-12 — catalog management (download / upload / verify / uninstall /
+  // catalog management (download / upload / verify / uninstall /
   // reload). Constructed unconditionally; downloads run via the
   // JobManager so the HTTP connection isn't held open.
   late final CatalogHandlers _catalogHandlers;
   StreamSubscription<CatalogEvent>? _catalogEventSubscription;
 
-  // P2-8 — read-only DB endpoints for tables the phone could not see
+  // read-only DB endpoints for tables the phone could not see
   // (sequence runs, notes journal, guide RMS history, polar alignment
   // history, dark library, flat history). Stateless beyond the DAOs it
   // reads off the container.
   late final DbReadHandlers _dbReadHandlers;
 
-  // P2-11 — plugin management. Owns the plugin archive directory under
+  // plugin management. Owns the plugin archive directory under
   // $appData/Nightshade/plugins and the SHA-256 verification path.
   late final PluginHandlers _pluginHandlers;
 
-  // P1-11 — OTA update endpoints. Null when no UpdateController was
+  // OTA update endpoints. Null when no UpdateController was
   // supplied (test fixtures that don't exercise the update surface);
   // routes are skipped in that case so a missing controller can't 500
   // the rest of the API.
   UpdateHandlers? _updateHandlers;
   StreamSubscription<UpdateEvent>? _updateEventSubscription;
 
-  /// P1-19: LAN UDP broadcaster wired in main_headless.dart /
+  /// LAN UDP broadcaster wired in main_headless.dart /
   /// desktop_app_bootstrap.dart. When supplied, every critical push that
   /// flows through [setPushNotificationStream] is also fanned out as a
   /// UDP datagram so backgrounded phones (Android WS-dropped, foreground-
@@ -367,7 +367,7 @@ class HeadlessApiServer {
   /// the server is bound loopback-only (no LAN to broadcast on).
   LanPushBroadcaster? _lanPushBroadcaster;
 
-  /// P1-19: optional cellular delivery (FCM/APNs). The base
+  /// optional cellular delivery (FCM/APNs). The base
   /// implementations throw [UnimplementedError] until an operator wires
   /// the cloud-side configuration; see
   /// `docs/remote-control.md#critical-push-notifications-fcm-apns`.
@@ -397,12 +397,12 @@ class HeadlessApiServer {
     _lanPushBroadcaster = lanPushBroadcaster;
     _remotePushDelivery = remotePushDelivery;
     _pairingService = pairingService;
-    // P1-1: fix the server-instance UUID at construction time so unit
+    // fix the server-instance UUID at construction time so unit
     // tests that exercise the /api/info endpoint can observe it
     // synchronously without waiting for start().
     _serverInstanceId = serverInstanceId ?? _generateUuidV4();
     _eventReplayBuffer = EventReplayBuffer(capacity: eventReplayBufferSize);
-    // P1-4: caller may inject a deterministic correlator for tests; the
+    // caller may inject a deterministic correlator for tests; the
     // default uses Random.secure + DateTime.now.
     _commandCorrelator = commandCorrelator ?? CommandCorrelator();
     final tokensByValue = <String, HeadlessTokenScope>{};
@@ -439,7 +439,7 @@ class HeadlessApiServer {
     }
     _effectiveAuthTokensByValue = Map.unmodifiable(tokensByValue);
 
-    // P0-9: when TLS is active, the cert's SubjectPublicKeyInfo SHA-256 is
+    // when TLS is active, the cert's SubjectPublicKeyInfo SHA-256 is
     // the right identity anchor for client-side cert pinning. The
     // token-derived fingerprint (computed from the admin bearer token, see
     // [computeServerFingerprint]) is retained as the plain-HTTP fallback so
@@ -528,7 +528,7 @@ class HeadlessApiServer {
     if (existing != null) return existing;
     final created = PairingService();
     _pairingService = created;
-    // P0-10: ensure the revocation listener is wired even when the service
+    // ensure the revocation listener is wired even when the service
     // was lazy-constructed (i.e. the headless operator never explicitly
     // injected one but a verify call just created it). The startup
     // [_installRevocationListener] no-ops when no service exists; this is
@@ -567,8 +567,8 @@ class HeadlessApiServer {
   // headless server class is not the home of read-only discovery logic.
   //
   // /api/devices/connect and /api/devices/disconnect were moved to
-  // [DeviceHandlers.handleConnectDevice] / [DeviceHandlers.handleDisconnectDevice]
-  // under audit DEV-P0-2. The previous in-line implementations bypassed
+  // [DeviceHandlers.handleConnectDevice] / [DeviceHandlers.handleDisconnectDevice].
+  // The previous in-line implementations bypassed
   // `DeviceService.connect<Type>`, skipping the per-device-type connect
   // flow (StateNotifier updates, temperature polling, cool-on-connect,
   // recommended-gain auto-apply, filter-name sync, heartbeat monitoring).
@@ -596,7 +596,7 @@ class HeadlessApiServer {
     ).join();
   }
 
-  /// P1-1: inline UUID v4 generator used for the server-instance id. We
+  /// inline UUID v4 generator used for the server-instance id. We
   /// deliberately avoid `package:uuid` so the server has no extra
   /// dependency for this single call site. RFC 4122 §4.4.
   static String _generateUuidV4() {
@@ -715,39 +715,39 @@ class HeadlessApiServer {
   ///
   /// Either the TLS SubjectPublicKeyInfo digest when TLS is active or the
   /// `computeServerFingerprint`-derived token digest otherwise. Exposed so
-  /// the mDNS advertiser (P1-6) can publish the value as a TXT record,
+  /// the mDNS advertiser can publish the value as a TXT record,
   /// keeping the QR `fingerprint`, the `/api/info` `fingerprint`, and the
   /// mDNS `fingerprint` aligned.
   String get serverFingerprint => _serverFingerprint;
 
   /// `true` when the server is bound with a TLS context. The mDNS `scheme`
-  /// TXT record (P1-6) reads this so the advertised transport matches reality.
+  /// TXT record reads this so the advertised transport matches reality.
   bool get isTlsActive => tlsContext != null;
 
-  /// P1-1: random UUID identifying this server instance. Returned by
+  /// random UUID identifying this server instance. Returned by
   /// /api/info and stamped on every outbound event.
   String get serverInstanceId => _serverInstanceId;
 
-  /// P1-1: current monotonic event sequence counter. 0 before any event
+  /// current monotonic event sequence counter. 0 before any event
   /// has been broadcast.
   int get currentEventSeq => _eventSeq;
 
-  /// P1-1: oldest event seq retained in the replay buffer, or null when
+  /// oldest event seq retained in the replay buffer, or null when
   /// no events have been emitted yet.
   int? get eventReplayBufferOldestSeq => _eventReplayBuffer.oldestSeq;
 
-  /// P1-4: command correlator owned by this server. Handlers call
+  /// command correlator owned by this server. Handlers call
   /// [CommandCorrelator.beginCommand] before kicking off an action so the
   /// response can include the commandId and later events get tagged.
   CommandCorrelator get commandCorrelator => _commandCorrelator;
 
-  /// P1-2 / P1-3: in-memory job manager. Exposed so the GUI / tests can
+  /// in-memory job manager. Exposed so the GUI / tests can
   /// drive it directly without going through HTTP, and so handlers in
   /// other modules can register long-running operations through the
   /// same manager.
   JobManager get jobManager => _jobManager;
 
-  /// P1-5: operator-slot manager. Exposed so the GUI can subscribe to
+  /// operator-slot manager. Exposed so the GUI can subscribe to
   /// ownership-change events for the desktop status-bar badge, and so
   /// tests can introspect the slot without going through HTTP.
   SessionOwnershipManager get sessionOwnership => _sessionOwnership;

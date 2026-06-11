@@ -5,7 +5,7 @@
 /// UI badges) and `DarkLibraryDao.findBestMatch` (which actually picks the
 /// dark to subtract at runtime) must consult. They MUST agree, otherwise the
 /// coverage UI can show "all darks present" while the calibration pipeline
-/// silently returns null — the IMG-P0-2 audit bug.
+/// silently returns null — this audit bug.
 ///
 /// Defaults are tuned for typical astrophotography cameras:
 ///   * Exposure: ±0.5s catches the request-vs-reported drift seen on real
@@ -28,7 +28,7 @@ class DarkLibraryMatchTolerances {
 
   /// Construct a tolerances object. Both values must be finite and >= 0.
   ///
-  /// Per CLAUDE.md ("Errors are a feature"), we throw on out-of-range
+  /// Errors are a feature here, so we throw on out-of-range
   /// input instead of silently clamping. A negative tolerance is almost
   /// certainly a configuration mistake the user wants to know about.
   const DarkLibraryMatchTolerances({

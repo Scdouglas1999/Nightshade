@@ -1,7 +1,7 @@
 # Sequencer Instruction Nodes — Architecture & Migration Guide
 
 This document describes the architecture of the Rust sequencer's node tree
-after the Wave 2 core refactor and walks instruction authors through adding
+after the core refactor and walks instruction authors through adding
 a new instruction node.
 
 ## Why this exists

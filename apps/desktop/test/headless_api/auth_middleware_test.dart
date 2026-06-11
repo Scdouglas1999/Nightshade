@@ -392,7 +392,7 @@ void main() {
       }
     });
 
-    test('P2-15: collaboration.join uses authenticated identity, ignoring '
+    test('collaboration.join uses authenticated identity, ignoring '
         'a spoofed viewerId from the client payload', () async {
       final socket = await WebSocket.connect(
         'ws://127.0.0.1:${server.actualPort}/events'
@@ -456,7 +456,7 @@ void main() {
           spoofy.single.viewerId,
           isNot('pretend-to-be-someone-else'),
           reason:
-              'P2-15: server MUST ignore client-supplied viewerId and use '
+              'server MUST ignore client-supplied viewerId and use '
               'the authenticated principal\'s digest',
         );
         expect(

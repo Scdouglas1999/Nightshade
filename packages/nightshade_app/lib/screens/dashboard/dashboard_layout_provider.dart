@@ -205,7 +205,7 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
 // re-run that I/O + migration, causing a visible flash of the default
 // layout while loading. Memory cost is trivial (a single DashboardLayout
 // value object), and writes flow through this notifier so a single
-// authoritative copy is correct (audit-dart §1b).
+// authoritative copy is correct.
 final dashboardLayoutProvider =
     AsyncNotifierProvider<DashboardLayoutNotifier, DashboardLayout>(() {
   return DashboardLayoutNotifier();

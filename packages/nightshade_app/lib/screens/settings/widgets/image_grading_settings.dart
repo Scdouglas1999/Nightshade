@@ -1,4 +1,4 @@
-// Pack G — image-grading settings UI.
+// Image-grading settings UI.
 //
 // Surfaces the master toggle and per-check thresholds that the Rust
 // executor's `RuntimeConfig.default_quality_check` reads at sequence
@@ -328,7 +328,7 @@ class _AutoIntegrateSwitchState extends ConsumerState<_AutoIntegrateSwitch> {
   }
 }
 
-/// Pack G — a number input that supports an "empty = null" state for the
+/// A number input that supports an "empty = null" state for the
 /// optional thresholds. Clearing the field commits `null` to the setting
 /// (disabling that specific check while keeping the master toggle on).
 class _OptionalNumberInput extends StatelessWidget {
@@ -402,7 +402,7 @@ class _OptionalNumberInput extends StatelessWidget {
   }
 }
 
-/// Pack G — integer-only variant of `_OptionalNumberInput` for star
+/// Integer-only variant of `_OptionalNumberInput` for star
 /// count + max consecutive rejects.
 class _OptionalIntInput extends StatelessWidget {
   final TextEditingController controller;

@@ -1435,7 +1435,7 @@ mixin _$ConditionsScore {
 // form makes the field required, which is strictly stricter (errors
 // are a feature). The Rust producer always emits this field, so
 // production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching CLAUDE.md's "silent fallback hides
+// key will now throw — matching the "silent fallback hides
 // bugs" policy. Phase 1's contract tests always provide the key.
 @JsonKey(name: 'generated_unix_secs')@UnixSecsDateTimeConverter() DateTime get generatedAt;
 /// Create a copy of ConditionsScore
@@ -1661,7 +1661,7 @@ class _ConditionsScore extends ConditionsScore {
 // form makes the field required, which is strictly stricter (errors
 // are a feature). The Rust producer always emits this field, so
 // production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching CLAUDE.md's "silent fallback hides
+// key will now throw — matching the "silent fallback hides
 // bugs" policy. Phase 1's contract tests always provide the key.
 @override@JsonKey(name: 'generated_unix_secs')@UnixSecsDateTimeConverter() final  DateTime generatedAt;
 

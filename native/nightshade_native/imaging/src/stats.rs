@@ -1,6 +1,6 @@
 //! Image statistics and star detection
 //!
-//! ## `as`-cast policy (audit-rust §1.4)
+//! ## `as`-cast policy
 //!
 //! This module's numeric casts are dominated by pixel-arithmetic patterns that
 //! are safe by construction:
@@ -126,7 +126,7 @@ pub struct DetectedStar {
 
 /// Camera-domain inputs for the standard CCD-equation SNR.
 ///
-/// Why: per audit §6.10, SNR must be computed in the electron domain using
+/// Why: SNR must be computed in the electron domain using
 /// `SNR = signal / sqrt(signal + n_pix * (sky + read_noise² + dark))`. That
 /// formula needs the conversion from ADU to electrons (`gain_e_per_adu`),
 /// the per-pixel read noise (`read_noise_e`), and the per-pixel dark
@@ -172,7 +172,7 @@ pub struct StarDetectionConfig {
     pub max_sharpness: f64,
     /// Camera noise model for the electron-domain CCD-equation SNR.
     ///
-    /// Why: when present, SNR is computed in electrons per audit §6.10.
+    /// Why: when present, SNR is computed in electrons
     /// When `None`, SNR uses the ADU-domain approximation against the
     /// measured per-pixel background variance (still the standard CCD
     /// equation, just evaluated empirically). Callers that do have
@@ -430,7 +430,7 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
 
     // First pass: Calculate centroid using intensity-weighted center.
     //
-    // Why we no longer mark visited here (audit IMG-P1-3): the previous
+    // Why we no longer mark visited here (audit IMG-): the previous
     // implementation stamped the entire `(2·hfr_radius+1)²` search window
     // as visited, which with the default `hfr_radius=20` is a 41×41
     // forbidden zone after each detection. In dense fields (M13, M11
@@ -529,7 +529,7 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
         0.0
     };
 
-    // Calculate HFR (true encircled-energy 50% radius — see audit §6.11).
+    // Calculate HFR (true encircled-energy 50% radius).
     let hfr = calculate_hfr_at_point(
         ctx.pixels,
         ctx.width,
@@ -543,11 +543,11 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
     // Why: with the encircled-energy 50% HFR (matching NINA / SGP / PixInsight),
     // FWHM = 2.0 × HFR for a Gaussian PSF (HFR_true = σ·√(2 ln 2),
     // FWHM = 2σ·√(2 ln 2)). The previous 2.3548 constant assumed HFR ≈ σ,
-    // which is wrong: HFR_true ≈ 1.177σ. See audit §6.11.
+    // which is wrong: HFR_true ≈ 1.177σ.
     const FWHM_TO_HFR_RATIO: f64 = 2.0;
     let fwhm = hfr * FWHM_TO_HFR_RATIO;
 
-    // SNR via the standard CCD equation (audit §6.10). `pixel_count` is the
+    // SNR via the standard CCD equation. `pixel_count` is the
     // actual aperture pixel count `n_pix` derived from the detection mask.
     let snr = compute_snr(
         sum_flux,
@@ -568,7 +568,7 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
         1.0 // Default to high sharpness (reject) if can't calculate
     };
 
-    // Stamp the visited mask as the actual star aperture (audit IMG-P1-3).
+    // Stamp the visited mask as the actual star aperture (audit IMG-).
     //
     // Why `2·HFR`: for a Gaussian PSF the encircled-energy radius at 95%
     // of total flux is r_95 ≈ 2.45σ ≈ 2.08·HFR (HFR = σ·√(2 ln 2) ≈
@@ -657,7 +657,7 @@ fn stamp_visited_disk(ctx: &mut StarMeasurementContext, cx: f64, cy: f64, radius
 
 /// Compute the true encircled-energy 50% half-flux radius (HFR).
 ///
-/// Why: per audit §6.11 we sort the aperture pixels by distance from the
+/// Why: we sort the aperture pixels by distance from the
 /// centroid, integrate background-subtracted flux in increasing-radius
 /// order, and return the radius at which cumulative flux first crosses
 /// 50% of the total. Sub-pixel accuracy is achieved by linearly
@@ -742,7 +742,7 @@ fn calculate_hfr_at_point(
 
 /// Compute SNR via the standard CCD equation.
 ///
-/// Why: per audit §6.10, the previous formula
+/// Why: the previous formula
 /// `sum_flux / (noise * sqrt(sum_flux / peak_above_bg))` is non-standard
 /// and omits read noise + dark current entirely. The correct model is
 ///
@@ -884,7 +884,7 @@ pub fn calculate_display_histogram(image: &ImageData, logarithmic: bool) -> Vec<
             .map(|&count| if count > 0 { (count as f32).ln() } else { 0.0 })
             .collect()
     } else {
-        // Why: §audit-rust 4.3 — `calculate_histogram` always returns 256
+        // Why: `calculate_histogram` always returns 256
         // entries (we just asked for `bins=256`), so `.iter().max()` is
         // `None` ONLY in the never-reached "0 bins requested" branch.
         // Substituting `&1` is the documented "empty/all-zero histogram"
@@ -1143,7 +1143,7 @@ pub fn extract_top_star_crops(
     crop_size: u32,
 ) -> Vec<StarCropData> {
     // Sort stars by SNR (brightness) descending
-    // Why: §audit-rust 4.3 — `partial_cmp` returns `None` only when comparing
+    // Why: `partial_cmp` returns `None` only when comparing
     // against NaN. SNR is computed in `detect_stars` as a ratio of finite
     // sums divided by a positive standard deviation, so NaN here would
     // indicate a star-detection bug (zero pixel variance with non-zero flux,
@@ -1560,7 +1560,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Audit IMG-P1-3: visited-mask = star aperture, not search window.
+    // Audit IMG-visited-mask = star aperture, not search window.
     // -----------------------------------------------------------------
 
     /// Render `n` Gaussian PSFs at the supplied (cx, cy) coordinates.

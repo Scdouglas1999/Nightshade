@@ -16,7 +16,7 @@ import '../validation.dart';
 class ProfileHandlers {
   final ProviderContainer container;
 
-  /// Wave 6B (P2-4) — emit `settings.changed` events for each individual
+  /// Emit `settings.changed` events for each individual
   /// field that differs between the previous and new settings. Injected by
   /// [HeadlessApiServer.start] so the handler can fan events out to every
   /// connected WebSocket client. The callback is `broadcastEvent` on the
@@ -111,7 +111,7 @@ class ProfileHandlers {
 
   Future<Response> handleUpdateSettings(Request request) async {
     _logInfo('[API] POST /api/settings');
-    // [Wave 6B settings sync] capture the optional commandId from the
+    // [settings sync] capture the optional commandId from the
     // request header so we can stamp `correlatingCommandId` on every
     // `settings.changed` event emitted below. The originating client
     // uses this to skip its own echo and avoid re-applying a value it
@@ -122,7 +122,7 @@ class ProfileHandlers {
     final settings = settings_models.AppSettings.fromJson(settingsJson);
 
     final backend = container.read(profileSettingsBackendProvider);
-    // [Wave 6B settings sync] read previous so we can diff against the
+    // [settings sync] read previous so we can diff against the
     // new state and emit one fine-grained `settings.changed` event per
     // changed field. If the read fails (first-boot / driver hiccup),
     // fall back to a single full-snapshot event so remote clients still
@@ -149,7 +149,7 @@ class ProfileHandlers {
       action: HostMutationAction.updated,
     );
 
-    // [Wave 6B settings sync] emit live settings-change events so every
+    // [settings sync] emit live settings-change events so every
     // connected WS client can update its in-memory state without a GET
     // round-trip. The diff is field-by-field on the freezed `AppSettings`
     // JSON projection — same JSON the client originally sent, so the
@@ -163,7 +163,7 @@ class ProfileHandlers {
     return jsonOk({"status": "updated"});
   }
 
-  /// Wave 6B (P2-4) — fan out one `settings.changed` event per
+  /// Fan out one `settings.changed` event per
   /// changed field between [previous] and [next]. When [previous] is
   /// null, the entire `next` snapshot is emitted as a single event with
   /// key `__snapshot__` so the client can still rehydrate.

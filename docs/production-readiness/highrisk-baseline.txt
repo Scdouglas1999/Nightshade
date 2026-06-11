@@ -18,7 +18,7 @@ native/nightshade_native/bridge/src/api/finishing_analyze.rs:597:            .un
 native/nightshade_native/bridge/src/api/imaging.rs:1468:        let mut ext = p.extension().map(|e| e.to_owned()).unwrap_or_default();
 native/nightshade_native/bridge/src/api/imaging.rs:2088:    let config = config.unwrap_or_default();
 native/nightshade_native/bridge/src/api/mod.rs:103:        .unwrap_or_default()
-native/nightshade_native/bridge/src/api/mod.rs:122:/// silent no-op — and silent no-ops mask real bugs (`CLAUDE.md`). If a
+native/nightshade_native/bridge/src/api/mod.rs:122:/// silent no-op — and silent no-ops mask real bugs. If a
 native/nightshade_native/bridge/src/api/post_session.rs:1622:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/post_session.rs:1626:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/post_session.rs:1957:    let data = master.as_f32().unwrap_or_default();
@@ -144,10 +144,10 @@ native/nightshade_native/sequencer/src/scheduling/adaptive_swap.rs:418:        s
 packages/nightshade_app/lib/screens/imaging/tabs/mount_tab.dart:97:    // `canPark` no longer ships a button that hits a "Not implemented"
 packages/nightshade_app/lib/screens/settings/widgets/solver_detection_card.dart:275:    // error rather than a silent no-op.
 packages/nightshade_app/lib/screens/tonight/one_tap_tonight_controller.dart:88:/// loud failure rather than a silent no-op so the screen can explain *why*
-packages/nightshade_bridge/lib/src/api.dart:21:/// silent no-op — and silent no-ops mask real bugs (`CLAUDE.md`). If a
+packages/nightshade_bridge/lib/src/api.dart:21:/// silent no-op — and silent no-ops mask real bugs. If a
 packages/nightshade_core/lib/src/backend/network_backend/device_operations.dart:439:          'cameraGetRecommendedSettings not implemented on remote '
 packages/nightshade_core/lib/src/models/sequence/instruction_progress_detail.dart:7:/// newer native emitters do not become silent no-ops on older Dart clients.
-packages/nightshade_core/lib/src/providers/settings_sections/app_settings_partial_persistence_mapping.dart:207:  /// Per CLAUDE.md "errors are a feature": a silent no-op here would mean a
+packages/nightshade_core/lib/src/providers/settings_sections/app_settings_partial_persistence_mapping.dart:207:  /// Errors are a feature here: a silent no-op here would mean a
 packages/nightshade_core/lib/src/services/device_service/connections.dart:178:      // instead of a silent no-op so the equipment screen's bulk-disconnect
 packages/nightshade_core/lib/src/services/notification/transports/email_transport.dart:154:      return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/in_app_transport.dart:50:    return NotificationResult.ok();

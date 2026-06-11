@@ -92,7 +92,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
         return LucideIcons.lightbulb;
       case 'lightbulb-off':
         return LucideIcons.lightbulbOff;
-      // Wave 3 Agent 2: SmartExposure uses the "layers" icon for the
+      // SmartExposure uses the "layers" icon for the
       // tabular multi-filter editor.
       case 'layers':
         return LucideIcons.layers;

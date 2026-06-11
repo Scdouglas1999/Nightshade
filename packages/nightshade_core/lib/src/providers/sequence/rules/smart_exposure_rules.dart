@@ -2,7 +2,7 @@ import '../../../models/sequence/sequence_models.dart';
 import '../../profiles_provider.dart';
 import '../sequence_validation.dart';
 
-/// Wave 3 Agent 2: SmartExposure validation rules.
+/// SmartExposure validation rules.
 ///
 /// These rules cover the three failure modes the brief calls out:
 ///   * empty plans (executable but pointless — error)

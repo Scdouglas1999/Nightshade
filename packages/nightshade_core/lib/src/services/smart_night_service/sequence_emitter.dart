@@ -799,7 +799,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       startAfter: planned.windowStart,
       endBefore: planned.windowEnd,
       integrationBudget: integrationBudget,
-      // Wave 4 start/end altitude crossings give the executor a real
+      // Start/end altitude crossings give the executor a real
       // gate to wait on. We add the altitude-above trigger as a soft
       // window override too — when minAltitude is exceeded the target
       // starts; when it dips below, it ends. The plan's wall-clock

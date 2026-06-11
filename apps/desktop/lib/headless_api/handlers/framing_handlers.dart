@@ -12,7 +12,7 @@ import 'device_handlers.dart' show requestPrefersLegacyBlocking;
 class FramingHandlers {
   final ProviderContainer container;
 
-  /// P1-2 / P1-3: optional job manager. When wired, center-on-target
+  /// optional job manager. When wired, center-on-target
   /// returns `{jobId, status: queued}` immediately and the multi-step
   /// slew/solve/adjust loop runs in the background, with each iteration
   /// reported as a progress update on the same job.

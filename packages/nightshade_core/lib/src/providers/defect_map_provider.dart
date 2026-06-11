@@ -144,7 +144,7 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
   }) async {
     try {
       await _service.apply(cameraId: cameraId, applyDuringCapture: apply);
-      // Wave 7 Agent 3 — push to sequencer if the caller knew the
+      // Push to sequencer if the caller knew the
       // dimensions + temp. Failure here is surfaced separately from
       // the persisted-preference success so the user sees what went
       // wrong (e.g. no map exists for the current temperature bucket).
@@ -257,7 +257,7 @@ final defectMapNotifierProvider =
     });
 
 // ===========================================================================
-// Wave 7 Agent 3 — per-camera defect-map auto-apply settings.
+// Per-camera defect-map auto-apply settings.
 //
 // These are NOT part of the legacy app_settings freezed model because they
 // don't need codegen — they're stored as plain key/value rows in the

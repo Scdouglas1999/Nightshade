@@ -562,7 +562,7 @@ pub struct DeviceManager {
     /// window, `disconnect_device` flips the token to `true` so the reconnect
     /// path bails before publishing a spurious `Connected` event.
     ///
-    /// Lock ordering (audit-rust §race-fix DEV-P1-3):
+    /// Lock ordering:
     ///   1. `devices`           (read or write)
     ///   2. `reconnect_cancel_tokens`  (read or write)
     ///
@@ -909,7 +909,7 @@ impl DeviceManager {
 
     /// Check if a device is connected
     ///
-    /// # `unwrap_or` policy (audit-rust §4.3)
+    /// # `unwrap_or` policy
     ///
     /// Device-not-registered → "not connected". Same rationale as
     /// `state::SharedAppState::is_device_connected`: a tri-state return
@@ -1569,7 +1569,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // DEV-P1-6: stop_heartbeat must not emit HeartbeatStopped when there was
+    // stop_heartbeat must not emit HeartbeatStopped when there was
     // no heartbeat task to stop. Otherwise every connect (which defensively
     // calls stop_heartbeat first) emits a spurious stop event.
     // -------------------------------------------------------------------------
@@ -1653,7 +1653,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // DEV-P1-8: `disconnect_device` must route PHD2 device ids through the
+    // `disconnect_device` must route PHD2 device ids through the
     // PHD2-specific disconnect helper (mirroring the built-in-guider check),
     // otherwise the PHD2 client is leaked on disconnect.
     //
@@ -1705,7 +1705,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // DEV-P1-3: a manual `disconnect_device` arriving while a reconnect attempt
+    // a manual `disconnect_device` arriving while a reconnect attempt
     // is between backoff and dispatch (i.e. inside `connect_device_internal`)
     // must trip the per-device cancel token so the connect attempt bails with
     // `RECONNECT_CANCELED_MSG` instead of overwriting the user's Disconnected
@@ -2008,7 +2008,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // ND-P0-1: INDI heartbeat must invoke the INDI client's own recovery path.
+    // ND-INDI heartbeat must invoke the INDI client's own recovery path.
     //
     // The previous health check read `client.is_connected()` and returned
     // `Ok(false)` when the server connection had already dropped. That made

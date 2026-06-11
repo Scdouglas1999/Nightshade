@@ -2,7 +2,7 @@ part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   // ===========================================================================
-  // P1-2 / P1-3 — Long-running operation job client API
+  // /  — Long-running operation job client API
   // ===========================================================================
 
   /// Snapshot of a server-side job. Mirrors the wire shape of
@@ -121,7 +121,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   }
 
   // ===========================================================================
-  // P1-5 — Session ownership client API
+  // Session ownership client API
   // ===========================================================================
 
   /// POST /api/session/claim — returns true on success, false when the
@@ -180,7 +180,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
-  // P1-11 — Remote OTA update management.
+  // Remote OTA update management.
   //
   // Mirrors the headless server's `/api/system/version` and
   // `/api/system/update/*` surface. Long-running operations (check,

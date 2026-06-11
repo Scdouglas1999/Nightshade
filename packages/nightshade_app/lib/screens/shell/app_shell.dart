@@ -365,17 +365,17 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // Activate the error notification bridge so backend errors show as toast notifications
     ref.watch(errorNotificationBridgeProvider);
-    // Why (audit-handoff §1.2): keep the meridian-flip disconnect guard alive
+    // Why: keep the meridian-flip disconnect guard alive
     // for the shell's lifetime so a mount disconnect during an in-flight flip
     // resets `flipExecutionStateProvider` to `aborted` and unsticks the UI.
     ref.watch(meridianFlipDisconnectGuardProvider);
-    // Why (audit-handoff §1.2): the standalone meridian monitor must be kept
+    // Why: the standalone meridian monitor must be kept
     // alive while the shell is mounted so the Sequencer Settings ->
     // "Standalone monitoring" toggle actually does something — when enabled,
     // it polls mount HA against the configured trigger and alerts the
     // operator when the meridian is crossed outside of a sequence run.
     ref.watch(meridianFlipStandaloneMonitorProvider);
-    // Wave 9 scheduler lifetime: keep auto-reevaluation listeners mounted
+    // Scheduler lifetime: keep auto-reevaluation listeners mounted
     // with the shell, not only while Plan Tonight -> Target Queue is visible.
     // Otherwise target/goals/constraint edits made elsewhere can stop waking
     // the scheduler once the operator navigates away from that tab.
@@ -451,7 +451,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // operator sees while a sequence is running on iOS.
                   const IosBackgroundBanner(),
 
-                  // Android POST_NOTIFICATIONS advisory (P1-16a). Visible
+                  // Android POST_NOTIFICATIONS advisory. Visible
                   // whenever the runtime permission is denied on Android 13+
                   // so the operator knows sequence/safety alerts will not
                   // wake them and points to System Settings.

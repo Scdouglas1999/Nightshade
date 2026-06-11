@@ -6,14 +6,14 @@ import '../../../providers/equipment_provider.dart';
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-/// Wave 7 Agent 3 — defect-map validation rules.
+/// Defect-map validation rules.
 ///
 /// The Rust capture path silently skips defect-map application when no map
 /// exists for the connected camera at the current temperature bucket
 /// (a warn-level log is emitted, but the sequence does not fail). Without
 /// this rule the user can have `defectMap.autoApply = true` and still ship
 /// uncorrected frames for an entire night — exactly the "silent fallback
-/// hides bugs" failure mode CLAUDE.md prohibits.
+/// hides bugs" failure mode we prohibit.
 ///
 /// The pre-flight rule queries the current camera capabilities + the
 /// stored defect map status to surface a warning when:

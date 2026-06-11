@@ -4,7 +4,7 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! - **i32 brightness → f64 INDI wire** (line 201): exact widening.
 //! - **i32 state → i32** (lines 275, 327, 489, 490): these are no-op
@@ -13,7 +13,7 @@
 //! - **i32 brightness → i32** (line 409): no-op widening; brightness is
 //!   already i32 in the ASCOM API.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Every `unwrap_or` / `unwrap_or_else` in this file is a property-read
 //! failure on the ICoverCalibrator interface (ASCOM/Alpaca) or its INDI
@@ -27,7 +27,7 @@
 //!     UI then renders 0-255 instead of a calibrator-specific scale).
 //!
 //! The `warn!` log is the explicit non-silent error signal required by
-//! CLAUDE.md "errors are a feature".
+//! "errors are a feature".
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

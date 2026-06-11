@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: ForensicsService unit tests.
+/// Frame-Failure Forensics: ForensicsService unit tests.
 ///
 /// Exercises the DB round-trip path (persist + read back the same
 /// record) and the cause-aggregation summary path.

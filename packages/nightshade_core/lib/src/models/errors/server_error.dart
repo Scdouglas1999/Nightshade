@@ -1,8 +1,7 @@
-// [Wave 6D error parsing]
 //
 // Structured representation of the headless server's error envelope.
 //
-// Wave 1-onwards the headless API returns errors as JSON like:
+// From the start the headless API returns errors as JSON like:
 //
 //     { "code": "pairing_required",
 //       "message": "No paired token presented",

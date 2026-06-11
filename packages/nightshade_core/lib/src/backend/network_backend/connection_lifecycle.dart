@@ -1,7 +1,7 @@
 part of '../network_backend.dart';
 
 extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
-  /// P2-2: identity broadcast on every `collaboration.join` frame sent
+  /// Identity broadcast on every `collaboration.join` frame sent
   /// after the WS handshake succeeds. Call this BEFORE [connect] (or
   /// before the auto-reconnect timer fires) so the very first join after
   /// the handshake carries the right values. Subsequent reconnects reuse
@@ -122,10 +122,10 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     // as a terminal [BackendConnectionState.error] rather than spinning on
     // reconnect.
     _verifyPinnedFingerprint(info['fingerprint']);
-    // P1-1: surface the server instance UUID so the WS connect can decide
+    // Surface the server instance UUID so the WS connect can decide
     // whether the seq cursor we cached on the previous attachment is still
     // valid against the server we're about to talk to. If the field is
-    // missing the server pre-dates P1-1 and we just skip replay (live-only).
+    // missing the server pre-dates this change and we just skip replay (live-only).
     final advertisedInstance = info['serverInstanceId'];
     if (advertisedInstance is String && advertisedInstance.isNotEmpty) {
       _reconcileInstanceFromInfo(advertisedInstance);
@@ -178,7 +178,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     }
   }
 
-  /// P1-1: compare the instance UUID advertised by `/api/info` against the
+  /// Compare the instance UUID advertised by `/api/info` against the
   /// one we attached to on the previous connect. If they differ, the server
   /// was restarted between our connection attempts and our cached seq
   /// cursor refers to a counter that no longer exists. Reset it so the
@@ -226,7 +226,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
 
     try {
       _stopWebSocketHeartbeat();
-      // P2-13: distinguish "first-time connect" from "reconnecting after
+      // Distinguish "first-time connect" from "reconnecting after
       // a previously-healthy session" so the UI can render distinct
       // messaging. The latch flips on the first successful handshake
       // and stays true for the lifetime of this backend instance — a
@@ -259,7 +259,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       }
       queryParameters['apiVersion'] = RemoteApiCompatibility.clientApiVersion
           .format();
-      // P1-1: if we've previously attached to this server instance and have
+      // If we've previously attached to this server instance and have
       // a seq cursor to ask replay from, include both. The server-side
       // /events handler treats omitting either parameter as "fresh
       // subscribe, live-only" — which is also what we want on the very
@@ -320,7 +320,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
               return;
             }
 
-            // P1-1: server-driven advisory that the seq cursor we sent on
+            // Server-driven advisory that the seq cursor we sent on
             // the upgrade request is no longer usable (instance changed,
             // or we asked for an event the ring buffer has already
             // evicted). The socket stays open — only the replay request
@@ -411,10 +411,10 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
       );
       _startWebSocketHeartbeat();
 
-      // P2-2: identify ourselves as a collaboration viewer immediately
+      // Identify ourselves as a collaboration viewer immediately
       // after the handshake completes (auth is already validated by the
       // upgrade gate above). The server may override `viewerId` with the
-      // authenticated principal's digest (P2-15) — we still send a value
+      // authenticated principal's digest — we still send a value
       // so legacy hosts that lack the override keep working unchanged.
       _sendCollaborationJoin();
 
@@ -606,7 +606,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
 
   /// Disconnect from the server.
   ///
-  /// P2-2: emits a `collaboration.leave` frame BEFORE tearing down the
+  /// Emits a `collaboration.leave` frame BEFORE tearing down the
   /// socket so the server can release our viewer slot promptly rather
   /// than waiting for the WS-close handler to run. The leave is best-
   /// effort: if the sink is already dead (server crashed, network
@@ -632,7 +632,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     }
   }
 
-  /// P2-2: send a `collaboration.join` frame on the open WebSocket.
+  /// Send a `collaboration.join` frame on the open WebSocket.
   ///
   /// Called immediately after the upgrade handshake completes. Tolerates
   /// a missing identity (caller didn't call [setCollaborationIdentity]
@@ -688,7 +688,7 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
     }
   }
 
-  /// P2-2: send a `collaboration.leave` frame, best-effort. Called from
+  /// Send a `collaboration.leave` frame, best-effort. Called from
   /// [disconnect] before the sink is closed.
   void _sendCollaborationLeave() {
     final channel = _wsChannel;

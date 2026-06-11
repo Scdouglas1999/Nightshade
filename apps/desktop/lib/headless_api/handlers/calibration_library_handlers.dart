@@ -7,7 +7,7 @@ import '../validation.dart';
 
 /// Handlers for the unified Calibration Library Manager.
 ///
-/// Distinct from the per-table P1-10 `/api/calibration/*` CRUD surface: this
+/// Distinct from the per-table `/api/calibration/*` CRUD surface: this
 /// exposes the *library* view that joins darks, flats, biases, and defect
 /// maps into one list with user tags/notes ([CalibrationLibraryService]),
 /// plus the transparent auto-matcher a remote client uses to preview which

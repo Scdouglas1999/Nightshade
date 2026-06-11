@@ -1,6 +1,6 @@
 // Smoke tests for the non-GPU paths of PlanetariumScreen.
 //
-// Scope (CQ-W5-WIDGET-TESTS-PLAN + CQ-W13 deeper coverage):
+// Scope:
 //
 //   1. getDsoDisplayInfo_messier        — Messier branch of display helper.
 //   2. getDsoDisplayInfo_ngc_ic         — NGC fallback branch of display
@@ -42,8 +42,6 @@
 // test would require stubbing every one of those — out of scope. The
 // tests below cover the deterministic non-GPU paths the screen and its
 // keyboard shortcuts touch.
-//
-// See: docs/code-quality/audit-tests.md §1.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

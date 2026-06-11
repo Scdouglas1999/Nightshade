@@ -2,7 +2,7 @@
 //!
 //! Provides high-level camera control via INDI protocol.
 //!
-//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//! # `unwrap_or(false)` policy
 //!
 //! Each `get_switch(...).unwrap_or(false)` in this module is reading an
 //! optional INDI CCD switch (`CCD_COOLER`, `CCD_FRAME_TYPE`) where `None`
@@ -121,7 +121,7 @@ impl IndiCamera {
     ///
     /// Why: the previous bool-fallback path silently substituted `(1, 1)` for
     /// any driver that hadn't sent `defNumberVector` for `CCD_BINNING`,
-    /// producing wrong-but-plausible values. Audit §5.10 (HIGH).
+    /// producing wrong-but-plausible values.
     pub async fn try_get_binning(&self) -> Result<Option<(i32, i32)>, IndiError> {
         let client = self.client.read().await;
         let bin_x = client
@@ -144,7 +144,7 @@ impl IndiCamera {
     ///
     /// Why: drivers may publish `CCD_BINNING` shortly after the device is
     /// reported as connected. Bridge dispatch needs *some* value to return,
-    /// but per CLAUDE.md the substitution must be visible — hence
+    /// but the substitution must be visible — hence
     /// `tracing::warn!`. Use [`Self::try_get_binning`] for the strict variant.
     pub async fn get_binning_or_default(&self, timeout: Duration) -> Result<(i32, i32), IndiError> {
         if let Some(value) = wait_for_optional(timeout, || self.try_get_binning()).await? {
@@ -190,7 +190,7 @@ impl IndiCamera {
     /// * `Err(_)` — reserved for future error reporting.
     ///
     /// Why: the previous implementation silently defaulted to `(0, 0, 0, 0)`,
-    /// a valid-looking but completely wrong ROI. Audit §5.10 (HIGH).
+    /// a valid-looking but completely wrong ROI.
     pub async fn try_get_frame(&self) -> Result<Option<(i32, i32, i32, i32)>, IndiError> {
         let client = self.client.read().await;
         let x = client.get_number(&self.device_name, CCD_FRAME, "X").await;
@@ -216,7 +216,7 @@ impl IndiCamera {
     /// sensor dimensions are also unknown, return `IndiError::PropertyNotFound`
     /// rather than fabricating a 1×1 default.
     ///
-    /// Why: per CLAUDE.md "errors are a feature" — silent 0×0 ROIs were
+    /// Why: per "errors are a feature" — silent 0×0 ROIs were
     /// crashing downstream image-pipeline math.
     pub async fn get_frame_or_default(
         &self,
@@ -402,7 +402,7 @@ impl IndiCamera {
     /// 4× is chosen because it is the most common ceiling across CMOS and CCD
     /// drivers in the field. This value is *only* applied via
     /// `get_max_bin_*_or_default`, which logs a `warn!` so the substitution
-    /// is auditable per CLAUDE.md.
+    /// is auditable.
     pub const DEFAULT_MAX_BIN: i32 = 4;
 
     /// Get maximum horizontal binning if `CCD_INFO/CCD_MAX_BIN_X` is defined.
@@ -414,7 +414,7 @@ impl IndiCamera {
     ///
     /// Why: the previous implementation silently substituted `4` for any
     /// driver that didn't expose the property — a value pulled from thin air
-    /// and indistinguishable from a real `4`. Audit §5.10 (HIGH).
+    /// and indistinguishable from a real `4`.
     pub async fn try_get_max_bin_x(&self) -> Result<Option<i32>, IndiError> {
         let client = self.client.read().await;
         Ok(client
@@ -477,7 +477,7 @@ impl IndiCamera {
 
     /// Set frame type (Light, Bias, Dark, Flat).
     ///
-    /// Forces a full `CCD_FRAME_TYPE` vector so only one frame switch is On (ND-P1-7).
+    /// Forces a full `CCD_FRAME_TYPE` vector so only one frame switch is On (ND-).
     pub async fn set_frame_type(&self, frame_type: CcdFrameType) -> IndiResult<()> {
         let mut client = self.client.write().await;
         let element = match frame_type {
@@ -932,7 +932,7 @@ mod tests {
 
     /// §5.10: get_frame_or_default surfaces an explicit
     /// `IndiError::PropertyNotFound` when neither CCD_FRAME nor CCD_INFO is
-    /// defined, rather than fabricating a 1×1 frame. Per CLAUDE.md, errors
+    /// defined, rather than fabricating a 1×1 frame. Per the CONTRIBUTING.md house rules, errors
     /// are a feature.
     #[tokio::test]
     async fn get_frame_or_default_errors_when_no_sensor_info() {

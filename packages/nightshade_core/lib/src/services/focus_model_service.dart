@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 /// Provider for the focus model service
 final focusModelServiceProvider = Provider<FocusModelService>((ref) {
-  // AUDIT-FIX-5B (audit-handoff §4.3): plumb user-configurable thresholds
+  // Plumb user-configurable thresholds
   // through so the autofocus settings panel can override the rejection /
   // reliability / filter-offset gates without a recompile.
   final config = ref.watch(focusModelConfigProvider);
@@ -21,7 +21,7 @@ final focusModelServiceProvider = Provider<FocusModelService>((ref) {
 
 /// User-configurable thresholds that gate the focus regression model.
 ///
-/// AUDIT-FIX-5B (audit-handoff §4.3): each value was previously a magic number
+/// Each value was previously a magic number
 /// inside `FocusModelService`. They are surfaced as a single config object so
 /// the autofocus settings panel can mutate them; defaults reproduce the prior
 /// behaviour exactly.
@@ -68,7 +68,6 @@ class FocusModelConfig {
 /// hardcoded behaviour exactly. Override this provider from the autofocus
 /// settings panel (or in tests) to change behaviour.
 ///
-/// AUDIT-FIX-5B (audit-handoff §4.3).
 final focusModelConfigProvider = StateProvider<FocusModelConfig>(
   (_) => const FocusModelConfig(),
 );
@@ -135,14 +134,14 @@ class FocusModel {
 
   /// Check if model is reliable enough to use against the default thresholds.
   ///
-  /// AUDIT-FIX-5B (audit-handoff §4.3): the defaults reproduce the prior
+  /// The defaults reproduce the prior
   /// hardcoded `rSquared >= 0.7 && dataPointCount >= 5` behaviour. The
   /// regression service routes through [isReliableWith] so user-configurable
   /// thresholds in [FocusModelConfig] flow through instead of being silently
   /// pinned at the historical defaults.
   bool get isReliable => isReliableWith(const FocusModelConfig());
 
-  /// User-configurable reliability gate. AUDIT-FIX-5B.
+  /// User-configurable reliability gate.
   bool isReliableWith(FocusModelConfig config) =>
       rSquared >= config.minRSquared &&
       dataPointCount >= config.minDataPointCount;
@@ -166,7 +165,7 @@ class FocusModel {
 
 /// Coarse confidence ladder for filter-offset estimation.
 ///
-/// IMG-P1-2: filter offsets used to be a raw mean of `focusPosition` per
+/// Filter offsets used to be a raw mean of `focusPosition` per
 /// filter. If filters were sampled at different temperatures, temperature
 /// drift contaminated the offsets and was silently reported as a real
 /// per-filter shift. The fix subtracts the temperature-model prediction
@@ -192,7 +191,7 @@ class FilterOffset {
 
   /// Coarse confidence band — see [FilterOffsetConfidence].
   ///
-  /// IMG-P1-2: defaults to [FilterOffsetConfidence.low] for backwards
+  /// Defaults to [FilterOffsetConfidence.low] for backwards
   /// compatibility with persisted offsets that pre-date the fix; those were
   /// computed by raw averaging and must not be advertised as "high".
   final FilterOffsetConfidence confidenceBand;
@@ -202,7 +201,7 @@ class FilterOffset {
   final String confidenceReason;
 
   /// True when the offset was computed after subtracting the temperature
-  /// model's prediction (the IMG-P1-2 fix). False for raw-average fallbacks
+  /// model's prediction (the fix). False for raw-average fallbacks
   /// and for offsets persisted before the fix shipped.
   final bool temperatureCorrected;
 
@@ -319,7 +318,7 @@ class FocusModelService {
   bool _isInitialized = false;
 
   /// Thresholds that gate regression rejection, reliability, and filter-offset
-  /// application. AUDIT-FIX-5B (audit-handoff §4.3).
+  /// application.
   final FocusModelConfig config;
 
   FocusModelService({this.config = const FocusModelConfig()});
@@ -381,7 +380,7 @@ class FocusModelService {
     }
 
     // Update filter offsets if we have a reference filter.
-    // IMG-P1-2: pass the freshly recomputed temperature model so the offset
+    // Pass the freshly recomputed temperature model so the offset
     // estimation can subtract temperature drift before averaging.
     if (filterName != null && data.referenceFilter != null) {
       final offsets = _updateFilterOffsets(
@@ -472,12 +471,12 @@ class FocusModelService {
   /// Minimum temperature spread (°C) required between the coldest and
   /// hottest sample before the temperature-corrected offset is reported as
   /// "high" confidence. Below this, the slope correction has little leverage,
-  /// so we down-grade to "medium". IMG-P1-2.
+  /// so we down-grade to "medium"..
   static const double _highConfidenceTemperatureSpreadC = 5.0;
 
   /// Update filter offsets based on collected data.
   ///
-  /// IMG-P1-2: previously this averaged each filter's raw `focusPosition` and
+  /// Previously this averaged each filter's raw `focusPosition` and
   /// took the difference vs the reference filter. That conflated genuine
   /// per-filter focus shift with the temperature-driven slope: a filter
   /// sampled in winter would appear to have a large offset purely from
@@ -515,7 +514,7 @@ class FocusModelService {
     final refPoints = byFilter[referenceFilter];
     if (refPoints == null || refPoints.isEmpty) return offsets;
 
-    // IMG-P1-2: decide whether the temperature model is trustworthy enough
+    // Decide whether the temperature model is trustworthy enough
     // to correct with. We deliberately reuse the same R²/sample-count gate
     // that gates `predictFocusPosition` so behaviour is consistent.
     //
@@ -669,7 +668,7 @@ class FocusModelService {
   /// position before pooling, so that between-filter level differences do
   /// not bias the slope estimate.
   ///
-  /// IMG-P1-2: the global `FocusModel.slope` mixes temperature drift with
+  /// The global `FocusModel.slope` mixes temperature drift with
   /// per-filter offset when filters are sampled at disjoint temperature
   /// ranges. The within-filter slope (also known as a fixed-effects
   /// estimator) is immune to that confound; it asks only "as T moves, how
@@ -772,7 +771,7 @@ class FocusModelService {
     data = data.copyWith(referenceFilter: filterName);
 
     // Recalculate offsets with new reference.
-    // IMG-P1-2: include the existing temperature model so the recomputed
+    // Include the existing temperature model so the recomputed
     // offsets are temperature-corrected when the model is reliable.
     final offsets = _updateFilterOffsets(
       data.dataPoints,

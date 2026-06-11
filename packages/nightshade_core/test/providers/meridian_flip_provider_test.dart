@@ -1,4 +1,4 @@
-// Tests for audit-handoff §1.2: meridian flip subsystem wire-up.
+// Tests for the meridian flip subsystem wire-up.
 //
 // Covers:
 //   1. Global -> per-node merge in the sequence executor's MeridianFlipConfig
@@ -94,7 +94,7 @@ void main() {
         final settings = container.read(effectiveMeridianFlipSettingsProvider);
         expect(settings.maxRetries, 5);
 
-        // Why (audit-handoff §1.2): the executor's `_buildMeridianFlipConfig`
+        // Why : the executor's `_buildMeridianFlipConfig`
         // reads `effectiveMeridianFlipSettingsProvider` whenever a node has
         // `useGlobalDefaults: true`. Verifying the upstream propagation here
         // exercises the same provider chain without needing to spin up the

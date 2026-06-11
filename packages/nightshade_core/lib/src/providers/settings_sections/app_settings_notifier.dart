@@ -4,7 +4,7 @@ part of '../settings_provider.dart';
 class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   models.AppSettings? _remoteSettingsSnapshot;
 
-  // [Wave 6B settings sync] Push-event subscription, live only when the
+  // Push-event subscription, live only when the
   // active backend is a NetworkBackend. The host emits one
   // `settings.changed` event per field that differs in a POST
   // /api/settings call; the notifier applies the change in-place so
@@ -28,7 +28,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     }
 
     final remote = _toRemoteSettings(settings);
-    // [Wave 6B settings sync] generate a command id, register it in the
+    // Generate a command id, register it in the
     // local echo-suppression list, and forward to the host. The host
     // stamps `correlatingCommandId` on every `settings.changed` event
     // emitted from this POST; our event handler drops events whose id
@@ -60,7 +60,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     return 'settings-${ts.toRadixString(36)}-$_commandIdCounter';
   }
 
-  /// [Wave 6B settings sync] Apply a single `settings.changed` event by
+  /// Apply a single `settings.changed` event by
   /// merging its `{key, value}` into the current state. Returns silently
   /// when the event is malformed, the state is not yet loaded, or the
   /// originating command id matches one we wrote ourselves.
@@ -135,7 +135,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   Future<AppSettingsState> build() async {
     final backend = ref.watch(backendProvider);
 
-    // [Wave 6B settings sync] tear down any previous subscription before
+    // Tear down any previous subscription before
     // re-binding for the freshly-read backend. `build()` is called every
     // time the backend changes (FFI → Network → Disconnected etc.) and
     // each variant needs its own subscription policy. The cancel() future

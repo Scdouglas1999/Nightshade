@@ -2,7 +2,7 @@
 //!
 //! Provides high-level dome control via INDI protocol.
 //!
-//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//! # `unwrap_or(false)` policy
 //!
 //! `IndiClient::get_switch` returns `Result<Option<bool>, IndiError>`. An
 //! `Err`/`None` here means the INDI driver has not yet streamed the

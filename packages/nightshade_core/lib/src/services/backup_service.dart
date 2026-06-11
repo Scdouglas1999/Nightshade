@@ -120,7 +120,7 @@ class BackupService {
   final SequenceRepository sequenceRepository;
   final LoggingService _logger;
 
-  // P2-9: bumped from '2.0' to '2.1' when we broadened backup coverage to
+  // Bumped from '2.0' to '2.1' when we broadened backup coverage to
   // include dark_library, flat_history, defect_maps, polar_alignment_history,
   // guide_rms_history, sequence_runs, observation_logs (notes journal),
   // and the science_* tables. Restore is idempotent (insertOrIgnore) so
@@ -153,7 +153,7 @@ class BackupService {
       final sequences = await _exportSequences();
       final targets = await _exportTargets();
 
-      // P2-9 — extended coverage: each entry is the literal table name and
+      // Extended coverage: each entry is the literal table name and
       // a list of rows (each row is the drift-generated `toJson()` map).
       // Restore round-trips through `_genericTableImport` which uses the
       // companion's `fromJson` + InsertMode.insertOrIgnore so existing
@@ -171,7 +171,7 @@ class BackupService {
           'profilesCount': profiles.length,
           'sequencesCount': sequences.length,
           'targetsCount': targets.length,
-          // P2-9: per-extended-table row counts so an operator can spot
+          // Per-extended-table row counts so an operator can spot
           // a partial backup (a table with unexpected 0 rows) before
           // committing to a restore.
           for (final entry in extendedTables.entries)
@@ -354,7 +354,7 @@ class BackupService {
         _logger.debug('Restored $count targets');
       }
 
-      // P2-9 — restore the extended-coverage tables. Idempotent:
+      // Restore the extended-coverage tables. Idempotent:
       // insertOrIgnore on the row's primary key. We never overwrite
       // existing rows, even when `replaceExisting` is true — the
       // `_clearAllData` step that runs before this branch wipes the
@@ -687,7 +687,7 @@ class BackupService {
   }
 
   // =========================================================================
-  // P2-9 — Extended-coverage export/import. Each table is exported as a
+  // Extended-coverage export/import. Each table is exported as a
   // JSON array of the drift-generated `toJson()` representation. Restore
   // uses the corresponding companion's `fromJson` + InsertMode.insertOrIgnore
   // so existing primary keys round-trip without overwriting current data.

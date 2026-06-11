@@ -51,14 +51,14 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// Skip the current node in the sequencer
   Future<void> sequencerSkip();
 
-  /// Wave 1.5 Pack A: jump execution to a specific node id, skipping siblings
+  /// Jump execution to a specific node id, skipping siblings
   /// that precede it. The currently-running instruction continues to
   /// completion first; the jump takes effect on the next container tree-walk
   /// step. Should be gated by execution-state in the UI (only enabled while
   /// running). Throws if the executor is not running.
   Future<void> sequencerSkipToNode(String nodeId);
 
-  /// Wave 6 Pack P: report the verdict of a plugin-dispatched
+  /// Report the verdict of a plugin-dispatched
   /// `NodeType::PluginNode` back to the Rust executor. The Rust side has
   /// a pending `tokio::sync::oneshot` keyed on [nodeId]; the verdict
   /// resolves it and the awaiting instruction returns Success / Failure.
@@ -114,14 +114,14 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// If null or empty, images will NOT be saved to disk.
   Future<void> sequencerSetSavePath(String? path);
 
-  /// Wave 8 Replay Debug — stamp the active `sequence_runs.id` on the
+  /// Replay Debug — stamp the active `sequence_runs.id` on the
   /// Rust executor so every subsequent emitted DecisionEvent carries
   /// it as `sequence_run_id`. Called immediately after the Dart side
   /// inserts the run row. Pass `null` (e.g. at run end / reset) to
   /// clear the slot.
   Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId);
 
-  /// Wave 8 Replay Debug — runtime toggle for the decision-logging
+  /// Replay Debug — runtime toggle for the decision-logging
   /// channel. When `false`, the Rust executor short-circuits all
   /// `DecisionEvent` emission (zero allocation, zero channel writes).
   /// Defaults to ON; the settings UI flips it via this method.
@@ -148,7 +148,7 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// Propagates new offsets to the executor for focus compensation.
   Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets);
 
-  /// Wave 7.5 — stage per-target / per-filter carry-over integration so
+  /// Stage per-target / per-filter carry-over integration so
   /// the next `sequencerStart()` seeds the IntegrationBudget tracker
   /// with frames already captured in prior sessions. The Dart
   /// `SequenceExecutor.start()` reads
@@ -167,13 +167,13 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     Map<String, Map<String, double>> carryOver,
   );
 
-  /// Wave 1.5 Pack A: update the standard `AutofocusInterval` trigger's
+  /// Update the standard `AutofocusInterval` trigger's
   /// `every_n_frames` cadence at runtime. The Rust default (25 frames) is
   /// the wrong order of magnitude for most subs, so this MUST be tunable.
   /// `everyNFrames` must be >= 1 (the bridge rejects 0).
   Future<void> sequencerUpdateAutofocusInterval(int everyNFrames);
 
-  /// Pack G — update the global default image-grading thresholds. When
+  /// Update the global default image-grading thresholds. When
   /// `enabled` is false, grading is disabled globally (per-node
   /// `quality_check` on TakeExposure still wins). Drives the FITS-time
   /// frame Pass/Reject gate.
@@ -186,11 +186,11 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     required bool enabled,
   });
 
-  /// Pack G — update the reject-folder override at runtime. `null` or
+  /// Update the reject-folder override at runtime. `null` or
   /// empty string => fall back to `<save_path>/Reject/`.
   Future<void> sequencerUpdateRejectFolderPath(String? path);
 
-  /// Pack G — push observer / equipment identification so subsequent FITS
+  /// Push observer / equipment identification so subsequent FITS
   /// headers carry real OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME,
   /// SITEELEV keywords. Every field is optional — null / empty values are
   /// omitted from FITS rather than emitted as sentinels.
@@ -204,14 +204,14 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     double? telescopeApertureMm,
   });
 
-  /// Wave 5 Agent 2 — push the latest live sky-brightness reading
+  /// Push the latest live sky-brightness reading
   /// (mag/arcsec²; bigger = darker) so the next TakeExposure burst's
   /// adaptive-exposure decision honours it. Pass `null` when the
   /// tracker has lost lock — the adapter falls back to nominal and
   /// emits a structured `Unavailable` reason.
   Future<void> sequencerUpdateSkyBrightness({required double? mag});
 
-  /// Wave 5 Agent 2 — push the global default sky-brightness adaptive
+  /// Push the global default sky-brightness adaptive
   /// exposure config. Per-node overrides still win; this is the runtime
   /// fallback for TakeExposure nodes that don't carry their own block.
   Future<void> sequencerUpdateDefaultAdaptiveExposure({
@@ -225,15 +225,15 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     required Map<String, double> perFilterMaxSecs,
   });
 
-  /// Wave 5 Agent 2 — disable the global default sky-brightness
+  /// Disable the global default sky-brightness
   /// adaptive exposure config.
   Future<void> sequencerClearDefaultAdaptiveExposure();
 
-  /// Wave 5 Agent 4 — push the latest cloud-motion analyzer output to the
+  /// Push the latest cloud-motion analyzer output to the
   /// Rust sequencer. Drives the `CloudArrivingIn`, `CloudOpeningIn`, and
   /// `CloudCoverThreshold` triggers. All fields are optional; `null`
   /// values disable the corresponding evaluator branch rather than
-  /// firing on a default (CLAUDE.md "errors are a feature").
+  /// firing on a default (errors are a feature here).
   ///
   /// `predictedClearSkyAlt` / `predictedClearSkyAz` must be either both
   /// set or both null; a half-specified direction is logged at WARN and
@@ -261,27 +261,27 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// this layer stays inert.
   Future<void> sequencerUpdateWeatherVerdict({bool? unsafeOverride});
 
-  /// Wave 5 Agent 4 — JSON-serialised snapshot of the latest cloud-motion
+  /// JSON-serialised snapshot of the latest cloud-motion
   /// reading for the run dashboard. Returns `null` until the first push
   /// has been received. The shape mirrors the `CloudMotionSnapshot` Rust
   /// struct with `last_update_secs_ago` instead of the raw monotonic
   /// `Instant`.
   Future<String?> sequencerGetCloudMotionJson();
 
-  /// Wave 8 — push the latest composite sky-conditions score to the
+  /// Push the latest composite sky-conditions score to the
   /// running executor. `null` clears the slot so the target scheduler
   /// knows telemetry is missing instead of receiving a fabricated score.
   @override
   Future<void> sequencerUpdateConditionsScore(ConditionsScore? score);
 
-  /// Wave 8 — snapshot of the adaptive target-swap state for the Run
+  /// Snapshot of the adaptive target-swap state for the Run
   /// Dashboard. Returns `null` until the first conditions score has been
   /// pushed.
   @override
   Future<AdaptiveSwapSnapshot?> sequencerGetAdaptiveSwapSnapshot();
 
   // =========================================================================
-  // Wave 4 Recovery Mode
+  // Recovery Mode
   // =========================================================================
 
   /// Operator pressed "Try Now" on the Run Dashboard banner — fires the

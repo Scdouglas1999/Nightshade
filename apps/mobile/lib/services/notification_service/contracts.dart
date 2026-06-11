@@ -7,7 +7,7 @@ part of '../notification_service.dart';
 ///
 /// The notification plugin fires on a platform thread without access to a
 /// BuildContext, so the app supplies a function that performs the navigation
-/// via the GoRouter instance it owns (audit §3.8).
+/// via the GoRouter instance it owns.
 typedef NotificationNavigator = void Function(String location);
 
 /// Surface area of [MobileNotificationService] consumed by mobile-side
@@ -37,26 +37,26 @@ abstract class MobileNotificationSink {
   Future<void> notifyTargetCompleted(String targetName);
   Future<void> notifyPush(Map<String, dynamic> data);
 
-  /// P1-2/P1-3: a long-running plate-solve job (`JobFailed` event with
+  /// a long-running plate-solve job (`JobFailed` event with
   /// `operation == 'plate-solve'`) gave up. Surfaced as a warning so the
   /// operator can decide whether to retry — astrometry can fail for many
   /// transient reasons (clouds, bad seeing, mount offset) and a failure
   /// here usually doesn't stop the sequence on its own.
   Future<void> notifyPlateSolveFailed(String errorMessage);
 
-  /// P1-2/P1-3: `framing.center-on-target` job aborted. We separate this
+  /// `framing.center-on-target` job aborted. We separate this
   /// from plate-solve because centering chains *multiple* solves with
   /// slew corrections; a centering failure usually means the mount drifted
   /// off-target or pointing is bad enough that the loop won't converge.
   Future<void> notifyCenteringFailed(String errorMessage);
 
-  /// P1-2/P1-3: `polar-alignment.start` or `polar-alignment.all-sky.start`
+  /// `polar-alignment.start` or `polar-alignment.all-sky.start`
   /// failed. Operator-driven workflow — they're almost certainly looking at
   /// the polar align screen when this fires, but we still page them in case
   /// they're across the field.
   Future<void> notifyPolarAlignmentFailed(String errorMessage);
 
-  /// P1-5: another client called `claim?force=true` (or POSTed
+  /// another client called `claim?force=true` (or POSTed
   /// `/api/session/take-over`) while we were the operator. Important UX
   /// signal — without it, the user's actions will start returning 409
   /// "not the operator" with no obvious cause.
@@ -65,7 +65,7 @@ abstract class MobileNotificationSink {
     String? reason,
   });
 
-  /// P1-5: heartbeat timeout swept our ownership slot. Informational —
+  /// heartbeat timeout swept our ownership slot. Informational —
   /// the user knows they walked away; we just confirm somebody (or
   /// nobody) now owns the rig.
   Future<void> notifyOwnershipAutoReleased(String reason);

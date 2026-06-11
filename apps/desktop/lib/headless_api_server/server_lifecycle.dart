@@ -52,7 +52,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
     ];
 
-    // P1-11 — OTA update routes are only registered when the host has
+    // OTA update routes are only registered when the host has
     // wired an UpdateController via [setUpdateController]. Tests and
     // headless deployments that opt out of OTA leave the controller
     // unset, in which case these routes return 404 from the router
@@ -75,7 +75,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ..addAll(buildCatalogRoutes(_catalogHandlers))
       ..addAll(buildDbReadRoutes(_dbReadHandlers))
       ..addAll(buildPluginRoutes(_pluginHandlers))
-      // Wave 7A — WebRTC live-view signalling. Must register before
+      // WebRTC live-view signalling. Must register before
       // the static-file catch-all so `/api/webrtc/live-view/*` is not
       // shadowed by the SPA fallback.
       ..addAll(buildWebRtcLiveViewRoutes(_webRtcLiveViewHandlers))
@@ -85,10 +85,10 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // [buildWebSocketRoutes] as method-tear-offs:
     //
     // 1. `shelf_web_socket`'s `webSocketHandler` strips the original
-    //    Request, so we capture it in an outer closure so the P1-1
+    //    Request, so we capture it in an outer closure so the
     //    replay handler can read `?since=` and `?instance=` query
     //    parameters off the upgrade URL.
-    // 2. P2-15: we also lift the auth identity (digest of the bearer
+    // 2. we also lift the auth identity (digest of the bearer
     //    token that authenticated the upgrade) off the request context
     //    that `_authMiddleware` stashed there. Passing it down means
     //    the collaboration `viewerId` is always the authenticated
@@ -108,7 +108,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       };
     }
 
-    // P2-10 — push-based live-view streaming. Distinct from the main
+    // push-based live-view streaming. Distinct from the main
     // event WS because (a) it carries binary JPEG frames, not JSON
     // events, and (b) the message protocol is a per-socket
     // subscribe/unsubscribe model rather than the always-on event
@@ -146,7 +146,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
             requestIdFor: _requestIdFrom,
             shouldBypass: (request) {
               final path = '/${request.url.path}';
-              // P2-10: also bypass /ws/live-view so shelf does not try to
+              // also bypass /ws/live-view so shelf does not try to
               // wrap the WS upgrade response into a JSON error envelope.
               return path == '/api/ws' ||
                   path == '/events' ||
@@ -160,7 +160,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         .addMiddleware(_authMiddleware())
         .addMiddleware(_rateLimitMiddleware())
         .addMiddleware(_highRiskAuditMiddleware())
-        // P1-5: ownership gate runs AFTER auth so we only check ownership
+        // ownership gate runs AFTER auth so we only check ownership
         // for requests that already presented a valid token. Placed
         // before the router so the 409 short-circuits the handler.
         .addMiddleware(_sessionOwnershipMiddleware())
@@ -169,7 +169,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     final bindAddress = bindLocalOnly
         ? InternetAddress.loopbackIPv4
         : InternetAddress.anyIPv4;
-    // P0-9: when a TLS SecurityContext is supplied, bind HTTPS instead of
+    // when a TLS SecurityContext is supplied, bind HTTPS instead of
     // HTTP. shelf_io.serve transparently upgrades the WebSocket layer to
     // WSS for us because the underlying HttpServer is secure.
     _server = await shelf_io.serve(
@@ -200,7 +200,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       }
     }
 
-    // P0-2 + P0-10: hydrate `_pairedSessionTokens` from the Drift DB and
+    // + hydrate `_pairedSessionTokens` from the Drift DB and
     // register a revocation listener so revokeDevice() / token expiry / the
     // periodic sweep all evict the in-memory entry synchronously without a
     // server restart. Must run AFTER bind so a hydration error doesn't trap
@@ -209,7 +209,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _installRevocationListener();
     _scheduleTokenSweep();
 
-    // P1-4: periodically evict expired pending commands so a hung driver
+    // periodically evict expired pending commands so a hung driver
     // (or a sequence aborted before a completion event fires) doesn't keep
     // the correlator table growing forever.
     _commandCorrelatorSweepTimer?.cancel();
@@ -223,7 +223,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       }
     });
 
-    // P1-2 / P1-3: purge terminated jobs older than the manager's
+    // purge terminated jobs older than the manager's
     // retention window. 5-minute cadence keeps the worst-case age at
     // `retention + 5min` which is well within the documented 24h budget.
     _jobSweepTimer?.cancel();
@@ -244,7 +244,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       _broadcastCollaborationState,
     );
 
-    // P1-19: start the LAN UDP push broadcaster (when wired). We start it
+    // start the LAN UDP push broadcaster (when wired). We start it
     // only when the server is non-loopback — loopback-only deployments
     // have no LAN to fan out on, so the bind would just waste sockets.
     final broadcaster = _lanPushBroadcaster;
@@ -403,7 +403,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     container.read(hostMutationEventHubProvider).wsBroadcast = null;
   }
 
-  /// P1-12: bridge [CatalogManager.events] onto the WS event stream so
+  /// bridge [CatalogManager.events] onto the WS event stream so
   /// clients see structured catalog lifecycle messages
   /// (`CatalogDownloadStarted`, `CatalogDownloadProgress`,
   /// `CatalogVerified`, ...) in the `catalog` category. The fan-out
@@ -443,7 +443,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       final backend = container.read(backendProvider);
       _eventSubscription = backend.eventStream.listen((event) {
         broadcastEvent(event);
-        // Wave 6: re-broadcast onto the SSE fan-out controller. Two
+        // re-broadcast onto the SSE fan-out controller. Two
         // separate sinks (WS clients + SSE clients) read from the same
         // upstream so a phone subscribing via SSE sees the same events
         // as the desktop dashboard's WebSocket.
@@ -554,7 +554,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _eventSubscription = null;
     await _catalogUpdateSubscription?.cancel();
     _catalogUpdateSubscription = null;
-    // P1-12: drop the bridge from CatalogManager.events to the WS
+    // drop the bridge from CatalogManager.events to the WS
     // broadcaster so the manager's controller can finish flushing on
     // disposal without us still listening.
     await _catalogEventSubscription?.cancel();
@@ -563,7 +563,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _collaborationSubscription = null;
     await _pushNotificationSubscription?.cancel();
     _pushNotificationSubscription = null;
-    // P1-19: tear down the LAN UDP broadcaster + remote delivery hooks.
+    // tear down the LAN UDP broadcaster + remote delivery hooks.
     // Ownership note: the broadcaster's lifecycle is shared with the
     // server it was passed to. Calling stop() here is the right thing
     // because we constructed/owned its sockets via [start]; the caller
@@ -580,28 +580,28 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     }
     _webSocketHeartbeatTimer?.cancel();
     _webSocketHeartbeatTimer = null;
-    // P0-10: stop the periodic token sweep before tearing down the DB, and
+    // stop the periodic token sweep before tearing down the DB, and
     // clear the revocation listener so it does not retain a reference to
     // `this` past disposal.
     _tokenSweepTimer?.cancel();
     _tokenSweepTimer = null;
-    // P1-4: stop the correlator eviction sweep.
+    // stop the correlator eviction sweep.
     _commandCorrelatorSweepTimer?.cancel();
     _commandCorrelatorSweepTimer = null;
     _commandCorrelator.clear();
     _eventReplayBuffer.clear();
-    // P1-2 / P1-3: stop job sweep + drain the manager. Any in-flight
+    // stop job sweep + drain the manager. Any in-flight
     // work observes the cancellation flag and exits its next poll.
     _jobSweepTimer?.cancel();
     _jobSweepTimer = null;
     await _jobManager.dispose();
-    // P1-5: tear down ownership state and broadcast controller.
+    // tear down ownership state and broadcast controller.
     await _sessionOwnership.dispose();
     final pairingForListener = _pairingService;
     if (pairingForListener != null) {
       pairingForListener.tokenManager.setRevocationListener(null);
     }
-    // Wave 6: closing the broadcast controller signals all attached
+    // closing the broadcast controller signals all attached
     // SSE clients to disconnect cleanly. The handler's onCancel cleans
     // up its own per-client timer + subscription.
     final ctrl = _runWatchEventBroadcast;
@@ -609,11 +609,11 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     if (ctrl != null && !ctrl.isClosed) {
       await ctrl.close();
     }
-    // Wave 7A: tear down WebRTC sessions BEFORE the hub so any pending
+    // tear down WebRTC sessions BEFORE the hub so any pending
     // datachannel send during the hub's final detach iteration does
     // not race with libwebrtc's close path.
     await _webRtcLiveViewHandlers.dispose();
-    // P2-10: tear down the live-view hub before the HTTP server so any
+    // tear down the live-view hub before the HTTP server so any
     // in-flight producer tick observes the disposal flag and stops
     // touching the backend.
     await _liveViewStreamHub.dispose();

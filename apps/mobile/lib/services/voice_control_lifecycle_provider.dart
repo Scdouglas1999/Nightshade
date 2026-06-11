@@ -1,4 +1,4 @@
-// Wave 7C — Voice Control Lifecycle Provider
+// Voice Control Lifecycle Provider
 //
 // Wires the running sequence state into [VoiceControlService] and
 // dispatches inbound assistant actions back into the executor.

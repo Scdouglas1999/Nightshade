@@ -16,7 +16,7 @@ final equipmentHealthServiceProvider = Provider<EquipmentHealthService>((ref) {
 });
 
 /// Device health snapshots derived from the live equipment-state notifiers
-/// plus the rolling [UsbDisconnectLog]. Wave 5.5 wired the production path
+/// plus the rolling [UsbDisconnectLog]. A later change wired the production path
 /// so `disconnectCountLast24h` actually carries non-zero values; before
 /// this provider was a placeholder `StateProvider<[]>` that the UI never
 /// populated, leaving the pre-flight USB stability check inert.

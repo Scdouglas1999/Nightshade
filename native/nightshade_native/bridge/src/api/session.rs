@@ -1,6 +1,6 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;

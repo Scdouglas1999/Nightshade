@@ -1,4 +1,4 @@
-//! Wave 3 Image Grading: per-frame metadata bundle carried into `save_fits`.
+//! Image Grading: per-frame metadata bundle carried into `save_fits`.
 //!
 //! Audit complaint: the pre-existing `save_fits` took only four positional
 //! fields (target name, filter, RA, Dec). Standard astrophotography FITS
@@ -25,7 +25,7 @@
 use crate::MosaicPanelInfo;
 use serde::{Deserialize, Serialize};
 
-/// Wave 7 Agent 3 — defect-map correction record attached to every
+/// defect-map correction record attached to every
 /// frame that had cosmetic-pixel correction applied. The FITS writer
 /// converts this into a HISTORY card so the calibration provenance is
 /// visible in any FITS viewer.
@@ -195,7 +195,7 @@ pub struct FrameContext {
     pub frame_type: String,
 
     // -------------------------------------------------------------------
-    // Wave 7 Agent 3 — defect-map correction record.
+    // defect-map correction record.
     //
     // When defect correction ran for this frame, the FITS writer
     // emits a HISTORY card recording the camera id the map was built
@@ -207,7 +207,7 @@ pub struct FrameContext {
     pub defect_map_correction: Option<DefectMapCorrectionRecord>,
 
     // -------------------------------------------------------------------
-    // Wave 7 Science — Photometry FITS keywords.
+    // Science — Photometry FITS keywords.
     //
     // Populated by the `SciencePhotometryInstruction` for frames
     // captured under a photometry burst. All fields are Option<_>:

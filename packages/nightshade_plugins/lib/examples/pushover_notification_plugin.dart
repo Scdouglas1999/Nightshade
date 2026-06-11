@@ -2,7 +2,7 @@
 // Pushover push notification when executed.
 //
 // This is a "per-node" Pushover transport, distinct from the built-in
-// app-wide Pushover transport shipped in Wave 5 Pack M. Use this when:
+// app-wide Pushover transport. Use this when:
 // * you want a notification only for ONE specific sequence step (e.g.
 //   "ping me when the meridian flip is done") without enabling Pushover
 //   as a global transport, or

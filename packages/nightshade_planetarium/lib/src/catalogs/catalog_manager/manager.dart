@@ -10,7 +10,7 @@ class CatalogManager {
   String? _catalogDirectory;
   final _downloadController = StreamController<DownloadProgress>.broadcast();
 
-  /// P1-12: lifecycle events for the unified catalog API used by the
+  /// Lifecycle events for the unified catalog API used by the
   /// headless `/api/catalog/...` surface. Distinct from
   /// [downloadProgress] because the headless event stream wants
   /// structured per-name events (`CatalogDownloadStarted`,
@@ -26,7 +26,7 @@ class CatalogManager {
   /// Stream of download progress updates
   Stream<DownloadProgress> get downloadProgress => _downloadController.stream;
 
-  /// P1-12: stream of structured lifecycle events used by the headless
+  /// Stream of structured lifecycle events used by the headless
   /// API. Every catalog install, verify, uninstall, or reload publishes
   /// an event here so `HeadlessApiServer` can fan it out over the WS
   /// event stream.
@@ -141,7 +141,7 @@ class CatalogManager {
   }
 
   // ===========================================================================
-  // P1-12: Unified catalog API for the headless `/api/catalog/...` surface.
+  // Unified catalog API for the headless `/api/catalog/...` surface.
   //
   // The legacy per-type methods (`downloadStarCatalog`, `downloadDsoCatalog`,
   // `downloadAnnotationCatalog`) continue to power the desktop

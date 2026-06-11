@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: widget tests for the Forensics
+/// Frame-Failure Forensics: widget tests for the Forensics
 /// panel + the Frame Detail dialog.
 ///
 /// Strategy: persist three synthetic forensic records (one of each

@@ -1,4 +1,4 @@
-// Wave 6D P2-14 — Phone battery indicator badge.
+// Phone battery indicator badge.
 //
 // Sits in the dashboard AppBar action row alongside NetworkStatusIndicator
 // so the operator can glance at their phone's battery without leaving the

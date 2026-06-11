@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: Dart-side persistence + event
+/// Frame-Failure Forensics: Dart-side persistence + event
 /// aggregation service.
 ///
 /// The Rust sequencer classifies each rejection (via

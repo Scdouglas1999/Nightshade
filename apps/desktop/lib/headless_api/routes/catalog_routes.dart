@@ -1,4 +1,4 @@
-/// Declarative route table for the P1-12 catalog-management surface.
+/// Declarative route table for the catalog-management surface.
 ///
 /// Counterpart to `handlers/catalog_handlers.dart`. Without these
 /// endpoints a freshly imaged Pi has no way to populate its star/DSO

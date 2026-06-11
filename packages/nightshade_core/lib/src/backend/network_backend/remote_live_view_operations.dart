@@ -1,7 +1,7 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
-  // [Wave 6E live-view stream] — client surface for the P2-10 push-based
+  // Live-view stream: client surface for the push-based
   // live-view WebSocket at `/ws/live-view`. Server protocol is documented
   // alongside the handler in
   // `apps/desktop/lib/headless_api/handlers/live_view_stream_handlers.dart`.
@@ -164,7 +164,7 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
     return controller.stream;
   }
 
-  // [Wave 7A WebRTC live-view] — parallel transport that publishes the
+  // WebRTC live-view: parallel transport that publishes the
   // SAME server-side JPEG frames over an RTCDataChannel. The server-
   // side fan-out lives in
   // `apps/desktop/lib/headless_api/handlers/webrtc_live_view_handlers.dart`.
@@ -233,7 +233,7 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
     return controller.stream;
   }
 
-  /// Wave 7A — caller-friendly auto-select. Tries [subscribeLiveViewWebRtc]
+  /// Caller-friendly auto-select. Tries [subscribeLiveViewWebRtc]
   /// first; if it errors out before the first frame arrives within
   /// [webRtcFirstFrameTimeout] (default 10 s), the WebRTC stream is
   /// torn down and we fall through to [subscribeLiveView] (the legacy

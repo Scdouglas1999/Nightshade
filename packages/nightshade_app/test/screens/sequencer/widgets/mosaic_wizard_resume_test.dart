@@ -1,4 +1,4 @@
-// Wave 4 Mosaic-Resume: widget test for the resume affordance in the
+// Mosaic-Resume: widget test for the resume affordance in the
 // Mosaic Wizard Dialog.
 //
 // The dialog probes the backend for an interrupted mosaic on open. If
@@ -62,7 +62,7 @@ Future<void> _pumpMosaicWizard(
   // The mosaic wizard's pre-existing `_buildStatRow` produces minor
   // overflow warnings (a long stat value + bold label can exceed the
   // narrow stats column). Those are NOT a regression introduced by
-  // the resume banner — they predate Wave 4 — but they cause Flutter's
+  // the resume banner — they predate it — but they cause Flutter's
   // test framework to mark the test as failed when any RenderFlex
   // overflows. Filter ONLY that specific overflow message so genuine
   // exceptions (state errors, mock-stub misses, etc.) still surface.

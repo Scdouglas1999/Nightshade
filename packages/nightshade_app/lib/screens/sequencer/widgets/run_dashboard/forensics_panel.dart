@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: Run Dashboard panel.
+/// Frame-Failure Forensics: Run Dashboard panel.
 ///
 /// Opt-in panel that lists recent rejections grouped by `LikelyCause`.
 /// Color-coded rows; tapping a row opens the [FrameDetailDialog] with

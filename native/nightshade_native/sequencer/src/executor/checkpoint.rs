@@ -24,7 +24,7 @@
 //! Splitting them across files would force every caller to learn two
 //! file boundaries to read the persistence contract.
 //!
-//! Audit §1.16 invariant (preserved): the same `Arc<CheckpointManager>`
+//!16 invariant (preserved): the same `Arc<CheckpointManager>`
 //! is shared between the executor's public API (these methods) and the
 //! streaming-checkpoint task spawned inside `start()`. The
 //! `checkpoint_manager_is_arc_shared` test in `mod.rs` enforces this
@@ -47,7 +47,7 @@ impl SequenceExecutor {
     ///
     /// Wraps the [`crate::checkpoint::CheckpointManager`] in an `Arc`
     /// so the spawned streaming-checkpoint task in `start()` shares the
-    /// exact same instance (including its `info_cache`) — audit §1.16.
+    /// exact same instance (including its `info_cache`) —
     /// Constructing a second manager via `CheckpointManager::new` would
     /// bypass the cache and cause UI staleness on
     /// [`Self::has_recoverable_checkpoint`].
@@ -65,7 +65,7 @@ impl SequenceExecutor {
         self.checkpoint_manager
             .as_ref()
             .map(|m| m.has_recoverable_checkpoint())
-            // Why (audit-rust §4.3): `checkpoint_manager` is `Option<Arc<CheckpointManager>>`
+            // Why: `checkpoint_manager` is `Option<Arc<CheckpointManager>>`
             // — None means `set_checkpoint_dir` has not been called, so checkpoint recovery
             // is disabled for this executor instance. No manager = no recoverable
             // checkpoint, which is the correct sentinel.
@@ -88,7 +88,7 @@ impl SequenceExecutor {
     ///
     /// Errors when no checkpoint manager is configured — silent
     /// fallback would let the operator press "Resume" and get a
-    /// freshly-zeroed executor instead, which CLAUDE.md forbids.
+    /// freshly-zeroed executor instead, which the house rules forbid.
     pub fn load_checkpoint(
         &mut self,
     ) -> Result<Option<crate::checkpoint::SessionCheckpoint>, String> {
@@ -147,7 +147,7 @@ impl SequenceExecutor {
         checkpoint.executor_state = state;
         checkpoint.completed_exposures = progress.completed_exposures;
         checkpoint.completed_integration_secs = progress.completed_integration_secs;
-        // Wave 4: recovery is an active in-flight state too — preserve it
+        // recovery is an active in-flight state too — preserve it
         // through checkpoints so a resumed session knows it crashed mid
         // recovery and the operator can decide whether to retry.
         checkpoint.is_active = matches!(
@@ -190,7 +190,7 @@ impl SequenceExecutor {
             self.filter_focus_offsets.clone(),
         ));
 
-        // P1-8: snapshot every Loop node's live current_iteration so a resumed
+        // snapshot every Loop node's live current_iteration so a resumed
         // Count loop continues from where it stopped instead of restarting at
         // iteration 1 and re-imaging completed iterations.
         if let Some(ref root) = self.root_node {
@@ -199,7 +199,7 @@ impl SequenceExecutor {
             checkpoint.loop_iterations = loop_iterations;
         }
 
-        // P1-15: this public writer (driven by the Dart ~30s checkpoint
+        // this public writer (driven by the Dart ~30s checkpoint
         // watchdog) does NOT hold the live budget / smart-exposure / scheduler
         // / wizard registries — those belong to the running ExecutionContext
         // and are persisted by the streaming-checkpoint task. Writing them
@@ -285,7 +285,7 @@ impl SequenceExecutor {
             for node_id in checkpoint.get_completed_nodes() {
                 root.mark_completed(&node_id);
             }
-            // P1-8: restore each Loop node's current_iteration so a resumed
+            // restore each Loop node's current_iteration so a resumed
             // Count loop continues from where it stopped.
             root.restore_loop_iterations(&checkpoint.loop_iterations);
         }

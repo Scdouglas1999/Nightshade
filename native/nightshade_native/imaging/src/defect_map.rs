@@ -116,7 +116,7 @@ pub struct KernelSize(pub u8);
 impl KernelSize {
     /// Construct from the user-facing kernel diameter (3, 5, or 7).
     /// Returns `None` for any other value — silent fallbacks would
-    /// hide a settings-bug for months (per CLAUDE.md).
+    /// hide a settings-bug for months.
     pub fn from_diameter(diameter: u8) -> Option<Self> {
         match diameter {
             3 | 5 | 7 => Some(KernelSize(diameter)),

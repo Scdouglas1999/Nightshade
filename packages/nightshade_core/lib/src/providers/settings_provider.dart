@@ -66,7 +66,7 @@ part 'settings_sections/app_settings_partial_persistence_mapping.dart';
 part 'settings_sections/app_settings_notifier.dart';
 
 // ============================================================================
-// Wave 5 Agent 3 — Pre-flight strictness
+// Pre-flight strictness
 // ============================================================================
 
 /// Pre-flight validation strictness mode. Tunes how aggressively the
@@ -139,7 +139,7 @@ PreflightStrictness _parsePreflightStrictness(String? value) {
 /// Runtime, in-memory application-settings state owned by
 /// [AppSettingsNotifier]. Distinct from the persisted/freezed
 /// `AppSettings` model in `models/settings/app_settings.dart`, which is the
-/// Pack G — sentinel used by `AppSettingsState.copyWith` to distinguish
+/// Sentinel used by `AppSettingsState.copyWith` to distinguish
 /// "no change" from "explicitly clear the nullable field". Dart's
 /// `T?` parameter cannot express both "leave alone" and "set to null"
 /// without this trick. Keep this private to the file so callers always

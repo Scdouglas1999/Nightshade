@@ -1,4 +1,4 @@
-// Wave 6 Pack O — pre-flight dialog surfaces a "View changes" link when
+// Pre-flight dialog surfaces a "View changes" link when
 // the in-editor sequence has diverged structurally from the last
 // COMPLETED run. The link opens the SequenceDiffDialog (which is
 // covered by separate tests in notes_panel_test.dart for the

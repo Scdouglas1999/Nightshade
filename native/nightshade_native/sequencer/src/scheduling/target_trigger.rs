@@ -1,7 +1,7 @@
-//! Wave 4 — Per-target start/end trigger primitives.
+//! Per-target start/end trigger primitives.
 //!
 //! SGP and NINA both support a notion that's missing from Nightshade
-//! pre-Wave 4: "start the target *when an altitude crossing happens*, stop
+//! pre-"start the target *when an altitude crossing happens*, stop
 //! when another crossing happens." Today [`crate::TargetHeaderConfig`] only
 //! has `start_after` / `end_before` (Unix timestamps) and
 //! `min_altitude` / `max_altitude` (instantaneous checks), which can only

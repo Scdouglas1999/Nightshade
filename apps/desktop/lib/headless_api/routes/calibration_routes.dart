@@ -1,4 +1,4 @@
-/// Declarative route table for the P1-10 calibration-library surface
+/// Declarative route table for the calibration-library surface
 /// (darks, flats, defect maps).
 ///
 /// Counterpart to `handlers/calibration_handlers.dart`. Previously the

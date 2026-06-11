@@ -38,7 +38,7 @@ class CameraTab extends ConsumerWidget {
       );
     }
 
-    // [Wave 6E live-view stream] — push-based live-view panel. Only
+    // [live-view stream] — push-based live-view panel. Only
     // rendered when the active backend is a [NetworkBackend] because that
     // is the only backend that benefits from streaming (the local FFI
     // backend renders captured frames directly from the
@@ -47,7 +47,7 @@ class CameraTab extends ConsumerWidget {
     // remains the supported path for any caller that still wants
     // request/response semantics.
     //
-    // Wave 7A — the card now consults [MobilePreferences.preferWebRtcLiveView]
+    // the card now consults [MobilePreferences.preferWebRtcLiveView]
     // to decide between `subscribeLiveViewAuto` (WebRTC with WS
     // fallback) and the legacy WS-only path. The preference resolves
     // async; while it's loading we conservatively use the WS path so
@@ -86,7 +86,7 @@ class CameraTab extends ConsumerWidget {
   }
 }
 
-/// [Wave 6E live-view stream] — Renders the latest JPEG frame pushed by
+/// [live-view stream] — Renders the latest JPEG frame pushed by
 /// the server's `/ws/live-view` socket. Subscribes lazily on first build
 /// and cancels on dispose (which closes the socket; the server stops the
 /// producer once the last subscriber goes away).
@@ -94,7 +94,7 @@ class _LiveViewStreamCard extends ConsumerStatefulWidget {
   final NetworkBackend backend;
   final String deviceId;
 
-  /// Wave 7A — when true (default), subscribe via [NetworkBackend.
+  /// when true (default), subscribe via [NetworkBackend.
   /// subscribeLiveViewAuto] which negotiates a WebRTC datachannel
   /// first and falls back to the WS push protocol on explicit (logged)
   /// failure. When false, use the legacy [NetworkBackend.subscribeLiveView]
@@ -140,7 +140,7 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
       _latest = null;
       _error = null;
     });
-    // Wave 7A — `subscribeLiveViewAuto` handles WebRTC negotiation +
+    // `subscribeLiveViewAuto` handles WebRTC negotiation +
     // graceful WS fallback; `subscribeLiveView` is the WS-only path
     // for users who explicitly disabled WebRTC. The auto path also
     // logs a fallback notice via `dart:developer.log` so the WebRTC
@@ -495,7 +495,7 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
       }
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing]
+        // [error parsing]
         showApiErrorWithPrefix(context, 'Capture failed', e);
       }
     } finally {
@@ -647,7 +647,7 @@ class _CoolingCard extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          // [Wave 6D error parsing]
+          // [error parsing]
           showApiError(context, e);
         }
       }
@@ -829,7 +829,7 @@ class _FilterCard extends ConsumerWidget {
                             .setFilterWheelPosition(i);
                       } catch (e) {
                         if (context.mounted) {
-                          // [Wave 6D error parsing]
+                          // [error parsing]
                           showApiErrorWithPrefix(
                             context,
                             'Filter change failed',

@@ -1,4 +1,4 @@
-// Wave 7E — Widget tests for SavedServersScreen.
+// Widget tests for SavedServersScreen.
 //
 // We exercise:
 //   1. Three fake saved-server entries render with display name + host

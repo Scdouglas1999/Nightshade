@@ -1,4 +1,4 @@
-// Wave 7C — VoiceControlService tests
+// VoiceControlService tests
 //
 // Exercises the platform-channel boundary in both directions:
 //

@@ -50,7 +50,7 @@ class _AltitudeGraphPainter extends CustomPainter {
   final double? cloudCoverPercent;
 
   /// The user-configured effective horizon in degrees (e.g. 20° to clear
-  /// trees). 0 = no shading. Wave 1.5 Pack D: sourced from
+  /// trees). 0 = no shading. Sourced from
   /// `planetariumEffectiveHorizonDegProvider`, which the app layer overrides to
   /// pull from `nightshade_core`'s persisted setting.
   final double effectiveHorizonDeg;

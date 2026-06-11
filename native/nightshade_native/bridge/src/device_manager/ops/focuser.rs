@@ -821,7 +821,7 @@ impl DeviceManager {
                             .get_number(&device_name, "FOCUS_MAX", "FOCUS_MAX_VALUE")
                             .await
                         {
-                            // Why (audit-rust §1.4): INDI wire is f64 but
+                            // Why: INDI wire is f64 but
                             // FOCUS_MAX is a step count physically ≤ ~200k
                             // for any real focuser. Rust 1.45+ saturating
                             // f64 → i32 catches an out-of-range driver bug

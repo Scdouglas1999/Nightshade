@@ -4,7 +4,7 @@
 //! the ExecutionContext, evaluates altitude / time constraints, primes the
 //! trigger state, then walks children sequentially.
 //!
-//! Wave 3 Agent 3 — integration-budget enforcement: when
+//! integration-budget enforcement: when
 //! [`TargetHeaderConfig::integration_budget`] is set the runtime registers
 //! a [`BudgetState`] on the executor's `BudgetRegistry` at entry and,
 //! between children, asks the registry whether the budget has been met.
@@ -32,7 +32,7 @@ pub async fn execute_target_header(
         return NodeStatus::Skipped;
     }
 
-    // Pack G — snapshot the prior target context so siblings outside this
+    // snapshot the prior target context so siblings outside this
     // TargetHeader subtree do not inherit stale target_id / mosaic_panel /
     // target_name from us when we return. Each TargetHeader is a scope; on
     // exit (Success / Failure / Skipped / Cancelled) we restore exactly
@@ -44,14 +44,14 @@ pub async fn execute_target_header(
     context.target_ra = Some(config.ra_hours);
     context.target_dec = Some(config.dec_degrees);
     context.target_rotation = config.rotation;
-    // Pack G — populate target_id (stamped here so child exposures' FITS
+    // populate target_id (stamped here so child exposures' FITS
     // headers carry a stable join key for the database row) and
     // mosaic_panel (the strategic-report regression: panel index never made
     // it into PANELIDX/NS-PIDX/NS-PROW/NS-PCOL FITS keywords before this).
     context.target_id = Some(node.id().clone());
     context.mosaic_panel = config.mosaic_panel.clone();
 
-    // Pack G — execute the body in a single scope so every exit path (early
+    // execute the body in a single scope so every exit path (early
     // returns from time / altitude constraints, the budget loop, the
     // between-target skip request) restores the prior target context. A
     // helper closure / inner async block lets us collect a single
@@ -66,7 +66,7 @@ pub async fn execute_target_header(
     result
 }
 
-/// Pack G — captured snapshot of `ExecutionContext` target-scoped fields,
+/// captured snapshot of `ExecutionContext` target-scoped fields,
 /// taken at TargetHeader entry and restored at exit so the next sibling
 /// node sees the prior scope (typically: nothing).
 struct TargetContextSnapshot {
@@ -100,7 +100,7 @@ impl TargetContextSnapshot {
     }
 }
 
-/// Pack G — the original `execute_target_header` body, factored into its
+/// the original `execute_target_header` body, factored into its
 /// own helper so the public function can restore the prior target context
 /// in exactly one place on every exit path.
 async fn run_target_body(
@@ -116,7 +116,7 @@ async fn run_target_body(
         config.dec_degrees
     );
 
-    // Wave 4 — resolve the effective triggers up-front so legacy fields and
+    // resolve the effective triggers up-front so legacy fields and
     // new explicit `start_when`/`end_when` end up in the same code path.
     let start_when = config.effective_start_when();
     let end_when = config.effective_end_when();
@@ -139,7 +139,7 @@ async fn run_target_body(
         }
     }
 
-    // Wave 4 — wait for `start_when` to fire. Polls every `poll_interval`
+    // wait for `start_when` to fire. Polls every `poll_interval`
     // seconds using `ctx.clock.now_utc()` so MockClock-driven tests can
     // advance time deterministically.
     if let Some(start) = &start_when {
@@ -184,7 +184,7 @@ async fn run_target_body(
             .await;
     }
 
-    // Wave 3 Agent 3 — integration budget setup.
+    // integration budget setup.
     //
     // Register the target with the budget registry on entry. We register
     // unconditionally (even when no budget is configured) so the
@@ -192,7 +192,7 @@ async fn run_target_body(
     // budget value is passed alongside so the registry can resolve
     // per-filter caps for the progress event.
     //
-    // Pack G — `context.target_id` was already populated at TargetHeader
+    // `context.target_id` was already populated at TargetHeader
     // entry; the budget registry consumes the same id so the join key is
     // stable from the FITS header through to the per-target progress
     // event.
@@ -203,7 +203,7 @@ async fn run_target_body(
         .enter_target(&target_id, budget.clone())
         .await;
 
-    // Wave 4 — wrap the existing child walker with an end_when monitor.
+    // wrap the existing child walker with an end_when monitor.
     // We don't spawn a background watcher because (a) the executor crate
     // doesn't currently spawn tasks per-target, and (b) the most natural
     // pre-emption point is at child boundaries — between exposures, after a
@@ -254,7 +254,7 @@ async fn run_target_body(
     result
 }
 
-/// Wave 3 Agent 3 — budget-aware sibling execution.
+/// budget-aware sibling execution.
 ///
 /// Same shape as [`execute_children_sequential`] but inserts a budget
 /// evaluation at every child boundary. When the budget is met:
@@ -299,7 +299,7 @@ async fn execute_children_with_budget(
         if context.is_cancelled.load(Ordering::Relaxed) {
             return NodeStatus::Cancelled;
         }
-        // P1-11/P1-12: honor an operator Pause / recovery freeze at the
+        // honor an operator Pause / recovery freeze at the
         // child boundary, mirroring `execute_children_sequential` (sequential.rs:52).
         // Without this, a TargetHeader carrying an integration budget keeps
         // exposing/slewing while the UI shows "Paused". Block until resumed;
@@ -311,7 +311,7 @@ async fn execute_children_with_budget(
             return NodeStatus::Skipped;
         }
 
-        // Wave 4 — end_when pre-check. If the stop condition is already
+        // end_when pre-check. If the stop condition is already
         // true *before* we even start the next child, mark the rest
         // Skipped and return Success. Doing this *before* the child
         // executes (in addition to after) means the last frame in a
@@ -381,7 +381,7 @@ async fn execute_children_with_budget(
     NodeStatus::Success
 }
 
-/// Wave 4 — sequential walker that pre-checks `end_when` at every child
+/// sequential walker that pre-checks `end_when` at every child
 /// boundary. Mirrors `execute_children_sequential` exactly EXCEPT for the
 /// added pre-child end_when probe + lifecycle emission. We don't reuse
 /// `execute_children_sequential` because that function is shared with the
@@ -410,7 +410,7 @@ async fn execute_children_with_end_when(
         if context.is_cancelled.load(Ordering::Relaxed) {
             return NodeStatus::Cancelled;
         }
-        // P1-11/P1-12: honor an operator Pause / recovery freeze at the
+        // honor an operator Pause / recovery freeze at the
         // child boundary, mirroring `execute_children_sequential` (sequential.rs:52).
         // Without this, a TargetHeader carrying an end_when trigger (exactly
         // what the autopilot/scheduler builds) keeps exposing/slewing while
@@ -827,10 +827,10 @@ mod tests {
     }
 
     // ====================================================================
-    // Pack G — target context population tests
+    // target context population tests
     // ====================================================================
 
-    /// Pack G — at TargetHeader entry the executor's `target_id`,
+    /// at TargetHeader entry the executor's `target_id`,
     /// `target_name`, `target_ra`, `target_dec`, and `mosaic_panel` must
     /// be set so subsequent TakeExposure FITS headers carry real values.
     /// The runtime body proxies execute_children_sequential, so we trap
@@ -923,20 +923,20 @@ mod tests {
         assert_eq!(
             ctx.target_id,
             Some(prior_target_id),
-            "Pack G — target_id must be restored to the prior scope on exit"
+            "target_id must be restored to the prior scope on exit"
         );
         assert_eq!(
             ctx.target_name,
             Some("outer-target-name".to_string()),
-            "Pack G — target_name must be restored to the prior scope on exit"
+            "target_name must be restored to the prior scope on exit"
         );
         assert!(
             ctx.mosaic_panel.is_none(),
-            "Pack G — mosaic_panel must be cleared (restored to None) on exit"
+            "mosaic_panel must be cleared (restored to None) on exit"
         );
     }
 
-    /// Pack G — TargetHeader populates `mosaic_panel` on the way in. This
+    /// TargetHeader populates `mosaic_panel` on the way in. This
     /// test asserts the mid-execution state by hooking a child node that
     /// observes `ctx.mosaic_panel`. We use a custom RuntimeNode child via
     /// a Notification node (no side effects) and observe through the
@@ -987,7 +987,7 @@ mod tests {
     }
 
     // ====================================================================
-    // Wave 4 — Per-target start/end crossings (MockClock-driven)
+    // Per-target start/end crossings (MockClock-driven)
     // ====================================================================
 
     use crate::scheduling::{Clock, MockClock, TargetTrigger};
@@ -1003,7 +1003,7 @@ mod tests {
         }
     }
 
-    /// Wave 4 — when `end_when` is already satisfied at TargetHeader entry,
+    /// when `end_when` is already satisfied at TargetHeader entry,
     /// the runtime returns Skipped without executing children. Replaces the
     /// pre-Wave-4 `end_before` early-Skip path with the new trigger model.
     #[tokio::test]
@@ -1043,7 +1043,7 @@ mod tests {
         assert_eq!(status, NodeStatus::Skipped);
     }
 
-    /// Wave 4 — when `start_when` is already satisfied at entry, the
+    /// when `start_when` is already satisfied at entry, the
     /// runtime proceeds without waiting and the target completes Success.
     #[tokio::test]
     async fn start_when_already_satisfied_does_not_wait() {
@@ -1080,7 +1080,7 @@ mod tests {
         assert_eq!(status, NodeStatus::Success);
     }
 
-    /// Wave 4 — `wait_for_trigger` polls until the trigger fires when
+    /// `wait_for_trigger` polls until the trigger fires when
     /// time advances. We use a 1-second poll interval and a spawned task
     /// that advances MockClock past the trigger threshold so the wait
     /// exits Success.
@@ -1118,7 +1118,7 @@ mod tests {
         assert!(ctx.clock.now_utc().timestamp() >= target_ts);
     }
 
-    /// Wave 4 — `wait_for_trigger` honours cancellation while waiting.
+    /// `wait_for_trigger` honours cancellation while waiting.
     #[tokio::test]
     async fn wait_for_trigger_cancels() {
         let clock = MockClock::at("2026-01-15T22:00:00Z");
@@ -1146,10 +1146,10 @@ mod tests {
     }
 
     // ====================================================================
-    // P1-11/P1-12 — operator Pause honored in the end_when / budget walkers
+    // operator Pause honored in the end_when / budget walkers
     // ====================================================================
 
-    /// P1-11/P1-12 guard: a paused TargetHeader carrying an `end_when`
+    /// guard: a paused TargetHeader carrying an `end_when`
     /// trigger must NOT execute its children, and must unwind to Cancelled
     /// when the sequence is cancelled while paused. This exercises the
     /// `execute_children_with_end_when` walker (end_when set, not satisfied
@@ -1249,24 +1249,24 @@ mod tests {
 
         assert!(
             observed_running_while_paused.load(Ordering::SeqCst),
-            "P1-11/P1-12: walker must park at the pause boundary — no child \
+            "walker must park at the pause boundary — no child \
              may begin executing while the operator Pause is active"
         );
         assert_eq!(
             child_steps.load(Ordering::SeqCst),
             0,
-            "P1-11/P1-12: no child may execute on a paused TargetHeader; the \
+            "no child may execute on a paused TargetHeader; the \
              pause boundary in execute_children_with_end_when was bypassed"
         );
         assert_eq!(
             status,
             NodeStatus::Cancelled,
-            "P1-11/P1-12: cancel-while-paused must unwind the end_when walker \
+            "cancel-while-paused must unwind the end_when walker \
              to Cancelled"
         );
     }
 
-    /// P1-11/P1-12 guard for the budget walker: a paused TargetHeader
+    /// guard for the budget walker: a paused TargetHeader
     /// carrying an integration budget must NOT execute its children and must
     /// unwind to Cancelled on cancel-while-paused. Exercises
     /// `execute_children_with_budget`, which had the identical pause hole.
@@ -1337,21 +1337,21 @@ mod tests {
 
         assert!(
             observed_paused_park.load(Ordering::SeqCst),
-            "P1-11/P1-12: budget walker must park at the pause boundary"
+            "budget walker must park at the pause boundary"
         );
         assert_eq!(
             child_steps.load(Ordering::SeqCst),
             0,
-            "P1-11/P1-12: no child may execute on a paused budgeted TargetHeader"
+            "no child may execute on a paused budgeted TargetHeader"
         );
         assert_eq!(
             status,
             NodeStatus::Cancelled,
-            "P1-11/P1-12: cancel-while-paused must unwind the budget walker to Cancelled"
+            "cancel-while-paused must unwind the budget walker to Cancelled"
         );
     }
 
-    /// Wave 4 — altitude-bearing `start_when` without an observer fails
+    /// altitude-bearing `start_when` without an observer fails
     /// closed instead of silently behaving like we're at lat=0/lon=0.
     #[tokio::test]
     async fn altitude_start_when_without_observer_fails() {

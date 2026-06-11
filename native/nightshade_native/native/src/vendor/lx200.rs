@@ -407,7 +407,7 @@ fn write_persisted_park_state(device_id: &str, parked: bool) -> Result<(), Nativ
             ))
         })?;
         // Tolerate an empty file (e.g., interrupted write) but surface real
-        // JSON corruption — silent fallbacks hide bugs (see CLAUDE.md).
+        // JSON corruption — silent fallbacks hide bugs.
         if raw.trim().is_empty() {
             HashMap::new()
         } else {
@@ -492,8 +492,8 @@ pub struct Lx200Mount {
     /// is_parked queries until park/unpark has been called at least once
     /// or telemetry confirms a state.
     park_state: Mutex<Option<bool>>,
-    /// Cancellation channel for the standard-LX200 pulse-guide sleep
-    /// (audit §5.17). Notified by `abort_slew` so the start/stop pair
+    /// Cancellation channel for the standard-LX200 pulse-guide sleep.
+    /// Notified by `abort_slew` so the start/stop pair
     /// terminates immediately instead of waiting out the full duration.
     pulse_guide_cancel: Arc<Notify>,
 }
@@ -534,7 +534,7 @@ impl Lx200Mount {
         // unreadable cache means "no canonical state yet" — is_parked()
         // will return NotSupported until park() or unpark() has run at
         // least once (or telemetry confirms a state). We log read errors
-        // because silent fallbacks hide bugs (see CLAUDE.md).
+        // because silent fallbacks hide bugs.
         let park_state_initial: Option<bool> = match read_persisted_park_state(&device_id) {
             Ok(state) => state,
             Err(e) => {
@@ -657,7 +657,7 @@ impl Lx200Mount {
     /// notified, whichever comes first. Returns `true` if cancelled.
     ///
     /// Extracted from `pulse_guide` so the cancellation behaviour is
-    /// unit-testable without a serial port (audit §5.17).
+    /// unit-testable without a serial port.
     async fn pulse_guide_wait(&self, duration_ms: u32) -> bool {
         let cancel = Arc::clone(&self.pulse_guide_cancel);
         let sleep = tokio::time::sleep(Duration::from_millis(duration_ms as u64));
@@ -855,7 +855,7 @@ impl NativeMount for Lx200Mount {
         // Snapshot the canonical state. For OnStep / Meade this will be
         // re-confirmed on the next is_parked() telemetry round-trip; for
         // mounts without telemetry this is the only authoritative source
-        // of truth across an app restart (audit §5.6).
+        // of truth across an app restart.
         *self
             .park_state
             .lock()
@@ -863,7 +863,7 @@ impl NativeMount for Lx200Mount {
         if let Err(e) = write_persisted_park_state(&self.device_id, true) {
             // Persistence failure must not silently mask a real park —
             // log loudly and propagate so the operator knows the cache
-            // is broken (CLAUDE.md: errors are a feature).
+            // is broken (errors are a feature).
             tracing::error!(
                 "Failed to persist LX200 park state for {}: {}",
                 self.device_id,
@@ -930,7 +930,7 @@ impl NativeMount for Lx200Mount {
         // 1) OnStep exposes parked-ness directly via :GU#. Trust telemetry,
         //    refresh the local cache, and persist so cross-restart state
         //    survives. A serial error here propagates — we will not lie
-        //    about park state to the sequencer (audit §5.6).
+        //    about park state to the sequencer.
         if self.mount_type.is_onstep() {
             let status = self.send_command(commands::ONSTEP_GET_STATUS)?;
             let (_, _, is_parked, _, _) = self.parse_onstep_status(&status);
@@ -1030,7 +1030,7 @@ impl NativeMount for Lx200Mount {
         }
 
         // Standard LX200: set guide rate, start move, wait, stop move.
-        // Audit §5.17: the wait must be cancellable so abort_slew
+        // the wait must be cancellable so abort_slew
         // terminates the pulse immediately. Notify::notified() only
         // observes notifications that fire after the future is created,
         // so building it fresh per pulse_guide call is sufficient — no
@@ -1072,8 +1072,8 @@ impl NativeMount for Lx200Mount {
 
         tracing::info!("Aborting slew");
         // Wake any in-flight standard-LX200 pulse_guide so it stops the
-        // motors immediately instead of waiting out the duration_ms timer
-        // (audit §5.17). notify_waiters wakes only currently-parked
+        // motors immediately instead of waiting out the duration_ms timer.
+        // notify_waiters wakes only currently-parked
         // futures; if no pulse is active this is a cheap no-op.
         self.pulse_guide_cancel.notify_waiters();
         self.send_command_no_response(commands::STOP_SLEW)?;

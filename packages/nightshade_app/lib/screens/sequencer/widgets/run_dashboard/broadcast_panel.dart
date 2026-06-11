@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — Run-dashboard panel for the live-stacking broadcast.
+// Run-dashboard panel for the live-stacking broadcast.
 //
 // When a LiveStackingNode is active, this panel renders the
 // "Broadcasting" indicator, a copyable broadcast URL, and a QR code
@@ -20,7 +20,7 @@ class BroadcastPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(liveStackingBroadcastServiceProvider);
-    // Wave 7.5 — engage the master kill switch bridge so a toggle in
+    // Engage the master kill switch bridge so a toggle in
     // Sequencer Settings flows live into the broadcast service.
     // Watching the bridge here is sufficient because the panel mounts
     // once the user opens the sequencer screen, which covers every

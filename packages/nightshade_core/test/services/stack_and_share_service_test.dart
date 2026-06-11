@@ -1,4 +1,4 @@
-// Stack-and-Share Loop — tests for the orchestrator service (C6).
+// Stack-and-Share Loop — tests for the orchestrator service.
 //
 // The provider test (stack_and_share_provider_test.dart) substitutes a fake
 // StackAndShareService, so the real run() body — the busy guard, the
@@ -707,7 +707,7 @@ void main() {
     );
   });
 
-  group('OSC / colour orchestration (C12)', () {
+  group('OSC / colour orchestration', () {
     test('mono regression: a mono result persists channels==1, isColor==false, '
         'and the single filter, with a grayscale stretch', () async {
       // The default fake engine reports no frame Bayer pattern and the fake

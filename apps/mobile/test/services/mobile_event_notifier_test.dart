@@ -594,7 +594,7 @@ void main() {
     });
   });
 
-  group('Job category (Wave 3 / P1-2 P1-3)', () {
+  group('Job category', () {
     test('JobStarted is silenced (no notification)', () async {
       await emit(
         _ev(
@@ -838,7 +838,7 @@ void main() {
     });
   });
 
-  group('Session category (Wave 3 / P1-5)', () {
+  group('Session category', () {
     test('OwnershipTakenOver -> notification with displacing client', () async {
       await emit(
         _ev(

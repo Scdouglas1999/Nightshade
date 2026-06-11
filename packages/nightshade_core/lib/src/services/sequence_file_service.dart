@@ -40,7 +40,7 @@ class SequenceFileService {
   /// users can keep sequence JSON exports alongside the rest of their
   /// observatory documentation. Routing the file_selector dialogs at this
   /// directory makes the setting actually consequential
-  /// (audit-handoff §2.1 WIRE-UP item #8). Empty string means "let the
+  /// Empty string means "let the
   /// platform pick the default location".
   final String _defaultDirectory;
 

@@ -1,4 +1,4 @@
-//! Wave 8 Replay Debug — structured decision logging surface on the
+//! Replay Debug — structured decision logging surface on the
 //! [`SequenceExecutor`].
 //!
 //! The executor broadcasts a typed `DecisionEvent` for every scheduler

@@ -1,4 +1,4 @@
-// DEV-P3-1: capability-driven UI provider layer.
+// Capability-driven UI provider layer.
 //
 // This file is a Riverpod facade over the device capability queries exposed
 // by `NightshadeBackend.getXCapabilities`. It exists so per-device UI widgets
@@ -98,7 +98,7 @@ final equipmentRotatorCapabilitiesProvider =
 ///
 /// Production calls the FRB bridge directly because the [NightshadeBackend]
 /// abstraction does not yet have a `getDomeCapabilities` method, and adding
-/// one belongs to a backend-shape change outside the scope of DEV-P3-1.
+/// one belongs to a backend-shape change outside the scope of.
 typedef DomeCapabilityFetcher =
     Future<DomeCapabilities?> Function(String deviceId);
 

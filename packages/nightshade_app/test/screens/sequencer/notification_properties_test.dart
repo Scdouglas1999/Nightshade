@@ -1,4 +1,4 @@
-// Pack M / Wave 5 Agent 5 — widget tests for the NotificationNode
+// Widget tests for the NotificationNode
 // transport multi-select.
 //
 // Verifies that:
@@ -8,7 +8,7 @@
 //     "(not configured)" suffix when no credentials are saved.
 //   * Live preview reflects the rendered title and body.
 //
-// Wave 4 consolidation: the editor moved into the (private) single
+// After consolidation: the editor moved into the (private) single
 // node-properties library, so this test now drives it through the public
 // [NodePropertiesPanel] dispatcher with a NotificationNode selected — the
 // same path the user hits in the app — rather than instantiating the

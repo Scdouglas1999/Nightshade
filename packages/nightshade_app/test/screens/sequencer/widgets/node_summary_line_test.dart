@@ -1,6 +1,6 @@
-// Widget tests for [NodeSummaryLine] (C4) — the row-level renderer that turns
-// the pure [nodeSummary] fragment list (C1) into design-system chips + muted
-// text and wires editable chips to the anchored inline editors (C3).
+// Widget tests for [NodeSummaryLine] — the row-level renderer that turns
+// the pure [nodeSummary] fragment list into design-system chips + muted
+// text and wires editable chips to the anchored inline editors.
 //
 // What we pin here (the renderer's contract, not C1's classification which is
 // unit-tested separately):

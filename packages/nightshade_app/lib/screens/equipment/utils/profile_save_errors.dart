@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-/// UI-P0-5: map profile save/load failures to operator-facing text.
+/// Map profile save/load failures to operator-facing text.
 ///
 /// Raw `SqliteException` / stack traces belong in logs only — the snackbar
 /// should say what to do next.

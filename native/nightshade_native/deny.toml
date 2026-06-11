@@ -2,7 +2,7 @@
 #
 # Used by CI (`.github/workflows/ci.yml` → cargo-duplicates job) to catch
 # multi-semver duplicates of the same crate. Reference:
-# docs/code-quality/audit-rust.md §5.3 (base64, thiserror, socket2,
+# docs/code-quality/(base64, thiserror, socket2,
 # getrandom, hashbrown, windows-sys, windows-targets duplicate semvers).
 #
 # Format reference: https://embarkstudios.github.io/cargo-deny/
@@ -14,12 +14,12 @@ all-features = true
 
 [bans]
 # Warn on multiple-semver-versions of the same crate in the build graph.
-# Audit §5.3 calls out specific offenders; the audit job sets
+#3 calls out specific offenders; the audit job sets
 # --warn duplicate so this stays informational but visible until each
 # duplicate is consolidated.
 multiple-versions = "warn"
 
-# Known-bloaters that the audit-rust §5.3 table called out. As each
+# Known-bloaters that the table called out. As each
 # duplicate is consolidated, remove the entry from this skip list so we
 # don't re-introduce it.
 skip = [
@@ -27,8 +27,8 @@ skip = [
     { name = "socket2" },
     # Mixed transitive: indexmap variants.
     { name = "hashbrown" },
-    # Heavy: mixed via `windows` crate transitive. Tracked in roadmap
-    # W-OBS / windows-upgrade.
+    # Heavy: mixed via `windows` crate transitive. Tracked under the
+    # windows-upgrade work.
     { name = "windows-sys" },
     { name = "windows-targets" },
     { name = "windows_aarch64_gnullvm" },

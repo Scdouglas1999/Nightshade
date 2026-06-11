@@ -326,7 +326,7 @@ class TokenManager {
   /// be evicted from any in-memory caches (revoke, expiry sweep, delete).
   ///
   /// The headless server calls this at startup so revocation propagates
-  /// without a process restart (P0-10).
+  /// without a process restart.
   void setRevocationListener(SessionTokenRevocationListener? listener) {
     _revocationListener = listener;
   }

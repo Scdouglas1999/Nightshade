@@ -206,7 +206,7 @@ impl AppState {
 
     /// Check if a device is connected
     ///
-    /// # `unwrap_or` policy (audit-rust §4.3)
+    /// # `unwrap_or` policy
     ///
     /// Device-not-registered → "not connected" is the correct semantic
     /// answer to "is this device id connected?". A separate error path

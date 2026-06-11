@@ -139,7 +139,7 @@ class _QuickActions extends ConsumerWidget {
                     ),
                   );
                 } catch (e) {
-                  // [Wave 6D error parsing] — render ServerError as
+                  // [error parsing] — render ServerError as
                   // "<message> (<code>)" with the right severity tint
                   // via the shared mobile helper.
                   if (!context.mounted) return;

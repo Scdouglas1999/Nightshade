@@ -62,7 +62,7 @@ class TitleBar extends ConsumerWidget {
 
             const Spacer(),
 
-            // Persistent remote connection indicator (audit P1-15 bug 5).
+            // Persistent remote connection indicator.
             // Tap opens the details sheet with the "Reconnect now" button
             // so the operator can force an immediate retry without
             // waiting for the exponential-backoff timer.

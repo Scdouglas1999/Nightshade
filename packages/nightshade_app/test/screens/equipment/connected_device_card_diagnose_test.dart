@@ -1,4 +1,4 @@
-// Onboarding C4 integration test: the connected-device card must surface the
+// Integration test: the connected-device card must surface the
 // troubleshooter-backed error subtitle AND a Diagnose affordance when its
 // device is in `DeviceConnectionState.error`, and tapping Diagnose must open
 // the full ConnectionTroubleshooterDialog.
@@ -51,7 +51,7 @@ Future<void> _pumpCard(
 }
 
 void main() {
-  group('ConnectedDeviceCard — Onboarding C4 Diagnose wiring', () {
+  group('ConnectedDeviceCard — Diagnose wiring', () {
     testWidgets('healthy card renders no error subtitle and no Diagnose button',
         (tester) async {
       final container = ProviderContainer();

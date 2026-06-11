@@ -31,12 +31,12 @@ part 'sequence_tree/support_widgets.dart';
 // autoDispose: drag state is transient UI — every drag begins from `false`
 // and is reset by the matching onDragEnd/Cancel. Disposing on screen
 // teardown ensures a stale `true` from an interrupted drag cannot leak
-// into the next sequencer session (audit-dart §1b).
+// into the next sequencer session.
 final isDraggingNodeProvider = StateProvider.autoDispose<bool>((ref) => false);
 
 /// Provider for "follow execution" toggle — auto-scrolls tree to current node
 // autoDispose: tab/screen-scoped toggle; default (on) is the right initial
-// state on each visit to the sequencer (audit-dart §1b).
+// state on each visit to the sequencer.
 final followExecutionProvider = StateProvider.autoDispose<bool>((ref) => true);
 
 // Note: confirm-then-delete now lives in `delete_node_confirmation.dart`
@@ -98,7 +98,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   /// GlobalKey registry for auto-scroll: maps node IDs to their GlobalKeys.
   /// Scoped to this state so it's torn down with the screen — the previous
   /// module-level map leaked GlobalKeys across hot-reload and screen
-  /// transitions (audit-dart §1b).
+  /// transitions.
   final Map<String, GlobalKey> _nodeKeyRegistry = <String, GlobalKey>{};
 
   /// The sequence id we last reconciled the key registry against. Used by

@@ -33,7 +33,7 @@ class _LogTabState extends ConsumerState<LogTab> {
   };
   bool _autoScroll = true;
 
-  // [Wave 6E log tail] — when the active backend is a NetworkBackend, also
+  // [log tail] — when the active backend is a NetworkBackend, also
   // tail the server-side LoggingService entries via /api/logs/tail. These
   // appear in a separate ring buffer underneath the existing
   // NightshadeEvent feed because the two shapes don't share severity /
@@ -70,7 +70,7 @@ class _LogTabState extends ConsumerState<LogTab> {
 
   void _ensureSubscription(NightshadeBackend backend) {
     if (identical(_subscribedBackend, backend)) return;
-    // Wave 6D / P2-5 — flush the in-memory ring buffer whenever the
+    // flush the in-memory ring buffer whenever the
     // backend identity changes. Without this, switching from FFI to a
     // remote server (or reconnecting to a different host) would leave
     // the operator staring at stale events that have no relationship
@@ -110,7 +110,7 @@ class _LogTabState extends ConsumerState<LogTab> {
     });
   }
 
-  // [Wave 6E log tail] — open/close the SSE subscription to /api/logs/tail
+  // [log tail] — open/close the SSE subscription to /api/logs/tail
   // on every backend change. The FFI backend has no remote logs (the local
   // LoggingService is already in-process), so we only subscribe when the
   // active backend is a [NetworkBackend].
@@ -195,7 +195,7 @@ class _LogTabState extends ConsumerState<LogTab> {
           ),
         ),
         Container(height: 1, color: colors.border),
-        // [Wave 6E log tail] — remote-server log entries (only when the
+        // [log tail] — remote-server log entries (only when the
         // backend is a NetworkBackend). Rendered as a fixed-height panel
         // above the main event list so it doesn't disturb the existing
         // reverse=true scrolling on _events.
@@ -274,7 +274,7 @@ class _LogTabState extends ConsumerState<LogTab> {
   }
 }
 
-/// [Wave 6E log tail] — Compact tile for a remote server log entry. Kept
+/// [log tail] — Compact tile for a remote server log entry. Kept
 /// separate from `_EventTile` because LogEntry has its own enum
 /// (LogLevel) and there's no need to map between the two schemas.
 class _ServerLogEntryTile extends StatelessWidget {
@@ -530,11 +530,11 @@ String _categoryLabel(EventCategory c) {
     EventCategory.safety => 'SAFETY',
     EventCategory.system => 'SYS',
     EventCategory.polarAlignment => 'PA',
-    // Wave 3 / P1-2 P1-3: long-running job lifecycle events.
+    // long-running job lifecycle events.
     EventCategory.job => 'JOB',
-    // Wave 3 / P1-5: session-ownership lifecycle events.
+    // session-ownership lifecycle events.
     EventCategory.session => 'SESSION',
-    // Wave 4C: catalog (sequence library, target catalogs, etc.) sync events.
+    // catalog (sequence library, target catalogs, etc.) sync events.
     EventCategory.catalog => 'CATALOG',
   };
 }

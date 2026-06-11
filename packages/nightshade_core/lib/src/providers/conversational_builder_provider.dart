@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder: Riverpod surface.
+// Conversational sequence builder: Riverpod surface.
 //
 // Exposes:
 //   * [llmSettingsServiceProvider] — singleton wrapper around the

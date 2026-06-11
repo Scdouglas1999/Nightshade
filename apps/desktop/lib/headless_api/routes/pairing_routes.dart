@@ -13,7 +13,7 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildPairingRoutes(PairingHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.post, '/api/pairing/start', h.handlePairingStart),
   HeadlessRoute(HttpMethod.post, '/api/pairing/verify', h.handlePairingVerify),
-  // P0-3: admin-only view of currently-valid pairing sessions. Behind
+  // admin-only view of currently-valid pairing sessions. Behind
   // the auth middleware (the path is NOT in `publicPaths`) and gated
   // to admin scope via `_adminOnlyPaths`. Lets headless operators on
   // a paired admin client retrieve the active code without watching

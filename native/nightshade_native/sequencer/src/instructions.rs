@@ -354,7 +354,7 @@ pub struct InstructionContext {
     /// bridge calls) where there is no runtime retry wrapper.
     pub device_disconnect_recovery_pending: Arc<AtomicBool>,
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading: FITS-header metadata propagated from
+    // Image Grading: FITS-header metadata propagated from
     // ExecutionContext so `execute_exposure` can assemble a FrameContext
     // for save_fits.
     // -------------------------------------------------------------------
@@ -374,7 +374,7 @@ pub struct InstructionContext {
     /// Shared handle to last plate-solve result (set by CenterTarget).
     pub last_plate_solve: Arc<tokio::sync::RwLock<Option<crate::device_ops::PlateSolveResult>>>,
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading: per-run grading state, shared via Arc with
+    // Image Grading: per-run grading state, shared via Arc with
     // ExecutionContext so progress events carry consistent totals across
     // the entire sequence.
     // -------------------------------------------------------------------
@@ -389,14 +389,14 @@ pub struct InstructionContext {
     /// Optional reject-folder override (relative to save_path or absolute).
     /// None => use `<save_path>/Reject/`.
     pub reject_folder_path: Option<String>,
-    /// Wave 7 Agent 3 — per-frame defect-map application state. Cloned
+    /// per-frame defect-map application state. Cloned
     /// from `ExecutionContext::defect_map_apply` at instruction-context
     /// construction time. Pre-loading is bridge-side, so a `Some(...)`
     /// value carries the parsed `DefectMap` ready for per-frame
     /// `correct_u16_slice` application.
     pub defect_map_apply: Arc<tokio::sync::RwLock<Option<crate::executor::DefectMapApplyState>>>,
     // -------------------------------------------------------------------
-    // Wave 8 — Frame-Failure Forensics.
+    // Frame-Failure Forensics.
     //
     // `emit_grade_progress` snapshots live env values, looks at the
     // rolling history, classifies the rejection, then pushes the new
@@ -415,14 +415,14 @@ pub struct InstructionContext {
     pub current_wind_kph: Arc<tokio::sync::RwLock<Option<f64>>>,
     /// Current sensor temperature (°C).
     pub current_sensor_temp_c: Arc<tokio::sync::RwLock<Option<f64>>>,
-    /// Wave 8 Replay Debug — broadcast handle for [`crate::decision::DecisionEvent`]s
+    /// Replay Debug — broadcast handle for [`crate::decision::DecisionEvent`]s
     /// (FrameAccepted / FrameRejected emit from `emit_grade_progress`,
     /// AdaptiveSwap emit from the adaptive-exposure path, BudgetMet from
     /// the budget tracker, PluginNodeInvoked from the plugin instruction).
     /// `None` outside the live executor (test contexts / one-shot bridge
     /// calls); emission is a no-op then.
     pub decision_tx: Option<crate::decision::DecisionSender>,
-    /// Wave 8 Replay Debug — active sequence_runs.id, populated for every
+    /// Replay Debug — active sequence_runs.id, populated for every
     /// emitted DecisionEvent so persistence can write the FK without
     /// re-joining on wall-clock windows.
     pub active_sequence_run_id: Arc<parking_lot::RwLock<Option<i64>>>,
@@ -493,7 +493,7 @@ impl InstructionContext {
             .ok_or_else(|| InstructionResult::failure("No cover calibrator (flat panel) connected"))
     }
 
-    /// Wave 8 Replay Debug — emit a structured decision into the
+    /// Replay Debug — emit a structured decision into the
     /// broadcast channel. No-op when `decision_tx` is `None` (one-shot
     /// instruction sites, unit tests). Stamps the active sequence_run_id
     /// before forwarding so the persistence layer has the FK.
@@ -718,7 +718,7 @@ pub async fn execute_slew(
 
 /// Wait for mount to stop slewing with timeout.
 ///
-/// Audit §1.6: previously the only caller was the inline execute_meridian_flip
+/// previously the only caller was the inline execute_meridian_flip
 /// body that has been replaced by a thin `MeridianFlipExecutor` wrapper.
 /// Kept as a public-style helper with `#[allow(dead_code)]` so future
 /// instruction-level slew helpers do not have to re-implement the polling
@@ -930,7 +930,7 @@ fn ensure_unique_save_path(path: PathBuf) -> PathBuf {
         return path;
     }
 
-    // Audit §1.15: parent and stem fallbacks here are defensive — by the time
+    // parent and stem fallbacks here are defensive — by the time
     // we enter this function the caller has already passed a fully-formed
     // path. If the parent is None (file at filesystem root) we keep using an
     // empty PathBuf so `.join()` writes into the cwd; that mirrors the
@@ -1525,7 +1525,7 @@ fn calculate_separation_arcsec(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_d
 // EXPOSURE INSTRUCTION
 // =============================================================================
 
-/// Per-frame save-path renderer. Wave 4 added interpolation to the
+/// Per-frame save-path renderer. added interpolation to the
 /// `ExposureConfig.save_to` template; the renderer is built once in the
 /// expose-instruction wrapper (which has ExecutionContext access) and
 /// invoked per-frame so the same engine can resolve `${frame:04}` and
@@ -1557,7 +1557,7 @@ pub async fn execute_exposure(
     execute_exposure_with_renderer(config, ctx, None, progress_callback).await
 }
 
-/// Wave 4 entry point that accepts a save-path renderer. Use this from
+/// entry point that accepts a save-path renderer. Use this from
 /// the expose-instruction node wrapper so user templates in
 /// `ExposureConfig.save_to` (including hierarchical paths and per-frame
 /// placeholders) take effect.
@@ -1619,7 +1619,7 @@ pub async fn execute_exposure_with_renderer(
         }
     }
 
-    // Audit §1.15: log "(no filter set)" instead of substituting a filter
+    // log "(no filter set)" instead of substituting a filter
     // name like "unfiltered". The substituted token used to look like a
     // valid filter in operator logs.
     tracing::info!(
@@ -1713,7 +1713,7 @@ pub async fn execute_exposure_with_renderer(
     let mut completed_exposures = 0u32;
     let mut hfr_values = Vec::new();
 
-    // Wave 3 Image Grading: local bindings for the per-frame grading state.
+    // Image Grading: local bindings for the per-frame grading state.
     // All these are Arc<_> handles shared with ExecutionContext so the
     // dashboard sees consistent totals across instruction boundaries.
     let frame_baseline_handle = ctx.hfr_baseline.clone();
@@ -1780,7 +1780,7 @@ pub async fn execute_exposure_with_renderer(
             }
         };
 
-        // Wave 7 Agent 3 — per-frame defect-map application.
+        // per-frame defect-map application.
         //
         // The capture path applies the pre-loaded defect map (pushed in
         // via `ExecutorCommand::UpdateDefectMap`) before HFR / grading
@@ -1848,7 +1848,7 @@ pub async fn execute_exposure_with_renderer(
             }
         };
 
-        // Wave 3 Image Grading: derive star count from the star detector so
+        // Image Grading: derive star count from the star detector so
         // the grading check can apply the star_count_min floor.
         let measured_star_count = match ctx.device_ops.detect_stars_in_image(&image_data).await {
             Ok(stars) => Some(stars.len() as u32),
@@ -1887,7 +1887,7 @@ pub async fn execute_exposure_with_renderer(
             star_count: measured_star_count,
         };
 
-        // Wave 4 — Pick the (base_path, filename) pair. When a path_renderer
+        // Pick the (base_path, filename) pair. When a path_renderer
         // is supplied (the normal in-sequence case) it owns interpolation of
         // the `ExposureConfig.save_to` template and produces a fully resolved
         // directory + filename; an error from the renderer is fatal because
@@ -1921,7 +1921,7 @@ pub async fn execute_exposure_with_renderer(
         };
 
         if let Some(base_path) = base_path {
-            // Audit §1.15: never silently substitute target name or filter.
+            // never silently substitute target name or filter.
             // A missing target name during normal imaging is a configuration
             // bug — emitting `image_L_0001.fits` hides which session the
             // frame belongs to and cannot be undone after the fact.
@@ -1959,7 +1959,7 @@ pub async fn execute_exposure_with_renderer(
                 format!("{}_{}_{:04}.fits", target_label, filter_label, frame)
             };
 
-            // Wave 3 Image Grading: decide accept/reject BEFORE picking the
+            // Image Grading: decide accept/reject BEFORE picking the
             // final path — rejects go to a sibling Reject/ folder. The
             // grading honours the per-burst override (`config.quality_check`)
             // first, then falls back to the global default from runtime_config
@@ -2023,7 +2023,7 @@ pub async fn execute_exposure_with_renderer(
 
             let full_path = ensure_unique_save_path(save_dir.join(&filename));
 
-            // Wave 7 Agent 3 — archive the uncorrected frame to
+            // archive the uncorrected frame to
             // `<save_dir>/Raw/` BEFORE the canonical save if the user
             // opted in. The raw is written via a minimal FITS header
             // (no defect-map history, IMAGETYP=Light) so re-runs of
@@ -2071,14 +2071,14 @@ pub async fn execute_exposure_with_renderer(
                 }
             }
 
-            // Wave 3 Image Grading: build the per-frame FITS-header bundle
+            // Image Grading: build the per-frame FITS-header bundle
             // from InstructionContext (session-static + per-target fields)
             // plus live device telemetry (sensor temp, focuser position,
             // rotator angle, guide RMS). Each field is best-effort — a
             // device that fails to report its position simply omits that
             // FITS keyword (silent fallbacks would lie about the data).
             //
-            // Wave 7 Agent 3: thread the defect-map application outcome
+            // thread the defect-map application outcome
             // so the FITS HISTORY card records the correction provenance.
             let frame_ctx = build_frame_context_for_save(
                 ctx,
@@ -2093,7 +2093,7 @@ pub async fn execute_exposure_with_renderer(
                 .device_ops
                 .save_fits(
                     &image_data,
-                    // Why (audit-rust §4.3): `PathBuf::to_str()` returns None only when the
+                    // Why: `PathBuf::to_str()` returns None only when the
                     // path is not valid UTF-8 — on Windows our save paths are always
                     // platform-default (UTF-16 → UTF-8) and on Unix the user's home dir is
                     // the root, both ASCII-safe in practice. Falling back to the bare
@@ -2138,8 +2138,8 @@ pub async fn execute_exposure_with_renderer(
             }
             tracing::info!("Saved: {}", full_path.display());
 
-            // Wave 3 Image Grading: emit Accepted / Rejected progress event
-            // so the dashboard quality panel updates + Agent 3's budget
+            // Image Grading: emit Accepted / Rejected progress event
+            // so the dashboard quality panel updates + 's budget
             // tracker can skip rejected frames.
             if was_graded {
                 emit_grade_progress(
@@ -2217,11 +2217,11 @@ pub async fn execute_exposure_with_renderer(
 }
 
 // =============================================================================
-// IMAGE-GRADING HELPERS (Wave 3 Image Grading)
+// IMAGE-GRADING HELPERS (Image Grading)
 // =============================================================================
 
 // =============================================================================
-// DEFECT-MAP HELPERS (Wave 7 Agent 3)
+// DEFECT-MAP HELPERS
 // =============================================================================
 
 /// Outcome of the per-frame defect-map application step. Threaded into
@@ -2526,7 +2526,7 @@ pub fn resolve_reject_dir(base: &std::path::Path, override_path: Option<&str>) -
     }
 }
 
-/// Wave 8 forensics — snapshot the live environmental telemetry into a
+/// forensics — snapshot the live environmental telemetry into a
 /// single `EnvironmentSnapshot`. Each field is read independently with
 /// `try_read()` semantics emulated by an `await`; the analyzer treats
 /// `None` honestly (no fabrication of stand-ins).
@@ -2559,7 +2559,7 @@ async fn build_environment_snapshot(
     }
 }
 
-/// Wave 8 forensics — append a sample to the rolling history, enforcing
+/// forensics — append a sample to the rolling history, enforcing
 /// the [`crate::quality::FORENSIC_HISTORY_LEN`] bound. Lock window is
 /// minimal (one write_lock acquisition per frame) and the push is
 /// guaranteed O(1) regardless of run length.
@@ -2574,9 +2574,9 @@ async fn push_forensic_sample(ctx: &InstructionContext, sample: crate::quality::
 /// Emit a structured FrameAccepted / FrameRejected progress event and (on
 /// reject) update the consecutive-rejects atomic. Escalates to an
 /// `ExecutorEvent::Error` once the consecutive-rejects threshold is hit —
-/// Wave 1.5 Pack C's critical-event banner picks that up automatically.
+/// 's critical-event banner picks that up automatically.
 ///
-/// Wave 8 — Frame-Failure Forensics: in addition to the existing event,
+/// Frame-Failure Forensics: in addition to the existing event,
 /// this function:
 ///
 /// 1. Snapshots live environmental telemetry (sky brightness, cloud cover,
@@ -2601,7 +2601,7 @@ async fn emit_grade_progress(
     max_consecutive: u32,
 ) {
     use std::sync::atomic::Ordering;
-    // Wave 8 forensics — snapshot the environment once up-front so the
+    // forensics — snapshot the environment once up-front so the
     // values reported in the event match the values fed to the
     // classifier. (Two separate reads could race against the
     // ExecutorCommand::UpdateCloudMotion / UpdateSkyBrightness handlers.)
@@ -2611,7 +2611,7 @@ async fn emit_grade_progress(
             let accepted = frames_accepted.fetch_add(1, Ordering::Relaxed) + 1;
             consecutive_rejects.store(0, Ordering::Relaxed);
             let rejected = frames_rejected.load(Ordering::Relaxed);
-            // Wave 8 forensics: log the accepted sample so subsequent
+            // forensics: log the accepted sample so subsequent
             // rejects can compare against it. We capture the env
             // snapshot too — the SeeingSpike / FocusDrift heuristics
             // require trailing accepted frames to have HFR populated.
@@ -2631,7 +2631,7 @@ async fn emit_grade_progress(
                 },
             )
             .await;
-            // Pack H: emit a structured `ProgressDetail::FrameAccepted` so
+            // emit a structured `ProgressDetail::FrameAccepted` so
             // the bridge can dispatch the typed `SequencerEvent::FrameAccepted`
             // variant. The legacy `detail` string is still populated from
             // `ProgressDetail::detail_text()` so any subscriber that hasn't
@@ -2646,8 +2646,8 @@ async fn emit_grade_progress(
                 star_count: metrics.star_count,
                 accepted_total: accepted,
                 rejected_total: rejected,
-                // Wave 6 Pack P — surface the on-disk save path so the
-                // Wave 6 thumbnail strip can render an inline preview of
+                // surface the on-disk save path so the
+                // thumbnail strip can render an inline preview of
                 // accepted frames the same way it already does for
                 // rejected ones via `FrameRejected.reject_path`. The
                 // path is the resolved FITS file we just wrote (so the
@@ -2665,7 +2665,7 @@ async fn emit_grade_progress(
                     structured_detail: Some(Box::new(structured)),
                 });
             }
-            // Wave 8 Replay Debug — record a FrameAccepted decision so
+            // Replay Debug — record a FrameAccepted decision so
             // the replay timeline surfaces every accepted frame next
             // to the rejected ones. We hand the path through too so
             // the replay UI can cross-link to the captured-image row.
@@ -2714,7 +2714,7 @@ async fn emit_grade_progress(
                 full_path.display()
             );
 
-            // Wave 8 forensics — read the rolling history (cheap clone of
+            // forensics — read the rolling history (cheap clone of
             // VecDeque -> Vec since only the analyzer needs a contiguous
             // slice) and consult the classifier. The history read MUST
             // happen before `push_forensic_sample` below so the current
@@ -2744,9 +2744,9 @@ async fn emit_grade_progress(
                 verdict.evidence,
             );
 
-            // Pack H: structured FrameRejected payload mirrors what the
+            // structured FrameRejected payload mirrors what the
             // bridge needs to dispatch SequencerEvent::FrameRejected; the
-            // legacy detail string remains for back-compat. Wave 8
+            // legacy detail string remains for back-compat.
             // forensics fields are populated from the verdict + the
             // pre-classification environment snapshot.
             let structured = crate::node::ProgressDetail::FrameRejected {
@@ -2797,7 +2797,7 @@ async fn emit_grade_progress(
                     structured_detail: Some(Box::new(structured)),
                 });
             }
-            // Wave 8 Replay Debug — record a FrameRejected decision so
+            // Replay Debug — record a FrameRejected decision so
             // the replay timeline carries the verdict + forensics
             // payload alongside the consecutive-rejects escalation.
             // Cross-links to forensics via the `reject_path` field
@@ -2830,7 +2830,7 @@ async fn emit_grade_progress(
             ));
 
             // Escalation: max_consecutive_rejects in a row => emit Error
-            // (Wave 1.5 Pack C critical-event banner) and pause the
+            // (critical-event banner) and pause the
             // sequence. We do NOT cancel — the user may want to inspect
             // the rejects and resume.
             if consecutive >= max_consecutive && max_consecutive > 0 {
@@ -2854,7 +2854,7 @@ async fn emit_grade_progress(
                     });
                 }
 
-                // P1-17: actually escalate to a real recovery/pause. The
+                // actually escalate to a real recovery/pause. The
                 // recovery system has a `ConsecutiveRejectsExceeded` cause
                 // whose driver pauses the run for inspection, but nothing ever
                 // SENT it — so a reject storm (clouds rolling in, focus lost,
@@ -2892,7 +2892,7 @@ async fn emit_grade_progress(
 }
 
 // =============================================================================
-// FRAME CONTEXT BUILDER (Wave 3 Image Grading)
+// FRAME CONTEXT BUILDER (Image Grading)
 // =============================================================================
 
 /// Build the per-frame FITS-header bundle for the current capture.
@@ -3043,7 +3043,7 @@ async fn build_frame_context_for_save(
         }
     }
 
-    // Wave 7 Agent 3 — defect-map correction provenance. Only set when
+    // defect-map correction provenance. Only set when
     // the correction actually ran; skipped / disabled outcomes leave
     // the field None and no HISTORY card is emitted by the FITS writer.
     frame_ctx.defect_map_correction = defect_map_outcome.into_record();
@@ -3166,7 +3166,7 @@ pub async fn execute_autofocus(
         Binning::Four => (4, 4),
     };
 
-    // Audit §1.21: minimum star count is now `config.min_star_count`
+    // minimum star count is now `config.min_star_count`
     // (default 10 from `default_af_min_star_count`); previously a hardcoded
     // local const. A user with a fast/dim setup can lower it without
     // patching the binary.
@@ -3671,7 +3671,7 @@ pub async fn execute_dither(
                     );
                 }
 
-                // Audit §1.13: previously we collapsed grid-mode to RA-only
+                // previously we collapsed grid-mode to RA-only
                 // when `dec_offset.abs() < 0.01`, a magic threshold that
                 // surreptitiously changed user-requested 2D grid behaviour
                 // into 1D dithering for any cell whose Dec component happened
@@ -4109,7 +4109,7 @@ pub async fn execute_filter_change(
     // Per-filter timeout overrides the global default to accommodate slow
     // wheels (motorized covers, many-position wheels) that legitimately
     // need longer than 120 s; configuring None preserves the safe default.
-    // Why (audit-rust §4.3): `timeout_secs: Option<u32>` is the explicit
+    // Why: `timeout_secs: Option<u32>` is the explicit
     // user-override slot — None means "use the documented default".
     let timeout = Duration::from_secs(
         config
@@ -4538,7 +4538,7 @@ pub async fn execute_warm_camera(
             return InstructionResult::failure(format!("Failed to read camera temperature: {}", e))
         }
     };
-    // Why (audit-rust §4.3): `target_temp: Option<f64>` is a user-override on the
+    // Why: `target_temp: Option<f64>` is a user-override on the
     // WarmCamera instruction; None means "use the conventional ambient-warming default
     // of 20°C", which is the safe shutdown-prep temperature for every cooled-sensor
     // chip in our supported matrix.
@@ -4773,7 +4773,7 @@ pub async fn execute_wait_time(
             let total_wait_secs = u64::try_from(until - now).unwrap_or(0);
             let wait_until_str = chrono::DateTime::from_timestamp(until, 0)
                 .map(|dt| dt.format("%H:%M:%S").to_string())
-                // Why (audit-rust §4.3): `from_timestamp` only fails for out-of-range
+                // Why: `from_timestamp` only fails for out-of-range
                 // i64 seconds (year ±5_400_000); user input here is bounded by the UI
                 // datetime picker. Raw epoch seconds as the display fallback preserves
                 // log traceability if a hypothetical extreme value sneaks in.
@@ -4904,7 +4904,7 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     let now = chrono::Utc::now();
     let today = now.date_naive();
 
-    // Calculate Julian Day. Audit §1.6: reuse `crate::meridian::julian_day`
+    // Calculate Julian Day. reuse `crate::meridian::julian_day`
     // instead of the previous local duplicate.
     let jd = crate::meridian::julian_day(&now);
 
@@ -4962,7 +4962,7 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     twilight_timestamp
 }
 
-// Audit §1.6: the local `calculate_julian_day` was deleted; use
+// the local `calculate_julian_day` was deleted; use
 // `crate::meridian::julian_day(&dt)` — same formula, single source of truth.
 
 fn build_utc_naive_time_or_fallback(
@@ -4971,7 +4971,7 @@ fn build_utc_naive_time_or_fallback(
     minute: u32,
     fallback: (u32, u32, u32),
 ) -> chrono::NaiveDateTime {
-    // Why (audit-rust §4.3): `and_hms_opt` only returns None for invalid (h,m,s) tuples
+    // Why: `and_hms_opt` only returns None for invalid (h,m,s) tuples
     // (h>=24, m>=60, s>=60). The caller passes solar-calculation results that may
     // saturate at exactly 24:00:00 in edge equation-of-time cases — `fallback` is the
     // tuple from the documented sunset-convention default. If both fail (impossible
@@ -5110,7 +5110,7 @@ pub async fn execute_notification(
 // SCRIPT INSTRUCTION
 // =============================================================================
 
-/// Execute script. Wave 4 expanded the env-var contract: every variable
+/// Execute script. expanded the env-var contract: every variable
 /// declared in `expressions::catalog` is exposed as `NIGHTSHADE_<NAME>`
 /// where `NAME` is the dotted variable converted to UPPER_SNAKE
 /// (e.g. `target.alt` → `NIGHTSHADE_TARGET_ALT`). Variables that fail to
@@ -5206,14 +5206,14 @@ pub async fn execute_script(
 
 /// Execute a meridian flip via the canonical [`MeridianFlipExecutor`].
 ///
-/// Audit §1.6: this used to be a 394-line second implementation that diverged
+/// this used to be a 394-line second implementation that diverged
 /// from the executor on timeouts, post-flip altitude check, autofocus
 /// parameters, settle behaviour, plate-solve failure handling, pier-side
 /// telemetry fallback, and abort-during-flip semantics. The single-source-
 /// of-truth executor lives in `crate::meridian_flip_executor`. This wrapper
 /// builds a [`FlipContext`] from the instruction context and calls
 /// `executor.execute()`. The cancellation token, the trigger-state flip
-/// bookkeeping, the cover-state pre-check (audit §1.19), and the
+/// bookkeeping, the cover-state pre-check, and the
 /// configurable autofocus parameters all flow through the FlipContext.
 pub async fn execute_meridian_flip(
     config: &MeridianFlipConfig,
@@ -5247,7 +5247,7 @@ pub async fn execute_meridian_flip(
         }
     };
 
-    // Why (audit-rust §4.3): target name is a display/log label for meridian-flip
+    // Why: target name is a display/log label for meridian-flip
     // status events; the load-bearing inputs (target_ra, target_dec) are already
     // validated as Some above and return failure when missing. "Unknown" is the
     // documented UI fallback when the user starts a sequence without a named target.
@@ -5314,7 +5314,7 @@ pub async fn execute_meridian_flip(
         config.clone(),
         ctx.device_ops.clone(),
     );
-    // Wave 1.5 Pack A: forward the live executor event channel so the
+    // forward the live executor event channel so the
     // post-flip refocus emits its instruction-level failures to UI
     // subscribers (FITS-save errors during the test exposure, etc.).
     // When the instruction runs outside a live executor (unit tests),
@@ -5391,7 +5391,7 @@ pub enum DomeShutterWaitOutcome {
 /// Poll the dome shutter status until it reaches `target` ("Open" or
 /// "Closed"), or fail closed on timeout / a reported Error.
 ///
-/// P1-2: dome open/close/park were previously fire-and-forget — the command
+/// dome open/close/park were previously fire-and-forget — the command
 /// returned and the sequence moved on (slewing/exposing) while the shutter
 /// was still moving, or never opened/closed at all. The cover/calibrator
 /// nodes already poll for their target state; domes now do too.
@@ -5824,7 +5824,7 @@ pub async fn execute_calibrator_on(
     match wait_for_calibrator_state(&device_id, 3, ctx, timeout).await {
         Ok(_) => {
             // Verify brightness is set correctly
-            // Why (audit-rust §4.3): post-set verification readback; an Err here would mean
+            // Why: post-set verification readback; an Err here would mean
             // the driver dropped the cover-calibrator session between SetBrightness and
             // GetBrightness — falling back to the requested value `config.brightness`
             // simply trusts the SetBrightness call that already returned success above
@@ -6211,7 +6211,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading: reject folder resolution
+    // Image Grading: reject folder resolution
     // -------------------------------------------------------------------
 
     #[test]

@@ -1,4 +1,4 @@
-// Wave 8 — Replay Debug retention + clear-all settings page.
+// Replay Debug retention + clear-all settings page.
 //
 // Surfaces the two replay-debug keys persisted in `app_settings`:
 //   * replay_debug.enabled              — runtime toggle. When false the

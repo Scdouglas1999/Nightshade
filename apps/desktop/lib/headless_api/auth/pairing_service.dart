@@ -80,7 +80,7 @@ class PairingService {
       deviceId: deviceId,
       deviceName: deviceName,
       deviceType: deviceType,
-      // P0-10: persist absolute expiry so the auth middleware can enforce
+      // persist absolute expiry so the auth middleware can enforce
       // the advisory `expiresAt` returned to the client. Previously the
       // 1-year horizon was returned to the client but never enforced.
       tokenLifetime: _defaultSessionTokenLifetime,

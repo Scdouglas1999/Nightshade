@@ -95,7 +95,7 @@ void main() {
 
       // Score still reaches the legacy "auto" trigger threshold of 0.88,
       // but under the advisory default the disposition must remain at
-      // `review` rather than `autoReject` (audit IMG-P1-1).
+      // `review` rather than `autoReject` (audit ).
       expect(result.heuristicScore, greaterThan(0.88));
       expect(result.autoRejectCandidate, isFalse);
       expect(result.disposition, FrameQualityDisposition.review);

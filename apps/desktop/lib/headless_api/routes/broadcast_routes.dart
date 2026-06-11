@@ -1,4 +1,4 @@
-/// Declarative route table for the Wave 7 live-stacking broadcast
+/// Declarative route table for the live-stacking broadcast
 /// surface.
 ///
 /// Counterpart to `handlers/broadcast_handlers.dart`. The

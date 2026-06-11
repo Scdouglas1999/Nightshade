@@ -6,7 +6,7 @@
 /// re-export so existing imports of `isValidDeviceIdFormat` (and the
 /// `kKnownDeviceId*` constants) keep working.
 ///
-/// DEV-P1-7: connect methods on `DeviceService` use [isValidDeviceIdFormat]
+/// Connect methods on `DeviceService` use [isValidDeviceIdFormat]
 /// as a cheap structural pre-check before delegating to the backend — they do
 /// NOT confirm the device exists or is reachable. See `device_id.dart` for the
 /// full rationale.

@@ -5,7 +5,7 @@ import '../services/notes_service.dart';
 import '../services/sequence_diff_service.dart';
 import 'database_provider.dart';
 
-/// Wave 6 Agent 5 — Riverpod surface for per-target / per-run notes
+/// Riverpod surface for per-target / per-run notes
 /// and the structural sequence diff.
 ///
 /// The service-layer types are exposed through three thin providers so

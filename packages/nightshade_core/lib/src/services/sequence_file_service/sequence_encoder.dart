@@ -93,7 +93,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'triggerThreshold': node.triggerThreshold,
         'hfrThresholdPercent': node.hfrThresholdPercent,
         'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
-        // Wave 1 Pack A added focusDrift as a distinct trigger type
+        // Added focusDrift as a distinct trigger type
         // with its own rolling-window parameters. Persist them so a
         // saved-then-reloaded sequence preserves the trigger config —
         // previously they would silently reset to defaults on import.
@@ -217,7 +217,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'isNorth': node.isNorth,
         'manualSlew': node.manualSlew,
       },
-      // Wave 3 Agent 2: SmartExposure. Plans are serialised as a list of
+      // SmartExposure. Plans are serialised as a list of
       // FilterPlan JSON maps (snake_case Rust shape) so the same blob
       // round-trips through both disk persistence and the executor's
       // `_nodeToConfig` payload.
@@ -229,7 +229,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'batchSize': node.batchSize,
         'loopUntilStopped': node.loopUntilStopped,
       },
-      // Wave 3 Agent 1: TargetScheduler config — eight knobs that
+      // TargetScheduler config — eight knobs that
       // round-trip through disk persistence and the executor payload.
       TargetSchedulerNode() => <String, dynamic>{
         'altitudeWeight': node.altitudeWeight,
@@ -247,7 +247,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'minMoonSeparationDeg': node.minMoonSeparationDeg,
         'horizonProfile': _encodeHorizonProfile(node.horizonProfile),
       },
-      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node config.
+      // LiveStacking — broadcast / EAA node config.
       LiveStackingNode() => <String, dynamic>{
         'mode': node.mode.storageKey,
         'stackMethod': node.stackMethod.storageKey,
@@ -260,7 +260,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'thumbnailWidth': node.thumbnailWidth,
         'thumbnailHeight': node.thumbnailHeight,
       },
-      // Wave 7 Science: SciencePhotometry — cadence-enforced
+      // Science: SciencePhotometry — cadence-enforced
       // photometric capture node config.
       SciencePhotometryNode() => <String, dynamic>{
         'targetDesignation': node.targetDesignation,

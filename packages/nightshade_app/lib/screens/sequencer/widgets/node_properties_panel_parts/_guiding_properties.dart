@@ -4,7 +4,7 @@
 // pixels/time/timeout + auto-select star) and StopGuiding (a descriptive
 // info card; the node has no configurable fields). These were previously
 // missing from the dispatcher and fell through to the "No property editor"
-// fallback (audit P1-19).
+// fallback.
 part of '../node_properties_panel.dart';
 
 class _StartGuidingProperties extends ConsumerWidget {

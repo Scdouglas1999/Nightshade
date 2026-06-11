@@ -46,7 +46,7 @@ extension FilterWheelDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// P2-7 — remote GET for the current filter-wheel position/state.
+  /// remote GET for the current filter-wheel position/state.
   ///
   /// Reads from `filterWheelStateProvider` which the device-service
   /// keeps in sync with the underlying driver via the position-settle

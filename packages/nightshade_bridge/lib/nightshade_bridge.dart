@@ -52,7 +52,7 @@ export 'src/rolling_rms_calculator.dart';
 // Export device capabilities
 export 'src/device_capabilities.dart';
 
-// Export safe-cast helpers used at the FFI boundary (audit-rust §1.4).
+// Export safe-cast helpers used at the FFI boundary.
 // Re-exported from nightshade_core for discoverability.
 export 'src/utils/safe_cast.dart';
 

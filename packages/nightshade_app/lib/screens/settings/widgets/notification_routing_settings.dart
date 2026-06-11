@@ -1,4 +1,4 @@
-// Wave 5 Agent 5 — Notification routing settings panel.
+// Notification routing settings panel.
 //
 // Lives alongside `notification_settings.dart` (the legacy push toggles)
 // and is embedded inside that page. Exposes:

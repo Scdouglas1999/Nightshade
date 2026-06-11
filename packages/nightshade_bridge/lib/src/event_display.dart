@@ -372,7 +372,7 @@ String _sequencerTitle(SequencerEvent v) {
     SequencerEvent_TriggerFired() => 'Trigger fired',
     SequencerEvent_InstructionProgress() => 'Instruction progress',
     SequencerEvent_InstructionProgressStructured() => 'Instruction progress',
-    // Pack H — typed Wave 3 payloads. Surfaced as their own titles so the
+    // Typed grading payloads. Surfaced as their own titles so the
     // trigger feed / event log shows "Frame accepted" / "Frame rejected"
     // instead of swallowing them under the generic "Instruction progress"
     // catch-all.
@@ -382,7 +382,7 @@ String _sequencerTitle(SequencerEvent v) {
       n == null ? 'Scheduler: no pick' : 'Scheduler: pick',
     SequencerEvent_IntegrationBudget(budgetMet: final met) =>
       met ? 'Budget complete' : 'Budget progress',
-    // Wave 4 Recovery Mode — title rendering for the trigger feed /
+    // Recovery Mode — title rendering for the trigger feed /
     // event log. The Run Dashboard banner consumes the same payload via
     // `recoveryEventBridgeProvider` and renders a richer UI; these
     // strings exist so the unified event log doesn't fall back to the
@@ -392,15 +392,15 @@ String _sequencerTitle(SequencerEvent v) {
     SequencerEvent_RecoveryCompleted() => 'Recovery complete',
     SequencerEvent_RecoveryGaveUp(abortedByUser: final aborted) =>
       aborted ? 'Recovery aborted' : 'Recovery exhausted',
-    // Wave 5 Agent 2 — adaptive exposure ("ExposureAdjusted") and any
-    // other Wave 5 events that haven't been wired into this label
-    // switch yet. Fallback to the generic class-name discriminant
+    // Adaptive exposure ("ExposureAdjusted") and any
+    // other adaptive-exposure events that haven't been wired into this
+    // label switch yet. Fallback to the generic class-name discriminant
     // until each is given a hand-written label.
     SequencerEvent_ExposureAdjusted() => 'Exposure adjusted',
-    // Wave 6 Pack P — plugin sequence node dispatch.
+    // Plugin sequence node dispatch.
     SequencerEvent_PluginNodeRequested() => 'Plugin node requested',
     SequencerEvent_PluginNodeProgress() => 'Plugin node progress',
-    // Wave 8 Replay Debug — structured executor decision stream.
+    // Replay Debug — structured executor decision stream.
     SequencerEvent_DecisionLogged() => 'Decision logged',
   };
 }
@@ -449,7 +449,7 @@ String _sequencerDetail(SequencerEvent v) {
       detailKind: final k,
     ) =>
       '$i: $k (${p.toStringAsFixed(0)}%)',
-    // Pack H — single source of truth for the typed Wave 3 payload
+    // Single source of truth for the typed grading payload
     // display strings. The dashboard panels render the same wording so
     // the trigger feed + panel always agree.
     SequencerEvent_FrameAccepted(
@@ -487,7 +487,7 @@ String _sequencerDetail(SequencerEvent v) {
       budgetMet: final met,
     ) =>
       _integrationBudgetDetail(flt, cs, bs, met),
-    // Wave 4 Recovery Mode — single-line detail for the trigger feed.
+    // Recovery Mode — single-line detail for the trigger feed.
     // `causeCustomLabel` overrides `causeKind` so a `Custom("dome cable
     // dragging")` recovery surfaces the real reason instead of the bare
     // "Custom" discriminant.
@@ -528,7 +528,7 @@ String _sequencerDetail(SequencerEvent v) {
           : 'exhausted ${custom?.isNotEmpty == true ? custom! : kind} '
                 'after $a attempt${a == 1 ? "" : "s"}'
                 '${err != null && err.isNotEmpty ? "; $err" : ""}',
-    // Wave 5 Agent 2 — adaptive exposure. Lightweight one-line render
+    // Adaptive exposure. Lightweight one-line render
     // showing the nominal/adapted exposure pair and the reason; the
     // dashboard's Adaptive Exposure panel renders the full detail.
     SequencerEvent_ExposureAdjusted(
@@ -540,7 +540,7 @@ String _sequencerDetail(SequencerEvent v) {
       flt != null && flt.isNotEmpty
           ? '$flt: ${o.toStringAsFixed(1)}s → ${a.toStringAsFixed(1)}s ($r)'
           : '${o.toStringAsFixed(1)}s → ${a.toStringAsFixed(1)}s ($r)',
-    // Wave 6 Pack P — plugin node dispatch.
+    // Plugin node dispatch.
     SequencerEvent_PluginNodeRequested(
       pluginId: final pid,
       nodeTypeId: final tid,
@@ -564,7 +564,7 @@ String _sequencerDetail(SequencerEvent v) {
   };
 }
 
-/// Pack H — single-line render of an IntegrationBudget event. Pulled out
+/// Single-line render of an IntegrationBudget event. Pulled out
 /// of the switch arm because Dart switch-expressions don't allow `if`
 /// inside the arm body.
 String _integrationBudgetDetail(

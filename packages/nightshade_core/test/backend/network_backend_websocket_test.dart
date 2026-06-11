@@ -92,7 +92,7 @@ void main() {
         );
 
         try {
-          // P2-13: incompatible-version is a terminal failure mode now,
+          // Incompatible-version is a terminal failure mode now,
           // surfaced as `error` rather than the legacy `disconnected`.
           // We wait for either so this test asserts the documented
           // behaviour (server rejected the upgrade) regardless of which
@@ -400,7 +400,7 @@ void main() {
       },
     );
 
-    test('P2-13: first attempt emits `connecting`, post-success drop emits '
+    test('first attempt emits `connecting`, post-success drop emits'
         '`reconnecting`', () async {
       var connectionCount = 0;
       final firstClientArrived = Completer<WebSocket>();
@@ -442,7 +442,7 @@ void main() {
         expect(
           observed.first,
           BackendConnectionState.connecting,
-          reason: 'P2-13: first connect attempt must use the connecting state',
+          reason: 'first connect attempt must use the connecting state',
         );
         expect(observed, contains(BackendConnectionState.connected));
 
@@ -466,7 +466,7 @@ void main() {
       }
     });
 
-    test('P2-2: sends collaboration.join after WS handshake', () async {
+    test('sends collaboration.join after WS handshake', () async {
       // Capture the first non-control message arriving on the server's
       // WebSocket. The WS heartbeat sends `ping` frames so we filter those
       // out and assert the very next frame is our `collaboration.join`.

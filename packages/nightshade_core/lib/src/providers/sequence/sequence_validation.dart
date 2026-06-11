@@ -1,27 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sequence/sequence_models.dart';
-// Wave 5 Agent 2: sky-brightness adaptive exposure validation rules.
+// Sky-brightness adaptive exposure validation rules.
 import 'rules/adaptive_exposure_rules.dart';
-// Wave 7 Agent 3: per-frame defect-map validation rules.
+// Per-frame defect-map validation rules.
 import 'rules/defect_map_rules.dart';
 import 'rules/disk_space_rules.dart';
 import 'rules/equipment_rules.dart';
 import 'rules/exposure_rules.dart';
 import 'rules/filter_rules.dart';
 import 'rules/logic_node_rules.dart';
-// Wave 5 Agent 3 — Pre-flight checks (darks + equipment health + optical train).
+// Pre-flight checks (darks + equipment health + optical train).
 import 'rules/preflight_rules.dart';
 import 'rules/settings_rules.dart';
-// Wave 7 Agent 2: LiveStacking node validation rules.
+// LiveStacking node validation rules.
 import 'rules/live_stacking_rules.dart';
-// Wave 7 Science: SciencePhotometry node validation rules.
+// Science: SciencePhotometry node validation rules.
 import 'rules/science_photometry_rules.dart';
-// Wave 3 Agent 2: SmartExposure node validation rules.
+// SmartExposure node validation rules.
 import 'rules/smart_exposure_rules.dart';
 import 'rules/structure_rules.dart';
 import 'rules/target_rules.dart';
-// Wave 3 Agent 1: TargetScheduler node validation rules.
+// TargetScheduler node validation rules.
 import 'rules/target_scheduler_rules.dart';
 import 'rules/timing_rules.dart';
 
@@ -65,7 +65,7 @@ enum ValidationCategory {
   timing,
   settings,
   diskSpace,
-  // Wave 5 Agent 3 — Pre-flight checks. New categories so the pre-flight
+  // Pre-flight checks. New categories so the pre-flight
   // dialog can group these in their own collapsible sections instead of
   // mixing them with the structural / equipment-connection issues.
   /// Dark library coverage (matching dark frames for the sequence's
@@ -285,11 +285,11 @@ final List<SequenceValidator> defaultSequenceValidators =
       TargetCoordinatesRule(),
       EmptyTargetRule(),
       LowAltitudeLimitRule(),
-      // Wave 3 Agent 3 — per-target integration budget validators.
+      // Per-target integration budget validators.
       IntegrationBudgetEmptyRule(),
       IntegrationBudgetRatioZeroSumRule(),
       IntegrationBudgetRatioWithoutTotalRule(),
-      // Wave 4 — per-target altitude/time crossing validators. The
+      // Per-target altitude/time crossing validators. The
       // ImpossibleAltitude rule needs an observer latitude to be useful; we
       // wire it up below in `sequenceValidatorsFor(latitude)` if/when the
       // caller has one. The structural rules (empty compound,
@@ -307,27 +307,27 @@ final List<SequenceValidator> defaultSequenceValidators =
       LoopEndTimePastRule(),
       // Logic-node-specific rules (Recovery / Parallel / Conditional).
       RecoveryNodeConfigRule(),
-      // Wave 5 Agent 4 — cloud-motion-aware trigger config validation.
+      // Cloud-motion-aware trigger config validation.
       CloudTriggerConfigRule(),
       ParallelNodeRequiredSuccessesRule(),
       ConditionalNodeEmptyBranchRule(),
       LoopUnreachableTerminationRule(),
-      // Wave 3 Agent 2: SmartExposure validation.
+      // SmartExposure validation.
       SmartExposureEmptyPlansRule(),
       SmartExposureNegativeCountRule(),
       SmartExposureUnboundedLoopRule(),
-      // Wave 7 Science: SciencePhotometry validation.
+      // Science: SciencePhotometry validation.
       SciencePhotometryFilterRule(),
       SciencePhotometryReferenceStarsEmptyRule(),
       SciencePhotometryCadenceRule(),
-      // Wave 7 Agent 2: LiveStacking node validation.
+      // LiveStacking node validation.
       LiveStackingNoExposureRule(),
       LiveStackingPortClashRule(),
-      // Wave 3 Agent 1: TargetScheduler validation.
+      // TargetScheduler validation.
       TargetSchedulerNoChildrenRule(),
       TargetSchedulerNonTargetChildRule(),
       TargetSchedulerWeightsRule(),
-      // Wave 5 Agent 2: Sky-brightness adaptive exposure validation.
+      // Sky-brightness adaptive exposure validation.
       AdaptiveExposureBoundsRule(),
       AdaptiveExposureNoFilterEnabledRule(),
       AdaptiveExposureNominalOutOfBoundsRule(),
@@ -343,12 +343,12 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
       DefaultSequenceNameRule(),
       LongEstimatedDurationRule(),
       MeridianFlipTriggerRule(),
-      // Wave 3 Agent 2: SmartExposure needs a filter wheel.
+      // SmartExposure needs a filter wheel.
       SmartExposureFilterWheelMissingRule(),
       // Audit C6: every SmartExposure row's filterName must match a filter
       // configured in the active equipment profile.
       SmartExposureFilterUnknownRule(),
-      // Wave 5 Agent 3 — Pre-flight equipment-health checks (synchronous —
+      // Pre-flight equipment-health checks (synchronous —
       // they only read providers, no network / disk I/O).
       UsbStabilityRule(),
       FocuserRangeRule(),
@@ -356,7 +356,7 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
       CoolerDeltaRule(),
       FilterWheelHomingRule(),
       OpticalTrainPreflightRule(),
-      // Wave 7 Agent 3 — defect-map calibration check. Warns when the user
+      // Defect-map calibration check. Warns when the user
       // enabled auto-apply but no map exists for the current camera/bucket.
       DefectMapAppliedButCalibrationOffRule(),
     ]);
@@ -365,7 +365,7 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
 final List<AsyncSequenceValidator> defaultAsyncSequenceValidators =
     List<AsyncSequenceValidator>.unmodifiable(<AsyncSequenceValidator>[
       DiskSpaceProjectionRule(),
-      // Wave 5 Agent 3 — Pre-flight async checks (query dark library DAO,
+      // Pre-flight async checks (query dark library DAO,
       // NTP). Live in the async tier so the live in-tree validator (which
       // runs on every keystroke) doesn't trigger them.
       DarkLibraryCoverageRule(),
@@ -462,7 +462,7 @@ List<ValidationIssue> validateSequence(Sequence sequence) {
 ///
 /// Carries the full [ValidationResult] so callers can surface ALL findings
 /// to the user instead of the historical "first error wins" `Exception`.
-/// CLAUDE.md mandate: errors are a feature; silent truncation of additional
+/// Errors are a feature here; silent truncation of additional
 /// errors is a bug.
 class SequenceValidationException implements Exception {
   /// Complete validation result. Includes errors, warnings, and info-level
@@ -532,7 +532,7 @@ bool isContainerNode(SequenceNode node) {
     ConditionalNode _ ||
     RecoveryNode _ ||
     InstructionSetNode _ ||
-    // Wave 3 Agent 1: TargetScheduler holds child target headers and picks
+    // TargetScheduler holds child target headers and picks
     // among them at runtime.
     TargetSchedulerNode _ => true,
     // Leaf nodes (instructions / triggers) do not own children
@@ -562,12 +562,12 @@ bool isContainerNode(SequenceNode node) {
     CloseCoverNode _ ||
     CalibratorOnNode _ ||
     CalibratorOffNode _ ||
-    // Wave 3 Agent 2: SmartExposure — leaf instruction (per-filter
+    // SmartExposure — leaf instruction (per-filter
     // behaviour is encoded in `plans`, no children).
     SmartExposureNode _ ||
-    // Wave 7 Agent 2: LiveStacking — leaf side-effect instruction.
+    // LiveStacking — leaf side-effect instruction.
     LiveStackingNode _ ||
-    // Wave 7 Science: SciencePhotometry — leaf instruction.
+    // Science: SciencePhotometry — leaf instruction.
     SciencePhotometryNode _ ||
     // Audit §11 — plugin-contributed instruction. Leaf.
     PluginInstructionNode _ => false,

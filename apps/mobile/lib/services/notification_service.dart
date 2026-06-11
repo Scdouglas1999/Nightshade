@@ -30,7 +30,7 @@ class MobileNotificationService implements MobileNotificationSink {
   /// install time) and on non-Android platforms (where this provider is
   /// not consumed). Read by the Android notifications banner so it can
   /// nag the operator into granting the permission before a sequence
-  /// runs. See P1-16a / audit §7 bug 3.
+  /// runs.
   bool _androidNotificationsAuthorized = true;
   bool get androidNotificationsAuthorized => _androidNotificationsAuthorized;
 
@@ -52,13 +52,13 @@ class MobileNotificationService implements MobileNotificationSink {
   static const int _equipmentDisconnectedId = 109;
   static const int _targetCompletedId = 110;
   static const int _mountParkedId = 111;
-  // P1-2/P1-3 job-failure notifications. Distinct IDs so a plate-solve
+  // job-failure notifications. Distinct IDs so a plate-solve
   // failure during a center-on-target sequence doesn't replace the
   // higher-level centering failure (the user wants to see both).
   static const int _plateSolveFailedId = 112;
   static const int _centeringFailedId = 113;
   static const int _polarAlignmentFailedId = 114;
-  // P1-5 session ownership notifications.
+  // session ownership notifications.
   static const int _ownershipTakenOverId = 115;
   static const int _ownershipAutoReleasedId = 116;
 
@@ -109,7 +109,6 @@ class MobileNotificationService implements MobileNotificationSink {
       // sequence-failed / guiding-lost / safety alerts vanish silently
       // (no exception, no log). Request it explicitly at app startup so
       // the operator sees the system prompt before any sequence runs.
-      // See P1-16a / audit §7 bug 3.
       await _requestAndroidNotificationPermission();
     }
 
@@ -831,7 +830,7 @@ class MobileNotificationService implements MobileNotificationSink {
   }
 
   // ---------------------------------------------------------------------------
-  // Job-failure notifications (Wave 3 / P1-2 P1-3)
+  // Job-failure notifications
   //
   // These map onto specific `JobFailed` events that the headless server
   // emits for long-running jobs. We don't surface JobStarted/JobProgress/
@@ -925,7 +924,7 @@ class MobileNotificationService implements MobileNotificationSink {
   }
 
   // ---------------------------------------------------------------------------
-  // Session ownership notifications (Wave 3 / P1-5)
+  // Session ownership notifications
   // ---------------------------------------------------------------------------
 
   @override

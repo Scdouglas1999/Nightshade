@@ -1,4 +1,4 @@
-// Wave 7E — Multi-server roaming on the mobile companion.
+// Multi-server roaming on the mobile companion.
 //
 // Persists a list of previously-paired Nightshade hosts so an operator
 // who manages multiple rigs (e.g. observatory + travel scope + backyard
@@ -315,7 +315,7 @@ class SavedServer {
     final notes = json['notes'];
     // Scheme is optional; when present it MUST be http/https — a bogus
     // value would route the activation probe at a protocol the server
-    // cannot answer, so we reject rather than silently coerce (CLAUDE.md
+    // cannot answer, so we reject rather than silently coerce (the CONTRIBUTING.md house rules
     // no silent fallbacks). Absent → legacy http default.
     final rawScheme = json['scheme'];
     final String parsedScheme;
@@ -347,7 +347,7 @@ class SavedServer {
     // Relay fields are optional and travel together. When present the URL
     // must be a ws/wss endpoint and the appliance id must match the relay
     // id shape — a malformed blob is rejected rather than silently coerced
-    // (CLAUDE.md no silent fallbacks) so a hand-edited entry can't point the
+    // (no silent fallbacks) so a hand-edited entry can't point the
     // reconnect at an arbitrary scheme/host.
     final rawRelayUrl = json['relayUrl'];
     final rawRelayId = json['relayApplianceId'];
@@ -513,7 +513,7 @@ class SavedServersService {
   /// rows that have never been connected.
   ///
   /// Side effect: on the first call after install, folds the legacy
-  /// `loadLastServer()` record into the list (Wave 7E migration). The
+  /// `loadLastServer()` record into the list (migration). The
   /// migration is gated by [SavedServersStorageKeys.migrated] so it
   /// runs exactly once.
   Future<List<SavedServer>> loadAll() async {
@@ -556,7 +556,7 @@ class SavedServersService {
       } on FormatException catch (e, st) {
         // Skip the bad row but keep the rest — a single corrupted entry
         // shouldn't make the whole list unusable. Surface the failure
-        // (CLAUDE.md no silent fallbacks) via a structured log line so
+        // (no silent fallbacks) via a structured log line so
         // the operator sees something is up.
         developer.log(
           'saved_servers: skipping malformed row: $e',
@@ -968,7 +968,7 @@ class SavedServersService {
     });
   }
 
-  /// Wave 7E migration: read the legacy single-server record (if any)
+  /// migration: read the legacy single-server record (if any)
   /// and append it to the list as entry zero. Idempotent — gated by
   /// `migrated_v1` so an empty list across app restarts doesn't keep
   /// re-importing.

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  group('UnifiedDiscoveryState — UI-P0-4', () {
+  group('UnifiedDiscoveryState', () {
     test('lastDiscoveryCompletedAt returns newest backend timestamp', () {
       final older = DateTime(2026, 5, 24, 10);
       final newer = DateTime(2026, 5, 24, 12);

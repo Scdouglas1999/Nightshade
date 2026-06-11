@@ -104,7 +104,7 @@ pub fn calculate_tile_grid(width: u32, height: u32, tile_size: u32) -> Vec<TileR
 /// Despite the original name, this function is **synchronous and CPU-bound**:
 /// all work runs inside `rayon::par_iter`. Callers on a Tokio runtime MUST wrap
 /// the call in `tokio::task::spawn_blocking(...)` to avoid stalling the async
-/// executor. Why: per audit §6.7, keeping it sync makes the blocking explicit
+/// executor. Why: keeping it sync makes the blocking explicit
 /// at the call site rather than hidden behind a deceptive `async fn`.
 pub fn process_tiled(
     image: &ImageData,
@@ -127,7 +127,7 @@ pub fn process_tiled(
     // Thread-safe progress counter
     let completed = Arc::new(Mutex::new(0usize));
 
-    // Per audit §6.18: per-tile min/max normalization breaks global brightness
+    // per-tile min/max normalization breaks global brightness
     // consistency at tile boundaries. We compute the global range once and
     // every tile rescales against the same numbers.
     let global_minmax = if matches!(operation, ProcessOperation::Normalize) {
@@ -144,7 +144,7 @@ pub fn process_tiled(
 
             // Update progress
             if let Some(ref callback) = progress_callback {
-                // Per audit §6.7: propagate poisoned-mutex panics rather than
+                // propagate poisoned-mutex panics rather than
                 // silently taking the inner value (which would hide the bug
                 // that caused the poison).
                 let mut count = completed.lock().expect("progress mutex poisoned");
@@ -187,7 +187,7 @@ fn process_tile(
             highlight,
         } => apply_stretch_to_tile(&tile_data, image.pixel_type, *shadow, *midtone, *highlight),
         ProcessOperation::Normalize => {
-            // Per audit §6.18: tile normalization MUST use the image-wide
+            // tile normalization MUST use the image-wide
             // min/max so tile boundaries don't produce visible discontinuities
             // in the merged output. `process_tiled` computes and passes them.
             let mm = global_minmax.ok_or_else(|| {
@@ -218,7 +218,7 @@ struct GlobalMinMax {
 
 /// First-pass scan of the whole image to compute min/max for tiled normalization.
 ///
-/// Per audit §6.18: per-tile min/max produces visible discontinuities at tile
+/// per-tile min/max produces visible discontinuities at tile
 /// boundaries because each tile rescales against its own range. We compute the
 /// global range once here, then each tile rescales against the same numbers.
 fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
@@ -264,7 +264,7 @@ fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
             Ok(GlobalMinMax { min, max })
         }
         PixelType::U8 => {
-            // §audit-rust 4.3 — the other branches all reject empty data with
+            // the other branches all reject empty data with
             // a typed error; U8 used `unwrap_or(&0)`/`unwrap_or(&255)` which
             // would silently produce a (0, 255) range for an empty image and
             // then divide-by-zero downstream in the tile normalization. Match
@@ -468,7 +468,7 @@ fn apply_mtf(value: f64, shadow: f64, midtone: f64, highlight: f64) -> f64 {
 
 /// Normalize tile to 0-255 range using image-wide min/max.
 ///
-/// Per audit §6.18: each tile rescales against the same global range so tile
+/// each tile rescales against the same global range so tile
 /// boundaries do not produce brightness discontinuities in the merged output.
 fn normalize_tile(
     data: &[u8],
@@ -661,7 +661,7 @@ mod tests {
         assert_eq!(processed.height, 512);
     }
 
-    /// Per audit §6.18: with a horizontal gradient, tiled normalization must
+    /// with a horizontal gradient, tiled normalization must
     /// produce a monotonic output. The earlier per-tile min/max version would
     /// rescale every tile to span 0..255 horizontally, creating a step pattern
     /// at tile boundaries.

@@ -1,4 +1,4 @@
-// P1-10 — Tests for the headless calibration handlers.
+// Tests for the headless calibration handlers.
 //
 // These tests exercise the dark library, flat history, and defect map
 // REST surface end-to-end. We use an in-memory Drift database for

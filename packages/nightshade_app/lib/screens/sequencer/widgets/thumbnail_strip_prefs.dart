@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// Wave 6 Thumbnails — user preferences for the inline frame thumbnail
+/// User preferences for the inline frame thumbnail
 /// strip rendered under each ExposureNode in the sequence tree.
 ///
 /// Two knobs:
 ///   * `enabled` — whether the strip is rendered at all. Defaults to ON.
 ///     The setting exists so users on slow disks / massive sessions can
-///     turn rendering off without disabling Wave 3 image grading.
+///     turn rendering off without disabling image grading.
 ///   * `size` — `small` (32px tall) or `medium` (48px tall). Small is
 ///     denser for crowded trees; medium is richer for inspection.
 ///
@@ -87,7 +87,7 @@ const _thumbnailStripPrefsKey = 'thumbnail_strip_prefs_v1';
 /// Persisted thumbnail-strip preferences. Backed by the
 /// `settingsDaoProvider` persistence pattern. Errors
 /// during read/write surface through the AsyncValue rather than being
-/// swallowed — silent fallbacks hide bugs (CLAUDE.md rule).
+/// swallowed — silent fallbacks hide bugs.
 final thumbnailStripPrefsProvider =
     AsyncNotifierProvider<ThumbnailStripPrefsNotifier, ThumbnailStripPrefs>(() {
   return ThumbnailStripPrefsNotifier();

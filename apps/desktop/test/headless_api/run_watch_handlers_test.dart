@@ -1,4 +1,4 @@
-// Wave 6 — Run-Watch handler tests.
+// Run-Watch handler tests.
 //
 // The handler is deliberately defensive: every sub-section of the
 // snapshot has its own try/catch so a flaky upstream (DisconnectedBackend

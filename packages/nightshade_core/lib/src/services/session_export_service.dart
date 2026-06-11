@@ -18,7 +18,7 @@ class SessionExportService {
   /// inside diagnostic dumps. Defaults to [DateTime.now] for backwards
   /// compatibility; the desktop wiring overrides it with the user's
   /// chosen [Clock] so exports labelled in the operator's timezone match
-  /// the rest of the session records (audit-handoff §2.1 WIRE-UP #9).
+  /// the rest of the session records
   SessionExportService({
     required SessionsDao sessionsDao,
     required ImagesDao imagesDao,

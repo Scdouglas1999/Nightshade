@@ -124,7 +124,7 @@ class FramingImageCacheService {
   ///
   /// Returns the on-disk metadata for the freshly-written file. Throws on
   /// IO failure (callers should surface the error to the user — silent
-  /// fallbacks hide real bugs, see CLAUDE.md).
+  /// fallbacks hide real bugs, ).
   ///
   /// A sidecar `.meta.json` file is written alongside each image carrying
   /// the human-readable target name and the precise RA/Dec/source it was

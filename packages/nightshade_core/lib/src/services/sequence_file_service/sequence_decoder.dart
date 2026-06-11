@@ -105,7 +105,7 @@ extension _SequenceFileDecoder on SequenceFileService {
               (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
           hfrConsecutiveFrames:
               (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
-          // Wave 1 Pack A: focusDrift trigger window. Default values
+          // FocusDrift trigger window. Default values
           // match the model constructor so legacy files without these
           // keys deserialize cleanly.
           focusDriftWindowSize:
@@ -458,7 +458,7 @@ extension _SequenceFileDecoder on SequenceFileService {
           isEnabled: isEnabled,
         );
 
-      // Wave 3 Agent 1: TargetScheduler — case strings cover the
+      // TargetScheduler — case strings cover the
       // normalised canonical Dart `nodeType` ('TargetScheduler') plus the
       // snake_case form emitted by the bridge layer.
       case 'targetscheduler':
@@ -505,7 +505,7 @@ extension _SequenceFileDecoder on SequenceFileService {
           isEnabled: isEnabled,
         );
 
-      // Wave 3 Agent 2: SmartExposure — case strings cover the canonical
+      // SmartExposure — case strings cover the canonical
       // Dart `nodeType` ('SmartExposure') normalised via
       // `_normalizeNodeType` (which lowercases) plus the snake_case form
       // emitted by the bridge layer.
@@ -549,7 +549,7 @@ extension _SequenceFileDecoder on SequenceFileService {
           isEnabled: isEnabled,
         );
 
-      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node.
+      // LiveStacking — broadcast / EAA node.
       case 'livestacking':
       case 'live_stacking':
         return LiveStackingNode(
@@ -722,7 +722,7 @@ extension _SequenceFileDecoder on SequenceFileService {
     );
   }
 
-  /// Wave 5 Agent 5 — parse per-NotificationNode explicit-transport
+  /// Parse per-NotificationNode explicit-transport
   /// override. Absent or empty list → null (inherit matrix `custom`).
   /// Unknown transport keys are silently dropped (forward-compat: a
   /// future version may add a transport this build doesn't ship).

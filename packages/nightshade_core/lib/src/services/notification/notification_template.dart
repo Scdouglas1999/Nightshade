@@ -1,6 +1,6 @@
 // Template renderer for notification titles + bodies.
 //
-// Builds on Wave 4 Agent 3's interpolation engine (see
+// Builds on the interpolation engine (see
 // `models/sequence/interpolation_catalog.dart`). At runtime we have a
 // real event context — target name, time, sequence id, frame counters —
 // not just example values; this resolver consumes a context map and

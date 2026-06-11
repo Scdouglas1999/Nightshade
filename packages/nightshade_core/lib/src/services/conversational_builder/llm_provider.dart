@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder: LLM provider abstraction.
+// Conversational sequence builder: LLM provider abstraction.
 //
 // This file is the single source of truth for "talk to a remote LLM and get
 // back a string". The conversational builder service owns the prompt + the
@@ -27,7 +27,7 @@
 // and model name are *always* configurable — there are no hard-coded
 // endpoints (one of the production-finished requirements).
 //
-// Per CLAUDE.md "Errors are a feature": every provider raises an
+// Errors are a feature here: every provider raises an
 // [LlmProviderException] with the failing status code + response body when
 // the upstream returns non-2xx. The conversational builder service catches
 // these and surfaces them through the dialog UI so the user can tell the

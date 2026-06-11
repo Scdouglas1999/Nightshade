@@ -22,7 +22,7 @@ pub const FOCUS_DRIFT_WINDOW_MAX: usize = 100;
 /// `Trigger::new` so a stored sequence with an oversized window does not
 /// allocate without bounds at runtime.
 ///
-/// Wave 1.5 Pack A: returns `(clamped_type, Option<TriggerClampWarning>)` so
+/// returns `(clamped_type, Option<TriggerClampWarning>)` so
 /// `Trigger::new` can capture the clamping diagnostic and the executor can
 /// later surface it as a user-visible `ExecutorEvent::Error`. Previously the
 /// only signal was a `tracing::warn!` which the user never saw.
@@ -66,7 +66,7 @@ fn build_utc_naive_time_or_fallback(
     minute: u32,
     fallback: (u32, u32, u32),
 ) -> chrono::NaiveDateTime {
-    // Why (audit-rust §4.3): same pattern as instructions.rs equivalent — invalid (h,m,s)
+    // Why: same pattern as instructions.rs equivalent — invalid (h,m,s)
     // tuple falls through to the documented `fallback`; if `fallback` itself is invalid,
     // midnight is the safe last-resort representable time for the same calendar date.
     date.and_hms_opt(hour, minute, 0)
@@ -151,7 +151,7 @@ pub struct Trigger {
     /// Only used by HfrDegraded triggers; reset when condition clears.
     #[serde(skip)]
     pub hfr_bad_frame_count: u32,
-    /// P1-9: the `TriggerState::hfr_sample_seq` last consumed by this
+    /// the `TriggerState::hfr_sample_seq` last consumed by this
     /// HfrDegraded trigger. `check()` runs on the ~1Hz monitor tick; gating on
     /// a change here makes `hfr_bad_frame_count` advance once per FRAME instead
     /// of once per tick (which had turned `consecutive_frames` into seconds).
@@ -165,14 +165,14 @@ pub struct Trigger {
     /// creation time) so worst-case allocation is fixed.
     #[serde(skip)]
     pub focus_drift_hfr_window: VecDeque<f64>,
-    /// Wave 1.5 Pack A: when `Trigger::new` clamped an oversize FocusDrift
+    /// when `Trigger::new` clamped an oversize FocusDrift
     /// `window_size`, the original user-supplied value is captured here so the
     /// executor can emit a user-visible `ExecutorEvent::Error` on start
     /// instead of leaving the clamp silently in the tracing log. `None` means
     /// no clamping occurred.
     #[serde(skip, default)]
     pub clamp_warning: Option<TriggerClampWarning>,
-    /// Wave 5 Agent 4: monotonic timestamp at which the `CloudCoverThreshold`
+    /// monotonic timestamp at which the `CloudCoverThreshold`
     /// trigger first observed cover above its `max_percent`. Reset to `None`
     /// whenever a sample drops back below the threshold; reused to implement
     /// the user's `duration_secs` debounce. Per-trigger (not on shared
@@ -180,7 +180,7 @@ pub struct Trigger {
     /// different thresholds debounce independently.
     #[serde(skip, default)]
     pub cloud_cover_above_threshold_since: Option<Instant>,
-    /// Wave 7 Science: monotonic timestamp at which a
+    /// Science: monotonic timestamp at which a
     /// `TransparencyDropped` trigger first observed transparency at or
     /// below its `below_threshold`. Reset to `None` whenever the sample
     /// recovers above the threshold; used to implement the user's
@@ -190,7 +190,7 @@ pub struct Trigger {
     pub transparency_below_threshold_since: Option<Instant>,
 }
 
-/// Wave 1.5 Pack A: trigger-creation-time clamping diagnostic. Built by
+/// trigger-creation-time clamping diagnostic. Built by
 /// `Trigger::new` when the user-supplied configuration was reduced to fit a
 /// hard upper bound (currently `FOCUS_DRIFT_WINDOW_MAX`). Consumed by the
 /// executor's start path so the user sees the clamp in the UI run dashboard.
@@ -207,7 +207,7 @@ impl Trigger {
     /// Trust-patch §6: when `trigger_type` is `FocusDrift`, the configured
     /// `window_size` is silently clamped to `FOCUS_DRIFT_WINDOW_MAX`. A
     /// warning is emitted via `tracing::warn!` so a misconfigured sequence
-    /// is loudly visible in the logs (CLAUDE.md "errors are a feature").
+    /// is loudly visible in the logs ("errors are a feature").
     /// Callers that want to reject invalid windows up front should use
     /// [`Trigger::new_focus_drift_checked`] instead, which returns an
     /// `Err(String)` for sizes exceeding the cap.
@@ -239,7 +239,7 @@ impl Trigger {
     /// above `FOCUS_DRIFT_WINDOW_MAX` instead of clamping silently. This is
     /// the preferred entry point when loading a user-provided sequence: a
     /// clear error message lets the UI surface the misconfiguration rather
-    /// than silently truncating the user's value (CLAUDE.md "errors are a
+    /// than silently truncating the user's value ("errors are a
     /// feature; silent fallbacks hide bugs for months").
     pub fn new_focus_drift_checked(
         id: impl Into<String>,
@@ -309,7 +309,7 @@ impl Trigger {
                     };
 
                     let required = (*consecutive_frames).max(1);
-                    // P1-9: only advance the consecutive-bad-frame counter when
+                    // only advance the consecutive-bad-frame counter when
                     // a NEW frame has been graded. check() runs on the ~1Hz
                     // monitor tick, so counting per tick made `consecutive_frames`
                     // mean "seconds" — the trigger fired partway through a SINGLE
@@ -358,7 +358,7 @@ impl Trigger {
                 }
             }
             TriggerType::MeridianFlip { config } => {
-                // Audit §1.3 / §1.9: once flipped for a target, the same trigger
+                // once flipped for a target, the same trigger
                 // must not fire again until the target changes. Without this
                 // guard, the post-flip pier-side reading could ping-pong and
                 // request a second flip in the opposite direction.
@@ -441,7 +441,7 @@ impl Trigger {
                                         state
                                             .current_hour_angle
                                             .map(|v| format!("{:.2}", v))
-                                            // Why (audit-rust §4.3, §1.21): hour-angle is
+                                            // Why: hour-angle is
                                             // Option<f64>; None means the mount has not yet
                                             // reported coordinates. "n/a" is the documented
                                             // diagnostic substitute (never 0.0, which would
@@ -458,7 +458,7 @@ impl Trigger {
                                     state
                                         .current_hour_angle
                                         .map(|v| format!("{:.2}", v))
-                                        // Why (audit-rust §4.3, §1.21): see equivalent above.
+                                        // Why: see equivalent above.
                                         .unwrap_or_else(|| "n/a".into())
                                 );
                             } else {
@@ -474,7 +474,7 @@ impl Trigger {
                                 state
                                     .current_hour_angle
                                     .map(|v| format!("{:.2}", v))
-                                    // Why (audit-rust §4.3, §1.21): see equivalent above.
+                                    // Why: see equivalent above.
                                     .unwrap_or_else(|| "n/a".into()),
                                 state.pier_side
                             );
@@ -489,7 +489,7 @@ impl Trigger {
                 duration_secs,
                 rms_retention_secs: _,
             } => {
-                // Audit §1.21: the configured retention is propagated to
+                // the configured retention is propagated to
                 // the trigger state by `TriggerManager::sync_state_from_config`
                 // (called after every config edit and on standard-trigger
                 // construction). Reading state here is sufficient — the
@@ -673,7 +673,7 @@ impl Trigger {
                 // increases that satisfy "monotonic" but are within noise:
                 // 0.01 px/frame over 5 frames is not a drift, it is jitter.
                 let run_start = window.len() - increasing_run;
-                // Why (audit-rust §4.3): `back()` returns None only if the
+                // Why: `back()` returns None only if the
                 // deque is empty, but the `len() < min_count` early return
                 // above guarantees at least `min_count >= 2` samples are
                 // present here. The unwrap documents that invariant.
@@ -688,7 +688,7 @@ impl Trigger {
                 }
             }
             TriggerType::DriftLimit { max_pixels } => {
-                // Audit §1.11: fire when accumulated plate-solve drift exceeds
+                // fire when accumulated plate-solve drift exceeds
                 // the configured pixel budget. The state holds the most recent
                 // plate-solve coordinates and pixel scale; absent any of them
                 // we cannot evaluate drift and the trigger stays inactive.
@@ -705,7 +705,7 @@ impl Trigger {
                 minutes_before,
                 coverage_threshold,
             } => {
-                // Wave 5 Agent 4: fire when (a) the analyzer says clouds
+                // fire when (a) the analyzer says clouds
                 // arrive within `minutes_before` minutes AND (b) the
                 // predicted coverage exceeds `coverage_threshold`. The two
                 // gates together prevent firing for a passing wisp.
@@ -729,7 +729,7 @@ impl Trigger {
                 minutes_before,
                 minimum_duration_secs,
             } => {
-                // Wave 5 Agent 4: fire when the analyzer predicts a clear
+                // fire when the analyzer predicts a clear
                 // opening within `minutes_before` minutes AND the opening's
                 // duration is at least `minimum_duration_secs`. Used by
                 // `RecoveryAction::PauseAndWaitForClear` to auto-resume.
@@ -742,7 +742,7 @@ impl Trigger {
                 // A missing duration is treated as "unknown" rather than
                 // "any" — firing on an unknown-length opening would lead
                 // the recovery layer to slew into a hole that closes
-                // before settle. CLAUDE.md "errors are a feature": no
+                // before settle. "errors are a feature": no
                 // duration => don't fire.
                 let Some(duration) = state.predicted_cloud_opening_duration_secs else {
                     return false;
@@ -753,7 +753,7 @@ impl Trigger {
                 max_percent,
                 duration_secs,
             } => {
-                // Wave 5 Agent 4: fire when the current cloud cover has been
+                // fire when the current cloud cover has been
                 // above `max_percent` for at least `duration_secs` consecutive
                 // seconds. The debounce is implemented via the per-trigger
                 // `cloud_cover_above_threshold_since` timestamp so multiple
@@ -780,7 +780,7 @@ impl Trigger {
                 below_threshold,
                 duration_secs,
             } => {
-                // Wave 7 Science: fire when the live transparency reading
+                // Science: fire when the live transparency reading
                 // has been at or below `below_threshold` for at least
                 // `duration_secs` consecutive seconds. Same debounce
                 // pattern as `CloudCoverThreshold` so multiple triggers
@@ -882,7 +882,7 @@ pub struct TriggerState {
     // HFR tracking
     pub baseline_hfr: Option<f64>,
     pub current_hfr: Option<f64>,
-    /// P1-9: monotonically increments each time a NEW frame's HFR is recorded
+    /// monotonically increments each time a NEW frame's HFR is recorded
     /// via `update_hfr`. The HfrDegraded trigger gates its consecutive-bad-frame
     /// counter on a change here so it counts frames, not ~1Hz monitor ticks.
     pub hfr_sample_seq: u64,
@@ -923,13 +923,13 @@ pub struct TriggerState {
     /// reference-filter focus (the initial state and after selecting the
     /// reference filter).
     pub last_applied_filter_offset: i32,
-    /// Audit §1.21: configurable retention window (seconds) for
+    /// configurable retention window (seconds) for
     /// `guiding_rms_history`. Set by the trigger evaluator from the
     /// `GuidingFailed` trigger configuration so a user-tuned value is
     /// honoured. Defaults to 300s (5 minutes), matching the previous
     /// hardcoded behaviour.
     pub guiding_rms_retention_secs: u64,
-    /// Audit §1.9: pier side recorded at the moment a flip was marked
+    /// pier side recorded at the moment a flip was marked
     /// performed, so a subsequent observable return to that side can clear
     /// `has_flipped_this_target`. `None` means no flip has been recorded yet
     /// for the current target.
@@ -954,7 +954,7 @@ pub struct TriggerState {
     /// `None` means the Dart side has not reported (e.g. provider disabled / no
     /// data) and this layer abstains. Folded into the `WeatherUnsafe` trigger as
     /// an ADDITIONAL unsafe source — it can only make the rig safer, never less
-    /// safe than the hardware verdict (CLAUDE.md "fail closed"). Pushed via
+    /// safe than the hardware verdict ("fail closed"). Pushed via
     /// `ExecutorCommand::UpdateWeatherVerdict`.
     pub weather_verdict_unsafe: Option<bool>,
     /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
@@ -1043,7 +1043,7 @@ pub struct TriggerState {
     pub grid_dither_index: u32,
 
     // ---------------------------------------------------------------------
-    // Wave 5 Agent 4 — Cloud-motion telemetry.
+    // Cloud-motion telemetry.
     //
     // Fed by `ExecutorCommand::UpdateCloudMotion` which the Dart side
     // pushes from the live `cloudMotionAnalyzerProvider` (currently every
@@ -1077,7 +1077,7 @@ pub struct TriggerState {
     pub cloud_motion_last_update: Option<Instant>,
 
     // ---------------------------------------------------------------------
-    // Wave 7 Science — Sky transparency telemetry.
+    // Science — Sky transparency telemetry.
     //
     // Fed by `ExecutorCommand::UpdateTransparency` which the Dart science
     // pipeline pushes whenever the transparency sampler produces a new
@@ -1111,7 +1111,7 @@ impl Default for TriggerState {
             guiding_enabled: false,
             guide_star_lost: false,
             last_applied_filter_offset: 0,
-            // Audit §1.21: 300s preserves the previous hardcoded retention so
+            // 300s preserves the previous hardcoded retention so
             // un-configured triggers behave exactly as before.
             guiding_rms_retention_secs: 300,
             flip_origin_pier_side: None,
@@ -1151,7 +1151,7 @@ impl Default for TriggerState {
             dome_shutter_status: None,
             dome_shutter_open_expected: false,
             grid_dither_index: 0,
-            // Wave 5 Agent 4 — cloud-motion telemetry. All None until Dart
+            // cloud-motion telemetry. All None until Dart
             // pushes the first `UpdateCloudMotion`.
             current_cloud_coverage_percent: None,
             predicted_cloud_arrival_minutes: None,
@@ -1159,7 +1159,7 @@ impl Default for TriggerState {
             predicted_cloud_opening_duration_secs: None,
             predicted_clear_sky_direction: None,
             cloud_motion_last_update: None,
-            // Wave 7 Science — transparency telemetry. Both None until the
+            // Science — transparency telemetry. Both None until the
             // Dart science pipeline pushes the first `UpdateTransparency`.
             current_transparency: None,
             transparency_last_update: None,
@@ -1181,7 +1181,7 @@ impl TriggerState {
             self.baseline_hfr = Some(hfr);
         }
         self.current_hfr = Some(hfr);
-        // P1-9: mark this as a new HFR sample so the HfrDegraded trigger counts
+        // mark this as a new HFR sample so the HfrDegraded trigger counts
         // it once (per frame) rather than once per ~1Hz evaluation tick.
         self.hfr_sample_seq = self.hfr_sample_seq.wrapping_add(1);
     }
@@ -1199,7 +1199,7 @@ impl TriggerState {
     }
 
     /// Append a guiding-RMS sample and trim the rolling history to
-    /// `self.guiding_rms_retention_secs`. Audit §1.21: the previously hardcoded
+    /// `self.guiding_rms_retention_secs`. the previously hardcoded
     /// 300-second window is now configurable via
     /// `set_guiding_rms_retention_secs` (driven by the GuidingFailed trigger
     /// configuration in the trigger evaluator). Default remains 300s.
@@ -1215,7 +1215,7 @@ impl TriggerState {
         }
     }
 
-    /// Audit §1.21: set the retention window (seconds) for
+    /// set the retention window (seconds) for
     /// `guiding_rms_history`. Driven by the GuidingFailed trigger configuration
     /// so a user-tuned `rms_retention_secs` is honoured at runtime instead of
     /// silently falling back to the previous 300-second hardcode.
@@ -1347,7 +1347,7 @@ impl TriggerState {
     }
 
     /// Update current humidity reading
-    /// Wave 5 Agent 4 — push the latest cloud-motion analyzer reading into
+    /// push the latest cloud-motion analyzer reading into
     /// the trigger state. Called from the executor when a Dart-side
     /// `UpdateCloudMotion` command arrives. Every argument is optional so the
     /// caller can express "analyzer says no arrival predicted" by passing
@@ -1355,7 +1355,7 @@ impl TriggerState {
     ///
     /// `current_cover_percent` outside `[0, 100]` is clamped, but the original
     /// out-of-range value is logged at WARN so a buggy data source is loud
-    /// (CLAUDE.md "errors are a feature"). NaN / inf flow through `.filter`
+    /// ("errors are a feature"). NaN / inf flow through `.filter`
     /// — they would have been treated as "fire" by the comparison operators
     /// otherwise, which is exactly the silent-fallback bug we forbid.
     pub fn update_cloud_motion(
@@ -1404,7 +1404,7 @@ impl TriggerState {
     /// (`instructions::execute_slew` / `execute_exposure`) can read it through
     /// the shared trigger state. A non-finite value is rejected (stored as
     /// `None`) so the gate falls back to its default rather than silently
-    /// disabling itself on a NaN/inf config push (CLAUDE.md "fail closed").
+    /// disabling itself on a NaN/inf config push ("fail closed").
     pub fn set_max_sun_altitude_degrees(&mut self, degrees: f64) {
         self.max_sun_altitude_degrees = if degrees.is_finite() {
             Some(degrees)
@@ -1455,10 +1455,10 @@ impl TriggerState {
         }
     }
 
-    /// Wave 7 Science: store the latest transparency reading. `None`
+    /// Science: store the latest transparency reading. `None`
     /// clears the slot (used when the science pipeline loses lock).
     /// NaN / infinite values are dropped via `is_finite` rather than
-    /// silently stored — CLAUDE.md "errors are a feature".
+    /// silently stored — "errors are a feature".
     pub fn update_transparency(&mut self, transparency: Option<f64>) {
         let sanitised = transparency.filter(|v| v.is_finite()).map(|v| {
             if !(0.0..=1.5).contains(&v) {
@@ -1542,7 +1542,7 @@ impl TriggerState {
 
     /// Update the current pier side and clear `has_flipped_this_target` if
     /// the mount has returned to the side it was on before the recorded flip.
-    /// Audit §1.9: a long single-target session that crosses two meridians
+    /// a long single-target session that crosses two meridians
     /// (high latitude / pause-resume / mosaic-with-shared-name) used to
     /// silently skip the second flip because the flag was only ever cleared
     /// by a target-name change. Observing the original pier side is
@@ -1553,7 +1553,7 @@ impl TriggerState {
         self.on_pier_side_observed(pier_side);
     }
 
-    /// Audit §1.9: invariant check. Called from `update_pier_side` (and any
+    /// invariant check. Called from `update_pier_side` (and any
     /// other code path that observes mount pier-side telemetry); clears
     /// `has_flipped_this_target` when the observed side matches the
     /// pre-flip side recorded by `mark_flip_performed`. Public so external
@@ -1585,7 +1585,7 @@ impl TriggerState {
         }
     }
 
-    /// Audit §1.9: explicit reset of the flip-performed bookkeeping. Called
+    /// explicit reset of the flip-performed bookkeeping. Called
     /// at natural target-boundaries (sequence reset, target group entry)
     /// where a double-flip on the new target is impossible by construction.
     pub fn clear_flipped_state(&mut self) {
@@ -1604,7 +1604,7 @@ impl TriggerState {
         if self.current_target_name.as_ref() != Some(&target_name) {
             let previous = self.current_target_name.clone();
             self.current_target_name = Some(target_name);
-            // Audit §1.9: a target change is a natural boundary; reset both
+            // a target change is a natural boundary; reset both
             // the flag and the recorded origin so flip bookkeeping starts
             // fresh.
             self.has_flipped_this_target = false;
@@ -1616,7 +1616,7 @@ impl TriggerState {
     }
 
     /// Mark that a meridian flip has been performed for the current target.
-    /// Audit §1.9: also records the pier side that was active *before* the
+    /// also records the pier side that was active *before* the
     /// flip (in `flip_origin_pier_side`) so `on_pier_side_observed` can
     /// detect the mount returning to that side and clear the flag, allowing
     /// a second flip on the same long-running target.
@@ -1647,7 +1647,7 @@ impl TriggerState {
         self.pier_side = None;
         self.mount_tracking_limit_time = None;
         self.has_flipped_this_target = false;
-        self.flip_origin_pier_side = None; // Audit §1.9.
+        self.flip_origin_pier_side = None; //
         self.current_target_name = None;
         self.next_meridian_flip_time = None;
         self.tracking_limit_detected_at = None;
@@ -1744,7 +1744,7 @@ impl TriggerManager {
             return Vec::new();
         }
 
-        // Audit §1.21: propagate per-trigger retention/configuration into the
+        // propagate per-trigger retention/configuration into the
         // shared trigger state before evaluation so updates to e.g.
         // `GuidingFailed::rms_retention_secs` take effect on the next sample
         // without requiring a sequence reload.
@@ -1764,7 +1764,7 @@ impl TriggerManager {
         fired
     }
 
-    /// Audit §1.21: copy configurable runtime values from each trigger's
+    /// copy configurable runtime values from each trigger's
     /// config into the shared `TriggerState`. Currently only
     /// `GuidingFailed::rms_retention_secs` requires propagation; new
     /// configurable retention windows added in future audits should be
@@ -1855,7 +1855,7 @@ impl TriggerManager {
             )
             // A meridian flip + re-center + refocus takes 5-8 min; 10 min
             // cooldown is the structural guarantee against the double-flip
-            // bug audit §1.3 fixed at the state-machine level.
+            // bug fixed at the state-machine level.
             .with_cooldown(600),
         );
 
@@ -1867,7 +1867,7 @@ impl TriggerManager {
                 TriggerType::GuidingFailed {
                     rms_threshold: 2.0,
                     duration_secs: 30.0,
-                    // Audit §1.21: 300s preserves the previous hardcoded
+                    // 300s preserves the previous hardcoded
                     // retention; users can change it via UI/profile JSON.
                     rms_retention_secs: crate::default_guiding_rms_retention_secs(),
                 },
@@ -1971,7 +1971,7 @@ impl TriggerManager {
         );
 
         // Focus drift detection trigger.
-        // Audit §1.21: defaults pulled from the shared
+        // defaults pulled from the shared
         // `default_focus_drift_*` helpers so config loaders and this builder
         // cannot diverge.
         self.add_trigger(
@@ -2011,7 +2011,7 @@ impl TriggerManager {
         // it is no longer silently auto-added with a conflicting hardcoded value.
         // See `weather_threshold_evaluator.dart` and the parity test.
 
-        // Audit §1.11: plate-solve drift trigger. Default 30 px is a pragmatic
+        // plate-solve drift trigger. Default 30 px is a pragmatic
         // mid-range value: small enough to catch real drift before it becomes
         // image-ruining, large enough to ignore single-pixel jitter from
         // imperfect plate-solve solutions. Recovery is `Recenter`, not Pause,
@@ -2026,7 +2026,7 @@ impl TriggerManager {
             .with_cooldown(120), // 2 min cooldown so a single recenter is given time to settle
         );
 
-        // Audit §1.5: standard `DitherInterval` trigger so periodic dithering
+        // standard `DitherInterval` trigger so periodic dithering
         // happens in sequences that don't include an explicit Dither node.
         // Default cadence 5 frames matches typical mosaic guidance. Recovery
         // is `Dither(default config)`; users override via UI/profile JSON.
@@ -2052,7 +2052,7 @@ impl TriggerManager {
         //
         // No time-based cooldown — the cadence is already exposure-count
         // driven and a duplicate cooldown would mask the user's setting
-        // (CLAUDE.md "errors are a feature").
+        // ("errors are a feature").
         self.add_trigger(
             Trigger::new(
                 "autofocus_interval",
@@ -2096,7 +2096,7 @@ mod tests {
 
         // No change - should not trigger. update_hfr keeps the pre-set
         // baseline (only sets it when None) and advances the per-frame
-        // sequence so the P1-9 frame-gate lets each check count.
+        // sequence so the frame-gate lets each check count.
         state.update_hfr(2.0);
         assert!(!trigger.check(&state).await);
 
@@ -2232,7 +2232,7 @@ mod tests {
         assert!(!trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 1);
 
-        // P1-9: a re-evaluation of the SAME frame (the ~1Hz monitor tick) must
+        // a re-evaluation of the SAME frame (the ~1Hz monitor tick) must
         // NOT advance the counter — it counts frames, not ticks. Without the
         // fix this would have bumped the count toward firing within one sub.
         assert!(!trigger.check(&state).await);
@@ -3265,7 +3265,7 @@ mod tests {
         assert!(!state.mount_tracking_lost);
     }
 
-    /// Audit §1.9: a flip moves the mount from one pier side to the other,
+    /// a flip moves the mount from one pier side to the other,
     /// `mark_flip_performed` records the *origin* side, and a subsequent
     /// observed return to the origin side must clear `has_flipped_this_target`
     /// so a second flip is allowed for the same long-running target.
@@ -3296,7 +3296,7 @@ mod tests {
         assert_eq!(state.flip_origin_pier_side, None);
     }
 
-    /// Audit §1.9: pier side `Unknown` must NOT clear the flag (it is not
+    /// pier side `Unknown` must NOT clear the flag (it is not
     /// authoritative evidence of a return-to-origin).
     #[tokio::test]
     async fn audit_1_9_unknown_pier_side_does_not_clear_flipped_flag() {
@@ -3314,7 +3314,7 @@ mod tests {
         );
     }
 
-    /// Audit §1.11: DriftLimit fires when accumulated plate-solve drift
+    /// DriftLimit fires when accumulated plate-solve drift
     /// exceeds the configured pixel budget. With a 30 px budget and a
     /// (40, 30) drift the quadrature sum is 50 px and the trigger must fire.
     #[tokio::test]
@@ -3338,7 +3338,7 @@ mod tests {
         assert!(trigger.check(&state).await, "drift 50 px must exceed 30 px");
     }
 
-    /// Audit §1.11: DriftLimit must NOT fire below the budget (3 px drift
+    /// DriftLimit must NOT fire below the budget (3 px drift
     /// against a 30 px budget — quadrature sum stays well under).
     #[tokio::test]
     async fn audit_1_11_drift_limit_does_not_fire_below_threshold() {
@@ -3354,7 +3354,7 @@ mod tests {
         assert!(!trigger.check(&state).await);
     }
 
-    /// Audit §1.11: with no plate-solve recorded the trigger evaluator
+    /// with no plate-solve recorded the trigger evaluator
     /// returns false (not error / not silent fire).
     #[tokio::test]
     async fn audit_1_11_drift_limit_inactive_without_plate_solve() {
@@ -3368,7 +3368,7 @@ mod tests {
         assert!(!trigger.check(&state).await);
     }
 
-    /// Audit §1.5: the standard-trigger builder now creates a
+    /// the standard-trigger builder now creates a
     /// `DitherInterval` trigger so periodic dithering is honoured even when
     /// the sequence does not contain an explicit Dither node. The standard
     /// `DriftLimit` trigger is also registered for §1.11.
@@ -3379,12 +3379,12 @@ mod tests {
         let names: Vec<String> = manager.triggers().iter().map(|t| t.id.clone()).collect();
         assert!(
             names.contains(&"dither_interval".to_string()),
-            "DitherInterval standard trigger missing — audit §1.5 regression. ids: {:?}",
+            "DitherInterval standard trigger missing — regression. ids: {:?}",
             names
         );
         assert!(
             names.contains(&"drift_limit".to_string()),
-            "DriftLimit standard trigger missing — audit §1.11 regression. ids: {:?}",
+            "DriftLimit standard trigger missing — regression. ids: {:?}",
             names
         );
     }
@@ -3502,7 +3502,7 @@ mod tests {
             }
             _ => panic!("expected FocusDrift trigger_type after construction"),
         }
-        // Wave 1.5 Pack A: clamp must also populate the visible diagnostic so
+        // clamp must also populate the visible diagnostic so
         // the executor can surface it on start (ExecutorEvent::Error).
         let warning = trigger
             .clamp_warning
@@ -3513,7 +3513,7 @@ mod tests {
         assert_eq!(warning.clamped_to, FOCUS_DRIFT_WINDOW_MAX);
     }
 
-    /// Wave 1.5 Pack A: when no clamping occurs, `clamp_warning` must be None
+    /// when no clamping occurs, `clamp_warning` must be None
     /// so the executor doesn't emit spurious clamp errors for healthy
     /// configurations.
     #[test]
@@ -3534,7 +3534,7 @@ mod tests {
         );
     }
 
-    /// Audit §1.21: the GuidingFailed standard trigger ships
+    /// the GuidingFailed standard trigger ships
     /// `rms_retention_secs = default_guiding_rms_retention_secs()` (300s)
     /// and `TriggerManager::sync_state_from_config` propagates that value
     /// into the shared trigger state on every check_all. A user-tuned value
@@ -3568,7 +3568,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Wave 5 Agent 4 — cloud-motion-aware trigger tests
+    // cloud-motion-aware trigger tests
     // =========================================================================
 
     /// CloudArrivingIn fires when both the arrival-time AND coverage gates
@@ -3672,7 +3672,7 @@ mod tests {
         state3.update_cloud_motion(Some(80.0), None, Some(3.0), Some(600.0), None);
         assert!(trigger3.check(&state3).await);
 
-        // Duration unknown => refuse to fire (CLAUDE.md silent-fallback rule).
+        // Duration unknown => refuse to fire (the CONTRIBUTING.md house rules silent-fallback rule).
         let mut trigger4 = Trigger::new(
             "test_cloud_opening_4",
             "Test Cloud Opening 4",
@@ -3835,7 +3835,7 @@ mod tests {
     }
 
     // =============================================================
-    // Wave 7 Science — TransparencyDropped trigger tests.
+    // Science — TransparencyDropped trigger tests.
     // =============================================================
 
     #[tokio::test]
@@ -3900,7 +3900,7 @@ mod tests {
         );
         let mut state = TriggerState::new();
 
-        // No transparency telemetry yet — must NOT fire (CLAUDE.md "no
+        // No transparency telemetry yet — must NOT fire ("no
         // silent fallbacks": absent data is not a trigger condition).
         assert!(!trigger.check(&state).await);
         assert!(trigger.transparency_below_threshold_since.is_none());

@@ -1,4 +1,4 @@
-// Tests for plugin enablement persistence (C4).
+// Tests for plugin enablement persistence.
 //
 // Uses a real in-memory NightshadeDatabase (and therefore a real SettingsDao)
 // rather than a hand-rolled fake, so the round-trip exercises the actual

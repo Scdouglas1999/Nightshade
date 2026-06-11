@@ -33,7 +33,7 @@ class LogEntry {
     return '${timestamp.toIso8601String()} $levelStr $sourceStr$message$fieldsStr';
   }
 
-  /// P1-14 — Stable wire schema for the headless API. Used by both
+  /// Stable wire schema for the headless API. Used by both
   /// `GET /api/logs/recent` (JSON list) and `GET /api/logs/tail`
   /// (Server-Sent Events `data:` lines). Optional fields are omitted
   /// when empty to keep mobile payloads tight.
@@ -52,11 +52,11 @@ class LogEntry {
     };
   }
 
-  /// Wave 6E — Inverse of [toJson] used by the mobile log tail client when
+  /// Inverse of [toJson] used by the mobile log tail client when
   /// consuming `/api/logs/recent` and `/api/logs/tail`. Unknown severity
   /// values fall back to [LogLevel.info] because the alternative — throwing
   /// — would tear down the entire tail stream on a single bad entry, which
-  /// is exactly the silent-fallback failure mode CLAUDE.md warns against
+  /// is exactly the silent-fallback failure mode we guard against
   /// for state-bearing data but is the right call here because a log
   /// entry's severity is a display hint, not a control input.
   ///
@@ -140,7 +140,7 @@ class LoggingService {
   final List<LogEntry> _recentLogs = [];
   static const int _maxRecentLogs = 1000;
 
-  /// P1-14 — Broadcast stream of new log entries. Wired into every public
+  /// Broadcast stream of new log entries. Wired into every public
   /// `log()` call so remote tail clients (the headless API
   /// `/api/logs/tail` SSE endpoint) can observe the live log feed without
   /// re-reading the on-disk file.
@@ -238,7 +238,7 @@ class LoggingService {
   /// Get the current log file path
   String? get currentLogFile => _initialized ? _currentLogFileProvider() : null;
 
-  /// P1-14 — Broadcast stream of new [LogEntry] values. Emits AFTER the
+  /// Broadcast stream of new [LogEntry] values. Emits AFTER the
   /// entry has been appended to [_recentLogs] and forwarded to the native
   /// logger, so subscribers see entries in the same order [getRecentLogs]
   /// would.
@@ -275,7 +275,7 @@ class LoggingService {
       _recentLogs.removeAt(0);
     }
 
-    // P1-14 — Fan out to any /api/logs/tail subscribers BEFORE forwarding
+    // Fan out to any /api/logs/tail subscribers BEFORE forwarding
     // to dart:developer. Order matters because a subscriber that fails
     // would otherwise prevent the structured logger from getting the
     // entry; the controller add cannot synchronously throw a subscriber
@@ -514,7 +514,7 @@ class LoggingService {
     );
   }
 
-  /// P1-14 — Whether [path]'s leaf filename matches the Rust tracing
+  /// Whether [path]'s leaf filename matches the Rust tracing
   /// appender's daily-rolling output naming pattern. We restrict to
   /// `nightshade.log` (current) or `nightshade.log.YYYY-MM-DD` (rotated)
   /// so the public file-download endpoint cannot be coerced into
@@ -524,7 +524,7 @@ class LoggingService {
     return isNightshadeLogFileName(leaf);
   }
 
-  /// P1-14 — Whether [name] (a bare filename, no path) is a Nightshade
+  /// Whether [name] (a bare filename, no path) is a Nightshade
   /// rolling-log file. Exposed for the headless API which needs to
   /// validate caller-supplied filenames on `GET /api/logs/files/{name}/
   /// download`.
@@ -542,7 +542,7 @@ class LoggingService {
     r'^nightshade\.log(?:\.\d{4}-\d{2}-\d{2})?$',
   );
 
-  /// P1-14 — Return file-system metadata for every Nightshade log file
+  /// Return file-system metadata for every Nightshade log file
   /// on disk. The headless `/api/logs` listing renders the result
   /// directly; the GUI log viewer uses the same shape via
   /// [getLogFiles]/[readLogFile].
@@ -599,7 +599,7 @@ class LoggingService {
     }
   }
 
-  /// P1-14 — Parse a severity name (case-insensitive) into a [LogLevel].
+  /// Parse a severity name (case-insensitive) into a [LogLevel].
   /// Returns null for unknown names so callers can produce a structured
   /// 400 with the list of supported values rather than crashing.
   static LogLevel? parseLogLevel(String name) {
@@ -610,7 +610,7 @@ class LoggingService {
     return null;
   }
 
-  /// P1-14 — Close the broadcast stream and release pending resources.
+  /// Close the broadcast stream and release pending resources.
   /// Idempotent; safe to call multiple times.
   ///
   /// Why explicit: the headless server holds long-lived SSE subscribers
@@ -626,7 +626,7 @@ class LoggingService {
   }
 }
 
-/// P1-14 — File-system metadata for a Nightshade log file. Returned by
+/// File-system metadata for a Nightshade log file. Returned by
 /// [LoggingService.getLogFileInfos] and shipped over the wire by the
 /// `GET /api/logs` headless endpoint.
 class LogFileInfo {
@@ -652,7 +652,7 @@ class LogFileInfo {
   };
 }
 
-/// P1-14 — Result envelope for [LoggingService.clearLogs]. Reports the
+/// Result envelope for [LoggingService.clearLogs]. Reports the
 /// deleted files, total freed bytes, and any per-file errors so the
 /// headless `POST /api/logs/clear` endpoint can surface partial-success
 /// instead of a binary outcome.

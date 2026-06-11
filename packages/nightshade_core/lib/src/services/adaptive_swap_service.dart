@@ -1,4 +1,4 @@
-// Wave 8 — Adaptive sky-conditions composer + Rust executor pusher.
+// Adaptive sky-conditions composer + Rust executor pusher.
 //
 // This service is the Dart counterpart of
 // `crate::scheduling::adaptive_swap::pick_target_for_conditions` (Rust).
@@ -12,7 +12,7 @@
 //   3. Pull the executor's `AdaptiveSwapSnapshot` for the Run Dashboard
 //      panel.
 //
-// Per CLAUDE.md no silent fallbacks: a missing axis is reported as
+// No silent fallbacks here: a missing axis is reported as
 // `null` rather than as a fabricated mid-value. The composer then
 // renormalises the weights over the *available* axes so the score
 // remains 0..=100 instead of artificially deflating when wind data is
@@ -131,7 +131,7 @@ class AdaptiveSwapService {
   /// Compose a [ConditionsScore] from the live inputs. Returns `null`
   /// when no axis has data — the executor then treats the score as
   /// "telemetry missing" and falls back to the ordinary scheduler
-  /// ranking (per CLAUDE.md "no silent fallbacks": we'd rather report
+  /// ranking (no silent fallbacks here: we'd rather report
   /// `null` than a fake 50).
   ConditionsScore? compose(AdaptiveSwapInputs inputs, {DateTime? now}) {
     if (!inputs.hasAnyAxis) return null;

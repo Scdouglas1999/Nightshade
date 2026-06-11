@@ -4,7 +4,7 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Two patterns:
 //!
@@ -1177,7 +1177,7 @@ impl DeviceManager {
                         nightshade_native::traits::GuideDirection::East => 2,
                         nightshade_native::traits::GuideDirection::West => 3,
                     };
-                    // Why (audit-rust §1.4): Alpaca PulseGuide takes i32 ms;
+                    // Why: Alpaca PulseGuide takes i32 ms;
                     // u32 > i32::MAX is ~24.8 days of pulse which is
                     // physically impossible for guiding. Saturating
                     // try_from rejects the impossible-but-defined case.
@@ -2154,7 +2154,7 @@ impl DeviceManager {
                         .get_tracking_rate()
                         .await
                         .map_err(DeviceOpError::driver)?;
-                    // Why (audit-rust §1.4): `TrackingRate` is a C-like enum
+                    // Why: `TrackingRate` is a C-like enum
                     // (Sidereal=0, Lunar=1, Solar=2, King=3); `as i32`
                     // extracts the discriminant — SAFE narrowing.
                     return Ok(rate as i32);

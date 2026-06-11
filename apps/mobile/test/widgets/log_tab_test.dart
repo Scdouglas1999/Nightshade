@@ -1,4 +1,4 @@
-// Wave 6D / P2-5 — LogTab clears its event buffer on backend swap.
+// LogTab clears its event buffer on backend swap.
 //
 // Before the fix, switching backends (FFI → Network, or reconnecting to
 // a different server) left the previously-collected NightshadeEvents in

@@ -14,7 +14,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Wave 7C — Voice Control bridge for Google Assistant App Actions.
+ * Voice Control bridge for Google Assistant App Actions.
  *
  * Two flows meet here:
  *

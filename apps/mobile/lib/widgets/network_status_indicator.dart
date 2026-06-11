@@ -36,7 +36,7 @@ enum _TransportTier {
 /// "Server offline", not "Connected via WiFi" — that earlier behaviour
 /// was the audit finding (bug 5).
 ///
-/// P2-13: the OS-online + WS-down case is now reported as
+/// the OS-online + WS-down case is now reported as
 /// `serverOffline` ("Server unreachable" in the UI) while the first-time
 /// connect attempt is `connecting` (distinct from `reconnecting`). The
 /// new `error` case covers terminal failures like API-version mismatch.
@@ -71,7 +71,7 @@ enum _CombinedConnectionStatus {
 ///
 /// Reflects the *effective* connection state to the headless server,
 /// not just the OS link. Tap to open a details sheet that also lets
-/// the operator force an immediate reconnect (audit P1-15 bug 6).
+/// the operator force an immediate reconnect (audit bug 6).
 class NetworkStatusIndicator extends ConsumerStatefulWidget {
   final bool compact;
 

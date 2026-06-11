@@ -5,7 +5,7 @@ import 'package:drift/drift.dart' as drift;
 import '../database/database.dart' as db;
 import '../models/replay_decision.dart';
 
-/// Wave 8 Replay Debug — persistence + reactive query layer for the
+/// Replay Debug — persistence + reactive query layer for the
 /// `sequence_decisions` table.
 ///
 /// Uses raw SQL (the table lives outside the `@DriftDatabase` declaration
@@ -152,7 +152,7 @@ class ReplayDebugService {
     return removed;
   }
 
-  /// Wave 8 Replay Debug — retention policy: prune rows older than
+  /// Replay Debug — retention policy: prune rows older than
   /// the configured cut-off. Returns the number of pruned rows.
   /// `cutoff` is interpreted as "remove rows with timestamp_unix_ms
   /// strictly older than this instant". Idempotent.

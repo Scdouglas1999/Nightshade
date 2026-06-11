@@ -2,11 +2,11 @@
 // `FakeNetworkClient` MockClient-based fake so no real HTTP server is needed.
 //
 // Why: `NetworkBackend` is the Mobile app's contract surface with the
-// headless desktop. Before W-DECOMP rewrites it, we need a guard that:
+// headless desktop. Before a later refactor rewrites it, we need a guard that:
 //
 //   * GETs go to the documented endpoints (`/api/devices`)
 //   * HTTP failure codes are surfaced as `NightshadeError`, never silently
-//     dropped or returned as empty lists (CLAUDE.md "no silent fallbacks")
+// dropped or returned as empty lists (no silent fallbacks here)
 //   * Malformed JSON propagates as an exception
 //   * The pairing token is sent in the `Authorization: Bearer ...` header
 //

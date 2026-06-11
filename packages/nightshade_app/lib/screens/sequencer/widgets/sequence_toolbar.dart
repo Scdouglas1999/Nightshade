@@ -84,7 +84,7 @@ class SequenceToolbar extends ConsumerWidget {
                 builder: (_) => const QuickStartWizardDialog(),
               );
 
-          // Wave 6 — Smart Night auto-builder. One-click "Plan tonight"
+          // Smart Night auto-builder. One-click "Plan tonight"
           // entry point. Always reachable while the sequencer is idle so
           // a user with a fully-connected rig can go from "I want to
           // image something" to "press Run" in 6 clicks.
@@ -93,7 +93,7 @@ class SequenceToolbar extends ConsumerWidget {
                 builder: (_) => const SmartNightDialog(),
               );
 
-          // Wave 8 — Conversational sequence builder. Free-text → LLM →
+          // Conversational sequence builder. Free-text → LLM →
           // Sequence. The dialog itself handles the "no provider
           // configured" empty state and the privacy disclosure.
           void openConversationalBuilder() => showDialog(
@@ -347,7 +347,7 @@ class SequenceToolbar extends ConsumerWidget {
               label: 'Plan Tonight (Smart Night)$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
             ),
-            // Wave 8 — Conversational AI Builder. Sits next to Smart
+            // Conversational AI Builder. Sits next to Smart
             // Night because both are "I want a sequence, fast" entry
             // points; the wand icon distinguishes the LLM-driven path
             // from the deterministic Smart Night wizard.

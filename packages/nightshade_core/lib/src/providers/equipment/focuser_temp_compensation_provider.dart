@@ -15,7 +15,7 @@ import 'focuser_state_provider.dart';
 /// configure a coefficient (steps per degC) in
 /// Equipment → Settings → Focuser; this provider applies that coefficient
 /// continuously while the focuser is connected so the operator does not
-/// have to refocus manually every few hours. Per audit-handoff §2.1
+/// have to refocus manually every few hours.
 /// WIRE-UP item #7.
 ///
 /// Sign convention (MUST match the executor-authoritative Rust

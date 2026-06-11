@@ -85,7 +85,7 @@ class _DashboardHeader extends StatelessWidget {
         children: [
           Expanded(child: profileTitle),
           const SizedBox(width: 8),
-          // Wave 4 Recovery Mode — sequencer status LED. Always visible so
+          // Recovery Mode — sequencer status LED. Always visible so
           // an operator scanning the Equipment screen knows at a glance
           // whether a sequence is running, paused, or recovering. Pulses
           // red in recovering state.
@@ -494,5 +494,5 @@ class _ReadinessSummaryBar extends ConsumerWidget {
 }
 
 // ============================================================================
-// DEV-P1-5: Connect-All per-device progress strip
+// Connect-All per-device progress strip
 // ============================================================================

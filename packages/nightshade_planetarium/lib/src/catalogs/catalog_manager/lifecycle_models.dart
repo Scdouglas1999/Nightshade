@@ -1,7 +1,7 @@
 part of '../catalog_manager.dart';
 
 // =============================================================================
-// P1-12: Types for the unified catalog API.
+// Types for the unified catalog API.
 // =============================================================================
 
 /// Static description of a catalog the headless API knows how to manage.

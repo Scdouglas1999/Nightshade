@@ -1,6 +1,6 @@
 // Widget tests for GuidingScreen.
 //
-// Scope (CQ-W14-WIDGET-TESTS-MORE-SCREENS):
+// Scope:
 //
 // Smoke + behavior tests:
 //   1. renders_without_throwing — default harness pump under the desktop
@@ -35,8 +35,6 @@
 // inline content than the cramped surface strictly fits. The overflow is
 // cosmetic and out of scope for this work; surface anything else so a real
 // layout regression still trips takeException().
-//
-// See: docs/code-quality/audit-tests.md §1.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -81,7 +81,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   /// | weather         | no            | read-only telemetry                       |
   /// | safetyMonitor   | no            | read-only                                 |
   ///
-  /// Per CLAUDE.md ("no stubs / no placeholders"), unwired gears stay hidden
+  /// No stubs or placeholders: unwired gears stay hidden
   /// — we never display a settings affordance that does nothing or that opens
   /// an empty dialog. When a real device-specific settings widget for one of
   /// the unwired entries is added under

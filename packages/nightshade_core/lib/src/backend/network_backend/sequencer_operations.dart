@@ -120,7 +120,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerSkipToNode(String nodeId) async {
-    // Wave 1.5 Pack A: forwarded to the remote host's sequencer.skip-to-node
+    // Forwarded to the remote host's sequencer.skip-to-node
     // endpoint. Server side maps to api_sequencer_skip_to_node.
     await _post('sequencer/skip-to-node', {'nodeId': nodeId});
   }
@@ -132,11 +132,11 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     String? message,
     String? structuredDetailJson,
   }) async {
-    // Wave 6 Pack P: forwarded to the remote host's plugin-node-finished
+    // Forwarded to the remote host's plugin-node-finished
     // endpoint. Server side maps to `api_sequencer_plugin_node_finished`.
     // The remote backend will likely need to dispatch the plugin on the
-    // host side too — Pack P does not yet wire the remote dispatch path
-    // (that lands with the Wave 7 remote-protocol pack); for now this
+    // host side too — does not yet wire the remote dispatch path
+    // (that lands with the remote-protocol pack); for now this
     // is a faithful forwarder so the wire format is stable from day 1.
     await _post('sequencer/plugin-node-finished', {
       'nodeId': nodeId,
@@ -200,7 +200,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId) async {
-    // Wave 8 Replay Debug — POST through the standard sequencer
+    // Replay Debug — POST through the standard sequencer
     // sub-API; the network backend just forwards primitives.
     await _post('sequencer/active-sequence-run-id', {
       'sequence_run_id': sequenceRunId,
@@ -209,7 +209,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerSetDecisionLoggingEnabled(bool enabled) async {
-    // Wave 8 Replay Debug — runtime toggle.
+    // Replay Debug — runtime toggle.
     await _post('sequencer/decision-logging-enabled', {'enabled': enabled});
   }
 
@@ -250,9 +250,9 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   Future<void> sequencerUpdatePendingIntegrationCarryOver(
     Map<String, Map<String, double>> carryOver,
   ) async {
-    // Wave 7.5 — remote staging mirrors the FFI path. The headless API
+    // Remote staging mirrors the FFI path. The headless API
     // owns the deserialisation; an unrecognised endpoint on an older
-    // headless build is surfaced (CLAUDE.md "errors are a feature").
+    // headless build is surfaced (errors are a feature here).
     await _post('sequencer/update-pending-integration-carry-over', {
       'carry_over': carryOver,
     });
@@ -260,7 +260,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerUpdateAutofocusInterval(int everyNFrames) async {
-    // Wave 1.5 Pack A: forwarded to the remote host's runtime-config update
+    // Forwarded to the remote host's runtime-config update
     // endpoint. Server side maps to api_sequencer_update_autofocus_interval.
     await _post('sequencer/update-autofocus-interval', {
       'everyNFrames': everyNFrames,
@@ -276,7 +276,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     required int maxConsecutiveRejects,
     required bool enabled,
   }) async {
-    // Pack G — forwarded to the remote host. Server side maps to
+    // Forwarded to the remote host. Server side maps to
     // api_sequencer_update_default_quality_check.
     await _post('sequencer/update-default-quality-check', {
       'hfrThreshold': hfrThreshold,
@@ -290,7 +290,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerUpdateRejectFolderPath(String? path) async {
-    // Pack G — forwarded to the remote host. Server side maps to
+    // Forwarded to the remote host. Server side maps to
     // api_sequencer_update_reject_folder_path.
     await _post('sequencer/update-reject-folder-path', {'path': path});
   }
@@ -305,7 +305,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     double? telescopeFocalLengthMm,
     double? telescopeApertureMm,
   }) async {
-    // Pack G — forwarded to the remote host. Server side maps to
+    // Forwarded to the remote host. Server side maps to
     // api_sequencer_update_observer_profile.
     await _post('sequencer/update-observer-profile', {
       'observerName': observerName,
@@ -327,7 +327,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     double? predictedClearSkyAlt,
     double? predictedClearSkyAz,
   }) async {
-    // Wave 5 Agent 4 — forwarded to the remote host so the remote rig's
+    // Forwarded to the remote host so the remote rig's
     // executor sees the same analyzer reading the local controller has.
     await _post('sequencer/update-cloud-motion', {
       'currentCoverPercent': currentCoverPercent,
@@ -351,7 +351,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<String?> sequencerGetCloudMotionJson() async {
-    // Wave 5 Agent 4 — fetched lazily by the dashboard tick. The remote
+    // Fetched lazily by the dashboard tick. The remote
     // endpoint mirrors the local FRB call.
     try {
       final response = await _get('sequencer/cloud-motion');
@@ -392,7 +392,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
 
   @override
   Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
-    // Wave 5 Agent 2 — forwarded to the remote host so the remote rig's
+    // Forwarded to the remote host so the remote rig's
     // executor sees the same SkyBrightnessTracker reading the local
     // controller has. Older headless servers may not implement the
     // endpoint; we don't swallow errors here (the user explicitly
@@ -429,7 +429,7 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
-  // Wave 4 Recovery Mode
+  // Recovery Mode
   // =========================================================================
 
   @override

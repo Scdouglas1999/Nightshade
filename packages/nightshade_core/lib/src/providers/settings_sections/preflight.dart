@@ -1,4 +1,4 @@
-// Wave 5 Agent 3 — Pre-flight check defaults. Owns how aggressively the
+// Pre-flight check defaults. Owns how aggressively the
 // pre-flight dialog warns / blocks on questionable conditions.
 //
 // Owns:

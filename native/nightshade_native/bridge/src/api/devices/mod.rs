@@ -1,4 +1,4 @@
-// CQ-W3-API-RS: device-control submodules (audit-rust §9)
+// device-control submodules
 
 pub mod camera;
 pub mod cover_calibrator;

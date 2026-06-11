@@ -118,7 +118,7 @@ void main() {
       );
     });
 
-    // P0-3: GET /api/pairing/active is admin-only and lists currently
+    // GET /api/pairing/active is admin-only and lists currently
     // valid pairing codes so a headless operator can fetch them via a
     // paired admin client without watching stdout.
     test('GET /api/pairing/active requires admin scope', () async {
@@ -172,7 +172,7 @@ void main() {
       },
     );
 
-    // P0-10: TokenManager.revokeDevice must cause the in-memory
+    // TokenManager.revokeDevice must cause the in-memory
     // _pairedSessionTokens map to drop the corresponding session token
     // synchronously (via the SessionTokenRevocationListener installed at
     // start() / lazy-construct). A previously-accepted session token must

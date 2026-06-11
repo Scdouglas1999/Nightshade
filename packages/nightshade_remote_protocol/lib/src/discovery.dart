@@ -182,8 +182,8 @@ class NightshadeDiscovery {
     // socket.send, any other failure inside the periodic tick (e.g. an
     // unexpected NPE from a future maintainer expanding the body) would
     // be silently swallowed by Timer.periodic. Wrapping the tick body in
-    // _superviseSync makes such regressions visible in the dev log —
-    // audit-observe §8c "background-service supervision".
+    // _superviseSync makes such regressions visible in the dev log
+    // (background-service supervision).
     emit();
     final timer = Timer.periodic(
       interval,
@@ -233,8 +233,8 @@ class NightshadeDiscovery {
   ///
   /// Why: Timer.periodic and Stream.listen callbacks complete outside any
   /// await chain — exceptions become unhandled errors that the zone drops.
-  /// audit-observe §8c flagged this as the "background-service supervision"
-  /// gap. We log but do not rethrow because the caller is fire-and-forget;
+  /// This is the "background-service supervision" gap.
+  /// We log but do not rethrow because the caller is fire-and-forget;
   /// rethrowing would land in the same dropped-error path.
   static void _superviseSync(String name, void Function() task) {
     try {

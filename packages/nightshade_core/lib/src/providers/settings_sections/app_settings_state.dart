@@ -139,7 +139,7 @@ class AppSettingsState {
   final bool pushCriticalAlerts;
 
   // -------------------------------------------------------------------
-  // Wave 4 Recovery Mode — user-tunable defaults
+  // Recovery Mode — user-tunable defaults
   // -------------------------------------------------------------------
   /// Minutes between auto-retry attempts during a recovery loop. SGP
   /// default: 10 minutes. Persisted as a double-precision count of
@@ -189,13 +189,13 @@ class AppSettingsState {
   final String
   afFilterSettingsJson; // JSON map of filter name to FilterAutofocusConfig
 
-  /// Pack G — observer name written into FITS `OBSERVER`. Empty string
+  /// Observer name written into FITS `OBSERVER`. Empty string
   /// (the default) is treated as "no observer" and the keyword is omitted
   /// from FITS rather than emitted with a sentinel.
   final String observerName;
 
   // -------------------------------------------------------------------
-  // Pack G — Wave 3 Image Grading (live frame Pass/Reject)
+  // Image Grading (live frame Pass/Reject)
   // -------------------------------------------------------------------
   /// Master switch: when false, no grading runs and the executor's
   /// RuntimeConfig.default_quality_check is set to None at start.
@@ -224,7 +224,7 @@ class AppSettingsState {
   final String? imageGradingRejectFolderPath;
 
   // -------------------------------------------------------------------
-  // Wave 5 Agent 2 — Sky-brightness adaptive exposure (global defaults)
+  // Sky-brightness adaptive exposure (global defaults)
   // -------------------------------------------------------------------
   /// Master switch for the global default adaptive-exposure config.
   /// When false the global default is cleared in the executor and only
@@ -254,7 +254,7 @@ class AppSettingsState {
   final Map<String, double> adaptiveExposurePerFilterMaxSecs;
 
   // -------------------------------------------------------------------
-  // Wave 5 Agent 3 — Pre-flight checks
+  // Pre-flight checks
   // -------------------------------------------------------------------
   /// How aggressively the pre-flight dialog should warn or block on
   /// questionable conditions (missing darks, stale polar alignment, time
@@ -280,7 +280,7 @@ class AppSettingsState {
   final double opticalTrainDriftThreshold;
 
   // -------------------------------------------------------------------
-  // Wave 6 Agent 1 — Smart Night auto-builder defaults
+  // Smart Night auto-builder defaults
   // -------------------------------------------------------------------
   /// Maximum session wall-clock duration (hours) the Smart Night wizard
   /// uses to cap the planning window. `null` => use the full dark window
@@ -336,7 +336,7 @@ class AppSettingsState {
   final bool smartNightAutoPromptEnabled;
 
   // -------------------------------------------------------------------
-  // Wave 6 Agent 5 — Notes / journal preferences
+  // Notes / journal preferences
   // -------------------------------------------------------------------
   /// Whether the auto-prompt note dialog appears after a sequence run
   /// completes. Defaults to true (opt-out, not opt-in: the session
@@ -348,7 +348,7 @@ class AppSettingsState {
   final bool promptForNotesAfterRun;
 
   // -------------------------------------------------------------------
-  // Wave 7 — Session lifecycle preferences
+  // Session lifecycle preferences
   // -------------------------------------------------------------------
 
   /// Whether the multi-night carry-over banner auto-opens at pre-flight
@@ -377,7 +377,7 @@ class AppSettingsState {
   final String campaignRollupGroupingMode;
 
   // -------------------------------------------------------------------
-  // Wave 8 — Adaptive sky-conditions target swap defaults
+  // Adaptive sky-conditions target swap defaults
   //
   // These knobs pre-fill the matching fields on a newly-created
   // [TargetSchedulerNode]. Changing them never mutates an existing node
@@ -521,7 +521,7 @@ class AppSettingsState {
     this.audibleAlertsOnCritical = false,
     this.criticalAlertSound = 'systemBell',
     this.pushCriticalAlerts = true,
-    // Wave 4 Recovery Mode — SGP-matching defaults.
+    // Recovery Mode — SGP-matching defaults.
     this.recoveryDefaultRetryIntervalMins = 10.0,
     this.recoveryDefaultMaxDurationMins = 90.0,
     this.recoveryStopTrackingDuringRecovery = true,
@@ -549,7 +549,7 @@ class AppSettingsState {
     this.afAutofocusFilterName = '',
     this.afFilterSettingsJson = '{}',
 
-    // Pack G — observer name (FITS OBSERVER keyword).
+    // Observer name (FITS OBSERVER keyword).
     this.observerName = '',
     this.enableImageGrading = false,
     this.imageGradingHfrThresholdPx = 3.5,
@@ -675,7 +675,7 @@ class AppSettingsState {
     bool? audibleAlertsOnCritical,
     String? criticalAlertSound,
     bool? pushCriticalAlerts,
-    // Wave 4 Recovery Mode
+    // Recovery Mode
     double? recoveryDefaultRetryIntervalMins,
     double? recoveryDefaultMaxDurationMins,
     bool? recoveryStopTrackingDuringRecovery,
@@ -701,9 +701,9 @@ class AppSettingsState {
     int? afBacklashOut,
     String? afAutofocusFilterName,
     String? afFilterSettingsJson,
-    // Pack G — observer name (FITS OBSERVER)
+    // Observer name (FITS OBSERVER)
     String? observerName,
-    // Pack G — Wave 3 Image Grading
+    // Image Grading
     bool? enableImageGrading,
     // Wrap nullable fields with Object() sentinels so callers can set them
     // back to null. We use a private `_unset` sentinel to distinguish
@@ -715,7 +715,7 @@ class AppSettingsState {
     Object? imageGradingStarCountMin = _unset,
     int? imageGradingMaxConsecutiveRejects,
     Object? imageGradingRejectFolderPath = _unset,
-    // Wave 5 Agent 2 — Sky-brightness adaptive exposure
+    // Sky-brightness adaptive exposure
     bool? adaptiveExposureEnabled,
     double? adaptiveExposureTargetSnr,
     double? adaptiveExposureReferenceMag,
@@ -724,12 +724,12 @@ class AppSettingsState {
     Map<String, bool>? adaptiveExposurePerFilterEnabled,
     Map<String, double>? adaptiveExposurePerFilterMinSecs,
     Map<String, double>? adaptiveExposurePerFilterMaxSecs,
-    // Wave 5 Agent 3 — Pre-flight
+    // Pre-flight
     PreflightStrictness? preflightStrictness,
     int? polarAlignmentMaxAgeDays,
     int? darkLibraryMinCoverage,
     double? opticalTrainDriftThreshold,
-    // Wave 6 Agent 1 — Smart Night defaults. `smartNightMaxSessionHours`
+    // Smart Night defaults. `smartNightMaxSessionHours`
     // uses the same `_unset` sentinel pattern as the nullable Image
     // Grading thresholds so callers can deliberately clear it back to
     // "use the full dark window".
@@ -745,13 +745,13 @@ class AppSettingsState {
     double? smartNightSubExposureCeilingSecs,
     double? smartNightTargetSnr,
     bool? smartNightAutoPromptEnabled,
-    // Wave 6 Agent 5 — Notes prompt toggle.
+    // Notes prompt toggle.
     bool? promptForNotesAfterRun,
-    // Wave 7 — Session lifecycle.
+    // Session lifecycle.
     bool? sessionHandoffAutoPrompt,
     bool? campaignRollupSurfaceTargetsTab,
     String? campaignRollupGroupingMode,
-    // Wave 8 — Adaptive sky-conditions defaults.
+    // Adaptive sky-conditions defaults.
     bool? adaptiveSwapEnabledByDefault,
     double? adaptiveSwapDefaultThreshold,
     double? adaptiveSwapDefaultHysteresisSecs,
@@ -842,7 +842,7 @@ class AppSettingsState {
           audibleAlertsOnCritical ?? this.audibleAlertsOnCritical,
       criticalAlertSound: criticalAlertSound ?? this.criticalAlertSound,
       pushCriticalAlerts: pushCriticalAlerts ?? this.pushCriticalAlerts,
-      // Wave 4 Recovery Mode
+      // Recovery Mode
       recoveryDefaultRetryIntervalMins:
           recoveryDefaultRetryIntervalMins ??
           this.recoveryDefaultRetryIntervalMins,
@@ -878,9 +878,9 @@ class AppSettingsState {
       afAutofocusFilterName:
           afAutofocusFilterName ?? this.afAutofocusFilterName,
       afFilterSettingsJson: afFilterSettingsJson ?? this.afFilterSettingsJson,
-      // Pack G — observer name (FITS OBSERVER)
+      // Observer name (FITS OBSERVER)
       observerName: observerName ?? this.observerName,
-      // Pack G — Wave 3 Image Grading
+      // Image Grading
       enableImageGrading: enableImageGrading ?? this.enableImageGrading,
       imageGradingHfrThresholdPx: identical(imageGradingHfrThresholdPx, _unset)
           ? this.imageGradingHfrThresholdPx
@@ -903,7 +903,7 @@ class AppSettingsState {
           identical(imageGradingRejectFolderPath, _unset)
           ? this.imageGradingRejectFolderPath
           : imageGradingRejectFolderPath as String?,
-      // Wave 5 Agent 2 — Sky-brightness adaptive exposure
+      // Sky-brightness adaptive exposure
       adaptiveExposureEnabled:
           adaptiveExposureEnabled ?? this.adaptiveExposureEnabled,
       adaptiveExposureTargetSnr:
@@ -923,7 +923,7 @@ class AppSettingsState {
       adaptiveExposurePerFilterMaxSecs:
           adaptiveExposurePerFilterMaxSecs ??
           this.adaptiveExposurePerFilterMaxSecs,
-      // Wave 5 Agent 3 — Pre-flight
+      // Pre-flight
       preflightStrictness: preflightStrictness ?? this.preflightStrictness,
       polarAlignmentMaxAgeDays:
           polarAlignmentMaxAgeDays ?? this.polarAlignmentMaxAgeDays,
@@ -931,7 +931,7 @@ class AppSettingsState {
           darkLibraryMinCoverage ?? this.darkLibraryMinCoverage,
       opticalTrainDriftThreshold:
           opticalTrainDriftThreshold ?? this.opticalTrainDriftThreshold,
-      // Wave 6 Agent 1 — Smart Night defaults.
+      // Smart Night defaults.
       smartNightMaxSessionHours: identical(smartNightMaxSessionHours, _unset)
           ? this.smartNightMaxSessionHours
           : smartNightMaxSessionHours as double?,
@@ -962,10 +962,10 @@ class AppSettingsState {
       smartNightTargetSnr: smartNightTargetSnr ?? this.smartNightTargetSnr,
       smartNightAutoPromptEnabled:
           smartNightAutoPromptEnabled ?? this.smartNightAutoPromptEnabled,
-      // Wave 6 Agent 5 — Notes prompt toggle.
+      // Notes prompt toggle.
       promptForNotesAfterRun:
           promptForNotesAfterRun ?? this.promptForNotesAfterRun,
-      // Wave 7 — Session lifecycle.
+      // Session lifecycle.
       sessionHandoffAutoPrompt:
           sessionHandoffAutoPrompt ?? this.sessionHandoffAutoPrompt,
       campaignRollupSurfaceTargetsTab:
@@ -973,7 +973,7 @@ class AppSettingsState {
           this.campaignRollupSurfaceTargetsTab,
       campaignRollupGroupingMode:
           campaignRollupGroupingMode ?? this.campaignRollupGroupingMode,
-      // Wave 8 — Adaptive sky-conditions defaults.
+      // Adaptive sky-conditions defaults.
       adaptiveSwapEnabledByDefault:
           adaptiveSwapEnabledByDefault ?? this.adaptiveSwapEnabledByDefault,
       adaptiveSwapDefaultThreshold:

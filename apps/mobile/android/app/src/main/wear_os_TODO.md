@@ -1,6 +1,6 @@
 # Wear OS Tile — Scaffolding plan
 
-Wave 7D shipped the Apple Watch complication; Wear OS parity is parked
+shipped the Apple Watch complication; Wear OS parity is parked
 behind this plan. The work is non-trivial — a Wear OS Tile is a separate
 Gradle module with its own manifest, Tile service, and complication data
 source — but the design and file layout are documented here so a future

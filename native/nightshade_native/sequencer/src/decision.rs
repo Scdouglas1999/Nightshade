@@ -1,4 +1,4 @@
-//! Wave 8 — Replay Debug: structured decision logging.
+//! Replay Debug: structured decision logging.
 //!
 //! Every executor decision is captured as a [`DecisionEvent`] and broadcast
 //! on a dedicated tokio channel. The bridge layer consumes these, publishes
@@ -43,19 +43,19 @@ pub enum DecisionCategory {
     /// A trigger watchdog (HFR drift, guiding lost, time-of-day, etc.) fired
     /// and the executor ran its action.
     TriggerFired,
-    /// The executor entered the Wave 4 Recovery state machine (or
+    /// The executor entered the Recovery state machine (or
     /// transitioned phase within it: Waiting → Attempting → Recovered → GaveUp).
     RecoveryEntered,
-    /// A Wave 3 integration budget reached its configured target — either
+    /// A integration budget reached its configured target — either
     /// the per-filter cap or the whole-target total.
     BudgetMet,
-    /// Wave 8 Agent 2 conditions-based adaptive target swap.
+    /// conditions-based adaptive target swap.
     AdaptiveSwap,
-    /// Wave 3 grading accepted a frame.
+    /// grading accepted a frame.
     FrameAccepted,
-    /// Wave 3 grading rejected a frame (with reason + metrics).
+    /// grading rejected a frame (with reason + metrics).
     FrameRejected,
-    /// Wave 6 Pack P plugin node was dispatched.
+    /// plugin node was dispatched.
     PluginNodeInvoked,
     /// Manual operator action: Pause, Resume, Skip, Try Now, Abort, etc.
     ManualIntervention,

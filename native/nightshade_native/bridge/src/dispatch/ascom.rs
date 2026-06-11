@@ -221,12 +221,12 @@ impl DeviceManager {
     /// `SupportedActions`) is centralized in
     /// [`crate::dispatch::device_common_metadata::fetch_api_version`] via the
     /// [`DeviceCommonMetadata`] trait — see that module for the silent-fallback
-    /// contract (audit-rust §4.3) and the `tracing::warn!` instrumentation
+    /// contract and the `tracing::warn!` instrumentation
     /// that surfaces discarded `supported_actions` errors. The closure
     /// argument `DeviceApiVersion::from_ascom` is the only thing that
     /// distinguishes this from the Alpaca-side query.
     ///
-    /// # Silent-fallback contract (audit-rust §4.3)
+    /// # Silent-fallback contract
     ///
     /// * Legacy ASCOM drivers raise `PropertyNotImplementedException`
     ///   (HRESULT `0x80040400`) for optional properties; the helper maps

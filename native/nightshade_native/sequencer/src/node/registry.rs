@@ -137,20 +137,20 @@ impl InstructionRegistry {
         factories.insert("CalibratorOff", || {
             Box::new(i::calibrator_off::CalibratorOffInstruction)
         });
-        // Wave 3 Agent 2: SmartExposure.
+        // SmartExposure.
         factories.insert("SmartExposure", || {
             Box::new(i::smart_exposure::SmartExposureInstruction)
         });
-        // Wave 6 Pack P: PluginNode — dispatches into Dart via the
+        // PluginNode — dispatches into Dart via the
         // request/response protocol implemented in `plugin_node.rs`.
         factories.insert("PluginNode", || {
             Box::new(i::plugin_node::PluginNodeInstruction)
         });
-        // Wave 7 Agent 2: LiveStacking — broadcast / EAA node.
+        // LiveStacking — broadcast / EAA node.
         factories.insert("LiveStacking", || {
             Box::new(i::live_stacking::LiveStackingInstruction)
         });
-        // Wave 7 Science: SciencePhotometry — cadence-enforced photometric capture.
+        // Science: SciencePhotometry — cadence-enforced photometric capture.
         factories.insert("SciencePhotometry", || {
             Box::new(i::science_photometry::SciencePhotometryInstruction)
         });
@@ -177,7 +177,7 @@ pub fn node_type_discriminant(node_type: &NodeType) -> Option<&'static str> {
         | NodeType::Parallel(_)
         | NodeType::Conditional(_)
         | NodeType::Recovery(_)
-        // Wave 3 Agent 1: TargetScheduler — container variant; logic dispatch.
+        // TargetScheduler — container variant; logic dispatch.
         | NodeType::TargetScheduler(_) => None,
 
         NodeType::SlewToTarget(_) => Some("SlewToTarget"),
@@ -209,13 +209,13 @@ pub fn node_type_discriminant(node_type: &NodeType) -> Option<&'static str> {
         NodeType::CloseCover(_) => Some("CloseCover"),
         NodeType::CalibratorOn(_) => Some("CalibratorOn"),
         NodeType::CalibratorOff(_) => Some("CalibratorOff"),
-        // Wave 3 Agent 2: SmartExposure.
+        // SmartExposure.
         NodeType::SmartExposure(_) => Some("SmartExposure"),
-        // Wave 6 Pack P: PluginNode.
+        // PluginNode.
         NodeType::PluginNode { .. } => Some("PluginNode"),
-        // Wave 7 Agent 2: LiveStacking.
+        // LiveStacking.
         NodeType::LiveStacking(_) => Some("LiveStacking"),
-        // Wave 7 Agent 4 (Science): SciencePhotometry — owned by the
+        // (Science): SciencePhotometry — owned by the
         // Science agent. We hand back the canonical discriminator so
         // the registry stays exhaustive in the interim; the Science
         // agent owns the actual factory registration when they wire
@@ -272,9 +272,9 @@ mod tests {
             NodeType::CloseCover(Default::default()),
             NodeType::CalibratorOn(Default::default()),
             NodeType::CalibratorOff(Default::default()),
-            // Wave 3 Agent 2: SmartExposure.
+            // SmartExposure.
             NodeType::SmartExposure(Default::default()),
-            // Wave 6 Pack P: PluginNode — registry must resolve it the
+            // PluginNode — registry must resolve it the
             // same as every other instruction variant. Discriminant-only
             // check; the actual execute() path is exercised by
             // plugin_node.rs's own tests.
@@ -285,7 +285,7 @@ mod tests {
                 display_name: None,
                 timeout_secs: None,
             },
-            // Wave 7 Agent 2: LiveStacking — broadcast / EAA node.
+            // LiveStacking — broadcast / EAA node.
             NodeType::LiveStacking(LiveStackingConfig::default()),
         ];
         for variant in &variants {
@@ -308,7 +308,7 @@ mod tests {
             NodeType::Parallel(Default::default()),
             NodeType::Conditional(Default::default()),
             NodeType::Recovery(Default::default()),
-            // Wave 3 Agent 1: TargetScheduler.
+            // TargetScheduler.
             NodeType::TargetScheduler(TargetSchedulerConfig::default()),
         ];
         for variant in &containers {
@@ -368,12 +368,12 @@ mod tests {
                 NodeType::CalibratorOff(Default::default()),
                 "Calibrator Off",
             ),
-            // Wave 3 Agent 2: SmartExposure.
+            // SmartExposure.
             (
                 NodeType::SmartExposure(Default::default()),
                 "Smart Exposure",
             ),
-            // Wave 6 Pack P: PluginNode — the type_name is the same for
+            // PluginNode — the type_name is the same for
             // every plugin (the actual plugin/node identifiers are
             // surfaced via the structured progress payload, not the
             // legacy `instruction` label).
@@ -387,7 +387,7 @@ mod tests {
                 },
                 "Plugin Node",
             ),
-            // Wave 7 Agent 2: LiveStacking.
+            // LiveStacking.
             (
                 NodeType::LiveStacking(LiveStackingConfig::default()),
                 "Live Stacking",

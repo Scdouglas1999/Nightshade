@@ -524,7 +524,7 @@ class SequenceRepository {
     }
   }
 
-  /// Wave 5 Agent 5 — DB-side round-trip of NotificationNode's explicit
+  /// DB-side round-trip of NotificationNode's explicit
   /// transports override. See [SequenceFileService._parseExplicitTransports]
   /// for the equivalent file-side parser.
   List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) {
@@ -635,14 +635,14 @@ class SequenceRepository {
         return 'parkAndAbort';
       case RecoveryActionType.customBranch:
         return 'customBranch';
-      // Wave 5 Agent 4 — cloud-motion-aware actions stored as
+      // Cloud-motion-aware actions stored as
       // camelCase identifiers so they round-trip through the SQLite
       // sequence repository the same way every other recovery action does.
       case RecoveryActionType.pauseAndWaitForClear:
         return 'pauseAndWaitForClear';
       case RecoveryActionType.slewToGapAndContinue:
         return 'slewToGapAndContinue';
-      // Wave 7 Science — transparency-adaptive recovery.
+      // Science — transparency-adaptive recovery.
       case RecoveryActionType.switchTargetOrFilter:
         return 'switchTargetOrFilter';
     }
@@ -662,12 +662,12 @@ class SequenceRepository {
         return RecoveryActionType.parkAndAbort;
       case 'customBranch':
         return RecoveryActionType.customBranch;
-      // Wave 5 Agent 4 — cloud-motion-aware actions.
+      // Cloud-motion-aware actions.
       case 'pauseAndWaitForClear':
         return RecoveryActionType.pauseAndWaitForClear;
       case 'slewToGapAndContinue':
         return RecoveryActionType.slewToGapAndContinue;
-      // Wave 7 Science — transparency-adaptive recovery.
+      // Science — transparency-adaptive recovery.
       case 'switchTargetOrFilter':
         return RecoveryActionType.switchTargetOrFilter;
       default:

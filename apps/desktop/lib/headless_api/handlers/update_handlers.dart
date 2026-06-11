@@ -1,4 +1,4 @@
-// P1-11 — Headless OTA update endpoints.
+// Headless OTA update endpoints.
 //
 // Closes the `04-storage-image-transfer` §12 audit gap. The desktop GUI
 // has had `UpdateService` + `LanPushReceiver` wired through

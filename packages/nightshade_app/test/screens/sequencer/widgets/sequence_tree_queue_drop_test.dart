@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — sequence_tree drag-drop test for target queue.
+// sequence_tree drag-drop test for target queue.
 //
 // Pins that a TargetQueueDragPayload accepted by the sequence tree's
 // DragTarget produces a TargetHeaderNode with the right coordinates.

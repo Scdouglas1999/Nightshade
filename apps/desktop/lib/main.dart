@@ -49,13 +49,13 @@ void main(List<String> args) async {
       // loudly (an unset version masks OTA update logic). The desktop entry
       // is the canonical place to wire it.
       appVersionProvider.overrideWithValue(appVersion),
-      // Wave 6 Pack P — wire `pluginNodeDispatcherProvider` (defined in
+      // wire `pluginNodeDispatcherProvider` (defined in
       // nightshade_core) to the real `PluginNodeExecutor` (defined in
       // nightshade_plugins). Without this override the Rust executor would
       // receive a structured "dispatcher not wired" failure for every
       // PluginNode invocation.
       pluginNodeDispatcherOverride(),
-      // Audit §11 — surface plugin-contributed sequence nodes in the
+      // surface plugin-contributed sequence nodes in the
       // sequencer palette. Without this override the palette never shows
       // plugin nodes even when the dispatcher above is fully wired (the
       // user could not author a sequence containing a plugin node from

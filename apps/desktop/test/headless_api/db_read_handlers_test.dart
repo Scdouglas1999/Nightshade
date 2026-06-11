@@ -1,4 +1,4 @@
-// P2-8 — Tests for the read-only DB endpoints surfaced by DbReadHandlers.
+// Tests for the read-only DB endpoints surfaced by DbReadHandlers.
 //
 // One happy-path test per endpoint, plus filter/pagination spot-checks
 // so the wire envelope stays stable. In-memory Drift DB keeps the tests
@@ -303,7 +303,7 @@ void main() {
     });
 
     // =====================================================================
-    // Wave 7B — Replay scrubber endpoints
+    // Replay scrubber endpoints
     // =====================================================================
 
     group('GET /api/sequence-runs/<runId>', () {

@@ -1,5 +1,5 @@
 // Widget tests for the optional field-help affordance threaded through the
-// imaging side-panel row widgets (C6).
+// imaging side-panel row widgets.
 //
 // `InputRow`, `InputRowEditable`, `DropdownRow`, and `SliderRowInteractive`
 // each take an optional `helpId`. When supplied, a tooltipped help icon is

@@ -1,6 +1,6 @@
 //! Errors returned by the interpolation engine.
 //!
-//! Following the CLAUDE.md policy ("errors are a feature; silent fallbacks
+//! Following the house policy ("errors are a feature; silent fallbacks
 //! hide bugs"), the resolver never substitutes empty strings for unknown
 //! variables. Every failure path produces a typed error that names exactly
 //! what went wrong so the user can fix their template.

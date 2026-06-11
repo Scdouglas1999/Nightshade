@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
-// Tests for the multi-select fixes added in Wave 1.5:
+// Tests for the multi-select fixes added in
 //
 //   1. `MultiSelectNotifier.deleteSelected` no longer iterates over both a
 //      parent and its descendant — it pre-filters the selection to

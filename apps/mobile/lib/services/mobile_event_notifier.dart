@@ -139,7 +139,7 @@ class MobileEventNotifier {
           await _handleSession(event);
           break;
         case EventCategory.catalog:
-          // Wave 4C: catalog (sequence library, targets) sync events. No
+          // catalog (sequence library, targets) sync events. No
           // operator action required; the existing catalog provider on the
           // phone consumes these via its own subscription so we just drop
           // them here rather than waking the user.
@@ -351,7 +351,7 @@ class MobileEventNotifier {
     }
   }
 
-  /// P1-2/P1-3: job lifecycle events. A long-running operation registered
+  /// job lifecycle events. A long-running operation registered
   /// in `JobManager` emits five event types in this category:
   ///
   ///   JobStarted | JobProgress | JobCompleted | JobFailed | JobCancelled
@@ -373,7 +373,7 @@ class MobileEventNotifier {
   /// `apps/desktop/lib/headless_api/handlers/*.dart` for the canonical
   /// list. We surface plate-solve, center-on-target, polar-alignment, and
   /// autofocus failures. Any other operation falls through and is logged
-  /// loudly (per CLAUDE.md's no-silent-fallback rule) but not surfaced —
+  /// loudly (per the no-silent-fallback rule) but not surfaced —
   /// so when a new long-running job is added server-side, the logs will
   /// reveal the gap.
   Future<void> _handleJob(NightshadeEvent event) async {
@@ -438,7 +438,7 @@ class MobileEventNotifier {
     }
   }
 
-  /// P1-5: session-ownership lifecycle events. Four event types:
+  /// session-ownership lifecycle events. Four event types:
   ///
   ///   OwnershipClaimed   - the user themselves likely triggered this on
   ///                        another device. Ignored.

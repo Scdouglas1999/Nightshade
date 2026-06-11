@@ -5,7 +5,7 @@
 //! - Binary data block(s)
 //! - Optional compression (zlib, lz4, zstd)
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All XISF `unwrap_or` sites map to format-spec defaults:
 //!

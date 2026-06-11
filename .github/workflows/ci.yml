@@ -32,7 +32,7 @@ jobs:
       - name: Bootstrap workspace
         run: melos bootstrap
 
-      # §7B.4 regression-pin: --min-files asserts the auditor still walks the
+      # regression-pin: --min-files asserts the auditor still walks the
       # whole runtime tree. Raise the baseline whenever a new top-level
       # package or native crate is added; never lower it without justifying
       # which runtime files were legitimately removed.
@@ -60,13 +60,13 @@ jobs:
         run: melos run audit:placeholders
 
       - name: Fail-Closed Policy Gate (direct, with --min-files regression-pin)
-        # CQ-W8-CI-GATING: required check. Direct invocation pins
+        # required check. Direct invocation pins
         # --min-files 1337 so a scope regression (e.g., a glob change that
         # excludes a package) trips the gate even if no new violations land.
         run: dart run tools/production/fail_closed_check.dart --min-files 1337
 
       - name: Fail-Closed Policy Gate (melos wrapper)
-        # CQ-W8-CI-GATING: required check. Belt-and-braces invocation via
+        # required check. Belt-and-braces invocation via
         # melos so the documented developer-facing command
         # (`melos run audit:fail-closed`) is exercised on every PR. If the
         # two invocations diverge in flags, this step catches it.
@@ -79,7 +79,7 @@ jobs:
         run: dart run tools/production/dependency_hygiene.dart
 
       - name: Analyze code (production gate)
-        # CQ-W8-CI-GATING: required check. analyzer_rollup is the
+        # required check. analyzer_rollup is the
         # `melos run analyze:production` zero-error gate (see melos.yaml).
         # Equivalent to `flutter analyze` per-package with a hard production
         # policy applied (docs/production-readiness/analyzer-policy.yaml).
@@ -109,7 +109,7 @@ jobs:
       - name: Launch Analyzer Gate (zero production warnings)
         run: dart run tools/production/analyzer_rollup.dart --policy docs/production-readiness/analyzer-policy.yaml --critical-codes docs/production-readiness/critical-warning-codes.txt --report docs/production-readiness/analyzer-rollup.json
 
-      # §7B.4 regression-pin: keep --min-files in sync with the analyze job
+      # regression-pin: keep --min-files in sync with the analyze job
       # above. If you raise one baseline, raise both.
       - name: Runtime Placeholder Gate
         run: dart run tools/production/placeholder_audit.dart --fail-on-new-highrisk --compare-highrisk-baseline docs/production-readiness/highrisk-baseline.txt --min-files 797
@@ -143,7 +143,6 @@ jobs:
 
   test-rust:
     # Linux Rust runs on every PR + push for fast feedback.
-    # audit-tests.md §7 gap #3 + roadmap R10.
     name: Rust Tests (linux)
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -174,17 +173,16 @@ jobs:
 
       - name: Run Rust clippy (workspace, deny warnings + high-value lints)
         working-directory: native/nightshade_native
-        # High-value lint promotions per audit-rust.md §7 (clippy debt):
+        # High-value lint promotions (clippy debt):
         #   - result_unit_err: forbids `Result<(), ()>` (use a real error type)
-        #   - await_holding_lock: catches the FFI deadlock pattern audit
-        #     flagged in §2.2 (locks held across `.await`).
+        #   - await_holding_lock: catches the FFI deadlock pattern of
+        #     locks held across `.await`.
         #   - undocumented_unsafe_blocks: every unsafe block must carry a
-        #     specific `// SAFETY:` comment. Promoted from -W to -D under
-        #     [CQ-W10-UNSAFE-BLOCKS-PROMOTE] after the residual sweep closed
-        #     the last non-vendor hits (audit-rust.md §3.2). See
+        #     specific `// SAFETY:` comment. Promoted from -W to -D after the
+        #     residual sweep closed the last non-vendor hits. See
         #     docs/ci-gates.md.
         # We intentionally do NOT promote `clippy::pedantic` — too noisy
-        # (7,140 warnings per audit-rust §7) and would block all PRs.
+        # (7,140 warnings) and would block all PRs.
         run: cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks
 
   test-rust-windows:
@@ -193,9 +191,9 @@ jobs:
     #   - nightly schedule
     #   - PRs labeled `ci:windows-rust` (rare opt-in)
     # ASCOM only compiles on Windows; without this job `ascom/windows_impl.rs`
-    # has zero CI exercise (audit-tests.md §7 gap #4, §8 #10).
-    # Roadmap R10: PR cycle time stays low because most PRs don't touch
-    # ascom/ — opt-in label is the escape hatch.
+    # has zero CI exercise.
+    # PR cycle time stays low because most PRs don't touch
+    # ascom/ — the opt-in label is the escape hatch.
     name: Rust Tests (windows)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -226,15 +224,14 @@ jobs:
 
       - name: Run Rust clippy (workspace, deny warnings + high-value lints)
         working-directory: native/nightshade_native
-        # See the Linux job for the rationale on each `-D` lint. Promoted
-        # under [CQ-W10-UNSAFE-BLOCKS-PROMOTE]; Windows is especially
-        # important because the ascom/ crate is Windows-only and most of its
+        # See the Linux job for the rationale on each `-D` lint. Windows is
+        # especially important because the ascom/ crate is Windows-only and most of its
         # unsafe COM-calling lives there.
         run: cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks
 
   cargo-duplicates:
-    # Surface multi-semver duplicates of the same crate. audit-rust.md §5.3
-    # called out base64, thiserror, socket2, getrandom, hashbrown,
+    # Surface multi-semver duplicates of the same crate. The known
+    # bloaters are base64, thiserror, socket2, getrandom, hashbrown,
     # windows-sys, windows-targets. We use `cargo tree --duplicates` which
     # is built into stable cargo (no extra install) and exit non-zero on
     # any duplicate via a wrapper check.
@@ -258,8 +255,8 @@ jobs:
         # `cargo tree --duplicates` lists each duplicated crate once with
         # all versions. Empty output (exit 0 with nothing on stdout) means
         # no duplicates. We capture stdout, log it as a build annotation,
-        # and only WARN today because audit-rust §5.3 documents the known
-        # bloaters which are tracked in W-OBS / windows-upgrade. Bump to
+        # and only WARN today because the known bloaters are tracked
+        # under the windows-upgrade work. Bump to
         # `exit 1` once those are consolidated (see deny.toml skip list).
         run: |
           set -o pipefail
@@ -268,7 +265,7 @@ jobs:
             echo "::group::Duplicate crate versions detected"
             echo "$output"
             echo "::endgroup::"
-            echo "::warning::Duplicate semver versions found. See native/nightshade_native/deny.toml skip list and audit-rust.md §5.3."
+            echo "::warning::Duplicate semver versions found. See native/nightshade_native/deny.toml skip list."
           else
             echo "No duplicate crate versions detected."
           fi
@@ -410,7 +407,7 @@ jobs:
             --report-on=lib
 
       - name: Upload coverage to Codecov
-        # audit-tests.md §7 gap #6: previous config used
+        # The previous config used
         # `fail_ci_if_error: false`, which silently swallowed upload
         # failures. Bumping to true so a misconfigured Codecov token or
         # network blip is visible. The coverage *threshold* itself is

@@ -6,7 +6,7 @@
 //! Implements pipeline parallelism:
 //! Capture -> Download -> [Queue] -> Processing (Stats/Save)
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Numeric casts in this file cluster into:
 //! - **`star_count as u32`** (line 118, 207): `star_count` is a usize from
@@ -30,7 +30,7 @@
 //!
 //! Sites with a local `Why:` comment override the module-level reasoning.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! * `file_path.unwrap_or_else(|| "In-memory image")` — capture returned
 //!   bytes but never persisted to disk (memory-only mode); the placeholder

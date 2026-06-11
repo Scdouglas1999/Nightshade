@@ -5,7 +5,6 @@
 # Generated code: collapse from PR diffs.
 # GitHub's diff UI honours `linguist-generated=true` by hiding matched files
 # behind a "Load diff" affordance, dropping ~76k LOC of churn from review.
-# Reference: docs/code-quality/audit-tests.md §8 #1, audit-tests.md §4.
 # ---------------------------------------------------------------------------
 
 # Dart code generation (build_runner, freezed, json_serializable, drift, mocks).

@@ -1,9 +1,7 @@
-// [Wave 6D error parsing]
-//
 // Mobile SnackBar helper that knows how to render the headless server's
 // structured error envelope.
 //
-// Before Wave 6D, every catch block in the mobile app called
+// Before this helper existed, every catch block in the mobile app called
 // `Text('$e')`, which exposed opaque exception strings like
 // "Exception: 502 status code from /api/x" to the operator. Now that
 // [NetworkBackend] decodes the {code, message} envelope into a typed

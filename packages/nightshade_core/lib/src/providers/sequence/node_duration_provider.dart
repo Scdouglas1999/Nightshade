@@ -87,7 +87,7 @@ double _rollupSecs(
     return integration + download;
   }
 
-  // Wave 3 Agent 2: SmartExposure is a leaf that internally dispatches
+  // SmartExposure is a leaf that internally dispatches
   // per-filter batches. Integration time is the sum of plan integrations;
   // download overhead is one per planned frame. Filter-change and dither
   // overheads are intentionally NOT modeled here — `sequence_time_estimator`

@@ -270,7 +270,7 @@ impl AlpacaSafetyMonitor {
             self.interface_version(),
         );
 
-        // Why (audit-rust §4.3): the four mandatory ASCOM identification
+        // Why: the four mandatory ASCOM identification
         // properties (`name`, `description`, `driverversion`, `interfaceversion`)
         // propagate via `?` — if any is missing the whole device-info read
         // fails. `driverinfo` is the only optional descriptor (ASCOM common

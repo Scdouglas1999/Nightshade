@@ -253,7 +253,7 @@ class MosaicService {
 
   /// Estimate total imaging time in seconds (pure Dart implementation).
   ///
-  /// AUDIT-FIX-5B (audit-handoff §4.3): [overheadPerPanelSecs] defaults to
+  /// [overheadPerPanelSecs] defaults to
   /// 60s — a conservative estimate covering slew + plate-solve + autofocus
   /// + dither between panels for a typical EQ mount + filter wheel rig.
   /// Callers with calibrated equipment profiles should pass a measured value
@@ -351,7 +351,7 @@ class MosaicService {
   /// `PANELROW`, `PANELCOL`, `NS-MOSNM`, `NS-PIDX`, `NS-PROW`,
   /// `NS-PCOL`, `NS-NPAN`).
   ///
-  /// ## Canonical execution path (Wave 4 Mosaic-Resume)
+  /// ## Canonical execution path (Mosaic-Resume)
   ///
   /// This static-expansion approach IS the canonical mosaic path
   /// today. The Rust [`crate::mosaic`] module's [`Wizard`]

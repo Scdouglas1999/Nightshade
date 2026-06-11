@@ -1,4 +1,4 @@
-// Wave 6D / P2-14 — Mobile poll-rate computation.
+// Mobile poll-rate computation.
 //
 // Combines the BatteryService snapshot with NetworkService's connectivity
 // state into a single "what cadence should background pollers run at?"

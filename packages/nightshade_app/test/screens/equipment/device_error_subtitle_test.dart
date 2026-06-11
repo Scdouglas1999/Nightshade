@@ -1,4 +1,4 @@
-// Onboarding C3 widget test for the device-card subtitle line.
+// Widget test for the device-card subtitle line.
 //
 // When the owning device is in `DeviceConnectionState.error` and a raw driver
 // message is available, the subtitle must surface a plain-language headline
@@ -46,7 +46,7 @@ Widget _wrap(Widget child) {
 }
 
 void main() {
-  group('DeviceErrorSubtitle — Onboarding C3', () {
+  group('DeviceErrorSubtitle', () {
     testWidgets('renders descriptive subtitle when not in error',
         (tester) async {
       await tester.pumpWidget(_wrap(
@@ -202,7 +202,7 @@ void main() {
         'text in the tooltip', (tester) async {
       // An error the classifier cannot confidently bucket must still produce a
       // concrete headline (never a dead end) while the raw text survives in the
-      // tooltip — the "errors are a feature" guarantee from CLAUDE.md.
+      // tooltip — the "errors are a feature" guarantee.
       const raw = 'Touptek SDK: device not responding to ping';
       await tester.pumpWidget(_wrap(
         DeviceErrorSubtitle(

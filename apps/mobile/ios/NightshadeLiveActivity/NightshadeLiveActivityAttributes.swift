@@ -1,6 +1,6 @@
 // NightshadeLiveActivityAttributes.swift
 //
-// P1-20 — iOS Live Activities for unattended sequence progress.
+// iOS Live Activities for unattended sequence progress.
 //
 // `ActivityAttributes` defines the static metadata (`sequenceId`,
 // `targetName`, `totalFrames`) that is fixed for the duration of a single

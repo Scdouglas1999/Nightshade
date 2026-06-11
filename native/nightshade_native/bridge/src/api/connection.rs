@@ -1,6 +1,6 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 use crate::device::*;
 use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::device_manager::DeviceManager;
@@ -473,7 +473,7 @@ pub mod ascom_connections {
             .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
-        // Why (audit-rust §4.3): name() is optional per ASCOM ICameraV3;
+        // Why: name() is optional per ASCOM ICameraV3;
         // when the driver omits it (rare, but seen on some custom DLs),
         // the ProgID is the well-known fallback used across the
         // equipment-compatibility matrix UI.
@@ -496,7 +496,7 @@ pub mod ascom_connections {
             .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
-        // Why (audit-rust §4.3): same fallback as the ASCOM camera path
+        // Why: same fallback as the ASCOM camera path
         // above — Name is optional per ITelescope; ProgID is the
         // documented display fallback.
         let name = mount.name().unwrap_or_else(|_| prog_id.to_string());

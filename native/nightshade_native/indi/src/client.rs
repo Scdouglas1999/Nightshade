@@ -71,7 +71,7 @@ fn make_jitter_rng(host: &str, port: u16) -> JitterRng {
         // After year 2554 the saturating cast becomes ID-seed jitter, which
         // the comment below explicitly notes is not load-bearing for uniqueness.
         .map(|d| d.as_nanos() as u64)
-        // Why (audit-rust §4.3): `SystemTime::duration_since(UNIX_EPOCH)` only fails for
+        // Why: `SystemTime::duration_since(UNIX_EPOCH)` only fails for
         // pre-1970 clocks. Zero is acceptable for ID-seeding because the per-process
         // counter and the host-hash already make the seed unique; the timestamp is
         // anti-collision jitter, not a correctness invariant.
@@ -337,7 +337,7 @@ impl ReaderTaskConfig {
         let max = Duration::from_secs(self.restart_max_delay_secs);
 
         // Calculate exponential delay: base * 2^(attempt-1)
-        // Why (audit-rust §4.3): checked_mul overflow at very large `attempt` saturates
+        // Why: checked_mul overflow at very large `attempt` saturates
         // to `max` — which is exactly what `.min(max)` enforces unconditionally on the
         // next line. The fallback merely short-circuits the saturation case.
         let exponential_delay = base
@@ -415,7 +415,7 @@ impl ReconnectionConfig {
         let base = Duration::from_secs(self.base_delay_secs);
         let max = Duration::from_secs(self.max_delay_secs);
 
-        // Why (audit-rust §4.3): see ReaderTaskConfig::calculate_restart_delay — overflow
+        // Why: see ReaderTaskConfig::calculate_restart_delay — overflow
         // saturates to `max`, which `.min(max)` enforces unconditionally on the next line.
         let exponential_delay = base
             .checked_mul(2u32.pow(attempt.saturating_sub(1)))
@@ -548,7 +548,7 @@ pub struct IndiClient {
     devices: Arc<RwLock<HashMap<String, IndiDevice>>>,
     properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
     property_values: Arc<RwLock<PropertyValueMap>>,
-    /// Per-property last server update time (audit ND-P1-13 / ND-P1-22 partial).
+    /// Per-property last server update time (audit ND-/ ND-partial).
     property_updated_ms: Arc<RwLock<PropertyUpdateMap>>,
     number_limits: Arc<RwLock<NumberLimitsMap>>,
     latest_blobs: Arc<RwLock<BlobMap>>,
@@ -598,7 +598,7 @@ impl IndiClient {
     ) -> Self {
         let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
-        // Why (audit-rust §4.3): `port: Option<u16>` is the caller-supplied override; `None`
+        // Why: `port: Option<u16>` is the caller-supplied override; `None`
         // means "use the INDI default (7624)" — this is the documented constructor contract,
         // not a silent error fallback.
         let resolved_port = port.unwrap_or(INDI_DEFAULT_PORT);
@@ -661,7 +661,7 @@ impl IndiClient {
     ) -> Self {
         let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
-        // Why (audit-rust §4.3): `port: Option<u16>` is the caller-supplied override; `None`
+        // Why: `port: Option<u16>` is the caller-supplied override; `None`
         // means "use the INDI default (7624)" — this is the documented constructor contract,
         // not a silent error fallback.
         let resolved_port = port.unwrap_or(INDI_DEFAULT_PORT);
@@ -1212,7 +1212,7 @@ impl IndiClient {
                                 };
 
                                 // Parse state and perm
-                                // Why (audit-rust §4.3): per INDI 1.7 protocol §3.2 the `state`
+                                // Why: per INDI 1.7 protocol the `state`
                                 // and `perm` attributes on def*Vector elements are NOT mandatory
                                 // and many drivers omit them on initial vector definition. The
                                 // INDI convention is to assume `Idle`/`rw` until a subsequent
@@ -1256,7 +1256,7 @@ impl IndiClient {
                                         IndiProperty {
                                             device: current_device.clone(),
                                             name: current_property.clone(),
-                                            // Why (audit-rust §4.3): per INDI 1.7 §3.2 `label` is
+                                            // Why: per INDI 1.7 `label` is
                                             // optional; the convention when omitted is to display
                                             // the property NAME as the label. `group` is also
                                             // optional — empty string means "ungrouped" and the
@@ -1398,7 +1398,7 @@ impl IndiClient {
                         }
                         // Extract format attribute (e.g., ".fits", ".jpeg", ".png")
                         // Missing/empty format stays unknown until payload magic-byte inference below.
-                        // Why (audit-rust §4.3): per INDI 1.7 §3.4 the `format` attribute is
+                        // Why: per INDI 1.7 the `format` attribute is
                         // protocol-OPTIONAL on `oneBLOB` and almost-universally omitted by INDI.
                         // Missing or empty format stays unknown until payload magic-byte inference.
                         // `size` defaults to 0 so
@@ -1524,7 +1524,7 @@ impl IndiClient {
                     // Reset incomplete message tracking on successful event
                     incomplete_message_start = None;
                     incomplete_message_bytes = 0;
-                    // Why (audit-rust §4.3): `unescape()` returns Err only on malformed XML
+                    // Why: `unescape()` returns Err only on malformed XML
                     // entity references (e.g. `&unterminated`) — quick-xml's BytesText is
                     // already validated by the tokenizer, so an Err here would mean a
                     // truncated payload mid-entity. Empty-string fallback causes the value
@@ -1968,7 +1968,7 @@ impl IndiClient {
         self.get_property_state(device, property)
             .await
             .map(|s| s == IndiPropertyState::Busy)
-            // Why (audit-rust §4.3): `get_property_state` returns Option<IndiPropertyState>;
+            // Why: `get_property_state` returns Option<IndiPropertyState>;
             // None means the property has not yet been defined on the device. An undefined
             // property cannot be busy — `false` is the correct sentinel.
             .unwrap_or(false)
@@ -2059,7 +2059,7 @@ impl IndiClient {
     /// Set a switch property with permission check.
     ///
     /// For `OneOfMany` / `AtMostOne` rules, turning a switch **on** sends a full vector with
-    /// sibling switches forced off (audit ND-P1-14).
+    /// sibling switches forced off (audit ND-).
     pub async fn set_switch(
         &mut self,
         device: &str,
@@ -2228,7 +2228,7 @@ impl IndiClient {
     pub async fn is_device_connected(&self, device: &str) -> bool {
         self.get_switch(device, "CONNECTION", "CONNECT")
             .await
-            // Why (audit-rust §4.3): `CONNECTION` is the universal INDI device-connection
+            // Why: `CONNECTION` is the universal INDI device-connection
             // property. None means the device has not yet streamed it (the reader has not
             // yet seen `defSwitchVector CONNECTION` after `getProperties`). Treating
             // "not yet streamed" as "not connected" is correct — the caller must
@@ -2706,7 +2706,7 @@ pub(crate) fn current_time_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        // Why (audit-rust §4.3, §1.4): `duration_since(UNIX_EPOCH)` only fails for pre-1970
+        // Why: `duration_since(UNIX_EPOCH)` only fails for pre-1970
         // clocks; this timestamp feeds keepalive-tracking counters that are monotonic-difference
         // comparisons, so a zero baseline merely defers the first keepalive by one cycle —
         // not a correctness invariant. u128 -> u64 saturates per Rust 1.45 spec; u64::MAX
@@ -2839,7 +2839,7 @@ fn resolve_blob_format(declared_format: Option<&str>, data: &[u8]) -> String {
 fn is_version_compatible(server: &str, required: &str) -> bool {
     let parse_version = |v: &str| -> (u32, u32) {
         let parts: Vec<&str> = v.split('.').collect();
-        // Why (audit-rust §4.3): malformed/missing version-component digits default to 0,
+        // Why: malformed/missing version-component digits default to 0,
         // which makes a malformed INDI server-version report as "1.0" baseline and
         // legitimately FAIL the `>= required` compatibility gate at the caller. Zero is
         // the correct "treat as ancient" fallback for compatibility comparisons.
@@ -3802,7 +3802,7 @@ mod tests {
     }
 
     // =========================================================================
-    // XML depth-stack parser tests (audit §5.18)
+    // XML depth-stack parser tests
     // =========================================================================
 
     #[test]

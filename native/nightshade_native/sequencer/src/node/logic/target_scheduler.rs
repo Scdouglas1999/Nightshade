@@ -1,4 +1,4 @@
-//! Wave 3 Agent 1: TargetScheduler — dynamic target picker.
+//! TargetScheduler — dynamic target picker.
 //!
 //! Container/logic node whose children MUST all be `TargetHeader` variants.
 //! At each scheduling decision point the highest-scoring runnable child is
@@ -83,7 +83,7 @@ pub async fn execute_target_scheduler(
     }
 
     // Observer must be present; refusing to fall back to "lat=0, lon=0" is
-    // the fail-closed policy from CLAUDE.md.
+    // the fail-closed policy from the CONTRIBUTING.md house rules.
     let (Some(lat), Some(lon)) = (context.latitude, context.longitude) else {
         tracing::error!(
             "[SCHEDULER] observer location missing (latitude={:?}, longitude={:?}); cannot schedule targets",
@@ -103,7 +103,7 @@ pub async fn execute_target_scheduler(
     // Track per-target exposure counts (relative to the snapshot taken at
     // decision time) so `recompute_every_n_exposures` can fire mid-target.
     let mut exposures_baseline: u64 = context.scheduler_completed_exposures();
-    // Wave 8 — adaptive sky-conditions swap. Local state piggy-backs on
+    // adaptive sky-conditions swap. Local state piggy-backs on
     // `context.adaptive_swap_state` for the dashboard mirror; we also keep
     // an in-loop `Instant` for hysteresis to avoid clock-skew between the
     // wall-clock (used for staleness) and the monotonic clock (used for
@@ -124,7 +124,7 @@ pub async fn execute_target_scheduler(
 
         // Build TargetInputs from the live children.
         let now = context.clock.now_utc();
-        // P1-16: feed the scheduler a real moon position + illumination and a
+        // feed the scheduler a real moon position + illumination and a
         // twilight bracket. These drive ~40% of the scoring weight (moon
         // avoidance + darkness) and were previously hardcoded to dead inputs,
         // so the "self-driving" scheduler ignored the moon and sky darkness.
@@ -156,7 +156,7 @@ pub async fn execute_target_scheduler(
                 };
                 let already_done = completed_children.contains(child.id().as_str());
 
-                // Wave 4 — filter by EXPLICIT start_when / end_when
+                // filter by EXPLICIT start_when / end_when
                 // crossings. We deliberately do NOT consult the legacy
                 // `min_altitude` / `start_after` / `end_before` fields here
                 // because `score_target` (called downstream via
@@ -236,7 +236,7 @@ pub async fn execute_target_scheduler(
         let target_inputs: Vec<TargetInput> = inputs.iter().map(|(_, t)| t.clone()).collect();
         let scored = score_targets(&target_inputs, &observer, &weights);
 
-        // Wave 8 — adaptive sky-conditions swap. When the scheduler has
+        // adaptive sky-conditions swap. When the scheduler has
         // `swap_on_conditions_below` configured we consult the decision
         // engine FIRST and only fall back to `pick_best` when the engine
         // defers (conditions above threshold) or telemetry is missing.
@@ -339,7 +339,7 @@ pub async fn execute_target_scheduler(
             winner.current_airmass
         );
 
-        // Wave 8 — record the now-running target for the next adaptive-
+        // record the now-running target for the next adaptive-
         // swap decision so the engine knows what's currently executing.
         currently_running_id = Some(winner.target_id.clone());
 
@@ -351,7 +351,7 @@ pub async fn execute_target_scheduler(
         }
         context.configure_scheduler_recompute(config.recompute_every_n_exposures);
 
-        // Audit §15 — multi-filter cycle override. When the scheduler is
+        // multi-filter cycle override. When the scheduler is
         // configured for RoundRobin we install the mode on the context so
         // each `SmartExposure` node in the picked subtree forces rotation
         // with the configured `frames_per_burst`. We snapshot the prior
@@ -498,7 +498,7 @@ fn emit_decision(
         ProgressUpdate::instruction_progress(node_id.to_string(), "Scheduler", 100.0, detail);
     context.send_progress(update);
 
-    // Wave 8 Replay Debug — emit a SchedulerPick DecisionEvent so the
+    // Replay Debug — emit a SchedulerPick DecisionEvent so the
     // retrospective replay feed surfaces "TargetScheduler picked X over Y,
     // score 67 vs 42 because clouds" without re-running the math.
     let summary = match pick {
@@ -587,7 +587,7 @@ async fn write_checkpoint(
         // next checkpoint write captures it. Decision counter and exposure
         // tally are surfaced via tracing for now — extending the trigger
         // state would intersect with triggers.rs, which is owned by another
-        // Wave 3 agent.
+        // agent.
         guard.set_meridian_target(id.clone());
         tracing::debug!(
             "[SCHEDULER] checkpoint mirror: target={} decision={} exposures_in_target={}",
@@ -598,7 +598,7 @@ async fn write_checkpoint(
     }
 }
 
-/// Wave 8 — wrap the pure adaptive-swap decision engine so the executor
+/// wrap the pure adaptive-swap decision engine so the executor
 /// can call it without pulling the full `crate::scheduling::adaptive_swap`
 /// surface into the public scheduler API. Returns `None` when the engine
 /// declares `Defer` (i.e. conditions above threshold) so the caller can
@@ -661,7 +661,7 @@ async fn evaluate_adaptive_swap(
     Some(decision)
 }
 
-/// Wave 8 — mirror the latest adaptive-swap decision into the shared
+/// mirror the latest adaptive-swap decision into the shared
 /// `ExecutionContext::adaptive_swap_state` slot so the dashboard JSON
 /// getter can render the live status without re-running the decision
 /// engine. Also rotates the in-loop `last_swap_at` Instant when a swap
@@ -952,7 +952,7 @@ mod tests {
             "m101", "M101", 14.05, 54.35, 0,
         ))));
 
-        // Wave 4 — pin the clock so the scheduler's observer snapshot and
+        // pin the clock so the scheduler's observer snapshot and
         // our hand-rolled expected ranking are guaranteed to see the same
         // instant. Pre-Wave-4 the test relied on the two reads being close
         // enough in wall time; that's true in practice but unnecessarily
@@ -1120,7 +1120,7 @@ mod tests {
 
     #[test]
     fn no_runnable_target_returns_skipped() {
-        // Wave 4 — pin the wall clock with MockClock so this test is
+        // pin the wall clock with MockClock so this test is
         // deterministic regardless of when the CI runner happens to fire it.
         // (Previously the test used a synthetic Antarctic target to dodge
         // time-of-day dependence; now we can simply pin the clock and the
@@ -1168,7 +1168,7 @@ mod tests {
         assert_eq!(status, NodeStatus::Skipped);
     }
 
-    /// Wave 4 — `start_when` not yet satisfied filters the target out of
+    /// `start_when` not yet satisfied filters the target out of
     /// the runnable set. The scheduler picks no one and returns Skipped.
     #[test]
     fn scheduler_filters_target_with_unsatisfied_start_when() {
@@ -1220,7 +1220,7 @@ mod tests {
         assert_eq!(status, NodeStatus::Success);
     }
 
-    /// Wave 4 — `end_when` already satisfied at decision time filters the
+    /// `end_when` already satisfied at decision time filters the
     /// target out too.
     #[test]
     fn scheduler_filters_target_with_already_satisfied_end_when() {
@@ -1341,7 +1341,7 @@ mod tests {
     }
 
     // =============================================================
-    // Audit §15 — multi-filter cycle dispatch tests.
+    // multi-filter cycle dispatch tests.
     //
     // These tests exercise the cycle override mechanics directly
     // against `ExecutionContext` + `SmartExposure`-style picking logic,

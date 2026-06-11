@@ -1,6 +1,6 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
@@ -69,7 +69,7 @@ impl From<SequenceProgress> for SequencerState {
             ExecutorState::Cancelled => "cancelled",
             ExecutorState::Completed => "completed",
             ExecutorState::Failed => "failed",
-            // Wave 4 Recovery Mode — new first-class state. The string
+            // Recovery Mode — new first-class state. The string
             // mirror is kept stable so any subscriber that switches on
             // `state.state == "recovering"` can render the Run Dashboard
             // LED without a typed enum import.
@@ -150,15 +150,15 @@ impl From<&NodeDefinition> for NodeDefinitionApi {
             NodeType::CloseCover(_) => "close_cover",
             NodeType::CalibratorOn(_) => "calibrator_on",
             NodeType::CalibratorOff(_) => "calibrator_off",
-            // Wave 3 Agent 1: TargetScheduler — dynamic target picker container.
+            // TargetScheduler — dynamic target picker container.
             NodeType::TargetScheduler(_) => "target_scheduler",
-            // Wave 3 Agent 2: SmartExposure — multi-filter container instruction.
+            // SmartExposure — multi-filter container instruction.
             NodeType::SmartExposure(_) => "smart_exposure",
-            // Wave 6 Pack P: PluginNode — plugin-dispatched instruction.
+            // PluginNode — plugin-dispatched instruction.
             NodeType::PluginNode { .. } => "plugin_node",
-            // Wave 7 Agent 2: LiveStacking — broadcast / EAA node.
+            // LiveStacking — broadcast / EAA node.
             NodeType::LiveStacking(_) => "live_stacking",
-            // Wave 7 Science: SciencePhotometry — cadence-enforced
+            // Science: SciencePhotometry — cadence-enforced
             // photometric capture for variable-star / exoplanet
             // timing.
             NodeType::SciencePhotometry(_) => "science_photometry",
@@ -307,7 +307,7 @@ pub async fn api_sequencer_stop() -> Result<(), NightshadeError> {
         .await
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to stop sequence: {}", e)))?;
 
-    // Wave 7 Agent 2: tear down any active LiveStacking broadcast so a
+    // tear down any active LiveStacking broadcast so a
     // stopped sequence does not leave a stale `/broadcast` page
     // advertising itself as live. Same lifecycle the rest of the
     // sequencer-singleton state (TriggerState, BudgetRegistry, …)
@@ -344,7 +344,7 @@ pub async fn api_sequencer_skip() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Wave 1.5 Pack A / trust-patch §7: jump execution to a specific node id,
+/// trust-patch §7: jump execution to a specific node id,
 /// marking preceding siblings as Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
@@ -371,7 +371,7 @@ pub async fn api_sequencer_reset() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Wave 6 Pack P — Dart side reports the verdict of a plugin-dispatched
+/// Dart side reports the verdict of a plugin-dispatched
 /// node back to the Rust executor. Routes to
 /// `ExecutorCommand::PluginNodeFinished`. The Rust instruction node
 /// awaiting on the matching pending oneshot unblocks with Success or
@@ -453,7 +453,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
         }),
     );
 
-    // Wave 8 Replay Debug — parallel supervisor that pumps the
+    // Replay Debug — parallel supervisor that pumps the
     // executor's structured-decision broadcast channel onto the
     // unified NightshadeEvent stream as `SequencerEvent::DecisionLogged`.
     // Runs as a sibling task to the main event loop because the two
@@ -487,7 +487,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Wave 8 Replay Debug — bridge loop that publishes every
+/// Replay Debug — bridge loop that publishes every
 /// `DecisionEvent` from the executor onto the unified
 /// `NightshadeEvent` stream as `SequencerEvent::DecisionLogged`.
 /// Pulled out so the supervisor restart factory can call it on every
@@ -686,8 +686,8 @@ pub(crate) async fn run_sequencer_event_loop(
                         progress_percent
                     );
 
-                    // Pack H: when the executor sent a structured payload
-                    // (Wave 3 image grading + scheduler + budget paths do
+                    // when the executor sent a structured payload
+                    // (image grading + scheduler + budget paths do
                     // this), publish the typed `SequencerEvent` variant
                     // FIRST so the dashboard panels can consume it
                     // directly. Then fall through to also emit the legacy
@@ -763,7 +763,7 @@ pub(crate) async fn run_sequencer_event_loop(
                     ))
                 }
                 ExecutorEvent::RuntimeConfigUpdated { what } => {
-                    // Audit §1.8: surface runtime-config updates as a generic
+                    // surface runtime-config updates as a generic
                     // sequencer Error event with informational severity so the
                     // existing UI subscriber sees the change without needing
                     // a new typed payload (a typed payload would require an
@@ -777,12 +777,12 @@ pub(crate) async fn run_sequencer_event_loop(
                         }),
                     ))
                 }
-                // Wave 4 Recovery Mode — dispatch to first-class typed
+                // Recovery Mode — dispatch to first-class typed
                 // SequencerEvent variants. Pre-Wave-4.5 these tunneled
                 // through `InstructionProgress` with a `_recovery` sentinel
                 // node_id and JSON-encoded detail; the Dart side did
                 // string-prefix matching on `instruction` and
-                // `jsonDecode(detail)`. Wave 4.5's FRB regen promotes these
+                // `jsonDecode(detail)`. the FRB regen promotes these
                 // to typed payloads (see `SequencerEvent::Recovery{Started,
                 // Progress,Completed,GaveUp}` in `crate::event`). Severity
                 // is Critical on entry / GaveUp so the existing
@@ -814,7 +814,7 @@ pub(crate) async fn run_sequencer_event_loop(
                         *aborted_by_user,
                     )),
                 )),
-                // Wave 6 Pack P — translate the Rust executor's plugin-
+                // translate the Rust executor's plugin-
                 // node request into the typed sequencer event Dart
                 // subscribes to. The Dart `SequenceExecutor` consumes
                 // this, dispatches to `PluginNodeExecutor.run`, and
@@ -855,14 +855,14 @@ pub(crate) async fn run_sequencer_event_loop(
     }
 }
 
-/// Pack H — dispatch a structured `ProgressDetail` to a typed `SequencerEvent`
+/// dispatch a structured `ProgressDetail` to a typed `SequencerEvent`
 /// variant. Returns `None` when the variant has no first-class typed bridge
 /// payload (the legacy `InstructionProgress` string variant covers those).
 ///
-/// This is the single source of truth for the Wave 3 structured → typed
+/// This is the single source of truth for the structured → typed
 /// bridge mapping. The Dart dashboard panels consume the typed variants;
 /// the legacy `InstructionProgress` stream is still published in parallel
-/// so any subscriber that hasn't migrated keeps working (Wave 3 trigger
+/// so any subscriber that hasn't migrated keeps working (trigger
 /// feed, telemetry exporters, etc.).
 #[flutter_rust_bridge::frb(ignore)]
 fn typed_sequencer_event_from_progress_detail(
@@ -892,7 +892,7 @@ fn typed_sequencer_event_from_progress_detail(
             star_count: *star_count,
             accepted_total: *accepted_total,
             rejected_total: *rejected_total,
-            // Wave 6 Pack P — surface the on-disk save path to Dart so
+            // surface the on-disk save path to Dart so
             // the thumbnail strip can render an inline preview of the
             // accepted frame (mirrors the existing reject_path flow).
             save_path: save_path.clone(),
@@ -908,7 +908,7 @@ fn typed_sequencer_event_from_progress_detail(
             consecutive_rejects,
             accepted_total,
             rejected_total,
-            // Wave 8 forensics fields — passed through verbatim so the
+            // forensics fields — passed through verbatim so the
             // Dart `ForensicsService` can persist them in the
             // `frame_forensics` table.
             likely_cause,
@@ -930,7 +930,7 @@ fn typed_sequencer_event_from_progress_detail(
             consecutive_rejects: *consecutive_rejects,
             accepted_total: *accepted_total,
             rejected_total: *rejected_total,
-            // Wave 8 forensics — the `LikelyCause` enum's wire-stable
+            // forensics — the `LikelyCause` enum's wire-stable
             // `label()` is converted to a String so the FRB schema does
             // not need to mirror the enum on the Dart side. The Dart
             // `ForensicsService` matches against these labels via the
@@ -991,7 +991,7 @@ fn typed_sequencer_event_from_progress_detail(
             fraction: *fraction,
             budget_met: *budget_met,
         }),
-        // Wave 5 Agent 2 — sky-brightness adaptive exposure.
+        // sky-brightness adaptive exposure.
         PD::ExposureAdjusted {
             adapted_secs,
             nominal_secs,
@@ -1006,7 +1006,7 @@ fn typed_sequencer_event_from_progress_detail(
             filter: filter.clone(),
             reason: reason.clone(),
         }),
-        // Wave 6 Pack P — plugin-node progress payload. FRB doesn't
+        // plugin-node progress payload. FRB doesn't
         // bridge `serde_json::Value`, so we stringify the detail for
         // the wire. Dart parses with `jsonDecode`.
         PD::PluginNode {
@@ -1028,7 +1028,7 @@ fn typed_sequencer_event_from_progress_detail(
         // Every other variant (Exposure, Filter, Slew, Center, Autofocus,
         // …) is well-served by the legacy `InstructionProgress` string
         // channel — adding typed variants for them is future work, not
-        // Pack H's scope.
+        // 's scope.
         _ => None,
     }
 }
@@ -1048,7 +1048,7 @@ fn structured_progress_payload_from_progress_detail(
 }
 
 // =============================================================================
-// Wave 4.5 — typed Recovery event builders
+// typed Recovery event builders
 // =============================================================================
 //
 // These helpers flatten the chrono-bearing `RecoveryContext` Rust struct into
@@ -1572,7 +1572,7 @@ pub async fn api_sequencer_update_location(
     Ok(())
 }
 
-/// Wave 7.5 — stage per-target / per-filter carry-over integration so the
+/// stage per-target / per-filter carry-over integration so the
 /// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
 /// already captured in prior sessions. The Dart `SequenceExecutor.start()`
 /// calls this once per target after reading `sessionHandoffDecisionProvider`:
@@ -1611,12 +1611,12 @@ pub async fn api_sequencer_update_filter_offsets(
     Ok(())
 }
 
-/// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
+/// update the autofocus-interval trigger cadence at runtime.
 /// The default in `default_autofocus_interval_frames()` is 25 frames; this
 /// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
-/// which would silently turn AF off (CLAUDE.md "errors are a feature").
+/// which would silently turn AF off ("errors are a feature").
 pub async fn api_sequencer_update_autofocus_interval(
     every_n_frames: u32,
 ) -> Result<(), NightshadeError> {
@@ -1636,7 +1636,7 @@ pub async fn api_sequencer_update_autofocus_interval(
     Ok(())
 }
 
-/// Pack G — update the global default image-grading thresholds at runtime.
+/// update the global default image-grading thresholds at runtime.
 ///
 /// All fields are optional; when `enabled` is `false` an `ImageQualityCheck`
 /// is NOT constructed (grading disabled globally — per-node `quality_check`
@@ -1676,7 +1676,7 @@ pub async fn api_sequencer_update_default_quality_check(
     Ok(())
 }
 
-/// Pack G — update the reject-folder override at runtime. Empty string =>
+/// update the reject-folder override at runtime. Empty string =>
 /// None (i.e. fall back to `<save_path>/Reject/`).
 pub async fn api_sequencer_update_reject_folder_path(
     path: Option<String>,
@@ -1698,7 +1698,7 @@ pub async fn api_sequencer_update_reject_folder_path(
     Ok(())
 }
 
-/// Pack G — push observer / equipment identification to the executor so
+/// push observer / equipment identification to the executor so
 /// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
 /// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
 /// headless / no-profile runs we'd rather omit the keyword than emit a
@@ -1745,7 +1745,7 @@ pub async fn api_sequencer_update_observer_profile(
 }
 
 // =============================================================================
-// Wave 5 Agent 4 — Cloud-motion-aware triggers
+// Cloud-motion-aware triggers
 // =============================================================================
 //
 // Push the live `cloudMotionAnalyzerProvider` output from Dart into the
@@ -1827,7 +1827,7 @@ pub async fn api_sequencer_update_weather_verdict(
     Ok(())
 }
 
-/// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
+/// JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
 pub async fn api_sequencer_get_cloud_motion_json() -> Result<Option<String>, NightshadeError> {
     let executor = get_sequence_executor().read().await;
@@ -1835,7 +1835,7 @@ pub async fn api_sequencer_get_cloud_motion_json() -> Result<Option<String>, Nig
 }
 
 // =============================================================================
-// Wave 5 Agent 2 — Sky-brightness adaptive exposures
+// Sky-brightness adaptive exposures
 // =============================================================================
 //
 // The Dart `SkyBrightnessTracker` produces a continuous mag/arcsec² reading
@@ -1947,7 +1947,7 @@ pub async fn api_sequencer_update_default_adaptive_exposure(
     Ok(())
 }
 
-/// Wave 5 Agent 2 — disable the global default adaptive-exposure config
+/// disable the global default adaptive-exposure config
 /// (push `None`). Convenience entry-point so the Dart side doesn't have
 /// to pass a sentinel struct just to disable.
 pub async fn api_sequencer_clear_default_adaptive_exposure() -> Result<(), NightshadeError> {
@@ -1958,10 +1958,10 @@ pub async fn api_sequencer_clear_default_adaptive_exposure() -> Result<(), Night
 }
 
 // =============================================================================
-// Wave 4 Recovery Mode — FRB-exposed control surface
+// Recovery Mode — FRB-exposed control surface
 // =============================================================================
 //
-// Wave 4 Agent 1 added these to `bridge/src/sequencer_api.rs` but that module
+// added these to `bridge/src/sequencer_api.rs` but that module
 // is OUTSIDE `crate::api`, which is FRB's scan root (see
 // `flutter_rust_bridge.yaml > rust_input`). The functions never crossed the
 // FRB boundary, so the Dart side fell back to `dynamic` dispatch with
@@ -2142,11 +2142,11 @@ pub fn api_create_exposure_node(
         dither_ra_only: false,
         save_to: None,
         triggers: Vec::new(),
-        // Wave 3 Image Grading: new TakeExposure nodes default to "use
+        // Image Grading: new TakeExposure nodes default to "use
         // global grading settings"; the per-node override is set via a
         // separate UI knob.
         quality_check: None,
-        // Wave 5 Agent 2 — new TakeExposure nodes default to "use
+        // new TakeExposure nodes default to "use
         // global adaptive-exposure settings"; the per-node override is
         // set via a separate UI knob.
         adaptive_exposure: None,
@@ -2321,7 +2321,7 @@ pub fn api_create_target_group_node(
 
 /// Create a target header node configuration
 ///
-/// Wave 3 Agent 3 — `integration_budget_json` (optional) is a JSON-encoded
+/// `integration_budget_json` (optional) is a JSON-encoded
 /// [`nightshade_sequencer::IntegrationBudget`] payload mirroring the
 /// Dart-side `IntegrationBudget` model. Passing `None` leaves the
 /// target without a budget (current behaviour); passing a valid JSON
@@ -2354,7 +2354,7 @@ pub fn api_create_target_header_node(
         })
         .transpose()?;
 
-    // Wave 3 Agent 3 — deserialize the optional budget payload. An
+    // deserialize the optional budget payload. An
     // explicit Err is surfaced (rather than silently dropping the
     // budget) so a Dart-side schema bug fails loudly.
     let integration_budget = integration_budget_json
@@ -2368,7 +2368,7 @@ pub fn api_create_target_header_node(
         })
         .transpose()?;
 
-    // Wave 4 Agent 2 added `start_when` / `end_when` /
+    // added `start_when` / `end_when` /
     // `trigger_poll_interval_secs` to `TargetHeaderConfig`. This entry
     // point predates those fields, so the bridge falls back to the
     // struct's `Default` values (legacy `start_after`/`end_before` /
@@ -2392,7 +2392,7 @@ pub fn api_create_target_header_node(
         start_when: defaults.start_when,
         end_when: defaults.end_when,
         trigger_poll_interval_secs: defaults.trigger_poll_interval_secs,
-        // Wave 8 — adaptive sky-conditions swap: leave the tier hint
+        // adaptive sky-conditions swap: leave the tier hint
         // unset (None => Medium by default) so legacy bridge entries
         // don't accidentally pin targets to Bright or Faint.
         brightness_tier_hint: defaults.brightness_tier_hint,
@@ -2777,7 +2777,7 @@ mod sequencer_node_factory_tests {
             .contains("Invalid target header mosaic panel JSON"));
     }
 
-    /// Wave 3 Agent 3 — invalid integration_budget JSON must surface a
+    /// invalid integration_budget JSON must surface a
     /// clean error message rather than silently dropping the budget.
     /// See `NightshadeError::SerializationError` message contract.
     #[test]
@@ -2803,7 +2803,7 @@ mod sequencer_node_factory_tests {
         assert!(err.to_string().contains("Invalid integration_budget JSON"));
     }
 
-    /// Wave 3 Agent 3 — a structurally valid integration_budget round-trips
+    /// a structurally valid integration_budget round-trips
     /// through serde into the serialized NodeDefinition.
     #[test]
     fn target_header_accepts_valid_integration_budget_json() {
@@ -2971,7 +2971,7 @@ pub fn api_calculate_mosaic_area(
     panels_horizontal: u32,
     panels_vertical: u32,
 ) -> f64 {
-    // Why (audit-rust §1.4): u32 → f64 widening, exact (f64 mantissa covers
+    // Why: u32 → f64 widening, exact (f64 mantissa covers
     // all u32 values).
     let total_width_arcmin = panel_width_arcmin * f64::from(panels_horizontal);
     let total_height_arcmin = panel_height_arcmin * f64::from(panels_vertical);
@@ -2998,7 +2998,7 @@ pub fn api_estimate_mosaic_time(
     } else {
         overhead_per_panel_secs
     };
-    // Why (audit-rust §1.4): u32 → f64 widening, exact.
+    // Why: u32 → f64 widening, exact.
     let time_per_panel = exposure_secs * f64::from(exposures_per_panel) + overhead;
     f64::from(total_panels) * time_per_panel
 }
@@ -3040,7 +3040,7 @@ pub fn api_calculate_altitude(
 }
 
 // =============================================================================
-// Wave 7 Agent 2: LiveStacking broadcast API
+// LiveStacking broadcast API
 // =============================================================================
 
 /// Mirror of the active broadcast session exposed to Dart. Fields are
@@ -3095,7 +3095,7 @@ impl From<&nightshade_sequencer::broadcast::BroadcastSession> for LiveStackingBr
 /// `None` when no LiveStacking node has been executed in the current
 /// sequence run.
 ///
-/// Wave 7 Agent 2 — consumed by the Dart `BroadcastService` to decide
+/// consumed by the Dart `BroadcastService` to decide
 /// whether `/api/broadcast/*` endpoints should answer 200 or 404.
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_broadcast_get_active() -> Option<LiveStackingBroadcastSnapshot> {
@@ -3119,10 +3119,10 @@ pub fn api_broadcast_deactivate() {
 }
 
 // ============================================================================
-// Wave 8 — Replay Debug
+// Replay Debug
 // ============================================================================
 
-/// Wave 8 Replay Debug — stamp the active `sequence_runs.id` onto the
+/// Replay Debug — stamp the active `sequence_runs.id` onto the
 /// executor so every subsequent emitted DecisionEvent carries it as
 /// `sequence_run_id`. Called by the Dart side immediately after the
 /// `sequence_runs` row is inserted.
@@ -3137,7 +3137,7 @@ pub async fn api_sequencer_set_active_sequence_run_id(
     Ok(())
 }
 
-/// Wave 8 Replay Debug — read back the currently-stamped
+/// Replay Debug — read back the currently-stamped
 /// `sequence_runs.id`. Used by tests and as a sanity check from the
 /// Dart side.
 pub async fn api_sequencer_get_active_sequence_run_id() -> Result<Option<i64>, NightshadeError> {
@@ -3145,7 +3145,7 @@ pub async fn api_sequencer_get_active_sequence_run_id() -> Result<Option<i64>, N
     Ok(executor.active_sequence_run_id())
 }
 
-/// Wave 8 Replay Debug — runtime toggle for decision emission. When
+/// Replay Debug — runtime toggle for decision emission. When
 /// `enabled = false`, the executor short-circuits all decision sends
 /// (no channel publish, no allocation) so power users who don't want
 /// the replay log can opt out. Defaults to ON.
@@ -3161,14 +3161,14 @@ pub async fn api_sequencer_set_decision_logging_enabled(
     Ok(())
 }
 
-/// Wave 8 Replay Debug — readback for the runtime toggle.
+/// Replay Debug — readback for the runtime toggle.
 pub async fn api_sequencer_get_decision_logging_enabled() -> Result<bool, NightshadeError> {
     let executor = get_sequence_executor().read().await;
     Ok(executor.decision_logging_enabled())
 }
 
 // =============================================================================
-// Wave 8 — Adaptive sky-conditions target swap
+// Adaptive sky-conditions target swap
 // =============================================================================
 //
 // The Dart `AdaptiveSwapService` composes the live ConditionsScore from

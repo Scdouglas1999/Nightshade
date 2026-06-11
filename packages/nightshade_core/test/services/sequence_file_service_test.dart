@@ -242,7 +242,7 @@ void main() {
   );
 
   test(
-    'sequence round-trip preserves Wave-1 RecoveryNode focus-drift fields',
+    'sequence round-trip preserves RecoveryNode focus-drift fields',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'sequence_file_service_recovery_',
@@ -258,7 +258,7 @@ void main() {
       addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
 
       // Build a sequence using every new RecoveryNode / trigger field
-      // introduced in Wave 1 (focus-drift window + humidity / focus-drift
+      // introduced in (focus-drift window + humidity / focus-drift
       // trigger types). The exported JSON must round-trip back through
       // _jsonToNode without silently resetting to default values.
       final exposure = ExposureNode(id: 'exp-1', durationSecs: 60, count: 5);
@@ -305,7 +305,7 @@ void main() {
       expect(reloaded.triggerThreshold, 1.25);
       expect(reloaded.hfrThresholdPercent, 18.5);
       expect(reloaded.hfrConsecutiveFrames, 4);
-      // Pack A's new focus-drift window fields — these were the round-trip
+      // The focus-drift window fields — these were the round-trip
       // gap the audit caught.
       expect(reloaded.focusDriftWindowSize, 12);
       expect(reloaded.focusDriftMinIncreasingCount, 6);
@@ -316,7 +316,7 @@ void main() {
   test(
     'sequence round-trip preserves humidityThreshold trigger type',
     () async {
-      // Confirms TriggerType.humidityThreshold (added in Wave 1) survives
+      // Confirms TriggerType.humidityThreshold (added in ) survives
       // export → import via the same _parseTriggerType path used for
       // pre-existing trigger types.
       final tempDir = await Directory.systemTemp.createTemp(

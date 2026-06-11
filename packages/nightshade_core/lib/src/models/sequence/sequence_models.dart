@@ -50,7 +50,7 @@ part 'sequence_models/sequence_state.dart';
 
 /// Sequence execution state
 ///
-/// Wave 4: `recovering` is the visible recovery-mode state. Mirrors the Rust
+/// `recovering` is the visible recovery-mode state. Mirrors the Rust
 /// `ExecutorState::Recovering` variant — the Run Dashboard renders a
 /// pulsing red LED, the persistent recovery banner with cause + attempt
 /// counter + countdown, and the Try Now / Abort controls when this fires.
@@ -233,13 +233,13 @@ enum RecoveryActionType {
   retry,
   parkAndAbort,
   customBranch,
-  // Wave 5 Agent 4 — cloud-motion-aware recovery actions. `pauseAndWaitForClear`
-  // promotes the pause to a Wave 4 RecoveryCause::WeatherUnsafe so the
+  // Cloud-motion-aware recovery actions. `pauseAndWaitForClear`
+  // promotes the pause to a RecoveryCause: :WeatherUnsafe so the
   // dashboard banner / audible alert fire; `slewToGapAndContinue` re-points
   // the mount to a clear-sky direction reported by the analyzer.
   pauseAndWaitForClear,
   slewToGapAndContinue,
-  // Wave 7 Science — transparency-adaptive recovery. Paired with
+  // Science — transparency-adaptive recovery. Paired with
   // [TriggerType.transparencyDropped]. Consults the operator's
   // pre-configured backup plan (backup filter and/or backup target id)
   // and either swaps the filter, skips to the backup target, or both.
@@ -252,7 +252,7 @@ enum RecoveryActionType {
 /// `native/nightshade_native/sequencer/src/lib.rs`. Adding a new variant here
 /// REQUIRES extending [`SequenceExecutor._nodeToConfig`]'s RecoveryNode
 /// serializer so the trigger config round-trips to Rust correctly. The
-/// `Wave 1.5 Pack A` set fills in the long-standing gap where the Rust side
+/// This set fills in the long-standing gap where the Rust side
 /// had 17 trigger variants but Dart only modelled 8.
 enum TriggerType {
   hfrDegraded,
@@ -263,7 +263,7 @@ enum TriggerType {
   temperatureShift,
   filterChange,
   dawnApproaching,
-  // Wave 1.5 Pack A additions — config payload fields are stored in the
+  // Config payload fields are stored in the
   // dedicated columns on [`RecoveryNode`] (triggerThreshold for single-double
   // payloads; the FocusDrift-specific window/count/increase fields are
   // dedicated). Trigger types that take no payload (mountTrackingLost,
@@ -276,7 +276,7 @@ enum TriggerType {
   autofocusInterval,
   ditherInterval,
   driftLimit,
-  // Wave 5 Agent 4 — cloud-motion-aware triggers backed by the live
+  // Cloud-motion-aware triggers backed by the live
   // CloudMotionAnalyzer. The runtime sample data is pushed from Dart via
   // `backend.sequencerUpdateCloudMotion` on a ~60s cadence; the trigger
   // config payloads are stored on [`RecoveryNode`] in the dedicated
@@ -284,7 +284,7 @@ enum TriggerType {
   cloudArrivingIn,
   cloudOpeningIn,
   cloudCoverThreshold,
-  // Wave 7 Science — transparency-adaptive trigger backed by the live
+  // Science — transparency-adaptive trigger backed by the live
   // sky transparency sampler. The runtime sample data is pushed from
   // the Dart science pipeline via `backend.sequencerUpdateTransparency`.
   // Paired with [RecoveryActionType.switchTargetOrFilter] for the

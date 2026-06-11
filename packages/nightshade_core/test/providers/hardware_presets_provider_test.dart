@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/providers/hardware_presets_provider.dart';
 import 'package:nightshade_core/src/services/hardware_presets/hardware_presets_service.dart';
 
-/// End-to-end provider test for the hardware-presets library (C5).
+/// End-to-end provider test for the hardware-presets library.
 ///
 /// We override `databaseProvider` with an in-memory Drift instance so override
 /// persistence hits the real `app_settings` schema (no mocks), then drive the

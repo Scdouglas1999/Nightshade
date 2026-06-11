@@ -10,7 +10,7 @@ void main() {
   group('NotificationService sound gating', () {
     test('plays sound when soundEnabled is true', () async {
       // Why: the desktop "Sound alerts" toggle gates platform sound
-      // playback per audit-handoff §2.1 WIRE-UP item #2. The
+      // playback per The
       // notification dispatch path must call the sound player exactly
       // once when the toggle is on.
       var playCount = 0;

@@ -1,4 +1,4 @@
-// Wave 3 Agent 3 — Per-target integration budget model tests.
+// Per-target integration budget model tests.
 //
 // Pins the JSON shape one-to-one to the Rust side (see
 // `native/nightshade_native/sequencer/src/lib.rs::IntegrationBudget`).

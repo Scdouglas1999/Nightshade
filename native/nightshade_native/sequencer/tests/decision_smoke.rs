@@ -1,4 +1,4 @@
-//! Wave 8 Replay Debug — smoke tests for the decision channel + emit
+//! Replay Debug — smoke tests for the decision channel + emit
 //! path. These exercise the public surface of the [`decision`] module
 //! and the [`SequenceExecutor::emit_decision`] / `subscribe_decisions`
 //! pair from outside the crate, so a future refactor that breaks the

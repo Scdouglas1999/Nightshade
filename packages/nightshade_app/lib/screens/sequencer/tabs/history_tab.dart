@@ -264,7 +264,7 @@ class _RunCard extends ConsumerWidget {
                   label: stats.formatDuration(stats.integrationSecs),
                 ),
                 const SizedBox(width: 8),
-                // Wave 7 — Campaign rollup badge. Resolves the per-run
+                // Campaign rollup badge. Resolves the per-run
                 // primary target (the first key of the targetBreakdown
                 // blob) into a [CampaignRollup] via the all-targets
                 // provider. Hidden when (a) the run has no target
@@ -278,7 +278,7 @@ class _RunCard extends ConsumerWidget {
 
               const SizedBox(width: 8),
 
-              // Wave 6 Agent 5 — "Diff vs previous" affordance. Opens
+              // "Diff vs previous" affordance. Opens
               // the structural diff between the sequence backing this
               // run and its previous run. Disabled (via tooltip-only
               // hint) when the run has no linked sequence id; the
@@ -298,11 +298,11 @@ class _RunCard extends ConsumerWidget {
                       const BoxConstraints(minWidth: 28, minHeight: 28),
                 ),
 
-              // Wave 8 Replay Debug — open the chronological decision
+              // Replay Debug — open the chronological decision
               // feed for this run. The badge surfaces the count so the
               // user can see at a glance whether the run has any
               // recorded decisions before opening (older runs that
-              // pre-date Wave 8 will show 0).
+              // pre-date decision logging will show 0).
               Consumer(builder: (context, ref, _) {
                 final countAsync = ref.watch(
                   decisionCountForRunProvider(run.id),
@@ -356,7 +356,7 @@ class _RunCard extends ConsumerWidget {
                 );
               }),
 
-              // Wave 6 Agent 5 — quick "open notes" affordance keyed
+              // Quick "open notes" affordance keyed
               // on this run id. Notes attached to the run from any
               // surface (target card, session report) appear here
               // because the underlying provider streams from a single
@@ -548,7 +548,7 @@ class _RunCard extends ConsumerWidget {
   }
 }
 
-/// Wave 7 — Per-run campaign rollup badge.
+/// Per-run campaign rollup badge.
 ///
 /// Surfaces "Campaign: 6h total across 3 sessions" when the target has
 /// been imaged on more than one night. Silently hides when the target

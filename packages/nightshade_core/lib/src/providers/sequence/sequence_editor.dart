@@ -37,7 +37,7 @@ bool _isEditable(SequenceExecutionState state) {
     case SequenceExecutionState.running:
     case SequenceExecutionState.paused:
     case SequenceExecutionState.stopping:
-    // Wave 4 Recovery Mode — recovery is an in-flight execution state.
+    // Recovery Mode — recovery is an in-flight execution state.
     // Editing the sequence mid-recovery would split the user's mental
     // model between "the executor is still running" and "I'm about to
     // change what it does", so we lock the editor here just like during

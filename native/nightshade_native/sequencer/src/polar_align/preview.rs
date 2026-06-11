@@ -20,7 +20,7 @@ pub fn prepare_image_for_display(
     use image::ImageEncoder;
 
     let (display_data, width, height, color_type) = if is_color {
-        // Why (audit-rust §4.3): defaults to RGGB (most common OSC layout —
+        // Why: defaults to RGGB (most common OSC layout —
         // QHY/ZWO/Atik OSC all use RGGB). User-overridable per camera.
         let pattern = bayer_pattern.unwrap_or(BayerPattern::RGGB);
 

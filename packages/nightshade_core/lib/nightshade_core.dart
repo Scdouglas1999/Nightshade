@@ -5,7 +5,6 @@ library;
 // same name. The drift row types for `CapturedImage` / `EquipmentProfile` are
 // still reachable through this barrel via the `DbCapturedImage` /
 // `DbEquipmentProfile` typedef aliases re-exported below
-// (see audit-arch §3.2, §8 #13, CQ-W4-BARREL-EXPOSE).
 export 'src/database/database.dart'
     hide Target, Sequence, SequenceNode, CapturedImage, EquipmentProfile;
 export 'src/database/database_aliases.dart';
@@ -69,17 +68,17 @@ export 'src/models/imaging/color_calibration_result.dart';
 // Mosaic M2: panel-mosaic stitch result (api_stitch_mosaic).
 export 'src/models/imaging/mosaic_stitch_result.dart';
 export 'src/models/imaging/annotation.dart';
-// Wave 6E — push-based live-view streaming over WebSocket.
+// Push-based live-view streaming over WebSocket.
 export 'src/models/live_view/live_view_frame.dart';
 export 'src/models/calibration/dark_library_match_tolerances.dart';
-// P1-10 — wire-level model classes for the headless calibration API.
+// Wire-level model classes for the headless calibration API.
 export 'src/models/calibration/remote_calibration_models.dart';
 export 'src/models/sequence/sequence_models.dart';
-// Wave 5 Agent 2 — sky-brightness adaptive exposure event surface.
+// Sky-brightness adaptive exposure event surface.
 export 'src/models/sequence/adaptive_exposure_event.dart';
 export 'src/models/sequence/instruction_progress_detail.dart';
 export 'src/models/sequence/template_snippet.dart';
-// Wave 4 — variable / expression interpolation catalog. Dart-side mirror
+// Variable / expression interpolation catalog. Dart-side mirror
 // of the Rust `expressions::catalog`. Drives the VariablePicker UI.
 export 'src/models/sequence/interpolation_catalog.dart';
 export 'src/models/target/target_models.dart';
@@ -172,7 +171,7 @@ export 'src/providers/framing_provider.dart';
 // snapshot cache; export it so framing UI (action rail, screen) can resolve
 // and override the same instance the framing notifier uses.
 export 'src/providers/framing_image_cache_provider.dart';
-// HiPS framing tile-layer Riverpod wiring (C7): fetcher/cache/loader DI handles,
+// HiPS framing tile-layer Riverpod wiring: fetcher/cache/loader DI handles,
 // the resident-tiles snapshot the framing painter watches, and the feature flag
 // gating the GPU-composited tiled survey background. Renders inside the framing
 // path (not the planetarium renderer).
@@ -182,9 +181,9 @@ export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence/remote_sequence_editor_sync.dart';
 export 'src/providers/sequence_stats_provider.dart';
-// Wave 6 Thumbnails — inline frame thumbnails in the sequence tree.
+// Thumbnail — inline frame thumbnails in the sequence tree.
 export 'src/providers/sequence/exposure_node_thumbnails_provider.dart';
-// Wave 6 Pack P — plugin-node dispatcher abstraction. The app entry
+// Plugin-node dispatcher abstraction. The app entry
 // point overrides this provider with the real PluginNodeExecutor
 // (from nightshade_plugins) via `pluginNodeDispatcherOverride()`.
 export 'src/providers/plugin_node_dispatcher.dart';
@@ -207,7 +206,7 @@ export 'src/providers/remote_sync_events.dart';
 export 'src/providers/remote_sync_handler.dart';
 export 'src/providers/host_mutation_event_provider.dart';
 export 'src/providers/host_local_sync_provider.dart';
-// Wave 6B (P2-1) — hot-plug device-detection event bridge.
+// Hot-plug device-detection event bridge.
 export 'src/providers/hotplug_event_bridge_provider.dart';
 export 'src/models/backend/host_mutation_event.dart';
 export 'src/services/host_mutation_event_hub.dart';
@@ -236,12 +235,12 @@ export 'src/providers/suggestion_filter_provider.dart';
 export 'src/providers/transient_alert_provider.dart';
 export 'src/providers/critical_alert_provider.dart';
 export 'src/providers/device_connection_progress_provider.dart';
-// Wave 4 Recovery Mode — providers for the recovery state machine
+// Recovery Mode — providers for the recovery state machine
 // (currentRecoveryProvider, recoveryHistoryProvider, recoveryControlProvider,
 // recoveryEventBridgeProvider, recoveryAudibleBridgeProvider,
 // recoveryPushBridgeProvider).
 export 'src/providers/recovery_provider.dart';
-// Wave 7B — Mobile session replay scrubber provider + types.
+// Mobile session replay scrubber provider + types.
 export 'src/providers/session_replay_provider.dart';
 export 'src/providers/auto_stretch_provider.dart';
 export 'src/providers/science_provider.dart';
@@ -269,7 +268,7 @@ export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
 export 'src/providers/readiness_provider.dart';
 export 'src/providers/onboarding_provider.dart';
-// Quick Wins Bundle (C2) — next-use prompt selection wiring. Exposes
+// Quick Wins Bundle — next-use prompt selection wiring. Exposes
 // nextUsePromptProvider (the step the dashboard card surfaces), the pure
 // selectNextUseStep decision, the completed/dismissed action providers, and
 // the next_use.<id> screen-id helpers used to persist dismissals.
@@ -285,7 +284,7 @@ export 'src/models/backend/fits_header.dart';
 export 'src/models/backend/image_result.dart';
 export 'src/models/backend/platform_capabilities.dart';
 export 'src/models/backend/remote_api_compatibility.dart';
-// Wave 4 Recovery Mode — Dart mirror of the Rust `RecoveryContext`,
+// Recovery Mode — Dart mirror of the Rust `RecoveryContext`,
 // `RecoveryHistoryEntry`, `RecoveryCause`, and `RecoveryPhase` so the Run
 // Dashboard recovery banner and post-session report render the same data
 // the executor publishes.
@@ -378,7 +377,7 @@ export 'src/services/planning/project_service.dart'
 export 'src/services/planning/forecast_planning_service.dart';
 export 'src/providers/planning_provider.dart';
 export 'src/services/focus_model_service.dart';
-// Wave 8 — Predictive autofocus persisted per-filter learning + drift detection.
+// Predictive autofocus persisted per-filter learning + drift detection.
 export 'src/services/predictive_af_service.dart';
 export 'src/services/logging_service.dart';
 export 'src/services/diagnostic_dump_service.dart';
@@ -393,12 +392,12 @@ export 'src/services/auto_save_service.dart';
 export 'src/services/sync/sync_target.dart';
 export 'src/services/sync/webdav_sync_target.dart';
 export 'src/services/sync/sync_service.dart';
-// P2-11 — plugin management (upload/enable/disable/uninstall)
+// Plugin management (upload/enable/disable/uninstall)
 export 'src/services/plugin_management_service.dart';
 export 'src/services/notification_service.dart';
 export 'src/services/push_notification_service.dart';
 
-// Wave 5 — Comprehensive notification routing.
+// Comprehensive notification routing.
 //   * Per-event-type routing matrix across in-app / mobile push / email /
 //     webhook / Pushover / Telegram / Discord / MQTT.
 //   * Per-transport configuration models.
@@ -430,7 +429,7 @@ export 'src/providers/home_assistant_provider.dart';
 export 'src/services/critical_alert_player.dart';
 export 'src/services/session_export_service.dart';
 export 'src/services/session_report_service.dart';
-// Wave 6 Agent 5 — per-target / per-run notes journal + sequence diff.
+// Per-target / per-run notes journal + sequence diff.
 export 'src/models/notes/journal_note.dart';
 export 'src/services/notes_service.dart';
 export 'src/services/sequence_diff_service.dart';
@@ -444,14 +443,14 @@ export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
 export 'src/services/calibration_service.dart';
 export 'src/services/frame_quality_assessment_service.dart';
-// Wave 8 — Adaptive sky-conditions target-swap composer + dashboard
+// Adaptive sky-conditions target-swap composer + dashboard
 // snapshot decoder.
 export 'src/services/adaptive_swap_service.dart';
-// Wave 8 — Frame-Failure Forensics (per-rejection cause classification).
+// Frame-Failure Forensics (per-rejection cause classification).
 export 'src/models/forensics/frame_forensics.dart';
 export 'src/services/forensics_service.dart';
 export 'src/providers/forensics_provider.dart';
-// Wave 8 — Replay Debug (retrospective decision-tree scrubber).
+// Replay Debug (retrospective decision-tree scrubber).
 export 'src/models/replay_decision.dart';
 export 'src/services/replay_debug_service.dart';
 export 'src/providers/replay_debug_provider.dart';
@@ -462,9 +461,9 @@ export 'src/services/smart_night/hardware_specs_service.dart';
 export 'src/services/smart_night/dark_library_coverage.dart';
 export 'src/services/smart_night/smart_night_draft_service.dart';
 export 'src/providers/smart_night_draft_provider.dart';
-// Wave 6 — Smart Night auto-builder (the one-click "plan tonight").
+// Smart Night auto-builder (the one-click "plan tonight").
 export 'src/services/smart_night_service.dart';
-// Wave 8 — Conversational sequence builder (LLM-driven sequence planning).
+// Conversational sequence builder (LLM-driven sequence planning).
 export 'src/services/conversational_builder/llm_provider.dart';
 export 'src/services/conversational_builder/llm_settings.dart';
 export 'src/services/conversational_builder/conversational_builder_service.dart';
@@ -473,7 +472,7 @@ export 'src/services/conversational_builder/system_prompt_builder.dart';
 export 'src/providers/conversational_builder_provider.dart';
 export 'src/services/optical_train_diagnostics_service.dart';
 export 'src/services/equipment_health_service.dart';
-// Wave 5.5 — USB disconnect log (production source for
+// USB disconnect log (production source for
 // DeviceHealthSnapshot.disconnectCountLast24h).
 export 'src/services/usb_disconnect_log.dart';
 export 'src/providers/usb_disconnect_log_provider.dart';
@@ -510,7 +509,7 @@ export 'src/services/science/photometric_catalog_service.dart';
 export 'src/services/dark_library_service.dart';
 export 'src/services/dark_library_coverage_service.dart';
 export 'src/services/live_stacking_service.dart';
-// Wave 7 Agent 2: broadcast endpoint for EAA / outreach live-stack viewing.
+// Broadcast endpoint for EAA / outreach live-stack viewing.
 export 'src/services/live_stacking_broadcast_service.dart';
 // Stack-and-Share Loop (components C6/C8): orchestrator + share/export service.
 export 'src/services/stack_and_share_service.dart';

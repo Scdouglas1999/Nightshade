@@ -82,7 +82,7 @@ abstract class AppSettings with _$AppSettings {
     // Safety settings
     @Default(SafetyFailMode.failClosed) SafetyFailMode safetyFailMode,
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading: live frame Pass/Reject thresholds. Opt-in:
+    // Image Grading: live frame Pass/Reject thresholds. Opt-in:
     // disabled by default so existing users keep current behaviour
     // (every captured frame saved, none auto-rejected).
     // -------------------------------------------------------------------
@@ -111,7 +111,7 @@ abstract class AppSettings with _$AppSettings {
     /// are used verbatim.
     String? imageGradingRejectFolderPath,
     // -------------------------------------------------------------------
-    // Wave 5 Agent 2 — Sky-brightness adaptive exposures: global defaults.
+    // Sky-brightness adaptive exposures: global defaults.
     // Per-ExposureNode overrides still win at runtime; these are the
     // values pushed into the executor via
     // `sequencerUpdateDefaultAdaptiveExposure` when none of the active

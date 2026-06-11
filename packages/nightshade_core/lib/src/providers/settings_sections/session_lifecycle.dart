@@ -1,4 +1,4 @@
-// Wave 7 + Wave 8 — Session-lifecycle and adaptive sky-conditions defaults.
+// Session-lifecycle and adaptive sky-conditions defaults.
 // Owns the multi-night carry-over banner, the campaign-rollup UI toggle,
 // and the seed values dropped into new [TargetSchedulerNode]s when the
 // adaptive-swap composer is enabled.
@@ -8,11 +8,11 @@
 // than "how should a single capture be shot".
 //
 // Owns:
-//   * sessionHandoffAutoPrompt (Wave 7 carry-over banner)
-//   * campaignRollupSurfaceTargetsTab, campaignRollupGroupingMode (Wave 7)
+// * sessionHandoffAutoPrompt (carry-over banner)
+// * campaignRollupSurfaceTargetsTab, campaignRollupGroupingMode
 //   * adaptiveSwapEnabledByDefault, adaptiveSwapDefaultThreshold,
-//     adaptiveSwapDefaultHysteresisSecs (Wave 8 seeds for new schedulers)
-//   * conditionsScoreWeights (Wave 8 composer weights)
+// adaptiveSwapDefaultHysteresisSecs
+// * conditionsScoreWeights
 //
 // Does NOT own:
 //   * Per-scheduler `swapOnConditionsBelow` — those are sequence-model
@@ -20,7 +20,7 @@
 //   * Smart Night defaults → see `smart_night.dart`.
 part of '../settings_provider.dart';
 
-/// Setters for Wave 7 session lifecycle + Wave 8 adaptive sky-conditions
+/// Setters for session lifecycle + adaptive sky-conditions
 /// defaults.
 extension SessionLifecycleSettingsSection on AppSettingsNotifier {
   /// Whether the multi-night carry-over banner auto-opens at pre-flight

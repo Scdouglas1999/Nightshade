@@ -1,4 +1,4 @@
-// Wave 6 — Web/mobile Run-Watch endpoints.
+// Web/mobile Run-Watch endpoints.
 //
 // This file backs the focused "watch a running sequence from a phone over
 // LAN" web app shipped under /run-watch. The goal is the same monitoring
@@ -246,7 +246,7 @@ class RunWatchHandlers {
       devices = const [];
     }
 
-    // Recovery context (Wave 4). Null when not currently recovering.
+    // Recovery context. Null when not currently recovering.
     Object? recovery;
     try {
       final raw = await backend.getCurrentRecoveryJson();

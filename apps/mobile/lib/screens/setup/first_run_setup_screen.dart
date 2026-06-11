@@ -1,4 +1,4 @@
-// Wave 6D / P2-12 — Mobile first-run setup wizard.
+// Mobile first-run setup wizard.
 //
 // When the operator pairs their phone to a freshly-installed Nightshade
 // server, three things are usually missing and must be addressed before

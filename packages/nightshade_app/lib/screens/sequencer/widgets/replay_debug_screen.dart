@@ -9,7 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'run_dashboard/frame_detail_dialog.dart';
 
-/// Wave 8 Replay Debug — retrospective decision-tree scrubber.
+/// Replay Debug — retrospective decision-tree scrubber.
 ///
 /// Opened from the history tab via "Replay" on each run row. Renders
 /// every persisted [ReplayDecision] for the run in chronological order
@@ -18,7 +18,7 @@ import 'run_dashboard/frame_detail_dialog.dart';
 ///
 /// Each row exposes a "View details" expansion that pretty-prints the
 /// structured `details` map. The "Add note at this time" action
-/// pre-fills a Wave 6 Agent 5 [NotesService] note with the row's
+/// pre-fills a [NotesService] note with the row's
 /// timestamp + summary so journaling the night the next morning is
 /// one click away.
 class ReplayDebugScreen extends ConsumerStatefulWidget {
@@ -348,7 +348,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
     });
   }
 
-  /// Wave 6 Agent 5 cross-link — pre-fill a journal note with the
+  /// Notes cross-link — pre-fill a journal note with the
   /// decision's timestamp + summary. The note is saved immediately
   /// (silent insert) so the operator's next visit to the run's notes
   /// list shows the entry; a snackbar confirms.
@@ -367,7 +367,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
     }
     // Target id is not part of a decision row; we file the note
     // against a synthetic "run-${runId}" target so the run-scoped
-    // view (notesForRunProvider) surfaces it. The Wave 6 NotesService
+    // view (notesForRunProvider) surfaces it. The NotesService
     // requires a non-empty target id, so we use the run wrapper.
     await notesService.addNote(
       targetId: 'run-${widget.sequenceRunId}',
@@ -384,7 +384,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
     );
   }
 
-  /// Wave 8 Forensics cross-link — open the same Frame Detail dialog
+  /// Forensics cross-link — open the same Frame Detail dialog
   /// used by the run dashboard when a replayed FrameRejected decision
   /// carries a captured-image id.
   Future<void> _jumpToForensicsForDecision(ReplayDecision d) async {

@@ -39,8 +39,8 @@ enum HostReachabilityTier {
 /// (`isLocalNetworkHost`) and the reachability UI both need to answer two
 /// distinct questions — "is this host acceptable to connect to at all?"
 /// (fail-closed) and "*how* is it reachable — LAN vs tailnet?" (for the badge).
-/// Open-coding the CIDR math in two places drifts; the audit (#P1-7) already
-/// found one such drift where Tailscale ranges were silently rejected. This
+/// Open-coding the CIDR math in two places drifts; one such drift already
+/// silently rejected Tailscale ranges. This
 /// class is the single source of truth for both questions.
 ///
 /// Fail-closed contract: [classify] returns [HostReachabilityTier.public] or

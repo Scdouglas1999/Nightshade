@@ -34,7 +34,7 @@ class _Rule {
 
 void main(List<String> args) {
   final rulesPath = _argValue(args, '--rules') ?? _defaultRulesPath;
-  // §7B.4 regression-pin: CI passes --min-files <N> so an accidental scope
+  // regression-pin: CI passes --min-files <N> so an accidental scope
   // shrink (e.g., a glob change that excludes a package, or a vendored
   // directory accidentally entering the exclude list) trips the gate instead
   // of silently reducing coverage.

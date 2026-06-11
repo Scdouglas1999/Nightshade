@@ -26,7 +26,7 @@ final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
 /// Once the user touches an exposure control, neither the active equipment
 /// profile's gain/offset defaults nor the Smart Night recommended exposure may
 /// overwrite their values. The flag is flipped to `true` by the camera capture
-/// panel (C11) and the camera-preset selector (C8); this provider only declares
+/// panel and the camera-preset selector; this provider only declares
 /// the state and is read here to gate seeding. It deliberately replaces the old
 /// `exposureTime == 120` heuristic, which silently re-seeded whenever a user
 /// genuinely wanted a 120 s light frame.

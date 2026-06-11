@@ -272,8 +272,8 @@ impl WizardCheckpointSink for MemoryCheckpointSink {
 
 /// Shared "wait until mount finishes slewing" helper used by every
 /// wizard that issues a slew. Polls `mount_is_slewing` once per second
-/// until it returns `Ok(false)` (or transiently errors — see
-/// audit-rust §4.3), then returns. Errors out on cancellation or after
+/// until it returns `Ok(false)` (or transiently errors), then returns.
+/// Errors out on cancellation or after
 /// `timeout_secs`.
 ///
 /// Why this lives here: the slew-completion wait is identical across
@@ -299,7 +299,7 @@ pub async fn wait_for_slew_complete(
             .device_ops
             .mount_is_slewing(mount_id)
             .await
-            // Why (audit-rust §4.3): Err treated as "not slewing" so the loop
+            // Why: Err treated as "not slewing" so the loop
             // exits and the deadline check below surfaces a stuck mount. The
             // deadline is the load-bearing safety guard, not this probe.
             .unwrap_or(false)
@@ -640,7 +640,7 @@ mod tests {
             default_quality_check: None,
             reject_folder_path: None,
             defect_map_apply: Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 — Forensics test scaffolding.
+            // Forensics test scaffolding.
             forensics_history: Arc::new(
                 tokio::sync::RwLock::new(std::collections::VecDeque::new()),
             ),
@@ -650,7 +650,7 @@ mod tests {
             )),
             current_wind_kph: Arc::new(tokio::sync::RwLock::new(None)),
             current_sensor_temp_c: Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 Replay Debug — test contexts don't emit decisions.
+            // Replay Debug — test contexts don't emit decisions.
             decision_tx: None,
             active_sequence_run_id: Arc::new(parking_lot::RwLock::new(None)),
             dither_barrier: None,

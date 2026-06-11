@@ -304,7 +304,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'dither_ra_only': defaults.ditherRaOnly,
           'save_to': null,
           'triggers': n.triggers,
-          // Wave 5 Agent 2: per-node sky-brightness adaptive exposure
+          // Per-node sky-brightness adaptive exposure
           // override. `null` => use the global default pushed via
           // `sequencerUpdateDefaultAdaptiveExposure`. The Rust JSON
           // schema uses `serde(default)` so omitting the key is fine,
@@ -410,7 +410,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'title': n.title,
           'message': n.message,
           'level': _notificationLevelToString(n.level),
-          // Wave 5 Agent 5 — pass the per-node transport override through
+          // Pass the per-node transport override through
           // to the Rust executor as a Custom-event `data` field so the
           // Dart-side notification router can honour it.
           if (n.explicitTransports != null)
@@ -438,7 +438,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'start_after': n.startAfter?.millisecondsSinceEpoch,
           'end_before': n.endBefore?.millisecondsSinceEpoch,
           'mosaic_panel': n.mosaicPanel?.toJson(),
-          // Wave 8 — adaptive swap brightness tier hint. Lowercase wire
+          // Adaptive swap brightness tier hint. Lowercase wire
           // string ('faint'/'medium'/'bright'); `null` => scheduler
           // infers (defaults to medium inside the decision engine).
           'brightness_tier_hint': n.brightnessTierHint?.wireValue,
@@ -465,7 +465,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
             conditionValue = n.repeatUntilAltitude;
             break;
           case LoopConditionType.integrationTime:
-            // Audit P1-20: the engine reads `condition_value` as the
+            // Audit the engine reads `condition_value` as the
             // target integration in SECONDS (loop_node.rs IntegrationTime
             // arm). It must carry `integrationTimeTarget`, NOT the
             // repeat count — previously this shipped `repeatCount`, so an
@@ -522,7 +522,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         }
         return conditionalConfig;
       case RecoveryNode n:
-        // Wave 1.5 Pack A: send the user-configured trigger to Rust. The
+        // Send the user-configured trigger to Rust. The
         // previous hardcoded `'trigger': null` meant the recovery node
         // matched ANY error, regardless of the UI selection — making the
         // trigger-type dropdown a placebo. `toRustTriggerConfig()` mirrors
@@ -565,7 +565,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         };
       case CalibratorOffNode n:
         return {'type': 'CalibratorOff', 'timeout_secs': n.timeoutSecs};
-      // Wave 3 Agent 1: TargetScheduler dynamic target picker.
+      // TargetScheduler dynamic target picker.
       case TargetSchedulerNode n:
         return {
           'type': 'TargetScheduler',
@@ -579,7 +579,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'finish_iteration_on_switch': n.finishIterationOnSwitch,
           // Hard moon-avoidance gate (degrees). null => no hard gate.
           'min_moon_separation_deg': n.minMoonSeparationDeg,
-          // Wave 8 — adaptive sky-conditions swap. `null` swap threshold
+          // Adaptive sky-conditions swap. `null` swap threshold
           // disables the feature for this scheduler instance.
           'swap_on_conditions_below': n.swapOnConditionsBelow,
           'swap_hysteresis_secs': n.swapHysteresisSecs,
@@ -595,10 +595,10 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
                       .toList(),
                 },
         };
-      // Wave 7 Science: SciencePhotometry — cadence-enforced photometric capture.
+      // Science: SciencePhotometry — cadence-enforced photometric capture.
       case SciencePhotometryNode n:
         return {'type': 'SciencePhotometry', ...n.toRustConfigJson()};
-      // Wave 3 Agent 2: SmartExposure multi-filter container instruction.
+      // SmartExposure multi-filter container instruction.
       case SmartExposureNode n:
         // Auto-resolve the filter index from the active equipment profile
         // when the row was authored without one — matches the
@@ -645,7 +645,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'display_name': n.name,
           'timeout_secs': n.timeoutSecs,
         };
-      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node. The Rust
+      // LiveStacking — broadcast / EAA node. The Rust
       // side serialises field names in snake_case so we mirror that
       // here. `auth_token` and `watermark_text` are emitted as `null`
       // (vs. omitted) for round-trip fidelity with the Rust
@@ -868,14 +868,14 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return 'ParkAndAbort';
       case RecoveryActionType.customBranch:
         return 'CustomBranch';
-      // Wave 5 Agent 4 — cloud-motion-aware recovery actions. Names match
+      // Cloud-motion-aware recovery actions. Names match
       // the Rust enum variants so the deserialiser in nightshade_sequencer
       // accepts the bare-string form.
       case RecoveryActionType.pauseAndWaitForClear:
         return 'PauseAndWaitForClear';
       case RecoveryActionType.slewToGapAndContinue:
         return 'SlewToGapAndContinue';
-      // Wave 7 Science — transparency-adaptive recovery. Bare-string
+      // Science — transparency-adaptive recovery. Bare-string
       // form because the Rust variant has no payload.
       case RecoveryActionType.switchTargetOrFilter:
         return 'SwitchTargetOrFilter';

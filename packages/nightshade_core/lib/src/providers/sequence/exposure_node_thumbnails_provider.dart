@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../database/daos/images_dao.dart';
 import '../../services/imaging_records_repository.dart';
 
-/// Wave 6 Thumbnails — inline frame thumbnails in the sequence tree.
+/// Thumbnail — inline frame thumbnails in the sequence tree.
 ///
 /// Streams the captured-image rows produced by a given `ExposureNode` so
 /// the sequence-tree thumbnail strip can render them inline beneath the

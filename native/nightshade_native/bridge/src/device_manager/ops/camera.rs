@@ -4,7 +4,7 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Numeric casts in this file cluster into:
 //! - **INDI wire f64 ↔ device numeric** (lines 118, 121, 125, 127, 937,
@@ -28,7 +28,7 @@
 //!
 //! Sites with a local `Why:` comment override the module-level reasoning.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All `unwrap_or` sites in this module are dimension/state composition
 //! steps that flatten `Option<T>` values from optional ASCOM probes into

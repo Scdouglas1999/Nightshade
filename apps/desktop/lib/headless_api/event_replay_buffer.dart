@@ -1,4 +1,4 @@
-// P1-1: monotonic event sequencing + ring-buffer replay for the headless
+// monotonic event sequencing + ring-buffer replay for the headless
 // API server.
 //
 // Every NightshadeEvent broadcast by HeadlessApiServer is stamped with a
@@ -39,7 +39,7 @@ class EventReplayBuffer {
     if (event.seq == null) {
       // Why throw not silently accept: a pre-stamped event is the only
       // legitimate input here. Silently storing seq=null would break the
-      // since-query replay path with no diagnostic. CLAUDE.md "errors are
+      // since-query replay path with no diagnostic. "errors are
       // a feature".
       throw ArgumentError(
         'EventReplayBuffer.append requires a stamped event (seq != null)',

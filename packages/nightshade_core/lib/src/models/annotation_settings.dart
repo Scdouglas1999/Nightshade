@@ -77,7 +77,7 @@ abstract class AnnotationSettings with _$AnnotationSettings {
     /// Maximum number of objects to display
     @Default(500) int maxObjectsToDisplay,
 
-    /// AUDIT-FIX-5B (audit-handoff §4.3): Fractional padding around the
+    /// Fractional padding around the
     /// catalog FOV bounding box. 0.05 = 5% padding (the historical
     /// hardcoded default). Increase if large DSOs whose centre is just
     /// off-frame are getting clipped from the overlay; decrease to query

@@ -11,7 +11,7 @@ enum FrameQualityDisposition { keep, review, autoReject }
 
 /// How the assessor should treat its own "auto-reject" recommendation.
 ///
-/// Background (audit IMG-P1-1): the previous `mlConfidence` value was a
+/// Background (audit ): the previous `mlConfidence` value was a
 /// hand-tuned logistic with hardcoded coefficients masquerading as a
 /// trained model. It silently flipped frames to `autoReject` at
 /// score >= 0.88. There is no model, no labelled training data, no
@@ -94,7 +94,7 @@ class FrameQualitySummary {
 class FrameQualityAssessmentService {
   /// How aggressively the service is allowed to escalate its own
   /// recommendation. Defaults to [FrameGradingMode.advisory] (audit
-  /// IMG-P1-1): the heuristic is shown but the user owns the reject
+  /// ): the heuristic is shown but the user owns the reject
   /// decision. Existing users that explicitly chose [FrameGradingMode.auto]
   /// keep the legacy behaviour.
   final FrameGradingMode gradingMode;
@@ -207,7 +207,7 @@ class FrameQualityAssessmentService {
     final wouldAutoReject =
         heuristicScore >= 0.88 || (severeIssue && advisoryScore < 35);
 
-    // Audit IMG-P1-1: only the legacy `auto` mode escalates to
+    // Audit only the legacy `auto` mode escalates to
     // autoReject. Advisory mode (default) surfaces the recommendation
     // as a review-level reason but leaves the disposition to the user.
     final FrameQualityDisposition disposition;
@@ -321,7 +321,7 @@ class FrameQualityAssessmentService {
 
   /// Compute a heuristic quality score in [0, 1] for a frame.
   ///
-  /// IMPORTANT (audit IMG-P1-1): this is NOT a trained model. It is a
+  /// IMPORTANT (audit ): this is NOT a trained model. It is a
   /// hand-tuned logistic with hardcoded coefficients, identical across
   /// all cameras and all telescopes. It was previously misrepresented as
   /// `mlConfidence`. There is no labelled training data, no per-camera
@@ -375,14 +375,14 @@ class FrameQualityAssessmentService {
 }
 
 // ============================================================================
-// Wave 3 Image Grading: structured runtime decisions surfaced from the
+// Image Grading: structured runtime decisions surfaced from the
 // Rust sequencer's per-frame grading. The advisory `FrameQualityAssessment`
 // above remains for post-capture review; these structures carry the
 // real-time accept/reject signal that the Run Dashboard quality panel
 // listens for.
 // ============================================================================
 
-/// Outcome of a runtime image-grading decision (Wave 3 Image Grading).
+/// Outcome of a runtime image-grading decision.
 enum FrameGradeDecision {
   /// Frame passed all configured thresholds.
   accepted,
@@ -394,7 +394,7 @@ enum FrameGradeDecision {
 /// Real-time grading event payload emitted by the sequencer after each
 /// frame is graded.
 ///
-/// Pack H: the previous implementation parsed `InstructionProgress.detail`
+/// The previous implementation parsed `InstructionProgress.detail`
 /// with regex (`tryParseDetail`). That helper has been removed — events
 /// are now constructed directly from the typed `SequencerEvent_FrameAccepted`
 /// / `SequencerEvent_FrameRejected` payloads via [FrameGradeEvent.fromTypedData].
@@ -411,13 +411,13 @@ class FrameGradeEvent {
 
   /// Path the FITS landed at (accepted = save_path, rejected = Reject/).
   ///
-  /// Wave 6 Pack P — the bridge now ships the save path on accepted
+  /// The bridge now ships the save path on accepted
   /// frames too (it always did for rejected frames). `null` only for
   /// legacy emit sites that didn't thread the path through.
   final String? path;
 
   /// HFR (pixels) when the grader computed star metrics; `null` when star
-  /// detection failed or wasn't run. Plumbed end-to-end (Pack H).
+  /// detection failed or wasn't run. Plumbed end-to-end.
   final double? hfr;
 
   /// Median eccentricity (0.0 = perfectly round). `null` when not computed.
@@ -455,7 +455,7 @@ class FrameGradeEvent {
 
   bool get isReject => decision == FrameGradeDecision.rejected;
 
-  /// Pack H: build a [FrameGradeEvent] from a typed `FrameAccepted` /
+  /// Build a [FrameGradeEvent] from a typed `FrameAccepted` /
   /// `FrameRejected` event's `data` map (`NightshadeEvent.eventType` +
   /// `data`). Returns `null` when the event type isn't one of the typed
   /// grade variants.
@@ -471,7 +471,7 @@ class FrameGradeEvent {
           total: data['total'] as int,
           decision: FrameGradeDecision.accepted,
           reason: '',
-          // Wave 6 Pack P — surface the on-disk save_path for accepted
+          // Surface the on-disk save_path for accepted
           // frames the same way `reject_path` already worked for
           // rejected frames. Empty / missing falls back to null so
           // legacy emit sites keep their old behaviour.

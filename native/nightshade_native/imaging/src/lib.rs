@@ -593,7 +593,7 @@ pub fn generate_simulated_image(
 
 /// Per-thread pseudo-random for simulation noise.
 ///
-/// Why per-thread (audit §6.17): the previous implementation used a single
+/// Why per-thread: the previous implementation used a single
 /// `static AtomicU64` with separate load/store steps. Concurrent calls from
 /// multiple threads interleave the load-multiply-store, breaking determinism
 /// AND silently dropping LCG steps. Threading-induced non-determinism made
@@ -914,7 +914,7 @@ pub fn write_jpeg(path: &std::path::Path, image: &ImageData, quality: u8) -> Res
 
 /// Read an image file (auto-detect format)
 pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
-    // Why (audit-rust §4.3): path with no extension OR with a non-UTF-8 extension
+    // Why: path with no extension OR with a non-UTF-8 extension
     // returns empty string; `ImageFormat::from_extension("")` returns None and the
     // ?-propagating ok_or_else fails CLOSED with "Unsupported file extension:" on the
     // next line. Silent fallback to empty is the correct funneling into the error
@@ -1181,7 +1181,7 @@ mod tests {
     fn read_image_composes_bayer_offsets_for_cfa_fits() {
         // Odd X offset shifts RGGB to GRBG at the in-memory origin; the read
         // result's `effective` must reflect the composition, while `source`
-        // preserves the on-disk BAYERPAT (audit §6.6 regression guard).
+        // preserves the on-disk BAYERPAT (regression guard).
         let fixture = write_temp_fits("rggb_xoff", Some(("RGGB", 1, 0)));
 
         let result = read_image(&fixture.path).expect("read_image should succeed");

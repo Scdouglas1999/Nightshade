@@ -1,7 +1,7 @@
-// Wave 6 Agent 1 — Smart Night auto-builder defaults. Owns the knobs the
+// Smart Night auto-builder defaults. Owns the knobs the
 // "Plan Tonight" wizard consults when composing a sequence for the user.
 //
-// Also owns the [promptForNotesAfterRun] toggle (Wave 6 Agent 5) because
+// Also owns the [promptForNotesAfterRun] toggle because
 // the dashboard auto-prompt and the post-run notes prompt share the same
 // "after a Smart Night sequence ends, what does the UI do?" decision
 // branch — keeping them in the same file makes the dependency obvious.
@@ -15,13 +15,13 @@
 //   * smartNightDefaultStrategy, smartNightPolarAlignmentStaleAfterDays
 //   * smartNightSubExposureFloorSecs, smartNightSubExposureCeilingSecs
 //   * smartNightTargetSnr, smartNightAutoPromptEnabled
-//   * promptForNotesAfterRun (Wave 6 Agent 5 post-run notes prompt)
+// * promptForNotesAfterRun (post-run notes prompt)
 //
 // Does NOT own:
-//   * Per-target campaign rollup (Wave 7) → see `session_lifecycle.dart`.
+// * Per-target campaign rollup → see `session_lifecycle.dart`.
 //   * Pre-flight polar-alignment staleness (different knob, different
 //     semantics) → see `preflight.dart`.
-//   * Adaptive sky-conditions defaults (Wave 8) → see
+// * Adaptive sky-conditions defaults → see
 //     `session_lifecycle.dart`.
 part of '../settings_provider.dart';
 

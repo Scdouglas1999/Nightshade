@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Wave 7C — string resources for the Voice Control static shortcuts
+  string resources for the Voice Control static shortcuts
   defined in apps/mobile/android/app/src/main/res/xml/shortcuts.xml.
 
   Long labels are bounded to ~25 chars by Android (anything longer is

@@ -4,7 +4,7 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Every `unwrap_or(false)` in this file probes an INDI / ASCOM optional
 //! switch (`DOME_SHUTTER/SHUTTER_OPEN`, `DOME_AUTOSYNC/ENABLE`, …). The
@@ -381,7 +381,7 @@ impl DeviceManager {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
                     let status = dome.shutter_status().await?;
-                    // Why (audit-rust §1.4): `ShutterState` is a C-like
+                    // Why: `ShutterState` is a C-like
                     // ASCOM enum with values {0..4} (Open, Closed, Opening,
                     // Closing, Error); `as i32` extracts the discriminant.
                     return Ok(status as i32);

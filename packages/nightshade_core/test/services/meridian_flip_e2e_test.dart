@@ -1,5 +1,5 @@
 // E2E test for the meridian-flip disconnect safety guard
-// (AUDIT-FIX-6-E2E §4.4, depends on AUDIT-FIX-2-MERIDIAN / §1.2).
+//.
 //
 // What this exercises end-to-end through real Riverpod providers:
 //   1. The `meridianFlipDisconnectGuardProvider` StateNotifier wired into a
@@ -21,7 +21,7 @@
 // five outputs (the flip-state providers). Driving it via a ProviderContainer
 // with a mock backend hits every line of the guard code, and is the same
 // surface area an integration test against a live sequencer would exercise
-// for this specific behavior. AUDIT-FIX-WAVE-1's §1.2 wiring is what mounts
+// for this specific behavior. The §1.2 wiring is what mounts
 // this guard in `app_shell.dart`; the guard itself is the unit under test.
 
 import 'dart:async';
@@ -91,7 +91,7 @@ void main() {
 
       // Watch the guard so the StateNotifier comes online and registers its
       // `ref.listen<MountState>` subscription. In production this watch
-      // happens in `app_shell.dart` (AUDIT-FIX-WAVE-1 §1.2 wiring).
+      // happens in `app_shell.dart`.
       container.read(meridianFlipDisconnectGuardProvider);
     });
 

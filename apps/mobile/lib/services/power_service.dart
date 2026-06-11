@@ -30,7 +30,7 @@ class PowerService {
 
   // Settings
   // Only CPU wake lock is honored. Screen wake lock was an unused config
-  // surface that misled callers (see audit §3.14).
+  // surface that misled callers.
   bool enableCpuWakeLock = true; // Keep CPU awake (required for imaging)
   int batteryCheckIntervalSeconds = 30;
 

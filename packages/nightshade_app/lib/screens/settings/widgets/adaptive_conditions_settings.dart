@@ -1,4 +1,4 @@
-// Wave 8.5 - Adaptive sky-conditions swap defaults.
+// Adaptive sky-conditions swap defaults.
 //
 // These controls persist the defaults that seed newly-created
 // TargetScheduler nodes. Existing scheduler nodes keep their own

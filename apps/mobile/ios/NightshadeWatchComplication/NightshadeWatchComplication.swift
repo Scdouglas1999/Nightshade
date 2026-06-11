@@ -1,6 +1,6 @@
 // NightshadeWatchComplication.swift
 //
-// Wave 7D — Apple Watch complication widget for Nightshade.
+// Apple Watch complication widget for Nightshade.
 //
 // Three complication families are implemented, matching the watchOS 10+
 // WidgetKit families:

@@ -122,7 +122,7 @@ List<HeadlessRoute> buildDeviceRoutes(DeviceHandlers h) => <HeadlessRoute>[
     '/api/filter-wheel/position',
     h.handleFilterWheelSetPosition,
   ),
-  // P2-7 — GET sibling of POST /api/filter-wheel/position so mobile
+  // GET sibling of POST /api/filter-wheel/position so mobile
   // can render the current slot, name, and "is moving" flag.
   HeadlessRoute(
     HttpMethod.get,

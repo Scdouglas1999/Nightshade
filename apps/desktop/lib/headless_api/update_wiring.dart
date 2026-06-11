@@ -1,8 +1,8 @@
-// P1-11 — Shared helpers for wiring the OTA update stack into both the
+// Shared helpers for wiring the OTA update stack into both the
 // GUI (`desktop_app_bootstrap.dart`) and the headless
 // (`main_headless.dart`) entry points.
 //
-// Pre-P1-11 only the GUI bootstrap constructed `UpdateService` +
+// Pre-only the GUI bootstrap constructed `UpdateService` +
 // `LanPushReceiver`. The headless daemon had no equivalent, so a phone
 // operator connected to a Pi-hosted server could not check or apply
 // updates without physical access to the box. This module centralises

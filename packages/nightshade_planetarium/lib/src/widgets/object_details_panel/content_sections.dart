@@ -452,7 +452,7 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
   Widget _buildRiseTransitSetSection(WidgetRef ref, Color txtColor) {
     final location = ref.watch(observerLocationProvider);
     final obsTime = ref.watch(observationTimeProvider);
-    // Wave 1.5 Pack D: rise/set computed against the user's effective
+    // Rise/set computed against the user's effective
     // horizon (e.g. 20° to clear trees), not the mathematical 0°. The same
     // value drives the Run Dashboard time-to-set stat so the two surfaces
     // agree to the second.

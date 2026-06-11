@@ -99,7 +99,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
 
-    // DEV-P3-1: gate absolute-angle move and halt on the rotator's
+    // Gate absolute-angle move and halt on the rotator's
     // reported capabilities. Hide Go-To entirely when canMoveAbsolute is
     // false — the workflow has no analog form. Halt is shown only while
     // moving anyway, but we drop it when the driver can't halt.

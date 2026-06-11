@@ -2,15 +2,14 @@
 
 /// FakeNativeBridge — controllable test double for [NativeBridge].
 ///
-/// # Design choices (audit-tests §6 / CQ-W5-FAKE-BRIDGE)
+/// # Design choices
 ///
 /// `NativeBridge` in `lib/src/bridge_stub.dart` is a class of `static` methods,
 /// so there is no abstract interface to implement polymorphically. This fake
 /// mirrors the public method *surface* as instance methods instead. Test code
 /// that calls the real bridge as `NativeBridge.x(...)` must indirect through
 /// a higher-level seam (e.g. `NightshadeBackend`) or be refactored to receive
-/// this fake by injection. The widget-test harness landed in CQ-W5-WIDGET-HARNESS
-/// is the primary consumer.
+/// this fake by injection. The widget-test harness is the primary consumer.
 ///
 /// # Default-behavior contract
 ///
@@ -20,12 +19,12 @@
 ///    drive sad-path widget tests (error banners, recovery flows).
 /// 2. `setResponse(name, value)` was called → returns `value` cast to the
 ///    method's expected return type. A `TypeError` is thrown synchronously on
-///    cast failure — explicit, NOT silent (CLAUDE.md "Errors are a feature").
+///    cast failure — explicit, NOT silent (errors are a feature).
 /// 3. Otherwise → returns a permissive default: empty list, `false`, default
 ///    value for the return type. Defaults are documented per-method below.
 ///
 /// We choose **permissive defaults** over throw-on-unconfigured because the
-/// audit's stated goal is unblocking widget-test coverage of 100k+ LOC; most
+/// goal is unblocking broad widget-test coverage; most
 /// tests care about ONE call and want everything else to fade into the
 /// background. Tests that need strict verification can inspect [recordedCalls]
 /// after each interaction.
@@ -79,7 +78,7 @@ class FakeNativeBridge {
   ///
   /// Broadcast (not single-subscription) because real `NativeBridge.eventStream()`
   /// returns a stream that multiple providers subscribe to (`GuideStatsNotifier`,
-  /// `GuideGraphNotifier`, etc. per CLAUDE.md), and tests that wire several
+  /// `GuideGraphNotifier`, etc.), and tests that wire several
   /// notifiers need the same semantics.
   final StreamController<NightshadeEvent> _events =
       StreamController<NightshadeEvent>.broadcast();
@@ -954,7 +953,7 @@ class FakeNativeBridge {
     _maybeThrow('sequencerUpdateFilterOffsets');
   }
 
-  /// Wave 7.5 — recorded so tests can verify the SequenceExecutor
+  /// Recorded so tests can verify the SequenceExecutor
   /// pushes the operator's handoff decision (Resume / Restart) into
   /// the BudgetRegistry seed pipeline.
   Future<void> sequencerUpdatePendingIntegrationCarryOver({
@@ -1248,7 +1247,7 @@ class FakeNativeBridge {
 
   /// Return `responses[method]` cast to [T], or [defaultValue] when no canned
   /// response is registered. Throws `TypeError` on cast mismatch so tests fail
-  /// loudly per CLAUDE.md ("Errors are a feature").
+  /// loudly (errors are a feature).
   T _typed<T>(String method, {required T defaultValue}) {
     if (!_responses.containsKey(method)) return defaultValue;
     return _responses[method] as T;

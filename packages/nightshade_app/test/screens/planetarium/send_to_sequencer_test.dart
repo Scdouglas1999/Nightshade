@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Planetarium send-to-sequencer integration test.
+// Planetarium send-to-sequencer integration test.
 //
 // Pins that the existing `addTargetHeaderWithPrompt` helper (the
 // shared entrypoint planetarium's "Add to sequence" actions all

@@ -107,7 +107,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     final json = _sequenceToJson(sequence);
     await backend.sequencerLoadJson(json);
 
-    // Wave 1.5 Pack D: seed RuntimeConfig from persisted user settings BEFORE
+    // Seed RuntimeConfig from persisted user settings BEFORE
     // start() so the trigger monitor's first poll honours the user's cadence
     // / dither / location / filter-offsets values instead of the Rust
     // defaults (autofocus_interval_frames=25, dither pixels=5, location 0/0,
@@ -119,7 +119,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // rather than run with the wrong cadence.
     await _seedRuntimeConfigFromSettings(backend);
 
-    // Wave 7.5 — consult the session-handoff decision for every
+    // Consult the session-handoff decision for every
     // TargetHeader with an `integrationBudget` configured. The operator's
     // pre-flight decision (Resume / Restart / Continue New) decides how
     // the Rust `BudgetRegistry` is seeded for this run.
@@ -256,7 +256,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G — default image-grading thresholds + reject folder. Without
+    // Default image-grading thresholds + reject folder. Without
     // this seed the executor's RuntimeConfig stays at the all-None
     // default and "Enable image grading" in Settings has no effect on the
     // next sequence start.
@@ -285,7 +285,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G — reject folder path.
+    // Reject folder path.
     try {
       final settings = _ref.read(appSettingsProvider).valueOrNull;
       if (settings != null) {
@@ -306,7 +306,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Pack G — observer / equipment identification so FITS headers carry
+    // Observer / equipment identification so FITS headers carry
     // OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV. The
     // observer name comes from app settings; everything else from the
     // active equipment profile. Null / empty fields are honestly omitted
@@ -379,7 +379,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Wave 5 Agent 2 — seed the global default sky-brightness adaptive
+    // Seed the global default sky-brightness adaptive
     // exposure config from app settings so a sequence start without a
     // settings round-trip still honours the user's choice. When the
     // master switch is off we explicitly clear the executor's value
@@ -421,13 +421,13 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
     if (firstError != null) {
       // Rethrow so sequencerStart() does not silently proceed with a partial
-      // runtime config. The CLAUDE.md rule "errors are a feature" requires
+      // runtime config. The rule "errors are a feature" requires
       // the caller to learn about misconfiguration immediately.
       Error.throwWithStackTrace(firstError, firstStack ?? StackTrace.current);
     }
   }
 
-  /// Wave 7.5 — consume `sessionHandoffDecisionProvider` for every
+  /// Consume `sessionHandoffDecisionProvider` for every
   /// TargetHeader and push the resolved per-filter carry-over map to
   /// the Rust executor's `BudgetRegistry` seed.
   ///
@@ -452,7 +452,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// Failure policy: a missing decision for a target is a no-op (the
   /// pre-flight dialog might have been dismissed); any other error is
   /// rethrown so the caller learns about misconfiguration before
-  /// `sequencerStart()` runs (CLAUDE.md "errors are a feature").
+  /// `sequencerStart()` runs (errors are a feature here).
   Future<void> _seedIntegrationCarryOverFromHandoff(
     NightshadeBackend backend,
     Sequence sequence,
@@ -548,7 +548,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// filter offsets).
   void _startSettingsWatchers(NightshadeBackend backend) {
     _stopSettingsWatchers();
-    // Wave 5 Agent 2 — kick off the sky-brightness poll. The first
+    // Kick off the sky-brightness poll. The first
     // tick fires 10 s after start (matching the timer cadence); the
     // first user-visible adaptive-exposure decision uses whatever the
     // tracker has at TakeExposure time.
@@ -604,7 +604,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           );
         }
 
-        // Pack G — propagate image-grading changes mid-run so the next
+        // Propagate image-grading changes mid-run so the next
         // exposure honours the user's new thresholds.
         final gradingChanged =
             prevSettings.enableImageGrading !=
@@ -646,7 +646,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           );
         }
 
-        // Pack G — propagate observer name + elevation changes so FITS
+        // Propagate observer name + elevation changes so FITS
         // headers stay in sync if the user edits Settings mid-run.
         if (prevSettings.observerName != nextSettings.observerName ||
             prevSettings.elevation != nextSettings.elevation) {
@@ -657,7 +657,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           _pushObserverProfile(backend);
         }
 
-        // Wave 5 Agent 2 — propagate global adaptive-exposure setting
+        // Propagate global adaptive-exposure setting
         // changes so the next exposure honours the user's edit. We
         // compare all eight inputs in one pass because the executor
         // expects the full config object on every push.
@@ -725,7 +725,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           backend.sequencerUpdateFilterOffsets(nextOffsets);
         }
 
-        // Pack G — propagate telescope / camera identity changes so FITS
+        // Propagate telescope / camera identity changes so FITS
         // headers reflect the active equipment profile mid-run (rare but
         // possible when the user swaps profiles between targets).
         if (previous.cameraName != next.cameraName ||
@@ -743,7 +743,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     );
   }
 
-  /// Pack G — helper that recomputes the observer profile from the
+  /// Helper that recomputes the observer profile from the
   /// current settings + active equipment profile and pushes it to the
   /// backend. Used by both the appSettingsProvider and
   /// activeEquipmentProfileProvider watchers because the FITS observer
@@ -809,7 +809,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       sub.close();
     }
     _settingsSubscriptions.clear();
-    // Wave 5 Agent 2 — tear down the sky-brightness poll so a stopped
+    // Tear down the sky-brightness poll so a stopped
     // executor stops pushing readings to the (possibly torn-down)
     // backend.
     _skyBrightnessPollTimer?.cancel();
@@ -817,7 +817,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     _lastPushedSkyMag = null;
   }
 
-  /// Wave 5 Agent 2 — start the periodic poll that watches the
+  /// Start the periodic poll that watches the
   /// `SkyBrightnessTracker` and pushes its mag/arcsecÂ² reading to the
   /// executor whenever it changes. Suppresses redundant pushes so the
   /// runtime config event stream stays quiet under steady conditions.

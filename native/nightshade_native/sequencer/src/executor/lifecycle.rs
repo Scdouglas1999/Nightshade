@@ -73,7 +73,7 @@ impl SequenceExecutor {
         Ok(())
     }
 
-    /// Wave 8 Replay Debug — emit a [`crate::decision::DecisionCategory::ManualIntervention`]
+    /// Replay Debug — emit a [`crate::decision::DecisionCategory::ManualIntervention`]
     /// event with the supplied action tag (`pause`, `resume`, `stop`,
     /// `skip`, `skip_to_node`, `recovery_try_now`, `recovery_abort`).
     /// Direct broadcast — does not go through the command channel so even
@@ -109,7 +109,7 @@ impl SequenceExecutor {
         let _ = self.decision_tx.send(ev);
     }
 
-    /// Wave 6 Pack P — Dart side reports the verdict of a plugin node
+    /// Dart side reports the verdict of a plugin node
     /// that the executor previously dispatched via
     /// `ExecutorEvent::PluginNodeRequested`. The matching pending
     /// oneshot (registered by `PluginNodeInstruction::execute`) is
@@ -160,7 +160,7 @@ impl SequenceExecutor {
     }
 
     // =========================================================================
-    // Wave 4 Recovery Mode — operator-driven loop controls
+    // Recovery Mode — operator-driven loop controls
     // =========================================================================
 
     /// Operator pressed "Try Now" on the dashboard banner — punch through
@@ -199,7 +199,7 @@ impl SequenceExecutor {
     /// burst) continues to completion first.
     ///
     /// Errors when the executor is not running because the request would
-    /// otherwise be silently dropped — CLAUDE.md: "errors are a feature".
+    /// otherwise be silently dropped — "errors are a feature".
     pub async fn skip_to_node(&self, node_id: NodeId) -> Result<(), String> {
         let node_id_for_decision = node_id.clone();
         if let Some(tx) = &self.command_tx {

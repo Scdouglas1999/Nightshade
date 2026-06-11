@@ -112,7 +112,7 @@ pub(crate) trait DeviceCommonMetadata {
 ///   renders missing values as "Unknown".
 /// * `supported_actions` → empty `Vec` when the probe fails, with a
 ///   `tracing::warn!` carrying the discarded error so the loss is loud per
-///   CLAUDE.md "errors are a feature". The documented ASCOM-optional default
+///   "errors are a feature". The documented ASCOM-optional default
 ///   semantics ("driver has no custom actions") are preserved.
 ///
 /// Errors here are not surfaced as `Err` because at the call site any
@@ -138,7 +138,7 @@ where
             // Why: ASCOM `ISupportedActions` is OPTIONAL; missing → empty
             // list per spec. We default rather than propagate (per the
             // module-level silent-fallback policy), but emit a `warn!` so
-            // the discarded error is loud-on-loss per CLAUDE.md "errors
+            // the discarded error is loud-on-loss per "errors
             // are a feature". Operators reviewing logs can distinguish
             // "driver lacks ISupportedActions (expected)" from "transport
             // error masquerading as missing actions (bug)" by inspecting

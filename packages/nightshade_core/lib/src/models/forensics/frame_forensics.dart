@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: Dart-side data model.
+/// Frame-Failure Forensics: Dart-side data model.
 ///
 /// Mirrors the Rust `LikelyCause` enum + the forensic payload that the
 /// sequencer attaches to every rejected frame. The wire-stable
@@ -103,7 +103,7 @@ extension LikelyCauseExt on LikelyCause {
 /// Environmental snapshot taken at the instant a frame was captured.
 /// Every field is optional because the underlying tracker may not yet
 /// have produced a sample. The forensic UI surfaces missing fields as
-/// "—" instead of fabricating zeros (CLAUDE.md "errors are a feature").
+/// "—" instead of fabricating zeros (errors are a feature here).
 class ForensicEnvironment {
   final double? skyBrightnessMag;
   final double? cloudCoverPercent;

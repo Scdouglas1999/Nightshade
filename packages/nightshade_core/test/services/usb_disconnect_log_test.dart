@@ -1,4 +1,4 @@
-// Wave 5.5 — unit tests for the USB / device disconnect log.
+// Unit tests for the USB / device disconnect log.
 //
 // Verifies the 24 h sliding window semantics, per-device aggregation,
 // and pruning behaviour. The log feeds

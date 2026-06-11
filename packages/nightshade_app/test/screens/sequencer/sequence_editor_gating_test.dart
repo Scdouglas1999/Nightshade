@@ -1,9 +1,9 @@
-// Widget tests for Wave-1 Pack B: comprehensive canEdit gating and
+// Widget tests for comprehensive canEdit gating and
 // typed-exception catches across the sequencer UI.
 //
 // Coverage targets from the brief:
 //   (a) toolbar buttons disabled when running → covered indirectly via
-//       canEditSequenceProvider semantics + Pack B's unit test that
+//       canEditSequenceProvider semantics + the unit test that
 //       SequenceLockedException is thrown.
 //   (b) Ctrl+Z no-op when running → covered via the canEdit early-return
 //       semantics (the shortcut binding reads canEditSequenceProvider).

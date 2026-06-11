@@ -320,10 +320,9 @@ matrix.
 
 ## [Unreleased] — Code-Quality Hardening (2026-05-09 to 2026-05-16)
 
-A 14-wave code-quality cycle following the v2.5.0 release. ~84 commits drove
-five read-only audits (`docs/code-quality/audit-{arch,tests,rust,dart,observe}.md`)
-to closure. Wave breakdown is documented in
-`docs/code-quality/v2.5.x-roadmap.md`. Highlights:
+A code-quality cycle following the v2.5.0 release. ~84 commits drove five
+read-only architecture, test, Rust, Dart, and observability audits to
+closure. Highlights:
 
 - The structured FFI error pipeline is no longer a placebo —
   `NightshadeException._parseJson` actually decodes the Rust-side `ErrorInfo`
@@ -343,169 +342,142 @@ to closure. Wave breakdown is documented in
   shared `pumpAppScreen()` harness with `FakeNativeBridge` unlocks regression
   coverage on 100k+ LOC of UI.
 
-### Architecture (W-DECOMP + W-RENAME)
+### Architecture and renames
 
 - Split `native/nightshade_native/bridge/src/api.rs` (9,770 LOC) into
-  `bridge/src/api/` (37 files) across three sub-PRs grouped by domain
-  (audit-arch §1.2 / audit-rust §9).
+  `bridge/src/api/` (37 files) across three sub-PRs grouped by domain.
 - Split `native/nightshade_native/bridge/src/devices.rs` (8,854 LOC) into
-  `bridge/src/device_manager/` with per-device `ops/` modules
-  (audit-arch §1.2).
+  `bridge/src/device_manager/` with per-device `ops/` modules.
 - Split `native/nightshade_native/ascom/src/windows_impl.rs` (3,756 LOC)
-  into per-device modules under `ascom/src/windows/` (audit-arch §1.2).
+  into per-device modules under `ascom/src/windows/`.
 - Split `providers/equipment_provider.dart` (1,540 LOC, 11 notifiers)
-  into per-device-type files (audit-dart §1e, §10 #9).
+  into per-device-type files.
 - Split `providers/sequence_provider.dart` (3,533 LOC): extract
-  `SequenceExecutor`, validation, defaults, and node-palette modules
-  (audit-arch §1.2 / audit-dart §1e).
+  `SequenceExecutor`, validation, defaults, and node-palette modules.
 - Split `screens/equipment/tabs/connections_tab.dart` (2,723 LOC) into
   per-device cards and fixed three `use_build_context_synchronously`
-  violations (audit-arch §1.2 / §8 #6).
+  violations (§8 #6).
 - Split `screens/framing/framing_screen.dart` (4,688 LOC) into canvas,
-  controls, painters, and overlay modules (audit-arch §1.2).
+  controls, painters, and overlay modules.
 - Resolved UI → bridge layering violation in
-  `nightshade_ui/.../polar_alignment_wizard.dart` (audit-arch §3.2 —
-  the audit's worst-finding layering bug).
+  `nightshade_ui/.../polar_alignment_wizard.dart`
+  (the worst-finding layering bug).
 - Rename + collision resolution: framing `MosaicConfig/Panel` →
   `FramingMosaic*`, planetarium duplicates → `PlanetariumMosaic*`,
   core `CameraState` → `CameraStateSnapshot`, `FocusDataPoint` →
   `FocusHistoryPoint`, plus `DeviceType` dedup, `ObserverLocation`
   rename, `MobileNotificationService`, `queueProgressProvider`,
   `AppSettingsState`, `sequenceTargetSearchProvider`. Each rename
-  removed a barrel `hide` clause (audit-arch §2.2).
+  removed a barrel `hide` clause.
 - `PlateSolveResult` consolidated to the FRB-canonical type; both
-  hand-written copies deleted (audit-arch §2.2 / audit-tests §2a).
+  hand-written copies deleted.
 - `CapturedImage` and `EquipmentProfile` now alias-exported from the
-  `nightshade_core` barrel; 4 `src/` bypass imports removed
-  (audit-arch §3.2, §8 #13).
+  `nightshade_core` barrel; 4 `src/` bypass imports removed.
 
-### Test Infrastructure (W-TEST)
+### Test Infrastructure
 
 - New `FakeNativeBridge` in `packages/nightshade_bridge/test/fakes/`
-  with controllable event streams + canned response maps
-  (audit-tests §6).
+  with controllable event streams + canned response maps.
 - New `pumpAppScreen()` widget-test harness in
   `packages/nightshade_app/test/harness/` wiring `FakeNativeBridge`,
-  in-memory drift DB, and `MockBackend` via `ProviderScope.overrides`
-  (audit-tests §6).
+  in-memory drift DB, and `MockBackend` via `ProviderScope.overrides`.
 - New `AscomConnectionBackend` trait with `mockall` scaffolding so the
-  3,756-LOC `ascom/windows_impl.rs` is testable for the first time
-  (audit-tests §6).
-- New `FakeNightshadeNetworkClient` and `NetworkBackend` unit tests
-  (audit-tests §6).
+  3,756-LOC `ascom/windows_impl.rs` is testable for the first time.
+- New `FakeNightshadeNetworkClient` and `NetworkBackend` unit tests.
 - Smoke and behavior widget tests landed for `imaging_screen`,
-  `dashboard_screen`, `planetarium_screen`, and `settings_screen`
-  (audit-tests §1, rows 1–5).
+  `dashboard_screen`, `planetarium_screen`, and `settings_screen`.
 - Required CI gates promoted: `audit:placeholders --fail-on-new-highrisk`,
   Windows-host `test-rust` job, `cargo` duplicate check, `pre-commit`
   hooks for `dart format` + `cargo fmt`, `linguist-generated=true` for
-  generated files (audit-tests §7).
+  generated files.
 - `libraw.dll` is auto-copied to `target/debug/deps` so
-  `cargo test --package nightshade_bridge` works out of the box
-  (audit-tests §1).
+  `cargo test --package nightshade_bridge` works out of the box.
 - `flutter_lints` upgraded from `^3.0.1` to `^5.0.0` across all
-  packages; analyzer options tuned (audit-dart §10 #3).
+  packages; analyzer options tuned.
 
-### Observability (W-CRIT + W-OBS)
+### Observability
 
 - Restored the structured FFI error pipeline: `_parseJson` now actually
   `jsonDecode`s the Rust `ErrorInfo` payload instead of unconditionally
-  returning `null` (audit-observe §1a — the audit's CRITICAL finding).
+  returning `null`.
 - Closed 13 fail-closed handler violations across the headless API
   (auxiliary, flat_wizard, backup, mosaic, science, device handlers) —
-  no more `'status': 'failed'` with HTTP 200 or `e.toString()` leaks
-  (audit-observe §6a).
+  no more `'status': 'failed'` with HTTP 200 or `e.toString()` leaks.
 - Resolved the `ffi_backend:2064` UnimplementedError for the all-sky
-  polar-alignment path (audit-observe §6a).
+  polar-alignment path.
 - Bearer token in `main_headless.dart` startup banner is redacted in
-  log output (audit-observe §2e).
+  log output.
 - `LoggingService` migration: ~477 `print` / `debugPrint` sites
   replaced across `apps/desktop/lib/main.dart` (134), `bridge_stub.dart`
   (103), `catalog_manager.dart` (37), `network_backend.dart` (32),
   `auto_save_service.dart` (21), and the residual long tail (~232
   in the final sweep). `main.dart` was split into bootstrap +
-  `desktop_app_bootstrap.dart` + `desktop_logging_init.dart`
-  (audit-dart §10 #1 / audit-observe §2b).
+  `desktop_app_bootstrap.dart` + `desktop_logging_init.dart`.
 - 10+ Dart notifier/widget `dispose()` hooks now cancel held
   `Timer` / `StreamSubscription` resources;
   `SequenceExecutionNotifier` and 9 device notifiers in
-  `equipment_provider.dart` got explicit `dispose()` overrides
-  (audit-dart §1f, §2d, §2e).
+  `equipment_provider.dart` got explicit `dispose()` overrides.
 - 14 `Future`-holding Dart `catch (_)` swallows audited:
-  log via `dart:developer` or replaced with explicit `// Why:` rationale
-  (audit-observe §1c).
-- 5 long-running futures wrapped in supervised wrappers
-  (audit-observe §8c).
+  log via `dart:developer` or replaced with explicit `// Why:` rationale.
+- 5 long-running futures wrapped in supervised wrappers.
 - SQLite corruption recovery: Drift `integrity_check` +
   backup-and-recreate path with UI marker for first-launch on a
-  corrupt `app_settings.db` (audit-observe §8b).
+  corrupt `app_settings.db`.
 - New operational `RUNBOOK.md` covering frozen startup, plate-solve
   failures, OTA rollback, sequence-resume, and headless-unreachable
-  scenarios (audit-observe §9).
+  scenarios.
 - New diagnostic-dump service + screen bundles
-  logs / profile / sequence / system info into a single zip
-  (audit-observe §4c).
+  logs / profile / sequence / system info into a single zip.
 - Behavioral markers (planetarium, ui, plugins, core, app, apps,
-  native crates) now registered + audited via a final residual sweep
-  (audit-observe §10).
+  native crates) now registered + audited via a final residual sweep.
 
-### Rust hardening (W-CRIT + W-OBS)
+### Rust hardening
 
 - All 6 previously-detached `tokio::spawn` tasks
   (`sequencer/executor.rs:658`, `bridge/api.rs:6489` + `:7755`,
   `imaging_ops.rs:61` + `:627`, `bridge/devices.rs:7186`) are now
-  panic-supervised with logging + restart for the worker loops
-  (audit-rust §2.1).
+  panic-supervised with logging + restart for the worker loops.
 - `UNIFIED_IMAGE_STORAGE` is now LRU-bounded with eviction events;
-  `ALPACA_CLIENTS` lifecycle audited (audit-rust §3.5).
+  `ALPACA_CLIENTS` lifecycle audited.
 - 288 `unwrap_or_*` silent-fallback sites swept across alpaca client +
   telescope, phd2 + imaging processing + stats, device_capabilities
   (80), alpaca devices + bridge dispatch (47), and indi + sequencer +
   imaging residuals. Each remaining site now carries a `// Why:`
-  rationale or has been converted to `?` (audit-rust §4.3).
+  rationale or has been converted to `?`.
 - ~400 `// SAFETY:` comments added across `native/src/vendor/*.rs`
   (qhy, atik, player_one, moravian, svbony, fujifilm, touptek);
-  `clippy::undocumented_unsafe_blocks` promoted to `-D warnings`
-  (audit-rust §3.2).
+  `clippy::undocumented_unsafe_blocks` promoted to `-D warnings`.
 - All `as` casts hardened at the Dart↔Rust FFI boundary
-  (audit-rust §1.4 / W11): new `safelyCast<T>` helper plus
+: new `safelyCast<T>` helper plus
   vendor SDK + imaging buffer-math boundaries (W12), and the
   remaining sequencer + indi + imaging tail (W13).
 - Cargo duplicate semvers unified: `windows-rs`, `base64`, and
-  `thiserror` versions consolidated (audit-rust §5).
-- `cargo clippy --all-features -- -D warnings` is green on Rust 1.91
-  (audit-rust §7).
+  `thiserror` versions consolidated.
+- `cargo clippy --all-features -- -D warnings` is green on Rust 1.91.
 
-### Dart hygiene (W-HYG + later const-constructor waves)
+### Dart hygiene (plus later const-constructor work)
 
 - Migrated 144 deprecated typedef callers
   (`DriverBackend` → `DriverType`, `AvailableDevice` → `DeviceInfo`,
   `NightshadeDeviceType` → `DeviceType`, `TargetGroupNode` →
-  `TargetHeaderNode`); deleted the typedef shims
-  (audit-arch §4 / audit-dart §4).
-- Riverpod aligned to `^2.5.1` across all 9 packages
-  (audit-dart §10 #4).
+  `TargetHeaderNode`); deleted the typedef shims.
+- Riverpod aligned to `^2.5.1` across all 9 packages.
 - Confirmed-dead code deleted: `nightshade_exception.dart`,
   `paginated_image_loader.dart`, `catalog_service.dart`, three
   weather providers, `annotation_catalog_dialog.dart`,
   duplicate `Phd2Status` / `SequencerStatus` core copies, 2 dead
-  `TutorialKeys`, `Plugin.initialize()/dispose()` deprecated methods
-  (audit-tests §2).
+  `TutorialKeys`, `Plugin.initialize()/dispose()` deprecated methods.
 - `prefer_const_constructors` enabled and fixed across
   `nightshade_ui`, `nightshade_bridge`, `nightshade_plugins`,
-  `nightshade_updater`, and `nightshade_app`
-  (audit-dart §10 #3).
+  `nightshade_updater`, and `nightshade_app`.
 - `MediaQuery.of(context)` replaced with granular
-  `.sizeOf` / `.orientationOf` accessors at 26 sites
-  (audit-dart §3a).
+  `.sizeOf` / `.orientationOf` accessors at 26 sites.
 - Fixed-height `ListView.builder` calls now carry `itemExtent`;
-  off-screen `Timer`s are paused (audit-dart §3c, §4.33).
+  off-screen `Timer`s are paused.
 - `SequenceNode` hierarchy converted to a Dart 3 `sealed class` for
-  exhaustive switches across 12 downstream `is`-chain call sites
-  (audit-dart §6c).
+  exhaustive switches across 12 downstream `is`-chain call sites.
 - `autoDispose` audit: applied to 14 page-scoped providers, with
-  documented keep-alive rationale for the 15th
-  (audit-dart §1b).
+  documented keep-alive rationale for the 15th.
 
 ## [2.5.0] - 2026-05-11
 
@@ -848,31 +820,31 @@ Limitations / known follow-ups:
 - Hash verification of every file in the staging manifest after apply.
   The boot-time `verifyPendingInstall` step now re-hashes the executable
   against the recorded post-install hash and refuses to mark the update
-  verified on mismatch (§7A.3).
+  verified on mismatch.
 - File-lock at `<install_dir>/updates/.updater.lock` prevents concurrent
-  updater runs (§7A.6).
+  updater runs.
 - LAN-push package size cap (1 GiB, configurable) enforced before
-  manifest signature verification can write any byte (§7A.7).
+  manifest signature verification can write any byte.
 - LAN-push receiver refuses to start if no
   `NIGHTSHADE_UPDATE_PUBLIC_KEY` was compiled in, and logs an actionable
-  message telling the user to rebuild with the dart-define (§7A.7).
+  message telling the user to rebuild with the dart-define.
 - ZIP archives are now stream-extracted via `archive`'s `InputFileStream`
-  instead of being loaded whole into memory (§7A.8).
+  instead of being loaded whole into memory.
 - `staged_verified.marker` written after manifest + package SHA-256
   verification. `_bootstrapUpdater` refuses to copy `updater.exe` unless
-  the marker matches the current manifest (§7A.9).
+  the marker matches the current manifest.
 
 #### Production audit tooling
 - `behavioral_audit.dart` and `placeholder_audit.dart` now scan via path
   globs over runtime locations instead of the previous hardcoded
   17-file allowlist. New patterns: `catch (_)`, `?? null|0|false|''|""`,
   `let _ =`, `.unwrap_or_default()`, `.ok();`, comment patterns
-  (`// best effort`, `// silently ignore`, `// for now`, etc.) (§7B.1, §7B.2).
+  (`// best effort`, `// silently ignore`, `// for now`, etc.).
 - `fail_closed_check.dart` is now driven by
   `docs/production-readiness/fail_closed_rules.yaml` and applies its
-  rules to all matching files instead of a hardcoded list (§7B.3).
+  rules to all matching files instead of a hardcoded list.
 - CI baseline assertions (`--min-files` flag) so accidental reductions
-  in audit coverage are detected (§7B.4).
+  in audit coverage are detected.
 
 ### Changed
 
@@ -966,13 +938,13 @@ Limitations / known follow-ups:
   renamed to `*.old` before the new file is written. On any failure all
   `*.old` files are renamed back; on success they are deleted. Previously
   the partial backup could not restore files added or modified outside
-  the hardcoded backup set (§7A.2).
+  the hardcoded backup set.
 - `Process.start` → `exit(0)` race on updater launch hardened: the app
   verifies `pid != 0`, sleeps briefly, flushes the logger, and on
-  `Process.start` exception restores the staged-update status (§7A.5).
+  `Process.start` exception restores the staged-update status.
 - `behavioral_audit` rule definitions now live in YAML
   (`docs/production-readiness/fail_closed_rules.yaml`) instead of
-  being hardcoded in the Dart program (§7B.1, §7B.3).
+  being hardcoded in the Dart program.
 - INDI client jitter seeding is now per-instance via
   `fastrand::Rng::with_seed` instead of time-seed (§5.23).
 
@@ -999,14 +971,14 @@ Limitations / known follow-ups:
   with an actionable message ("Update could not replace foo.dll because
   it is in use. Please close Nightshade and try again."). The previous
   same-size optimization could silently corrupt installs with
-  different-content-same-size files (§7A.1).
+  different-content-same-size files.
 - OTA updater backup now covers every file the apply step touches via
   move-then-copy `*.old` rename strategy. Previously the hardcoded
   3-file backup could not restore files added or modified outside that
-  set (§7A.2).
+  set.
 - `cleanup_staging` now deletes `staging_dir` itself, not its parent.
   The previous behaviour wiped `backup/`, `pending_install.json`, and any
-  future-staged update in one shot (§7A.4).
+  future-staged update in one shot.
 - `device_id.rs` `valid_vendors` allow-list is now generated from a
   single registry (`SUPPORTED_NATIVE_VENDORS` in `native/src/lib.rs`).
   Saved profiles for `playerone`, `meade`, `onstep`, `losmandy`,
@@ -1032,7 +1004,7 @@ Limitations / known follow-ups:
   `pier_side: Unknown` on read failure. Each field is now `Option<T>`
   with an availability marker; the UI distinguishes "off" from "broken"
   from "unsupported by driver" (§5.4).
-- SkyWatcher mount no longer returns `Ok(())` on
+- SkyWatcher mount no longer returns `Ok()` on
   `set_tracking_rate(Sidereal)` or hardcoded values for
   `get_tracking_rate` / `get_side_of_pier` / `get_alt_az` /
   `get_sidereal_time`. The minimum-viable fix returns
@@ -1199,11 +1171,11 @@ Limitations / known follow-ups:
   false-confidence blind spot. The expanded glob coverage applies to
   every new headless handler, the LAN-push receiver, the updater Rust
   binary, the OTA updater Dart code, and `apps/desktop/lib/widgets/
-  update_manager.dart` (§7B.1).
+  update_manager.dart`.
 - Excluded directory tokens are now name-anchored (`test`, `tests`,
   `example`, `samples`) instead of substring-matched. Production
   modules whose paths happen to contain those tokens are no longer
-  silently skipped (§7B.2).
+  silently skipped.
 
 ### Security
 
@@ -1238,10 +1210,9 @@ Limitations / known follow-ups:
 - **LAN-push manifest signature verified before any byte is written.**
   1 GiB pre-signature size cap. LAN-push receiver refuses to start at
   all if `NIGHTSHADE_UPDATE_PUBLIC_KEY` was not compiled in, with a
-  clear error rather than a silent-disabled state (§7A.7).
+  clear error rather than a silent-disabled state.
 - **Updater file lock** at `<install_dir>/updates/.updater.lock`
-  prevents concurrent updater runs racing on `pending_install.json`
-  (§7A.6).
+  prevents concurrent updater runs racing on `pending_install.json`.
 - **Dashboard CSP `connect-src` restricted to `'self' ws: wss:`.**
   Previous `http://*:* https://*:* ws://*:* wss://*:*` is gone (§2.4).
 - **Dashboard startup warning when bound on a non-loopback address.**
@@ -1288,7 +1259,7 @@ Limitations / known follow-ups:
 - Hardcoded `currentVersion: '2.0.0'` fallback in
   `nightshade_updater`'s update provider. A missing version-provider
   now logs at `error!` and refuses to start update polling per the
-  CLAUDE.md "errors are a feature" ground rule (§7A.10).
+  "errors are a feature" ground rule.
 - Bridge `device_id.rs` hardcoded `valid_vendors` duplicate. The
   registry now lives in `native/nightshade_native/native/src/lib.rs`
   (§5.1).

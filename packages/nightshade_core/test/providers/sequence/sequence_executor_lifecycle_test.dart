@@ -1,7 +1,7 @@
-// Wave 5.5 — integration test for the SequenceExecutor's session-lifecycle
-// hooks (Pack N).
+// Integration test for the SequenceExecutor's session-lifecycle
+// hooks.
 //
-// Three Wave 5 agents shipped providers that depend on the executor
+// Three agents shipped providers that depend on the executor
 // calling specific hooks at session start and end:
 //   * Optical-train baseline / current-snapshot providers
 //     (`opticalTrainBaselineProvider`, `opticalTrainCurrentSnapshotProvider`)
@@ -165,7 +165,7 @@ void main() {
 
     test('skips baseline gracefully when diagnostics are unavailable', () {
       // No PSF tiles seeded — the diagnostics service has nothing to
-      // analyze. Per CLAUDE.md the executor must NOT crash; it should
+      // analyze. The executor must NOT crash; it should
       // log and continue.
       final container = buildContainer(dbSessionId: 99);
       final executor = container.read(sequenceExecutorProvider);

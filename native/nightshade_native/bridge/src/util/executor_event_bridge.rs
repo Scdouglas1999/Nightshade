@@ -1,4 +1,4 @@
-//! Wave 1.5 Pack A: bridge ExecutorEvents from one-shot bridge-API instruction
+//! bridge ExecutorEvents from one-shot bridge-API instruction
 //! sites (e.g. `api_autofocus`, `api_start_polar_alignment`) into the bridge's
 //! shared NightshadeEvent bus.
 //!

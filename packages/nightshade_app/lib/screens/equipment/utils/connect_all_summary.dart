@@ -2,7 +2,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import 'driver_error_pretty.dart';
 
-/// UI-P0-2: per-device failure surfaced to snackbars / logs.
+/// Per-device failure surfaced to snackbars / logs.
 class ConnectAllFailure {
   final String deviceType;
   final String message;

@@ -54,7 +54,7 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     )..where((t) => t.recordedAt.isSmallerThanValue(cutoff))).go();
   }
 
-  /// P2-8: time-bucketed paginated listing for the remote read API.
+  /// Time-bucketed paginated listing for the remote read API.
   /// [sinceMs] and [untilMs] are inclusive epoch-millisecond bounds; null
   /// means "unbounded on that side". Newest-first ordering matches the
   /// existing [recentForMount] convention. Caller MUST validate / clamp
@@ -79,7 +79,7 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count for the same filter set [listPaginated] uses.
+  /// Row count for the same filter set [listPaginated] uses.
   Future<int> countFiltered({int? sinceMs, int? untilMs}) async {
     final countExpr = guideRmsHistory.id.count();
     final query = selectOnly(guideRmsHistory)..addColumns([countExpr]);

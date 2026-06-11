@@ -404,7 +404,6 @@ final sequenceCheckpointsDaoProvider = Provider<SequenceCheckpointsDao>((ref) {
 final sessionServiceProvider = Provider<SessionService>((ref) {
   // Why: inject the active clock so session-start/end timestamps stamped
   // by SessionService honor the user's TZ override
-  // (audit-handoff §2.1 WIRE-UP #9).
   final clock = ref.watch(clockProvider);
   final service = SessionService(
     records: ref.watch(imagingRecordsRepositoryProvider),

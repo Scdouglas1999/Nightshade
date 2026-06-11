@@ -41,7 +41,7 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
   // method argument overrides the current field; `null` arguments fall
   // back to the existing value. This is independent of how `copyWith` is
   // implemented (Equatable today, freezed in Step 3) and preserves every
-  // observable behaviour the current Wave-4/-7 event pump relies on.
+  // observable behaviour the current event pump relies on.
   void updateProgress({
     String? currentNodeId,
     String? currentNodeName,

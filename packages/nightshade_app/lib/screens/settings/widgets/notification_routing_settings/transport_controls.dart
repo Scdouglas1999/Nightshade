@@ -23,7 +23,7 @@ class _TransportsSection extends ConsumerWidget {
 
 // ---- Common helper: secure-field row ----------------------------------------
 
-/// Wave 5 Agent 5 — masked input for secrets stored in flutter_secure_storage.
+/// Masked input for secrets stored in flutter_secure_storage.
 ///
 /// When a secret value is already in the store (controller has non-empty
 /// text), the row renders a masked placeholder ("•••••••• (stored

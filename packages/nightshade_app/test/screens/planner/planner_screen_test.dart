@@ -41,7 +41,7 @@ List<Override> _commonOverrides() {
         .overrideWith((ref) async => <IntegrationGoal>[]),
     integrationGoalProgressProvider
         .overrideWith((ref, _) async => <IntegrationGoalProgress>[]),
-    // Projects tab (C9) + This Week tab (C10) dependencies. The planner body
+    // Projects tab + This Week tab dependencies. The planner body
     // is an IndexedStack, which builds *every* child eagerly regardless of the
     // selected tab, so these leaf providers must resolve without a DB / HTTP
     // client even when the test only asserts on the Recommendation tab.
@@ -222,7 +222,7 @@ void main() {
   });
 
   // ===========================================================================
-  // CQ-W14-WIDGET-TESTS-MORE-SCREENS: behavior tests beyond initial selection.
+  // Behavior tests beyond initial selection.
   // ===========================================================================
 
   testWidgets(

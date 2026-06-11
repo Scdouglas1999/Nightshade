@@ -1,4 +1,4 @@
-// Wave 1.5 Pack D: end-to-end smoke test for the critical-event escalation
+// End-to-end smoke test for the critical-event escalation
 // path. Verifies that a critical bridge event:
 //   * Appears in `runDashboardCriticalEventsProvider` (banner data)
 //   * Routes through `uiNotificationProvider` (toast queue)

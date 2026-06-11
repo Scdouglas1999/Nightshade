@@ -318,7 +318,7 @@ class FocusModelHandlers {
         'offsetSteps': offset.offsetSteps,
         'measurementCount': offset.measurementCount,
         'confidence': offset.confidence,
-        // IMG-P1-2: surface the confidence ladder so the UI can warn the
+        // IMG-surface the confidence ladder so the UI can warn the
         // user when offsets are raw averages contaminated by temperature
         // drift instead of silently labelling them "high confidence".
         'confidenceBand': offset.confidenceBand.name,

@@ -4,7 +4,7 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Filter wheels physically have ≤ 16 slots; every numeric cast in this
 //! module is therefore bounded:

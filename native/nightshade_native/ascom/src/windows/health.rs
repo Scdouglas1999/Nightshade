@@ -1,6 +1,6 @@
 //! Connection health monitoring for ASCOM devices.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All `unwrap_or(0)` sites in this file follow a `SystemTime::now()
 //! .duration_since(UNIX_EPOCH)` chain that only fails if the system clock
@@ -71,7 +71,7 @@ impl HealthMonitor {
 
     /// Record a successful operation
     pub fn record_success(&self) {
-        // Why (audit-rust §1.4): `Duration::as_millis()` returns u128. u64 ms since
+        // Why: `Duration::as_millis()` returns u128. u64 ms since
         // 1970 overflows in year ~584,554,531 AD; until then the cast is a pure
         // truncation-of-leading-zeros widening-narrowing. Falling back to u64::MAX
         // post-overflow keeps `time_since_last_success()` saturating-correct without
@@ -90,7 +90,7 @@ impl HealthMonitor {
 
     /// Record a failed operation
     pub fn record_failure(&self) {
-        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // Why: see `record_success` — `as_millis()` u128 → u64
         // safe until year 584 million AD; saturate on overflow rather than panic.
         let now = u64::try_from(
             std::time::SystemTime::now()
@@ -112,7 +112,7 @@ impl HealthMonitor {
             return ConnectionHealth::Failed;
         }
 
-        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // Why: see `record_success` — `as_millis()` u128 → u64
         // safe until year 584 million AD; saturate on overflow rather than panic.
         let now = u64::try_from(
             std::time::SystemTime::now()
@@ -149,7 +149,7 @@ impl HealthMonitor {
         if last == 0 {
             return None;
         }
-        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // Why: see `record_success` — `as_millis()` u128 → u64
         // safe until year 584 million AD; saturate on overflow rather than panic.
         let now = u64::try_from(
             std::time::SystemTime::now()

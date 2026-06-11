@@ -1,4 +1,4 @@
-// Wave 6 Pack P — verify the SequenceExecutor routes a typed
+// Verify the SequenceExecutor routes a typed
 // `PluginNodeRequested` event through the `pluginNodeDispatcherProvider`
 // and posts the verdict back through `backend.sequencerPluginNodeFinished`.
 //

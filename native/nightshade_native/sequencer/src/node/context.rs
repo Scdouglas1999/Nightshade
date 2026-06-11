@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
-/// Wave 5 Agent 4 — snapshot of the latest cloud-motion analyzer reading.
+/// snapshot of the latest cloud-motion analyzer reading.
 ///
 /// Pushed from Dart via `ExecutorCommand::UpdateCloudMotion`; consumed by
 /// the cloud-aware recovery actions (`SlewToGapAndContinue`) and the
@@ -27,7 +27,7 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 ///
 /// All quantities are `Option` because the analyzer may not yet have
 /// enough radar history to produce them — absent values disable the
-/// dependent recovery branch rather than firing on defaults (CLAUDE.md
+/// dependent recovery branch rather than firing on defaults (the CONTRIBUTING.md house rules
 /// "errors are a feature").
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct CloudMotionSnapshot {
@@ -155,7 +155,7 @@ pub struct ExecutionContext {
     /// the runtime-side read see the same allocation across the
     /// `ExecutionContext -> InstructionContext` boundary.
     pub device_disconnect_recovery_pending: Arc<AtomicBool>,
-    /// Wave 3 Agent 2: in-memory SmartExposure per-node resume state,
+    /// in-memory SmartExposure per-node resume state,
     /// keyed by NodeId. Survives pause/resume within a single process run.
     /// Cross-process resume requires the executor to additionally plumb a
     /// `CheckpointManager` and serialize this map into
@@ -165,7 +165,7 @@ pub struct ExecutionContext {
     /// allocation (matches the rest of this struct's shared-state pattern).
     pub smart_exposure_states:
         Arc<RwLock<std::collections::HashMap<NodeId, crate::SmartExposureCheckpoint>>>,
-    /// Wave 3 Agent 3: shared per-target integration budget registry.
+    /// shared per-target integration budget registry.
     /// `TargetHeader` runtime registers a state on entry; `expose` instruction
     /// credits successful bursts; the next `TargetHeader` child-boundary
     /// check terminates the target Success when the budget is met.
@@ -173,7 +173,7 @@ pub struct ExecutionContext {
     /// a single registry across parallel branches.
     pub budget_registry: BudgetRegistry,
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading: FITS-header metadata + grading state.
+    // Image Grading: FITS-header metadata + grading state.
     //
     // The executor seeds the "session-static" fields (session_id, observer,
     // equipment identification, site elevation) at start time; the per-target
@@ -222,33 +222,33 @@ pub struct ExecutionContext {
     /// the cloned ExecutionContext used by parallel branches sees the
     /// latest solve.
     pub last_plate_solve: Arc<RwLock<Option<crate::device_ops::PlateSolveResult>>>,
-    /// Wave 3 Image Grading: rolling baseline HFR for the current target
+    /// Image Grading: rolling baseline HFR for the current target
     /// (median of the first N accepted frames). `None` until the baseline
     /// has been established; image grading checks then compare new frames
     /// against this baseline.
     pub hfr_baseline: Arc<RwLock<Option<f64>>>,
-    /// Wave 3 Image Grading: HFR samples being averaged into the baseline.
+    /// Image Grading: HFR samples being averaged into the baseline.
     /// Discarded once the baseline becomes Some.
     pub hfr_baseline_samples: Arc<RwLock<Vec<f64>>>,
-    /// Wave 3 Image Grading: running count of how many consecutive frames
+    /// Image Grading: running count of how many consecutive frames
     /// have been rejected. Reset to 0 every time an accepted frame lands.
     /// Used to detect "something is systematically wrong" — focus has
     /// drifted, clouds have rolled in, etc.
     pub consecutive_rejects: Arc<std::sync::atomic::AtomicU32>,
-    /// Wave 3 Image Grading: cumulative accepted / rejected counters for
+    /// Image Grading: cumulative accepted / rejected counters for
     /// the run. Surfaced to the dashboard quality panel via the progress
     /// callback.
     pub frames_accepted: Arc<std::sync::atomic::AtomicU32>,
     pub frames_rejected: Arc<std::sync::atomic::AtomicU32>,
-    /// Pack G — Global default image-quality thresholds, seeded from
+    /// Global default image-quality thresholds, seeded from
     /// `RuntimeConfig.default_quality_check` at executor `start()`. Used as
     /// the fallback when a TakeExposure node does NOT carry its own
     /// `quality_check`. None => grading disabled globally.
     pub default_quality_check: Option<crate::quality::ImageQualityCheck>,
-    /// Pack G — Optional reject-folder override, seeded from
+    /// Optional reject-folder override, seeded from
     /// `RuntimeConfig.reject_folder_path`. None => use `<save_path>/Reject/`.
     pub reject_folder_path: Option<String>,
-    /// Wave 4 — pluggable wall-clock used by scheduling code (target
+    /// pluggable wall-clock used by scheduling code (target
     /// header altitude crossings, target scheduler, integration budget
     /// timeline). Defaults to [`crate::scheduling::WallClock`] in
     /// production; tests inject a `MockClock` via
@@ -256,7 +256,7 @@ pub struct ExecutionContext {
     /// time-of-day-dependent assertions become deterministic.
     pub clock: Arc<dyn Clock>,
     // -------------------------------------------------------------------
-    // Wave 5 Agent 2 — sky-brightness adaptive exposures.
+    // sky-brightness adaptive exposures.
     // -------------------------------------------------------------------
     /// Live sky brightness in mag/arcsec² (bigger = darker). Pushed by
     /// the Dart layer via `ExecutorCommand::UpdateSkyBrightness` from the
@@ -265,7 +265,7 @@ pub struct ExecutionContext {
     /// `ExecutionContext::clone` keeps every parallel branch reading the
     /// same live value.
     pub current_sky_brightness_mag: Arc<RwLock<Option<f64>>>,
-    /// Wave 5 Agent 2 — global default adaptive-exposure config, seeded
+    /// global default adaptive-exposure config, seeded
     /// from `RuntimeConfig::default_adaptive_exposure` at start time and
     /// kept in sync by the `UpdateDefaultAdaptiveExposure` command. Per-
     /// node `ExposureConfig::adaptive_exposure` wins; this is the
@@ -277,14 +277,14 @@ pub struct ExecutionContext {
     /// without fighting the borrow checker. Matches the
     /// `current_sky_brightness_mag` / `cloud_motion_snapshot` pattern.
     pub default_adaptive_exposure: Arc<RwLock<Option<crate::scheduling::AdaptiveExposureConfig>>>,
-    /// Wave 5 Agent 4 — latest cloud-motion analyzer snapshot. Pushed by
+    /// latest cloud-motion analyzer snapshot. Pushed by
     /// the Dart side via `ExecutorCommand::UpdateCloudMotion`; consumed by
     /// `RecoveryAction::SlewToGapAndContinue` (needs the clear-sky
     /// direction) and by the run-dashboard cloud-motion panel.
     /// `Arc<RwLock<...>>` so `ExecutionContext::clone` shares the
     /// allocation with every parallel branch.
     pub cloud_motion_snapshot: Arc<RwLock<CloudMotionSnapshot>>,
-    /// Wave 6 Pack P — pending plugin-node oneshots, keyed by node id.
+    /// pending plugin-node oneshots, keyed by node id.
     ///
     /// When `PluginNodeInstruction::execute` runs it inserts a oneshot
     /// sender keyed by `node_id` and awaits the receiver. The executor's
@@ -295,7 +295,7 @@ pub struct ExecutionContext {
     pub plugin_node_pending: Arc<
         RwLock<std::collections::HashMap<NodeId, tokio::sync::oneshot::Sender<PluginNodeReply>>>,
     >,
-    /// Wave 7 Agent 3 — per-frame defect-map application state.
+    /// per-frame defect-map application state.
     ///
     /// When `Some`, `instructions::execute_exposure` will apply the
     /// pre-loaded defect map to each captured frame before the FITS
@@ -306,7 +306,7 @@ pub struct ExecutionContext {
     /// fighting the borrow checker (matches the `cloud_motion_snapshot`
     /// / `current_sky_brightness_mag` pattern).
     pub defect_map_apply: Arc<RwLock<Option<crate::executor::DefectMapApplyState>>>,
-    /// Wave 7 Science — latest sky transparency reading (0.0..=1.0 as a
+    /// Science — latest sky transparency reading (0.0..=1.0 as a
     /// fraction of clear-sky reference; 1.0 = perfectly clear, 0.0 =
     /// totally opaque). Pushed from the Dart science pipeline via
     /// `ExecutorCommand::UpdateTransparency`. Consumed by the
@@ -314,20 +314,20 @@ pub struct ExecutionContext {
     /// node's per-frame quality gates. `Arc<RwLock<...>>` so cloned
     /// ExecutionContexts share the same allocation.
     pub current_transparency: Arc<RwLock<Option<f64>>>,
-    /// Wave 7 Science — operator-configured backup plan that
+    /// Science — operator-configured backup plan that
     /// `RecoveryAction::SwitchTargetOrFilter` consults. Pushed by Dart
     /// at sequence start via `ExecutorCommand::UpdateTransparencyBackup`.
     /// `None` => no fallback configured (recovery falls back to
     /// `PauseAndWaitForClear` and emits an Error explaining the
-    /// missing config — per CLAUDE.md no silent fallbacks).
+    /// missing config — per no silent fallbacks).
     pub transparency_backup_plan: Arc<RwLock<Option<TransparencyBackupPlan>>>,
-    /// Wave 7 Science — per-node photometry timing state keyed by
+    /// Science — per-node photometry timing state keyed by
     /// NodeId. The photometry instruction stamps each frame's start
     /// time so the next iteration can detect cadence gaps without
     /// threading the value through the expose pipeline.
     pub science_photometry_states:
         Arc<RwLock<std::collections::HashMap<NodeId, PhotometryRuntimeState>>>,
-    /// Wave 8 Replay Debug — optional decision broadcast sender. When
+    /// Replay Debug — optional decision broadcast sender. When
     /// `Some`, instruction code (scheduler, recovery driver, exposure
     /// grading, plugin nodes) emits a [`crate::decision::DecisionEvent`]
     /// via [`Self::emit_decision`]. The bridge subscribes to the channel
@@ -338,13 +338,13 @@ pub struct ExecutionContext {
     /// instruction sites) — the helper is a no-op in that case so test
     /// code does not need to fabricate a sender.
     pub decision_tx: Option<crate::decision::DecisionSender>,
-    /// Wave 8 Replay Debug — active `sequence_runs.id` stamped onto every
+    /// Replay Debug — active `sequence_runs.id` stamped onto every
     /// emitted decision so the persistence layer can populate the FK
     /// without joining on wall-clock windows. `None` until the Dart side
     /// inserts the row and calls `set_active_sequence_run_id` on the
     /// executor (the executor then pushes that into the context).
     pub active_sequence_run_id: Arc<parking_lot::RwLock<Option<i64>>>,
-    /// Wave 8 — Frame-Failure Forensics rolling history.
+    /// Frame-Failure Forensics rolling history.
     ///
     /// Bounded ring buffer of the last
     /// [`crate::quality::FORENSIC_HISTORY_LEN`] frame samples (accepted
@@ -358,30 +358,30 @@ pub struct ExecutionContext {
     /// regardless of run length.
     pub forensics_history:
         Arc<RwLock<std::collections::VecDeque<crate::quality::RecentFrameSample>>>,
-    /// Wave 8 — current wind speed reading (km/h) pushed by the Dart
+    /// current wind speed reading (km/h) pushed by the Dart
     /// weather feed via `ExecutorCommand::UpdateWind`. `None` until the
     /// first sample arrives. Held behind `Arc<RwLock<...>>` so the
     /// executor's command handler can mutate it (the rest of the
     /// `ExecutionContext` clone pattern).
     pub current_wind_kph: Arc<RwLock<Option<f64>>>,
-    /// Wave 8 — last sensor temperature reading (°C) reported by the
+    /// last sensor temperature reading (°C) reported by the
     /// camera at capture completion. Snapshotted into the forensic
     /// event so a frame rejected during a cooler dropout can be
     /// classified against the temperature trend. `None` until the
     /// first sample arrives.
     pub current_sensor_temp_c: Arc<RwLock<Option<f64>>>,
-    /// Wave 8 — latest composite sky-conditions score pushed from Dart
+    /// latest composite sky-conditions score pushed from Dart
     /// via `ExecutorCommand::UpdateConditionsScore`. Consumed by the
     /// `TargetScheduler` adaptive-swap logic and surfaced to the run
     /// dashboard's "Adaptive Conditions" panel. `None` until the Dart
     /// composer has produced its first sample.
     pub current_conditions_score: Arc<RwLock<Option<crate::scheduling::ConditionsScore>>>,
-    /// Wave 8 — adaptive-swap accounting (last swap timestamp, last
+    /// adaptive-swap accounting (last swap timestamp, last
     /// decision, currently-running tier) shared across all
     /// `TargetScheduler` instances in the running sequence. Read by the
     /// run-dashboard panel via the bridge JSON snapshot getter.
     pub adaptive_swap_state: Arc<RwLock<AdaptiveSwapRuntimeState>>,
-    /// Audit §15 — per-dispatch override for SmartExposure cycling.
+    /// per-dispatch override for SmartExposure cycling.
     ///
     /// Installed by [`crate::node::logic::target_scheduler`] immediately
     /// before it calls `execute()` on the picked target subtree (when the
@@ -423,7 +423,7 @@ pub struct ExecutionContext {
     pub dither_barrier: Option<Arc<crate::dual_rig::DitherBarrier>>,
 }
 
-/// Wave 8 — runtime adaptive-swap accounting. Hot-mutated by the
+/// runtime adaptive-swap accounting. Hot-mutated by the
 /// `TargetScheduler` when it makes an adaptive-swap decision; read by the
 /// run-dashboard panel. Distinct from `ConditionsScore` (which is the
 /// telemetry input) — this is the *output* of the decision engine,
@@ -462,7 +462,7 @@ pub struct AdaptiveSwapRuntimeState {
     pub configured_hysteresis_secs: f64,
 }
 
-/// Wave 7 Science — operator-configured fallback plan consulted by
+/// Science — operator-configured fallback plan consulted by
 /// `RecoveryAction::SwitchTargetOrFilter`. Either field may be `None`:
 ///
 /// * `backup_filter = Some, backup_target_id = None` => stay on this
@@ -484,7 +484,7 @@ pub struct TransparencyBackupPlan {
     pub description: Option<String>,
 }
 
-/// Wave 7 Science — per-photometry-node timing record persisted in
+/// Science — per-photometry-node timing record persisted in
 /// `ExecutionContext::science_photometry_states`.
 #[derive(Debug, Clone, Default)]
 pub struct PhotometryRuntimeState {
@@ -498,7 +498,7 @@ pub struct PhotometryRuntimeState {
     pub cadence_breaks: u32,
 }
 
-/// Wave 6 Pack P — payload threaded from the executor's command handler
+/// payload threaded from the executor's command handler
 /// back to the `PluginNodeInstruction` that emitted the request. Kept
 /// outside the public bridge / FRB surface because the oneshot is purely
 /// an in-process synchronisation primitive.
@@ -557,7 +557,7 @@ impl ExecutionContext {
             device_disconnect_recovery_pending: Arc::new(AtomicBool::new(false)),
             smart_exposure_states: Arc::new(RwLock::new(std::collections::HashMap::new())),
             budget_registry: BudgetRegistry::new(),
-            // Wave 3 Image Grading: a non-empty session id is preferred to
+            // Image Grading: a non-empty session id is preferred to
             // "" so log lines always render a stable identifier; default
             // constructions get a new uuid so test runs are individually
             // identifiable.
@@ -582,51 +582,51 @@ impl ExecutionContext {
             frames_rejected: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             default_quality_check: None,
             reject_folder_path: None,
-            // Wave 4 — production path uses the real wall clock; tests
+            // production path uses the real wall clock; tests
             // override via `with_clock` to pin time.
             clock: default_clock(),
-            // Wave 5 Agent 2 — sky brightness starts unknown; the Dart
+            // sky brightness starts unknown; the Dart
             // layer pushes the first reading once the tracker has
             // converged.
             current_sky_brightness_mag: Arc::new(RwLock::new(None)),
             default_adaptive_exposure: Arc::new(RwLock::new(None)),
-            // Wave 5 Agent 4 — empty snapshot; Dart pushes the first
+            // empty snapshot; Dart pushes the first
             // sample once `cloudMotionAnalyzerProvider` produces data.
             cloud_motion_snapshot: Arc::new(RwLock::new(CloudMotionSnapshot::default())),
-            // Wave 6 Pack P — empty pending-plugin map; entries are added
+            // empty pending-plugin map; entries are added
             // and removed by `PluginNodeInstruction` + the executor's
             // command handler.
             plugin_node_pending: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            // Wave 7 Agent 3 — defect map disabled by default. The
+            // defect map disabled by default. The
             // bridge pushes a `Some(...)` value once the user toggles
             // "Apply during capture" on for the connected camera.
             defect_map_apply: Arc::new(RwLock::new(None)),
-            // Wave 7 Science — transparency reading starts unknown; the
+            // Science — transparency reading starts unknown; the
             // Dart science pipeline pushes the first sample via
             // `ExecutorCommand::UpdateTransparency`. The backup plan
             // starts unset; the photometry timing map starts empty.
             current_transparency: Arc::new(RwLock::new(None)),
             transparency_backup_plan: Arc::new(RwLock::new(None)),
             science_photometry_states: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            // Wave 8 Replay Debug — `None` until the executor installs a
+            // Replay Debug — `None` until the executor installs a
             // sender via `with_decision_sender(...)`. Test contexts left
             // at `None` produce no-op decision emissions.
             decision_tx: None,
             active_sequence_run_id: Arc::new(parking_lot::RwLock::new(None)),
-            // Wave 8 Forensics — empty ring buffer; entries are appended
+            // Forensics — empty ring buffer; entries are appended
             // by the expose path after every accepted/rejected frame.
             forensics_history: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
                 crate::quality::FORENSIC_HISTORY_LEN,
             ))),
             current_wind_kph: Arc::new(RwLock::new(None)),
             current_sensor_temp_c: Arc::new(RwLock::new(None)),
-            // Wave 8 — adaptive sky-conditions swap. Both slots start empty;
+            // adaptive sky-conditions swap. Both slots start empty;
             // Dart pushes the first ConditionsScore once the AdaptiveSwapService
             // has composed it, and the TargetScheduler populates the runtime
             // state on its first decision.
             current_conditions_score: Arc::new(RwLock::new(None)),
             adaptive_swap_state: Arc::new(RwLock::new(AdaptiveSwapRuntimeState::default())),
-            // Audit §15 — no scheduler override active until a
+            // no scheduler override active until a
             // TargetScheduler installs one for the duration of its
             // dispatch.
             scheduler_filter_cycle_override: Arc::new(parking_lot::RwLock::new(None)),
@@ -637,7 +637,7 @@ impl ExecutionContext {
         }
     }
 
-    /// Wave 8 Replay Debug — install the decision broadcast sender from
+    /// Replay Debug — install the decision broadcast sender from
     /// the executor. Builder-style so `start()` can chain it alongside
     /// the existing `with_clock` / `with_device_ops` calls.
     pub fn with_decision_sender(
@@ -650,7 +650,7 @@ impl ExecutionContext {
         self
     }
 
-    /// Wave 8 Replay Debug — emit a structured decision into the
+    /// Replay Debug — emit a structured decision into the
     /// broadcast channel. Stamps the active `sequence_runs.id` (if any)
     /// so the persistence layer can populate the FK without re-joining.
     ///
@@ -667,7 +667,7 @@ impl ExecutionContext {
         let _ = tx.send(event);
     }
 
-    /// Wave 4 — install a pluggable clock. Production callers don't need
+    /// install a pluggable clock. Production callers don't need
     /// this (the default `WallClock` is already wired); test code uses it
     /// to inject a `MockClock`.
     pub fn with_clock(mut self, clock: Arc<dyn Clock>) -> Self {
@@ -850,7 +850,7 @@ impl ExecutionContext {
             .swap(false, Ordering::Relaxed)
     }
 
-    /// Audit §15 — install a multi-filter cycle override for the duration
+    /// install a multi-filter cycle override for the duration
     /// of the next subtree execution. Returns the prior value so the
     /// caller can restore it on exit. Callers MUST pair `install_` with
     /// `set_` of the restored value on every exit path (Success, Failure,
@@ -867,7 +867,7 @@ impl ExecutionContext {
         prior
     }
 
-    /// Audit §15 — read the active multi-filter cycle override (if any).
+    /// read the active multi-filter cycle override (if any).
     /// Returns `None` when no scheduler has installed one OR the installed
     /// mode is `SingleFilter` (the dispatch path uses `is_active()` to
     /// gate, so SingleFilter is treated identically to "no override" at
@@ -1103,7 +1103,7 @@ impl ExecutionContext {
             event_tx: self.event_tx.clone(),
             recovery_request_tx: self.recovery_request_tx.clone(),
             device_disconnect_recovery_pending: self.device_disconnect_recovery_pending.clone(),
-            // Wave 3 Image Grading: thread the FITS-header metadata
+            // Image Grading: thread the FITS-header metadata
             // through so execute_exposure can assemble a FrameContext at
             // save time. These fields are all cheap clones (Strings/Options/
             // Arc handles) so the per-instruction context build remains O(1).
@@ -1126,16 +1126,16 @@ impl ExecutionContext {
             consecutive_rejects: self.consecutive_rejects.clone(),
             frames_accepted: self.frames_accepted.clone(),
             frames_rejected: self.frames_rejected.clone(),
-            // Pack G — seeded from RuntimeConfig at executor.start() via the
+            // seeded from RuntimeConfig at executor.start() via the
             // ExecutionContext fields. Per-node `quality_check` on
             // ExposureConfig still wins; this is the global fallback.
             default_quality_check: self.default_quality_check.clone(),
             reject_folder_path: self.reject_folder_path.clone(),
-            // Wave 7 Agent 3 — share the Arc handle so the capture
+            // share the Arc handle so the capture
             // path's runtime read sees the latest defect-map toggle
             // even if the user flips it mid-burst.
             defect_map_apply: self.defect_map_apply.clone(),
-            // Wave 8 — Forensics history + live env Arcs propagated by
+            // Forensics history + live env Arcs propagated by
             // reference clone so `emit_grade_progress` can read the
             // shared state without re-borrowing `ExecutionContext`.
             forensics_history: self.forensics_history.clone(),
@@ -1143,7 +1143,7 @@ impl ExecutionContext {
             cloud_motion_snapshot: self.cloud_motion_snapshot.clone(),
             current_wind_kph: self.current_wind_kph.clone(),
             current_sensor_temp_c: self.current_sensor_temp_c.clone(),
-            // Wave 8 Replay Debug — propagate the decision sender / run-id
+            // Replay Debug — propagate the decision sender / run-id
             // so instruction code can emit decisions even though the
             // sender was added to `InstructionContext` after this
             // function was first written.

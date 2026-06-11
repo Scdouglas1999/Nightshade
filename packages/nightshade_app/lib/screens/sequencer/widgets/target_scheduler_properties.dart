@@ -1,4 +1,4 @@
-// Wave 3 Agent 1: TargetScheduler properties editor.
+// TargetScheduler properties editor.
 //
 // Sliders for the five scoring weights (+ a one-tap normalise button), min
 // score-to-run threshold, recompute cadence, and finish-iteration-on-switch
@@ -6,7 +6,7 @@
 // against the current children so the user can see "M42 73 / M101 56 / NGC
 // 7000 42" without leaving the editor.
 //
-// Respects [canEditSequenceProvider] (Wave 1.5 Pack B): the entire subtree
+// Respects [canEditSequenceProvider]: the entire subtree
 // is wrapped in `IgnorePointer` so every control reads as disabled while the
 // sequence is running.
 
@@ -397,7 +397,7 @@ class _PreviewPlaceholder extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Wave 8 — Adaptive Swap editor section.
+// Adaptive Swap editor section.
 //
 // Surfaces the four `swap_on_conditions_below`-family fields on
 // [TargetSchedulerNode]. The feature is opt-in: when

@@ -47,7 +47,7 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Filter Change';
                 case TriggerType.dawnApproaching:
                   return 'Dawn Approaching';
-                // Wave 1.5 Pack A additions
+                // Additional trigger types
                 case TriggerType.humidityThreshold:
                   return 'Humidity Threshold';
                 case TriggerType.focusDrift:
@@ -64,14 +64,14 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Dither Interval';
                 case TriggerType.driftLimit:
                   return 'Plate-Solve Drift Limit';
-                // Wave 5 Agent 4 — cloud-motion-aware triggers
+                // Cloud-motion-aware triggers
                 case TriggerType.cloudArrivingIn:
                   return 'Cloud Arriving In';
                 case TriggerType.cloudOpeningIn:
                   return 'Cloud Opening In';
                 case TriggerType.cloudCoverThreshold:
                   return 'Cloud Cover Threshold';
-                // Wave 7 Agent 4 — transparency-adaptive sequencing
+                // Transparency-adaptive sequencing
                 case TriggerType.transparencyDropped:
                   return 'Transparency Dropped';
               }
@@ -106,12 +106,12 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Park & Abort';
                 case RecoveryActionType.customBranch:
                   return 'Custom Branch';
-                // Wave 5 Agent 4 — cloud-motion-aware actions
+                // Cloud-motion-aware actions
                 case RecoveryActionType.pauseAndWaitForClear:
                   return 'Pause & Wait for Clear Sky';
                 case RecoveryActionType.slewToGapAndContinue:
                   return 'Slew to Clear Gap & Continue';
-                // Wave 7 Agent 4 — transparency-adaptive recovery
+                // Transparency-adaptive recovery
                 case RecoveryActionType.switchTargetOrFilter:
                   return 'Switch Target or Filter';
               }
@@ -209,7 +209,7 @@ class RecoveryProperties extends ConsumerWidget {
               },
             ),
           ),
-        // ===== Wave 1.5 Pack A trigger config editors =====
+        // ===== Trigger config editors =====
         if (node.triggerType == TriggerType.humidityThreshold)
           NodePropertyField(
             colors: colors,
@@ -393,7 +393,7 @@ class RecoveryProperties extends ConsumerWidget {
               },
             ),
           ),
-        // Wave 5 Agent 4 — cloud-motion trigger property editors.
+        // Cloud-motion trigger property editors.
         if (node.triggerType == TriggerType.cloudArrivingIn) ...[
           NodePropertyField(
             colors: colors,

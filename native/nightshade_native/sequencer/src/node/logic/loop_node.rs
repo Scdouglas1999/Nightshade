@@ -52,7 +52,7 @@ pub async fn execute_loop(
     config: LoopConfig,
     context: &mut ExecutionContext,
 ) -> NodeStatus {
-    // P1-8: do NOT reset current_iteration here. A fresh run already has it at
+    // do NOT reset current_iteration here. A fresh run already has it at
     // 0 (from_definition / reset), and a nested re-run is preceded by the
     // parent's reset() — so the only time it's non-zero on entry is a RESUME,
     // where `resume_from_checkpoint` restored it via restore_loop_iterations.

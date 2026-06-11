@@ -454,7 +454,7 @@ enum MeridianMonitorDecision {
 /// Watcher that fires meridian-flip alerts when standalone monitoring is on
 /// and the mount crosses the configured trigger condition.
 ///
-/// Why this exists (audit-handoff §1.2):
+/// Why this exists :
 ///   The Sequencer Settings -> Meridian Flip section exposes a
 ///   `standaloneMonitoringEnabled` toggle. Prior to this wire-up the toggle
 ///   flipped a database row that nothing watched. Operators reasonably expect

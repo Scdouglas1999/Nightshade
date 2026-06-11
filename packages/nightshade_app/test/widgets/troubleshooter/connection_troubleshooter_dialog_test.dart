@@ -1,6 +1,6 @@
-// Widget tests for the connection troubleshooter dialog (C12).
+// Widget tests for the connection troubleshooter dialog.
 //
-// The dialog turns a raw driver error into a friendly diagnosis (C3) and an
+// The dialog turns a raw driver error into a friendly diagnosis and an
 // ordered remediation playbook. These tests prove it:
 //   * renders the diagnosis headline + plain-language explanation,
 //   * lists every remediation step with a 1-based number badge,

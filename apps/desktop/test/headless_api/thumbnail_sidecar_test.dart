@@ -1,4 +1,4 @@
-// P1-13 — sidecar JPEG thumbnail caching for GET /api/images/{id}/thumbnail.
+// sidecar JPEG thumbnail caching for GET /api/images/{id}/thumbnail.
 //
 // Strategy: spin up an in-memory Drift DB, write a fake "FITS" file to a
 // temp directory, override `fitsThumbnailBytesGeneratorProvider` with a
@@ -74,7 +74,7 @@ Future<void> _pumpUntil(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('P1-13 thumbnail sidecar caching', () {
+  group('thumbnail sidecar caching', () {
     late ProviderContainer container;
     late SessionHandlers handlers;
     late NightshadeDatabase db;
@@ -415,7 +415,7 @@ void main() {
     });
   });
 
-  group('P1-13 thumbnail sidecar service unit', () {
+  group('thumbnail sidecar service unit', () {
     late Directory tempDir;
     late File fitsFile;
 

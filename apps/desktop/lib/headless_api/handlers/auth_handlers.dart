@@ -5,7 +5,7 @@
 /// (the pairing flow itself lives in [PairingHandlers]):
 ///   * `POST /api/ws/ticket` — mint a single-use WebSocket-upgrade
 ///     ticket so the browser doesn't have to leak the bearer token via
-///     `?token=` (audit §2.28).
+///     `?token=`.
 ///   * `POST /api/auth/cookie` — exchange a freshly-paired bearer token
 ///     for an HttpOnly session cookie + CSRF token. JS cannot read the
 ///     cookie; the SPA must echo the CSRF token on every state change.
@@ -57,7 +57,7 @@ class AuthHandlers {
 
   /// `POST /api/ws/ticket` — mint a single-use ticket the caller can
   /// present on a subsequent WebSocket upgrade. The ticket is bound to
-  /// the auth identity that minted it (P2-15) so the upgrade handler
+  /// the auth identity that minted it so the upgrade handler
   /// can identify the connection without trusting any client-supplied
   /// `viewerId` field.
   ///
@@ -78,7 +78,7 @@ class AuthHandlers {
   }
 
   /// `POST /api/auth/cookie` — issue an HttpOnly session cookie + CSRF
-  /// token for the dashboard "remember me" path (audit §2.5 long form).
+  /// token for the dashboard "remember me" path (long form).
   ///
   /// The caller MUST already be authenticated with a raw
   /// `Authorization: Bearer <token>` header. We deliberately reject

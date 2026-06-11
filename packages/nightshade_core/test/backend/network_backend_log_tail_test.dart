@@ -1,4 +1,4 @@
-// [Wave 6E log tail] — Tests for NetworkBackend.fetchRecentServerLogs +
+// Log tail: Tests for NetworkBackend.fetchRecentServerLogs +
 // clearServerLogs against the FakeNetworkClient (`MockClient`).
 //
 // Why: the SSE tail loop opens a real `dart:io` HttpClient (not

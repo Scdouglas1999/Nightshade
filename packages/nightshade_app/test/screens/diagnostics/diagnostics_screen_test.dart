@@ -1,6 +1,6 @@
 // Widget tests for DiagnosticsScreen and DiagnosticDumpScreen.
 //
-// Scope (CQ-W14-WIDGET-TESTS-MORE-SCREENS):
+// Scope:
 //
 // DiagnosticsScreen (optical-train health surface):
 //   1. renders_without_throwing_no_sessions — with `allSessionsProvider`
@@ -38,8 +38,6 @@
 // line (or a width-bounded, isExpanded dropdown) on a phone. These tests no
 // longer need to swallow "overflowed" FlutterErrors; see
 // diagnostics_responsive_test.dart for the phone-size/orientation coverage.
-//
-// See: docs/code-quality/audit-tests.md §1.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -1,8 +1,8 @@
-// DEV-P3-4: verify the driver-error pretty-printer recognizes the
-// common cross-driver patterns the audit called out, and leaves
+// Verify the driver-error pretty-printer recognizes the
+// common cross-driver patterns, and leaves
 // everything else untouched.
 //
-// CLAUDE.md: pretty-print is layered on top of the raw message — the
+// Pretty-print is layered on top of the raw message — the
 // original text must always be reachable verbatim (here we assert it
 // against `full`). Pretty-print must never silently hide content.
 

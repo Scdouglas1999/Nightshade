@@ -35,7 +35,7 @@ pub fn calculate_mosaic_panels(config: &MosaicConfig) -> Vec<MosaicPanel> {
     let total_cols = config.panels_horizontal;
 
     // Centre the grid — compute offsets from centre.
-    // Why (audit-rust §1.4): `total_rows`/`total_cols` are u32 panel
+    // Why: `total_rows`/`total_cols` are u32 panel
     // counts; u32 → f64 is exact (53-bit mantissa covers all u32). Real
     // mosaics have ≤ a few hundred panels per axis; widening-only.
     let center_row_offset = (f64::from(total_rows) - 1.0) / 2.0;
@@ -45,7 +45,7 @@ pub fn calculate_mosaic_panels(config: &MosaicConfig) -> Vec<MosaicPanel> {
 
     for row in 0..total_rows {
         for col in 0..total_cols {
-            // Why (audit-rust §1.4): u32 → f64 exact widening.
+            // Why: u32 → f64 exact widening.
             let dec_offset = (f64::from(row) - center_row_offset) * height_deg;
             let ra_offset_deg = (f64::from(col) - center_col_offset) * width_deg;
 
@@ -93,7 +93,7 @@ pub fn calculate_mosaic_panels(config: &MosaicConfig) -> Vec<MosaicPanel> {
 
 /// Total mosaic coverage area in square arcminutes.
 pub fn calculate_mosaic_area(config: &MosaicConfig) -> f64 {
-    // Why (audit-rust §1.4): u32 panel counts → f64 widening, exact.
+    // Why: u32 panel counts → f64 widening, exact.
     let total_width_arcmin = config.panel_width_arcmin * f64::from(config.panels_horizontal);
     let total_height_arcmin = config.panel_height_arcmin * f64::from(config.panels_vertical);
     total_width_arcmin * total_height_arcmin
@@ -106,7 +106,7 @@ pub fn estimate_mosaic_time(
     exposures_per_panel: u32,
 ) -> f64 {
     let total_panels = config.panels_horizontal * config.panels_vertical;
-    // Why (audit-rust §1.4): u32 → f64 exact widening for both terms.
+    // Why: u32 → f64 exact widening for both terms.
     let time_per_panel = exposure_secs * f64::from(exposures_per_panel);
     let overhead_per_panel = config.panel_overhead_secs;
 

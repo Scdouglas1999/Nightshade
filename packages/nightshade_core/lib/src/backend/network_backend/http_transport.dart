@@ -83,7 +83,7 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     if (error is dart_error.NightshadeError) {
       return error.isRecoverable;
     }
-    // [Wave 6D error parsing] — the headless envelope's httpStatus tells
+    // Error parsing: the headless envelope's httpStatus tells
     // us whether the request should be retried. Mirror the same status
     // ranges as [_isTransientStatusCode] so retry behaviour is
     // consistent whether the failure was decoded into a [ServerError] or
@@ -136,7 +136,7 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
   /// Return type is [Exception] rather than the narrower
   /// [dart_error.NightshadeError] because the headless server's new
   /// envelope ({code, message, details}) is surfaced as a typed
-  /// [ServerError] — see the [Wave 6D error parsing] branch below.
+  /// [ServerError] — see the [error parsing] branch below.
   /// Existing callers `throw` the result so the widened type doesn't
   /// change their behaviour; the retry helper's
   /// `_isTransientFailure` accepts any Object via duck-typing.
@@ -150,7 +150,7 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     try {
       final json = jsonDecode(responseBody);
       if (json is Map<String, dynamic>) {
-        // [Wave 6D error parsing] — the headless server emits a
+        // Error parsing: the headless server emits a
         // {code, message, details} envelope on every 4xx/5xx; prefer
         // that shape over the legacy and category formats. The check
         // is positional (both keys, both non-empty strings) so we

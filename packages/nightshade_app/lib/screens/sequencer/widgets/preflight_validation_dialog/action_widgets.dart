@@ -113,7 +113,7 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
 }
 
 // =============================================================================
-// Wave 5 Agent 3 — Pre-flight category section
+// Pre-flight category section
 // =============================================================================
 //
 // Compact collapsible-style group for the new pre-flight categories.

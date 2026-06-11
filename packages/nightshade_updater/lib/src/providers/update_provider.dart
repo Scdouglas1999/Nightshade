@@ -27,8 +27,8 @@ typedef UpdateApplySafetyCheck = Future<void> Function();
 /// overridden at app startup; we let the error bubble out instead of
 /// substituting a hardcoded default. A wrong default here silently
 /// breaks update polling (the server uses this string to decide whether
-/// to advertise a newer build), so per CLAUDE.md "errors are a feature"
-/// we refuse to start rather than ship a 2.0.0 fallback (Â§7A.10).
+/// to advertise a newer build); errors are a feature here, so
+/// we refuse to start rather than ship a 2.0.0 fallback.
 final updateProvider = StateNotifierProvider<UpdateNotifier, UpdateState>((
   ref,
 ) {

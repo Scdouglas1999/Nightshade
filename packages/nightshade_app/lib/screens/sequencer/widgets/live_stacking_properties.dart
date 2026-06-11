@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — Properties editor for the LiveStacking node.
+// Properties editor for the LiveStacking node.
 //
 // Renders the configurable knobs (mode, stack method, broadcast port,
 // path, auth token, watermark template, thumbnail size, frame cap)

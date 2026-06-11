@@ -17,12 +17,12 @@ part 'sequence_library_tab/save_sequence_dialog.dart';
 /// Provider for sequences list - loads from database
 // autoDispose: list is only consumed by SequenceLibraryTab; refetching the
 // DB on revisit is cheap and ensures we never show stale entries after the
-// user edited a sequence elsewhere (audit-dart §1b).
+// user edited a sequence elsewhere.
 // Defined in nightshade_core: savedSequencesProvider (sequence_catalog_sync.dart)
 
 /// Search provider for sequences
 // autoDispose: filter input is tab-scoped; clearing it on revisit matches
-// user expectation (audit-dart §1b).
+// user expectation.
 final sequenceSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Sort order for sequences
@@ -30,7 +30,7 @@ enum SequenceSortOrder { name, dateModified, dateCreated, nodeCount }
 
 /// Provider for sort order
 // autoDispose: tab-scoped preference; default (dateModified) is appropriate
-// on each visit (audit-dart §1b).
+// on each visit.
 final sequenceSortOrderProvider = StateProvider.autoDispose<SequenceSortOrder>(
   (ref) => SequenceSortOrder.dateModified,
 );

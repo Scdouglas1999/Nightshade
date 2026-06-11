@@ -1,8 +1,8 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 //
-// # `as`-cast policy (audit-rust §1.4)
+// # `as`-cast policy
 //
 // Numeric casts in this file are simulator-only device wrappers:
 // - **i32 duration_ms → u64 sleep / u32 pulse** (lines 441, 448):

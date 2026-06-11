@@ -46,7 +46,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
-  /// Wave 6 Thumbnails (v30) — add producing-node provenance columns to
+  /// Thumbnail (v30) — add producing-node provenance columns to
   /// `captured_images` if missing. Lives here (called from both
   /// `onCreate` and `onUpgrade`) because the columns are NOT declared on
   /// the Drift `CapturedImages` table class — same convention as the
@@ -684,7 +684,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
         'ALTER TABLE captured_images ADD COLUMN eccentricity REAL',
       );
     }
-    // P1-13: thumbnail sidecar path. Declared as a raw-DDL column rather than
+    // Thumbnail sidecar path. Declared as a raw-DDL column rather than
     // a Drift table column to match the existing producing-node convention —
     // additive nullable text columns don't need Drift codegen churn and the
     // sidecar service reads/writes it via `customStatement`. Called from
@@ -713,7 +713,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'ON equipment_profiles (is_active) WHERE is_active = 1',
     );
 
-    // Wave 6 Agent 5 — notes_journal table. Managed with raw DDL (matches
+    // Notes_journal table. Managed with raw DDL (matches
     // the v27 scheduler tables + v28 defect_maps convention). Created
     // here so fresh installs (which run `onCreate` rather than
     // `onUpgrade`) also get the table; the v29 migration block above
@@ -745,7 +745,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'CREATE INDEX IF NOT EXISTS idx_notes_journal_created '
       'ON notes_journal (created_at)',
     );
-    // Wave 6 Thumbnails (v30) — fresh-install indexes for the producing-
+    // Thumbnail (v30) — fresh-install indexes for the producing-
     // node provenance columns added by `_ensureCapturedImagesProducingNodeColumns`.
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_images_producing_node '
@@ -762,7 +762,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
 
     await _createGuideRmsHistoryTable();
 
-    // Wave 8 Replay Debug (v33) — sequence_decisions table.
+    // Replay Debug (v33) — sequence_decisions table.
     // Fresh-install path; the v33 onUpgrade block handles the
     // in-place upgrade. Idempotent so re-running is safe.
     await customStatement(

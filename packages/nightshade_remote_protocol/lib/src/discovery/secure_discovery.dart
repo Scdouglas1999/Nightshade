@@ -188,7 +188,7 @@ class SecureDiscovery {
       // Why: non-UTF8 datagram on a shared discovery port (a bystander
       // process, port-scanner, mDNS chatter, etc.). Without this guard the
       // throw escapes the socket listener into the zone error handler and
-      // gets swallowed — exactly the silent failure CLAUDE.md warns against.
+      // gets swallowed — exactly the kind of silent failure to avoid.
       // Log at warn level and drop the packet; we mirror the same handling
       // on the client in `_consumeResponse`.
       developer.log(
@@ -298,8 +298,8 @@ class SecureDiscovery {
     final data = utf8.encode(message);
 
     // Why: socket.send can throw on transient network conditions (interface
-    // disappearing during shutdown). Surface those rather than swallowing —
-    // CLAUDE.md: "Silent fallbacks hide bugs for months."
+    // disappearing during shutdown). Surface those rather than swallowing:
+    // silent fallbacks hide bugs for months.
     _socket!.send(data, address, _discoveryPort);
   }
 

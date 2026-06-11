@@ -73,7 +73,7 @@ Dart mirror: [`interpolation_catalog.dart`](../../../../../packages/nightshade_c
 
 ## Error handling
 
-Per `CLAUDE.md`'s "errors are a feature" policy, unknown variables produce a typed `InterpolationError::UnknownVariable`. There is no silent fallback to empty string anywhere in the engine. Callers (run_script, notification, expose) translate the error into a hard `NodeStatus::Failure` so the user is forced to fix their template rather than discover hours later that frames were saved with `image__0001.fits` filenames.
+Per "errors are a feature" policy, unknown variables produce a typed `InterpolationError::UnknownVariable`. There is no silent fallback to empty string anywhere in the engine. Callers (run_script, notification, expose) translate the error into a hard `NodeStatus::Failure` so the user is forced to fix their template rather than discover hours later that frames were saved with `image__0001.fits` filenames.
 
 For the cosmetic display-name path (Run Dashboard labels), interpolation failure logs at `debug!` and falls back to the raw template — a broken label is annoying but never load-bearing.
 

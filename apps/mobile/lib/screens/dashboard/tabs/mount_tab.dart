@@ -624,7 +624,7 @@ class _ControlsRow extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          // [Wave 6D error parsing] — typed envelope so park/unpark/track
+          // [error parsing] — typed envelope so park/unpark/track
           // failures surface the server's machine code (e.g.
           // "Mount is currently slewing (mount_busy)").
           showApiError(context, e);
@@ -700,7 +700,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
       setState(() => _hits = hits.take(8).toList());
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing]
+        // [error parsing]
         showApiErrorWithPrefix(context, 'Search failed', e);
       }
     } finally {
@@ -743,7 +743,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
       }
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing]
+        // [error parsing]
         showApiErrorWithPrefix(context, 'Slew failed', e);
       }
     } finally {

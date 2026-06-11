@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — Live-stacking broadcast endpoints.
+// Live-stacking broadcast endpoints.
 //
 // Public-facing HTTP surface for the EAA / outreach broadcast. When a
 // `LiveStackingNode` is active the four endpoints below serve the
@@ -147,7 +147,7 @@ class BroadcastHandlers {
     controller.onListen = () {
       _logInfo('Broadcast SSE client connected');
       // Tell EventSource to wait 5s before reconnecting after a drop.
-      // Mirrors the Wave 6 run-watch stream so the broadcast page can
+      // Mirrors the run-watch stream so the broadcast page can
       // share its CSP / fetch policy.
       write('retry: 5000\n\n');
 

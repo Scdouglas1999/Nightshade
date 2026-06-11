@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import 'live_activity_service.dart';
 
-/// Wave 5E — bridges the running sequence state to an iOS Live Activity.
+/// bridges the running sequence state to an iOS Live Activity.
 ///
 /// Watches [sequenceExecutionStateProvider] + [sequenceProgressProvider] +
 /// [currentSequenceProvider] and:

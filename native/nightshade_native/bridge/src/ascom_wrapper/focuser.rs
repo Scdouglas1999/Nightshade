@@ -93,7 +93,7 @@ impl AscomFocuserWrapper {
                         // Connect first, then fetch properties that require connection
                         let result = focuser.connect().map_err(|e| e.to_string()).and_then(|()| {
                             // Fetch static properties AFTER connection
-                            // Why (audit-rust §4.3): `max_step` and `step_size` are
+                            // Why: `max_step` and `step_size` are
                             // optional ASCOM IFocuserV2 properties. Older drivers
                             // (e.g. Pegasus Astro USB Focus v2 firmware <1.4) lack
                             // them; logging + returning 0 lets the connection
@@ -112,7 +112,7 @@ impl AscomFocuserWrapper {
                                     e.to_string()
                                 })
                                 .unwrap_or(0);
-                            // Why (audit-rust §4.3): see max_step block above
+                            // Why: see max_step block above
                             // — same fallback policy for the optional IFocuserV2
                             // `StepSize` property. 0.0 maps to "unknown step
                             // size" in the focuser-settings UI.

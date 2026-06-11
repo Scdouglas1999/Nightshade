@@ -31,7 +31,7 @@ void main() {
       const service = DarkLibraryCoverageService();
 
       // Why: previously this used exposure=180.6 against tolerance ±1.0s
-      // and temp=-9.8 against ±0.5°C. After IMG-P0-2 unification the
+      // and temp=-9.8 against ±0.5°C. After unification the
       // defaults are ±0.5s / ±1.0°C, so we use a sample inside the new
       // exposure window (180.3) and outside the old, narrower temp
       // window (-9.2) to demonstrate the unified value is being honored.
@@ -89,7 +89,7 @@ void main() {
       expect(report.underCovered, {requirement: 3});
     });
 
-    test('IMG-P0-2 regression: exact-exposure-and-temperature match counts as '
+    test('regression: exact-exposure-and-temperature match counts as'
         'covered with the default tolerances', () {
       // Why: this is the exact scenario the audit flagged. The coverage
       // UI used to claim "all darks present" with a ±1.0s exposure
@@ -125,7 +125,7 @@ void main() {
         isTrue,
         reason:
             'a 60.0s dark MUST match a 60.0s request — this was the '
-            'IMG-P0-2 failure mode',
+            ' failure mode',
       );
     });
 

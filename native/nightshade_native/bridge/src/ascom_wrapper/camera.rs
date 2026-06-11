@@ -1,6 +1,6 @@
 //! ASCOM camera STA-thread wrapper.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Numeric casts in this file cluster into three patterns; sites with a
 //! local `Why:` comment override the module-level reasoning.
@@ -24,7 +24,7 @@
 //! - Line 829: bit-depth shift uses u64 intermediate then narrows to u32
 //!   after the `bit_depth >= 32` early-return ceiling.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! ASCOM is a Win32 COM protocol where many `ICameraV3` / `ICameraV4`
 //! properties are **optional** (the spec lets a driver throw
@@ -68,7 +68,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::ascom_exposure_apply::ExposureApplyTarget;
 
-/// P0-5: bridge the real ASCOM COM camera to the platform-independent
+/// bridge the real ASCOM COM camera to the platform-independent
 /// exposure-parameter apply function. Each method forwards to the matching
 /// ICameraV3 property setter/getter on the underlying COM object.
 impl ExposureApplyTarget for AscomCamera {
@@ -136,7 +136,7 @@ fn compute_exposure_remaining(
 /// does not expose declaratively. Probes via `probe()` only on the first
 /// call; subsequent calls return the cached result.
 ///
-/// Why: per audit §5.16, the previous code probed `cam.cooler_power()` on
+/// Why: the previous code probed `cam.cooler_power()` on
 /// every capability query. That is slow (one COM round-trip per status)
 /// and inverts ASCOM's "Can*" convention which is supposed to be cheap.
 /// Caching the result on the STA worker thread (where this is the only
@@ -259,7 +259,7 @@ impl AscomCameraWrapper {
             // Why: ASCOM has no "last commanded exposure duration" property.
             // We capture it at StartExposure time so that GetStatus can convert
             // `PercentCompleted` (0..100) into a wall-clock seconds-remaining
-            // value (audit §5.19). Cleared on abort/stop/disconnect.
+            // value. Cleared on abort/stop/disconnect.
             let mut last_exposure_duration: Option<f64> = None;
             // Try-once-cache for the `CanGetCoolerPower` capability (§5.16).
             // `None` = not yet probed; `Some(_)` = cached result.
@@ -498,7 +498,7 @@ impl AscomCameraWrapper {
                             // The apply logic lives in the platform-independent
                             // `ascom_exposure_apply` module so it is regression-
                             // tested on every platform (this worker only compiles
-                            // on Windows); see P0-5.
+                            // on Windows).
                             let apply_result = crate::ascom_exposure_apply::apply_exposure_params(
                                 cam,
                                 params.bin_x,
@@ -1402,7 +1402,7 @@ mod tests {
         assert!(stop_called.load(Ordering::SeqCst));
     }
 
-    /// Audit §5.9: a transient COM error during DownloadImage must propagate
+    /// a transient COM error during DownloadImage must propagate
     /// as Err. The previous implementation called `cam.camera_x_size().unwrap_or(1)`
     /// which silently fabricated a 1x1 image; here we verify the wrapper now
     /// surfaces the worker error to the caller.
@@ -1430,7 +1430,7 @@ mod tests {
         }
     }
 
-    /// Audit §5.9: GetCapabilities must propagate sensor-size/bit-depth errors.
+    /// GetCapabilities must propagate sensor-size/bit-depth errors.
     #[tokio::test]
     async fn test_get_capabilities_propagates_com_error() {
         let wrapper = build_test_wrapper(move |cmd| {
@@ -1455,7 +1455,7 @@ mod tests {
         }
     }
 
-    /// Audit §5.16: the cooler-power capability cache must probe at most once.
+    /// the cooler-power capability cache must probe at most once.
     #[test]
     fn test_cooler_power_supported_caches_first_probe() {
         let probe_count = Arc::new(AtomicI32::new(0));
@@ -1485,7 +1485,7 @@ mod tests {
         );
     }
 
-    /// Audit §5.16: a probe failure caches `false` so we don't pay the COM
+    /// a probe failure caches `false` so we don't pay the COM
     /// round-trip on every subsequent capability query.
     #[test]
     fn test_cooler_power_supported_caches_failure() {
@@ -1513,7 +1513,7 @@ mod tests {
         );
     }
 
-    /// Audit §5.19: PercentCompleted (0..100) translates into a wall-clock
+    /// PercentCompleted (0..100) translates into a wall-clock
     /// seconds-remaining figure when the total exposure duration is known.
     #[test]
     fn test_compute_exposure_remaining_typical() {
@@ -1528,7 +1528,7 @@ mod tests {
         assert_eq!(compute_exposure_remaining(Some(100), Some(60.0)), Some(0.0));
     }
 
-    /// Audit §5.19: missing inputs or out-of-range values map to None
+    /// missing inputs or out-of-range values map to None
     /// rather than fabricating a residual.
     #[test]
     fn test_compute_exposure_remaining_invalid_inputs() {
@@ -1539,7 +1539,7 @@ mod tests {
         assert_eq!(compute_exposure_remaining(Some(50), Some(-1.0)), None);
     }
 
-    /// Audit §5.19: the wrapper plumbs an `exposure_remaining` value
+    /// the wrapper plumbs an `exposure_remaining` value
     /// reported by the worker through to the public `get_status` API.
     #[tokio::test]
     async fn test_get_status_plumbs_exposure_remaining() {

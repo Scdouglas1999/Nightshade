@@ -1,4 +1,4 @@
-﻿// Smoke tests for the Wave 5 Agent 3 pre-flight validation dialog
+﻿// Smoke tests for the pre-flight validation dialog
 // extensions. We don't drive the unified validator end-to-end here
 // (that's covered by the rule unit tests in `nightshade_core`); instead
 // we override `sequenceValidatorProvider` with a fake that returns a

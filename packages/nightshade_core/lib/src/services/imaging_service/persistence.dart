@@ -97,7 +97,7 @@ extension _ImagingServicePersistence on ImagingService {
       stdDev: capturedImage.stats.stdDev,
     );
 
-    // P0-5 #2 — stat the on-disk file BEFORE inserting so the row carries
+    // Stat the on-disk file BEFORE inserting so the row carries
     // a real byte count. The caller's _saveFitsFile() finishes writing
     // the FITS synchronously before we get here, so the file is on disk.
     // If the stat fails (permissions, race with external deletion), the
@@ -159,7 +159,7 @@ extension _ImagingServicePersistence on ImagingService {
 
     final imageId = await records.createImage(companion);
 
-    // P1-13: schedule fire-and-forget sidecar generation for ad-hoc
+    // Schedule fire-and-forget sidecar generation for ad-hoc
     // captures (the sequencer-driven path goes through
     // `insertSequenceFrame` which schedules its own sidecar). Local-only:
     // the remote-companion case is handled by the host's headless server

@@ -1,5 +1,5 @@
 // Part of ../node_properties_panel.dart -- migrated from the former
-// instruction_node_properties library (Wave 4 consolidation). Richer
+// instruction_node_properties library. Richer
 // capture-side editors: Cool/Warm camera, Filter change, and Notification
 // (template title/message + transport multi-select + live preview).
 part of '../node_properties_panel.dart';
@@ -275,7 +275,7 @@ class _NotificationProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Wave 5 Agent 5 — pull live transport configs so we know which
+    // Pull live transport configs so we know which
     // transports are *enabled & configured*. Showing every transport in
     // the chip list would confuse the user with "Telegram" chips that
     // can never actually fire because no bot token was saved.

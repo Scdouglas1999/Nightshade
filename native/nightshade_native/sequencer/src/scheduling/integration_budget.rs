@@ -1,4 +1,4 @@
-//! Wave 3 Agent 3 — Per-target integration budget accounting.
+//! Per-target integration budget accounting.
 //!
 //! The TargetHeader runtime (`node::logic::target_header`) installs one
 //! [`BudgetState`] per target on the executor's [`BudgetRegistry`] when
@@ -327,7 +327,7 @@ impl BudgetRegistry {
         Some(entry.clone())
     }
 
-    /// Wave 7.5 — pre-seed per-target / per-filter carry-over from
+    /// pre-seed per-target / per-filter carry-over from
     /// prior sessions so the IntegrationBudget tracker treats those
     /// frames as already-counted toward the configured budget.
     ///
@@ -630,7 +630,7 @@ mod tests {
         assert_eq!(s.completed_by_filter.get("L").copied(), Some(180.0));
     }
 
-    // ----- Wave 7.5: session-handoff carry-over seeding -----
+    // ----- session-handoff carry-over seeding -----
 
     #[tokio::test]
     async fn seed_carry_over_populates_per_filter_totals() {

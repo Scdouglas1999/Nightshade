@@ -1,6 +1,6 @@
 /// Typed exceptions thrown by [DeviceService] disconnect methods.
 ///
-/// Audit DEV-P2-6: `EquipmentScreen._disconnectAllDevices` previously
+/// Audit `EquipmentScreen._disconnectAllDevices` previously
 /// filtered "device not connected" errors out of its toast feed by
 /// running `e.toString().contains('not connected')` on a generic
 /// [Exception]. That is fragile — a localization change or a reword
@@ -51,7 +51,7 @@ class DeviceNotConnectedException implements Exception {
 /// that does not match any of Nightshade's known driver-prefix conventions
 /// (see `kKnownDeviceIdPrefixes` in `utils/device_id_utils.dart`).
 ///
-/// DEV-P1-7: this replaces the old "Camera not found: $id" string that the
+/// This replaces the old "Camera not found: $id" string that the
 /// connect methods used to throw after running a full `discoverDevices`
 /// sweep on every connect attempt. Discovery is the wrong precondition for
 /// connect — it forces a fresh hardware scan to validate a reconnect of a
@@ -82,7 +82,7 @@ class InvalidDeviceIdException implements Exception {
 /// Per-device status emitted by [DeviceService.connectAllFromProfile] while
 /// a "Connect All" sweep is in flight.
 ///
-/// DEV-P1-5: replaces a sequential `await connectX(...)` loop that took
+/// Replaces a sequential `await connectX(...)` loop that took
 /// 30-50 s for a full profile and gave the user no per-device progress.
 /// The service now connects every configured device-type in parallel and
 /// emits a stream of these progress updates so the UI can render

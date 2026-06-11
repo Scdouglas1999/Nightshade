@@ -61,7 +61,7 @@ class PreSessionSimulationResult {
   );
 }
 
-/// Wave 9 pure pre-session simulator.
+/// Pure pre-session simulator.
 ///
 /// This is the service layer behind the eventual "simulate tonight" Gantt. It
 /// deliberately wraps [SequenceTimeEstimator] rather than inventing a second

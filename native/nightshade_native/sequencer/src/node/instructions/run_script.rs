@@ -1,6 +1,6 @@
 //! RunScript instruction node.
 //!
-//! Wave 4 — every script argument is interpolated through the variable
+//! every script argument is interpolated through the variable
 //! engine before being passed to the child process, and every well-known
 //! variable is exposed as a `NIGHTSHADE_<UPPER_SNAKE>` env var so legacy
 //! shell scripts can read the sequence context without parsing template

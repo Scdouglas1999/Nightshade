@@ -1,11 +1,11 @@
-// Wave 8 — Conversational sequence builder: history persistence.
+// Conversational sequence builder: history persistence.
 //
 // Every successful (or failed) conversational build is logged to a
 // dedicated table so the user can see what they've asked the AI to
 // build and what came back. The history is also surfaced in the
 // Sequencer history tab labelled as "Conversational" entries.
 //
-// We follow the same DDL convention NotesService uses (Wave 6 Agent 5):
+// We follow the same DDL convention NotesService uses:
 // the table is created with `IF NOT EXISTS` on first access so the
 // service stays tolerant of a database that pre-dates this feature.
 // This keeps the schema migration out of the drift-codegen path and

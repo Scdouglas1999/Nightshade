@@ -56,7 +56,7 @@ impl DeviceManager {
             DriverType::Indi => {
                 // INDI switches use named properties -- enumerate and count them
                 let switches = self.indi_get_all_switches(device_id).await?;
-                // Why (audit-rust §1.4): INDI switch counts are tiny (a
+                // Why: INDI switch counts are tiny (a
                 // power-box has ≤ a dozen outputs); usize → i32 SAFE for
                 // any realistic device.
                 Ok(i32::try_from(switches.len()).unwrap_or(i32::MAX))

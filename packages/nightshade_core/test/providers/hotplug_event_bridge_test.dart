@@ -1,9 +1,9 @@
-// Wave 6B (P2-1) — Hot-plug device-detection event bridge test.
+// Hot-plug device-detection event bridge test.
 //
 // Verifies that when the backend event stream emits a Rust
 // `EquipmentEvent::PropertyChanged { property: 'device_discovered' }`
 // the equipment discovery providers are invalidated so a subsequent
-// read re-runs the scan. This is the load-bearing assertion of P2-1:
+// read re-runs the scan. This is the load-bearing assertion of
 // without invalidation the equipment screen would serve a stale list
 // from the FutureProvider cache and a freshly-plugged camera would
 // never appear without a manual pull-to-refresh.
@@ -12,7 +12,7 @@
 // inference compile error that blocks loading `package:nightshade_core/nightshade_core.dart`
 // in test compilation. We import only the source files we need directly
 // from `src/` so the test still builds. The drift issue is tracked
-// separately and is not part of P2-1.
+// separately and is not part of this change.
 
 import 'dart:async';
 

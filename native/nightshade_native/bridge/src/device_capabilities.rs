@@ -4,7 +4,7 @@
 //! Capabilities describe what operations a device supports, allowing the UI
 //! and sequencer to adapt to device limitations.
 //!
-//! # Connect/Disconnect-probe guard (DEV-P1-2)
+//! # Connect/Disconnect-probe guard
 //!
 //! Capability probes for Alpaca and ASCOM devices originally followed a
 //! `connect → read properties → disconnect` pattern. That pattern kicks any
@@ -22,7 +22,7 @@
 //! normal lifecycle; spuriously issuing disconnect on a driver that was
 //! mid-operation can corrupt a live exposure or slew.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! All `as` casts in this file are capability-probe widenings:
 //! - **Sensor i32 → u32** (lines 517, 518): ASCOM CameraXSize/YSize are
@@ -751,7 +751,7 @@ pub enum DeviceCapabilities {
 
 /// Get capabilities for an Alpaca device
 ///
-/// # Silent-fallback contract (audit-rust §4.3)
+/// # Silent-fallback contract
 ///
 /// This function probes optional ASCOM/Alpaca capability properties (`CanSlew`,
 /// `CanPark`, etc.). Per the ASCOM specification, drivers signal "this feature is
@@ -776,7 +776,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "telescope" | "mount" => {
             let telescope = nightshade_alpaca::AlpacaTelescope::from_server(base_url, device_num);
 
-            // DEV-P1-2: probe-and-restore. If the driver is already connected
+            // probe-and-restore. If the driver is already connected
             // (e.g. the UI has the mount open), reuse the connection rather
             // than connect/disconnect-ing around the property reads, which
             // would kick the active session. `is_connected()` Err → assume
@@ -829,7 +829,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "camera" => {
             let camera = nightshade_alpaca::AlpacaCamera::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock. Reuse existing connection if
+            // see top-level docblock. Reuse existing connection if
             // the driver already has it open.
             let was_connected = camera.is_connected().await.unwrap_or(true);
             if !was_connected {
@@ -904,7 +904,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "focuser" => {
             let focuser = nightshade_alpaca::AlpacaFocuser::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = focuser.is_connected().await.unwrap_or(true);
             if !was_connected {
                 focuser
@@ -937,7 +937,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "filterwheel" => {
             let fw = nightshade_alpaca::AlpacaFilterWheel::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = fw.is_connected().await.unwrap_or(true);
             if !was_connected {
                 fw.connect()
@@ -971,7 +971,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "rotator" => {
             let rotator = nightshade_alpaca::AlpacaRotator::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = rotator.is_connected().await.unwrap_or(true);
             if !was_connected {
                 rotator
@@ -1005,7 +1005,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "dome" => {
             let dome = nightshade_alpaca::AlpacaDome::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = dome.is_connected().await.unwrap_or(true);
             if !was_connected {
                 dome.connect()
@@ -1050,7 +1050,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "covercalibrator" => {
             let cc = nightshade_alpaca::AlpacaCoverCalibrator::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = cc.is_connected().await.unwrap_or(true);
             if !was_connected {
                 cc.connect()
@@ -1101,7 +1101,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             let weather =
                 nightshade_alpaca::AlpacaObservingConditions::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = weather.is_connected().await.unwrap_or(true);
             if !was_connected {
                 weather
@@ -1152,7 +1152,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         "safetymonitor" => {
             let safety = nightshade_alpaca::AlpacaSafetyMonitor::from_server(base_url, device_num);
 
-            // DEV-P1-2: see top-level docblock.
+            // see top-level docblock.
             let was_connected = safety.is_connected().await.unwrap_or(true);
             if !was_connected {
                 safety
@@ -1238,7 +1238,7 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 
 /// Get capabilities for an ASCOM device (Windows only)
 ///
-/// # Silent-fallback contract (audit-rust §4.3)
+/// # Silent-fallback contract
 ///
 /// ASCOM drivers raise `PropertyNotImplementedException` (HRESULT `0x80040400`)
 /// when asked for an optional property they don't implement. The COM wrappers
@@ -2029,7 +2029,7 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
         let position_count = slot_limits
             .and_then(|limits| match (limits.min, limits.max) {
                 (Some(min), Some(max)) if max >= min => {
-                    // Why (audit-rust §1.4): INDI filter slots are a small
+                    // Why: INDI filter slots are a small
                     // physical count; after finite/range validation, f64 to
                     // i32 conversion is bounded and represents a whole count.
                     Some((max - min + 1.0).round() as i32)
@@ -2137,7 +2137,7 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
 /// capabilities that can be queried from their SDK functions. This function
 /// returns capability information based on the vendor and device type.
 ///
-/// # Silent-fallback contract (audit-rust §4.3)
+/// # Silent-fallback contract
 ///
 /// Native vendor SDKs use their own `Result` types: failures here usually mean
 /// "the SDK rejected the call because the camera/mount is mid-state-transition"

@@ -154,7 +154,7 @@ fn unit_to_radec(v: (f64, f64, f64)) -> (f64, f64) {
 /// when the live axis reaches the pole). Applying it to the measured initial
 /// axis yields the LIVE axis.
 ///
-/// P1-3: previously the adjustment loop recomputed the error from the FIXED
+/// previously the adjustment loop recomputed the error from the FIXED
 /// initial axis every frame, so the displayed error vector never responded to
 /// the user's adjustments — they were aligning blind. Returns the live axis
 /// (RA, Dec) in degrees.

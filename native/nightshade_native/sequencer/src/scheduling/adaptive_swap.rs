@@ -1,9 +1,9 @@
-//! Wave 8 — Sky-conditions-aware adaptive target swap.
+//! Sky-conditions-aware adaptive target swap.
 //!
 //! When transparency / seeing / cloud cover / wind degrade mid-session the
 //! `TargetScheduler` consults this module to decide whether the currently-
 //! running target is still acceptable for the live conditions and, if not,
-//! which lower-tier backup target should be selected instead. The Wave 7
+//! which lower-tier backup target should be selected instead. The
 //! `TransparencyDropped` trigger + `SwitchTargetOrFilter` recovery action
 //! provided the trigger-driven half (single-shot, operator-configured backup);
 //! this module adds the scheduling-side decision logic so the scheduler can
@@ -107,7 +107,7 @@ impl BrightnessTier {
 }
 
 /// User-tunable conditions-score floors per brightness tier. Defaults match
-/// the Wave 8 brief: faint ≥ 70, medium ≥ 50, bright ≥ 30.
+/// the brief: faint ≥ 70, medium ≥ 50, bright ≥ 30.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct BrightnessTierPreferences {
     pub faint_min_score: f64,

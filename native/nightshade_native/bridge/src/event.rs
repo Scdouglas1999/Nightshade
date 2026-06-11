@@ -100,7 +100,7 @@ pub enum HeartbeatStatus {
 
 /// Equipment-specific events
 ///
-/// Wave 6B (P2-1) follow-up — TODO: promote the wave-6b hot-plug events to
+/// follow-up — TODO: promote the wave-6b hot-plug events to
 /// first-class variants (`DeviceDiscovered { device_class, driver, id,
 /// name, unique_id }` and `DeviceLost { device_class, driver, id }`) once
 /// FRB bindings are regenerated. The current hot-plug task in
@@ -492,22 +492,22 @@ pub enum SequencerEvent {
         detail_json: String,
     },
 
-    // ===== Pack H: typed Wave-3 progress payloads =====
+    // ===== typed Wave-3 progress payloads =====
     //
-    // Pre-Pack-H, the Wave 3 image-grading + target-scheduler progress
+    // Pre-Pack-H, the image-grading + target-scheduler progress
     // payloads (`ProgressDetail::FrameAccepted/FrameRejected/Scheduler/
     // IntegrationBudget`) were stringified through `ProgressDetail::detail_text()`
     // and shipped on `InstructionProgress.detail`. The Dart side parsed
     // those strings with regex (`FrameGradeEvent.tryParseDetail`) — fragile,
     // lossy, and silently dropped fields that didn't fit the format string.
     //
-    // Pack H promotes the four high-value variants to first-class typed
+    // promotes the four high-value variants to first-class typed
     // `SequencerEvent` variants. The bridge's `run_sequencer_event_loop`
     // matches on the structured `ProgressDetail` directly and emits the
     // typed variant; the legacy `InstructionProgress` is still emitted in
     // parallel so any subscriber that hasn't migrated yet keeps working
     // (back-compat: the typed variants are *additional*, not replacements).
-    /// Pack H — Wave 3 Image Grading: a frame passed every configured
+    /// Image Grading: a frame passed every configured
     /// quality threshold and was saved to the normal output folder.
     /// Mirrors `ProgressDetail::FrameAccepted`.
     FrameAccepted {
@@ -522,14 +522,14 @@ pub enum SequencerEvent {
         accepted_total: u32,
         /// Running count of rejected frames for the whole run.
         rejected_total: u32,
-        /// Wave 6 Pack P — on-disk save path of the accepted frame, so
-        /// the Wave 6 thumbnail strip can render an inline preview of
+        /// on-disk save path of the accepted frame, so
+        /// the thumbnail strip can render an inline preview of
         /// accepted frames the same way it already does for rejected
         /// frames via `FrameRejected.reject_path`. `None` for legacy /
         /// non-grading emit sites that did not thread the path through.
         save_path: Option<String>,
     },
-    /// Pack H — Wave 3 Image Grading: a frame failed at least one
+    /// Image Grading: a frame failed at least one
     /// quality threshold and was routed to the reject folder. Mirrors
     /// `ProgressDetail::FrameRejected`. The consecutive-reject pause
     /// behaviour is unchanged; this event surfaces the metrics so the
@@ -549,7 +549,7 @@ pub enum SequencerEvent {
         consecutive_rejects: u32,
         accepted_total: u32,
         rejected_total: u32,
-        // Wave 8 — Frame-Failure Forensics ----------------------------
+        // Frame-Failure Forensics ----------------------------
         /// Classified cause label (wire-stable snake_case string from
         /// `LikelyCause::label()`). `None` when the classifier was not
         /// consulted or could not pick a single best guess. Dart maps
@@ -572,7 +572,7 @@ pub enum SequencerEvent {
         /// Sensor temperature (°C) at capture time.
         sensor_temp_at_capture: Option<f64>,
     },
-    /// Pack H — Wave 3 Agent 1: TargetScheduler decision. Mirrors
+    /// TargetScheduler decision. Mirrors
     /// `ProgressDetail::Scheduler`. The score table is exposed as a
     /// flat `Vec<SchedulerScoreEntry>` so FRB doesn't have to bridge
     /// the internal `SchedulerScoreSummary` type.
@@ -589,7 +589,7 @@ pub enum SequencerEvent {
         /// Flat score table (runnable first, then by descending total).
         scores: Vec<SchedulerScoreEntry>,
     },
-    /// Pack H — Wave 3 Agent 3: per-target integration budget tick.
+    /// per-target integration budget tick.
     /// Mirrors `ProgressDetail::IntegrationBudget`.
     IntegrationBudget {
         /// The TargetHeader node id this budget belongs to.
@@ -601,7 +601,7 @@ pub enum SequencerEvent {
         fraction: f64,
         budget_met: bool,
     },
-    /// Wave 5 Agent 2 — sky-brightness adaptive exposure decision.
+    /// sky-brightness adaptive exposure decision.
     /// Mirrors `ProgressDetail::ExposureAdjusted`. Emitted before every
     /// exposure burst whenever the adapter was consulted (regardless of
     /// whether the duration actually changed), so the Run Dashboard can
@@ -625,14 +625,14 @@ pub enum SequencerEvent {
         reason: String,
     },
 
-    // ===== Wave 4 Recovery Mode — typed entry / progress / exit events =====
+    // ===== Recovery Mode — typed entry / progress / exit events =====
     //
     // Pre-Wave-4.5, the Rust executor's `ExecutorEvent::Recovery*` events
     // were routed through the legacy `InstructionProgress` channel with
     // `node_id == "_recovery"` and a JSON-encoded context blob shoved in
     // `detail`. The Dart side string-prefix-matched on `instruction` and
     // jsonDecoded `detail` — fragile, lossy, and silently dropped fields
-    // that didn't fit. Wave 4.5 promotes the four variants to first-class
+    // that didn't fit. promotes the four variants to first-class
     // typed payloads. All `context_*` fields are denormalised flat
     // primitives so FRB doesn't need to bridge the chrono-dependent
     // `RecoveryContext` struct. The Dart side rebuilds a `RecoveryStatus`
@@ -647,7 +647,7 @@ pub enum SequencerEvent {
     // `phase` mirrors `RecoveryPhase` (`Waiting`, `Attempting`,
     // `Recovered`, `GaveUp`) so the dashboard banner knows which row
     // to render.
-    /// Wave 4 Recovery Mode: the executor just entered the `Recovering`
+    /// Recovery Mode: the executor just entered the `Recovering`
     /// state. Subscribers (dashboard banner, audible alert player,
     /// push-notification service) render the cause / attempt counter
     /// / countdown without reaching back into the executor.
@@ -663,7 +663,7 @@ pub enum SequencerEvent {
         phase: String,
         last_error: Option<String>,
     },
-    /// Wave 4 Recovery Mode: periodic update of the live recovery context
+    /// Recovery Mode: periodic update of the live recovery context
     /// (attempt counter incremented, phase changed, last_error updated).
     /// Subscribers refresh the dashboard banner from this; the
     /// `RecoveryStarted` / `RecoveryCompleted` / `RecoveryGaveUp` events
@@ -680,7 +680,7 @@ pub enum SequencerEvent {
         phase: String,
         last_error: Option<String>,
     },
-    /// Wave 4 Recovery Mode: recovery succeeded. The executor will
+    /// Recovery Mode: recovery succeeded. The executor will
     /// transition back to `Running`; subscribers clear the dashboard
     /// banner and append to the history list.
     RecoveryCompleted {
@@ -695,7 +695,7 @@ pub enum SequencerEvent {
         phase: String,
         last_error: Option<String>,
     },
-    /// Wave 4 Recovery Mode: recovery exhausted attempts / time / was
+    /// Recovery Mode: recovery exhausted attempts / time / was
     /// aborted by the user. The executor will transition to `Failed` (or
     /// run the configured ParkAndAbort policy). Subscribers append the
     /// history entry and emit a critical-severity event.
@@ -716,7 +716,7 @@ pub enum SequencerEvent {
         aborted_by_user: bool,
     },
 
-    // ===== Wave 6 Pack P — plugin sequence nodes (Rust dispatch) =====
+    // ===== plugin sequence nodes (Rust dispatch) =====
     //
     // The Rust executor reaches a `NodeType::PluginNode`, registers a
     // pending oneshot for the node id, and emits PluginNodeRequested.
@@ -725,7 +725,7 @@ pub enum SequencerEvent {
     // to push the verdict back into Rust via
     // `ExecutorCommand::PluginNodeFinished`. The Rust instruction node
     // unblocks with Success or Failure.
-    /// Wave 6 Pack P — the executor is waiting for the Dart side to
+    /// the executor is waiting for the Dart side to
     /// dispatch a plugin node and reply with the verdict.
     PluginNodeRequested {
         /// Executor-side node identifier. The reply MUST echo this.
@@ -745,7 +745,7 @@ pub enum SequencerEvent {
         /// timed out by Rust first and surfaced as a failure.
         timeout_secs: u32,
     },
-    /// Wave 6 Pack P — live plugin-node progress payload. Mirrors
+    /// live plugin-node progress payload. Mirrors
     /// `ProgressDetail::PluginNode`. The JSON detail is serialised as a
     /// string at the bridge boundary because FRB does not transport
     /// `serde_json::Value` directly; Dart parses it with
@@ -759,8 +759,8 @@ pub enum SequencerEvent {
         detail_json: String,
     },
 
-    // ===== Wave 8 — Replay Debug: typed decision payload =====
-    /// Wave 8 Replay Debug — a structured decision emitted by the
+    // ===== Replay Debug: typed decision payload =====
+    /// Replay Debug — a structured decision emitted by the
     /// sequencer (scheduler pick, trigger fire, recovery transition,
     /// frame verdict, adaptive swap, plugin invocation, manual operator
     /// action, or system event). Subscribers persist these to the
@@ -794,7 +794,7 @@ pub enum SequencerEvent {
     },
 }
 
-/// Pack H — flat scheduler score row exposed across FRB. Mirrors
+/// flat scheduler score row exposed across FRB. Mirrors
 /// `nightshade_sequencer::node::logic::target_scheduler::SchedulerScoreSummary`
 /// but lives in the bridge crate so we don't have to expose the sequencer
 /// type to FRB. The Dart side consumes this directly in the run-dashboard
@@ -841,7 +841,7 @@ pub enum SystemEvent {
         title: String,
         message: String,
         level: String,
-        /// Wave 5.5 Pack M follow-up — per-NotificationNode override list of
+        /// per-NotificationNode override list of
         /// NotificationTransportKind names (Dart enum, serialised as strings).
         /// The Dart NotificationRouter consumes this field to bypass the
         /// matrix's `custom` rule and dispatch to the user-picked transports
@@ -1148,7 +1148,7 @@ mod tests {
                     title: "test".to_string(),
                     message: format!("event {}", index),
                     level: "info".to_string(),
-                    // Wave 5.5 Pack M added an opt-in transport override; this
+                    // added an opt-in transport override; this
                     // test exercises the broadcast-eviction path and doesn't
                     // care about routing, so opt out by passing None.
                     explicit_transports: None,
@@ -1279,7 +1279,7 @@ impl EventContext {
 
 /// Generate a unique correlation ID
 ///
-/// # `unwrap_or` policy (audit-rust §4.3)
+/// # `unwrap_or` policy
 ///
 /// `duration_since(UNIX_EPOCH).unwrap_or_default()` — only fails if the
 /// system clock is set before 1970-01-01. A zero `Duration` then produces

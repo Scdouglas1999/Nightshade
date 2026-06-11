@@ -245,7 +245,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     return createMiddleware(
       requestHandler: (request) {
         final path = '/${request.url.path}';
-        // P2-6: per-token / route-class bucket runs first. It supersedes
+        // per-token / route-class bucket runs first. It supersedes
         // the endpoint window for authenticated requests because (a) it
         // is keyed by the principal rather than by the public IP (NAT-
         // safe), and (b) its route classes carve a per-token budget that
@@ -469,7 +469,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       '/api/info',
       '/api/pairing/start',
       '/api/pairing/verify',
-      // Wave 7 Agent 2: live-stacking broadcast endpoints. The audience
+      // live-stacking broadcast endpoints. The audience
       // at an outreach event has not paired the device; the
       // LiveStackingNode's own `auth_token` field is the access gate
       // (constant-time compared inside BroadcastService.authorize).
@@ -485,7 +485,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     // WebSocket paths that support query-param auth (legacy ?token=) or the
     // single-use ?ticket= flow added in §2.28.
     //
-    // P2-10: /ws/live-view participates in the same query-param auth flow
+    // /ws/live-view participates in the same query-param auth flow
     // because browser/WS clients can't always set custom headers on the
     // upgrade request — the phone passes the bearer token via ?token= and
     // we honour it here.
@@ -519,7 +519,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         if (webSocketPaths.contains(path)) {
           final queryTicket = request.url.queryParameters['ticket'];
           if (queryTicket != null && queryTicket.isNotEmpty) {
-            // P2-15: ws_ticket_manager.consume now returns the digest of
+            // ws_ticket_manager.consume now returns the digest of
             // the token that was used to mint the ticket, NOT the raw
             // token. That digest IS the authenticated identity for the
             // upcoming WS — stash it on the context so the upgrade
@@ -564,7 +564,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                 )) {
               _logWarning(
                 '[AUTH][$requestId] WS upgrade to $path used legacy ?token=. '
-                'Switch to POST /api/ws/ticket + ?ticket= (audit §2.28).',
+                'Switch to POST /api/ws/ticket + ?ticket=.',
               );
               return innerHandler(
                 _attachAuthIdentity(
@@ -589,7 +589,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         //     requests additionally require a matching CSRF token on every
         //     state-changing method.
         //  3. `?access_token=<bearer>` query parameter, but ONLY for the
-        //     Wave 6 SSE endpoint. Why: browser EventSource cannot set
+        //     SSE endpoint. Why: browser EventSource cannot set
         //     custom headers and the SSE handler is GET-only / read-only,
         //     so a one-shot URL token is the only viable auth carrier
         //     for the phone client. This is gated to /api/run-watch/events
@@ -605,8 +605,8 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         final sessionCookie = AuthCookieManager.extractCookie(cookieHeader);
         String? token;
         bool tokenFromCookie = false;
-        // Wave 6 — accept ?access_token= on the SSE endpoint only.
-        // P1-14 extends this to the /api/logs/tail SSE endpoint for the
+        // accept ?access_token= on the SSE endpoint only.
+        // extends this to the /api/logs/tail SSE endpoint for the
         // same reason: browser EventSource cannot set custom headers,
         // so a one-shot query-param bearer is the only viable carrier
         // for the phone client. Both endpoints are GET-only and
@@ -771,7 +771,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     };
   }
 
-  /// P2-6 / P2-15: stash the authenticated principal's digest + the
+  /// stash the authenticated principal's digest + the
   /// classified route class on the shelf request context so downstream
   /// middleware (rate limit) and the WS upgrade handler can bind to them.
   ///
@@ -806,7 +806,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     return value is route_metadata.TokenRouteClass ? value : null;
   }
 
-  /// P1-5: extract the raw bearer token (or cookie-backed session token)
+  /// extract the raw bearer token (or cookie-backed session token)
   /// from [request]. The auth middleware has already validated whatever
   /// we resolve here; we re-extract because the validated value is not
   /// currently propagated into the request context.
@@ -830,7 +830,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     return null;
   }
 
-  /// P1-5: gate destructive POSTs on the operator slot. Read-only and
+  /// gate destructive POSTs on the operator slot. Read-only and
   /// status endpoints fall through unchanged. The middleware also
   /// refreshes the owner's heartbeat on every authenticated mutating
   /// request so a phone polling the rig stays the owner without an

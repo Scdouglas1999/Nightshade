@@ -62,7 +62,7 @@ impl InstructionNode for MosaicInstruction {
         let progress_fn = |progress: f64, detail: String| {
             if let Some(cb) = progress_cb {
                 let panel_index = extract_panel_index(&detail).unwrap_or(0);
-                // Wave 4.5 — derive panel_row / panel_col from the panel
+                // derive panel_row / panel_col from the panel
                 // index using the configured horizontal grid width.
                 // The mosaic plan emits panels in row-major order
                 // (`calculate_mosaic_panels` enforces this), so

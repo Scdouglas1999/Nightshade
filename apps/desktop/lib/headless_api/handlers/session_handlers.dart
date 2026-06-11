@@ -18,7 +18,7 @@ part 'session_handlers/thumbnail_handlers.dart';
 class SessionHandlers {
   final ProviderContainer container;
 
-  /// P1-2 / P1-3: optional job manager. When wired, polar-alignment
+  /// optional job manager. When wired, polar-alignment
   /// endpoints return `{jobId, status: queued}` immediately. The actual
   /// alignment routine streams progress via WS events.
   final JobManager? jobManager;
@@ -256,7 +256,7 @@ class SessionHandlers {
         ? DateTime.fromMillisecondsSinceEpoch(capturedAtMs)
         : DateTime.tryParse(capturedAtMs?.toString() ?? '') ?? DateTime.now();
 
-    // P0-5 #2 — honour fileSize from the payload if supplied; otherwise
+    // #2 — honour fileSize from the payload if supplied; otherwise
     // try to stat the on-disk file. The latter only succeeds when the
     // POSTed filePath happens to be local to the server (e.g. a sidecar
     // helper that wrote the FITS via NFS and then registered the row);
@@ -335,7 +335,7 @@ class SessionHandlers {
       );
     }
 
-    // P1-13: schedule fire-and-forget sidecar generation for the new row.
+    // schedule fire-and-forget sidecar generation for the new row.
     // Skips when filePath is empty (no FITS to encode) or the file isn't
     // on disk — the service logs both cases at warning severity. The
     // capture is fully recorded by this point so a sidecar failure does
@@ -526,7 +526,7 @@ class SessionHandlers {
     }
   }
 
-  /// P1-13: Sidecar-backed thumbnail with ETag caching.
+  /// Sidecar-backed thumbnail with ETag caching.
   ///
   /// The capture pipeline writes a `{filePath}.thumb.jpg` next to every
   /// FITS at insert time (best-effort, fire-and-forget). This handler

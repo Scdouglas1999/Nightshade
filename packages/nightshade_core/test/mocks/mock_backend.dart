@@ -10,7 +10,7 @@ class MockBackend extends Mock implements NightshadeBackend {}
 
 /// Test fixtures and helper data for common test scenarios
 class TestFixtures {
-  // DEV-P1-7: every device id passes `isValidDeviceIdFormat` so the
+  // Every device id passes `isValidDeviceIdFormat` so the
   // connect-precondition format check accepts these in unit tests. Using
   // the `simulator:` prefix keeps the fixtures recognisable as test data
   // while still matching one of the known driver-prefix conventions.
@@ -36,7 +36,7 @@ class TestFixtures {
   /// Default safety monitor device ID
   static const String safetyMonitorId = 'simulator:test-safety-1';
 
-  /// Default switch device ID (DEV-P2-1)
+  /// Default switch device ID
   static const String switchId = 'simulator:test-switch-1';
 
   /// Sample image statistics

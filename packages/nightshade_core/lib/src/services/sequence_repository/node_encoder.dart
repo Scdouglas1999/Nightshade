@@ -16,7 +16,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'binning': _binningToString(node.binning),
         'ditherEvery': node.ditherEvery,
         'triggers': node.triggers,
-        // Wave 5 Agent 2 — per-node adaptive-exposure override. `null`
+        // Per-node adaptive-exposure override. `null`
         // means "inherit from global default"; we serialise `null` too
         // so the absent-key vs. explicit-null distinction is
         // preserved on reload.
@@ -100,13 +100,13 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'priority': node.priority,
         'startAfter': node.startAfter?.millisecondsSinceEpoch,
         'endBefore': node.endBefore?.millisecondsSinceEpoch,
-        // Wave 3 Agent 3 — persist the per-target integration budget
+        // Persist the per-target integration budget
         // when configured. `null`/absent means "no budget enforcement"
         // — current default behaviour for existing sequences.
         if (node.integrationBudget != null)
           'integrationBudget': node.integrationBudget!.toJson(),
-        // Wave 4 — per-target altitude/time crossings. Both fields
-        // are optional; absent => no gate, which is the pre-Wave-4
+        // Per-target altitude/time crossings. Both fields
+        // are optional; absent => no gate, which is the legacy
         // default for existing sequences.
         if (node.startWhen != null) 'startWhen': node.startWhen!.toJson(),
         if (node.endWhen != null) 'endWhen': node.endWhen!.toJson(),
@@ -172,7 +172,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'isNorth': node.isNorth,
         'manualSlew': node.manualSlew,
       },
-      // Wave 3 Agent 1: TargetScheduler — persist all eight knobs so reload
+      // TargetScheduler — persist all eight knobs so reload
       // round-trips structurally and the validator can re-check the weight
       // sum / scheduler-children rules on load.
       TargetSchedulerNode() => {
@@ -191,7 +191,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'minMoonSeparationDeg': node.minMoonSeparationDeg,
         'horizonProfile': _schedulerHorizonToJson(node.horizonProfile),
       },
-      // Wave 3 Agent 2: SmartExposure — plans are serialised as a list of
+      // SmartExposure — plans are serialised as a list of
       // FilterPlan JSON maps. We re-use FilterPlan.toJson() (which mirrors
       // the Rust serde shape) so the same blob round-trips through both
       // disk persistence and the executor's `_nodeToConfig` payload.
@@ -203,7 +203,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'batchSize': node.batchSize,
         'loopUntilStopped': node.loopUntilStopped,
       },
-      // Wave 7 Agent 2: LiveStacking — flat key/value persistence.
+      // LiveStacking — flat key/value persistence.
       // `authToken` and `watermarkText` may be null; we keep them as
       // distinct keys (versus omitting) so the load path always reads
       // the same shape.
@@ -219,7 +219,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'thumbnailWidth': node.thumbnailWidth,
         'thumbnailHeight': node.thumbnailHeight,
       },
-      // Wave 7 Science: SciencePhotometry — cadence-enforced
+      // Science: SciencePhotometry — cadence-enforced
       // photometric capture node config.
       SciencePhotometryNode() => {
         'targetDesignation': node.targetDesignation,

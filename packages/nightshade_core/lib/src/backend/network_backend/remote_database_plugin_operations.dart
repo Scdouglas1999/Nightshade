@@ -69,10 +69,10 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
   /// GET /api/db/dark-library?gainMin=&gainMax=&temperatureC=&exposureSecs=&limit=&offset=
   ///
   /// Returns the raw `dark_library` Drift rows. The pre-existing
-  /// `listDarks()` method (P1-10) projects the same table through the
+  /// `listDarks()` method projects the same table through the
   /// `RemoteDarkLibraryEntry` wire model used by the calibration UI, but
   /// elides several columns (master frame path, master count) that the
-  /// P2-8 read surface intentionally exposes. Hence the separate
+  /// Read surface intentionally exposes. Hence the separate
   /// [RemoteDbDarkLibraryRow] wire type — different consumers, different
   /// shapes, no risk of one breaking the other.
   Future<RemotePage<RemoteDbDarkLibraryRow>> fetchDarkLibrary({
@@ -113,7 +113,7 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     return RemotePage.fromJson(response, RemoteDbFlatHistoryRow.fromJson);
   }
 
-  // Wave 7B replay scrubber — per-run endpoints.
+  // Replay scrubber — per-run endpoints.
   Future<RemoteSequenceRunDetail> fetchSequenceRunById(int runId) async {
     final response = await _get('sequence-runs/$runId');
     final run = response['run'];
@@ -157,7 +157,7 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
   }
 
   // =========================================================================
-  // P2-11 — plugin management. Methods live on NetworkBackend because the
+  // Plugin management. Methods live on NetworkBackend because the
   // FfiBackend manages plugins directly via PluginHost; the network path
   // is the only one that needs HTTP wiring.
   // =========================================================================
@@ -226,7 +226,7 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     await _delete('plugins/$pluginId');
   }
 
-  // [Wave 6E log tail] — client surface for the headless server's
+  // Log tail: client surface for the headless server's
   // remote-log endpoints. Lets the mobile log tab show ENTRIES emitted on
   // the host (not just NightshadeEvents) when the backend is networked.
   //

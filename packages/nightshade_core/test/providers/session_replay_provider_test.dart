@@ -1,4 +1,4 @@
-// Wave 7B — Tests for the session replay notifier's snapshot
+// Tests for the session replay notifier's snapshot
 // computation (scan-to-time correctness) and lifecycle.
 //
 // The notifier's bootstrap is wired through a stub

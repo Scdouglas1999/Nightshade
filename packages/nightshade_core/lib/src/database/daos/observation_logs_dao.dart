@@ -222,7 +222,7 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     return result ?? 0;
   }
 
-  /// P2-8: paginated listing for the remote read API ("notes journal").
+  /// Paginated listing for the remote read API ("notes journal").
   /// Filter by [equipmentProfileId] when provided. Newest-first by
   /// `timestamp`. Caller MUST validate / clamp [limit] / [offset].
   Future<List<ObservationLogEntry>> listPaginated({
@@ -239,7 +239,7 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count matching [listPaginated]'s filter.
+  /// Row count matching [listPaginated]'s filter.
   Future<int> countFiltered({int? equipmentProfileId}) async {
     final countExpr = observationLogs.id.count();
     final query = selectOnly(observationLogs)..addColumns([countExpr]);

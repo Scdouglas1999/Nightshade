@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Wave 7C — Google Assistant App Actions / Static Shortcuts.
+  Google Assistant App Actions / Static Shortcuts.
 
   Each <capability> binds a built-in or custom intent name to a target
   inside this app, plus a list of <parameter> shortcuts that surface in

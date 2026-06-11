@@ -11,7 +11,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
     switch (dbNode.specificType) {
       case 'exposure':
       case 'TakeExposure':
-        // Wave 5 Agent 2 — recover the adaptive-exposure block. Both
+        // Recover the adaptive-exposure block. Both
         // camelCase (Dart canonical) and snake_case (Rust JSON shape)
         // are honoured so legacy + future-saved JSON both load.
         AdaptiveExposureConfig? adaptive;
@@ -267,14 +267,14 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           endBefore: props['endBefore'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['endBefore'] as int)
               : null,
-          // Wave 3 Agent 3 — restore the integration budget. Absent
+          // Restore the integration budget. Absent
           // field stays null (pre-budget sequences keep working).
           integrationBudget: props['integrationBudget'] != null
               ? IntegrationBudget.fromJson(
                   props['integrationBudget'] as Map<String, dynamic>,
                 )
               : null,
-          // Wave 4 — per-target altitude/time crossings.
+          // Per-target altitude/time crossings.
           startWhen: props['startWhen'] != null
               ? TargetTrigger.fromJson(
                   props['startWhen'] as Map<String, dynamic>,
@@ -497,7 +497,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           comment: props['comment'] as String?,
         );
 
-      // Wave 3 Agent 1: TargetScheduler. Two case strings cover both the
+      // TargetScheduler. Two case strings cover both the
       // canonical Dart `nodeType` ('TargetScheduler') and the legacy
       // snake_case sent by the bridge layer ('target_scheduler').
       case 'targetScheduler':
@@ -545,7 +545,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           comment: props['comment'] as String?,
         );
 
-      // Wave 3 Agent 2: SmartExposure. Mirrors the case-string convention
+      // SmartExposure. Mirrors the case-string convention
       // above so DB rows written via `nodeType = 'SmartExposure'` or via
       // the snake_case bridge form both deserialize correctly.
       case 'smartExposure':
@@ -595,7 +595,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           comment: props['comment'] as String?,
         );
 
-      // Wave 7 Agent 2: LiveStacking. Same case-string convention as
+      // LiveStacking. Same case-string convention as
       // SmartExposure above so DB rows written via either spelling
       // round-trip correctly.
       case 'liveStacking':

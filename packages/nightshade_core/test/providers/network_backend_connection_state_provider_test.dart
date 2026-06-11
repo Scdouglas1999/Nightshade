@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// P2-13: regression test for the
+/// Regression test for the
 /// [networkBackendConnectionStateProvider] introduced to separate the
 /// WebSocket-level connection state from the OS-level network state in
 /// the mobile chip. The provider must emit `disconnected` whenever the
@@ -11,7 +11,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// "explicitly disconnected" code paths.
 ///
 /// The companion case (`NetworkBackend` produces a live state stream) is
-/// exercised by `network_backend_websocket_test.dart::P2-13: first
+/// exercised by `network_backend_websocket_test.dart::first
 /// attempt emits 'connecting'...` which drives a real backend against
 /// a loopback HTTP server. Combining both gives us full coverage of the
 /// public API without having to mock the WS layer twice.
@@ -37,7 +37,7 @@ void main() {
       settled.value ?? asyncValue.value,
       BackendConnectionState.disconnected,
       reason:
-          'P2-13: with no NetworkBackend, the provider must report '
+          'with no NetworkBackend, the provider must report '
           'disconnected so the chip renders "Server unreachable" / '
           '"Not connected" instead of guessing connectivity from the '
           'OS link.',

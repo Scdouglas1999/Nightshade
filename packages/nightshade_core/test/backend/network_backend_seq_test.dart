@@ -1,6 +1,6 @@
-// P1-1 client-side seq + replay tests for NetworkBackend.
+// Client-side seq + replay tests for NetworkBackend.
 //
-// Exercises the client-side half of the P1-1 contract:
+// Exercises the client-side half of the contract:
 //   * `lastSeenEventSeq` / `serverInstanceId` getters track the cursor
 //     advertised by seq-bearing events on the wire.
 //   * The WS reconnect URL carries `?since=N&instance=UUID` when a
@@ -27,7 +27,7 @@ import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/models/backend/event_types.dart';
 
 void main() {
-  group('NetworkBackend P1-1 client-side seq tracking', () {
+  group('NetworkBackend client-side seq tracking', () {
     test(
       'initial state: lastSeenEventSeq is 0/null, serverInstanceId is null',
       () async {
@@ -548,7 +548,7 @@ void main() {
     test(
       'events without seq/instance/correlation still parse with nulls',
       () async {
-        // Backward compatibility: a pre-P1-1 server omits these fields and
+        // Backward compatibility: a an earlier build server omits these fields and
         // the client must accept that without complaint.
         final server = await _startServer((socket) {
           Timer(const Duration(milliseconds: 50), () {

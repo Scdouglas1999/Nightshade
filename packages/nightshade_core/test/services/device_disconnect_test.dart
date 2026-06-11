@@ -335,7 +335,7 @@ void main() {
     });
   });
 
-  group('DEV-P0-1: Cover calibrator + switch disconnect cases', () {
+  group('Cover calibrator + switch disconnect cases', () {
     test(
       'Cover calibrator disconnect event updates state to disconnected',
       () async {
@@ -398,37 +398,34 @@ void main() {
       },
     );
 
-    test(
-      'Switch disconnect event clears state via the provider (DEV-P2-1)',
-      () async {
-        // DEV-P2-1: switch now has a first-class state provider, so
-        // disconnects route through `setDisconnected` instead of just
-        // emitting a notification.
-        final notifier = container.read(switchStateProvider.notifier);
-        notifier.setConnecting('switch-1', 'Test Switch');
-        notifier.setConnected();
+    test('Switch disconnect event clears state via the provider ', () async {
+      // Switch now has a first-class state provider, so
+      // disconnects route through `setDisconnected` instead of just
+      // emitting a notification.
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('switch-1', 'Test Switch');
+      notifier.setConnected();
 
-        eventStreamController.add(
-          NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.warning,
-            category: EventCategory.equipment,
-            eventType: 'Disconnected',
-            data: {'device_type': 'switch', 'device_id': 'switch-1'},
-          ),
-        );
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'switch', 'device_id': 'switch-1'},
+        ),
+      );
 
-        await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 50));
 
-        expect(
-          container.read(switchStateProvider).connectionState,
-          DeviceConnectionState.disconnected,
-        );
-      },
-    );
+      expect(
+        container.read(switchStateProvider).connectionState,
+        DeviceConnectionState.disconnected,
+      );
+    });
   });
 
-  group('DEV-P0-5: Driver Error events surface to state + notifications', () {
+  group('Driver Error events surface to state + notifications', () {
     test('Error event updates matching device state to error', () async {
       // Camera starts connected.
       final cameraNotifier = container.read(cameraStateProvider.notifier);
@@ -539,7 +536,7 @@ void main() {
     });
   });
 
-  group('DEV-P1-4: Camera disconnect guards stale device-id events', () {
+  group('Camera disconnect guards stale device-id events', () {
     test('Stale camera Disconnected for non-tracked id does not flip current '
         'camera state', () async {
       // Connect camera-A
@@ -576,7 +573,7 @@ void main() {
 
   group('Backend Integration', () {
     test('startDeviceHeartbeat is called when camera connects', () async {
-      // DEV-P1-7: device ids must match a known driver prefix.
+      // Device ids must match a known driver prefix.
       const cameraId = 'simulator:camera-1';
 
       // Configure mock to succeed

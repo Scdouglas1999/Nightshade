@@ -41,7 +41,7 @@ Future<void> apiSequencerStop() =>
 Future<void> apiSequencerSkip() =>
     RustLib.instance.api.crateApiSequencerApiSequencerSkip();
 
-/// Wave 1.5 Pack A / trust-patch §7: jump execution to a specific node id,
+/// Jump execution to a specific node id,
 /// marking preceding siblings as Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
@@ -55,7 +55,7 @@ Future<void> apiSequencerSkipToNode({required String nodeId}) => RustLib
 Future<void> apiSequencerReset() =>
     RustLib.instance.api.crateApiSequencerApiSequencerReset();
 
-/// Wave 6 Pack P — Dart side reports the verdict of a plugin-dispatched
+/// Dart side reports the verdict of a plugin-dispatched
 /// node back to the Rust executor. Routes to
 /// `ExecutorCommand::PluginNodeFinished`. The Rust instruction node
 /// awaiting on the matching pending oneshot unblocks with Success or
@@ -234,7 +234,7 @@ Future<void> apiSequencerUpdateLocation({
   longitude: longitude,
 );
 
-/// Wave 7.5 — stage per-target / per-filter carry-over integration so the
+/// Stage per-target / per-filter carry-over integration so the
 /// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
 /// already captured in prior sessions. The Dart `SequenceExecutor.start()`
 /// calls this once per target after reading `sessionHandoffDecisionProvider`:
@@ -262,18 +262,18 @@ Future<void> apiSequencerUpdateFilterOffsets({
   offsets: offsets,
 );
 
-/// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
+/// Update the autofocus-interval trigger cadence at runtime.
 /// The default in `default_autofocus_interval_frames()` is 25 frames; this
 /// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
-/// which would silently turn AF off (CLAUDE.md "errors are a feature").
+/// which would silently turn AF off; errors are a feature here.
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
       everyNFrames: everyNFrames,
     );
 
-/// Pack G — update the global default image-grading thresholds at runtime.
+/// Update the global default image-grading thresholds at runtime.
 ///
 /// All fields are optional; when `enabled` is `false` an `ImageQualityCheck`
 /// is NOT constructed (grading disabled globally — per-node `quality_check`
@@ -296,14 +296,14 @@ Future<void> apiSequencerUpdateDefaultQualityCheck({
       enabled: enabled,
     );
 
-/// Pack G — update the reject-folder override at runtime. Empty string =>
+/// Update the reject-folder override at runtime. Empty string =>
 /// None (i.e. fall back to `<save_path>/Reject/`).
 Future<void> apiSequencerUpdateRejectFolderPath({String? path}) => RustLib
     .instance
     .api
     .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
 
-/// Pack G — push observer / equipment identification to the executor so
+/// Push observer / equipment identification to the executor so
 /// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
 /// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
 /// headless / no-profile runs we'd rather omit the keyword than emit a
@@ -371,7 +371,7 @@ Future<void> apiSequencerUpdateWeatherVerdict({bool? unsafeOverride}) =>
       unsafeOverride: unsafeOverride,
     );
 
-/// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
+/// JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
 Future<String?> apiSequencerGetCloudMotionJson() =>
     RustLib.instance.api.crateApiSequencerApiSequencerGetCloudMotionJson();
@@ -422,7 +422,7 @@ Future<void> apiSequencerUpdateDefaultAdaptiveExposure({
       perFilterMaxValues: perFilterMaxValues,
     );
 
-/// Wave 5 Agent 2 — disable the global default adaptive-exposure config
+/// Disable the global default adaptive-exposure config
 /// (push `None`). Convenience entry-point so the Dart side doesn't have
 /// to pass a sentinel struct just to disable.
 Future<void> apiSequencerClearDefaultAdaptiveExposure() => RustLib.instance.api
@@ -583,7 +583,7 @@ String apiCreateTargetGroupNode({
 
 /// Create a target header node configuration
 ///
-/// Wave 3 Agent 3 — `integration_budget_json` (optional) is a JSON-encoded
+/// `integration_budget_json` (optional) is a JSON-encoded
 /// [`nightshade_sequencer::IntegrationBudget`] payload mirroring the
 /// Dart-side `IntegrationBudget` model. Passing `None` leaves the
 /// target without a budget (current behaviour); passing a valid JSON
@@ -868,7 +868,7 @@ double apiCalculateAltitude({
 /// `None` when no LiveStacking node has been executed in the current
 /// sequence run.
 ///
-/// Wave 7 Agent 2 — consumed by the Dart `BroadcastService` to decide
+/// Consumed by the Dart `BroadcastService` to decide
 /// whether `/api/broadcast/*` endpoints should answer 200 or 404.
 LiveStackingBroadcastSnapshot? apiBroadcastGetActive() =>
     RustLib.instance.api.crateApiSequencerApiBroadcastGetActive();
@@ -879,7 +879,7 @@ LiveStackingBroadcastSnapshot? apiBroadcastGetActive() =>
 void apiBroadcastDeactivate() =>
     RustLib.instance.api.crateApiSequencerApiBroadcastDeactivate();
 
-/// Wave 8 Replay Debug — stamp the active `sequence_runs.id` onto the
+/// Replay Debug — stamp the active `sequence_runs.id` onto the
 /// executor so every subsequent emitted DecisionEvent carries it as
 /// `sequence_run_id`. Called by the Dart side immediately after the
 /// `sequence_runs` row is inserted.
@@ -892,13 +892,13 @@ Future<void> apiSequencerSetActiveSequenceRunId({
   sequenceRunId: sequenceRunId,
 );
 
-/// Wave 8 Replay Debug — read back the currently-stamped
+/// Replay Debug — read back the currently-stamped
 /// `sequence_runs.id`. Used by tests and as a sanity check from the
 /// Dart side.
 Future<PlatformInt64?> apiSequencerGetActiveSequenceRunId() =>
     RustLib.instance.api.crateApiSequencerApiSequencerGetActiveSequenceRunId();
 
-/// Wave 8 Replay Debug — runtime toggle for decision emission. When
+/// Replay Debug — runtime toggle for decision emission. When
 /// `enabled = false`, the executor short-circuits all decision sends
 /// (no channel publish, no allocation) so power users who don't want
 /// the replay log can opt out. Defaults to ON.
@@ -907,7 +907,7 @@ Future<void> apiSequencerSetDecisionLoggingEnabled({required bool enabled}) =>
       enabled: enabled,
     );
 
-/// Wave 8 Replay Debug — readback for the runtime toggle.
+/// Replay Debug — readback for the runtime toggle.
 Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
     .crateApiSequencerApiSequencerGetDecisionLoggingEnabled();
 

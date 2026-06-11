@@ -1,4 +1,4 @@
-// Wave 6D / P2-12 — Tests for the first-run setup detection.
+// Tests for the first-run setup detection.
 //
 // The wizard itself shells into widgets that depend on network calls
 // against a live NetworkBackend; full-stack rendering is exercised by

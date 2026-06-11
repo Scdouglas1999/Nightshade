@@ -5,8 +5,6 @@
 // the import surface obvious; tests that need internal pieces (e.g.
 // TestBackendNotifier for a custom override) can still import the
 // individual file directly.
-//
-// See: docs/code-quality/audit-tests.md §6.
 
 export 'mock_backend.dart' show MockBackend, mockBackend;
 export 'mock_database.dart' show mockDatabase;

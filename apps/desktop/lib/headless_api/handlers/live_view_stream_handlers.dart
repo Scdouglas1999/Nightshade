@@ -1,4 +1,4 @@
-// P2-10 — Push-based live-view streaming over WebSocket.
+// Push-based live-view streaming over WebSocket.
 //
 // The legacy `GET /api/camera/live-view/frame` endpoint forces the phone
 // to poll at ~2 Hz, which (a) burns LTE bandwidth even when the camera
@@ -302,7 +302,7 @@ class LiveViewStreamHub {
   void _onMessage(Object socket, Object? raw) {
     if (raw is! String) {
       // Binary frames from the client are not part of the protocol — log
-      // and drop. CLAUDE.md: errors are a feature; we surface this loud
+      // and drop. errors are a feature; we surface this loud
       // enough that protocol drift is visible.
       _logger.warning(
         '/ws/live-view: received non-text frame (${raw.runtimeType}); ignoring',

@@ -308,11 +308,11 @@ void main() {
     });
   });
 
-  group('ImageOutputPathRule (P0-7)', () {
+  group('ImageOutputPathRule', () {
     test(
       'fires ERROR when no output path is configured and exposures exist',
       () async {
-        // P0-7 — empty path must hard-block sequence start. Pre-P0-7 this
+        // Empty path must hard-block sequence start. Pre- this
         // was only a warning so the start handler ignored it; the Rust
         // sequencer would then either fail to write or land frames in
         // the working directory with no operator signal.

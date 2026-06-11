@@ -1,6 +1,6 @@
 //! Low-precision sun + moon ephemeris and twilight brackets for the scheduler.
 //!
-//! P1-16: the `TargetScheduler` built its live [`ObserverContext`] with
+//! the `TargetScheduler` built its live [`ObserverContext`] with
 //! `moon: None, moon_illumination: 0.0, twilight: None`, so moon-avoidance and
 //! darkness scoring (together ~40% of the scoring weight) were fed dead inputs
 //! — the "self-driving" scheduler never actually considered the moon or the

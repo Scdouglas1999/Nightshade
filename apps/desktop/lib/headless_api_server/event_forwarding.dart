@@ -3,14 +3,14 @@ part of '../headless_api_server.dart';
 extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
   /// Broadcast an event to all connected WebSocket clients.
   ///
-  /// P1-1: every NightshadeEvent is stamped with a monotonic `seq` and the
+  /// every NightshadeEvent is stamped with a monotonic `seq` and the
   /// server-instance UUID, then appended to the replay ring buffer BEFORE
   /// fan-out to sockets. Map-typed events (legacy callers passing raw
   /// JSON) are coerced through NightshadeEvent.fromWireJson so SSE,
   /// snapshot consumers, and future replay subscribers see a consistent
   /// shape.
   ///
-  /// P1-4: NightshadeEvents whose `eventType` is in the command-completion
+  /// NightshadeEvents whose `eventType` is in the command-completion
   /// table get their originating `correlatingCommandId` stamped from the
   /// correlator on a best-effort basis.
   ///
@@ -161,7 +161,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
   /// here. Re-subscribing replaces any previous subscription so the GUI can
   /// safely call this every time the backend changes.
   ///
-  /// P1-19: in addition to the WS fan-out, each notification is also handed
+  /// in addition to the WS fan-out, each notification is also handed
   /// to the LAN UDP broadcaster (when configured) so phones whose WebSocket
   /// has dropped still wake on critical alerts. The broadcaster filters by
   /// severity (critical-only by default) and supplies its own HMAC-signed
@@ -192,7 +192,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
           }
         }
 
-        // P1-19: LAN UDP broadcaster + remote (FCM/APNs) delivery hooks.
+        // LAN UDP broadcaster + remote (FCM/APNs) delivery hooks.
         // Building the wire frame is cheap; if neither sink is wired we
         // skip the encode entirely.
         final broadcaster = _lanPushBroadcaster;
@@ -284,7 +284,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     }
   }
 
-  /// P1-19: replace the LAN push broadcaster post-construction (used by
+  /// replace the LAN push broadcaster post-construction (used by
   /// `desktop_app_bootstrap.dart` so the broadcaster's lifecycle is tied
   /// to the GUI's settings toggle rather than the server's constructor).
   /// Pass null to disable.
@@ -292,7 +292,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     _lanPushBroadcaster = broadcaster;
   }
 
-  /// P1-19: register a remote (FCM/APNs) delivery hook. By default both
+  /// register a remote (FCM/APNs) delivery hook. By default both
   /// scaffolds throw [UnimplementedError]; the headless server logs
   /// those as informational so the operator can see "remote push not
   /// configured" without taking down the LAN broadcaster.
@@ -300,7 +300,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     _remotePushDelivery = delivery;
   }
 
-  /// P1-11: bind an [UpdateController] to the server. The controller's
+  /// bind an [UpdateController] to the server. The controller's
   /// `events` stream is subscribed and every variant translated into a
   /// `NightshadeEvent` with `category: EventCategory.system`. Routes
   /// under `/api/system/version` + `/api/system/update/*` are installed

@@ -52,7 +52,7 @@ pub fn calculate_meridian_crossing(
     // 1 sidereal hour = 0.99726957 solar hours = 3589.77 solar seconds
     let sidereal_to_solar = 0.99726957;
     let solar_hours = time_to_crossing * sidereal_to_solar;
-    // Why (audit-rust §1.4): `time_to_crossing` is normalized to [0, 24]
+    // Why: `time_to_crossing` is normalized to [0, 24]
     // hours by the loop above; `solar_hours * 3600` is therefore ≤ ~86400.
     // Rust 1.45+ defines f64 → i64 as saturating-on-overflow / 0-on-NaN,
     // which for a bounded sidereal interval is the desired behavior.
@@ -102,7 +102,7 @@ pub fn calculate_flip_time(
     minutes_past_meridian: f64,
 ) -> DateTime<Utc> {
     let meridian_crossing = calculate_meridian_crossing(ra_hours, longitude, current_time);
-    // Why (audit-rust §1.4): `minutes_past_meridian` is a configured
+    // Why: `minutes_past_meridian` is a configured
     // threshold in minutes (UI surfaces 0..~30 typically). f64 → i64 uses
     // Rust 1.45+ saturating semantics; for any sane threshold the result
     // is well inside i64 range.
@@ -187,13 +187,13 @@ pub fn calculate_altitude(
 /// Calculate Julian Day from UTC DateTime
 pub fn julian_day(dt: &DateTime<Utc>) -> f64 {
     let year = dt.year();
-    // Why (audit-rust §1.4): `month()` returns u32 in [1, 12]; u32 → i32
+    // Why: `month()` returns u32 in [1, 12]; u32 → i32
     // is SAFE narrowing (12 << i32::MAX). Subsequent arithmetic uses i32.
     let month = dt.month() as i32;
-    // Why (audit-rust §1.4): `day()` returns u32 in [1, 31]; u32 → f64
+    // Why: `day()` returns u32 in [1, 31]; u32 → f64
     // exact widening.
     let day = f64::from(dt.day());
-    // Why (audit-rust §1.4): hour/minute/second all u32 in small ranges;
+    // Why: hour/minute/second all u32 in small ranges;
     // u32 → f64 exact widening.
     let hour =
         f64::from(dt.hour()) + f64::from(dt.minute()) / 60.0 + f64::from(dt.second()) / 3600.0;
@@ -204,12 +204,12 @@ pub fn julian_day(dt: &DateTime<Utc>) -> f64 {
         (year, month)
     };
 
-    // Why (audit-rust §1.4): `y` is i32 calendar year (calendrically bounded
+    // Why: `y` is i32 calendar year (calendrically bounded
     // by chrono::DateTime to ~[-262_144, 262_143]); i32 → f64 exact.
     let a = (f64::from(y) / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
 
-    // Why (audit-rust §1.4): same i32 → f64 exact widening as `a` above.
+    // Why: same i32 → f64 exact widening as `a` above.
     (365.25 * (f64::from(y) + 4716.0)).floor()
         + (30.6001 * (f64::from(m) + 1.0)).floor()
         + day

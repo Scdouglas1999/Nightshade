@@ -367,7 +367,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
         return LucideIcons.code;
       case 'list':
         return LucideIcons.list;
-      // Wave 3 Agent 2: SmartExposure uses the layered-stack glyph.
+      // SmartExposure uses the layered-stack glyph.
       case 'layers':
         return LucideIcons.layers;
       default:

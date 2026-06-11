@@ -59,7 +59,7 @@ class ImagingService {
     required ExposureSettings settings,
     String? targetName,
     int? frameNumber,
-    // Wave 6 Thumbnails — producing-instruction provenance. When the
+    // Thumbnail — producing-instruction provenance. When the
     // imaging service is called from a sequencer-tagged path (e.g.
     // future plugin-node captures), the caller can pass the node id
     // here so the persisted row is queryable by
@@ -300,7 +300,7 @@ class ImagingService {
           );
           // Why: when the bridge timestamp is unparseable we fall back to
           // the user-chosen clock so the recovered timestamp matches the
-          // rest of the session's records (audit-handoff §2.1 WIRE-UP #9).
+          // rest of the session's records
           captureTimestamp = _ref.read(clockProvider).now();
         }
         _logger.debug(
@@ -436,7 +436,7 @@ class ImagingService {
               targetName: targetName,
               timestamp: captureTimestamp,
             );
-            // Wave 6 Thumbnails — when the caller tagged the capture
+            // Thumbnail — when the caller tagged the capture
             // with a producing node id (sequencer-driven path), stamp
             // the row so the sequence-tree thumbnail strip can pick it
             // up via `watchImagesByProducingNode`. Best-effort: a
@@ -452,7 +452,7 @@ class ImagingService {
                 );
               } catch (e) {
                 _logger.warning(
-                  'Wave 6 Thumbnails: stampProducingNode failed for '
+                  'Thumbnail: stampProducingNode failed for '
                   'image $dbImageId (node $producingNodeId): $e',
                   source: 'ImagingService',
                 );
@@ -847,7 +847,7 @@ class ImagingService {
   /// Throws an [Exception] if [pattern] references any token that is not in
   /// [_patternVariables]. This is intentional: silently leaving an unknown
   /// `$BANANA` in the path produces malformed filenames that look like
-  /// they "worked" but break downstream sorting/searching. See CLAUDE.md —
+  /// they "worked" but break downstream sorting/searching.
   /// "Errors are a feature".
   ///
   /// Exposed for unit testing of the pattern-expansion logic in isolation

@@ -1,5 +1,5 @@
-// Wave 6 Pack O — verify Smart Night wizard defaults (Wave 6 Agent 1)
-// and the notes-prompt opt-out (Wave 6 Agent 5) land correctly in
+// Verify Smart Night wizard defaults
+// and the notes-prompt opt-out land correctly in
 // AppSettingsState.
 //
 // We test the `AppSettingsState` value object's constructor defaults
@@ -9,7 +9,7 @@
 // pattern); validating the value-object surface is what catches the
 // "is the wizard sending changes to the right field" failure mode.
 //
-// Why not drive the full notifier? At the time Pack O landed, the
+// Why not drive the full notifier? At the time landed, the
 // nightshade_bridge layer had an unrelated FRB-codegen mismatch
 // (`SequencerEvent_PluginNodeRequested` missing from the
 // `event_display.dart` switch). That blocks any test that

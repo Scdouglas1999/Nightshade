@@ -30,7 +30,7 @@ class PairingDatabase extends _$PairingDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // v1 -> v2 (P0-10): add expires_at column to paired_devices. Existing
+        // v1 -> v2: add expires_at column to paired_devices. Existing
         // rows are migrated with NULL (treated as "no expiry" for backward
         // compatibility); new pairings will populate the column going forward.
         if (from < 2) {

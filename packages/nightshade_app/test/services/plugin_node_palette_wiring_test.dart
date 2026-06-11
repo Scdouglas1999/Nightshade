@@ -13,7 +13,7 @@
 //   3. The palette is reactive: a plugin loaded post-startup shows up
 //      without re-creating the ProviderContainer.
 //   4. Malformed registrations (empty id / name) are filtered out
-//      loudly per CLAUDE.md, NOT silently rendered as broken items.
+//      loudly, NOT silently rendered as broken items.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

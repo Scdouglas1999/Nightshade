@@ -111,7 +111,7 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
       case SequenceExecutionState.failed:
         return widget.colors.error;
       case SequenceExecutionState.recovering:
-        // Wave 4 — recovery is its own visible state. Use the error
+        // Recovery is its own visible state. Use the error
         // colour so the status bar dot is unmistakeably "something is
         // wrong, the sequence is fighting through it" — same colour as
         // the recovery banner for consistency.

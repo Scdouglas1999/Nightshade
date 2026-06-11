@@ -18,7 +18,7 @@
 //   * "New empty sequence" is always offered as the fall-back, and is the only
 //     option when nothing is open and the library is empty.
 //
-// Errors surface, never silently degrade (see CLAUDE.md): a locked sequence
+// Errors surface, never silently degrade: a locked sequence
 // (run in progress) or an unsaved-changes clobber is reported to the user
 // rather than swallowed.
 

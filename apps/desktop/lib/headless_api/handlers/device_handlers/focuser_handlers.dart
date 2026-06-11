@@ -63,7 +63,7 @@ extension FocuserDeviceHandlers on DeviceHandlers {
     final method = optionalString(payload, 'method') ?? 'VCurve';
     final binning = optionalInt(payload, 'binning') ?? 1;
 
-    // P1-4: register the command so any later event with a matching
+    // register the command so any later event with a matching
     // operation kind picks up `correlatingCommandId`. We still register
     // even in the new job-model path because the event correlator's
     // matching is independent of the job's own jobId — they evolve in
@@ -73,7 +73,7 @@ extension FocuserDeviceHandlers on DeviceHandlers {
       deviceId: deviceId,
     );
 
-    // P1-2 / P1-3: when a JobManager is wired up and the client has
+    // when a JobManager is wired up and the client has
     // NOT opted into the legacy synchronous shape, return `{jobId,
     // status: queued, commandId}` immediately and run the autofocus
     // work in the background. Progress + completion arrive via WS

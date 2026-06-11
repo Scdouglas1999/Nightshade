@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder service.
+// Conversational sequence builder service.
 //
 // Architecture:
 //
@@ -26,7 +26,7 @@
 //     source of truth for what the LLM is expected to emit) and the
 //     validator to gate the output.
 //
-// Failure handling per CLAUDE.md "Errors are a feature":
+// Failure handling — errors are a feature here:
 //   * If no provider is configured the service throws
 //     [ConversationalBuilderUnconfigured].
 //   * If the LLM produces JSON that can't be parsed, that *counts as a

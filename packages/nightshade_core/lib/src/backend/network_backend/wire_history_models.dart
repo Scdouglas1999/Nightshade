@@ -208,9 +208,9 @@ class RemotePolarAlignmentHistoryEntry {
   }
 }
 
-/// Wire row for `/api/db/dark-library` (P2-8). Distinct from
+/// Wire row for `/api/db/dark-library`. Distinct from
 /// [RemoteDarkLibraryEntry] in `models/calibration/`: that one is the
-/// calibration UI's projection (P1-10) which elides several columns the
+/// calibration UI's projection which elides several columns the
 /// raw read surface keeps (master frame path, master count).
 class RemoteDbDarkLibraryRow {
   final int id;
@@ -265,7 +265,7 @@ class RemoteDbDarkLibraryRow {
   }
 }
 
-/// Wire row for `/api/db/flat-history` (P2-8). See [RemoteDbDarkLibraryRow]
+/// Wire row for `/api/db/flat-history`. See [RemoteDbDarkLibraryRow]
 /// for the rationale for keeping this distinct from
 /// [RemoteFlatHistoryEntry].
 class RemoteDbFlatHistoryRow {
@@ -315,7 +315,7 @@ class RemoteDbFlatHistoryRow {
   }
 }
 
-// Wave 7B — wire types for per-run replay endpoints.
+// Wire types for per-run replay endpoints.
 
 class RemoteSequenceRunDetail {
   final int id;
@@ -540,7 +540,7 @@ class RemoteReplayFrame {
 }
 
 // =========================================================================
-// P2-11 — wire types for the plugin management endpoints.
+// Wire types for the plugin management endpoints.
 // =========================================================================
 
 /// Wire row for `/api/plugins`, returned individually by upload/enable/

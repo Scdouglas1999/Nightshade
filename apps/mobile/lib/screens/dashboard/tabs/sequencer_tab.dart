@@ -14,11 +14,11 @@ import '../../../utils/error_snackbar.dart';
 ///   * Top: [MobileSequenceEditor] — touch-friendly node list with
 ///     long-press-to-reorder, swipe-to-delete, tap-to-edit, and a FAB
 ///     for adding nodes. Replaces the legacy read-only `_NodeList` view
-///     (audit P1-9 — phone sequencer authoring parity).
+///     (audit phone sequencer authoring parity).
 ///   * Mid: [SequencerRecoveryActionsBanner] — exposed only while the
 ///     executor is in `recovering`; surfaces the three operator actions
 ///     (Try Now / Skip Node / Abort) the desktop dashboard provides
-///     (audit P1-8 — recovery actions on mobile).
+///     (audit recovery actions on mobile).
 ///   * Bottom 1/3: sticky strip with current target, ETA, and start/stop.
 ///
 /// All work flows through the existing `sequenceExecutorProvider`,
@@ -37,13 +37,13 @@ class SequencerTab extends ConsumerWidget {
       children: [
         // Sticky header — current sequence name + load button.
         _Header(sequence: sequence),
-        // [Wave 5A — weather/safety surface] Collapsed-by-default
+        // [weather/safety surface] Collapsed-by-default
         // expansion tile so the operator can glance at the current
         // weather-safety state without losing editor real-estate. The
         // tile collapses to a single ~48dp row; expanded it shows the
         // full RunDashboardWeatherSafetyCard which reads the existing
         // `weatherSafetyProvider` and never re-evaluates conditions on
-        // its own. [Wave 5A end]
+        // its own. [end]
         const _WeatherSafetyExpansion(),
         Expanded(
           child: sequence == null
@@ -122,7 +122,7 @@ Future<void> _showLoadPicker(BuildContext context, WidgetRef ref) async {
     all = await repo.loadAllSequences();
   } catch (e) {
     if (context.mounted) {
-      // [Wave 6D error parsing] — prefer the typed envelope so the
+      // [error parsing] — prefer the typed envelope so the
       // operator sees the server-supplied reason (e.g. "Could not
       // load sequences: pairing_required") instead of an opaque
       // "Exception: 401 status code".
@@ -198,7 +198,7 @@ class _NoSequenceState extends StatelessWidget {
 // _NodeList / _NodeRow / _NodeTile have moved to MobileSequenceEditor in
 // packages/nightshade_app/lib/screens/sequencer/mobile_sequence_editor.dart
 // so the touch-friendly authoring surface and the visual mapping live in
-// one place (audit P1-9 — phone sequencer authoring parity).
+// one place (audit phone sequencer authoring parity).
 
 class _StickyFooter extends ConsumerWidget {
   final Sequence? sequence;
@@ -315,7 +315,7 @@ class _ExecBadge extends StatelessWidget {
       SequenceExecutionState.stopping => ('Stopping', colors.warning),
       SequenceExecutionState.completed => ('Done', colors.success),
       SequenceExecutionState.failed => ('Failed', colors.error),
-      // Wave 4: executor is mid-recovery (auto-retry after a recoverable
+      // executor is mid-recovery (auto-retry after a recoverable
       // failure such as guide-star lost or weather unsafe). Use the
       // warning palette so the user sees something is wrong but the run
       // isn't dead yet.
@@ -385,7 +385,7 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).start();
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        // [error parsing] — typed envelope, severity-tinted snack.
         showApiError(context, e);
       }
     } finally {
@@ -399,7 +399,7 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).stop();
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        // [error parsing] — typed envelope, severity-tinted snack.
         showApiError(context, e);
       }
     } finally {
@@ -413,7 +413,7 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).pause();
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        // [error parsing] — typed envelope, severity-tinted snack.
         showApiError(context, e);
       }
     } finally {
@@ -427,7 +427,7 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).resume();
     } catch (e) {
       if (mounted) {
-        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        // [error parsing] — typed envelope, severity-tinted snack.
         showApiError(context, e);
       }
     } finally {

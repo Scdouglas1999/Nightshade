@@ -1,4 +1,4 @@
-﻿// Wave 6B (P2-1) — Hot-plug discovery event bridge.
+﻿// Hot-plug discovery event bridge.
 //
 // The Rust hot-plug watcher in `native/nightshade_native/bridge/src/hotplug.rs`
 // polls the native (vendor SDK) and ASCOM (Windows only) device lists every
@@ -12,7 +12,7 @@
 // invalidates the equipment-discovery Riverpod providers
 // (`availableCamerasProvider`, `availableMountsProvider`, ...,
 // `unifiedDiscoveryProvider`) so the equipment screen refreshes inside
-// the configured ~3 s P2-1 budget without any user-driven pull-to-refresh.
+// the configured ~3 s budget without any user-driven pull-to-refresh.
 //
 // The bridge is side-effecting and produces no state. To stay alive, the
 // surrounding app must `ref.watch(hotplugEventBridgeProvider)` somewhere
@@ -48,7 +48,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
   // device-event→UI path. We instead buffer qualifying events and flush a
   // single invalidation round on a short debounce, so a burst of any size
   // costs exactly one scan round. The refresh still lands well inside the
-  // ~3 s P2-1 budget. (errors-are-a-feature: no event is dropped — the first
+  // ~3 s budget. (errors-are-a-feature: no event is dropped — the first
   // qualifying event in a window still guarantees a refresh; we only collapse
   // the *count* of redundant invalidations.)
   const coalesceWindow = Duration(milliseconds: 150);

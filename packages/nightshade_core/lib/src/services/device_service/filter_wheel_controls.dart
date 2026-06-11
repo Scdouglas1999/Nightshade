@@ -65,7 +65,7 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
         generation: verifyGeneration,
       );
 
-      // Apply focus offset only after position is verified (DV-P0-6).
+      // Apply focus offset only after position is verified.
       if (position >= 0 && position < filterNames.length) {
         await _applyFilterFocusOffset(filterNames[position]);
       }

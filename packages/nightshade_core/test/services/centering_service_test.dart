@@ -891,7 +891,7 @@ void main() {
         );
       });
 
-      // ---- Post-slew polling escalation (audit IMG-P2-6) ------------------
+      // ---- Post-slew polling escalation (audit ) ------------------
       //
       // The centering service runs a settle-poll loop after each slew. If the
       // mount stops answering `getMountStatus` for too long, the loop must

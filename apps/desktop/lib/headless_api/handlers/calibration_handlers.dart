@@ -1,4 +1,4 @@
-// P1-10 — Remote calibration library management.
+// Remote calibration library management.
 //
 // Exposes CRUD + upload endpoints for the three calibration data stores
 // (dark_library, flat_history, defect_maps) that previously had no
@@ -51,7 +51,7 @@ part 'calibration_handlers/dark_library_handlers.dart';
 part 'calibration_handlers/flat_history_handlers.dart';
 part 'calibration_handlers/defect_map_handlers.dart';
 
-/// P1-10 — calibration library handlers.
+/// calibration library handlers.
 class CalibrationHandlers {
   /// Same 256 MB cap as the backup-upload path. A dark master frame from a
   /// modern full-frame camera is typically 100–200 MB so this is a snug

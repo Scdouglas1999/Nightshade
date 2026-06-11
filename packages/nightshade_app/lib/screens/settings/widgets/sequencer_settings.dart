@@ -17,7 +17,7 @@ class SequencerSettings extends ConsumerStatefulWidget {
 }
 
 class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
-  // Wave 7.5 — Live Stacking & Broadcast settings controllers. The
+  // Live Stacking & Broadcast settings controllers. The
   // watermark template is kept as a TextEditingController so the
   // VariablePicker can splice values into the caret position; the port
   // input shares the same SettingsNumberInput pattern used by the rest of
@@ -28,7 +28,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
 
   // Sequencer settings controllers
   final _autoFocusController = TextEditingController();
-  // Wave 1.5 Pack A: frames-based cadence for the standard AutofocusInterval
+  // Frames-based cadence for the standard AutofocusInterval
   // trigger. Distinct from `_autoFocusController` (which is in minutes for the
   // app-level AppSettings UX) — this one targets the Rust trigger directly.
   final _autoFocusIntervalFramesController = TextEditingController();
@@ -194,7 +194,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     if (!_initialized) {
       _autoFocusController.text = settings.autoFocusEveryMinutes.toString();
       _ditherController.text = settings.ditherEveryFrames.toString();
-      // Wave 1.5 Pack A: seed from sequencer defaults provider so the user
+      // Seed from sequencer defaults provider so the user
       // sees the same value the executor uses on next start().
       final seqDefaults = ref.read(sequencerDefaultsProvider);
       _autoFocusIntervalFramesController.text =
@@ -505,7 +505,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
       ),
       data: (settings) {
         _initControllers(settings);
-        // Wave 7.5 — seed the broadcast-section controllers on the
+        // Seed the broadcast-section controllers on the
         // first build that has both Settings + SequencerDefaults loaded.
         final seqDefaults = ref.watch(sequencerDefaultsProvider);
         _initBroadcastControllers(seqDefaults);
@@ -604,7 +604,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                     },
                   ),
                 ),
-                // Wave 1.5 Pack A: frames-based AutofocusInterval cadence.
+                // Frames-based AutofocusInterval cadence.
                 // The Rust standard trigger ships with `every_n_frames = 25`
                 // which is wildly wrong for both 5-second and 5-minute subs;
                 // exposing this number directly lets the user tune the
@@ -683,7 +683,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            // Wave 7.5 — Live Stacking & Broadcast defaults. New
+            // Live Stacking & Broadcast defaults. New
             // LiveStackingNodes inherit these knobs (port, stack method,
             // watermark template, thumbnail size, public-by-default,
             // master kill switch). Sits between Dithering and Notes
@@ -691,7 +691,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             // pipeline knobs above and precedes the post-run journaling
             // surface below.
             _buildBroadcastSection(seqDefaults),
-            // Wave 6 Agent 5 — Notes prompt opt-out lives here under
+            // Notes prompt opt-out lives here under
             // Sequencer because the prompt fires at sequence-run end.
             // Placed before Development so the user always sees the
             // toggle (Development section is hidden in release builds).
@@ -715,7 +715,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            // Wave 6 Agent 1 — Smart Night defaults live here too because
+            // Smart Night defaults live here too because
             // they all govern sequence-builder behaviour. The wizard
             // mutates these values as the user adjusts knobs, and reads
             // them back on next launch so preferences persist across

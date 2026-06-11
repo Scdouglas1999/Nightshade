@@ -72,7 +72,7 @@ export 'examples/weather_logger_plugin.dart';
 export 'examples/custom_notification_plugin.dart';
 export 'examples/sequence_delay_plugin.dart';
 
-// Wave 6 example plugins demonstrating real-world sequence-node authoring
+// Example plugins demonstrating real-world sequence-node authoring
 // against external services. Each is a self-contained file under examples/.
 export 'examples/pushover_notification_plugin.dart';
 export 'examples/discord_webhook_plugin.dart';

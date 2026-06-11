@@ -44,7 +44,7 @@ fn get_stacker_lock() -> &'static Mutex<Option<StackerSession>> {
 
 /// Acquire the stacker mutex with poison recovery.
 ///
-/// # `unwrap_or` policy (audit-rust §4.3)
+/// # `unwrap_or` policy
 ///
 /// If a previous holder panicked, the mutex becomes poisoned. Rather than
 /// making all future stacking calls fail permanently, we recover the inner
@@ -198,7 +198,7 @@ impl TryFrom<LiveStackingConfigApi> for LiveStackConfig {
         Ok(LiveStackConfig {
             sigma_clip_threshold: api.sigma_clip_threshold,
             sigma_clip_enabled: api.sigma_clip_enabled,
-            // Why (audit-rust §1.4): live-stacking config values are u32
+            // Why: live-stacking config values are u32
             // UI-bounded (max_match_stars ≤ 10_000, min_matched_pairs ≤
             // ~100); u32 → usize widening on every supported target.
             max_match_stars: api.max_match_stars as usize,
@@ -538,7 +538,7 @@ pub fn stacking_is_active() -> bool {
 
 /// Get the current frame count.
 ///
-/// # `unwrap_or` policy (audit-rust §4.3)
+/// # `unwrap_or` policy
 ///
 /// No stacker initialised yet → 0 frames. The UI uses this to render the
 /// "Stacked: N frames" badge; absent stacker = no badge, matching the

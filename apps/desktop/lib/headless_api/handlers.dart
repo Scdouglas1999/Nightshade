@@ -41,42 +41,42 @@ export 'handlers/planetarium_handlers.dart';
 export 'handlers/scheduler_handlers.dart';
 export 'handlers/focus_model_handlers.dart';
 
-// Wave 6 — phone/tablet run-watch monitoring surface
+// phone/tablet run-watch monitoring surface
 export 'handlers/run_watch_handlers.dart';
 
-// P2-10 — push-based live-view streaming over WebSocket
+// push-based live-view streaming over WebSocket
 export 'handlers/live_view_stream_handlers.dart';
 
-// Wave 7A — WebRTC datachannel fan-out for the same live-view producer
+// WebRTC datachannel fan-out for the same live-view producer
 export 'handlers/webrtc_live_view_handlers.dart';
 
-// Wave 7 Agent 2 — live-stacking broadcast for EAA / outreach
+// live-stacking broadcast for EAA / outreach
 export 'handlers/broadcast_handlers.dart';
 
-// P1-14 — remote log retrieval and tail SSE
+// remote log retrieval and tail SSE
 export 'handlers/log_handlers.dart';
 
-// P1-2 / P1-3 — long-running job model handlers
+// long-running job model handlers
 export 'handlers/job_handlers.dart';
 
-// P1-5 — session ownership handlers
+// session ownership handlers
 export 'handlers/session_ownership_handlers.dart';
 
-// P1-11 — headless OTA update endpoints
+// headless OTA update endpoints
 export 'handlers/update_handlers.dart';
 
-// P1-10 — remote calibration library (dark/flat/defect-map) management
+// remote calibration library (dark/flat/defect-map) management
 export 'handlers/calibration_handlers.dart';
 
 // v46 — unified Calibration Library Manager (browse / match / tag)
 export 'handlers/calibration_library_handlers.dart';
 
-// P1-12 — catalog management (download/upload/verify/uninstall/reload)
+// catalog management (download/upload/verify/uninstall/reload)
 export 'handlers/catalog_handlers.dart';
 
-// P2-8 — read-only DB endpoints (sequence runs, notes journal,
+// read-only DB endpoints (sequence runs, notes journal,
 // guide RMS history, polar alignment history, dark library, flat history)
 export 'handlers/db_read_handlers.dart';
 
-// P2-11 — plugin management API (list / upload / enable / disable / uninstall)
+// plugin management API (list / upload / enable / disable / uninstall)
 export 'handlers/plugin_handlers.dart';

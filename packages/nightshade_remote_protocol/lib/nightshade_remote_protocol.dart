@@ -7,10 +7,10 @@ library;
 // WebRTC peer-connection + signaling primitives were removed in §2.3 audit
 // 2026-05-09. Live remote control now runs over REST + WebSocket via
 // headless_api_server.dart. Renamed to nightshade_remote_protocol in
-// AUDIT-FIX-5A (audit-handoff §4.2) so the name reflects what the package
+// so the name reflects what the package
 // actually contains: discovery, auth, crypto, and pairing primitives.
 //
-// web_server.dart was deleted in §2.2 (audit 2026-05-09) — the consolidated
+// web_server.dart was deleted on 2026-05-09 — the consolidated
 // HTTP/REST server now lives at apps/desktop/lib/headless_api_server.dart and
 // is shared by both GUI and headless modes.
 export 'src/discovery.dart';
@@ -25,10 +25,10 @@ export 'src/collaboration/live_collaboration_session.dart';
 export 'src/auth/token_manager.dart';
 export 'src/crypto/channel_encryption.dart';
 
-// Secure pairing-mode discovery (used by W1.5 pairing flow)
+// Secure pairing-mode discovery (used by the pairing flow)
 export 'src/discovery/secure_discovery.dart';
 
-// Server-side mDNS / Bonjour / DNS-SD advertisement (P1-6).
+// Server-side mDNS / Bonjour / DNS-SD advertisement.
 export 'src/discovery/mdns_registration.dart';
 
 // Database
@@ -36,7 +36,7 @@ export 'src/database/device_push_tables.dart';
 export 'src/database/paired_devices_table.dart';
 export 'src/database/pairing_database.dart';
 
-// P1-19 — LAN UDP push fan-out + FCM/APNs scaffolding. The broadcaster
+// LAN UDP push fan-out + FCM/APNs scaffolding. The broadcaster
 // runs on the desktop next to the WebSocket fan-out so paired phones
 // receive critical alerts even when their WS has dropped. See header
 // of lan_push_broadcaster.dart for the wire format + threat model.

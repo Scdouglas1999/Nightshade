@@ -6,7 +6,7 @@
 // * Re-enable re-publishes them.
 // * PluginNodeExecutor surfaces validation failures, plugin exceptions,
 //   and timeouts as structured failures instead of throwing.
-// * The three Wave 6 example plugins (Pushover, Discord, Home Assistant)
+// * The three example plugins (Pushover, Discord, Home Assistant)
 //   validate their parameters and route through the registry correctly.
 // * A no-network "dummy" plugin executes end-to-end through the registry
 //   + executor pipeline.

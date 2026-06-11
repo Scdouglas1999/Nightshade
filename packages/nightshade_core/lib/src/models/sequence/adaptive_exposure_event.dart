@@ -1,11 +1,11 @@
-/// Wave 5 Agent 2 — typed wrapper for the
+/// Typed wrapper for the
 /// `SequencerEvent::ExposureAdjusted` event. The dashboard quality
 /// panel reads the latest decision from this model to render
 /// "L 142s (nominal 60s, sky 19.2 mag/arcsec²)".
 ///
-/// Pre-Wave-5 the dashboard relied on parsing `InstructionProgress.detail`
-/// strings; this typed payload follows the Wave-3 Pack-H model
-/// (`FrameGradeEvent`) and keeps the dashboard free of string parsing.
+/// An earlier build relied on parsing `InstructionProgress.detail`
+/// strings; this typed payload follows the same model as
+/// `FrameGradeEvent` and keeps the dashboard free of string parsing.
 library;
 
 /// Reason tag mirroring the Rust `AdaptiveExposureReason`. Plain enum

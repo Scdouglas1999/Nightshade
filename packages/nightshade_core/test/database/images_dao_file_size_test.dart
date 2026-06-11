@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 
-/// P0-5 — fileSize population (`insertSequenceFrame` stats the on-disk
+/// FileSize population (`insertSequenceFrame` stats the on-disk
 /// FITS at insert time) plus the `backfillMissingFileSizes` helper for
 /// legacy rows.
 void main() {
@@ -117,8 +117,8 @@ void main() {
           isAccepted: true,
           producingNodeId: 'real',
         );
-        // Force this row's fileSize back to NULL to simulate a pre-P0-5
-        // legacy row (insertSequenceFrame post-P0-5 has already populated
+        // Force this row's fileSize back to NULL to simulate a an earlier build
+        // legacy row (insertSequenceFrame a newer build has already populated
         // it from disk).
         await db.customStatement(
           'UPDATE captured_images SET file_size = NULL WHERE id = ?',

@@ -1,4 +1,4 @@
-/// DEV-P3-2: Per-device heartbeat health state.
+/// Per-device heartbeat health state.
 ///
 /// Rust's heartbeat monitor publishes [HeartbeatStatusChanged] events for
 /// every device that has `apiStartDeviceHeartbeat` running. Before this
@@ -7,10 +7,10 @@
 /// degrading. The provider stores the latest reported health per device
 /// id so the equipment cards can render a colored indicator (green /
 /// amber / gray) with a tooltip carrying the actual failure reason
-/// (CLAUDE.md "errors are a feature").
+/// (errors are a feature here).
 ///
 /// The state is intentionally *separate* from the existing
-/// `*StateProvider` connection state (see DEV-P0-1 and DEV-P0-5):
+/// `*StateProvider` connection state (see the related change and ):
 /// heartbeat reports a richer signal (degraded != disconnected) and we
 /// don't want the heartbeat dispatch path to step on the established
 /// disconnect / error handlers. The connection-state notifiers still
@@ -213,7 +213,7 @@ class DeviceHeartbeatHealthNotifier
   }
 
   /// Clear the entry for [deviceId]. Called from the device service
-  /// when the device emits a `Disconnected` event (DEV-P0-1) so the
+  /// when the device emits a `Disconnected` event so the
   /// indicator returns to gray "unknown" rather than getting stuck on
   /// the last-known health value.
   void clearDevice(String deviceId) {

@@ -1,4 +1,4 @@
-// P1-11: thin adapter between [UpdateService] and the headless API's
+// Thin adapter between [UpdateService] and the headless API's
 // `UpdateHandlers`.
 //
 // Why the indirection: `UpdateService` is bound to the host filesystem

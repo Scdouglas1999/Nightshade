@@ -438,7 +438,7 @@ class NotificationNode extends SequenceNode {
   final String message;
   final NotificationLevel level;
 
-  /// Wave 5 Agent 5 — explicit transport override for this node only.
+  /// Explicit transport override for this node only.
   ///
   /// When non-null, the executor's NotificationNode dispatcher hands this
   /// list to `NotificationRouter.routeNotificationNode(explicitTransports:)`

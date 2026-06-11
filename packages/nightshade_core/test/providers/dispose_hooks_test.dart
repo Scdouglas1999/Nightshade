@@ -15,7 +15,7 @@ class _TestBackendNotifier extends BackendNotifier {
   }
 }
 
-// CQ-W1-DISPOSE-DART: verifies long-lived notifiers / providers tear down
+// : verifies long-lived notifiers / providers tear down
 // their owned timers and subscriptions when the ProviderContainer is
 // disposed. Dart's test binding raises a "Timer is still pending"
 // assertion if anything leaks past container teardown.

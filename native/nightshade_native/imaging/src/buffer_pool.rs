@@ -71,7 +71,7 @@ pub struct BufferPoolConfig {
     pub size_buckets: Vec<usize>,
     /// Maximum lifetime for an idle buffer in the pool.
     /// `None` disables time-based eviction (not recommended in production).
-    /// Why: per audit §6.19, the prior pool never returned memory to the
+    /// Why: the prior pool never returned memory to the
     /// allocator; large unused buffers from a one-off capture stayed pinned
     /// indefinitely.
     pub idle_ttl: Option<Duration>,
@@ -85,7 +85,7 @@ pub struct BufferPoolConfig {
 impl Default for BufferPoolConfig {
     fn default() -> Self {
         Self {
-            // Per audit §6.19: previous defaults were initial=2/max=8, which
+            // previous defaults were initial=2/max=8, which
             // could pin ~5.8 GiB across all buckets at full sensor sizes. We
             // reduce max_capacity so steady-state is bounded; combined with
             // TTL + total-element cap below, idle memory shrinks.
@@ -314,7 +314,7 @@ where
     /// A PooledBuffer that can be used like a Vec<T> and returns to pool on drop
     pub fn get_buffer(&self, min_size: usize) -> PooledBuffer<T> {
         let (buffer, bucket_size, was_hit) = {
-            // Why (audit-rust §4.3): unpoisonable-Mutex idiom — `std::sync::Mutex::lock`
+            // Why: unpoisonable-Mutex idiom — `std::sync::Mutex::lock`
             // only returns Err when a prior holder panicked while holding the guard;
             // `e.into_inner()` retrieves the still-valid guard. The buffer-pool inner
             // state is a HashMap+Vec<Vec<T>> with no invariants that a panicked
@@ -382,7 +382,7 @@ where
 
     /// Get the current number of buffers in the pool
     pub fn pool_size(&self) -> usize {
-        // Why (audit-rust §4.3): unpoisonable-Mutex idiom; see get_buffer above.
+        // Why: unpoisonable-Mutex idiom; see get_buffer above.
         let inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.total_pool_size()
     }
@@ -494,7 +494,7 @@ impl<T: Default + Clone> Drop for PooledBuffer<T> {
             // Try to return to pool
             if let Some(pool) = self.pool.upgrade() {
                 let returned = {
-                    // Why (audit-rust §4.3): unpoisonable-Mutex idiom; see get_buffer above.
+                    // Why: unpoisonable-Mutex idiom; see get_buffer above.
                     let mut inner = pool.lock().unwrap_or_else(|e| e.into_inner());
                     inner.return_buffer(buffer, self.bucket_size)
                 };

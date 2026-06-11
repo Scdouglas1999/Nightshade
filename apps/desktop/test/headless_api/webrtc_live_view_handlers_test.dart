@@ -1,4 +1,4 @@
-// Wave 7A — WebRtcLiveViewHandlers lifecycle + hub fan-out tests.
+// WebRtcLiveViewHandlers lifecycle + hub fan-out tests.
 //
 // We do NOT spin up libwebrtc in tests because (a) the bundled libwebrtc
 // DLL is several hundred MB and CI runners don't have it on the link
@@ -361,7 +361,7 @@ Future<void> _waitUntil(
 ///   * onIceCandidate / onIceGatheringState / onConnectionState setters
 ///
 /// All other members throw `UnimplementedError` — if the production
-/// code starts calling them, the failure should be loud (CLAUDE.md:
+/// code starts calling them, the failure should be loud (the CONTRIBUTING.md house rules:
 /// errors are a feature).
 class _FakePeerConnection implements RTCPeerConnection {
   final Map<String, dynamic> config;
@@ -452,7 +452,7 @@ class _FakePeerConnection implements RTCPeerConnection {
   @override
   Function(RTCPeerConnectionState)? get onConnectionState => _onConnectionState;
 
-  // ── Everything else is unimplemented; loud-fail per CLAUDE.md ───────────
+  // ── Everything else is unimplemented; loud-fail ───────────
   @override
   dynamic noSuchMethod(Invocation invocation) {
     // Silence read-only properties the analyzer/runtime might probe.

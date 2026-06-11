@@ -436,7 +436,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   }
 
   Future<void> _disconnectAll(WidgetRef ref, BuildContext context) async {
-    // UI-P0-3: skip by connection state via [runEquipmentDisconnectAll], not
+    // Skip by connection state via [runEquipmentDisconnectAll], not
     // error-message substring matching in notifier disconnect paths.
     final summary = await runEquipmentDisconnectAll(ref);
     if (!context.mounted) return;

@@ -20,7 +20,7 @@
 //! (callbacks, log lines, return values) matches the pre-refactor
 //! implementation.
 //!
-//! ## `unwrap_or` policy (audit-rust §4.3)
+//! ## `unwrap_or` policy
 //!
 //! * `config.binning.unwrap_or(1)` — 1×1 binning is the
 //!   star-detection-optimal default and matches the PA wizard UI's
@@ -357,7 +357,7 @@ where
         let mut below_threshold_start: Option<std::time::Instant> = None;
         const AUTO_COMPLETE_HOLD_SECS: u64 = 3;
 
-        // P1-3: the reference star's solved position on the FIRST adjustment
+        // the reference star's solved position on the FIRST adjustment
         // frame. As the operator turns the alt/az bolts, the live solved
         // position drifts from this; the rigid rotation between them is applied
         // to the measured axis so the displayed error actually tracks the
@@ -423,7 +423,7 @@ where
             let pole_dec = if self.config.is_north { 90.0 } else { -90.0 };
 
             // Anchor the reference star on the first solved frame, then track
-            // the mechanical axis as the mount is adjusted (P1-3).
+            // the mechanical axis as the mount is adjusted.
             let current_solved = (solve_result.ra_degrees, solve_result.dec_degrees);
             let star_initial = *initial_solved.get_or_insert(current_solved);
             let (live_axis_ra, live_axis_dec) = math::rotate_axis_by_star_motion(

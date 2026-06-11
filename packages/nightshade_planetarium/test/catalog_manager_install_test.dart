@@ -1,4 +1,4 @@
-// P1-12 — Round-trip test for the unified catalog API: installFromFile
+// Round-trip test for the unified catalog API: installFromFile
 // → getInstalledStatuses → uninstall → getInstalledStatuses.
 //
 // We intentionally do NOT exercise the network-fetch path here because

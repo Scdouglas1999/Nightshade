@@ -3,7 +3,7 @@
 part of '../../sequence_models.dart';
 
 // =============================================================================
-// LIVE STACKING (Wave 7 Agent 2)
+// LIVE STACKING
 // =============================================================================
 
 /// Operating mode for a [LiveStackingNode].
@@ -111,7 +111,7 @@ class LiveStackingNode extends SequenceNode {
   final String? authToken;
 
   /// Optional watermark text rendered on the broadcast JPEG. Variable
-  /// interpolation (Wave 4) is applied at render time so the user can
+  /// interpolation is applied at render time so the user can
   /// write templates like `"M42 — L ${integration.hms}"`. `null`
   /// disables the watermark.
   final String? watermarkText;

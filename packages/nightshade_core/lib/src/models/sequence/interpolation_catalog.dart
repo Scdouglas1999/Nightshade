@@ -1,4 +1,4 @@
-// Wave 4 — Dart-side mirror of the Rust `expressions::catalog` variable
+// Dart-side mirror of the Rust `expressions::catalog` variable
 // list. Drives the VariablePicker UI: rows are populated from this static
 // list, and rendered example values come straight from `example`.
 //

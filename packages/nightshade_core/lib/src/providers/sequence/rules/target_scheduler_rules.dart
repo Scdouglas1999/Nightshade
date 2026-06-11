@@ -1,7 +1,7 @@
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-/// Wave 3 Agent 1: TargetScheduler validation rules.
+/// TargetScheduler validation rules.
 ///
 ///   * [TargetSchedulerNoChildrenRule]  — scheduler with no children is an
 ///     error (it would skip immediately at runtime).

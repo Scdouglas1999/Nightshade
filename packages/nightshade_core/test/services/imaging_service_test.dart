@@ -1757,7 +1757,7 @@ void main() {
     });
   });
 
-  // IMG-P1-4: the "Calibrated" badge in the imaging screen binds to this
+  // The "Calibrated" badge in the imaging screen binds to this
   // provider. It must be true if and only if the current image's saved
   // path actually carries the `_cal.fits` suffix that the calibration
   // service produces. Anything looser (e.g. matching `cal` anywhere in
@@ -1838,7 +1838,7 @@ void main() {
     });
   });
 
-  // IMG-P2-5 / IMG-P3-4: naming-pattern expansion. The user's pattern is a
+  // / naming-pattern expansion. The user's pattern is a
   // '/'-separated path whose last segment is the filename stem; earlier
   // segments become subdirectories under the configured base path. Date/time
   // substitutions use UTC so the on-disk folder matches the UTC timestamp
@@ -1911,7 +1911,7 @@ void main() {
     });
 
     test('unknown variable in pattern throws with descriptive error', () {
-      // CLAUDE.md: silent fallbacks hide bugs for months. A typo like
+      // Silent fallbacks hide bugs for months. A typo like
       // `$BANANA` must surface immediately rather than landing in the
       // filename as a literal "$BANANA" string.
       final subs = ImagingService.buildTimestampSubstitutions(
@@ -2036,7 +2036,7 @@ void main() {
     });
   });
 
-  // IMG-P3-4: UTC-consistent naming. FITS DATE-OBS is UTC; the on-disk
+  // UTC-consistent naming. FITS DATE-OBS is UTC; the on-disk
   // folder name must match so a 19:00 PST capture lands in the same UTC
   // date as the FITS header timestamp embedded in the file.
   group('ImagingService.buildTimestampSubstitutions UTC convention', () {

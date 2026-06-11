@@ -99,7 +99,7 @@ impl DeviceManager {
                     let index = id_str
                         .parse::<usize>()
                         .map_err(|_| "Invalid gPhoto2 camera index")?;
-                    // Why (audit-rust §4.3): `decode_port_component` returns
+                    // Why: `decode_port_component` returns
                     // None only when `encoded_port` is non-hex or odd length.
                     // We deliberately accept legacy IDs that pre-date the
                     // port-encoding scheme (per the comment above) by treating
@@ -297,7 +297,7 @@ impl DeviceManager {
                 let index = id_str
                     .parse::<usize>()
                     .map_err(|_| "Invalid gPhoto2 camera index")?;
-                // Why (audit-rust §4.3): the index (parts[2]) is the
+                // Why: the index (parts[2]) is the
                 // load-bearing identifier — libgphoto2 indexes its
                 // detect-list strictly by enumeration order, so a valid
                 // index suffices to open the camera. `model` (parts[3])
@@ -326,7 +326,7 @@ impl DeviceManager {
         Ok(())
     }
 
-    /// Native driver liveness probe for the heartbeat loop (FB-P0-4).
+    /// Native driver liveness probe for the heartbeat loop (FB-).
     ///
     /// Uses a lightweight SDK read per device class instead of the in-process
     /// `connected` flag, which can stay true after USB unplug.

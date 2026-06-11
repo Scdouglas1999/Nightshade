@@ -32,7 +32,7 @@ const _allowedExtensions = <String>{
 };
 
 // Excluded directory NAMES anchored to path-segment boundaries (NOT substring
-// matches). This closes the §7B.2 false-negative where a production module
+// matches). This closes the false-negative where a production module
 // at packages/nightshade_test_utils/lib/... was silently skipped because its
 // path contained the substring `/test/`-like fragments.
 const _excludedDirectoryNames = <String>{
@@ -100,7 +100,7 @@ void main(List<String> args) {
   final allowlistPath = _argValue(args, '--allowlist') ?? _defaultAllowlistPath;
   final failOnNewHighRisk = args.contains('--fail-on-new-highrisk');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
-  // §7B.4 regression-pin: CI passes either --min-files <N> or the older
+  // regression-pin: CI passes either --min-files <N> or the older
   // --assert-at-least-files-scanned <N>. Both names point at the same check;
   // the short form is preferred in new YAML.
   final assertMinFiles =
@@ -173,7 +173,7 @@ void main(List<String> args) {
   stdout.writeln('Hits: ${sortedHits.length} -> $hitsPath');
   stdout.writeln('High-risk hits: ${sortedHighRisk.length} -> $highRiskPath');
 
-  // Coverage assertion (§7B.4): CI can pass --assert-at-least-files-scanned=N
+  // Coverage assertion: CI can pass --assert-at-least-files-scanned=N
   // so an accidental scope regression — e.g., a glob change that excludes a
   // package — fails the gate instead of silently shrinking coverage.
   if (assertMinFiles != null) {
@@ -259,7 +259,7 @@ void _writeTextFile(String path, String content) {
 
 class _AllowlistEntry {
   // Full normalized line: either `path:line` or `path:line:trimmed_text`.
-  // Path-only entries are rejected at load time (§7B.5) — they whitelisted
+  // Path-only entries are rejected at load time — they whitelisted
   // every line in the file forever and were a foot-gun for false negatives.
   final String fullEntry;
   final String path;
@@ -290,7 +290,7 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     final normalized = _normalize(raw);
     final firstColon = normalized.indexOf(':');
     if (firstColon < 0) {
-      // Path-only entry — reject loudly per §7B.5. Errors are a feature.
+      // Path-only entry — reject loudly. Errors are a feature.
       stderr.writeln(
         'Invalid allowlist entry at $path:${lineNumber + 1}: '
         '"$raw" — path-only entries are not allowed. '

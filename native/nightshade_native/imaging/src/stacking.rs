@@ -503,7 +503,7 @@ impl LiveStacker {
 
         // Update stats
         self.stats.stacked_frame_count += 1;
-        // Why (audit IMG-P2-3): `avg_matched_pairs` and
+        // Why (audit IMG-): `avg_matched_pairs` and
         // `avg_alignment_residual` are *per-aligned-frame* metrics. The
         // reference frame contributes neither — it is not matched against
         // itself and has zero residual by construction. Dividing by
@@ -1563,7 +1563,7 @@ mod tests {
     }
 
     // =========================================================================
-    // IMG-P2-1: Master frame combination tests
+    // IMG-Master frame combination tests
     // =========================================================================
 
     /// Build a synthetic U16 image filled with a constant value (single channel).
@@ -1842,7 +1842,7 @@ mod tests {
     }
 
     // =========================================================================
-    // IMG-P2-3: avg_matched_pairs / avg_alignment_residual divisor
+    // IMG-avg_matched_pairs / avg_alignment_residual divisor
     // =========================================================================
     //
     // Verifies that the per-aligned-frame averages divide by the count of
@@ -1853,7 +1853,7 @@ mod tests {
 
     /// Update stats using the same arithmetic the fixed accumulator path uses,
     /// so the test directly exercises the divisor formula introduced for
-    /// IMG-P2-3 without spinning up a full LiveStacker (which requires
+    /// IMG-without spinning up a full LiveStacker (which requires
     /// successful star detection on each frame).
     fn step_stats(stats: &mut StackingStats, matches_len: usize, residual: f64) {
         stats.stacked_frame_count += 1;

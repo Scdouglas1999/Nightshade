@@ -1,4 +1,4 @@
-// Wave 5 Agent 2 — Sky-brightness adaptive exposure global defaults UI.
+// Sky-brightness adaptive exposure global defaults UI.
 //
 // Surfaces the master toggle, reference sky brightness, min/max clamp,
 // and per-filter overrides for the global default config that the Rust

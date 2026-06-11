@@ -196,7 +196,7 @@ impl AscomDomeWrapper {
         result
     }
 
-    #[allow(dead_code)] // Used by ASCOM dome heartbeat once FB-P1-5 in-dispatch probe lands.
+    #[allow(dead_code)] // Used by ASCOM dome heartbeat once FB-in-dispatch probe lands.
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst)
     }

@@ -122,7 +122,7 @@ class _StatusBadge extends StatelessWidget {
         icon = LucideIcons.xCircle;
         break;
       case SequenceExecutionState.recovering:
-        // Wave 4 — Recovery is a distinct visible state; toolbar reads
+        // Recovery is a distinct visible state; toolbar reads
         // "Recovering" with the loop-arrow icon so the operator can see
         // at a glance that the sequence is mid-recovery and not just
         // running normally.

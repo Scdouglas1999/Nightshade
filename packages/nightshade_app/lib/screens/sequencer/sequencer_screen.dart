@@ -130,7 +130,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         SessionReportDialog.show(context, sessionId);
-        // Wave 6 Agent 5 — fire the auto-prompt for a journal note
+        // Fire the auto-prompt for a journal note
         // when the setting allows it (default true). We use the
         // sequencer screen as the host because (a) it owns the
         // execution-state listener that knows a run just ended and
@@ -163,7 +163,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     super.dispose();
   }
 
-  /// Wave 6 Agent 5 — open the post-run notes prompt when:
+  /// Open the post-run notes prompt when:
   ///   * The `notes.prompt_after_run` setting is true (or unset; default).
   ///   * The current sequence has a TargetHeaderNode whose name we can
   ///     attach the note to. We pick the first TargetHeader walking the

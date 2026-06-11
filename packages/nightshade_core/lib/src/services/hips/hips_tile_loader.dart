@@ -22,7 +22,7 @@
 //     paints — it never awaits the loader.
 //
 //  2. **Bounded LRU cache.** All decoded tiles live in the injected
-//     [HipsTileCache] (C4), which evicts by entry-count and byte-budget. C6
+// [HipsTileCache], which evicts by entry-count and byte-budget. C6
 //     never holds a decoded image outside the cache (except the transient local
 //     in a fetch continuation, which is handed to the cache or disposed in the
 //     same synchronous step).
@@ -309,7 +309,7 @@ class HipsTileLoader extends ChangeNotifier {
   // --- recompute orchestration --------------------------------------------
 
   /// Runs the recompute for [_pendingViewport]: opens a new generation,
-  /// computes the visible set (C3), republishes the resident snapshot
+  /// computes the visible set, republishes the resident snapshot
   /// immediately (so coarse fallbacks paint without waiting for the network),
   /// then schedules the Allsky-first + parent-fallback + primary fetches.
   void _runPendingRecompute() {

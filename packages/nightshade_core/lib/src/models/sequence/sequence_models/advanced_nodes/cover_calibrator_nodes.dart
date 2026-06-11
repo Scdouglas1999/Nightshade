@@ -227,10 +227,10 @@ class CalibratorOffNode extends SequenceNode {
 }
 
 // =============================================================================
-// Wave 3 Agent 1: TargetScheduler — dynamic target picker
+// TargetScheduler — dynamic target picker
 // =============================================================================
 
-/// Wave 8 — brightness tier hint mirrored from
+/// Brightness tier hint mirrored from
 /// `crate::scheduling::adaptive_swap::BrightnessTier`. Used by
 /// [TargetSchedulerNode]'s adaptive-swap logic to decide whether the
 /// currently-running target's tier still accepts the live sky-conditions

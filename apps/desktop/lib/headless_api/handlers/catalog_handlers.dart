@@ -1,4 +1,4 @@
-// P1-12 — Catalog management endpoints for the headless API.
+// Catalog management endpoints for the headless API.
 //
 // Audit context: docs/audits/headless_2026_05_24/04-storage-image-transfer.md
 // §7 and 03-feature-parity.md §23.
@@ -48,10 +48,10 @@ import '../job_manager.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
 
-/// P1-12 — REST surface for [CatalogManager].
+/// REST surface for [CatalogManager].
 class CatalogHandlers {
   /// Job manager that owns long-running downloads. Catalog downloads
-  /// can be 35+ MB over a slow link, so we expose them as Wave 3 Jobs
+  /// can be 35+ MB over a slow link, so we expose them as Jobs
   /// — `POST /api/catalog/download` returns `{jobId}` immediately and
   /// progress flows over the WS event stream.
   final JobManager jobManager;

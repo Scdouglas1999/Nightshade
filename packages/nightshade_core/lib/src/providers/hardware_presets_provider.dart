@@ -7,9 +7,9 @@ import '../models/hardware_presets/hardware_preset_models.dart';
 import '../services/hardware_presets/hardware_presets_service.dart';
 import 'database_provider.dart';
 
-/// Riverpod plumbing for the hardware-presets library (C5).
+/// Riverpod plumbing for the hardware-presets library.
 ///
-/// Wires the pure [HardwarePresetsService] (C4) to persistence, following the
+/// Wires the pure [HardwarePresetsService] to persistence, following the
 /// same discipline as [onboarding_provider]'s `OnboardingNotifier`:
 ///   * the notifier kicks off an async `_load()` immediately and exposes
 ///     [HardwarePresetsNotifier.isLoaded] + [HardwarePresetsNotifier.loaded]

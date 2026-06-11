@@ -1,7 +1,7 @@
 import '../services/device_service.dart';
 
 /// Tracks the live [DeviceService] without creating a Riverpod cycle between
-/// [backendProvider] and [deviceServiceProvider] (DV-P0-2).
+/// [backendProvider] and [deviceServiceProvider].
 class DeviceServiceLifecycle {
   DeviceServiceLifecycle._();
 

@@ -1,11 +1,11 @@
-// Wave 3 Agent 2: SmartExposure properties editor.
+// SmartExposure properties editor.
 //
 // Tabular per-filter editor for the SmartExposureNode. Each row holds one
 // FilterPlan (filter, count, duration, gain, offset, binning, dither cadence)
 // and rows are drag-and-drop reorderable to change the rotation order.
 //
 // The editor wraps its inputs in IgnorePointer-on-canEdit-off the same way
-// ExposureProperties does (Wave 1.5 Pack B) so a running sequence can't be
+// ExposureProperties does so a running sequence can't be
 // mutated through this surface.
 
 import 'package:flutter/material.dart';

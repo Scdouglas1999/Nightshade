@@ -1,4 +1,4 @@
-// Riverpod wiring for the Wave 5 NotificationRouter.
+// Riverpod wiring for the NotificationRouter.
 //
 // Storage layout:
 //   * Non-secret config (host, port, from-address, etc.) → key-value

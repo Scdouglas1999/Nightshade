@@ -185,14 +185,14 @@ pub(super) fn variant_to_f64(var: &VARIANT) -> Option<f64> {
         if vt == VT_R8 {
             Some((*var.Anonymous.Anonymous).Anonymous.dblVal)
         } else if vt == VT_I4 {
-            // Why (audit-rust §1.4): i32 → f64 is exact for all values
+            // Why: i32 → f64 is exact for all values
             // (f64 mantissa is 53 bits, covers i32::MIN..=i32::MAX).
             Some(f64::from((*var.Anonymous.Anonymous).Anonymous.lVal))
         } else if vt == VT_I2 {
-            // Why (audit-rust §1.4): i16 → f64 widening, exact.
+            // Why: i16 → f64 widening, exact.
             Some(f64::from((*var.Anonymous.Anonymous).Anonymous.iVal))
         } else if vt == VT_UI2 {
-            // Why (audit-rust §1.4): u16 → f64 widening, exact.
+            // Why: u16 → f64 widening, exact.
             Some(f64::from((*var.Anonymous.Anonymous).Anonymous.uiVal))
         } else {
             tracing::warn!("variant_to_f64: unexpected VARIANT type {}", vt.0);
@@ -225,14 +225,14 @@ pub(super) fn variant_to_i32(var: &VARIANT) -> Option<i32> {
         if vt == VT_I4 {
             Some((*var.Anonymous.Anonymous).Anonymous.lVal)
         } else if vt == VT_I2 {
-            // Why (audit-rust §1.4): i16 → i32 widening, exact.
+            // Why: i16 → i32 widening, exact.
             Some(i32::from((*var.Anonymous.Anonymous).Anonymous.iVal))
         } else if vt == VT_UI2 {
-            // Why (audit-rust §1.4): u16 → i32 widening, exact (u16 max
+            // Why: u16 → i32 widening, exact (u16 max
             // = 65535 < i32::MAX).
             Some(i32::from((*var.Anonymous.Anonymous).Anonymous.uiVal))
         } else if vt == VT_R8 {
-            // Why (audit-rust §1.4): Rust 1.45+ defines f64 → i32 cast as
+            // Why: Rust 1.45+ defines f64 → i32 cast as
             // saturating-on-overflow / 0-on-NaN, which matches the
             // "best-effort coerce" semantics ASCOM clients expect when a
             // driver returns a VT_R8 in a property that should have been
@@ -382,12 +382,12 @@ pub(super) unsafe fn extract_safearray_i32(
     } else if base_vt == VT_I2.0 {
         // Data is i16 array (convert to i32)
         let slice = std::slice::from_raw_parts(data_ptr as *const i16, size);
-        // Why (audit-rust §1.4): i16 → i32 widening, exact.
+        // Why: i16 → i32 widening, exact.
         Ok(slice.iter().map(|&x| i32::from(x)).collect())
     } else if base_vt == VT_UI2.0 {
         // Data is u16 array (convert to i32)
         let slice = std::slice::from_raw_parts(data_ptr as *const u16, size);
-        // Why (audit-rust §1.4): u16 → i32 widening, exact.
+        // Why: u16 → i32 widening, exact.
         Ok(slice.iter().map(|&x| i32::from(x)).collect())
     } else if base_vt == VT_VARIANT.0 {
         // Array of variants - need to extract each one
@@ -397,7 +397,7 @@ pub(super) unsafe fn extract_safearray_i32(
             if let Some(val) = variant_to_i32(variant) {
                 result.push(val);
             } else if let Some(val) = variant_to_f64(variant) {
-                // Why (audit-rust §1.4): saturating f64 → i32 (Rust 1.45+);
+                // Why: saturating f64 → i32 (Rust 1.45+);
                 // matches the documented "best-effort coerce" used in
                 // variant_to_i32's VT_R8 arm. Mismatched per-element types
                 // here mean a buggy driver returned a float in an integer
@@ -510,17 +510,17 @@ pub(super) unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<Strin
     const MAX_ELEMENTS: usize = 1_000_000; // Conservative limit for string arrays
     let size = if dims == 2 {
         let diff2 = upper2.saturating_sub(lower2);
-        // Why (audit-rust §1.4): `diff` is already checked ≤ 10_000_000
+        // Why: `diff` is already checked ≤ 10_000_000
         // above; `+1` adds 1, well within usize on any ≥32-bit target.
         let dim1 = (diff + 1) as usize;
-        // Why (audit-rust §1.4): `diff2` is saturating-subtracted (non-
+        // Why: `diff2` is saturating-subtracted (non-
         // negative) and the i32 → usize widens on every supported target.
         // Subsequent `checked_mul` rejects overflowed totals.
         let dim2 = (diff2 + 1) as usize;
         dim1.checked_mul(dim2)
             .ok_or_else(|| "Array size overflow".to_string())?
     } else {
-        // Why (audit-rust §1.4): see dim1 above — `diff` bounded ≤ 10_000_000.
+        // Why: see dim1 above — `diff` bounded ≤ 10_000_000.
         (diff + 1) as usize
     };
 

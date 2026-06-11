@@ -87,7 +87,7 @@ void main() {
     });
   });
 
-  group('EquipmentHealthService.buildSnapshots (Wave 5.5)', () {
+  group('EquipmentHealthService.buildSnapshots', () {
     const service = EquipmentHealthService();
 
     test('populates disconnectCountLast24h from the USB log', () {

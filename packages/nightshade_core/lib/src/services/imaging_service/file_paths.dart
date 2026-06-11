@@ -13,7 +13,7 @@ extension _ImagingServiceFilePaths on ImagingService {
   /// `FilenameGenerator` in `native/nightshade_native/imaging/src/naming.rs`.
   ///
   /// All `$VARIABLE` tokens are validated against [_patternVariables]; any
-  /// unknown token raises an [Exception] (CLAUDE.md "errors are a feature":
+  /// unknown token raises an [Exception] (errors are a feature here:
   /// silently leaving e.g. `$BANANA` in the filename would hide a typo in the
   /// user's pattern for weeks).
   ///

@@ -91,7 +91,7 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     )..where((r) => r.startedAt.isSmallerThanValue(cutoff))).go();
   }
 
-  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// Paginated listing for the remote read API. Newest-first by
   /// `startedAt` so the phone always sees the most recent run at index 0.
   /// Callers MUST validate and clamp [limit] / [offset] before delegating.
   Future<List<SequenceRun>> listPaginated({
@@ -108,7 +108,7 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count for the same filter set [listPaginated] uses; the
+  /// Row count for the same filter set [listPaginated] uses; the
   /// handler returns this in the `total` field so the phone can render a
   /// progress indicator.
   Future<int> countFiltered({int? sequenceId}) async {

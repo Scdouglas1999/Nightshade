@@ -128,7 +128,7 @@ class PairingHandlers {
       'within ${service.codeLifetime.inMinutes} minutes: ${result.code}',
     );
 
-    // P0-3: when the headless operator passed --pairing-print-codes (or set
+    // when the headless operator passed --pairing-print-codes (or set
     // NIGHTSHADE_PAIRING_PRINT_CODES=true), echo the code to stdout. Without
     // this, a Pi-headless first-run has no way to retrieve the code — the
     // HTTP response intentionally omits it and the structured log file is

@@ -1,4 +1,4 @@
-//! Wave 5 Agent 2 — sky-brightness adaptive exposure math.
+//! sky-brightness adaptive exposure math.
 //!
 //! Goal: keep per-frame SNR roughly constant across changing sky conditions
 //! by stretching individual exposures when the sky background gets brighter
@@ -109,7 +109,7 @@ pub struct AdaptiveExposureConfig {
     pub max_exposure_secs: f64,
 
     /// Per-filter enable map. Filter name -> bool. When a filter name is
-    /// absent, the global `enabled_by_default` applies. The Wave 5 brief
+    /// absent, the global `enabled_by_default` applies. The brief
     /// calls out the typical use case: enable on Lum/clear, leave RGB at
     /// fixed exposures because chromatic noise behaves differently.
     #[serde(default)]

@@ -13,7 +13,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
     final frameTypeStr = optionalString(payload, 'frameType') ?? 'light';
     final frameType = _parseFrameType(frameTypeStr);
 
-    // P1-4: register the command BEFORE kicking off the exposure so a
+    // register the command BEFORE kicking off the exposure so a
     // FrameAccepted event that arrives during `await
     // backend.cameraStartExposure` (rare but possible on fast cameras) can
     // still be correlated.

@@ -18,7 +18,7 @@ import 'notification/notification_router.dart';
 /// run Nightshade unattended on a workstation expect an audible cue when a
 /// sequence completes or an error fires; the "Sound alerts" toggle in
 /// notification settings exposed by Settings → Notifications is what gates
-/// this playback (audit-handoff §2.1 WIRE-UP item #2).
+/// this playback
 typedef NotificationSoundPlayer = Future<void> Function();
 
 Future<void> _defaultPlayAlertSound() async {

@@ -1,4 +1,4 @@
-/// Declarative route table for the P2-8 read-only DB surface.
+/// Declarative route table for the read-only DB surface.
 ///
 /// Counterpart to `handlers/db_read_handlers.dart`. Covers tables the
 /// phone couldn't see before: sequence runs, notes journal, guide-RMS
@@ -13,7 +13,7 @@ import 'headless_route.dart';
 /// Build the declarative route table for [DbReadHandlers].
 List<HeadlessRoute> buildDbReadRoutes(DbReadHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/sequence-runs', h.handleListSequenceRuns),
-  // Wave 7B — session replay endpoints. ORDER MATTERS: specific path with
+  // session replay endpoints. ORDER MATTERS: specific path with
   // child segments (`/events`, `/frames`) registers before the catch-all
   // `/<runId>` so shelf_router doesn't shadow them with the by-id handler.
   HeadlessRoute(

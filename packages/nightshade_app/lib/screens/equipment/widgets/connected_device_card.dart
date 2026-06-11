@@ -280,7 +280,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
               // Header Row
               _buildHeader(colors, accentColor, connectionState),
 
-              // Onboarding C4: troubleshooter-backed error subtitle + Diagnose
+              // Troubleshooter-backed error subtitle + Diagnose
               // affordance, shown only when the device is in an error state.
               _buildErrorSubtitle(colors, connectionState),
 

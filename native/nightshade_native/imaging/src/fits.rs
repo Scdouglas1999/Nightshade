@@ -8,7 +8,7 @@
 //! - Header with 80-character keyword records
 //! - Data in big-endian format
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! FITS pixel I/O involves many wire-format scalar casts. They cluster into:
 //! - **BITPIX dispatch** (`bitpix as i32`): FITS BITPIX is an integer in
@@ -264,7 +264,7 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
 
     // Why: 4-D cubes (NAXIS > 3) cannot be represented by `ImageData` (which has a
     // single channel/depth axis). Silently loading only the first plane corrupts
-    // science workflows that depend on the full cube. Reject explicitly per audit §6.5.
+    // science workflows that depend on the full cube. Reject explicitly
     if naxis > 3 {
         return Err(FitsError::Unsupported4DCube { naxis });
     }
@@ -289,9 +289,8 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
 
     // Get scaling parameters. Why: per FITS 4.4.2.5, the in-memory data after applying
     // BSCALE/BZERO is the "physical" value; storing the original BSCALE/BZERO in the
-    // returned header would cause a subsequent write_fits to apply a second scaling pass
-    // (audit §6.3 — CRITICAL data corruption).
-    // Why (audit-rust §4.3): per FITS standard 4.4.2.5, BZERO and BSCALE are OPTIONAL
+    // returned header would cause a subsequent write_fits to apply a second scaling pass.
+    // Why: per FITS standard 4.4.2.5, BZERO and BSCALE are OPTIONAL
     // header cards; when absent the convention is BZERO=0.0, BSCALE=1.0 (the identity
     // transform). These are documented defaults, not silent error fallbacks.
     let bzero = header.get_float("BZERO").unwrap_or(0.0);
@@ -382,7 +381,7 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
     // Why: after BSCALE/BZERO have been folded into the data buffer, the header
     // entries are stale. Leaving them in `keyword_order` would cause write_fits
     // to emit them, double-scaling on round-trip. Strip them now so the next
-    // write computes fresh values for the chosen output BITPIX (audit §6.3).
+    // write computes fresh values for the chosen output BITPIX.
     header.remove("BZERO");
     header.remove("BSCALE");
 
@@ -425,7 +424,7 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
 
         // Parse the card. COMMENT/HISTORY cards have NO `=` separator per FITS 4.4.2.4
         // and their text occupies columns 9..80; route them to dedicated vectors so
-        // they are never mistaken for value cards and re-emitted with `=` (audit §6.5).
+        // they are never mistaken for value cards and re-emitted with `=`.
         if keyword == "COMMENT" {
             let text = record[8..].trim_end().to_string();
             header.comments.push(text);
@@ -529,7 +528,7 @@ fn is_valid_keyword(keyword: &str) -> bool {
 /// Compute pixel count from FITS NAXIS dimensions, surfacing overflow as a
 /// structured error rather than a wrapping `as usize`.
 ///
-/// Why (audit-rust §1.4): the previous `(width * height * depth) as usize`
+/// Why: the previous `(width * height * depth) as usize`
 /// in u32 silently wraps for >4G-pixel images; promoting to u64 with
 /// checked_mul forces the failure to surface at the I/O boundary where the
 /// caller can map it to a structured FitsError.
@@ -656,7 +655,7 @@ fn read_f64_data<R: Read>(
 /// Write a FITS file to disk.
 ///
 /// Why: this writer enforces three FITS-spec invariants that the prior version
-/// violated (audit §6.3 and §6.5):
+/// violated:
 ///  * BSCALE/BZERO are computed fresh from the in-memory pixel type, never
 ///    inherited from a stale source header.
 ///  * String values are padded to ≥8 characters between single quotes (FITS 4.2.1.1).
@@ -690,7 +689,7 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
         write_value_card(&mut writer, "NAXIS3", &image.channels.to_string(), None)?;
     }
 
-    // Why: per audit §6.3 the writer must always emit fresh BSCALE/BZERO matching
+    // Why: the writer must always emit fresh BSCALE/BZERO matching
     // the chosen output BITPIX. The decoder strips them from `keyword_order`, so
     // these are the only BSCALE/BZERO cards in the file.
     if image.pixel_type == PixelType::U16 {
@@ -807,7 +806,7 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
 /// Why: PixInsight, AstroPixelProcessor, and several legacy tools reject string
 /// cards whose quoted body is shorter than 8 characters. The spec requires the
 /// quoted text to be space-padded out to at least 8 characters before the closing
-/// quote (audit §6.5 item 1).
+/// quote.
 fn format_fits_string_value(value: &str) -> String {
     // Why: a single-quote inside the string must be escaped as `''` per FITS 4.2.1.1.
     let escaped = value.replace('\'', "''");
@@ -978,7 +977,7 @@ fn write_value_card<W: Write>(
 /// origin (0,0) is shifted. `XBAYROFF`/`YBAYROFF` keywords (NINA, ASIAIR,
 /// SharpCap, ASTAP, INDI) record those offsets so the consumer can apply the
 /// correct pattern. Without this, every odd-offset subframe is debayered with
-/// the wrong color mapping (audit §6.6).
+/// the wrong color mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BayerGeometry {
     /// Effective Bayer pattern at the image origin (after applying offsets).
@@ -1042,11 +1041,11 @@ pub fn effective_bayer_pattern(source: BayerPattern, x_offset: i64, y_offset: i6
 /// Returns `None` if `BAYERPAT` is absent or unrecognized. When present,
 /// `XBAYROFF`/`YBAYROFF` are read as integer keywords (default 0) and composed
 /// with the source pattern via [`effective_bayer_pattern`] so the caller's
-/// debayer step uses the correct origin (audit §6.6).
+/// debayer step uses the correct origin.
 pub fn read_bayer_geometry(header: &FitsHeader) -> Option<BayerGeometry> {
     let pat_str = header.get_string("BAYERPAT")?;
     let source = BayerPattern::from_str(pat_str.trim())?;
-    // Why (audit-rust §4.3): per the doc-comment above, XBAYROFF/YBAYROFF default to 0
+    // Why: per the doc-comment above, XBAYROFF/YBAYROFF default to 0
     // (no Bayer-pattern shift) — documented convention.
     let x_offset = header.get_int("XBAYROFF").unwrap_or(0);
     let y_offset = header.get_int("YBAYROFF").unwrap_or(0);
@@ -1225,7 +1224,7 @@ impl StandardKeywords {
 /// 10° true altitude where it is well-conditioned (worst-case error vs.
 /// rigorous radiative transfer is < 0.0008 airmass) and **Young (1994)** below
 /// 10° down to the true horizon where Pickering's `1/sin(h + 244/(165+47*h^1.1))`
-/// term degrades sharply (audit §6.14).
+/// term degrades sharply.
 ///
 /// # Arguments
 /// * `altitude_degrees` - True altitude angle in degrees (must be ≥ 0)
@@ -1400,7 +1399,7 @@ pub fn validate_image(
             }
 
             // Check for extremely low signal
-            // Why (audit-rust §4.3): max() of an empty pixel iterator → 0; an empty pixel
+            // Why: max() of an empty pixel iterator → 0; an empty pixel
             // vec is impossible (we are inside the `pixels.len() > 0`-guarded branch and
             // both prior `all_zero`/`all_saturated` iterators have already inspected it).
             // Zero is the inert placeholder for the unreachable empty case.
@@ -1848,7 +1847,7 @@ mod tests {
     #[test]
     fn test_calculate_airmass_horizon_uses_young_1994() {
         // Why: Young 1994 evaluated at z=90° (h=0°) gives airmass ≈ 31.74. This
-        // replaces the old sentinel-clamp value of 40.0 (audit §6.14).
+        // replaces the old sentinel-clamp value of 40.0.
         let airmass = calculate_airmass(0.0).expect("h=0° must succeed via Young 1994");
         assert!(
             (airmass - 31.74).abs() < 0.5,
@@ -1883,7 +1882,7 @@ mod tests {
 
     #[test]
     fn test_calculate_airmass_below_horizon_errors() {
-        // Audit §6.14 — sub-horizon altitudes must surface an error rather than
+        // sub-horizon altitudes must surface an error rather than
         // silently clamping. The caller decides how to handle.
         let err = calculate_airmass(-1.0).expect_err("below-horizon must error");
         assert!(
@@ -2381,11 +2380,11 @@ mod tests {
         let (image, header) = read_fits_from_bytes(&bytes).expect("read should succeed");
         assert!(
             header.get("BZERO").is_none(),
-            "BZERO must be stripped after decode (audit §6.3)"
+            "BZERO must be stripped after decode"
         );
         assert!(
             header.get("BSCALE").is_none(),
-            "BSCALE must be stripped after decode (audit §6.3)"
+            "BSCALE must be stripped after decode"
         );
         // Pixels: physical = raw * 2 + 1000 → {-100*2+1000=800, 50*2+1000=1100}
         assert_eq!(image.pixel_type, PixelType::U16);
@@ -2575,7 +2574,7 @@ mod tests {
 
     #[test]
     fn test_naxis_4_rejected() {
-        // Audit §6.5 — 4-D cubes are not silently truncated; the reader must Err.
+        // 4-D cubes are not silently truncated; the reader must Err.
         let cards = [
             "SIMPLE  =                    T",
             "BITPIX  =                   16",
@@ -2612,7 +2611,7 @@ mod tests {
 
     #[test]
     fn test_effective_bayer_pattern_rggb_x1_y0_yields_grbg() {
-        // Audit §6.6 explicit case.
+        //6 explicit case.
         assert_eq!(
             effective_bayer_pattern(BayerPattern::RGGB, 1, 0),
             BayerPattern::GRBG

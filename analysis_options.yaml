@@ -4,7 +4,7 @@
 # `../../analysis_options.yaml` from packages/*; `../analysis_options.yaml`
 # from apps/*). flutter_lints is pinned to ^5.0.0 in every workspace pubspec.
 #
-# History: CQ-W5-LINTS-UPGRADE (audit-dart §10 #3) — bumped flutter_lints
+# History: bumped flutter_lints
 # from 3.0.2 to ^5.0.0 and parked the noisy new rules below pending a
 # dedicated lint-debt sweep. Do NOT silently re-enable a rule without
 # auditing the resulting finding count in every package first.
@@ -50,7 +50,7 @@ analyzer:
     # diagnostic codes that flutter_lints 5.x / Dart 3.9 surfaces with
     # higher severity than flutter_lints 3.x did).
     #
-    # CQ-W5-LINTS-UPGRADE (audit-dart §10 #3): the new flutter_lints
+    # The new flutter_lints
     # ruleset pulls in stricter analyzer defaults. The two highest-volume
     # findings on the v2.5.0 codebase are demoted to `ignore` here so
     # the workspace can analyze clean while a dedicated lint-debt sweep
@@ -68,7 +68,7 @@ analyzer:
     # is settled.
     super_formal_parameter_without_associated_named: ignore
 
-    # 144 in-progress migrations are tracked under CQ-W2-DEPRECATED
+    # 144 in-progress deprecation migrations
     # (DriverBackend / AvailableDevice / TargetGroupNode). Demote to
     # info until that wave lands; do not let the lint upgrade re-add
     # noise on top of the in-flight rename.
@@ -83,24 +83,24 @@ linter:
     # `lints/core.yaml` enables this rule. Our freezed-generated parts
     # still use the legacy library-name form; flipping is a one-line
     # mechanical change per generator, blocked on next freezed bump.
-    # Tracked as follow-on to CQ-W5-LINTS-UPGRADE.
+    # Tracked as a follow-on lint-debt item.
     use_string_in_part_of_directives: false
 
-    # CQ-W5-LINTS-UPGRADE: 2,101 findings in nightshade_planetarium and
+    # 2,101 findings in nightshade_planetarium and
     # 129 in nightshade_core after the 5.x bump (~2,232 total). The
-    # v2.5.x roadmap §6 R7 explicitly says "Skip prefer_const_constructors
-    # blanket-fix to avoid massive diffs; introduce per-screen during
-    # W-DECOMP." Keep off until W-DECOMP screen splits land.
+    # The v2.5.x plan is explicit: skip the prefer_const_constructors
+    # blanket-fix to avoid massive diffs; introduce it per-screen during
+    # the screen-decomposition work. Keep off until those screen splits land.
     prefer_const_constructors: false
 
-    # CQ-W5-LINTS-UPGRADE: 20 findings in nightshade_core + 1 in
+    # 20 findings in nightshade_core + 1 in
     # nightshade_planetarium. Same rationale as above — defer to the
-    # W-DECOMP per-screen const sweep so the diff stays scoped.
+    # per-screen const sweep during screen decomposition so the diff stays scoped.
     prefer_const_literals_to_create_immutables: false
 
     # ------------------------------------------------------------------
     # Explicitly enabled rules. flutter_lints 5.x's recommended set
-    # already turns these on, but pin them here per CQ-W5-LINTS-UPGRADE
+    # already turns these on, but pin them here explicitly
     # so a future include change cannot silently regress them. Each
     # was kept on after confirming <50 findings across the workspace.
     # ------------------------------------------------------------------

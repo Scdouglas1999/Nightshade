@@ -779,7 +779,7 @@ impl NativeMount for SkyWatcherMount {
     // authoritative. Returning `NotSupported` makes the missing capability
     // explicit so the status layer marks it unavailable and the sequencer
     // refuses to schedule a flip on this driver. Encoder-based decode is
-    // tracked as a follow-up (audit §5.5 long-term).
+    // tracked as a follow-up ( long-term).
     async fn get_side_of_pier(&self) -> Result<PierSide, NativeError> {
         Err(NativeError::NotSupported)
     }

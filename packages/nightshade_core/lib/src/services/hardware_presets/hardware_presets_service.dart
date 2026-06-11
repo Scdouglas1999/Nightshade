@@ -14,7 +14,7 @@ import '../../models/hardware_presets/hardware_preset_models.dart';
 ///     rather than silently substituting an empty catalog.
 ///
 /// The service performs **no I/O** — encoding/decoding helpers are pure and the
-/// persistence read/write lives in the provider layer (C5). Errors are a
+/// persistence read/write lives in the provider layer. Errors are a
 /// feature: a malformed persisted override surfaces as a [FormatException]
 /// instead of being swallowed.
 class HardwarePresetsService {
@@ -141,7 +141,7 @@ class HardwarePresetsService {
   }
 
   // -------------------------------------------------------------------------
-  // Persistence (de)serialization. Pure — no I/O. Used by the provider (C5).
+  // Persistence (de)serialization. Pure — no I/O. Used by the provider.
   // -------------------------------------------------------------------------
 
   /// Decodes a list of [TelescopePreset] from an already-JSON-decoded [Object]

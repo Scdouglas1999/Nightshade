@@ -1,4 +1,4 @@
-// Wave 7B — Mobile session replay scrubber.
+// Mobile session replay scrubber.
 //
 // Renders a single past sequence run as a scrub-able timeline. The
 // state lives in `SessionReplayNotifier`; this widget translates the
@@ -54,7 +54,7 @@ class _SessionReplayScreenState extends ConsumerState<SessionReplayScreen> {
       // The picker screen guards against this before opening the
       // replay screen, so reaching here means a backend swap happened
       // mid-navigation. Surface as a runtime error rather than
-      // silently faking a data source — per CLAUDE.md, errors are a
+      // silently faking a data source, errors are a
       // feature, and replay on the FFI backend is genuinely not
       // implemented.
       throw StateError(

@@ -45,7 +45,7 @@ class PluginNodeBlueprint {
   /// Default opaque JSON config the palette stamps onto a freshly-dropped
   /// node. Must be parseable by `jsonDecode`; the app-layer adapter validates
   /// this when building the blueprint so malformed defaults are filtered out
-  /// (errors-are-a-feature per CLAUDE.md).
+  /// (errors are a feature here).
   final String defaultConfigJson;
 
   const PluginNodeBlueprint({
@@ -101,7 +101,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   final exposureContext = ref
       .watch(smartNightExposureContextProvider)
       .valueOrNull;
-  // Wave 8 — read user-tuned adaptive-swap defaults so new
+  // Read user-tuned adaptive-swap defaults so new
   // TargetScheduler nodes pick up the operator's preferred conditions
   // floor + hysteresis. Falls back to the constructor defaults when
   // settings haven't loaded yet so the palette is never empty.
@@ -168,7 +168,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           createNode: () =>
               FilterChangeNode(filterName: effectiveFilter ?? 'L'),
         ),
-        // Wave 3 Agent 2: SmartExposure — multi-filter container instruction
+        // SmartExposure — multi-filter container instruction
         // that internally handles filter changes, dither cadence, and
         // rotation order. Adds a single row using the current profile
         // filter so the user has a working starting point.
@@ -202,7 +202,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             raOnly: defaults.ditherRaOnly,
           ),
         ),
-        // Wave 7 Agent 2: LiveStacking — EAA / outreach broadcast node.
+        // LiveStacking — EAA / outreach broadcast node.
         // Defaults pulled from settings so the palette-drop user gets a
         // working private broadcast on the user's chosen port; flipping
         // to public is an explicit edit in the properties panel.
@@ -408,9 +408,9 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           description: 'Handle errors with recovery logic',
           createNode: () => RecoveryNode(),
         ),
-        // Wave 3 Agent 1: Target Scheduler — picks the highest-scoring child
+        // Target Scheduler — picks the highest-scoring child
         // target at runtime. Drop TargetHeader children under it.
-        // Wave 8 UI close: seed the new node with the user's adaptive-swap
+        // UI close: seed the new node with the user's adaptive-swap
         // defaults from `appSettings` so a brand-new scheduler honours
         // the operator's Settings → Adaptive Conditions preferences
         // without needing to retouch every knob.

@@ -31,7 +31,7 @@ class MobileSequenceHooks {
   MobileEventNotifier? _eventNotifier;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
-  // P1-19: LAN UDP push notification receiver. Lifecycle is tied to the
+  // LAN UDP push notification receiver. Lifecycle is tied to the
   // backend — created when the mobile pairs (NetworkBackend with a saved
   // server fingerprint) and torn down on unpair / disconnect. The
   // receiver feeds verified frames into the same `notifyPush` path used
@@ -176,7 +176,7 @@ class MobileSequenceHooks {
           if (eventType != null) {
             _eventNotifier?.recordPushReceived(eventType);
           }
-          // P1-19: record the WS-delivered frame id so the LAN UDP copy
+          // record the WS-delivered frame id so the LAN UDP copy
           // (which carries the same id) is suppressed. The desktop side
           // generates the id during the broadcaster fan-out and stamps
           // BOTH copies with it; without this dedup the user would see two
@@ -198,7 +198,7 @@ class MobileSequenceHooks {
         },
       );
     }
-    // P1-19: rebuild the LAN UDP receiver. Lifecycle follows the same
+    // rebuild the LAN UDP receiver. Lifecycle follows the same
     // backend-change trigger as the WS listener — disconnect tears it
     // down, a paired NetworkBackend starts it. Fire-and-forget because
     // the start() handles its own logging and the rest of the hook
@@ -353,7 +353,7 @@ class MobileSequenceHooks {
         break;
 
       case SequenceExecutionState.recovering:
-        // Wave 4 Recovery Mode — recovery is in-flight execution, not
+        // Recovery Mode — recovery is in-flight execution, not
         // session completion. Keep the iOS background banner visible so
         // the user understands the rig is still actively working; the
         // recovery banner on the dashboard surfaces the cause + retry
@@ -365,13 +365,13 @@ class MobileSequenceHooks {
   }
 
   /// Toggle the iOS-only "honest banner" advisory. No-op on Android (where
-  /// the foreground service keeps monitoring alive). Audit §3.2.
+  /// the foreground service keeps monitoring alive).
   ///
   /// Also refreshes the Critical Alerts authorization state so the banner
   /// can adapt its copy: if Critical Alerts are granted, safety events will
   /// still wake the device even while the app is suspended; if not, the
   /// banner needs to warn the operator that alerts may be silenced by
-  /// Focus / DnD / the ringer switch (P0-8 / audit §7 bug 4).
+  /// Focus / DnD / the ringer switch.
   void _setIosBackgroundBanner(bool visible) {
     final desired = Platform.isIOS && visible;
     final notifier = _ref.read(iosBackgroundBannerProvider.notifier);
@@ -562,7 +562,7 @@ class MobileSequenceHooks {
     _backendSubscription = null;
     await _eventNotifier?.stop();
     _eventNotifier = null;
-    // P1-19: tear down the LAN UDP receiver. dispose() closes the
+    // tear down the LAN UDP receiver. dispose() closes the
     // controller so any caller still listening on `incoming` gets a
     // done event instead of dangling.
     await _lanPushSubscription?.cancel();
@@ -582,7 +582,7 @@ class MobileSequenceHooks {
 /// `hooks.initialize()` returns a `Future<void>` that the Dart runtime
 /// silently discards if it throws. The foreground service, notifications,
 /// and power management may then fail without surfacing any signal — the
-/// classic audit P1-17 fire-and-forget bug. We route the error through
+/// classic audit fire-and-forget bug. We route the error through
 /// [LoggingService.error] so it lands in the on-disk log and through
 /// `developer.log` at level 1000 so it appears in DevTools.
 ///

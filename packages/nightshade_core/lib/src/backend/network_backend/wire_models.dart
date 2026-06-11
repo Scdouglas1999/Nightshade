@@ -2,7 +2,7 @@ part of '../network_backend.dart';
 
 /// Backend connection state.
 ///
-/// P2-13: the chip in the mobile UI conflated OS-level connectivity with
+/// The chip in the mobile UI conflated OS-level connectivity with
 /// WebSocket session liveness. Splitting `connecting` (very first attempt)
 /// from `reconnecting` (subsequent attempts after a previously-successful
 /// connection) and adding a terminal `error` (gave up / hard failure) lets
@@ -76,7 +76,7 @@ class RemoteDirectoryListing {
   }
 }
 
-/// Wire shape for `GET /api/filter-wheel/position` (P2-7).
+/// Wire shape for `GET /api/filter-wheel/position`.
 ///
 /// Mirrors the JSON envelope emitted by `DeviceHandlers
 /// .handleFilterWheelGetPosition`. `position` is null when the filter
@@ -372,7 +372,7 @@ class RemoteSessionStatus {
 }
 
 // =============================================================================
-// P1-12 — Client-side mirrors of the headless server's /api/catalog/... shapes.
+// Client-side mirrors of the headless server's /api/catalog/... shapes.
 // =============================================================================
 
 /// Per-catalog install state surfaced by `GET /api/catalog/status`.
@@ -561,7 +561,7 @@ DateTime? _parseDateField(Object? raw) {
 }
 
 // =========================================================================
-// P2-8 — wire types for the read-only DB endpoints. All endpoints use the
+// Wire types for the read-only DB endpoints. All endpoints use the
 // same `{items, total}` envelope, captured by [RemotePage<T>] so callers
 // see one consistent paginated shape regardless of underlying table.
 // =========================================================================

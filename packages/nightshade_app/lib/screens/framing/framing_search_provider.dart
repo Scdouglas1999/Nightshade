@@ -175,7 +175,7 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
 }
 
 // autoDispose: search results are page-scoped to the Framing screen. Stale
-// query/results should not survive navigation away (audit-dart §1b).
+// query/results should not survive navigation away.
 final targetSearchProvider =
     StateNotifierProvider.autoDispose<TargetSearchNotifier, TargetSearchState>(
         (ref) {

@@ -80,7 +80,7 @@ dependencies:
   pointycastle: ^3.9.1
   irondash_engine_context: 0.5.0
 
-  # Wave 7A — WebRTC datachannel transport for the live-view fan-out.
+  # WebRTC datachannel transport for the live-view fan-out.
   # The headless server holds the answerer-side RTCPeerConnection per
   # session and ships each JPEG frame as a binary datachannel message.
   # On Windows desktop, flutter_webrtc bundles libwebrtc as a native DLL;
@@ -91,7 +91,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   # Pinned across all 10 workspace packages to prevent mixed-version drift.
-  # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
+  # Upgraded from 3.0.2 to ^5.0.0.
   flutter_lints: ^5.0.0
   build_runner: ^2.4.15
   freezed: ^3.2.0
@@ -110,7 +110,7 @@ flutter:
     - web_dashboard/
     - web_dashboard/css/
     - web_dashboard/js/
-    # Wave 6 — phone/tablet Run-Watch SPA. Files are served from
+    # phone/tablet Run-Watch SPA. Files are served from
     # /run-watch on the headless API server. Includes the PWA manifest,
     # service worker, and inlined SVG icons.
     - web_run_watch/

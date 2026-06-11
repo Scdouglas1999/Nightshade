@@ -1,4 +1,4 @@
-// Wave 5.5 — provider wiring for the USB / device disconnect log.
+// Provider wiring for the USB / device disconnect log.
 //
 // The log itself is a plain `UsbDisconnectLog` value object; this file
 // supplies the Riverpod plumbing that:

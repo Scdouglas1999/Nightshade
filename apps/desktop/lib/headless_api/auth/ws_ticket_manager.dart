@@ -31,7 +31,7 @@ class WsTicketManager {
   /// responsible for confirming that the requestor presented a full bearer
   /// token before calling this.
   ///
-  /// P2-15: binding the ticket to the issuing identity means a client
+  /// binding the ticket to the issuing identity means a client
   /// cannot launder its identity through the ticket flow — the WS
   /// upgrade carries the same principal as the HTTP request that minted
   /// the ticket, which is what the collaboration manager uses to fill
@@ -107,7 +107,7 @@ class WsTicketManager {
 class _Ticket {
   final DateTime expiresAt;
 
-  /// P2-15: the SHA-256 digest of the bearer token that minted this
+  /// the SHA-256 digest of the bearer token that minted this
   /// ticket. Null only for tickets issued through the legacy unbound
   /// path; see [WsTicketManager.consume] for the semantics.
   final String? identity;

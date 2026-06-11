@@ -42,7 +42,7 @@ void main() {
   });
 
   // -----------------------------------------------------------------
-  // Wave 7 — multi-night carry-over detection
+  // Multi-night carry-over detection
   // -----------------------------------------------------------------
   group('SessionHandoffService.detectCarryOver', () {
     late NightshadeDatabase db;

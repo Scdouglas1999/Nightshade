@@ -2,7 +2,7 @@ part of '../equipment_models.dart';
 
 /// Switch device state.
 ///
-/// Mirrors [SafetyMonitorState] in shape (DEV-P2-1 / Audit C1). A switch
+/// Mirrors [SafetyMonitorState] in shape ( / Audit C1). A switch
 /// device exposes a fixed list of channels; each channel can be boolean
 /// (relay) or numeric (PWM, dimmer, voltage rail). The Rust bridge exposes
 /// these per-channel via `switch_get_state/value/name/description` calls —

@@ -39,7 +39,7 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-/// Wave 4 Recovery Mode — single-row tile rendering a completed recovery
+/// Recovery Mode — single-row tile rendering a completed recovery
 /// loop in the post-session report. Shows cause, attempt count, duration,
 /// outcome (recovered / exhausted / aborted) and the final error message
 /// (truncated).
@@ -128,7 +128,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
   }
 }
 
-/// Wave 7 — render one post-session [SessionInsight] inside the
+/// Render one post-session [SessionInsight] inside the
 /// Suggestions section. Includes:
 ///   * Title + confidence badge.
 ///   * Optional body / recommendation (collapsed by default; tap to
@@ -408,7 +408,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
   }
 }
 
-/// Wave 5 Agent 3 — single diagnostic line in the session report's
+/// Single diagnostic line in the session report's
 /// Diagnostics section. Mirrors the look of `_PreflightSection`'s
 /// issue rows but with the lighter post-session tone (everything is
 /// info-severity).

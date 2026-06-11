@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import 'watch_complication_service.dart';
 
-/// Wave 7D — bridges Riverpod sequence + weather state to the Apple Watch
+/// bridges Riverpod sequence + weather state to the Apple Watch
 /// complication.
 ///
 /// Watches:

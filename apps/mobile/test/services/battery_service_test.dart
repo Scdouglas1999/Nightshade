@@ -1,4 +1,4 @@
-// Wave 6D / P2-14 — Tests for the battery-aware polling throttle.
+// Tests for the battery-aware polling throttle.
 //
 // We don't instantiate the BatteryService singleton itself (that talks
 // to platform channels that aren't available in the unit-test

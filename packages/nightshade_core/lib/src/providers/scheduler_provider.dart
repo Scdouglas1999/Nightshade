@@ -381,7 +381,7 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   // Why: route the scheduler's current-time reads through the user's
   // configured clock so window evaluations, scoring, and meridian-factor
   // calculations all reflect the operator's chosen timezone
-  // (audit-handoff §2.1 WIRE-UP #9). The local offset still comes from
+  // The local offset still comes from
   // the system clock — the scheduler internally rebases to UTC for
   // ephemeris math.
   final clock = ref.watch(clockProvider);

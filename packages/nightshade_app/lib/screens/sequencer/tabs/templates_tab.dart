@@ -29,7 +29,7 @@ part 'templates_tab_parts/_starters_section.dart';
 /// Provider for templates list - loads from database with built-in fallbacks
 // autoDispose: list is only consumed by TemplatesTab; refetching the DB on
 // revisit is cheap and reflects any templates the user just saved or
-// imported elsewhere (audit-dart §1b).
+// imported elsewhere.
 final sequenceTemplatesProvider =
     FutureProvider.autoDispose<List<Sequence>>((ref) async {
   final repository = ref.watch(sequenceRepositoryProvider);
@@ -46,12 +46,12 @@ final sequenceTemplatesProvider =
 });
 
 /// Search provider for templates
-// autoDispose: filter input is tab-scoped (audit-dart §1b).
+// autoDispose: filter input is tab-scoped.
 final templateSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Selected template category
 // autoDispose: category filter is tab-scoped; default (All / null) is
-// appropriate on each visit (audit-dart §1b).
+// appropriate on each visit.
 final templateCategoryProvider =
     StateProvider.autoDispose<String?>((ref) => null);
 

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/device_heartbeat_health_provider.dart';
 
-/// DEV-P3-2 — unit tests for the heartbeat-health provider.
+/// Unit tests for the heartbeat-health provider.
 ///
 /// We exercise the notifier directly (rather than going through the
 /// `deviceServiceProvider` event-stream wiring) so the tests stay
@@ -71,7 +71,7 @@ void main() {
 
         final s = notifier.forDevice('mount-1');
         expect(s.health, HeartbeatHealth.degraded);
-        // CLAUDE.md "errors are a feature": the actual failure count must
+        // Errors are a feature here: the actual failure count must
         // be in the reason text so the tooltip surfaces it.
         expect(s.reason, contains('3'));
         expect(s.reason, contains('consecutive heartbeat'));

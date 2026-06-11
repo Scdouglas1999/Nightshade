@@ -25,13 +25,13 @@ pub mod delay;
 pub mod dither;
 pub mod expose;
 pub mod flat_wizard;
-// Wave 7 Agent 2: LiveStacking — EAA / outreach broadcast node.
+// LiveStacking — EAA / outreach broadcast node.
 pub mod live_stacking;
 pub mod meridian_flip;
 pub mod mosaic;
 pub mod move_rotator;
 pub mod notification;
-// Wave 6 Pack P: PluginNode — Rust↔Dart roundtrip dispatcher for
+// PluginNode — Rust↔Dart roundtrip dispatcher for
 // plugin-contributed sequence nodes.
 pub mod open_cover;
 pub mod open_dome;
@@ -40,12 +40,12 @@ pub mod park_dome;
 pub mod plugin_node;
 pub mod polar_alignment;
 pub mod run_script;
-// Wave 7 Science: SciencePhotometry — cadence-enforced photometric capture
+// Science: SciencePhotometry — cadence-enforced photometric capture
 // that delegates to TakeExposure and layers in per-frame photometric
 // reduction + transparency-adaptive coordination.
 pub mod science_photometry;
 pub mod slew;
-// Wave 3 Agent 2: SmartExposure — one-row-per-filter automation that
+// SmartExposure — one-row-per-filter automation that
 // delegates to ChangeFilter + TakeExposure internally.
 pub mod smart_exposure;
 pub mod start_guiding;

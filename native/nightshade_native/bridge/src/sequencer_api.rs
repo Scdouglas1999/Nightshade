@@ -83,7 +83,7 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
         ExecutorState::Cancelled => "Cancelled",
         ExecutorState::Completed => "Completed",
         ExecutorState::Failed => "Failed",
-        // Wave 4 Recovery Mode — first-class state for the visible
+        // Recovery Mode — first-class state for the visible
         // recovery loop. Mirrors `ExecutorState::Recovering` on the Rust
         // side; the Dart `SequenceExecutionState` enum gains a
         // `recovering` member.
@@ -91,7 +91,7 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
     }
     .to_string();
 
-    // Why (audit-rust §1.4): exposure counters are u32; u32 → f64 widening
+    // Why: exposure counters are u32; u32 → f64 widening
     // is exact. The resulting fraction is a UI progress value in [0, 1].
     let progress_val = if progress.total_exposures > 0 {
         f64::from(progress.completed_exposures) / f64::from(progress.total_exposures)
@@ -455,7 +455,7 @@ pub async fn sequencer_reset_hfr_baseline() -> Result<(), NightshadeError> {
 }
 
 // ============================================================================
-// Wave 4 Recovery Mode API
+// Recovery Mode API
 // ============================================================================
 //
 // The FRB-facing recovery functions live in `crate::api::sequencer` so they

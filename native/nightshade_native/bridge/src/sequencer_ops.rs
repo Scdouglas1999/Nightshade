@@ -3,7 +3,7 @@
 //! This module implements the DeviceOps trait from the sequencer crate,
 //! routing calls to actual connected devices via the bridge API.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Numeric casts in this file cluster into:
 //! - **Pixel-count widening (u32 → usize)** (line 259): expected-size
@@ -809,7 +809,7 @@ impl DeviceOps for BridgeDeviceOps {
             frame_ctx.log_label()
         );
 
-        // Wave 3 Image Grading: rich-header path. Replaces the previous
+        // Image Grading: rich-header path. Replaces the previous
         // 9-keyword hand-rolled FitsHeader so this adapter writes the same
         // full keyword set as the real device path.
         let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);

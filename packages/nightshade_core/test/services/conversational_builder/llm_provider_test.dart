@@ -1,4 +1,4 @@
-// Wave 8 — LlmProvider implementation tests.
+// LlmProvider implementation tests.
 //
 // Each provider is exercised against a MockClient that asserts the
 // wire shape (path, headers, body) and returns a canned response. The

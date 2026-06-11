@@ -17,7 +17,7 @@ export 'src/services/update_service.dart';
 export 'src/services/update_downloader.dart';
 export 'src/services/update_verifier.dart';
 export 'src/services/lan_push_receiver.dart';
-// P1-11: adapter interface that the headless API depends on. Wraps
+// Adapter interface that the headless API depends on. Wraps
 // UpdateService for the production wiring and lets the test suite
 // substitute a fake without touching disk / Process.start.
 export 'src/services/update_controller.dart';

@@ -4,7 +4,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   // ===========================================================================
   // Connection lifecycle
   //
-  // Audit DEV-P0-2: the previous headless implementation called
+  // Audit the previous headless implementation called
   // `backend.connectDevice` / `backend.disconnectDevice` directly. That
   // shipped a "connected" response to remote clients while skipping the
   // full per-device-type connect flow that the desktop UI runs through
@@ -179,7 +179,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   /// notifier transitions, cool-on-connect, recommended-gain auto-apply,
   /// heartbeat start, filter-name sync, ...).
   ///
-  /// DEV-P2-1 brought switches in line with every other device type:
+  /// brought switches in line with every other device type:
   /// `DeviceService.connectSwitch` / `disconnectSwitch` drive the
   /// `switchStateProvider` notifier and own the auto-reconnect loop, so
   /// the dispatcher routes switches through the service like everything

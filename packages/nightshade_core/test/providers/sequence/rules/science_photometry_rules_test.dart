@@ -1,4 +1,4 @@
-// Wave 7 Science — SciencePhotometry validation + serialization tests.
+// Science — SciencePhotometry validation + serialization tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';

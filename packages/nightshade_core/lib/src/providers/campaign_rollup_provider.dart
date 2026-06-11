@@ -25,7 +25,7 @@ final campaignRollupProvider = FutureProvider.autoDispose
       return ref.watch(campaignRollupServiceProvider).buildForTarget(targetId);
     });
 
-/// Wave 7 — Bulk campaign rollups for the entire target catalog.
+/// Bulk campaign rollups for the entire target catalog.
 ///
 /// Used by the Targets tab to render the "Total integration: 24h Lum,
 /// 8h Ha across 6 sessions" column and by the History tab to derive a
@@ -39,7 +39,7 @@ final campaignRollupAllTargetsProvider =
       return ref.watch(campaignRollupServiceProvider).buildForAllTargets();
     });
 
-/// Wave 7 — Resolve a campaign rollup by **target name** (case-insensitive).
+/// Resolve a campaign rollup by **target name** (case-insensitive).
 ///
 /// The History tab keys its rows by sequence-run, not by Drift target id —
 /// the per-run stats blob stores the target name as a free-string. We

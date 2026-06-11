@@ -43,7 +43,7 @@
 //! executor.set_device_ops(ops);
 //! ```
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Same pattern groupings as `sequencer_ops.rs` (this file is the unified
 //! replacement and the cast taxonomy is identical):
@@ -669,7 +669,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 let rgb_pixels: Vec<f64> =
                     rgb_data.par_iter().map(|&v| v as f64 / 65535.0).collect();
                 let mut sorted = rgb_pixels.clone();
-                // Why (audit-rust §4.3): f64::partial_cmp is required because
+                // Why: f64::partial_cmp is required because
                 // f64 is PartialOrd, not Ord (NaN). Pixel data is already
                 // bounded to [0.0, 1.0] by the `v / 65535.0` normalisation
                 // above, so NaN cannot occur — the fallback is purely a
@@ -758,7 +758,7 @@ impl DeviceOps for UnifiedDeviceOps {
             EventSeverity::Info,
         );
 
-        // Why (audit-rust §4.3): log-only formatting; "unknown" when the
+        // Why: log-only formatting; "unknown" when the
         // camera SDK did not surface a sensor-type string matches the UI
         // label used in the Equipment panel.
         tracing::info!(
@@ -916,7 +916,7 @@ impl DeviceOps for UnifiedDeviceOps {
 
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for the event
-        // Why (audit-rust §4.3): from_position is purely informational
+        // Why: from_position is purely informational
         // for the FilterChanging event payload. If the current position
         // read fails (filter wheel mid-move, or wheel just reconnected
         // and hasn't homed yet), `-1` is the documented "position unknown"
@@ -1190,7 +1190,7 @@ impl DeviceOps for UnifiedDeviceOps {
         .map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
 
         // Use the near solve if we have hints, otherwise blind solve.
-        // Why (audit-rust §4.3): 5.0° search radius is the Nightshade
+        // Why: 5.0° search radius is the Nightshade
         // default for "near solve" when the caller does not specify a
         // scale hint — matches the plate-solve UI slider default.
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
@@ -1229,7 +1229,7 @@ impl DeviceOps for UnifiedDeviceOps {
             frame_ctx.log_label()
         );
 
-        // Wave 3 Image Grading: rich-header path.
+        // Image Grading: rich-header path.
         let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);
         if let Some(g) = image_data.gain {
             header.gain = Some(g);
@@ -1949,7 +1949,7 @@ mod tests {
         );
     }
 
-    /// P0-1 regression: the live `UnifiedDeviceOps` must OVERRIDE
+    /// regression: the live `UnifiedDeviceOps` must OVERRIDE
     /// `device_is_connected` / `connect_device`. The `DeviceOps` trait
     /// defaults return `Err("… not supported by this driver")`, which made
     /// every device-disconnect recovery attempt fail instantly on the live

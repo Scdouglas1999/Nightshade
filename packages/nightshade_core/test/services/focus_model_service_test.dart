@@ -87,7 +87,7 @@ void main() {
       expect(data!.temperatureModel, isNull);
     });
 
-    // AUDIT-FIX-5B (audit-handoff §4.3 item 5): the `slope.abs() > 500`
+    // The `slope.abs() > 500`
     // rejection threshold is now sourced from FocusModelConfig.
     test(
       'maxAcceptableSlopeStepsPerC override accepts what the default would reject',
@@ -152,12 +152,12 @@ void main() {
       },
     );
 
-    // AUDIT-FIX-5B (§4.3 item 5): `FocusModel.isReliable` was hardcoded to
+    // `FocusModel.isReliable` was hardcoded to
     // `rSquared >= 0.7 && dataPointCount >= 5`. The new isReliableWith() takes
     // user-configurable thresholds.
-    // IMG-P1-2: filter offsets used to mix temperature drift into the
+    // Filter offsets used to mix temperature drift into the
     // reported per-filter shift. These tests pin the corrected behaviour.
-    group('IMG-P1-2 temperature-corrected filter offsets', () {
+    group('temperature-corrected filter offsets', () {
       // Helper: seed a service with synthetic samples whose underlying
       // physics is: position = baseAtRefTemp + slope * (T - refTemp) + offset
       Future<FocusModelService> seedService({
@@ -420,7 +420,7 @@ void main() {
           legacy.confidenceBand,
           FilterOffsetConfidence.low,
           reason:
-              'pre-IMG-P1-2 offsets were raw averages; must not advertise high',
+              'an earlier build offsets were raw averages; must not advertise high',
         );
         expect(legacy.temperatureCorrected, isFalse);
         expect(legacy.confidenceReason, isEmpty);

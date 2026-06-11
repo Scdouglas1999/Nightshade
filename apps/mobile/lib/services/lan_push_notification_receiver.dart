@@ -1,4 +1,4 @@
-// LAN UDP push notification receiver (P1-19 mobile side).
+// LAN UDP push notification receiver (mobile side).
 //
 // Pairs with `packages/nightshade_remote_protocol/lib/src/push/
 // lan_push_broadcaster.dart` on the desktop. The broadcaster fans out

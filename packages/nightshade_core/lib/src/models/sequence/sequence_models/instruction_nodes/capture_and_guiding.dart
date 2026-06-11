@@ -164,7 +164,7 @@ class CenterNode extends SequenceNode {
   ];
 }
 
-/// Wave 5 Agent 2 — Sky-brightness adaptive exposure config carried on
+/// Sky-brightness adaptive exposure config carried on
 /// an [ExposureNode] (or as a global default in app settings). Mirrors
 /// the Rust `AdaptiveExposureConfig`. Plain immutable value class with
 /// hand-rolled equality so we stay consistent with the rest of the
@@ -250,7 +250,7 @@ class ExposureNode extends SequenceNode {
   final int? ditherEvery;
   final List<Map<String, dynamic>> triggers;
 
-  /// Wave 5 Agent 2 — per-node sky-brightness adaptive exposure config.
+  /// Per-node sky-brightness adaptive exposure config.
   /// `null` means "use the global default from app settings"; an
   /// explicit value overrides the global default for this node.
   final AdaptiveExposureConfig? adaptiveExposure;

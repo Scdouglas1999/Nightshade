@@ -671,7 +671,7 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   // ===========================================================================
-  // P2-8 — paginated per-table reads for the remote read API.
+  // Paginated per-table reads for the remote read API.
   //
   // Why these are a separate group: existing per-session methods load the
   // entire table for a session (no pagination, no `total`). The remote

@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../database/database.dart' as db;
 import '../models/notes/journal_note.dart';
 
-/// Wave 6 Agent 5 — persistence + business logic for per-target /
+/// Persistence + business logic for per-target /
 /// per-run notes.
 ///
 /// Manages the `notes_journal` table directly with raw SQL: the table
@@ -94,7 +94,7 @@ class NotesService {
 
   /// Create a new note. Returns the freshly-persisted [JournalNote].
   ///
-  /// Per CLAUDE.md "errors are a feature": empty [targetId] throws
+  /// Errors are a feature here: empty [targetId] throws
   /// [ArgumentError] rather than silently coercing to "Untargeted" —
   /// the caller should resolve the target before reaching this layer.
   Future<JournalNote> addNote({

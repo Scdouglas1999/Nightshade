@@ -117,7 +117,7 @@ class _PluginRow extends ConsumerWidget {
     final colors = context.nightshadeColors;
     final hasError = plugin.error != null;
 
-    // The enabled-set is the authoritative persisted truth (C4). While it is
+    // The enabled-set is the authoritative persisted truth. While it is
     // loading we fall back to the host's own snapshot so the switch is never
     // shown in a meaningless intermediate state.
     final enabled =

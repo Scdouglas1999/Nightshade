@@ -6,7 +6,7 @@ import WidgetKit
 
 // MARK: - Live Activity host bridge
 //
-// Wave 5E — Dart calls into ActivityKit through the `nightshade/live_activity`
+// Dart calls into ActivityKit through the `nightshade/live_activity`
 // MethodChannel. ActivityKit landed in iOS 16.1, but
 // `NightshadeLiveActivityAttributes` (and therefore every ActivityContent we
 // build here) is gated to iOS 16.2 because the `ActivityContent` API itself
@@ -80,7 +80,7 @@ import WidgetKit
         self.handleLiveActivityCall(call, result: result)
       }
 
-      // Wave 7D — Apple Watch complication snapshot publisher.
+      // Apple Watch complication snapshot publisher.
       //
       // The Dart host writes a pre-encoded JSON snapshot of the current
       // sequence + weather state to the App Group `UserDefaults` suite
@@ -317,7 +317,7 @@ import WidgetKit
     completionHandler()
   }
 
-  // MARK: - Watch complication (Wave 7D)
+  // MARK: - Watch complication
   //
   // Shared App Group + UserDefaults pattern between the iOS host and the
   // watchOS WidgetKit extension. The suite name MUST also be set as an

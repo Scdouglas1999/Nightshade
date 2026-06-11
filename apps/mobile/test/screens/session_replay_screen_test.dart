@@ -1,4 +1,4 @@
-// Wave 7B — Smoke test for the mobile session replay scrubber.
+// Smoke test for the mobile session replay scrubber.
 //
 // Renders the replay screen with a stub data source and asserts:
 //   1. The timeline bar renders.

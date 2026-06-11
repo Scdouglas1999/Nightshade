@@ -156,7 +156,7 @@ class _ApiServerLifecycle {
   AppSettingsState? _queuedSettings;
   bool _isApplying = false;
 
-  /// P1-11: the OTA update controller wired into the API server. Owned
+  /// the OTA update controller wired into the API server. Owned
   /// here so it gets torn down whenever the server is stopped (e.g. the
   /// operator toggles remote access off in settings).
   UpdateController? _updateController;
@@ -206,7 +206,7 @@ class _ApiServerLifecycle {
     final running = _apiServer;
     _apiServer = null;
     if (running != null) {
-      // P1-11: detach the update controller BEFORE stopping the server so
+      // detach the update controller BEFORE stopping the server so
       // the controller's event subscription is cancelled cleanly. The
       // controller itself is disposed below.
       running.setUpdateController(null);
@@ -294,7 +294,7 @@ class _ApiServerLifecycle {
         );
       }
 
-      // P1-6: mDNS / Bonjour advertisement. Additive to UDP broadcast above —
+      // mDNS / Bonjour advertisement. Additive to UDP broadcast above —
       // most modern Wi-Fi APs block client-to-client broadcast, and Tailscale
       // / VPN segments have no broadcast domain at all. Register
       // `_nightshade._tcp` so phones discover the GUI server in those
@@ -362,7 +362,7 @@ class _ApiServerLifecycle {
         );
       }
 
-      // P1-11: provision the OTA update controller and bind it to the
+      // provision the OTA update controller and bind it to the
       // server so paired phones can drive `/api/system/update/*`. The
       // controller wraps the same UpdateService that the GUI's update
       // manager widget uses; in GUI mode the LAN push receiver (started
@@ -396,7 +396,7 @@ class _ApiServerLifecycle {
         );
       }
 
-      // P1-19: LAN UDP push broadcaster. GUI mode is always LAN-exposed
+      // LAN UDP push broadcaster. GUI mode is always LAN-exposed
       // (the operator opted in via Remote access), so we always wire the
       // broadcaster here. The fingerprint we hand to it is the same one
       // computed by the server for /api/info — paired phones already
@@ -617,7 +617,7 @@ Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
 /// data directory so it survives restarts. The same secret must be configured
 /// on the push tool (dev machine) to authenticate.
 ///
-/// P1-11: the implementation moved to `headless_api/update_wiring.dart` so
+/// the implementation moved to `headless_api/update_wiring.dart` so
 /// the headless daemon can reuse it. This wrapper preserves the original
 /// call sites in this file.
 Future<String> _getOrCreatePushSecret(LoggingService logger) {

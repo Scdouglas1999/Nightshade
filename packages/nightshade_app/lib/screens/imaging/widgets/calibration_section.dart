@@ -726,7 +726,7 @@ class _MaybeTooltip extends StatelessWidget {
   }
 }
 
-/// Wave 7 Agent 3 — settings sub-section: method / kernel / save-original /
+/// Settings sub-section: method / kernel / save-original /
 /// auto-apply. Each change is persisted via [defectMapSettingsProvider]
 /// AND pushed to the running sequencer (when the camera is connected and
 /// has a known temperature) so the next captured frame uses the new

@@ -75,7 +75,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
   /// - Prefers master darks over individual raws
   /// - Among matches, picks the one closest in temperature
   ///
-  /// IMG-P0-2: the tolerances argument is the SAME value object consulted by
+  /// The tolerances argument is the SAME value object consulted by
   /// `DarkLibraryCoverageService.evaluate`. Before unification, the coverage
   /// UI used ±1.0s while this DAO used ±0.001s, so the UI happily showed
   /// "all darks present" while this method returned null at runtime.
@@ -252,7 +252,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  /// Filtered listing for the remote calibration API (P1-10).
+  /// Filtered listing for the remote calibration API.
   ///
   /// Arguments are independent filters; nulls mean "do not filter on this
   /// dimension". Exposure tolerance is fractional (±10% of [exposureSeconds]
@@ -302,7 +302,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P1-10 #calibration: scan every dark-library row and verify the on-disk
+  /// Scan every dark-library row and verify the on-disk
   /// FITS still exists. Counts how many rows refer to a file that has gone
   /// missing (likely because the operator deleted the file directly), the
   /// total disk bytes the library currently occupies, and how many rows
@@ -354,7 +354,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     };
   }
 
-  /// P2-8: paginated listing for the remote read API. Supports the same
+  /// Paginated listing for the remote read API. Supports the same
   /// independent filters as [listFiltered] plus an offset for pagination
   /// and a separate `gain` range (callers passing `gainMin`/`gainMax`).
   /// Newest-first by `createdAt`. Caller MUST validate and clamp
@@ -402,7 +402,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count matching [listPaginated]'s filters.
+  /// Row count matching [listPaginated]'s filters.
   Future<int> countFilteredForRemote({
     int? gainMin,
     int? gainMax,

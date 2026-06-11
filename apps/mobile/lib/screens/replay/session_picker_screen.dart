@@ -1,8 +1,8 @@
-// Wave 7B — Mobile session picker. Lists past sequence runs newest-
+// Mobile session picker. Lists past sequence runs newest-
 // first; tap a row to drill into the replay scrubber.
 //
 // Pulls rows from `NetworkBackend.fetchSequenceRuns` (the existing
-// Wave 6A endpoint). The local FFI backend cannot serve this list
+// endpoint). The local FFI backend cannot serve this list
 // because the picker is part of the phone-only replay surface; the
 // desktop runs its sequence history off the Drift DB directly.
 
@@ -29,7 +29,7 @@ class SessionPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
-  // Page size used by the Wave 6A endpoint. Matches the default the
+  // Page size used by the endpoint. Matches the default the
   // server clamps to so the "Load more" cadence is predictable on a
   // phone screen (about 8 rows at 12 dp row height per visible page).
   static const int _pageSize = 50;

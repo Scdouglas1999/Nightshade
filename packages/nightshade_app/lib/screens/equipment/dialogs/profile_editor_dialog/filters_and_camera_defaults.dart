@@ -202,7 +202,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           ),
           const SizedBox(height: 12),
 
-          // IMG-P3-2: SDK auto-detect button + recommendation card.
+          // SDK auto-detect button + recommendation card.
           // The button is only useful when a camera is selected on this
           // profile (so we have a device_id to query).
           _buildAutoDetectRow(colors),
@@ -303,7 +303,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
   }
 
   // ===========================================================================
-  // IMG-P3-2: Auto-detect recommended camera gain/offset
+  // Auto-detect recommended camera gain/offset
   // ===========================================================================
 
   /// Build the auto-detect button row.

@@ -182,7 +182,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
-    // DEV-P3-1: gate the Temp Compensation row on whether the connected
+    // Gate the Temp Compensation row on whether the connected
     // focuser reports `tempCompAvailable`. The toggle is a Nightshade-side
     // controller (we re-issue moves based on a coefficient), but it
     // depends on the focuser publishing a temperature reading — drivers
@@ -445,7 +445,7 @@ class _BuiltinGuiderSettingsCardState
       return;
     }
 
-    // Sanity bounds. Errors are a feature (CLAUDE.md): bail loudly rather than
+    // Sanity bounds. Errors are a feature: bail loudly rather than
     // silently coerce the user's input.
     if (exposure <= 0 || exposure > 30) {
       context.showErrorSnackBar('Exposure must be between 0 and 30 seconds');

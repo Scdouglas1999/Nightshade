@@ -52,7 +52,7 @@ bridge.EventCategory _bridgeCategory(core.EventCategory category) {
     case core.EventCategory.job:
     case core.EventCategory.session:
     case core.EventCategory.catalog:
-      // P1-2/P1-3/P1-5/P1-12 categories have no FRB bridge counterpart —
+      // These categories have no FRB bridge counterpart —
       // they are produced server-side and consumed via the headless API
       // (run-watch SSE / WS events), never round-tripped through the
       // bridge. Treat as system so any code paths that incidentally hit
@@ -103,7 +103,7 @@ bridge.EventPayload _payloadFromCoreEvent(core.NightshadeEvent event) {
     case core.EventCategory.job:
     case core.EventCategory.session:
     case core.EventCategory.catalog:
-      // P1-2/P1-3/P1-5/P1-12 categories live on the headless API side.
+      // These categories live on the headless API side.
       // There is no matching FRB EventPayload variant; route through the
       // system payload so the bridge schema does not need to change.
       // The eventType + data carry the actual content unchanged.
@@ -245,7 +245,7 @@ bridge.EquipmentEvent _equipmentEventFromCore(
         deviceId: _stringField(data, 'device_id'),
       );
     case 'PropertyChanged':
-      // Wave 6B (P2-1) — hot-plug device_discovered / device_lost events
+      // Hot-plug device_discovered / device_lost events
       // and other property changes ride the PropertyChanged channel. The
       // mapper rebuilds the typed variant verbatim so round-tripping
       // through WS does not lose the property name or value the

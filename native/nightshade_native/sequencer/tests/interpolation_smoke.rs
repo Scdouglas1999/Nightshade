@@ -1,8 +1,8 @@
-//! Integration test for the Wave 4 interpolation engine.
+//! Integration test for the interpolation engine.
 //!
 //! Lives in `tests/` (not under `src/`) so it compiles against the library's
 //! public API but does NOT pull in the in-tree `#[cfg(test)]` modules of
-//! sibling Wave 4 agents that are currently in-flight. That keeps the
+//! sibling agents that are currently in-flight. That keeps the
 //! interpolation suite runnable end-to-end while those parallel changes
 //! settle.
 

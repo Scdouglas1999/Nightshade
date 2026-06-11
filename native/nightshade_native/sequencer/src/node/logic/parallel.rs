@@ -37,7 +37,7 @@ pub async fn execute_parallel(
     update.total_children = Some(total_children);
     context.send_progress(update);
 
-    // P1-11/P2: honor an operator Pause / recovery freeze before launching the
+    // /P2: honor an operator Pause / recovery freeze before launching the
     // parallel branches, matching sequential.rs (which gates `wait_while_paused`
     // at every child boundary). Without this gate a paused-then-executing
     // parallel node spawns its branch tasks regardless of the pause flag, so a
@@ -115,7 +115,7 @@ pub async fn execute_parallel(
         .filter_map(|r| r.ok())
         .collect();
 
-    // Restore children from mutex wrappers. Audit §1.12: try_unwrap failure
+    // Restore children from mutex wrappers. try_unwrap failure
     // means another task somewhere is still holding a clone of the child Arc
     // — i.e. the parallel-execution invariant has been violated. Previously
     // we silently dropped the unrecovered child; now we surface the violation
@@ -201,7 +201,7 @@ mod pause_gate_tests {
     /// Stands in for a hardware-instruction child (slew / expose / dome). If
     /// the parallel pause gate fails, the spawned branch task reaches this
     /// node and bumps the counter — exactly the "rig keeps moving while
-    /// Paused" violation P1-11 is about.
+    /// Paused" violation is about.
     struct ExecSpy {
         id: NodeId,
         node_type: NodeType,
@@ -267,7 +267,7 @@ mod pause_gate_tests {
         node
     }
 
-    /// P1-11: with the pause flag already set on entry, `execute_parallel` must
+    /// with the pause flag already set on entry, `execute_parallel` must
     /// block on `wait_while_paused`; cancelling while paused must unwind to
     /// Cancelled and NO branch may have executed (no exposure / slew). Without
     /// the gate, the branches spawn and run regardless of the pause flag.

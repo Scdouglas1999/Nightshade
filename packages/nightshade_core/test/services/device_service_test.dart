@@ -45,7 +45,7 @@ void main() {
     ).thenAnswer((_) => const Stream.empty());
     when(() => mockBackend.getConnectedDevices()).thenAnswer((_) async => []);
 
-    // IMG-P3-2: default to "SDK reports nothing" so existing tests that do
+    // Default to "SDK reports nothing" so existing tests that do
     // not care about auto-detect behavior do not hit unstubbed-call errors.
     // Specific tests below override this to assert recommendation handling.
     when(
@@ -248,7 +248,7 @@ void main() {
     test(
       'connectMount throws InvalidDeviceIdException when id is malformed',
       () async {
-        // DEV-P1-7: connect methods no longer do a precondition discovery
+        // Connect methods no longer do a precondition discovery
         // sweep. A malformed id (no recognized driver prefix) is rejected
         // up front with a typed exception so callers can distinguish "bad
         // input" from "backend rejected the connect attempt".
@@ -743,7 +743,7 @@ void main() {
     test(
       'stale temperature poll result is ignored after camera switch',
       () async {
-        // DEV-P1-7: ids must match a known driver prefix; use simulator:.
+        // Ids must match a known driver prefix; use simulator:.
         const firstDeviceId = 'simulator:camera-1';
         const secondDeviceId = 'simulator:camera-2';
         final firstPoll = Completer<CameraStatus>();
@@ -870,9 +870,9 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // DEV-P1-1: auto-reconnect plumbed through every device type.
+    // Auto-reconnect plumbed through every device type.
     //
-    // Before DEV-P1-1, only [DeviceType.camera] honored the toggle. Mount,
+    // Before, only [DeviceType.camera] honored the toggle. Mount,
     // focuser, etc. silently reconnected regardless of user preference.
     // These regression tests pin every device type's behavior:
     //   - default is `true` so we never silently disable for upgraders;
@@ -1425,7 +1425,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // DEV-P2-6: typed exception for disconnecting an already-disconnected device
+  // Typed exception for disconnecting an already-disconnected device
   //
   // Replaces a fragile `e.toString().contains('not connected')` filter in
   // `EquipmentScreen._disconnectAllDevices`. Every `disconnect<Type>` method
@@ -1433,7 +1433,7 @@ void main() {
   // the matching state provider, so callers can distinguish "nothing to do"
   // from "actual disconnect failure".
   // ---------------------------------------------------------------------------
-  group('DEV-P2-6: DeviceNotConnectedException on already-disconnected', () {
+  group('DeviceNotConnectedException on already-disconnected', () {
     test('disconnectCamera throws DeviceNotConnectedException when no '
         'camera state is present', () async {
       // No setConnecting / setConnected → cameraStateProvider has no deviceId.

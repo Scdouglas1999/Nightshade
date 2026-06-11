@@ -1,10 +1,10 @@
-// Wave 4 — dispatcher completeness.
+// Dispatcher completeness.
 //
 // Asserts that EVERY palette-reachable sequence-node type renders a real
 // property editor when selected in the NodePropertiesPanel — i.e. none of
 // them fall through to the "No property editor for <Type>" fallback card
-// (_UnknownNodeProperties). The fallback is the symptom the Wave 4 audit
-// (P1-18/19/20) traced to nodes the engine reads but the UI could not edit;
+// (_UnknownNodeProperties). The fallback was the symptom traced
+// to nodes the engine reads but the UI could not edit;
 // this test is the regression guard so a newly-added NodeType can't ship
 // without an editor again.
 //

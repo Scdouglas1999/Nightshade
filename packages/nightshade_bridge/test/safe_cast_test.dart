@@ -1,4 +1,4 @@
-/// Tests for the FFI-boundary safe-cast helpers (audit-rust §1.4).
+/// Tests for the FFI-boundary safe-cast helpers.
 ///
 /// Verifies that:
 /// - successful casts return the typed value

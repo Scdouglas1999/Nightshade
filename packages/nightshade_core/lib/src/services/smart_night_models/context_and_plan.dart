@@ -13,7 +13,7 @@ class SmartNightContext {
   /// Probability (0..1) of rain or cloud cover within the planning
   /// window. When `null` the builder skips the weather-arriving recovery
   /// node. When > 0.4 the builder prepends a `CloudArrivingIn` recovery
-  /// trigger (Wave 5 cross-system integration).
+  /// trigger (cross-system integration).
   final double? rainOrCloudProbability;
 
   /// Lead time (minutes) before the storm arrival when the recovery

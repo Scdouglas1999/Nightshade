@@ -4,7 +4,7 @@ import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/models/sequence/template_snippet.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
-/// Wave-1 trust-patch coverage: every behaviour the report flagged should be
+/// Trust-patch coverage: every behaviour the report flagged should be
 /// asserted here so the silent-fallback regressions can't sneak back in.
 
 ProviderContainer _newContainer() {
@@ -120,8 +120,8 @@ void main() {
       }
     });
 
-    test('undo throws when sequence is running (trust-patch §B item 1)', () {
-      // Load-bearing Wave-1 §B gate: Ctrl+Z mid-run used to roll back
+    test('undo throws when sequence is running', () {
+      // Load-bearing gate: Ctrl+Z mid-run used to roll back
       // Dart state while Rust kept executing the old tree (split-brain).
       // The notifier itself must refuse, even though the UI also gates
       // Ctrl+Z and the undo button via canEditSequenceProvider.

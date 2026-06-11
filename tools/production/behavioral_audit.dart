@@ -14,7 +14,7 @@ const _allowedExtensions = <String>{'.dart', '.rs'};
 
 // Excluded directory NAMES (anchored as path segments). A bare ".test" file
 // would not be excluded; a path containing /test/ would. This is intentional
-// and matches §7B.2: the previous substring match silently skipped any
+// and matches: the previous substring match silently skipped any
 // production module whose path happened to contain "test", "example", etc.
 const _excludedDirectoryNames = <String>{
   '.dart_tool',
@@ -161,7 +161,7 @@ void main(List<String> args) {
   final failOnUnregistered = args.contains('--fail-on-unregistered');
   final failOnOpen = args.contains('--fail-on-open');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
-  // §7B.4 regression-pin: CI passes either --min-files <N> or the older
+  // regression-pin: CI passes either --min-files <N> or the older
   // --assert-at-least-files-scanned <N>. Both names point at the same check;
   // the short form is preferred in new YAML.
   final assertMinFiles =

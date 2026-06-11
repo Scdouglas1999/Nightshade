@@ -1,4 +1,4 @@
-// P2-11 — Plugin management service.
+// Plugin management service.
 //
 // Backs the headless `/api/plugins*` endpoints. Responsibilities:
 //
@@ -314,7 +314,7 @@ class PluginManagementService {
     await targetFile.writeAsBytes(bytes, flush: true);
 
     final registry = await _loadRegistry();
-    // P2-11 — preserve the operator's existing enabled/disabled flag on
+    // Preserve the operator's existing enabled/disabled flag on
     // re-upload (the common case: plugin author publishes a new version
     // of an already-installed plugin). Default to enabled for a fresh
     // install so the operator does not have to enable separately after

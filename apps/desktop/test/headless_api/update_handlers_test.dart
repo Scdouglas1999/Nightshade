@@ -1,4 +1,4 @@
-// P1-11 — UpdateHandlers test suite.
+// UpdateHandlers test suite.
 //
 // Uses a fake [UpdateController] that records calls and drives the
 // `events` stream directly, so the test never touches disk, `Process.start`,

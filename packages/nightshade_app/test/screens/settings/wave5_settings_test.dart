@@ -1,10 +1,10 @@
-// Wave 5 Agent 5 / Pack M — widget tests for the new settings categories
+// Widget tests for the new settings categories
 // (Adaptive Exposure, Pre-flight Checks) and the NotificationNode
 // transport-override UI.
 //
 // Why this file is separate from settings_screen_test.dart: the existing
 // settings test file is large and tightly scoped to a curated set of
-// behaviour assertions. Pack M's tests target the *category routing*
+// behaviour assertions. These tests target the *category routing*
 // (sidebar entry → correct content widget) and the *new strictness radio* —
 // both are additive and don't interact with the pre-existing scenarios.
 //
@@ -85,7 +85,7 @@ void main() {
 
   testWidgets(
       'sidebar_lists_adaptive_exposure_and_preflight_checks: the two new '
-      'Wave 5 categories appear under their groups in the sidebar',
+      'new categories appear under their groups in the sidebar',
       (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(

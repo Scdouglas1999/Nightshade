@@ -3,7 +3,7 @@
 // Each transport has its own settings (Pushover needs user+token,
 // Telegram needs bot+chat, etc.). These types serialise to JSON.
 //
-// Storage split (Pack M / Wave 5 Agent 5):
+// Storage split:
 //   * Non-secret fields (SMTP host/port, MQTT topic, From-address, etc.)
 //     → key-value SettingsDao under `notification_transport_<kind>`.
 //   * Secret fields (passwords, tokens, webhook URLs) → flutter_secure_storage
@@ -15,7 +15,7 @@
 // reading the secret from the keyring, and stitching them back together.
 // On save the inverse split happens.
 //
-// Plaintext-secret blobs from before Pack M are migrated on first run
+// Plaintext-secret blobs from before that migration are migrated on first run
 // via [SecretsStore.migrateFromPlaintext] — one-shot, idempotent.
 
 import 'package:equatable/equatable.dart';

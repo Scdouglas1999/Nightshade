@@ -46,7 +46,7 @@ enum BrightnessTier {
   }
 }
 
-/// Wave 8 — per-tier conditions-score floor preferences. Mirrors the
+/// Per-tier conditions-score floor preferences. Mirrors the
 /// Rust `BrightnessTierPreferences` struct.
 @Freezed(fromJson: true, toJson: true)
 abstract class BrightnessTierPreferences with _$BrightnessTierPreferences {
@@ -76,7 +76,7 @@ abstract class BrightnessTierPreferences with _$BrightnessTierPreferences {
   bool accepts(BrightnessTier tier, double score) => score >= floorFor(tier);
 }
 
-/// Wave 8 — per-axis weights applied when composing the live
+/// Per-axis weights applied when composing the live
 /// ConditionsScore. Mirrors the Rust `ConditionsScoreWeights` struct.
 @Freezed(fromJson: true, toJson: true)
 abstract class ConditionsScoreWeights with _$ConditionsScoreWeights {
@@ -100,7 +100,7 @@ abstract class ConditionsScoreWeights with _$ConditionsScoreWeights {
   bool get isNormalised => sum >= 0.95 && sum <= 1.05;
 }
 
-/// Wave 8 — composite sky-conditions score (0..=100) pushed from Dart
+/// Composite sky-conditions score (0..=100) pushed from Dart
 /// to the Rust executor. Mirrors `ConditionsScore`.
 @Freezed(fromJson: true, toJson: true)
 abstract class ConditionsScore with _$ConditionsScore {
@@ -125,7 +125,7 @@ abstract class ConditionsScore with _$ConditionsScore {
     // form makes the field required, which is strictly stricter (errors
     // are a feature). The Rust producer always emits this field, so
     // production traffic is unaffected; only synthetic JSON missing the
-    // key will now throw — matching CLAUDE.md's "silent fallback hides
+    // key will now throw — matching the "silent fallback hides
     // bugs" policy. Phase 1's contract tests always provide the key.
     @JsonKey(name: 'generated_unix_secs')
     @UnixSecsDateTimeConverter()
@@ -144,7 +144,7 @@ abstract class ConditionsScore with _$ConditionsScore {
   }
 }
 
-/// Wave 8 — runtime adaptive-swap state pushed from Rust to the dashboard.
+/// Runtime adaptive-swap state pushed from Rust to the dashboard.
 /// Mirrors the Rust `AdaptiveSwapRuntimeState` struct.
 @Freezed(fromJson: true, toJson: true)
 abstract class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
@@ -183,7 +183,7 @@ abstract class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
   }
 }
 
-/// Wave 8 — paired snapshot returned by
+/// Paired snapshot returned by
 /// `api_sequencer_get_adaptive_swap_json`. The score may be null when
 /// telemetry has been lost while a previous adaptive-swap decision is
 /// still on display, so the two fields are independent.

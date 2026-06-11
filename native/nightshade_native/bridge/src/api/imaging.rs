@@ -1,8 +1,8 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 //
-// # `as`-cast policy (audit-rust §1.4)
+// # `as`-cast policy
 //
 // This file is the FFI surface for imaging; numeric casts cluster into:
 // - **Sensor-dimension widening** (`u32 as usize`, `u32 as f64`): >=32-bit
@@ -19,7 +19,7 @@
 //
 // Sites with their own `Why:` comment override the module-level reasoning.
 //
-// # `unwrap_or` policy (audit-rust §4.3)
+// # `unwrap_or` policy
 //
 // Three documented patterns appear in this file:
 //
@@ -182,7 +182,7 @@ pub async fn api_run_autofocus(
         .ok()
         .flatten();
 
-    // Wave 1.5 Pack A: spawn an executor-event bridge so instruction-level
+    // spawn an executor-event bridge so instruction-level
     // emergencies (FITS-save failures from the autofocus V-curve frames, etc.)
     // reach the same NightshadeEvent stream Dart subscribes to. Without this
     // the user only sees a generic "autofocus failed" return code with no
@@ -216,7 +216,7 @@ pub async fn api_run_autofocus(
         filter_focus_offsets: std::collections::HashMap::new(),
         event_tx: Some(event_tx.clone()),
         recovery_request_tx: None,
-        // Wave 3 Image Grading: standalone autofocus from the API does
+        // Image Grading: standalone autofocus from the API does
         // not save FITS frames, so empty FITS-metadata defaults are
         // honest here. The InstructionContext fields exist to be passed
         // through to execute_exposure; execute_autofocus ignores them.
@@ -241,11 +241,11 @@ pub async fn api_run_autofocus(
         frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
         default_quality_check: None,
         reject_folder_path: None,
-        // Wave 7 Agent 3 — defect map state. Standalone autofocus from
+        // defect map state. Standalone autofocus from
         // the API does not save FITS frames so this is unused; pass an
         // empty slot to satisfy the struct contract.
         defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Wave 8 — Forensics: standalone autofocus doesn't grade frames.
+        // Forensics: standalone autofocus doesn't grade frames.
         forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::VecDeque::new(),
         )),
@@ -255,7 +255,7 @@ pub async fn api_run_autofocus(
         )),
         current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Wave 8 Replay Debug — one-shot bridge API doesn't emit decisions.
+        // Replay Debug — one-shot bridge API doesn't emit decisions.
         decision_tx: None,
         active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
         // Standalone autofocus from the API is not driven by the node-runtime
@@ -724,7 +724,7 @@ pub async fn api_camera_start_exposure(
             // 2.5. Apply Auto White Balance (Histogram Peak Alignment)
             apply_auto_white_balance(&mut rgb_data);
 
-            // 3. Auto-stretch RGB via the real STF engine (IMG-P0-1 audit fix).
+            // 3. Auto-stretch RGB via the real STF engine (IMG-audit fix).
             //
             // Previously this path hard-coded `shadows = median - 0.1`,
             // `highlights = median + 0.3`, `midtones = 0.5` — a crude
@@ -739,7 +739,7 @@ pub async fn api_camera_start_exposure(
             // `AutoStretchSettings.linkedChannels` flag once auto-stretch is
             // explicitly enabled (see `auto_stretch_provider.dart`).
             //
-            // # Degenerate-input contract (CLAUDE.md "errors are a feature")
+            // # Degenerate-input contract ("errors are a feature")
             //
             // `auto_stretch_rgb_with_mode` returns `StretchParams::default()`
             // (shadows=0, highlights=1, midtones=0.5 — the identity MTF)
@@ -2898,7 +2898,7 @@ pub async fn api_get_next_frame_number(
 /// Dart consumers (Dart-driven snapshot saves, network-backend FITS writes)
 /// don't need a coordinated FRB regen.
 ///
-/// Wave 3 Image Grading: the sequencer's per-frame save path uses
+/// Image Grading: the sequencer's per-frame save path uses
 /// [`FitsWriteHeaderRich`] instead, which carries every extended keyword
 /// (focuser position, rotator angle, guide RMS, plate-solve, mosaic
 /// panel, etc.). The rich path is internal — not exposed via FRB — so
@@ -2931,7 +2931,7 @@ pub struct FitsWriteHeader {
     pub site_elevation: Option<f64>,
 }
 
-/// Wave 3 Image Grading: internal FITS-header bundle used by the
+/// Image Grading: internal FITS-header bundle used by the
 /// sequencer's per-frame save path. Carries every field the standard
 /// astrophotography FITS header expects PLUS the Nightshade-specific
 /// session / mosaic / plate-solve keywords.
@@ -2970,7 +2970,7 @@ pub struct FitsWriteHeaderRich {
     pub site_longitude: Option<f64>,
     pub site_elevation: Option<f64>,
     // -------------------------------------------------------------------
-    // Wave 3 Image Grading additions — populated from FrameContext.
+    // Image Grading additions — populated from FrameContext.
     // -------------------------------------------------------------------
     /// Focuser absolute position (FITS `FOCUSPOS`).
     pub focuser_position: Option<i32>,
@@ -3007,7 +3007,7 @@ pub struct FitsWriteHeaderRich {
     /// Mosaic total panel count (FITS `NS-NPAN`).
     pub mosaic_total_panels: Option<i32>,
     // -------------------------------------------------------------------
-    // Wave 7 Agent 3 — per-frame defect-map correction provenance.
+    // per-frame defect-map correction provenance.
     // Emitted as a FITS HISTORY card so the calibration trace is visible
     // in any FITS viewer (PixInsight, APP, NINA's image viewer, ds9).
     // `None` => no correction was applied (no map configured, or skipped
@@ -3015,7 +3015,7 @@ pub struct FitsWriteHeaderRich {
     // -------------------------------------------------------------------
     pub defect_map_correction: Option<nightshade_sequencer::scheduling::DefectMapCorrectionRecord>,
     // -------------------------------------------------------------------
-    // Wave 7 Science — photometric FITS keywords.
+    // Science — photometric FITS keywords.
     //
     //   * OBJCAT   - target catalogue designation
     //   * REFSTARS - comma-separated reference star catalogue IDs
@@ -3077,7 +3077,7 @@ impl FitsWriteHeaderRich {
     /// Build from a sequencer `FrameContext`. Pure data shuffling — no
     /// I/O, used by the sequencer-driven save paths in the bridge.
     ///
-    /// Pack H FRB regen: this helper is consumed only by Rust callers
+    /// FRB regen: this helper is consumed only by Rust callers
     /// (sequencer-driven `save_fits`). FRB picks up `&FrameContext` in the
     /// signature and tries to expose `FrameContext` as a Dart opaque type,
     /// which fails because `nightshade_sequencer::scheduling::FrameContext`
@@ -3135,7 +3135,7 @@ impl FitsWriteHeaderRich {
             mosaic_panel_column: ctx.mosaic_panel.as_ref().map(|p| p.column),
             mosaic_total_panels: ctx.mosaic_panel.as_ref().map(|p| p.total_panels),
             defect_map_correction: ctx.defect_map_correction.clone(),
-            // Wave 7 Science — photometric metadata. The
+            // Science — photometric metadata. The
             // SciencePhotometryInstruction stamps these onto the
             // FrameContext just before the FITS save call.
             photometry_object_catalog: ctx.photometry_object_catalog.clone(),
@@ -3254,7 +3254,7 @@ pub async fn api_save_fits_file(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // Why: airmass returns Err for below-horizon inputs. Surface
         // that as an OperationFailed so the caller knows the frame metadata was
         // attempted with an invalid altitude rather than silently writing a
         // sentinel value or omitting the keyword.
@@ -3293,7 +3293,7 @@ pub async fn api_save_fits_file(
     Ok(())
 }
 
-/// Wave 3 Image Grading: save FITS with the rich (~40-keyword) header
+/// Image Grading: save FITS with the rich (~40-keyword) header
 /// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
 /// Dart callers continue to use [`api_save_fits_file`] / [`FitsWriteHeader`].
 ///
@@ -3424,7 +3424,7 @@ pub async fn save_fits_file_rich(
     }
 
     // ------------------------------------------------------------------
-    // Wave 3 Image Grading: live device telemetry.
+    // Image Grading: live device telemetry.
     // ------------------------------------------------------------------
     if let Some(pos) = header_data.focuser_position {
         header.set_int("FOCUSPOS", pos as i64);
@@ -3509,7 +3509,7 @@ pub async fn save_fits_file_rich(
     }
 
     // ------------------------------------------------------------------
-    // Wave 7 Agent 3 — defect-map correction HISTORY card. When the
+    // defect-map correction HISTORY card. When the
     // sequencer applied a defect map to this frame, record the
     // provenance so re-stacking workflows know the cosmetic correction
     // has already been done (and can skip re-applying it).
@@ -3529,7 +3529,7 @@ pub async fn save_fits_file_rich(
     }
 
     // ------------------------------------------------------------------
-    // Wave 7 Science — photometric metadata. Stamped when the frame
+    // Science — photometric metadata. Stamped when the frame
     // was captured by the SciencePhotometryInstruction. Non-photometric
     // captures omit every keyword.
     // ------------------------------------------------------------------
@@ -3719,7 +3719,7 @@ pub async fn api_save_fits_from_last_capture(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // Why: airmass returns Err for below-horizon inputs. Surface
         // that as an OperationFailed so the caller knows the frame metadata was
         // attempted with an invalid altitude rather than silently writing a
         // sentinel value or omitting the keyword.
@@ -4788,7 +4788,7 @@ pub async fn api_defect_map_clear(
     Ok(())
 }
 
-/// Wave 7 Agent 3 — push the active defect-map application state to the
+/// push the active defect-map application state to the
 /// running sequencer.
 ///
 /// When `enabled == true`, the bridge loads the `.ndm` file for
@@ -5061,7 +5061,7 @@ mod unified_image_storage_tests {
 }
 
 // ============================================================================
-// Wave 3 Image Grading: round-trip test for the rich-header save path.
+// Image Grading: round-trip test for the rich-header save path.
 // ============================================================================
 
 #[cfg(test)]
@@ -5094,7 +5094,7 @@ mod rich_header_tests {
                 .as_nanos()
         ));
 
-        // Build a FrameContext with every Wave 3 field set so we can
+        // Build a FrameContext with every field set so we can
         // verify each one survives the round-trip.
         let mut ctx = FrameContext::new_light("session-uuid-abc", 2, 2, 60.0, 7);
         ctx.target_id = Some("tgt-42".to_string());
@@ -5330,7 +5330,7 @@ mod rich_header_tests {
 }
 
 // =============================================================================
-// Master calibration frame combination (IMG-P2-1)
+// Master calibration frame combination (IMG-)
 // =============================================================================
 //
 // Why this lives here: master-frame combine is a sibling of the existing

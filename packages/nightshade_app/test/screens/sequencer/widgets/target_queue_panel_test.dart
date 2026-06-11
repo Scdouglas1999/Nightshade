@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Target Queue panel tests.
+// Target Queue panel tests.
 //
 // Pins:
 //   * the queue panel renders a row per queued target,

@@ -1,4 +1,4 @@
-// P2-9 — Round-trip tests for the broadened backup-service coverage.
+// Round-trip tests for the broadened backup-service coverage.
 //
 // Two newly-included tables (dark_library + notes_journal/observation_logs)
 // are written into an in-memory database, backed up to disk, then restored
@@ -30,7 +30,7 @@ LoggingService _testLogger(Directory tempDir) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('BackupService P2-9 extended coverage', () {
+  group('BackupService extended coverage', () {
     late NightshadeDatabase srcDb;
     late NightshadeDatabase dstDb;
     late Directory tempDir;
@@ -61,7 +61,7 @@ void main() {
       'dark_library + notes_journal round-trip through backup/restore',
       () async {
         // Seed two tables that the legacy backup did NOT cover so the round
-        // trip exercises the new P2-9 code path specifically.
+        // trip exercises the new code path specifically.
         await srcDb.darkLibraryDao.addEntry(
           DarkLibraryCompanion.insert(
             filePath: '/tmp/dark1.fits',
@@ -170,7 +170,7 @@ void main() {
       expect(logs, hasLength(1), reason: 'restore must be idempotent');
     });
 
-    test('backup format version is bumped (P2-9)', () {
+    test('backup format version is bumped', () {
       expect(BackupService.backupVersion, '2.1');
     });
   });

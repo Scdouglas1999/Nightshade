@@ -1,13 +1,12 @@
 # CI Gates Reference
 
-> Owner: CQ / Code Quality. Last revised under `[CQ-W8-CI-GATING]`.
+> Owner: CQ / Code Quality.
 >
 > This document is the canonical reference for the **required CI checks** on
 > every pull request to `main`/`master`. Each gate listed below is enforced by
 > a step in `.github/workflows/ci.yml`; failing any of them blocks merge.
 >
-> Origin: this file closes audit-tests.md §7 gap "audit gates are advisory,
-> not required." See `docs/code-quality/audit-tests.md` §7 and §8 #11.
+> Origin: this file makes the audit gates required rather than advisory.
 
 ---
 
@@ -30,7 +29,7 @@ step exits non-zero, the job fails, the check shows red on the PR, and the
 | Launch-gate behavioral | `launch-gate` → "Runtime Behavioral Gate" | Mirror of the behavioral audit, run in the dedicated launch-gate job. | Same as Behavioral audit above. |
 | Dart tests | `test-dart` → "Run Dart tests" | All `flutter test` packages green. `melos run test` passes `--exclude-tags golden`, so the host-specific pixel-diff/perceptual golden suites do NOT run on the Linux runner (their committed baselines are Windows-rendered). See `docs/testing/golden-tests.md`; run the goldens with `melos run test:golden` on the canonical host. | `melos run test` |
 | Rust tests (Linux) | `test-rust` → "Run Rust tests" | `cargo test --all-features --workspace` green. Runs on every PR. | `cd native/nightshade_native && cargo test --all-features --workspace` |
-| Rust clippy (workspace, deny warnings) | `test-rust` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | `cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` clean. Promotes `result_unit_err` (audit-rust §7), `await_holding_lock` (audit-rust §2.2), and `undocumented_unsafe_blocks` (audit-rust §3.2, promoted under `[CQ-W10-UNSAFE-BLOCKS-PROMOTE]`) to errors. | `cd native/nightshade_native && cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` |
+| Rust clippy (workspace, deny warnings) | `test-rust` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | `cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` clean. Promotes `result_unit_err`, `await_holding_lock`, and `undocumented_unsafe_blocks` to errors. | `cd native/nightshade_native && cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` |
 | Rust tests (Windows) | `test-rust-windows` → "Run Rust tests" | `cargo test --workspace` on `windows-latest`. Runs on push to main/develop, nightly, or PRs labeled `ci:windows-rust`. Gates the Windows-only `ascom/` crate. | (Windows only) `cd native/nightshade_native && cargo test --all-features --workspace` |
 | Rust clippy (Windows) | `test-rust-windows` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | Same as the Linux clippy gate but on Windows so `ascom/windows_impl.rs` is exercised. | (Windows only) Same command as Linux clippy. |
 | Dart format | `format-check` → "Check Dart formatting" | `dart format --set-exit-if-changed` clean on every package. | `melos run format -- --set-exit-if-changed` |
@@ -48,16 +47,16 @@ visible on every PR.
 
 | Step | Where | Why advisory |
 |------|-------|--------------|
-| `cargo-duplicates` | `cargo-duplicates` job | audit-rust §5.3 documents the bloater crates being tracked under W-OBS / windows-upgrade. Annotated as a build warning until those land. Promote to `exit 1` once the deny.toml skip list is empty. |
+| `cargo-duplicates` | `cargo-duplicates` job | Documents the bloater crates being tracked under the windows-upgrade work. Annotated as a build warning until those land. Promote to `exit 1` once the deny.toml skip list is empty. |
 | Codecov upload (forked PR) | `coverage` step | `continue-on-error` only when the PR is from a fork without the `CODECOV_TOKEN` secret. Native-repo PRs still gate. |
 
 ---
 
 ## `undocumented_unsafe_blocks` — promoted to `-D`
 
-**Status:** promoted from `-W` (advisory) to `-D` (deny) under
-`[CQ-W10-UNSAFE-BLOCKS-PROMOTE]` on top of HEAD `2a17c1b` (the residual
-non-vendor SAFETY sweep landed in the same wave). The advisory step has been
+**Status:** promoted from `-W` (advisory) to `-D` (deny)
+on top of HEAD `2a17c1b` (the residual
+non-vendor SAFETY sweep landed in the same change). The advisory step has been
 removed and the lint is now folded into the main
 `-D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
 -D clippy::undocumented_unsafe_blocks` invocation on both the Linux and
@@ -65,10 +64,10 @@ Windows clippy jobs — see the "Required gates" table above.
 
 Coverage notes:
 
-- The vendor-SDK sweep landed under `[CQ-W6-SAFETY-COMMENTS]` across 8
+- The vendor-SDK sweep covered 8
   camera vendors (ZWO, FLI, QHY, PlayerOne, Atik, Moravian, SVBony, Fujifilm,
   Touptek) and the SDK loader macro.
-- The residual sweep under `[CQ-W10-UNSAFE-DOC-RESIDUAL]` documented the
+- The residual sweep documented the
   remaining non-vendor sites in ASCOM Windows COM helpers (variant, connection,
   switch, camera, cover_calibrator), the imaging mmap reader, gphoto2,
   updater Win32 helpers, and the ZWO test example.
@@ -116,18 +115,18 @@ so the remaining work ships before v2.5.0):
 
 | Gate | Status | Tracked under |
 |------|--------|---------------|
-| Placeholder absolute-zero | RED — 185 high-risk hits (down from 202 → 185 in the latest sweep). Remaining hits are predominantly documented ASCOM/Alpaca/INDI optional-property paths in `bridge/src/dispatch/*`, `bridge/src/device_capabilities.rs`, `bridge/src/real_device_ops.rs` where `.unwrap_or_default()` is the idiomatic graceful-degradation for properties that may be absent on older drivers (audit-rust §4.3). A follow-up sweep should triage these into either (a) `path:line:text` allowlist entries with one-line justifications, or (b) explicit `ok_or(...)` / `unwrap_or(...)` with meaningful fallbacks. The Dart side is clean — every prior `catch (_) {}` was either fixed (the `_safeLog` helper in `device_service.dart`, `lan_push_receiver.dart`, etc.) or is a false-positive comment/factory match (e.g. `NotificationResult.ok()`). | CQ-W6-UNWRAP-OR-SWEEP follow-up |
+| Placeholder absolute-zero | RED — 185 high-risk hits (down from 202 → 185 in the latest sweep). Remaining hits are predominantly documented ASCOM/Alpaca/INDI optional-property paths in `bridge/src/dispatch/*`, `bridge/src/device_capabilities.rs`, `bridge/src/real_device_ops.rs` where `.unwrap_or_default()` is the idiomatic graceful-degradation for properties that may be absent on older drivers. A follow-up sweep should triage these into either (a) `path:line:text` allowlist entries with one-line justifications, or (b) explicit `ok_or(...)` / `unwrap_or(...)` with meaningful fallbacks. The Dart side is clean — every prior `catch (_) {}` was either fixed (the `_safeLog` helper in `device_service.dart`, `lan_push_receiver.dart`, etc.) or is a false-positive comment/factory match (e.g. `NotificationResult.ok()`). | follow-up |
 
 Greened in this sweep (moved from red → green):
 
 - **Placeholder baseline regression** — baseline re-pinned to current 185-hit floor; the regression gate is GREEN until a future commit introduces a hit not in the baseline.
 - **Fail-closed policy** — the violation at `ffi_backend.dart:2064` no longer exists (that line is a checkpoint helper, not `UnimplementedError`). The three live violations were in `run_watch_handlers.dart:316/329/429` (`on Object catch (_)` with documented "Why" comments); fixed to name the exception variable and emit a log line on the failure path.
-- **Behavioral audit** — already green (the audit currently shows 0 unregistered and 0 open findings; the historical `nightshade_updater` / `nightshade_webrtc` gaps were closed under prior CQ-W6-CATCH-UNDERSCORE work and the register reflects that).
+- **Behavioral audit** — already green (the audit currently shows 0 unregistered and 0 open findings; the historical `nightshade_updater` / `nightshade_webrtc` gaps were closed under prior work and the register reflects that).
 - **Rust clippy `-D warnings`** — fixed the two errors on Rust 1.91.x (`derivable_impls` on `FilterCycleMode` in `sequencer/src/lib.rs`; `type_complexity` on a nested `Mutex<Option<Option<String>>>` test fixture in `sequencer/src/node/logic/conditional.rs` — extracted to a named `LastSafetyIdSlot` type alias).
 - **Analyzer rollup (production)** — green (`errors=0, warnings=0, infos=310`); the 9 prior production warnings (DEAD_NULL_AWARE_EXPRESSION, UNUSED_IMPORT, UNUSED_LOCAL_VARIABLE, UNNECESSARY_NON_NULL_ASSERTION) were fixed in `device_handlers.dart`, `remote_sequence_editor_sync.dart`, `sequence_catalog_sync.dart`, `session_optimizer_provider.dart`, `transient_alert_provider.dart`, `session_handoff_service.dart`.
 
-The `undocumented_unsafe_blocks` lint was advisory at the time of CQ-W8 and has
-since been promoted to `-D` under `[CQ-W10-UNSAFE-BLOCKS-PROMOTE]`; it is now
+The `undocumented_unsafe_blocks` lint was advisory earlier and has
+since been promoted to `-D`; it is now
 enforced as part of the workspace clippy gate.
 
 When clearing a red gate, also delete its row from this section (and the

@@ -1,4 +1,4 @@
-// Wave 8 — Predictive autofocus service tests.
+// Predictive autofocus service tests.
 //
 // Covers:
 //   * Linear regression math (slope recovery on known data).

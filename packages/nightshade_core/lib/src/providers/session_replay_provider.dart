@@ -1,4 +1,4 @@
-// Wave 7B — Mobile session replay scrubber.
+// Mobile session replay scrubber.
 //
 // This provider owns the state machine that powers the mobile
 // "replay a past session" screen: a single sequence-run id, an
@@ -498,7 +498,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       );
       _emitSnapshot();
     } catch (e) {
-      // Per CLAUDE.md: errors are a feature. Surface loudly with the
+      // : errors are a feature. Surface loudly with the
       // cause and a human message; the UI renders the failure as a
       // distinct screen state with a "Retry" button rather than a
       // silent empty timeline. We do NOT re-throw or escalate to

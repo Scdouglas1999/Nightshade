@@ -302,7 +302,7 @@ final runDashboardFilterTotalsProvider =
   );
 });
 
-/// Wave 3 Agent 3 — per-target integration budget progress for the
+/// Per-target integration budget progress for the
 /// active TargetHeader. `null` when the active target has no budget
 /// configured (so the dashboard hides the panel).
 class RunDashboardBudgetProgress {
@@ -347,7 +347,7 @@ class RunDashboardBudgetProgress {
   }
 }
 
-/// Wave 3 Agent 3 — surfaces the integration-budget progress for the
+/// Surfaces the integration-budget progress for the
 /// currently-active TargetHeader. Returns `null` when no target is
 /// active or the active target has no budget configured.
 ///

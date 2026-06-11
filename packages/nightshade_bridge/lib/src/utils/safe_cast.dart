@@ -1,7 +1,7 @@
 /// Type-safe cast helpers for the Dart <-> Rust FFI boundary.
 ///
-/// Per audit-rust §1.4 (`as` casts where `From`/`TryFrom` would be safer),
-/// the Rust side has 1,049 unchecked `as` numeric casts. On the Dart side the
+/// The Rust side has many unchecked `as` numeric casts (where `From`/`TryFrom`
+/// would be safer). On the Dart side the
 /// corresponding risk lives at JSON / dynamic-payload deserialization where
 /// `value as Type` will throw a bare `TypeError` if the runtime type does not
 /// match.
@@ -14,8 +14,8 @@
 ///
 /// Why a dedicated exception class:
 ///   - Bare `TypeError` is hard to catch without unsafe `dynamic` typing.
-///   - The audit explicitly forbids silent fallbacks (CLAUDE.md "Errors are a
-///     feature") — a structured exception preserves stack trace AND context.
+///   - Silent fallbacks are forbidden here (errors are a feature) — a
+///     structured exception preserves stack trace AND context.
 ///
 /// Use [safelyCast] / [safelyCastOpt] at hand-written FFI boundaries where the
 /// payload type is not statically proven (PHD2 JSON-RPC responses, ip-api.com

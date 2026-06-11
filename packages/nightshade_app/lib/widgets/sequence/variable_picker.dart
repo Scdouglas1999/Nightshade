@@ -1,4 +1,4 @@
-// Wave 4 — Variable picker widget. Renders an inline `${ }` icon button
+// Variable picker widget. Renders an inline `${ }` icon button
 // next to a text field; tapping opens a menu of variables grouped by
 // category and inserts the chosen one at the current cursor position.
 //

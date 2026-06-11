@@ -1,6 +1,6 @@
-// Wave 7A — WebRTC datachannel transport for the live-view stream.
+// WebRTC datachannel transport for the live-view stream.
 //
-// The Wave 6E push WebSocket at `/ws/live-view` is the canonical
+// The push WebSocket at `/ws/live-view` is the canonical
 // producer (see `live_view_stream_handlers.dart`); this module is a
 // PARALLEL fan-out path that publishes the SAME JPEG frames over a
 // WebRTC RTCPeerConnection's datachannel. We do NOT re-encode and we
@@ -65,7 +65,7 @@
 // client must re-offer. Once `connected` the session lives as long as
 // the datachannel is open; the 30 s timer no longer applies.
 //
-// CLAUDE.md compliance: no stubs, no placeholders, errors are loud.
+// no stubs, no placeholders, errors are loud.
 // A WebRTC failure (peer disconnect, ICE failure, datachannel close)
 // tears the session down immediately and the client-side stream emits
 // an explicit error. There is no silent fallback to the WS path inside
@@ -629,7 +629,7 @@ class _WebRtcLiveViewSession {
   /// They mirror the defaults the WS path uses; phones with tighter
   /// bandwidth budgets can override these via subsequent control
   /// messages on the datachannel in a future revision (out of scope
-  /// for Wave 7A).
+  /// for ).
   int liveViewMaxDim = 1024;
   double liveViewMaxFps = 2.0;
   int liveViewJpegQuality = 70;
@@ -691,7 +691,7 @@ class _WebRtcLiveViewSession {
         dc.send(RTCDataChannelMessage.fromBinary(Uint8List.fromList(value)));
       } else {
         // Anything else is a protocol violation by the hub; surface it
-        // loudly per CLAUDE.md and tear the session down so the client
+        // loudly and tear the session down so the client
         // sees the error rather than mysteriously stops receiving.
         logger.warning(
           'WebRTC live-view session=$sessionId received unexpected '

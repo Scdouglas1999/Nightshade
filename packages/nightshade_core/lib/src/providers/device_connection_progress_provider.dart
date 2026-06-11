@@ -1,4 +1,4 @@
-/// DEV-P1-5: per-device "Connect All" progress state.
+/// Per-device "Connect All" progress state.
 ///
 /// `DeviceService.connectAllFromProfile` emits a [DeviceConnectProgress]
 /// for every device in the sweep. This provider materializes those events

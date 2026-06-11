@@ -10,7 +10,7 @@ part 'notes_panel/note_tile.dart';
 part 'notes_panel/note_editor_dialog.dart';
 part 'notes_panel/sentiment_and_prompt.dart';
 
-/// Wave 6 Agent 5 — embeddable notes UI used by the target header card,
+/// Embeddable notes UI used by the target header card,
 /// the session report dialog, and the history tab.
 ///
 /// Two public surfaces:

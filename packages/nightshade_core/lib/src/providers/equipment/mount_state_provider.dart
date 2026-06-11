@@ -91,7 +91,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectMount();
     } catch (_) {
-      // Logged by DeviceService; UI must still reach disconnected (DV-P0-7).
+      // Logged by DeviceService; UI must still reach disconnected.
     } finally {
       setDisconnected();
     }
@@ -99,7 +99,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
   void setConnecting(String deviceId, [String? deviceName]) {
     _stopPositionPolling();
-    // DEV-P3-4: preserve `lastError` across the Connecting transition so
+    // Preserve `lastError` across the Connecting transition so
     // the card subtitle can show the most recent driver error during
     // reconnect. Cleared on successful Connected (see [setConnected]).
     state = state.copyWith(

@@ -1,4 +1,4 @@
-// P1-14 — Tests for the remote-log retrieval/tail handlers.
+// Tests for the remote-log retrieval/tail handlers.
 //
 // The tests use a real LoggingService backed by a temp directory so the
 // file-system + ring-buffer interactions match production behaviour.

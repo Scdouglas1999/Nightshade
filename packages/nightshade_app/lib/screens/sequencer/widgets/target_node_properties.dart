@@ -136,7 +136,7 @@ class TargetGroupProperties extends ConsumerWidget {
               },
             ),
           ),
-          // Wave 5 Agent 1 \u2014 Frame target affordance. Opens the
+          // Frame target affordance. Opens the
           // planetarium framing assistant in a full-screen modal so the
           // user can drag the FOV outline to align rotation against the
           // sky. Disabled while the sequencer is running (the wrapping
@@ -345,7 +345,7 @@ class TargetGroupProperties extends ConsumerWidget {
               ),
             ),
           ),
-          // Wave 4 — start_when / end_when crossings editor.
+          // start_when / end_when crossings editor.
           const SizedBox(height: 16),
           _TriggerSection(
             colors: colors,
@@ -358,7 +358,7 @@ class TargetGroupProperties extends ConsumerWidget {
             node: node,
             isStart: false,
           ),
-          // Wave 4 — trigger poll cadence. Only meaningful when a
+          // Trigger poll cadence. Only meaningful when a
           // start/end crossing is configured (the runtime polls these
           // on the interval); hidden otherwise to keep the panel quiet
           // for the common no-window case.
@@ -383,7 +383,7 @@ class TargetGroupProperties extends ConsumerWidget {
               ),
             ),
           ],
-          // Wave 3 Agent 3 — Per-target integration budget editor.
+          // Per-target integration budget editor.
           const SizedBox(height: 16),
           _IntegrationBudgetSection(colors: colors, node: node),
         ],
@@ -393,7 +393,7 @@ class TargetGroupProperties extends ConsumerWidget {
 }
 
 // =============================================================================
-// Wave 4 — Start-when / End-when trigger editor.
+// Start-when / End-when trigger editor.
 //
 // One section per direction (start vs end). Each section is toggle-gated:
 // when off, the trigger is null (no gate). When on, the user picks a kind

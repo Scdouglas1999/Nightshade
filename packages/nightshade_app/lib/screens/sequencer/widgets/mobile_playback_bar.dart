@@ -91,8 +91,7 @@ class MobilePlaybackBar extends ConsumerWidget {
               SizedBox(width: buttonSpacing),
 
               // Stop button — hold-to-confirm so a thumb-slip during an
-              // overnight session can't abort the run. P0-4 fix from the
-              // headless-2026-05-24 audit (UX edge cases §4, bug 1).
+              // overnight session can't abort the run.
               HoldToConfirmButton(
                 enabled: isRunning || isPaused,
                 holdColor: colors.error,
@@ -335,7 +334,7 @@ class _StatusBadge extends StatelessWidget {
         icon = LucideIcons.xCircle;
         break;
       case SequenceExecutionState.recovering:
-        // Wave 4 — distinct visual treatment so the mobile bar surfaces
+        // Distinct visual treatment so the mobile bar surfaces
         // recovery as "the sequence is in trouble but trying to recover"
         // instead of showing the same icon as a normal Running run.
         badgeColor = colors.error;

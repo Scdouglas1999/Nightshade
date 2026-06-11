@@ -6,7 +6,7 @@ part of '../../sequence_models.dart';
 // CONTAINER / LOGIC NODES
 // =============================================================================
 
-/// Wave 3 Agent 3 — Dart mirror of the Rust `FilterBudgetEntry`.
+/// Dart mirror of the Rust `FilterBudgetEntry`.
 /// `Absolute(secs)` caps that filter at a fixed time; `Ratio(value)` is
 /// normalised against the other ratios in the same target and the
 /// target's `totalSecs`. JSON shape matches the Rust enum:
@@ -49,7 +49,7 @@ class FilterBudgetEntry {
   String toString() => '$kind($value)';
 }
 
-/// Wave 3 Agent 3 — Per-target integration budget configuration.
+/// Per-target integration budget configuration.
 ///
 /// Mirrors the Rust `IntegrationBudget` struct one-to-one for serde
 /// round-tripping through the FRB bridge. See
@@ -152,7 +152,7 @@ class IntegrationBudget {
 }
 
 // ============================================================================
-// Wave 4 — Per-target start/end altitude crossings.
+// Per-target start/end altitude crossings.
 //
 // `TargetTrigger` mirrors the Rust enum in
 // `native/nightshade_native/sequencer/src/scheduling/target_trigger.rs`.

@@ -1,4 +1,4 @@
-// Wave 1.5 Pack A: verify SequenceExecutor.skipToNode forwards through the
+// Verify SequenceExecutor.skipToNode forwards through the
 // backend to the native sequencer. The Rust side is exercised by the
 // existing `nightshade_sequencer` cargo tests; this file pins the Dart proxy
 // so a regression that drops the call (or sends the wrong node id) fires

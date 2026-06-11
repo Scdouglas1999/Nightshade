@@ -17,13 +17,13 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- P1-16b: hold a WiFi lock for the duration of the foreground service
+    <!-- hold a WiFi lock for the duration of the foreground service
          so aggressive OEM battery firmware (Xiaomi/Huawei/Samsung) does not
          release WiFi when the screen is off, which would kill the WS
          mid-sequence. allowWifiLock=true in ForegroundTaskOptions
          requires this permission to take effect. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <!-- P1-16a: requesting battery-optimization whitelist requires this
+    <!-- requesting battery-optimization whitelist requires this
          permission. Without it, FlutterForegroundTask.requestIgnoreBatteryOptimization()
          crashes on Android 11+. The user still chooses whether to grant
          the whitelist via the standard system dialog. -->
@@ -59,7 +59,7 @@
             </intent-filter>
 
             <!--
-              Wave 7C — Google Assistant App Actions deep link.
+              Google Assistant App Actions deep link.
 
               The Assistant resolves "Pause Nightshade" against
               `custom.actions.intent.PAUSE_SEQUENCE` (declared in
@@ -78,7 +78,7 @@
             </intent-filter>
 
             <!--
-              Wave 7C — bind the shortcuts.xml resource to the activity
+              bind the shortcuts.xml resource to the activity
               so the launcher and Assistant both pick up the static
               shortcuts and App Action capabilities declared there.
             -->

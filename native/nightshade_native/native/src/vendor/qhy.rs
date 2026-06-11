@@ -743,7 +743,7 @@ pub struct QhyCamera {
     // Why: QHY SDK has no register to read the cooler enable state back —
     // CONTROL_COOLER is the target-temperature setpoint, not an on/off flag.
     // Track locally (mirrors Atik pattern) so get_status reflects the last
-    // set_cooler call instead of hardcoding `false` (audit §5.7).
+    // set_cooler call instead of hardcoding `false`.
     cooler_on: bool,
     cooler_target_c: Option<f64>,
 }
@@ -1164,7 +1164,7 @@ impl NativeCamera for QhyCamera {
             state: CameraState::Idle, // QHY doesn't have a simple exposure status query
             sensor_temp: temp,
             // Why: tracked locally because QHY SDK has no register to read
-            // back cooler enable / target setpoint (audit §5.7).
+            // back cooler enable / target setpoint.
             target_temp: self.cooler_target_c,
             cooler_on: self.cooler_on,
             cooler_power,
@@ -2432,7 +2432,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
 mod tests {
     use super::*;
 
-    /// Audit §5.7: get_status must reflect the locally-tracked cooler state
+    /// get_status must reflect the locally-tracked cooler state
     /// after a successful set_cooler, not hardcode `cooler_on: false`.
     ///
     /// The QHY SDK is not loaded in unit tests, so we cannot drive set_cooler
@@ -2458,7 +2458,7 @@ mod tests {
         let status = cam.get_status().await.expect("get_status should succeed");
         assert!(
             status.cooler_on,
-            "get_status must reflect tracked cooler_on=true (audit §5.7)"
+            "get_status must reflect tracked cooler_on=true"
         );
         assert_eq!(
             status.target_temp,
@@ -2475,7 +2475,7 @@ mod tests {
         assert_eq!(status.target_temp, None);
     }
 
-    /// Audit §5.7 + CLAUDE.md "no silent fallbacks": if the SDK call inside
+    /// "no silent fallbacks": if the SDK call inside
     /// set_cooler fails, the tracked state must NOT advance — otherwise the
     /// dashboard would lie that the cooler is on while the hardware is cold-off.
     #[tokio::test]

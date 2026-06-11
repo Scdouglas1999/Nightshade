@@ -47,7 +47,7 @@ typedef CachedSurveyImageKey = ({
 ///
 /// Errors from the underlying service (IO failures while probing the cache
 /// directory) propagate as an [AsyncError] rather than being swallowed —
-/// surfacing failures is intentional (errors are a feature, see CLAUDE.md). A
+/// surfacing failures is intentional (errors are a feature here). A
 /// genuine cache miss is represented as a `null` value, not an error.
 final cachedSurveyImageFileProvider =
     FutureProvider.family<File?, CachedSurveyImageKey>((ref, key) async {

@@ -26,9 +26,9 @@
 //! weather) are NOT served by this module — those ops emit the existing
 //! "Simulator devices are disabled" fail-loud error (camera.rs:1591 style)
 //! directly. Adding singletons for those device types is tracked separately
-//! and intentionally out of scope here (CLAUDE.md: no stubs).
+//! and intentionally out of scope here (no stubs).
 //!
-//! Errors are a feature (CLAUDE.md). Every error returned from this module
+//! Errors are a feature. Every error returned from this module
 //! names the simulator device type so the failure message points the user
 //! at "connect first" rather than at an opaque `Ok(0)` that misled them
 //! about whether the call succeeded.

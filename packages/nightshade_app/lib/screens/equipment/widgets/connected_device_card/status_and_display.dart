@@ -104,7 +104,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     );
   }
 
-  /// Onboarding C4: when the device is in an error state, render a full-width
+  /// When the device is in an error state, render a full-width
   /// row beneath the header that surfaces the same plain-language headline the
   /// troubleshooter dialog uses (via [DeviceErrorSubtitle]), with the raw driver
   /// message carried verbatim in the tooltip and a Diagnose button that opens

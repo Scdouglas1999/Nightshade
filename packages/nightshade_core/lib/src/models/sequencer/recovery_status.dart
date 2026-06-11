@@ -1,10 +1,10 @@
-/// Wave 4 Recovery Mode — Dart mirror of the Rust [`RecoveryContext`].
+/// Recovery Mode — Dart mirror of the Rust [`RecoveryContext`].
 ///
 /// Deserialised from JSON delivered over the bridge's
 /// `api_sequencer_get_current_recovery_json` API for cold-start snapshots
 /// (history dialog open after restart). Live recovery state arrives via
 /// the typed `SequencerEvent.RecoveryStarted/Progress/Completed/GaveUp`
-/// events (Wave 4.5 FRB regen) — see `recovery_provider.dart` for the
+/// events — see `recovery_provider.dart` for the
 /// bridge that turns those into [RecoveryStatus] instances.
 library;
 
@@ -117,7 +117,7 @@ class RecoveryCause extends Equatable {
       case 'Custom':
         return customLabel ?? 'Custom recovery';
       default:
-        // Unknown variant — surface honestly. CLAUDE.md: "Errors are a
+        // Unknown variant — surface honestly. "Errors are a
         // feature." We do not fall back to "Recovering" silently.
         return 'Unknown ($kind)';
     }

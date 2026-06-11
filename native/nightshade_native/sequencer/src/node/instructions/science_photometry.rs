@@ -1,4 +1,4 @@
-//! Wave 7 Science: SciencePhotometry instruction node.
+//! Science: SciencePhotometry instruction node.
 //!
 //! Cadence-enforced photometric capture for variable-star / exoplanet
 //! timing. The execution model:
@@ -28,9 +28,9 @@
 //!
 //! The expose pipeline is the load-bearing path for every imaging
 //! sequence: camera command, HFR / star detection, FITS-header
-//! assembly, Wave 3 Image Grading + reject routing, Wave 3 Agent 3
-//! integration-budget accounting, Wave 5 Agent 2 adaptive exposure
-//! decisions, Wave 5 Agent 4 cloud-motion telemetry, and Wave 7 Agent 3
+//! assembly, Image Grading + reject routing,
+//! integration-budget accounting, adaptive exposure
+//! decisions, cloud-motion telemetry, and
 //! defect-map application. Re-implementing any of that here would
 //! inevitably diverge. Instead, the photometry node constructs a
 //! `NodeType::TakeExposure` per frame with the photometric quality
@@ -86,7 +86,7 @@ impl InstructionNode for SciencePhotometryInstruction {
         // Validate config at runtime — these checks are also wired into
         // Dart-side validation rules, but a corrupt-file path could
         // reach execution with bad data and the runtime must refuse
-        // loudly (CLAUDE.md "errors are a feature").
+        // loudly ("errors are a feature").
         if config.count == 0 {
             tracing::warn!(
                 "SciencePhotometry '{}' has count == 0; nothing to do (success)",
@@ -114,7 +114,7 @@ impl InstructionNode for SciencePhotometryInstruction {
         if config.apply_differential && config.reference_stars.is_empty() {
             tracing::error!(
                 "SciencePhotometry '{}' has apply_differential=true but no reference stars; \
-                 differential magnitudes cannot be computed. Aborting (CLAUDE.md no silent fallback).",
+                 differential magnitudes cannot be computed. Aborting (no silent fallback).",
                 node_id,
             );
             return NodeStatus::Failure;
@@ -371,7 +371,7 @@ fn build_exposure_config(cfg: &SciencePhotometryConfig) -> ExposureConfig {
     }
 }
 
-/// Wave 7 Science — drive the photometric filter via the
+/// Science — drive the photometric filter via the
 /// `ChangeFilter` instruction so focus offsets / filter wheel
 /// pacing all apply correctly.
 async fn run_filter_change(
@@ -445,7 +445,7 @@ async fn read_frame_metrics(context: &ExecutionContext) -> (Option<f64>, Option<
     // most-recent star-detection-derived value via the grading
     // pipeline; if absent, the photometry quality gate will reject
     // the frame and the Dart pipeline will fall back to its own
-    // extraction. We deliberately do not invent a value (CLAUDE.md
+    // extraction. We deliberately do not invent a value (the CONTRIBUTING.md house rules
     // forbids silent fallbacks).
     // Standard SNR-from-HFR proxy: poor proxy in absolute terms but
     // adequate for the relative quality gate comparison the photometry

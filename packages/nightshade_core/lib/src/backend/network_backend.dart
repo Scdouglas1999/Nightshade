@@ -18,7 +18,7 @@ import 'package:web_socket_channel/io.dart';
 
 // Import pure Dart types from backend_types for return types
 import '../models/errors/nightshade_error.dart' as dart_error;
-// [Wave 6D error parsing] — parse the headless server's structured error
+// Error parsing: parse the headless server's structured error
 // envelope ({code, message, details}) into a typed [ServerError] so the
 // mobile companion can branch on the machine-readable `code` instead of
 // substring-matching the message text.
@@ -62,7 +62,7 @@ abstract class _NetworkBackendTransport {
   /// scheme is derived from this: `https` ⇒ `wss`, `http` ⇒ `ws` (see
   /// [_wsScheme]). Normalised to lower-case in the constructor and validated
   /// to be exactly one of the two accepted values — an unrecognised scheme is
-  /// a programmer error and throws rather than silently defaulting (CLAUDE.md:
+  /// a programmer error and throws rather than silently defaulting (
   /// errors are a feature, no silent fallbacks).
   final String scheme;
 
@@ -149,15 +149,15 @@ abstract class _NetworkBackendTransport {
   int _requestCounter = 0;
   static const int _maxReconnectDelay = 30; // Max 30 seconds
 
-  /// P2-13: latches `true` the first time a connection attempt reaches the
+  /// Latches `true` the first time a connection attempt reaches the
   /// `connected` state. Used to distinguish the initial-handshake `connecting`
   /// transition from subsequent `reconnecting` attempts so the UI can render
   /// distinct messaging on each.
   bool _hasEverConnected = false;
 
-  /// P2-2: identity payload sent on `collaboration.join` after the WS
+  /// Identity payload sent on `collaboration.join` after the WS
   /// handshake completes. The server overrides the `viewerId` with the
-  /// authenticated principal's digest (see P2-15) but we still send our
+  /// authenticated principal's digest but we still send our
   /// derived value so the wire shape stays unchanged for hosts that
   /// pre-date the override and so the server can log impersonation
   /// attempts when our identity doesn't match. Display name appears in
@@ -178,7 +178,7 @@ abstract class _NetworkBackendTransport {
   final StreamController<Duration> _latencyController =
       StreamController<Duration>.broadcast();
 
-  // P1-1: client-side event sequencing + replay state.
+  // Client-side event sequencing + replay state.
   //
   // `_lastSeenEventSeq` is the monotonic seq of the most recent event we
   // accepted from the server. Null until the first event with a non-null
@@ -340,16 +340,16 @@ abstract class _NetworkBackendTransport {
   /// observed yet (initial connect, or post-disconnect).
   Duration? get lastLatency => _lastLatency;
 
-  /// P1-1: monotonic sequence number of the last event we accepted from
+  /// Monotonic sequence number of the last event we accepted from
   /// the server. Null before any seq-bearing event has been received (e.g.
-  /// fresh connection, or talking to a pre-P1-1 server).
+  /// fresh connection, or talking to a an earlier build server).
   ///
   /// Used together with [serverInstanceId] to build the `?since=N&instance=
   /// UUID` query string on a reconnect so the server can replay events we
   /// missed during the disconnect window.
   int? get lastSeenEventSeq => _lastSeenEventSeq;
 
-  /// P1-1: UUID identifying the server instance we're currently attached
+  /// UUID identifying the server instance we're currently attached
   /// to. Null until the first event (or `/api/info` response) discloses
   /// it. Changes when the server restarts; observing a change is the
   /// trigger to invalidate [lastSeenEventSeq].

@@ -504,7 +504,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 ),
               ],
             ),
-            // Wave 5 — comprehensive per-event routing matrix +
+            // Comprehensive per-event routing matrix +
             // Email/Webhook/Telegram/MQTT credentials. Lives inside the
             // same Notifications page so users see one place for every
             // transport. Routing-aware Pushover / Discord configs above

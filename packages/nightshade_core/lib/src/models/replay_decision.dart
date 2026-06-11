@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-/// Wave 8 Replay Debug — categorical bucket for [ReplayDecision].
+/// Replay Debug — categorical bucket for [ReplayDecision].
 ///
 /// Wire keys are the snake_case identifiers Rust persists into the
 /// `sequence_decisions.category` column. Adding variants is safe;
@@ -68,7 +68,7 @@ enum DecisionCategory {
   }
 }
 
-/// Wave 8 Replay Debug — one persisted decision row from the
+/// Replay Debug — one persisted decision row from the
 /// `sequence_decisions` table. Immutable; rebuilt from the JSON blob on
 /// every read.
 class ReplayDecision {
@@ -132,7 +132,7 @@ class ReplayDecision {
             ? decoded
             : <String, dynamic>{};
       } on FormatException {
-        // Loud-fail policy (CLAUDE.md): we keep the row but mark the
+        // Loud-fail policy: we keep the row but mark the
         // payload as malformed so the replay UI can render it instead
         // of silently dropping. Production code never lands here —
         // Rust always emits valid JSON via serde_json::to_string.

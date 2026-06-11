@@ -8,7 +8,7 @@
 //   * soundEnabled
 //
 // Does NOT own:
-//   * The Wave 5 NotificationRouter per-event-type routing matrix — those
+// * The NotificationRouter per-event-type routing matrix — those
 //     are richer transport configs persisted via NotificationRouter
 //     itself; this file only holds the legacy single-webhook fallback.
 //   * Critical-event audible / push toggles → see `environment.dart`.

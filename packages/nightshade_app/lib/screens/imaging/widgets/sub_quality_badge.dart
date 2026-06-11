@@ -18,7 +18,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// top-right preview badges ([RawPreviewStatusBadge] / the calibrated badge):
 /// a translucent [NightshadeColors.surface] pill with a 1px border, not a
 /// black overlay. Keeping it separate also keeps ownership clean — the host
-/// (C6) positions this badge independently of the stats overlay.
+/// widget positions this badge independently of the stats overlay.
 ///
 /// Reads:
 /// * [lastImageStatsProvider] — the HFR / star-count snapshot of the most

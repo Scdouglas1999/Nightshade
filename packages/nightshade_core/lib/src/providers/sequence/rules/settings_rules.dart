@@ -4,10 +4,10 @@ import '../../../models/sequence/sequence_models.dart';
 import '../../settings_provider.dart';
 import '../sequence_validation.dart';
 
-/// P0-7 — REJECTS sequence start when no usable image output directory
+/// REJECTS sequence start when no usable image output directory
 /// is configured.
 ///
-/// Pre-P0-7 this rule only emitted a warning, which the executor would
+/// Pre- this rule only emitted a warning, which the executor would
 /// happily ignore (only `error` severity blocks). On a fresh Pi install
 /// where `imageOutputPath` defaults to empty, the Rust sequencer would
 /// then either fail to write or write to the working directory with no

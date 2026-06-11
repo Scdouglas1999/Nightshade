@@ -251,7 +251,7 @@ pub trait DeviceOps: Send + Sync {
 
     /// Save image as FITS file.
     ///
-    /// Wave 3 Image Grading: the per-frame metadata bundle is the
+    /// Image Grading: the per-frame metadata bundle is the
     /// [`FrameContext`](crate::scheduling::FrameContext) carried from
     /// `expose.rs`. It supersedes the previous 4-field call signature
     /// (target_name, filter, RA, Dec) — the FITS writer extracts every
@@ -272,7 +272,7 @@ pub trait DeviceOps: Send + Sync {
 
     /// Send a notification.
     ///
-    /// Wave 5.5 Pack M follow-up — `explicit_transports`, when `Some`, carries
+    /// `explicit_transports`, when `Some`, carries
     /// per-NotificationNode override transport names (NotificationTransportKind
     /// from the Dart side, serialised as strings). Bridge implementations emit
     /// this field on the user-visible event so `NotificationRouter` can route

@@ -186,7 +186,7 @@ impl SequenceExecutor {
                     // u32::MAX worth of tree nodes, so loss is impossible here.
                     *total_integration += config.duration_secs * count as f64 * multiplier as f64;
                 }
-                // Wave 3.5 Pack F: SmartExposure is a leaf that internally
+                // SmartExposure is a leaf that internally
                 // dispatches per-filter TakeExposure batches. The walk() does
                 // NOT recurse into the SmartExposure plans at runtime (the
                 // node has no `children`), so we must count plan frames here
@@ -230,7 +230,7 @@ impl SequenceExecutor {
                 NodeType::Loop(config) => {
                     let child_multiplier = match config.condition {
                         crate::LoopCondition::Count => {
-                            // Why (audit-rust §4.3): `config.iterations` is Option<u32>;
+                            // Why: `config.iterations` is Option<u32>;
                             // `LoopCondition::Count` REQUIRES iterations to be Some at
                             // construction time (enforced by `node.rs:1697` and the UI), so
                             // None is unreachable. `1` ensures the totals-rollup is at least

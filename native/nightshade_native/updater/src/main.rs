@@ -2,17 +2,17 @@
 //!
 //! This is a standalone executable that applies staged updates after the main
 //! Nightshade app has exited. Flow:
-//! 1. Acquire exclusive file lock so no second updater races us (§7A.6).
+//! 1. Acquire exclusive file lock so no second updater races us.
 //! 2. Wait for the parent process to exit.
 //! 3. Apply update via move-then-copy: every destination file the staging tree
 //!    will overwrite is renamed to `dst.nightshade-bak` first, then the new
 //!    file is copied in. New files (not yet in install) are tracked too so
-//!    rollback can remove them. (§7A.2)
+//!    rollback can remove them.
 //! 4. Hash-verify every applied file against the manifest passed by the Dart
-//!    side. Mismatch = rollback. (§7A.3)
+//!    side. Mismatch = rollback.
 //! 5. On any failure (locked file, copy error, hash mismatch): roll back by
 //!    restoring `.nightshade-bak` files and deleting newly-created files,
-//!    then exit non-zero so the user/UI sees the failure. (§7A.1, §7A.11)
+//!    then exit non-zero so the user/UI sees the failure.
 //! 6. On success: clean up `.nightshade-bak` files, write post-install hash
 //!    record for boot-time verification, optionally launch the new version,
 //!    clean up the staging directory.
@@ -39,7 +39,7 @@ const BAK_SUFFIX: &str = ".nightshade-bak";
 
 // File written to the install root after a successful apply. The Dart-side
 // boot-time `verifyPendingInstall` re-hashes the executable and compares to
-// what is recorded here (§7A.3).
+// what is recorded here.
 const POST_INSTALL_HASH_FILE: &str = "post_install_hashes.json";
 
 // File where rollback metadata is persisted while apply is in progress.
@@ -49,7 +49,7 @@ const POST_INSTALL_HASH_FILE: &str = "post_install_hashes.json";
 // we just leave the artifact on disk.)
 const ROLLBACK_LOG_FILE: &str = "rollback_log.json";
 
-// Lock file path is `<install_dir>/updates/.updater.lock` per §7A.6.
+// Lock file path is `<install_dir>/updates/.updater.lock`
 const LOCK_FILE_NAME: &str = ".updater.lock";
 
 // Subdirectory of `--backup-dir` where a successful apply parks the originals
@@ -89,7 +89,7 @@ struct Args {
     pending_file: PathBuf,
 
     /// JSON file mapping relative install path -> expected SHA-256 hex digest.
-    /// Dart side writes this from the verified manifest (§7A.3). The same file
+    /// Dart side writes this from the verified manifest. The same file
     /// is consumed by next-launch verification.
     #[arg(long)]
     expected_hashes: PathBuf,
@@ -174,7 +174,7 @@ fn run() -> Result<()> {
     println!("Pending marker: {:?}", args.pending_file);
     println!("Expected hashes: {:?}", args.expected_hashes);
 
-    // §7A.6: acquire single-instance lock before doing any I/O. If another
+    // acquire single-instance lock before doing any I/O. If another
     // updater is running we exit non-zero so the parent app surfaces the
     // collision instead of silently racing.
     let lock_dir = args.install_dir.join("updates");
@@ -278,7 +278,7 @@ fn run() -> Result<()> {
     retain_restore_point(&args.install_dir, &args.backup_dir, &rollback_log)
         .context("Failed to retain restore point after update")?;
 
-    // Step 6: write post-install hashes for boot-time re-verification (§7A.3).
+    // Step 6: write post-install hashes for boot-time re-verification.
     let post_install_path = args.install_dir.join(POST_INSTALL_HASH_FILE);
     write_post_install_hashes(&post_install_path, &expected).with_context(|| {
         format!(
@@ -291,7 +291,7 @@ fn run() -> Result<()> {
     println!("\nCleaning up staging...");
     if let Err(e) = cleanup_staging(&args.staging_dir) {
         // Why: staging cleanup failure is non-fatal — the update is already
-        // applied and verified — but log loudly. (§7A.11: no silent let _ = ...)
+        // applied and verified — but log loudly (no silent `let _ = ...`).
         eprintln!("Warning: failed to cleanup staging: {:?}", e);
     }
 
@@ -536,8 +536,8 @@ fn backup_path_for(dst: &Path) -> PathBuf {
 
 /// Rename `from` to `to`, retrying transient sharing violations on Windows.
 /// On Windows, files held open by the just-exited parent process can take a
-/// brief moment to release; we retry up to 3 times with 500ms backoff per
-/// §7A.1. If still failing after retries, return a hard error so rollback
+/// brief moment to release; we retry up to 3 times with 500ms backoff.
+/// If still failing after retries, return a hard error so rollback
 /// fires — we never silently leave a stale file.
 fn rename_with_retry(from: &Path, to: &Path) -> Result<()> {
     const MAX_ATTEMPTS: u32 = 3;
@@ -565,7 +565,7 @@ fn rename_with_retry(from: &Path, to: &Path) -> Result<()> {
     // Why: on Windows, schedule a rename-on-reboot as a last-ditch effort so
     // the user can recover by restarting their machine, but ALSO surface the
     // failure as a hard error here so apply rolls back. We never silently
-    // accept a locked file (§7A.1).
+    // accept a locked file.
     #[cfg(windows)]
     {
         if let Some(ref e) = last_err {
@@ -587,7 +587,7 @@ fn rename_with_retry(from: &Path, to: &Path) -> Result<()> {
         from,
         to,
         MAX_ATTEMPTS,
-        // Why (audit-rust §4.3): `last_err` is None only when the retry
+        // Why: `last_err` is None only when the retry
         // loop completed all MAX_ATTEMPTS without ever observing an Err,
         // which means the loop's `Ok` branch must have failed to return
         // — unreachable in practice but defensive against a future code
@@ -794,7 +794,7 @@ fn retain_restore_point(install_dir: &Path, backup_dir: &Path, log: &RollbackLog
     } else {
         // Why: retention failures are not fatal — the update itself is applied
         // and verified — but they DO mean a later manual rollback may be
-        // incomplete, so surface them loudly (§7A.11). A best-effort restore
+        // incomplete, so surface them loudly. A best-effort restore
         // point beats none.
         eprintln!(
             "Warning: restore-point retention encountered {} non-fatal issue(s):\n{}",
@@ -982,7 +982,7 @@ fn write_post_install_hashes(path: &Path, expected: &ExpectedHashes) -> Result<(
 /// Tiny RFC3339-ish timestamp without pulling in chrono. `seconds since epoch`
 /// is unambiguous, sortable, and good enough for diagnostics.
 ///
-/// # `unwrap_or` policy (audit-rust §4.3)
+/// # `unwrap_or` policy
 ///
 /// `duration_since(UNIX_EPOCH).unwrap_or(0)` — pre-1970 clock → epoch:0
 /// in the log line, sortable but visibly anomalous. Acceptable for a
@@ -1100,7 +1100,7 @@ fn cleanup_staging(staging_dir: &Path) -> Result<()> {
     // the next-launch verification step, and any concurrently staged update.
     // Wiping the parent here destroys rollback state. The backup directory is
     // cleaned up by next-launch verification once it confirms the update is
-    // healthy (see audit §7A.3).
+    // healthy.
     if staging_dir.exists() {
         fs::remove_dir_all(staging_dir)
             .with_context(|| format!("Failed to remove staging directory {:?}", staging_dir))?;
@@ -1220,7 +1220,7 @@ mod tests {
 
     #[test]
     fn corrupted_file_in_staging_fails_verification_and_rolls_back() {
-        // §7A.3: hash mismatch = rollback.
+        // hash mismatch = rollback.
         let tmp = tempdir().unwrap();
         let install = tmp.path().join("install");
         let staging = tmp.path().join("staging");
@@ -1349,7 +1349,7 @@ mod tests {
 
     #[test]
     fn rollback_removes_files_added_outside_critical_set() {
-        // §7A.2: "any file added by apply must be revertible."
+        // "any file added by apply must be revertible."
         let tmp = tempdir().unwrap();
         let install = tmp.path().join("install");
         let staging = tmp.path().join("staging");
@@ -1385,7 +1385,7 @@ mod tests {
 
     #[test]
     fn rename_with_retry_returns_error_when_destination_locked() {
-        // §7A.1: locked file = hard error, never silently skipped.
+        // locked file = hard error, never silently skipped.
         let tmp = tempdir().unwrap();
         let from = tmp.path().join("a.txt");
         write(&from, b"x");
@@ -1399,7 +1399,7 @@ mod tests {
 
     #[test]
     fn locked_file_apply_fails_and_rollback_restores() {
-        // §7A.1: simulate a locked file by making the destination exist as a
+        // simulate a locked file by making the destination exist as a
         // directory (which makes fs::rename(file, dir) fail consistently on
         // both Windows and POSIX). The error must propagate; rollback must
         // restore everything we already moved.
@@ -1426,7 +1426,7 @@ mod tests {
 
     #[test]
     fn concurrent_updater_lock_blocks_second_instance() {
-        // §7A.6: second updater on the same install dir refuses to start.
+        // second updater on the same install dir refuses to start.
         let tmp = tempdir().unwrap();
         let install = tmp.path().join("install");
         fs::create_dir_all(install.join("updates")).unwrap();
@@ -1469,7 +1469,7 @@ mod tests {
 
     #[test]
     fn empty_expected_hashes_is_rejected() {
-        // §7A.3: an empty manifest is a configuration error, not a free pass.
+        // an empty manifest is a configuration error, not a free pass.
         let tmp = tempdir().unwrap();
         let path = tmp.path().join("expected.json");
         fs::write(&path, b"{\"files\":{}}").unwrap();

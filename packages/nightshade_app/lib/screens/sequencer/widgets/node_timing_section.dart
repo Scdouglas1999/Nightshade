@@ -53,7 +53,7 @@ bool hasMeaningfulDuration(SequenceNode node) {
     ParkDomeNode _ ||
     PolarAlignmentNode _ ||
     ScriptNode _ ||
-    // Wave 3 Agent 2: SmartExposure has a meaningful (and often very
+    // SmartExposure has a meaningful (and often very
     // large) duration — display the time estimate inline like ExposureNode.
     SmartExposureNode _ ||
     // Audit §11 — plugin nodes carry an OPTIONAL per-node timeout that
@@ -62,7 +62,7 @@ bool hasMeaningfulDuration(SequenceNode node) {
     // worst-case budget and the user can immediately tell which plugin
     // nodes might overrun the night.
     PluginInstructionNode _ ||
-    // Wave 7 Agent 4: SciencePhotometry captures `count` frames at
+    // SciencePhotometry captures `count` frames at
     // `exposureSecs` apiece — total wall-clock is the count × exposure
     // sum (plus per-frame overhead), which is meaningful in the same
     // way ExposureNode's is. Surfacing the estimate in the editor warns
@@ -81,12 +81,12 @@ bool hasMeaningfulDuration(SequenceNode node) {
     CloseCoverNode _ ||
     CalibratorOnNode _ ||
     CalibratorOffNode _ ||
-    // Wave 3 Agent 1: TargetScheduler is a container — its duration is the
+    // TargetScheduler is a container — its duration is the
     // sum/max of its children's durations, which the timing estimator
     // computes by walking the subtree. The container itself has no
     // intrinsic per-node duration to display in the section header.
     TargetSchedulerNode _ ||
-    // Wave 7 Agent 2: LiveStacking arms the broadcast and returns
+    // LiveStacking arms the broadcast and returns
     // immediately. The wall-clock cost is paid by sibling exposure
     // nodes, so this node itself has no displayable duration.
     LiveStackingNode _ =>
@@ -563,7 +563,7 @@ class NodeTimingSection extends ConsumerWidget {
       ];
     }
 
-    // Wave 7 Agent 4: SciencePhotometry — count × exposure plus the
+    // SciencePhotometry — count × exposure plus the
     // standard per-frame download overhead, surfaced so the user sees
     // upfront that a 600-frame V0376 Per burst is a 10-hour
     // commitment.

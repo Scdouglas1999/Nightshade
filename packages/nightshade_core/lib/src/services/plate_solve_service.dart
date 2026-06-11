@@ -197,7 +197,7 @@ class PlateSolveService {
       // Delete any stale `.wcs` from a previous solve before invoking ASTAP.
       // Otherwise a no-op run (e.g. ASTAP failing to match) would "succeed"
       // by parsing the previous frame's sidecar — a silent, wrong-answer
-      // fallback, which CLAUDE.md forbids. The presence of a freshly written
+      // fallback, which we forbid. The presence of a freshly written
       // `.wcs` is our only proof the solve actually ran.
       final wcsPath = imagePath.replaceAll(RegExp(r'\.[^.]+$'), '.wcs');
       final wcsFile = File(wcsPath);

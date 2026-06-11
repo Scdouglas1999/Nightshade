@@ -55,7 +55,7 @@ dependencies:
   nsd: ^3.0.0
 
   # Secure storage for auth tokens (Keychain / EncryptedSharedPreferences).
-  # Audit §3.3: tokens must not live in plaintext SharedPreferences.
+  # tokens must not live in plaintext SharedPreferences.
   flutter_secure_storage: ^9.2.2
 
   # QR code scanning
@@ -75,7 +75,7 @@ dependencies:
   # The desktop AppSettings model is mobile-irrelevant for these UI choices.
   shared_preferences: ^2.2.2
 
-  # Wave 7A — WebRTC datachannel transport for the live-view fan-out.
+  # WebRTC datachannel transport for the live-view fan-out.
   # The mobile companion holds the offerer-side RTCPeerConnection and
   # decodes binary JPEG frames straight out of the datachannel. The
   # WebSocket path remains the fallback when the SDP/ICE exchange fails.
@@ -86,7 +86,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   # Pinned across all 10 workspace packages to prevent mixed-version drift.
-  # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
+  # Upgraded from 3.0.2 to ^5.0.0.
   flutter_lints: ^5.0.0
   build_runner: ^2.4.15
   freezed: ^3.2.0

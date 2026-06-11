@@ -1,4 +1,4 @@
-// P1-2 / P1-3: job model for long-running headless operations.
+// job model for long-running headless operations.
 //
 // The audit's §6 finding (docs/audits/headless_2026_05_24/02-device-control.md)
 // was that autofocus, plate-solve, center-on-target, mosaic plan, and polar
@@ -65,7 +65,7 @@ class Job {
   /// (mosaic plan, polar alignment).
   final String? deviceId;
 
-  /// P1-4 correlation: the commandId returned in the action POST response
+  /// correlation: the commandId returned in the action POST response
   /// body. Identical to [jobId] in the new flow (the job IS the command),
   /// but kept distinct in the model so a future refactor that decouples
   /// them does not require a wire change.
@@ -488,7 +488,7 @@ class JobManager {
         );
       }
       // The job is non-terminal but has no cancellation token — that's a
-      // programmer error. Surface loudly per CLAUDE.md "errors are a feature".
+      // programmer error. Surface loudly per "errors are a feature".
       throw StateError(
         'Job $jobId has no cancellation token but is not terminal',
       );

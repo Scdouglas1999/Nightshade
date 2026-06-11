@@ -1,6 +1,6 @@
 // Widget tests for DashboardScreen.
 //
-// Scope (CQ-W5-WIDGET-TESTS-DASH + CQ-W11-WIDGET-TESTS-DASH-DEEPER):
+// Scope:
 //
 // Smoke test:
 //   1. renders_without_throwing — default harness pump under an all-tiles-
@@ -77,8 +77,6 @@
 //   pack more inline content than the cramped surface strictly fits.
 //   The overflow is cosmetic and out of scope for these tests; surface
 //   anything else so a real layout regression still trips takeException().
-//
-// See: docs/code-quality/audit-tests.md §1.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

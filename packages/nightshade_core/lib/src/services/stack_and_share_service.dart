@@ -29,7 +29,7 @@ import 'stack_light_selector.dart';
 /// reference frame and accumulated buffer of whatever is currently running.
 /// Rather than silently corrupting an active session, [StackAndShareService.run]
 /// refuses to start and surfaces this exception so the UI can tell the operator
-/// to stop live stacking first — "errors are a feature" (see CLAUDE.md).
+/// to stop live stacking first — errors are a feature here.
 class LiveStackBusyException implements Exception {
   /// Human-readable explanation suitable for direct display.
   final String message;
@@ -48,7 +48,7 @@ class LiveStackBusyException implements Exception {
 ///     ([LiveStackBusyException]); the engine is a singleton and we must not
 ///     clobber a live EAA / sequencer session.
 ///  2. **Select** ([StackAndSharePhase.selectingLights]) — delegate to
-///     [StackLightSelector] (C5) to choose the lights and the alignment
+/// [StackLightSelector] to choose the lights and the alignment
 ///     reference, honouring the [StackAndShareConfig] quality / accepted gates.
 ///  3. **Calibrate + stack** — when [StackAndShareConfig.applyCalibration] is
 ///     set, each light's raw u16 pixels are loaded and calibrated in memory
@@ -70,7 +70,7 @@ class LiveStackBusyException implements Exception {
 ///     the selection, alignment residual from the engine stats, colour flag +
 ///     channel count from the integrated result, filter `'OSC'` for a colour
 ///     stack / the single filter when the selection is mono) and written via
-///     [StackedResultsDao.insertResult] (C3); the returned row id is stamped
+/// [StackedResultsDao.insertResult]; the returned row id is stamped
 ///     onto the result.
 ///
 /// **OSC / colour resolution.** Before stacking, the run resolves the sensor
@@ -93,7 +93,7 @@ class LiveStackBusyException implements Exception {
 ///
 /// The integrated raw u16 buffer and the stretched RGBA buffer from the most
 /// recent successful run are retained on [lastRawResult] / [lastRgbaResult] so
-/// the provider layer (C7) and the share/export step (C8) can consume them
+/// the provider layer and the share/export step can consume them
 /// without re-stacking.
 class StackAndShareService {
   StackAndShareService(
@@ -110,7 +110,7 @@ class StackAndShareService {
 
   /// The integrated, calibrated u16 result of the most recent successful run,
   /// or null if no run has completed (or the last run failed). The provider
-  /// layer reads this to feed the FITS save (C1) and the share-card renderer.
+  /// layer reads this to feed the FITS save and the share-card renderer.
   StackedRawResult? get lastRawResult => _lastRawResult;
   StackedRawResult? _lastRawResult;
 

@@ -4,7 +4,7 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/flat_wizard/flat_wizard_settings.dart';
 import 'package:nightshade_core/src/services/flat_wizard_service.dart';
 
-// AUDIT-FIX-5B (audit-handoff §4.3 item 4): regression tests proving the
+// Regression tests proving the
 // previously-hardcoded constants in flat_wizard_service.dart are now sourced
 // from FlatWizardGlobalSettings.
 

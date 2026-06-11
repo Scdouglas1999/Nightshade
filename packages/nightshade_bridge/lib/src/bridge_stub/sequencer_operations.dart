@@ -165,7 +165,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 8 Replay Debug â€” stamp the active `sequence_runs.id` on the
+  /// Replay Debug — stamp the active `sequence_runs.id` on the
   /// Rust executor so every emitted `DecisionEvent` carries the FK.
   ///
   /// Wrapper around the FRB-generated `apiSequencerSetActiveSequenceRunId`
@@ -194,7 +194,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 8 Replay Debug â€” runtime toggle for the decision-logging
+  /// Replay Debug — runtime toggle for the decision-logging
   /// broadcast channel.
   Future<void> sequencerSetDecisionLoggingEnabled({
     required bool enabled,
@@ -308,7 +308,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 7.5 â€” stage per-target / per-filter carry-over integration on
+  /// Stage per-target / per-filter carry-over integration on
   /// the executor so the next sequencerStart() seeds the
   /// IntegrationBudget tracker. See [api_sequencer_update_pending_integration_carry_over]
   /// for semantics; empty inner map zeroes a target's carry-over.
@@ -338,7 +338,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at
+  /// Update the autofocus-interval trigger cadence at
   /// runtime. The bridge rejects 0 (the trigger evaluator treats 0 as
   /// disabled; use the per-trigger `enabled` toggle for that intent).
   Future<void> sequencerUpdateAutofocusInterval({
@@ -367,7 +367,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Pack G â€” update the global default image-grading thresholds. When
+  /// Update the global default image-grading thresholds. When
   /// `enabled` is false, grading is disabled globally (per-node
   /// `quality_check` on TakeExposure still wins). The four threshold
   /// fields are optional and respected only when enabled.
@@ -407,7 +407,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Pack G â€” update the reject-folder override. Pass `null` or empty
+  /// Update the reject-folder override. Pass `null` or empty
   /// string to fall back to `<save_path>/Reject/`.
   Future<void> sequencerUpdateRejectFolderPath({String? path}) async {
     if (!_nativeAvailable) {
@@ -431,9 +431,9 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Pack G â€” push observer / equipment identification so the next FITS
+  /// Push observer / equipment identification so the next FITS
   /// save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA,
-  /// INSTRUME, SITEELEV). Every field is optional â€” empty / null fields
+  /// INSTRUME, SITEELEV). Every field is optional — empty / null fields
   /// are omitted from FITS rather than emitted as sentinels.
   Future<void> sequencerUpdateObserverProfile({
     String? observerName,
@@ -473,8 +473,8 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 5 Agent 2 â€” push the latest live sky-brightness reading
-  /// (mag/arcsecÂ²; bigger = darker) to the executor. Drives sky-
+  /// Push the latest live sky-brightness reading
+  /// (mag/arcsec²; bigger = darker) to the executor. Drives sky-
   /// brightness adaptive exposure decisions on the next TakeExposure
   /// burst. Pass `null` when the tracker has lost lock.
   Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
@@ -499,7 +499,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 5 Agent 2 â€” push the global default sky-brightness adaptive
+  /// Push the global default sky-brightness adaptive
   /// exposure config. Per-node `ExposureNode.adaptiveExposure` overrides
   /// still win; this is the fallback applied to nodes that have none.
   ///
@@ -549,7 +549,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 5 Agent 2 â€” disable the global default sky-brightness
+  /// Disable the global default sky-brightness
   /// adaptive exposure config. Convenience wrapper around the typed
   /// update for the "off" case.
   Future<void> sequencerClearDefaultAdaptiveExposure() async {
@@ -672,7 +672,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 1.5 Pack A: jump execution to a specific node id. Preceding
+  /// Jump execution to a specific node id. Preceding
   /// siblings are marked Skipped; the currently-running instruction
   /// completes first. Throws if the executor is not running.
   Future<void> sequencerSkipToNode({required String nodeId}) async {
@@ -692,7 +692,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Wave 6 Pack P: report the verdict of a plugin-dispatched
+  /// Report the verdict of a plugin-dispatched
   /// `NodeType::PluginNode` back to the Rust executor. The Rust side
   /// has a pending oneshot keyed on [nodeId]; the verdict resolves it
   /// and the awaiting instruction returns Success / Failure.

@@ -110,7 +110,7 @@ impl SequenceExecutor {
     /// `start()` returns an error. The handler is the single chokepoint
     /// every instruction (slew, expose, autofocus) routes through;
     /// `None` would let a sequence "run" while doing nothing, a silent
-    /// failure mode CLAUDE.md explicitly forbids.
+    /// failure mode the house rules explicitly forbid.
     pub fn set_device_ops(&mut self, ops: SharedDeviceOps) {
         self.device_ops = Some(ops);
     }

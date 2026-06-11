@@ -6,7 +6,7 @@
 //   4. Broadcast event injection + sequencer filtering
 //   5. Call recording for assertions in widget tests
 //
-// Widget-test coverage of real screens lives in CQ-W5-WIDGET-TESTS-*.
+// Widget-test coverage of real screens lives in the app package's widget tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';

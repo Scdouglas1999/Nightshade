@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Mosaic Wizard visual planner tests.
+// Mosaic Wizard visual planner tests.
 //
 // Pins:
 //   * the mosaic wizard renders the new visual planner alongside
@@ -7,7 +7,7 @@
 //     numerical fields when collapsed-by-default,
 //   * tapping a panel toggles its enabled state, reducing the
 //     "Active panels" counter,
-//   * the Wave 4 resume banner still renders when the backend
+//   * the resume banner still renders when the backend
 //     reports a resumable mosaic checkpoint (regression guard for
 //     the existing `mosaic_wizard_resume_test.dart`).
 

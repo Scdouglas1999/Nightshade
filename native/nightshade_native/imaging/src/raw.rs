@@ -5,7 +5,7 @@
 //!
 //! Supports 600+ camera models including Fujifilm X-Trans sensors.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! * `params.unwrap_or(&default_params)` — caller passing `None` selects
 //!   the LibRaw out-of-the-box config (auto white-balance, no demosaic

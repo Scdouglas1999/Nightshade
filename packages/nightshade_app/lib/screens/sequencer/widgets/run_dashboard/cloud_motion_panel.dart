@@ -4,7 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Wave 5 Agent 4 — live cloud-motion panel for the Run dashboard.
+/// Live cloud-motion panel for the Run dashboard.
 ///
 /// Reads the live `cloudMotionAnalyzerProvider` output via the existing
 /// `analyzeCloudMotionProvider` (cached analyzer result) and the

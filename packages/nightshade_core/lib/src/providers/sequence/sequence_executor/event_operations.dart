@@ -290,7 +290,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameAccepted':
-        // Wave 6 Pack P — the Rust grader now ships `save_path` for
+        // The Rust grader now ships `save_path` for
         // accepted frames as well (it already did for rejected
         // frames). The thumbnail strip uses the on-disk path to load
         // an inline preview the same way it does for rejected frames
@@ -306,7 +306,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameRejected':
-        // Wave 6 Thumbnails — same as FrameAccepted, but with the
+        // Thumbnail — same as FrameAccepted, but with the
         // reject_path the Rust grader already ships so the strip can
         // surface a "REJECTED" tile that opens the actual file when
         // tapped.
@@ -318,7 +318,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'PluginNodeRequested':
-        // Wave 6 Pack P — the Rust executor reached a
+        // The Rust executor reached a
         // `NodeType::PluginNode` and is waiting for us to run the
         // plugin and reply with the verdict. Route through the
         // dispatcher provider (overridden by the app layer to plug in
@@ -329,7 +329,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'PluginNodeProgress':
-        // Wave 6 Pack P — informational; plugin-authored intermediate
+        // Informational; plugin-authored intermediate
         // progress payload. The run dashboard's plugin-node panel
         // listens via its own provider; the sequence executor just
         // logs it so the timeline has the breadcrumb.
@@ -343,7 +343,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'DecisionLogged':
-        // Wave 8 Replay Debug — persist the structured decision into
+        // Replay Debug — persist the structured decision into
         // the `sequence_decisions` Drift table so the Replay screen
         // can scrub through the run later.
         _persistReplayDecision(event);
@@ -351,11 +351,11 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     }
   }
 
-  /// Wave 8 Replay Debug — persist a `DecisionLogged` payload into
+  /// Replay Debug — persist a `DecisionLogged` payload into
   /// the `sequence_decisions` table via the [ReplayDebugService].
   /// `unawaited` because the executor's event loop must keep pumping;
   /// the service handles its own change-notification, and a write
-  /// failure is logged at warn-level (loud-fail per CLAUDE.md without
+  /// failure is logged at warn-level (loud-fail policy without
   /// taking the executor down).
   Object? _decodeStructuredProgressJson(Object? raw) {
     if (raw is String) {
@@ -410,7 +410,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     );
   }
 
-  /// Wave 6 Pack P — route a `PluginNodeRequested` event into the
+  /// Route a `PluginNodeRequested` event into the
   /// configured dispatcher and post the verdict back through the
   /// bridge.
   ///
@@ -511,7 +511,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     }());
   }
 
-  /// Wave 6 Thumbnails — translate a typed FrameAccepted / FrameRejected
+  /// Thumbnail — translate a typed FrameAccepted / FrameRejected
   /// event into a captured_images row tagged with the producing node id.
   /// Fire-and-forget; failures are logged so the strip's "errors are a
   /// feature" contract holds, but they never block the run.
@@ -530,7 +530,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final hfr = (event.data['hfr'] as num?)?.toDouble();
     final eccentricity = (event.data['eccentricity'] as num?)?.toDouble();
     final starCount = event.data['star_count'] as int?;
-    // Wave 6 Pack P — accepted frames now carry the on-disk save_path
+    // Accepted frames now carry the on-disk save_path
     // alongside the existing rejected-frame reject_path. The thumbnail
     // strip uses whichever field is populated to load the inline
     // preview. `save_path` may legitimately be null on legacy emit
@@ -639,7 +639,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         }
       } catch (e) {
         logger.warning(
-          'Wave 6 Thumbnails: failed to register sequence frame for '
+          'Thumbnail: failed to register sequence frame for '
           'node $nodeId ($grade): $e',
           source: 'SequenceExecutor',
         );
@@ -712,7 +712,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     unawaited(
       _ref.read(sequenceRunsDaoProvider).finishRun(runId, status, statsJson),
     );
-    // Wave 5.5 — surface post-session diagnostics + clear the
+    // Surface post-session diagnostics + clear the
     // NotificationRouter override. `_finalizeRun` already early-returns
     // when called twice so these hooks fire exactly once per run.
     _captureSessionEndHooks();
@@ -723,7 +723,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   //
   // The Rust `LiveStacking` instruction node is arm-only: it registers a
   // broadcast session on the Rust side and returns immediately, delegating
-  // frame ingestion to Dart (see the OSC-scope note in
+  // frame ingestion to Dart (see the single-frame OSC note in
   // `native/.../node/instructions/live_stacking.rs`). Before this wiring
   // existed, nothing on the Dart side ever fed accepted frames into the
   // stacker/broadcast, so the feature was inert during real runs and the
@@ -898,7 +898,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         exposureSecs: exposureSecs,
       );
     } catch (e, st) {
-      // Loud-fail per CLAUDE.md: a frame that cannot be fed is surfaced,
+      // Loud-fail policy: a frame that cannot be fed is surfaced,
       // not swallowed. The run itself keeps going (imaging must not stop
       // because the outreach broadcast hiccuped), but the operator sees
       // exactly which frame was lost and why.
@@ -947,7 +947,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   }
 
   // =========================================================================
-  // Wave 5.5 — session lifecycle hooks
+  // Session lifecycle hooks
   // =========================================================================
 
   /// Capture the optical-train baseline + register the active sequence

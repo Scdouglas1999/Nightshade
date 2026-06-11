@@ -1,4 +1,4 @@
-// P1-4: command/event correlation for the headless API server.
+// command/event correlation for the headless API server.
 //
 // Every action POST (camera/expose, mount/slew, sequencer/start, etc.)
 // generates a UUID v4 commandId, registers (operation, deviceId,

@@ -16,7 +16,7 @@ import '../../utils/snackbar_helper.dart';
 /// users can drop it directly into a GitHub issue without hunting through
 /// the app-data directory.
 ///
-/// Wired into [audit-observe.md §4c] / CQ-W6-DIAG-DUMP. The optical-train
+/// The optical-train
 /// `DiagnosticsScreen` lives next to this file but covers a different scope;
 /// keep them visually distinct (different titles, different icons).
 class DiagnosticDumpScreen extends ConsumerStatefulWidget {
@@ -161,8 +161,8 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      // Surface the failure rather than swallowing it (CLAUDE.md: errors
-      // are a feature). The service has already logged the structured
+      // Surface the failure rather than swallowing it: errors are a
+      // feature. The service has already logged the structured
       // stack trace via LoggingService.
       context.showErrorSnackBar('Diagnostic dump failed: $e');
     } finally {

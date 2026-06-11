@@ -1,4 +1,4 @@
-// P2-11 — Plugin management endpoints.
+// Plugin management endpoints.
 //
 // Endpoints:
 //   GET    /api/plugins              — list installed plugins

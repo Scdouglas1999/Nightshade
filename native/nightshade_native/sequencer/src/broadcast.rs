@@ -1,4 +1,4 @@
-//! Wave 7 Agent 2: Live-stacking broadcast service.
+//! Live-stacking broadcast service.
 //!
 //! Process-wide rendezvous between the [`crate::NodeType::LiveStacking`]
 //! instruction (writer) and the Dart-side broadcast endpoints

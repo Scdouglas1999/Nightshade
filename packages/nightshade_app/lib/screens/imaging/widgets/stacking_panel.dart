@@ -10,7 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // The selector provider is not re-exported through the core barrel; the
 // Stack-and-Share entry point needs it directly to pre-compute the selection
-// summary the launcher dialog (C9) renders before a run starts. (Matches the
+// summary the launcher dialog renders before a run starts. (Matches the
 // established precedent in screens/framing/widgets/framing_canvas.dart.)
 // ignore: implementation_imports
 import 'package:nightshade_core/src/services/stack_light_selector.dart'
@@ -139,7 +139,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   /// Entry point for the **Stack-and-Share Loop** (component C10).
   ///
   /// Resolves the selection summary for [sessionId] up front so the launcher
-  /// dialog (C9) can render the per-filter / integration preview the operator
+  /// dialog can render the per-filter / integration preview the operator
   /// confirms, then opens [StackAndShareDialog]. Selection runs against the
   /// shared Drift instance via [stackLightSelectorProvider]; the dialog's own
   /// orchestrator re-selects internally when the run starts.

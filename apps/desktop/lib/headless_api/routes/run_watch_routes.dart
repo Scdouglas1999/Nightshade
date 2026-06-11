@@ -1,4 +1,4 @@
-/// Declarative route table for the Wave 6 run-watch surface.
+/// Declarative route table for the run-watch surface.
 ///
 /// Counterpart to `handlers/run_watch_handlers.dart`. The SSE endpoint
 /// is a long-lived GET — registering it as a regular [HttpMethod.get]

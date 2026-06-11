@@ -1,4 +1,4 @@
-//! Wave 4: Recovery Mode — first-class executor state machine.
+//! Recovery Mode — first-class executor state machine.
 //!
 //! When a trigger or instruction returns a *recoverable* failure (guide-star
 //! lost, slew failed, plate-solve failed, weather unsafe, etc.) the executor
@@ -67,7 +67,7 @@ pub enum RecoveryCause {
     MountTrackingLost,
     /// Focus drift exceeded the configured budget (HFR > baseline * x).
     FocusDriftCritical,
-    /// Wave 3 image grading hit `max_consecutive_rejects`.
+    /// image grading hit `max_consecutive_rejects`.
     ConsecutiveRejectsExceeded,
     /// A required device is missing or dropped out during an instruction.
     DeviceDisconnected,
@@ -378,7 +378,7 @@ pub enum AttemptOutcome {
 }
 
 /// Record of a single completed recovery loop for the post-session report.
-/// Persisted via the session run record (Wave 1.5 Pack B's structured
+/// Persisted via the session run record ('s structured
 /// warnings section) so the user can review every recovery after the run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryHistoryEntry {

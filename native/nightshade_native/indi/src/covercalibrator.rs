@@ -7,7 +7,7 @@
 //! - Flat cover state readback (FLAT_COVER_STATE)
 //! - Brightness control (FLAT_LIGHT_INTENSITY, LIGHTBOX_BRIGHTNESS)
 //!
-//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//! # `unwrap_or(false)` policy
 //!
 //! `IndiClient::get_switch` returns `Result<Option<bool>, IndiError>`; an
 //! `Err`/`None` means the INDI background reader has not yet streamed the

@@ -3,7 +3,7 @@ import 'package:nightshade_app/screens/equipment/utils/connect_all_summary.dart'
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  group('formatConnectAllSnackBar — UI-P0-2', () {
+  group('formatConnectAllSnackBar', () {
     test('single failure includes device type and message', () {
       final text = formatConnectAllSnackBar(
         successCount: 0,

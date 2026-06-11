@@ -48,7 +48,7 @@ impl InstructionNode for WarmCameraInstruction {
             .await
             .log_and_get_status_with_context("Warm Camera", &ctx);
 
-        // Pack G — clear the cooler set-point on the ExecutionContext so
+        // clear the cooler set-point on the ExecutionContext so
         // subsequent FITS headers omit SET-TEMP (cooler is being warmed /
         // turned off). When WarmCamera carries an explicit target_temp it
         // sticks; otherwise the cooler is being turned off entirely.

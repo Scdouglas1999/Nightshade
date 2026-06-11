@@ -1,6 +1,6 @@
 // NightshadeWatchComplicationEntry.swift
 //
-// Wave 7D — Apple Watch complication for Nightshade.
+// Apple Watch complication for Nightshade.
 //
 // `NightshadeWatchComplicationEntry` is the `TimelineEntry` consumed by the
 // WidgetKit timeline provider in `NightshadeWatchTimelineProvider.swift`.

@@ -1,4 +1,4 @@
-// DEV-P3-1: widget-level smoke tests for capability gating.
+// Widget-level smoke tests for capability gating.
 //
 // These tests do NOT try to pump the real Equipment / Imaging screens
 // (those drag in the entire backend, database, and FFI loader).

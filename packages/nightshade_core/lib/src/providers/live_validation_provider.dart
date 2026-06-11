@@ -25,7 +25,7 @@ import 'settings_provider.dart';
 // The state exposed below ([LiveValidationState]) wraps a [ValidationResult].
 // It used to also carry an `isValidating` flag for a debounce spinner; no UI
 // surface ever consumed it (the pre-flight dialog tracks its own local flag),
-// so the field was removed during Wave 1.5 dead-data cleanup. The wrapper
+// so the field was removed during dead-data cleanup. The wrapper
 // stays because the per-node helpers ([worstSeverityForNode] etc.) are part
 // of the public live-validation API that the sequence tree depends on.
 

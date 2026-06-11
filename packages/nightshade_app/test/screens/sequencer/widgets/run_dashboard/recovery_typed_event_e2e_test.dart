@@ -1,4 +1,4 @@
-// Wave 4.5 — end-to-end test for the typed Recovery* bridge events.
+// End-to-end test for the typed Recovery* bridge events.
 //
 // Verifies that a `SequencerEvent_RecoveryStarted` payload flowing through
 // `nightshadeEventsProvider` (the typed FRB stream):
@@ -9,7 +9,7 @@
 //   4. A subsequent `SequencerEvent_RecoveryCompleted` clears the banner
 //      and appends to `recoveryHistoryProvider`.
 //
-// Replaces the Wave 4 JSON-through-InstructionProgress hack with the
+// Replaces the earlier JSON-through-InstructionProgress hack with the
 // proper typed payload — see `recovery_provider.dart` for the bridge that
 // turns these events into `RecoveryStatus` instances on the Dart side.
 

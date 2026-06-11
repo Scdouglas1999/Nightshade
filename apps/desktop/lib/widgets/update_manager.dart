@@ -52,7 +52,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     _lanPushSubscription = _lanPushStream.listen(_onLanPushEvent);
   }
 
-  /// §7A.12: drain any one-shot notice queued by the updater (e.g. the
+  /// Drain any one-shot notice queued by the updater (e.g. the
   /// corrupted-marker discard banner) the next time the framework is
   /// ready to show UI. Idempotent — `takePendingNotice` returns null
   /// once consumed so a re-entry will not double-show the banner.
@@ -94,7 +94,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
 
-    // §7A.12: checkStagedUpdate may have discarded a corrupted marker;
+    // checkStagedUpdate may have discarded a corrupted marker;
     // surface the resulting one-shot notice before showing any "ready"
     // banner so the user sees the warning instead of being silently
     // told there is no staged update.

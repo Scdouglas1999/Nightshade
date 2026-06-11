@@ -4,7 +4,7 @@
 //! with HFD/HFR measurement. This module integrates the autofocus engine
 //! from the sequencer crate with INDI camera and focuser devices.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All `unwrap_or` sites in this module fall into three categories, none of
 //! which are silent error fallbacks:

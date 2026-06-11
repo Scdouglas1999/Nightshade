@@ -1,8 +1,8 @@
-//! Wave 4 — `Clock` abstraction for deterministic time injection.
+//! `Clock` abstraction for deterministic time injection.
 //!
-//! Until Wave 4 the scheduler / target-header / per-target altitude logic all
+//! Until the scheduler / target-header / per-target altitude logic all
 //! reached for `chrono::Utc::now()` directly. That made any test whose
-//! outcome depended on time-of-day flaky (see Wave 3 Agent 1's report — the
+//! outcome depended on time-of-day flaky (see 's report — the
 //! `no_runnable_target_returns_skipped` test had to be rewritten with a
 //! synthetic Antarctic target just to dodge the wall-clock).
 //!

@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — Validation rules for the LiveStacking node.
+// Validation rules for the LiveStacking node.
 //
 // A LiveStacking node sitting in a sequence with no sibling exposure
 // nodes is silently broken: the executor arms the broadcast, but no

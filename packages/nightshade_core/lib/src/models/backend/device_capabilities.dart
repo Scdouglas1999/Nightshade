@@ -602,7 +602,7 @@ class RotatorCapabilities {
 /// Dome capabilities
 ///
 /// Mirrors the Rust `DomeCapabilities` struct exposed by
-/// `bridge::device_capabilities::DomeCapabilities`. Added for DEV-P3-1 to
+/// `bridge::device_capabilities::DomeCapabilities`. Added for to
 /// drive capability-gated UI on dome controls (shutter, parking, slewing,
 /// sync). Only flag fields are required for gating; dynamic state fields
 /// (azimuth, slewing, etc.) are not exposed because the existing

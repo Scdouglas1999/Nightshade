@@ -1,4 +1,4 @@
-// Wave 5 Agent 5 — secure storage for notification transport secrets.
+// Secure storage for notification transport secrets.
 //
 // Why split storage:
 //   * Non-secret fields (SMTP host, port, from address, MQTT broker,
@@ -106,7 +106,7 @@ class InMemorySecureKeyValueStore implements SecureKeyValueStore {
   }
 }
 
-/// Wave 5 Agent 5 — thin wrapper over flutter_secure_storage that
+/// Thin wrapper over flutter_secure_storage that
 /// scopes every key to the notification subsystem and provides typed
 /// read/write per field plus a one-shot migration from plaintext.
 class SecretsStore {

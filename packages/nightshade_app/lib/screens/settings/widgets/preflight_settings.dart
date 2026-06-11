@@ -1,4 +1,4 @@
-// Wave 5 Agent 3 — Pre-flight strictness settings UI.
+// Pre-flight strictness settings UI.
 //
 // The Rust executor (and the Dart-side PreflightCheckService) runs a
 // battery of checks before a sequence starts: time drift, mount park

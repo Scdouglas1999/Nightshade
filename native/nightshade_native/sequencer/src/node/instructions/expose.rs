@@ -67,7 +67,7 @@ impl InstructionNode for ExposeInstruction {
         let total_count = config.count;
         let progress_cb = context.progress_callback.as_ref();
 
-        // Wave 5 Agent 2 — sky-brightness adaptive exposure decision.
+        // sky-brightness adaptive exposure decision.
         // Resolve the effective config (per-node wins, else runtime
         // global default) and consult the live sky-brightness reading
         // pushed in via `ExecutorCommand::UpdateSkyBrightness`. The
@@ -102,7 +102,7 @@ impl InstructionNode for ExposeInstruction {
         effective_config.duration_secs = duration_secs;
         let effective_config = effective_config;
 
-        // Wave 3.5 Pack F — capture the rejected-frame counter BEFORE the
+        // capture the rejected-frame counter BEFORE the
         // burst so we can compute the per-burst rejection delta after the
         // burst returns. `frames_rejected` is a session-wide atomic
         // incremented from inside `execute_exposure` when grading marks a
@@ -113,7 +113,7 @@ impl InstructionNode for ExposeInstruction {
             .frames_rejected
             .load(std::sync::atomic::Ordering::Relaxed);
 
-        // Wave 4 — build the save-path renderer. Captures a clone of the
+        // build the save-path renderer. Captures a clone of the
         // ExecutionContext and the burst-config so the same per-frame
         // EvaluationFrame can resolve `${frame}`, `${exposure.duration}`,
         // and the rest of the catalog at FITS-save time. We pass the
@@ -169,7 +169,7 @@ impl InstructionNode for ExposeInstruction {
                 *counter += total_exposure_time;
             }
 
-            // Wave 3.5 Pack F — coordinate the budget credit with the
+            // coordinate the budget credit with the
             // image grader. A rejected frame is data that won't end up in
             // the final stack, so crediting its exposure time against the
             // budget would over-promise progress: the dashboard would
@@ -196,7 +196,7 @@ impl InstructionNode for ExposeInstruction {
             let passed_count = total_count.saturating_sub(rejected_in_burst);
             let budget_credit_secs = duration_secs * f64::from(passed_count);
 
-            // Wave 3 Agent 3 — credit the active TargetHeader's
+            // credit the active TargetHeader's
             // integration budget. Returns None when no TargetHeader is
             // active (e.g. ad-hoc exposure outside a target subtree) —
             // that's fine, no budget to enforce. The post-credit state
@@ -266,7 +266,7 @@ impl InstructionNode for ExposeInstruction {
     }
 }
 
-/// Wave 4 — build the per-burst save-path renderer.
+/// build the per-burst save-path renderer.
 ///
 /// `save_to` semantics:
 /// * `None`: render the default template `${target.name}_${filter}_${frame:04}.fits`
@@ -367,7 +367,7 @@ fn build_save_path_renderer(
     }))
 }
 
-/// Wave 5 Agent 2 — emit a structured `ExposureAdjusted` progress event
+/// emit a structured `ExposureAdjusted` progress event
 /// before the burst begins, surfacing the adaptive-exposure decision so
 /// the dashboard can show "L 142s (nominal 60s, sky 19.2 mag/arcsec²)".
 ///
@@ -447,7 +447,7 @@ fn reason_to_str(reason: &AdaptiveExposureReason) -> &'static str {
     }
 }
 
-/// Wave 3 Agent 3 — emit the structured `IntegrationBudget` progress
+/// emit the structured `IntegrationBudget` progress
 /// event after each successful burst. The dashboard's filter-integration
 /// panel renders this without needing to re-read the registry.
 ///
@@ -523,7 +523,7 @@ async fn emit_budget_progress(
     );
     context.send_progress(upd);
 
-    // Wave 8 Replay Debug — emit a BudgetMet decision exactly once
+    // Replay Debug — emit a BudgetMet decision exactly once
     // (the transition from "in progress" to "met"). The
     // `BudgetMetTracker` map on the ExecutionContext would be the
     // canonical place to dedupe across calls, but the current emit
@@ -557,7 +557,7 @@ async fn emit_budget_progress(
 }
 
 /// Compute the true median of HFR measurements, filtering NaN and non-positive
-/// values (audit §1.2).
+/// values.
 fn compute_hfr_median(values: &[f64]) -> Option<f64> {
     let mut filtered: Vec<f64> = values
         .iter()
@@ -769,7 +769,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Wave 3.5 Pack F: budget x grading coordination.
+    // budget x grading coordination.
     //
     // The `expose` instruction credits the active target's integration
     // budget only for frames that passed grading. Rejected frames are
@@ -904,7 +904,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Wave 5 Agent 2 — adaptive-exposure emission tests.
+    // adaptive-exposure emission tests.
     //
     // We cannot exercise the full `execute()` path without a camera /
     // device-ops stub, but the emission helper is a pure function over

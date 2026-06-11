@@ -49,16 +49,16 @@ const _headlessLogSource = 'HeadlessMain';
 ///                         own origin is always allowed, but cross-origin
 ///                         control from other web apps must be opted in here.
 ///   --pairing-print-codes
-///                         (P0-3) Print every successful pairing code to
+/// Print every successful pairing code to
 ///                         stdout. Required for headless Pi/embedded
 ///                         deployments where the operator otherwise has no
 ///                         way to retrieve the code.
-///   --tls                 (P0-9) Enable transport encryption. Generates a
+///   --tls Enable transport encryption. Generates a
 ///                         self-signed cert under $APPDATA/server.{crt,key}
 ///                         on first launch and binds HTTPS instead of HTTP.
-///   --tls-cert=`<path>`     (P0-9) Use the supplied certificate PEM instead
+///   --tls-cert=`<path>` Use the supplied certificate PEM instead
 ///                         of generating a self-signed one.
-///   --tls-key=`<path>`      (P0-9) Use the supplied private-key PEM instead
+///   --tls-key=`<path>` Use the supplied private-key PEM instead
 ///                         of generating a self-signed one.
 ///   --relay-url=`<url>`     v4 couch-grade remote: dial OUT to a self-hosted
 ///                         Nightshade relay (ws(s)://host[:port]) so the rig
@@ -107,7 +107,7 @@ void main(List<String> args) async {
   // no top-level handle here.
   StreamSubscription<DiskSpaceWatchdogEvent>? diskWatchdogSubscription;
   DiskSpaceGuardService? diskGuard;
-  // P1-11: headless OTA update stack. Owned at the entry point so SIGINT
+  // headless OTA update stack. Owned at the entry point so SIGINT
   // can shut both the controller and the LAN push receiver cleanly.
   UpdateStack? updateStack;
   // v4 couch-grade remote: outbound relay uplink (optional). Owned here so
@@ -128,7 +128,7 @@ void main(List<String> args) async {
       overrides: [
         appVersionProvider.overrideWithValue(appVersion),
         pluginNodeDispatcherOverride(),
-        // Audit §11 — even in headless mode we install the palette
+        // even in headless mode we install the palette
         // blueprint override so an upstream UI client (mobile companion,
         // headless API consumer) sees plugin sequence nodes in the
         // palette listing.
@@ -190,7 +190,7 @@ void main(List<String> args) async {
       localPort: apiServer.actualPort,
     );
 
-    // P1-6: register `_nightshade._tcp` via mDNS. This MUST happen after
+    // register `_nightshade._tcp` via mDNS. This MUST happen after
     // `apiServer.start()` so the advertised port is the actually-bound one
     // (matters when the caller started us with port 0). Failures here are
     // logged-and-continue — UDP broadcast and manual entry remain available.
@@ -220,7 +220,7 @@ void main(List<String> args) async {
       );
     }
 
-    // P0-1: wire push notifications to the API server so weather aborts,
+    // wire push notifications to the API server so weather aborts,
     // sequence failures, and guiding-lost events are delivered as
     // `type:'push_notification'` envelopes to connected phones during
     // unattended overnight runs. GUI mode (desktop_app_bootstrap.dart:234)
@@ -281,7 +281,7 @@ void main(List<String> args) async {
       );
     }
 
-    // P0-6: wire the disk-space watchdog. In GUI mode the sequencer
+    // wire the disk-space watchdog. In GUI mode the sequencer
     // controller subscribes to this stream and pauses on blocking severity;
     // in headless mode nothing was consuming it, so the rig would keep
     // imaging past the abort threshold until raw write() failures aborted
@@ -302,7 +302,7 @@ void main(List<String> args) async {
       );
     }
 
-    // P1-11: provision the OTA update stack and wire it into the
+    // provision the OTA update stack and wire it into the
     // headless API server. Without this, paired phones could not check,
     // download, or apply updates on a headless host because the entire
     // /api/system/update/* surface would 404. Failures here are logged
@@ -386,7 +386,7 @@ void main(List<String> args) async {
       // streams fail fast instead of dangling on a port that's about to close.
       await relayUplink?.stop();
       relayUplink = null;
-      // P1-11: detach the update controller from the server BEFORE
+      // detach the update controller from the server BEFORE
       // stopping it so the controller's event subscription is cancelled
       // cleanly. The stack dispose call below then closes the controller
       // and stops the LAN push receiver.
@@ -634,7 +634,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
     rethrow;
   }
 
-  // P0-9: provision the TLS context BEFORE bind so a cert generation
+  // provision the TLS context BEFORE bind so a cert generation
   // failure surfaces as a clean startup error instead of an HTTPS 5xx
   // mid-flight.
   TlsProvisionResult? tlsProvision;
@@ -686,7 +686,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
     );
   }
 
-  // P0-2: eagerly construct the PairingService so the server can hydrate
+  // eagerly construct the PairingService so the server can hydrate
   // _pairedSessionTokens from the on-disk Drift DB at startup. Without
   // this, the server lazy-creates the service only when a client hits
   // /api/pairing/verify, and any previously-paired clients are rejected
@@ -712,7 +712,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
   await apiServer.start();
   logger.info('API server started on port $port', source: _headlessLogSource);
 
-  // P1-19: spin up the LAN UDP push broadcaster when the server is
+  // spin up the LAN UDP push broadcaster when the server is
   // exposed on the LAN. Loopback-only deployments have no LAN clients to
   // wake, so the broadcaster is skipped (its `start()` would still warn
   // about no interfaces — clearer to skip explicitly). The broadcaster's
@@ -750,7 +750,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
         source: _headlessLogSource,
       );
     } catch (e, st) {
-      // Bind failure is non-fatal — see P1-19 doc reference in
+      // Bind failure is non-fatal — see doc reference in
       // setPushNotificationStream. Phones still get critical pushes via
       // the WebSocket when their WS is alive; UDP is the supplement.
       logger.warning(
@@ -861,7 +861,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
   return apiServer;
 }
 
-/// P0-6: subscribe to [DiskSpaceGuardService.events] and translate the
+/// subscribe to [DiskSpaceGuardService.events] and translate the
 /// stream into structured log entries plus a hard sequencer-stop on the
 /// blocking severity. The watchdog itself is started here against the
 /// configured capture path so the headless run does not need an interactive
@@ -1067,7 +1067,7 @@ Future<void> _startDiscoveryServer({
   );
 }
 
-/// P1-6: register `_nightshade._tcp` via mDNS so phones on modern Wi-Fi
+/// register `_nightshade._tcp` via mDNS so phones on modern Wi-Fi
 /// (client-isolation enabled) and Tailscale segments discover the server
 /// without UDP broadcast.
 ///

@@ -130,7 +130,7 @@ void main() {
   );
 
   test(
-    'setFilterWheelPosition verify failure keeps moving when hardware still moving (DV-P0-6)',
+    'setFilterWheelPosition verify failure keeps moving when hardware still moving ',
     () async {
       const deviceId = TestFixtures.filterWheelId;
       final filterNames = List<String>.from(TestFixtures.sampleFilterNames);

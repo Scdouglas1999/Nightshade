@@ -219,14 +219,13 @@ class CatalogOverlayService {
 
   /// Hard cap on rendered objects. The mission says "downsample if >500".
   /// Exposed via [AnnotationSettings.maxObjectsToDisplay] for users that
-  /// want a denser overlay on high-resolution screens. AUDIT-FIX-5B
-  /// (audit-handoff §4.3).
+  /// want a denser overlay on high-resolution screens.
   final int maxObjects;
 
   /// Fractional padding around the image bbox when querying the catalog.
   /// Larger values include partly-off-frame DSOs whose centre is just outside
   /// the chip but whose extent crosses the edge. Was hardcoded to 0.05
-  /// (5 %); promoted to user-configurable in AUDIT-FIX-5B (audit-handoff §4.3).
+  /// (5 %); promoted to user-configurable in
   final double bboxPaddingFraction;
 
   CatalogOverlayService({

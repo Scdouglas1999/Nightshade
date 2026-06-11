@@ -1,6 +1,6 @@
 //! Built-in multi-star guider.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! - **Timing nanoseconds u128 → f64** (line 361): wall-clock elapsed in
 //!   nanoseconds; f64 holds nanosecond precision for ~104 days of
@@ -19,7 +19,7 @@
 //!
 //! Sites with a local `Why:` comment override the module-level reasoning.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! * `unwrap_or(Ordering::Equal)` — required because `f64::partial_cmp`
 //!   returns `Option` (NaN handling). Star detection upstream filters NaN

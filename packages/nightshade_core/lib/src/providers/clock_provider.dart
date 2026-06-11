@@ -25,8 +25,7 @@ import 'settings_provider.dart';
 /// `Clock.now()` returns whichever wall-clock the user asked for; call
 /// sites that need a stable monotonic clock should still use
 /// `DateTime.now()` directly (the system clock is not what the user
-/// chose — it is what the OS scheduler counts on). Audit-handoff §2.1
-/// WIRE-UP item #9.
+/// chose — it is what the OS scheduler counts on).
 abstract class Clock {
   DateTime now();
 

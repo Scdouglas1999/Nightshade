@@ -37,7 +37,7 @@ class TopOverlay extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Wave 4 Recovery Mode — surface the live recovery banner at the
+        // Recovery Mode — surface the live recovery banner at the
         // top of the planetarium screen so a user watching the sky chart
         // still sees recovery state. Empty SizedBox when not recovering.
         const RunDashboardRecoveryBanner(),

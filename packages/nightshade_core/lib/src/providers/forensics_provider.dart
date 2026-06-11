@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: Riverpod wiring.
+/// Frame-Failure Forensics: Riverpod wiring.
 ///
 /// Exposes the [ForensicsService] singleton + a stream provider that
 /// the dashboard panel listens to. The service is constructed lazily

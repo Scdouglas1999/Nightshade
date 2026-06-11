@@ -4,7 +4,7 @@
 //! operations. Instead of using fixed polling intervals, the `AdaptivePoller` adjusts
 //! its interval based on whether status changes are detected.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! All `as` casts in this file operate on poll-interval timings in
 //! milliseconds:

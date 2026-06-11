@@ -1,4 +1,4 @@
-// Wave 7E — Tests for SavedServersService.
+// Tests for SavedServersService.
 //
 // The service is a pure data layer: SharedPreferences + secure storage
 // + a small JSON blob. We exercise the persistence round-trip, mutation

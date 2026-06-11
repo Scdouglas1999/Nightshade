@@ -1,4 +1,4 @@
-//! Wave 3 Agent 1: Target scheduling — Rust port of the planetarium scoring math.
+//! Target scheduling — Rust port of the planetarium scoring math.
 //!
 //! The executor cannot call Dart, so the `TargetScheduler` logic node needs a
 //! native scoring authority. This module ports the multi-factor scoring from

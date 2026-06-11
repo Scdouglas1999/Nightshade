@@ -1,5 +1,5 @@
 // Part of ../node_properties_panel.dart -- migrated from the former
-// instruction_node_properties library (Wave 4 consolidation). Richer
+// instruction_node_properties library. Richer
 // mount/optics motion editors: Center (custom-coords + solve params),
 // Autofocus (settings-defaults display + per-node overrides), Rotator,
 // Slew (custom-coords + target-resolution preview), Meridian Flip, and

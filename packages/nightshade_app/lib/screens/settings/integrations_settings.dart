@@ -6,13 +6,14 @@
 // honest answer to "Discord fires on observatory events" — that path lives in
 // Settings > Notification Routing).
 //
-// Wiring (built on the C3 / C4 surfaces, never reaching into plugin internals):
-//   * `pluginRegistrationProvider` (C3) — ensures the bundled plugins are
+// Wiring (built on the registration/enablement providers, never reaching into
+// plugin internals):
+//   * `pluginRegistrationProvider` — ensures the bundled plugins are
 //     registered into the host before we render. Read (not just watched) so a
 //     registration failure surfaces as an error state rather than an empty page.
 //   * `pluginHostProvider.pluginInfo` — the per-plugin name/description/enabled/
 //     error snapshot rendered as rows.
-//   * `pluginEnablementProvider` (C4) — the persisted enabled-set; toggling a
+//   * `pluginEnablementProvider` — the persisted enabled-set; toggling a
 //     row calls `setEnabled(id, value)`, which drives the live host
 //     (`PluginHost.setPluginEnabled`, running onEnable/onDisable and
 //     registering/unregistering the plugin's sequence nodes) BEFORE persisting
@@ -20,7 +21,7 @@
 //     not this session, and not after a restart (the settings-backed
 //     enablement store the entry point installs replays the same choice into
 //     the registration pipeline at next launch).
-//   * `pluginLastFiredProvider` (C3) — "last fired <relative time>" per plugin.
+//   * `pluginLastFiredProvider` — "last fired <relative time>" per plugin.
 //
 // Per-plugin configuration is written through the plugin's own public API
 // (`configureCredentials` / `configureConnection`) or, for Discord (whose

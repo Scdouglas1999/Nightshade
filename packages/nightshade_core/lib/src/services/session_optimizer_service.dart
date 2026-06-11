@@ -7,7 +7,7 @@ import 'target_suggestion_service.dart';
 import 'smart_night/exposure_calculator.dart';
 import 'smart_night_service.dart';
 
-/// Wave 7 — Kind of suggestion the post-session optimizer can emit.
+/// Kind of suggestion the post-session optimizer can emit.
 ///
 /// Each kind corresponds to one "apply" semantic: the UI consults this
 /// value to decide whether the Apply button should open the target
@@ -568,7 +568,7 @@ class SessionOptimizerService {
     );
   }
 
-  /// Wave 7 — Post-session retrospective analysis.
+  /// Post-session retrospective analysis.
   ///
   /// Given the immutable session report, the per-target altitude traces
   /// collected during the run, and the operator's threshold preferences,

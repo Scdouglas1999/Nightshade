@@ -1,4 +1,4 @@
-// P1-2 / P1-3: REST surface for the JobManager.
+// REST surface for the JobManager.
 //
 // Exposes:
 //   GET    /api/jobs/{jobId}          - current job snapshot

@@ -10,7 +10,7 @@ use nightshade_imaging::{
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-// Why: post audit §6.7, `process_tiled`/`process_with_progress` are sync
+// Why: post, `process_tiled`/`process_with_progress` are sync
 // CPU-bound functions; tests no longer need `tokio::test`.
 
 #[test]

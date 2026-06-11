@@ -1,4 +1,4 @@
-// P1-13: Sidecar JPEG thumbnail caching for captured FITS frames.
+// Sidecar JPEG thumbnail caching for captured FITS frames.
 //
 // Without caching, every `GET /api/images/{id}/thumbnail` request triggers
 // a cold FITS read + stretch + JPEG encode in Rust. Loading a 200-image
@@ -13,7 +13,7 @@
 // Failed sidecar writes are logged at warning severity — not error,
 // because the captured image is fully usable without a sidecar; the
 // cold-read fallback handles missing sidecars. The warning IS real
-// (CLAUDE.md: "errors are a feature; silent fallbacks hide bugs for
+// ("errors are a feature; silent fallbacks hide bugs for
 // months"); we surface every failure rather than swallowing it.
 
 import 'dart:async';

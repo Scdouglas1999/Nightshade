@@ -14,7 +14,7 @@ import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
 
-/// DEV-P3-2 — verifies that heartbeat events arriving on the equipment
+/// Verifies that heartbeat events arriving on the equipment
 /// event stream are routed into `deviceHeartbeatHealthProvider` by
 /// `DeviceService`, and that a `Disconnected` event clears the entry.
 class _TestBackendNotifier extends BackendNotifier {
@@ -87,7 +87,7 @@ void main() {
           .read(deviceHeartbeatHealthProvider.notifier)
           .forDevice(deviceId);
       expect(state.health, HeartbeatHealth.degraded);
-      // CLAUDE.md: the reason must carry the real failure count, not a
+      // The reason must carry the real failure count, not a
       // generic placeholder.
       expect(state.reason, isNotNull);
       expect(state.reason!, contains('3'));
@@ -398,7 +398,7 @@ void main() {
     'Heartbeat dispatch does not interfere with the Disconnected handler',
     () async {
       // Regression guard for the task constraint: heartbeat routing must
-      // not break the DEV-P0-1 / DEV-P0-5 connection-state handling.
+      // not break the  /  connection-state handling.
       // We send a Disconnected event for a device that has no heartbeat
       // entry at all — the heartbeat clear (no-op) must not raise and
       // the event must still be processed by the existing handler.

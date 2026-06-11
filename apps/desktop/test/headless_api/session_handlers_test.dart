@@ -90,14 +90,14 @@ void main() {
     });
   });
 
-  // P0-5 — HTTP Range support for /api/images/{id}/download.
+  // HTTP Range support for /api/images/{id}/download.
   //
   // We spin up an in-memory Drift DB, write a real FITS-like file to a
   // tempdir, register the row, then exercise the handler with various
   // Range header shapes. The handler streams via `file.openRead(start,
   // end+1)` so the response body covers exactly the requested byte
   // slice; we drain the body to verify the bytes are correct.
-  group('SessionHandlers /api/images/{id}/download (P0-5 Range)', () {
+  group('SessionHandlers /api/images/{id}/download (Range)', () {
     late ProviderContainer container;
     late SessionHandlers handlers;
     late NightshadeDatabase db;

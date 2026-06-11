@@ -1,6 +1,6 @@
 # NightshadeWatchComplication — Xcode setup
 
-Wave 7D ships the Swift source for an Apple Watch complication, but
+ships the Swift source for an Apple Watch complication, but
 WidgetKit complications require a watchOS target in the Xcode project,
 which has to be created in the Xcode UI. Editing
 `Runner.xcodeproj/project.pbxproj` by hand is fragile and we deliberately

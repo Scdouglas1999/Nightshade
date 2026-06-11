@@ -1,6 +1,6 @@
-// CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
+// split from monolithic api.rs
 #![allow(unused_imports)]
-// Shared imports inherited from the monolithic api.rs (audit-rust §9).
+// Shared imports inherited from the monolithic api.rs.
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
@@ -505,7 +505,7 @@ async fn scan_devices_for_pair(
     }
 }
 
-// Wave 6B (P2-1) — public hot-plug entry points. The hot-plug poller in
+// — public hot-plug entry points. The hot-plug poller in
 // `crate::hotplug` walks the native and (on Windows) ASCOM device lists
 // without the per-(type,driver) cache wrapper so a freshly-plugged USB
 // device shows up on the very next 4 s tick instead of waiting for the
@@ -960,7 +960,7 @@ pub async fn api_discover_devices(
         errors.len()
     );
 
-    // Errors are a feature (per CLAUDE.md): if every driver failed and we have
+    // Errors are a feature: if every driver failed and we have
     // nothing to return, surface a structured error instead of silently
     // returning an empty list.
     if aggregated.is_empty() && !errors.is_empty() {
@@ -980,7 +980,7 @@ pub async fn api_discover_devices(
 
 #[cfg(test)]
 mod tests {
-    //! Tests for the per-(DeviceType, DriverType) discovery cache (DEV-P2-3).
+    //! Tests for the per-(DeviceType, DriverType) discovery cache.
     //!
     //! These tests exercise the cache machinery directly. They deliberately
     //! do NOT call `api_discover_devices` end-to-end, because that function

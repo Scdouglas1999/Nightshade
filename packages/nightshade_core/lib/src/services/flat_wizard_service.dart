@@ -53,7 +53,7 @@ class FlatResult {
 class FlatWizardService {
   final NightshadeBackend backend;
 
-  // AUDIT-FIX-5B (audit-handoff §4.3): image download timeout was previously
+  // Image download timeout was previously
   // a hardcoded `Duration(seconds: 60)` constant. It is now sourced from
   // [FlatWizardGlobalSettings.imageDownloadTimeoutSeconds] (default 60s) so
   // operators with very large sensors or slow USB hubs can tune it without a
@@ -73,7 +73,7 @@ class FlatWizardService {
   });
 
   /// Build a service from [FlatWizardGlobalSettings] so settings-driven defaults
-  /// flow into the service in one place (AUDIT-FIX-5B / audit-handoff §4.3).
+  /// flow into the service in one place.
   factory FlatWizardService.fromSettings(
     NightshadeBackend backend,
     FlatWizardGlobalSettings settings,
@@ -710,7 +710,7 @@ class FlatWizardService {
     int binX = 1,
     int binY = 1,
   }) async {
-    // AUDIT-FIX-5B (§4.3): exposure bounds and iteration count come from the
+    // Exposure bounds and iteration count come from the
     // service's settings-derived fields rather than hardcoded literals so the
     // user can tune them via the flat wizard global-settings panel.
     return calibrateFilter(
@@ -729,11 +729,10 @@ class FlatWizardService {
   }
 
   /// Default minimum exposure for [quickCalibrate]. Was hardcoded 0.001s.
-  /// Promoted to a service field so user settings can override it. AUDIT-FIX-5B.
+  /// Promoted to a service field so user settings can override it.
   final double quickMinExposure;
 
   /// Default maximum exposure for [quickCalibrate]. Was hardcoded 30.0s.
-  /// AUDIT-FIX-5B.
   final double quickMaxExposure;
 }
 
@@ -748,7 +747,7 @@ BinningMode _binningFromInts(int x, int y) {
 
 /// Provider for FlatWizardService.
 ///
-/// AUDIT-FIX-5B (audit-handoff §4.3): re-watches `flatWizardProvider` so a
+/// Re-watches `flatWizardProvider` so a
 /// settings change (min/max exposure, image download timeout, max iterations)
 /// rebuilds the service with the new values instead of being silently ignored.
 final flatWizardServiceProvider = Provider<FlatWizardService>((ref) {

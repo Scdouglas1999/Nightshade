@@ -1,16 +1,16 @@
-// DEV-P3-4: assert that the device-state notifiers keep `lastError`
+// Assert that the device-state notifiers keep `lastError`
 // visible across the Connecting transition, and only clear it once the
 // device actually reaches Connected.
 //
 // This is the contract the equipment-card subtitle relies on: when the
-// auto-reconnect mechanism (DEV-P1-1) fires after a driver error, the
+// auto-reconnect mechanism fires after a driver error, the
 // user must keep seeing the *most recent driver error* in the card
 // while the retry is in flight. Clearing it the instant we entered
 // Connecting would flash the descriptive subtitle back for a few
 // hundred ms and then either confirm Connected or jump back to the
 // same error — visually identical to "nothing went wrong" until the
-// retry fails again, which is exactly the silent fallback CLAUDE.md
-// forbids.
+// retry fails again, which is exactly the silent fallback we
+// guard against.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,13 +28,13 @@ void main() {
     container.dispose();
   });
 
-  group('CameraStateNotifier — DEV-P3-4 lastError persistence', () {
+  group('CameraStateNotifier — lastError persistence', () {
     test(
       'setError → setConnecting preserves lastError; setConnected clears it',
       () {
         final notifier = container.read(cameraStateProvider.notifier);
 
-        // 1. Driver error arrives (DEV-P0-5 invokes setError with the raw
+        // 1. Driver error arrives (the device service invokes setError with the raw
         //    driver message).
         notifier.setError(Exception('ASCOM error 0x80040403 - device offline'));
         var state = container.read(cameraStateProvider);
@@ -77,7 +77,7 @@ void main() {
     });
   });
 
-  group('MountStateNotifier — DEV-P3-4 lastError persistence', () {
+  group('MountStateNotifier — lastError persistence', () {
     test(
       'setError → setConnecting preserves lastError; setConnected clears it',
       () {
@@ -102,7 +102,7 @@ void main() {
     );
   });
 
-  group('FocuserStateNotifier — DEV-P3-4 lastError persistence', () {
+  group('FocuserStateNotifier — lastError persistence', () {
     test(
       'setError → setConnecting preserves lastError; setConnected clears it',
       () {

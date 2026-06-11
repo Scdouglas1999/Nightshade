@@ -24,7 +24,7 @@
 //                 the target angle so "Slew, Center & Rotate" lights up when a
 //                 rotator is connected.
 //
-// Errors are surfaced, never swallowed (see CLAUDE.md) — a solve failure shows
+// Errors are surfaced, never swallowed — a solve failure shows
 // the solver's own error message; an IO failure writing the frame to disk shows
 // the failure rather than silently degrading.
 

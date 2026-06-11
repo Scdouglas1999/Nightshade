@@ -278,7 +278,7 @@ void main() {
       expect(ids.contains('far'), isFalse);
     });
 
-    // AUDIT-FIX-5B (audit-handoff §4.3 item 6): bboxPaddingFraction promoted
+    // BboxPaddingFraction promoted
     // from hardcoded 0.05 to a user-configurable constructor parameter.
     test('bboxPaddingFraction widens the catalog query bbox so off-frame DSOs '
         'just past the chip edge are returned', () async {

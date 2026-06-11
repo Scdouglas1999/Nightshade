@@ -69,7 +69,7 @@ impl AscomSwitchWrapper {
             };
 
             // Get static properties.
-            // Why (audit-rust §4.3): `name` and `max_switch` are optional
+            // Why: `name` and `max_switch` are optional
             // ASCOM ISwitchV2 properties; absence means "the driver did not
             // expose a friendly name (use ProgID)" / "the driver does not
             // declare any switches (treat as 0-count empty array)". The UI

@@ -209,7 +209,7 @@ class _NodeTreeView extends ConsumerWidget {
             ),
           ),
 
-        // Wave 6 Thumbnails — inline strip of captured frames produced
+        // Inline strip of captured frames produced
         // by this ExposureNode. The strip lives directly under the
         // ExposureNode row so the user sees frames appear in real time
         // beneath the instruction that produced them. ThumbnailStrip

@@ -210,76 +210,69 @@ CREATE TABLE captured_images (
     },
   );
 
-  test(
-    'schema 35 database upgrades to add switch_id column (DEV-P2-1)',
-    () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'nightshade_v35_to_v36_',
+  test('schema 35 database upgrades to add switch_id column ', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nightshade_v35_to_v36_',
+    );
+    final dbFile = File('${tempDir.path}/nightshade.db');
+
+    // Set up a database at schema version 35 (the version that introduced
+    // safety_monitor_id but predates the switch_id column).
+    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      // Drop the switch_id column (and recreate the table) so we look like
+      // a real v35 database that never had this column.
+      await setupDb.customStatement('PRAGMA foreign_keys = OFF');
+      // The freshly-created Drift schema already has switch_id at v36, so
+      // we strip it back to simulate an older install.
+      await setupDb.customStatement(
+        'ALTER TABLE equipment_profiles DROP COLUMN switch_id',
       );
-      final dbFile = File('${tempDir.path}/nightshade.db');
+      await setupDb.customStatement('PRAGMA user_version = 35');
+    } finally {
+      await setupDb.close();
+    }
 
-      // Set up a database at schema version 35 (the version that introduced
-      // safety_monitor_id but predates the switch_id column).
-      final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        // Drop the switch_id column (and recreate the table) so we look like
-        // a real v35 database that never had this column.
-        await setupDb.customStatement('PRAGMA foreign_keys = OFF');
-        // The freshly-created Drift schema already has switch_id at v36, so
-        // we strip it back to simulate an older install.
-        await setupDb.customStatement(
-          'ALTER TABLE equipment_profiles DROP COLUMN switch_id',
-        );
-        await setupDb.customStatement('PRAGMA user_version = 35');
-      } finally {
-        await setupDb.close();
+    // Re-open at the current schema version — onUpgrade should add the
+    // switch_id column back via the v36 migration.
+    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      final upgradedVersion = await db
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
+
+      final columns = await db
+          .customSelect("PRAGMA table_info('equipment_profiles')")
+          .get();
+      final hasSwitchId = columns.any((row) => row.data['name'] == 'switch_id');
+
+      expect(
+        hasSwitchId,
+        isTrue,
+        reason:
+            'equipment_profiles should include switch_id after '
+            'v36 migration ',
+      );
+
+      // Existing profiles upgrade cleanly with switch_id = null.
+      final profileId = await db
+          .into(db.equipmentProfiles)
+          .insert(EquipmentProfilesCompanion.insert(name: 'Migrated Profile'));
+      final row = await (db.select(
+        db.equipmentProfiles,
+      )..where((t) => t.id.equals(profileId))).getSingle();
+      expect(row.switchId, equals(null));
+    } finally {
+      await db.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
       }
-
-      // Re-open at the current schema version — onUpgrade should add the
-      // switch_id column back via the v36 migration.
-      final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final upgradedVersion = await db
-            .customSelect('PRAGMA user_version')
-            .getSingle();
-        expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-
-        final columns = await db
-            .customSelect("PRAGMA table_info('equipment_profiles')")
-            .get();
-        final hasSwitchId = columns.any(
-          (row) => row.data['name'] == 'switch_id',
-        );
-
-        expect(
-          hasSwitchId,
-          isTrue,
-          reason:
-              'equipment_profiles should include switch_id after '
-              'v36 migration (DEV-P2-1)',
-        );
-
-        // Existing profiles upgrade cleanly with switch_id = null.
-        final profileId = await db
-            .into(db.equipmentProfiles)
-            .insert(
-              EquipmentProfilesCompanion.insert(name: 'Migrated Profile'),
-            );
-        final row = await (db.select(
-          db.equipmentProfiles,
-        )..where((t) => t.id.equals(profileId))).getSingle();
-        expect(row.switchId, equals(null));
-      } finally {
-        await db.close();
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      }
-    },
-  );
+    }
+  });
 
   test('equipment profile round-trips switchId through Drift companion '
-      '(DEV-P2-1)', () async {
+      '', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
       const switchId = 'native:zwo-eaf:switch:0';
@@ -714,60 +707,57 @@ CREATE TABLE captured_images (
     },
   );
 
-  test(
-    'fresh database is at schema 48 with stacked_results table (C3)',
-    () async {
-      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
-      try {
-        expect(db.schemaVersion, equals(48));
+  test('fresh database is at schema 48 with stacked_results table', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    try {
+      expect(db.schemaVersion, equals(48));
 
-        // v48 (Night Narrator): the narrator_events table must exist on a
-        // fresh install (drift createAll) just like on the upgrade path.
-        final narratorRow = await db
-            .customSelect(
-              "SELECT name FROM sqlite_master "
-              "WHERE type='table' AND name='narrator_events'",
-            )
-            .getSingleOrNull();
-        expect(
-          narratorRow != null,
-          isTrue,
-          reason:
-              'onCreate must create the narrator_events table for fresh '
-              'installs (Night Narrator v48).',
-        );
+      // v48 (Night Narrator): the narrator_events table must exist on a
+      // fresh install (drift createAll) just like on the upgrade path.
+      final narratorRow = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='narrator_events'",
+          )
+          .getSingleOrNull();
+      expect(
+        narratorRow != null,
+        isTrue,
+        reason:
+            'onCreate must create the narrator_events table for fresh '
+            'installs (Night Narrator v48).',
+      );
 
-        final tableRow = await db
-            .customSelect(
-              "SELECT name FROM sqlite_master "
-              "WHERE type='table' AND name='stacked_results'",
-            )
-            .getSingleOrNull();
-        expect(
-          tableRow != null,
-          isTrue,
-          reason:
-              'onCreate must create the stacked_results table for fresh '
-              'installs (Stack-and-Share Loop C3).',
-        );
-        expect(tableRow!.data['name'], equals('stacked_results'));
+      final tableRow = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='stacked_results'",
+          )
+          .getSingleOrNull();
+      expect(
+        tableRow != null,
+        isTrue,
+        reason:
+            'onCreate must create the stacked_results table for fresh '
+            'installs (Stack-and-Share Loop C3).',
+      );
+      expect(tableRow!.data['name'], equals('stacked_results'));
 
-        // The provenance indexes must exist so session/target lookups stay fast.
-        final indexes = await db
-            .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
-            .get();
-        final indexNames = indexes
-            .map((row) => row.data['name']?.toString() ?? '')
-            .toSet();
-        expect(indexNames, contains('idx_stacked_results_session'));
-        expect(indexNames, contains('idx_stacked_results_target'));
-      } finally {
-        await db.close();
-      }
-    },
-  );
+      // The provenance indexes must exist so session/target lookups stay fast.
+      final indexes = await db
+          .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
+          .get();
+      final indexNames = indexes
+          .map((row) => row.data['name']?.toString() ?? '')
+          .toSet();
+      expect(indexNames, contains('idx_stacked_results_session'));
+      expect(indexNames, contains('idx_stacked_results_target'));
+    } finally {
+      await db.close();
+    }
+  });
 
-  test('pre-v38 database upgrades to add stacked_results table (C3)', () async {
+  test('pre-v38 database upgrades to add stacked_results table', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'nightshade_v37_to_v38_',
     );

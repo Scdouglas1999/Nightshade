@@ -1,4 +1,4 @@
-// LAN UDP push broadcaster (P1-19 / audit §12, §7).
+// LAN UDP push broadcaster.
 //
 // =========================================================================
 // Threat model
@@ -7,8 +7,8 @@
 // PushNotificationService fires critical alerts (weather unsafe, sequence
 // failed, guiding lost, mount runaway) over the headless WebSocket. A phone
 // whose WS has dropped (Android battery firmware, iOS app suspended, Wi-Fi
-// roam) never sees them. The audit's P1-19 ask is "make critical pushes
-// reach backgrounded clients on the same LAN even when the WS is dropped."
+// roam) never sees them. The goal is to make critical pushes
+// reach backgrounded clients on the same LAN even when the WS is dropped.
 //
 // This module implements the **server side** of a small UDP fan-out
 // protocol — broadcast on 255.255.255.255 plus multicast on the private

@@ -14,7 +14,7 @@ use crate::{NodeDefinition, NodeId, NodeStatus, NodeType};
 use async_trait::async_trait;
 use std::sync::atomic::Ordering;
 
-/// Wave 4 — render a node's display name through the interpolation engine.
+/// render a node's display name through the interpolation engine.
 ///
 /// Display strings are non-load-bearing: when interpolation fails we log
 /// at debug! (a user-visible label that won't render is annoying but not
@@ -223,12 +223,12 @@ pub trait Node: Send + Sync {
     fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>>;
     fn mark_completed(&mut self, node_id: &NodeId);
 
-    /// P1-8: record the live `current_iteration` of every Loop node in this
+    /// record the live `current_iteration` of every Loop node in this
     /// subtree into `out` (keyed by node id), for checkpointing. Default is a
     /// no-op recursion is supplied by [`RuntimeNode`]; leaf mocks don't loop.
     fn snapshot_loop_iterations(&self, _out: &mut std::collections::HashMap<NodeId, u32>) {}
 
-    /// P1-8: restore the persisted `current_iteration` of Loop nodes in this
+    /// restore the persisted `current_iteration` of Loop nodes in this
     /// subtree from `map`, so a resumed Count loop continues from where it
     /// stopped instead of restarting at iteration 1.
     fn restore_loop_iterations(&mut self, _map: &std::collections::HashMap<NodeId, u32>) {}
@@ -294,7 +294,7 @@ impl Node for RuntimeNode {
             return NodeStatus::Skipped;
         }
 
-        // P1-7: resume short-circuit. On resume, `resume_from_checkpoint`
+        // resume short-circuit. On resume, `resume_from_checkpoint`
         // walks the freshly-built tree and calls `mark_completed` on every
         // already-Success node, then the executor re-walks the WHOLE tree.
         // The intended (and documented) behaviour is to skip those completed
@@ -313,7 +313,7 @@ impl Node for RuntimeNode {
         }
 
         self.status = NodeStatus::Running;
-        // Wave 4 — render the node display name through the interpolation
+        // render the node display name through the interpolation
         // engine so user-authored templates like
         // "Image ${target.name} with ${filter}" become live labels in the
         // Run Dashboard. Resolution failure is non-fatal here (a display
@@ -351,7 +351,7 @@ impl Node for RuntimeNode {
             NodeType::Recovery(config) => {
                 logic::recovery::execute_recovery(self, config.clone(), context).await
             }
-            // Wave 3 Agent 1: TargetScheduler — dynamic target picker. Container
+            // TargetScheduler — dynamic target picker. Container
             // variant: needs &mut self to walk + reset children, so it lives
             // here alongside the other logic nodes rather than in the
             // instruction registry.
@@ -599,7 +599,7 @@ mod resume_short_circuit_tests {
         })
     }
 
-    /// P1-7: a node whose status was restored to `Success` on resume must
+    /// a node whose status was restored to `Success` on resume must
     /// short-circuit out of `execute` WITHOUT dispatching its instruction. We
     /// prove "did not dispatch" by giving the node a 9999s Delay: if the
     /// short-circuit holds, `execute` returns immediately; if the restored
@@ -643,7 +643,7 @@ mod resume_short_circuit_tests {
         assert_eq!(status, NodeStatus::Success);
     }
 
-    /// P1-7 (parallel): the resume short-circuit applies to container nodes too.
+    /// (parallel): the resume short-circuit applies to container nodes too.
     /// A Parallel node restored to Success must NOT re-spawn its branches. The
     /// child here is a 9999s Delay; if the container re-executed, it would block
     /// on that delay and the tight timeout would elapse.
@@ -669,7 +669,7 @@ mod resume_short_circuit_tests {
         assert_eq!(status, NodeStatus::Success);
     }
 
-    /// P1-8: a Count loop resumed mid-run (current_iteration restored from a
+    /// a Count loop resumed mid-run (current_iteration restored from a
     /// checkpoint) must continue from where it stopped, NOT restart at 0 and
     /// re-image every completed iteration. Loop(count=3) restored to iteration
     /// 2 must run exactly ONE more iteration (the 3rd), so the child executes
@@ -718,7 +718,7 @@ mod resume_short_circuit_tests {
         assert_eq!(node.current_iteration, 3, "loop must finish at iteration 3");
     }
 
-    /// Negative control for P1-8: a FRESH Count loop (iteration 0) runs the full
+    /// Negative control for a FRESH Count loop (iteration 0) runs the full
     /// count. Guards against a resume fix that wrongly skips iterations on a
     /// normal (non-resumed) run.
     #[tokio::test]

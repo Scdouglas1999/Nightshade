@@ -1,5 +1,5 @@
-// Wave 7.5 — Run-dashboard live light-curve panel for the
-// SciencePhotometryNode (Wave 7 Agent 4).
+// Run-dashboard live light-curve panel for the
+// SciencePhotometryNode.
 //
 // Data flow:
 //   Rust executor emits ProgressDetail::PhotometryFrame for each frame

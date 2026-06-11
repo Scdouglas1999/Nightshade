@@ -83,7 +83,7 @@ impl AscomFilterWheelWrapper {
                             // Why: Names is the source of truth for filter count and
                             // is required to populate saved-profile filter offsets. If
                             // it errors, returning a zero-count silently breaks every
-                            // downstream filter operation; per audit §5.11 the device
+                            // downstream filter operation; the device
                             // must be marked unusable, so we propagate and force the
                             // caller (bridge dispatch) to drop the wrapper before it
                             // is registered.
@@ -101,7 +101,7 @@ impl AscomFilterWheelWrapper {
                                 }
                                 msg
                             })?;
-                            // Why (audit-rust §1.4): physical filter wheel
+                            // Why: physical filter wheel
                             // slot counts are ≤ 16; usize → i32 SAFE.
                             let count = i32::try_from(names.len()).unwrap_or(i32::MAX);
                             tracing::info!(
@@ -406,7 +406,7 @@ mod tests {
         }
     }
 
-    /// Audit §5.11: when the worker reports a `Names` failure during connect,
+    /// when the worker reports a `Names` failure during connect,
     /// `connect()` must return Err and leave the wrapper in the disconnected
     /// state. The bridge dispatch in `devices.rs` propagates this error and
     /// drops the wrapper, so the device is effectively marked unusable.

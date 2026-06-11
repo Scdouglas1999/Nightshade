@@ -35,7 +35,7 @@
 //   * **Cancelable.** Every fetch takes an optional [HipsFetchToken]; cancelling
 //     it aborts the in-flight request (closing the underlying HTTP client used
 //     for that request) and makes the pending future complete with a thrown
-//     [HipsFetchCancelledException]. The tile-request scheduler (C6) cancels
+// [HipsFetchCancelledException]. The tile-request scheduler cancels
 //     superseded requests during pan/zoom so stale tiles never thrash the
 //     network or land in the cache after the view moved on. A decoded image
 //     produced by a request that lost the cancellation race is disposed here so

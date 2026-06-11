@@ -4,7 +4,6 @@
 /// them so existing consumers (`import 'src/providers/equipment_provider.dart'`)
 /// keep working without churn.
 ///
-/// Decomposed under audit-dart §1e / §10 #9 (CQ-W3-EQUIP-PROV).
 library;
 
 export 'equipment/camera_state_provider.dart';

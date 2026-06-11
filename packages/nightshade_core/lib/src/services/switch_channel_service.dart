@@ -59,7 +59,7 @@ class SwitchChannelService {
   final NightshadeBackend _backend;
 
   // ---- Switch bridge hooks (testable seam) -----------------------------
-  // DEV-P2-1 follow-up: the per-channel switch UI needs to call FFI even
+  // Follow-up: the per-channel switch UI needs to call FFI even
   // when the test rig swaps in a MockBackend. The MockBackend can't
   // satisfy `_backend is FfiBackend`, so the actual `apiSwitch*` calls
   // would otherwise be skipped. Static function-pointer hooks let

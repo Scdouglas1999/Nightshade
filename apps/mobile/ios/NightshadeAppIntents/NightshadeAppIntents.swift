@@ -1,4 +1,4 @@
-// Wave 7C — iOS App Intents (Siri Shortcuts)
+// iOS App Intents (Siri Shortcuts)
 //
 // This extension exposes a small set of AppIntents that Siri (and the
 // iOS Shortcuts app) can invoke against Nightshade:

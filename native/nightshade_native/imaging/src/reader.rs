@@ -6,7 +6,7 @@
 //! - Region-of-interest extraction
 //! - Streaming operations
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Three FITS-standard fallbacks appear in this reader:
 //!

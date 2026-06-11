@@ -1,4 +1,4 @@
-// DEV-P3-1: tests for the capability-driven UI provider layer.
+// Tests for the capability-driven UI provider layer.
 //
 // Verifies:
 //   * Provider correctly reads capabilities for a mock camera.

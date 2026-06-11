@@ -13,7 +13,7 @@
 //! * `$${` — literal `${`. The doubled `$` escapes interpolation.
 //!
 //! Unknown variables throw an `InterpolationError`. There is no silent
-//! fallback — per `CLAUDE.md`, errors are a feature.
+//! fallback — errors are a feature.
 //!
 //! ## Integration
 //!

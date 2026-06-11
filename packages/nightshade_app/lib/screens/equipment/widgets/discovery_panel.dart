@@ -27,8 +27,7 @@ class AssignAction {
 /// Provider to track when the last scan occurred
 // autoDispose: the "last scan: N seconds ago" label is only meaningful while
 // the Equipment screen is mounted. Resetting on screen teardown avoids
-// stale "last scan: 6 hours ago" strings from a previous session
-// (audit-dart §1b).
+// stale "last scan: 6 hours ago" strings from a previous session.
 final lastScanTimeProvider =
     StateProvider.autoDispose<DateTime?>((ref) => null);
 
@@ -158,7 +157,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   Future<void> _scanForDevices() async {
     setState(() => _isScanning = true);
     try {
-      // UI-P0-4: discoverAll clears stale grouped results before scanning.
+      // discoverAll clears stale grouped results before scanning.
       await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
       final completedAt =
           ref.read(unifiedDiscoveryProvider).lastDiscoveryCompletedAt;
@@ -199,7 +198,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         context.showSuccessSnackBar('Equipment rescan complete');
       }
     } catch (e) {
-      // Surface failures loudly — `CLAUDE.md` rule "errors are a feature".
+      // Surface failures loudly — errors are a feature.
       messenger?.showSnackBar(
         SnackBar(content: Text('Rescan failed: $e')),
       );

@@ -6,7 +6,7 @@
 //!
 //! These are real implementations that call external solvers.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! This module's numeric casts cluster into three safe-by-construction families:
 //! - **Pixel-buffer math** (`u16/u32/f32/f64 as u16` for monochromization): the
@@ -20,7 +20,7 @@
 //! High-risk pixel_count arithmetic uses explicit `checked_mul`. Sites with
 //! their own `Why:` comment override the module-level reasoning.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Each `unwrap_or` site below maps to a specific external-solver edge case:
 //!
@@ -861,7 +861,7 @@ impl AstapSolver {
     /// Any malformed value or missing required keyword propagates as
     /// `PlateSolveError`; the caller is responsible for converting to a
     /// failed `PlateSolveResult`. Silent fallbacks (RA=0/Dec=0) are
-    /// forbidden — see CLAUDE.md "errors are a feature".
+    /// forbidden — see "errors are a feature".
     fn parse_wcs_file(
         &self,
         wcs_path: &Path,

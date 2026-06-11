@@ -57,7 +57,7 @@ final darkLibraryGroupsProvider = FutureProvider<List<DarkGroupKey>>((
 /// `calibrationSettingsProvider.autoCalibrate`. Pointing this provider at
 /// the calibration store keeps the dark-library UI in sync with what the
 /// pipeline actually evaluates so the toggle is no longer dead-write
-/// (audit-handoff §2.1 WIRE-UP item #6). The legacy
+/// The legacy
 /// `dark_library.auto_subtract` key is preserved as a one-time migration
 /// source via [migrateLegacyDarkLibrarySettings].
 final autoDarkSubtractEnabledProvider = Provider<bool>((ref) {
@@ -77,7 +77,7 @@ const String darkLibraryTempToleranceKey = 'dark_library.temp_tolerance';
 
 /// Unified tolerances for dark-frame matching.
 ///
-/// IMG-P0-2: this is the SINGLE source of truth that both the coverage UI
+/// This is the SINGLE source of truth that both the coverage UI
 /// (`DarkLibraryCoverageService.evaluate`) and the runtime calibration
 /// matcher (`DarkLibraryDao.findBestMatch` via `DarkLibraryService`) must
 /// consult so the green "all darks present" badge can never contradict
@@ -91,7 +91,7 @@ const String darkLibraryTempToleranceKey = 'dark_library.temp_tolerance';
 /// Invalid stored values (negative, NaN, inf, unparseable) cause the
 /// provider to throw via [DarkLibraryMatchTolerances.validated] so the
 /// problem surfaces immediately instead of being silently clamped — per
-/// "Errors are a feature" in CLAUDE.md.
+/// Errors are a feature here.
 final darkLibraryMatchTolerancesProvider = Provider<DarkLibraryMatchTolerances>(
   (ref) {
     final settings = ref.watch(allSettingsProvider);

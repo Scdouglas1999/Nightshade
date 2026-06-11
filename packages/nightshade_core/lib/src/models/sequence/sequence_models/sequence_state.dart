@@ -479,4 +479,4 @@ abstract class SequenceProgress with _$SequenceProgress {
 }
 
 // =============================================================================
-// Wave 7 Science — SciencePhotometryNode + transparency-adaptive support.
+// Science — SciencePhotometryNode + transparency-adaptive support.

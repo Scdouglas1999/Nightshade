@@ -117,7 +117,7 @@ class StackAndShareState {
 ///
 /// [runForSession] calls [StackAndShareService.run] with an `onProgress`
 /// callback that publishes each phase transition into [state], guarded by the
-/// `mounted` check required by CLAUDE.md so a disposed notifier never mutates
+/// `mounted` check required here so a disposed notifier never mutates
 /// state. On success it captures the persisted result plus the retained RGBA /
 /// mono buffers from the service; on failure it records the error message and
 /// leaves a terminal [StackAndSharePhase.error] progress so the UI can render a
@@ -233,7 +233,7 @@ final stackAndShareProvider =
 /// Throws [StateError] when no row matches [id] rather than returning a
 /// fabricated empty result — a stale / deleted id is a real error the viewer
 /// should surface, not silently render as a blank stack (errors are a feature,
-/// per CLAUDE.md).
+/// ).
 final stackResultViewerProvider =
     FutureProvider.family<StackAndShareResult, int>((ref, id) async {
       final dao = ref.watch(stackedResultsDaoProvider);

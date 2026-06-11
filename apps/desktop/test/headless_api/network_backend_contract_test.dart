@@ -5,7 +5,7 @@ import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 
 void main() {
   group('headless API route contracts', () {
-    // Wave 7 follow-up: A-5b's route-table refactor relocated route
+    // A-5b's route-table refactor relocated route
     // registrations from inline `router.<verb>(...)` calls in
     // `headless_api_server.dart` into per-domain `routes/*.dart` files,
     // and moved the advertised-endpoint catalog from
@@ -119,7 +119,7 @@ Set<String> _scanRegisteredRoutes(String source) {
       .allMatches(source)
       .map((match) {
         final path = match.group(2)!;
-        // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
+        // also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
         // so the advertised-vs-registered diff catches typos in either
         // place.
         final isWsRoute =

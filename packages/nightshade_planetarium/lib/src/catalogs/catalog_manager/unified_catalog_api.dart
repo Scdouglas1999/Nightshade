@@ -384,7 +384,7 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         try {
           await tempFile.delete();
         } catch (_) {
-          // Per CLAUDE.md "errors are a feature" — log loudly so the
+          // Errors are a feature here — log loudly so the
           // operator can clean up manually if needed.
           developer.log(
             '[Catalog] downloadAndInstall($name): failed to delete partial after error',

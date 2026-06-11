@@ -1,4 +1,4 @@
-// Wave 5 Agent 5 — unit tests for SecretsStore.
+// Unit tests for SecretsStore.
 //
 // Covers:
 //   * Round-trip of every sensitive field via [SecretsStore.read/write].

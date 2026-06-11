@@ -1,4 +1,4 @@
-//! PluginNode instruction — Wave 6 Pack P.
+//! PluginNode instruction.
 //!
 //! Dispatches `NodeType::PluginNode` to the Dart side via the executor's
 //! event/command channel and blocks until Dart replies.
@@ -130,7 +130,7 @@ impl InstructionNode for PluginNodeInstruction {
 
         // Fire the request event. A missing event_tx is a configuration
         // bug — without it the Dart side can never receive the request —
-        // so we fail loudly per CLAUDE.md.
+        // so we fail loudly.
         let Some(event_tx) = context.event_tx.clone() else {
             tracing::error!(
                 "[PLUGIN] PluginNode {} ({}/{}) cannot dispatch: executor has no event channel. \
@@ -153,7 +153,7 @@ impl InstructionNode for PluginNodeInstruction {
             display_name: display_name.clone(),
             timeout_secs: effective_timeout_secs,
         });
-        // Wave 8 Replay Debug — log the plugin invocation so the
+        // Replay Debug — log the plugin invocation so the
         // replay timeline carries a row for it. Plugins can run
         // arbitrary external scripts so this is an important audit
         // breadcrumb.
@@ -293,7 +293,7 @@ impl InstructionNode for PluginNodeInstruction {
             Err(_elapsed) => {
                 tracing::error!(
                     "[PLUGIN] Plugin node {} ({}/{}) timed out after {}s; failing the node loudly \
-                     per CLAUDE.md. Either the plugin is hung, or the Dart side never received \
+. Either the plugin is hung, or the Dart side never received \
                      the request event.",
                     node_id,
                     plugin_id,

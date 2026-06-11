@@ -13,7 +13,7 @@
 //!   * [`loading`]      — sequence load + read-only totals/order walks.
 //!   * [`runtime_config`] — `update_*` mid-flight config mutators.
 //!   * [`checkpoint`]   — crash-recovery save/load/resume surface.
-//!   * [`decision`]     — Wave 8 structured-decision logging surface.
+//!   * [`decision`]     — structured-decision logging surface.
 //!
 //! What is deliberately kept here in `mod.rs`:
 //!   * `start()` — the orchestrator. It captures dozens of locals into
@@ -444,7 +444,7 @@ pub fn safety_fail_mode_no_data_resolution(mode: SafetyFailMode) -> NoDataResolu
     }
 }
 
-/// Wave 7 Agent 3 — pre-loaded per-frame defect-map application state.
+/// pre-loaded per-frame defect-map application state.
 ///
 /// The bridge loads the `.ndm` file into memory once when the user toggles
 /// "Apply defect map" on (or sets the auto-apply default + a matching map
@@ -493,7 +493,7 @@ impl std::fmt::Debug for DefectMapApplyState {
     }
 }
 
-/// Pack G — Observer / equipment-identification payload pushed from Dart at
+/// Observer / equipment-identification payload pushed from Dart at
 /// sequencer start. Drives the FITS `OBSERVER`, `SITEELEV`, `TELESCOP`,
 /// `FOCALLEN`, `APTDIA`, `INSTRUME` keywords. All fields are `Option`
 /// because in headless / no-profile runs we'd rather emit an absent
@@ -510,7 +510,7 @@ pub struct ObserverProfile {
 }
 
 /// Runtime-mutable configuration shared between the executor task,
-/// instruction nodes, and the trigger-action handlers. Audit §1.8 — these
+/// instruction nodes, and the trigger-action handlers. these
 /// values used to be cloned at sequence load and any in-flight
 /// `UpdateDitherConfig`/`UpdateLocation`/`UpdateFilterOffsets` commands
 /// were silently dropped (`let _ = (pixels, ...)`). Stored in
@@ -531,7 +531,7 @@ pub struct RuntimeConfig {
     /// tuning (step size, exposure, backlash, method, filter) instead of
     /// library defaults. `None` means the sequence has no Autofocus node to
     /// copy tuning from; the trigger path then falls back to defaults AND logs
-    /// a warning (never a silent fallback — CLAUDE.md "errors are a feature").
+    /// a warning (never a silent fallback — "errors are a feature").
     pub autofocus: Option<crate::AutofocusConfig>,
     /// Observer location (degrees). `None` means location is not configured.
     pub latitude: Option<f64>,
@@ -576,7 +576,7 @@ pub struct RuntimeConfig {
     /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; otherwise clamped to a sane
     /// floor so a misconfiguration cannot make every tick warn.
     pub weather_verdict_staleness_secs: u64,
-    /// Wave 1.5 Pack A: user override for the standard `AutofocusInterval`
+    /// user override for the standard `AutofocusInterval`
     /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
     /// wildly wrong for both very-short (5 s) and very-long (5 min) subs —
     /// the user must be able to tune this from the equipment profile or
@@ -584,12 +584,12 @@ pub struct RuntimeConfig {
     /// `Some(n)` overrides the trigger's `every_n_frames` field on the next
     /// trigger reload.
     pub autofocus_interval_frames: Option<u32>,
-    /// Wave 3 Image Grading: global default image-grading thresholds.
+    /// Image Grading: global default image-grading thresholds.
     /// Applied to every TakeExposure node that does NOT carry its own
     /// `quality_check`. `None` => grading disabled globally. The Dart UI
     /// surfaces this via the new image-grading settings page.
     pub default_quality_check: Option<crate::quality::ImageQualityCheck>,
-    /// Wave 3 Image Grading: where rejected frames go.
+    /// Image Grading: where rejected frames go.
     ///
     /// `None` => use `<save_path>/Reject/` (created on first reject).
     /// `Some(path)` => use the explicit path (resolves relative to the
@@ -597,30 +597,30 @@ pub struct RuntimeConfig {
     /// resolved reject folder equals the save_path, validation flags it
     /// as a warning (mixing accepted + rejected defeats the purpose).
     pub reject_folder_path: Option<String>,
-    /// Pack G — observer / equipment identification pushed at start by Dart.
+    /// observer / equipment identification pushed at start by Dart.
     /// Used to populate FITS `OBSERVER`, `SITEELEV`, `TELESCOP`, `FOCALLEN`,
     /// `APTDIA`, `INSTRUME` keywords. Default is all-None (empty profile)
     /// so frames captured without a configured profile honestly emit no
     /// observer / telescope keywords.
     pub observer_profile: ObserverProfile,
-    /// Wave 4 Recovery Mode — user-tunable defaults consumed on every
+    /// Recovery Mode — user-tunable defaults consumed on every
     /// recovery entry. Updated mid-flight via `UpdateRecoveryConfig` so
     /// the user can tweak the cadence/duration during a long session
     /// (e.g. shortening the interval after the first cloud cell drifts
     /// off the rig). Defaults follow SGP: 10 min interval, 90 min total.
     pub recovery: crate::recovery::RecoveryRuntimeConfig,
-    /// Wave 5 Agent 2 — global default sky-brightness adaptive exposure
+    /// global default sky-brightness adaptive exposure
     /// config. Applied to every TakeExposure node that does NOT carry
     /// its own `adaptive_exposure` block. `None` => no global default;
     /// exposures use their nominal duration unless the node explicitly
     /// opts in.
     pub default_adaptive_exposure: Option<crate::scheduling::AdaptiveExposureConfig>,
-    /// Wave 7 Agent 3 — per-frame defect map application state. `None`
+    /// per-frame defect map application state. `None`
     /// means defect correction is disabled for the current camera /
     /// session. Mirrored into `ExecutionContext::defect_map_apply` at
     /// start time and on every `ExecutorCommand::UpdateDefectMap`.
     pub defect_map_apply: Option<DefectMapApplyState>,
-    /// Wave 7.5 — per-target carry-over integration to seed into the
+    /// per-target carry-over integration to seed into the
     /// `BudgetRegistry` at the start of the next run, mapped from
     /// `target_id` → `filter` → `seconds_already_captured`.
     ///
@@ -695,16 +695,16 @@ pub enum ExecutorCommand {
     Stop,
     Skip,
     SkipToNode(NodeId),
-    /// Wave 4 Recovery Mode — operator pressed "Try Now" on the dashboard
+    /// Recovery Mode — operator pressed "Try Now" on the dashboard
     /// banner. Cancels the wait timer and forces an immediate retry of the
     /// recovery attempt. No-op if the executor is not currently in
     /// `Recovering`.
     RecoveryTryNow,
-    /// Wave 4 Recovery Mode — operator pressed "Abort" on the dashboard
+    /// Recovery Mode — operator pressed "Abort" on the dashboard
     /// banner. Exits the recovery loop and transitions the executor to
     /// `Failed`. No-op if the executor is not currently in `Recovering`.
     RecoveryAbort,
-    /// Wave 4 Recovery Mode — push the user-tunable recovery defaults
+    /// Recovery Mode — push the user-tunable recovery defaults
     /// (retry interval, max duration, stop-tracking flag, …) into the
     /// executor's runtime config so the next recovery entry honours them.
     UpdateRecoveryConfig {
@@ -744,34 +744,34 @@ pub enum ExecutorCommand {
     UpdateFilterOffsets {
         offsets: std::collections::HashMap<String, i32>,
     },
-    /// Wave 1.5 Pack A: update the autofocus-interval cadence at runtime.
+    /// update the autofocus-interval cadence at runtime.
     /// Patches the standard `AutofocusInterval` trigger's `every_n_frames`
     /// so the next periodic-AF tick honours the new value; mid-flight tuning
     /// from the equipment-profile UI works without a sequence reload.
     UpdateAutofocusInterval {
         every_n_frames: u32,
     },
-    /// Pack G — update the global default image-grading thresholds.
+    /// update the global default image-grading thresholds.
     /// `None` disables grading globally (per-node `quality_check` on
     /// TakeExposure still wins). Mirrors the Dart-side
     /// `enableImageGrading` toggle on app settings.
     UpdateDefaultQualityCheck {
         check: Option<crate::quality::ImageQualityCheck>,
     },
-    /// Pack G — update the reject-folder override. `None` => default
+    /// update the reject-folder override. `None` => default
     /// `<save_path>/Reject/`. Mirrors the Dart `imageGradingRejectFolderPath`
     /// setting.
     UpdateRejectFolderPath {
         path: Option<String>,
     },
-    /// Pack G — push observer / equipment identification (observer name,
+    /// push observer / equipment identification (observer name,
     /// camera make/model, telescope name/focal length/aperture, site
     /// elevation) to the executor so the next FITS save stamps real
     /// keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV).
     UpdateObserverProfile {
         profile: ObserverProfile,
     },
-    /// Wave 5 Agent 2 — push the latest sky-brightness reading from the
+    /// push the latest sky-brightness reading from the
     /// Dart `SkyBrightnessTracker` to the executor. The next adaptive-
     /// exposure decision reads this value. Pass `mag = None` when the
     /// tracker has lost lock so the adapter falls back to nominal
@@ -779,14 +779,14 @@ pub enum ExecutorCommand {
     UpdateSkyBrightness {
         mag: Option<f64>,
     },
-    /// Wave 5 Agent 2 — push the user's global default sky-brightness
+    /// push the user's global default sky-brightness
     /// adaptive exposure config. Per-node `ExposureConfig.adaptive_exposure`
     /// still wins; this is the runtime fallback the next TakeExposure
     /// node consults when it has none.
     UpdateDefaultAdaptiveExposure {
         config: Option<crate::scheduling::AdaptiveExposureConfig>,
     },
-    /// Wave 6 Pack P — Dart side has finished running a plugin node and is
+    /// Dart side has finished running a plugin node and is
     /// returning the verdict to the Rust executor. The executor finds the
     /// pending oneshot keyed by `node_id` and resolves it; the
     /// `PluginNodeInstruction` blocking on that oneshot returns Success or
@@ -808,7 +808,7 @@ pub enum ExecutorCommand {
         /// JSON is replaced with `null` and a warn line is logged).
         structured_detail_json: Option<String>,
     },
-    /// Wave 7 Agent 3 — push the active per-frame defect map (or clear it).
+    /// push the active per-frame defect map (or clear it).
     ///
     /// Sent by `api_sequencer_update_defect_map` when the user toggles
     /// "Apply during capture" on or off. When `state` is `Some`, every
@@ -823,7 +823,7 @@ pub enum ExecutorCommand {
     UpdateDefectMap {
         state: Option<DefectMapApplyState>,
     },
-    /// Wave 5 Agent 4 — push the latest cloud-motion analyzer reading into
+    /// push the latest cloud-motion analyzer reading into
     /// the executor's trigger state. The Dart side
     /// (`cloudMotionAnalyzerProvider` -> WeatherSafetyNotifier) sends this
     /// every ~60s while a sequence is running so the cloud-aware triggers
@@ -831,7 +831,7 @@ pub enum ExecutorCommand {
     /// current data. All fields are `Option` because the analyzer may not
     /// yet have enough radar history to produce every quantity; `None`
     /// fields disable the corresponding evaluator branch rather than
-    /// firing spuriously (CLAUDE.md "errors are a feature").
+    /// firing spuriously ("errors are a feature").
     UpdateCloudMotion {
         /// Current cloud cover percentage (0-100). Open-Meteo merged with
         /// the analyzer.
@@ -850,7 +850,7 @@ pub enum ExecutorCommand {
         predicted_clear_sky_alt: Option<f64>,
         predicted_clear_sky_az: Option<f64>,
     },
-    /// Wave 7 Science — push the latest sky transparency reading from
+    /// Science — push the latest sky transparency reading from
     /// the Dart science pipeline. Mirrored onto
     /// `TriggerState::current_transparency` (for the
     /// `TransparencyDropped` trigger evaluator) and
@@ -859,20 +859,20 @@ pub enum ExecutorCommand {
     ///
     /// Pass `transparency = None` when the science pipeline has lost
     /// lock so the trigger evaluator falls back to "no data" (does NOT
-    /// fire on absent telemetry — CLAUDE.md "no silent fallbacks").
+    /// fire on absent telemetry — "no silent fallbacks").
     UpdateTransparency {
         /// Live transparency reading expressed as a fraction of clear-sky
         /// reference (0.0..=1.0; 1.0 = clear). Values outside [0.0, 1.5]
         /// are clamped + WARN-logged by `TriggerState::update_transparency`.
         transparency: Option<f64>,
     },
-    /// Wave 7 Science — push the operator-configured backup plan that
+    /// Science — push the operator-configured backup plan that
     /// `RecoveryAction::SwitchTargetOrFilter` consults. Pass `plan =
     /// None` to clear the plan (e.g. the operator removed it mid-session).
     UpdateTransparencyBackup {
         plan: Option<crate::node::context::TransparencyBackupPlan>,
     },
-    /// Wave 8 — push the composite sky-conditions score that the
+    /// push the composite sky-conditions score that the
     /// `TargetScheduler`'s adaptive-swap logic consults. The Dart-side
     /// `AdaptiveSwapService` composes the score from transparency / seeing
     /// / cloud cover / wind every ~30 seconds and sends this command. The
@@ -901,7 +901,7 @@ pub enum ExecutorCommand {
 
 /// State of the sequence executor
 ///
-/// Wave 4: `Recovering` was added as a first-class state so user-visible UI
+/// `Recovering` was added as a first-class state so user-visible UI
 /// (Run Dashboard LED, banner, audible alert, push notification) can react
 /// to an in-flight recovery loop instead of seeing a vanilla `Running` while
 /// the sequence is actually waiting for a guide-star reacquisition. The
@@ -916,7 +916,7 @@ pub enum ExecutorState {
     Cancelled,
     Completed,
     Failed,
-    /// Wave 4: the executor is currently driving a recovery loop after a
+    /// the executor is currently driving a recovery loop after a
     /// recoverable failure (guide-star lost, slew failed, plate-solve
     /// failed, weather unsafe, etc.). Retries fire on a configured cadence;
     /// the user can force `RecoveryTryNow` or `RecoveryAbort` via
@@ -941,14 +941,14 @@ pub struct SequenceProgress {
     pub current_filter: Option<String>,
     pub message: Option<String>,
     pub node_statuses: HashMap<NodeId, NodeStatus>,
-    /// Wave 3 Agent 3 — per-target / per-filter completed integration in
+    /// per-target / per-filter completed integration in
     /// seconds. Outer key is the TargetHeader node id; inner key is the
     /// filter name (`""` for no-filter cameras). Updated when the
     /// exposure instruction emits an IntegrationBudget progress event so
     /// the dashboard can render budget bars without re-reading the registry.
     #[serde(default)]
     pub integration_by_target_filter: HashMap<NodeId, HashMap<String, f64>>,
-    /// Wave 3 Agent 3 — set of TargetHeader node ids whose integration
+    /// set of TargetHeader node ids whose integration
     /// budget has fired. Surfaced so the dashboard can flip the target
     /// tile to "complete" even while the executor is finishing the
     /// final burst.
@@ -981,8 +981,8 @@ impl Default for SequenceProgress {
 
 /// Event emitted by the executor
 ///
-/// Pack H clippy fix: `ProgressUpdated` carries a fully-populated
-/// `SequenceProgress` (~320 bytes once the Wave 3 budget HashMaps grew),
+/// `ProgressUpdated` carries a fully-populated
+/// `SequenceProgress` (~320 bytes once the budget HashMaps grew),
 /// which is far larger than every other variant on this enum. Without
 /// boxing, every `ExecutorEvent` value (including the small life-cycle
 /// variants) reserves the worst-case 320 bytes on the stack and inside
@@ -993,7 +993,7 @@ impl Default for SequenceProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutorEvent {
     StateChanged(ExecutorState),
-    /// Pack H: boxed to keep the enum size down (see enum doc-comment).
+    /// boxed to keep the enum size down (see enum doc-comment).
     /// Serde transparently serializes `Box<SequenceProgress>` as
     /// `SequenceProgress`, so the FRB wire format and JSON checkpoint
     /// payloads are byte-identical to the pre-box version.
@@ -1015,10 +1015,10 @@ pub enum ExecutorEvent {
         /// working). Derived from `structured_detail` via
         /// `ProgressDetail::detail_text()`.
         detail: String,
-        /// Pack H: structured detail payload, boxed to keep the
+        /// structured detail payload, boxed to keep the
         /// `ExecutorEvent` variant size small. `None` for legacy
         /// progress emissions that don't carry a structured payload
-        /// (instruction nodes pre-dating Wave 2's progress refactor).
+        /// (instruction nodes pre-dating the progress refactor).
         /// The bridge layer reads this to dispatch to the typed
         /// `SequencerEvent` variants (`FrameAccepted`, `FrameRejected`,
         /// `SchedulerDecision`, `IntegrationBudget`) without parsing
@@ -1052,13 +1052,13 @@ pub enum ExecutorEvent {
     Error {
         message: String,
     },
-    /// Audit §1.8: runtime configuration changed mid-sequence (dither pixels,
+    /// runtime configuration changed mid-sequence (dither pixels,
     /// observer location, or filter focus offsets). Subscribers should
     /// reload any cached values derived from these fields.
     RuntimeConfigUpdated {
         what: String,
     },
-    /// Wave 4 Recovery Mode — the executor just entered the `Recovering`
+    /// Recovery Mode — the executor just entered the `Recovering`
     /// state. Carries the full [`RecoveryContext`] so subscribers (Run
     /// Dashboard banner, audible alert player, push-notification service)
     /// render the cause, attempt counter, and countdown without reaching
@@ -1067,7 +1067,7 @@ pub enum ExecutorEvent {
     RecoveryStarted {
         context: Box<crate::recovery::RecoveryContext>,
     },
-    /// Wave 4 Recovery Mode — periodic update of the live recovery
+    /// Recovery Mode — periodic update of the live recovery
     /// context (attempt counter incremented, phase changed, last_error
     /// updated). Subscribers refresh the dashboard banner from this; the
     /// `RecoveryStarted` / `RecoveryCompleted` / `RecoveryGaveUp` events
@@ -1075,13 +1075,13 @@ pub enum ExecutorEvent {
     RecoveryProgress {
         context: Box<crate::recovery::RecoveryContext>,
     },
-    /// Wave 4 Recovery Mode — recovery succeeded. The executor will
+    /// Recovery Mode — recovery succeeded. The executor will
     /// transition back to `Running`; subscribers clear the dashboard
     /// banner and log the history entry.
     RecoveryCompleted {
         context: Box<crate::recovery::RecoveryContext>,
     },
-    /// Wave 4 Recovery Mode — recovery exhausted attempts / time / was
+    /// Recovery Mode — recovery exhausted attempts / time / was
     /// aborted by the user. The executor will transition to `Failed` (or
     /// run the configured ParkAndAbort policy). Subscribers log the
     /// history entry and emit a critical-severity event.
@@ -1096,7 +1096,7 @@ pub enum ExecutorEvent {
     SequenceFailed {
         error: String,
     },
-    /// Wave 6 Pack P — the executor has reached a `NodeType::PluginNode`
+    /// the executor has reached a `NodeType::PluginNode`
     /// and is waiting for the Dart side to run the plugin and reply with
     /// `ExecutorCommand::PluginNodeFinished`. Subscribers (specifically
     /// the Dart sequence executor) route this to `PluginNodeExecutor.run`
@@ -1243,7 +1243,7 @@ fn build_trigger_autofocus_context(
     runtime_config: &Arc<StdRwLock<RuntimeConfig>>,
     event_tx: Option<broadcast::Sender<ExecutorEvent>>,
 ) -> crate::instructions::InstructionContext {
-    // Audit §1.8: read filter_focus_offsets and location from the runtime
+    // read filter_focus_offsets and location from the runtime
     // config so a mid-flight UpdateFilterOffsets / UpdateLocation is honoured
     // by trigger-initiated autofocus / dither / recenter actions. The
     // trigger_context is a snapshot taken at start(); without this read the
@@ -1288,7 +1288,7 @@ fn build_trigger_autofocus_context(
         device_ops,
         trigger_state: Some(trigger_state),
         filter_focus_offsets,
-        // Wave 1.5 Pack A: callers pass `Some(event_tx_clone2.clone())` so
+        // callers pass `Some(event_tx_clone2.clone())` so
         // FITS-save failures and other instruction-level errors fired from
         // trigger-initiated work (autofocus / dither / recenter) reach the
         // executor's event subscribers (UI, logging). Unit tests still pass
@@ -1300,7 +1300,7 @@ fn build_trigger_autofocus_context(
         device_disconnect_recovery_pending: std::sync::Arc::new(
             std::sync::atomic::AtomicBool::new(false),
         ),
-        // Wave 3 Image Grading: trigger-initiated autofocus does not save
+        // Image Grading: trigger-initiated autofocus does not save
         // FITS frames itself, so empty defaults are honest here. If trigger
         // code ever calls save_fits in the future these would need to be
         // wired through the trigger_context snapshot.
@@ -1325,12 +1325,12 @@ fn build_trigger_autofocus_context(
         frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
         default_quality_check: None,
         reject_folder_path: None,
-        // Wave 7 Agent 3: trigger-initiated autofocus does not save
+        // trigger-initiated autofocus does not save
         // FITS frames itself; the defect-map slot starts empty so a
         // future trigger code path that does save_fits will need to
         // wire this through the trigger_context.
         defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Wave 8 — Forensics: trigger-initiated work doesn't have the
+        // Forensics: trigger-initiated work doesn't have the
         // shared forensics history available; start empty Arcs so any
         // grading reached by a future trigger path falls back gracefully.
         forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
@@ -1342,7 +1342,7 @@ fn build_trigger_autofocus_context(
         )),
         current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-        // Wave 8 Replay Debug — trigger-initiated work (autofocus,
+        // Replay Debug — trigger-initiated work (autofocus,
         // dither) does not currently emit DecisionEvents (we wire
         // recoveries + scheduler + lifecycle separately), so the
         // sender starts None and emissions from this context are no-
@@ -1383,7 +1383,7 @@ fn build_trigger_flip_context(
     })
 }
 
-/// Audit §1.18: every exit path from the trigger-monitor closure that ends
+/// every exit path from the trigger-monitor closure that ends
 /// the sequence MUST set `is_cancelled` before returning the fired-triggers
 /// vector. This helper enforces the invariant in one place so future
 /// `match` arms cannot regress by forgetting the store.
@@ -1412,7 +1412,7 @@ fn terminate_with(
     triggers
 }
 
-/// Wave 8 Replay Debug — emit a `SystemEvent` decision from the executor
+/// Replay Debug — emit a `SystemEvent` decision from the executor
 /// task's lifecycle hooks (sequence started / completed / failed /
 /// cancelled). Free-standing helper so the closures capturing the
 /// channel handles can call it without going through `SequenceExecutor`.
@@ -1469,7 +1469,7 @@ fn executor_state_for_result(result: NodeStatus) -> ExecutorState {
     }
 }
 
-/// Wave 5 Agent 4 — convert horizontal coordinates (altitude / azimuth in
+/// convert horizontal coordinates (altitude / azimuth in
 /// degrees) at the observer site to equatorial coordinates (RA in hours,
 /// Dec in degrees) referenced to the current epoch. Used by
 /// `RecoveryAction::SlewToGapAndContinue` to convert the cloud-motion
@@ -1514,7 +1514,7 @@ pub(crate) fn alt_az_to_ra_dec(
     (ra_hours, dec_rad.to_degrees())
 }
 
-/// Wave 4 Recovery Mode — execute a single recovery attempt for the given
+/// Recovery Mode — execute a single recovery attempt for the given
 /// cause and report the outcome. Stays out of the executor methods so the
 /// recovery driver task can call it without holding the executor lock.
 ///
@@ -1813,7 +1813,7 @@ pub struct SequenceExecutor {
     /// Enable/disable trigger monitoring
     pub triggers_enabled: bool,
     /// Checkpoint manager for crash recovery.
-    /// Audit §1.16: stored behind an `Arc` so the streaming-checkpoint task
+    /// stored behind an `Arc` so the streaming-checkpoint task
     /// (spawned inside `start()`) shares the SAME instance — including its
     /// `info_cache` — instead of constructing a second
     /// `CheckpointManager::new(checkpoint_dir)` that bypasses the cache and
@@ -1825,7 +1825,7 @@ pub struct SequenceExecutor {
     pub safety_fail_mode: SafetyFailMode,
     /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
     pub filter_focus_offsets: std::collections::HashMap<String, i32>,
-    /// Audit §1.8: shared runtime configuration. Updated by
+    /// shared runtime configuration. Updated by
     /// `Update{DitherConfig,Location,FilterOffsets}` commands so changes
     /// take effect on the next dither/capture/autofocus without requiring a
     /// sequence reload. Cloned into the spawned executor task so the task
@@ -1838,23 +1838,23 @@ pub struct SequenceExecutor {
     /// non-`.await` and is free of contention concerns for this access
     /// pattern.
     runtime_config: Arc<StdRwLock<RuntimeConfig>>,
-    /// Wave 4 Recovery Mode — shared atomic flags that let the operator
+    /// Recovery Mode — shared atomic flags that let the operator
     /// punch through the wait timer ("Try Now") or exit the loop ("Abort")
     /// without blocking on a mutex. Cloned into the spawned executor task
     /// so the recovery-loop driver sees the same atomic the public
     /// `recovery_try_now()` / `recovery_abort()` methods write.
     recovery_signals: Arc<crate::recovery::RecoverySignals>,
-    /// Wave 4 Recovery Mode — most recent in-flight `RecoveryContext`.
+    /// Recovery Mode — most recent in-flight `RecoveryContext`.
     /// `None` whenever the executor is not in `Recovering`. Cloned for
     /// the `ExecutorEvent::Recovery*` events so the dashboard banner sees
     /// the same snapshot the executor sees.
     current_recovery: Arc<StdRwLock<Option<crate::recovery::RecoveryContext>>>,
-    /// Wave 4 Recovery Mode — log of every completed recovery loop so the
+    /// Recovery Mode — log of every completed recovery loop so the
     /// post-session report can render attempts/cause/duration/outcome.
     /// Trimmed at construction-time so a marathon run with hundreds of
     /// recoveries (something is very wrong then…) doesn't blow up memory.
     recovery_history: Arc<StdRwLock<Vec<crate::recovery::RecoveryHistoryEntry>>>,
-    /// Wave 8 Replay Debug — structured decision broadcast channel. Every
+    /// Replay Debug — structured decision broadcast channel. Every
     /// scheduler pick, trigger firing, recovery transition, frame verdict,
     /// adaptive swap, plugin invocation, manual operator action, and
     /// system event flows through this sender. The bridge layer
@@ -1862,17 +1862,17 @@ pub struct SequenceExecutor {
     /// the events to the `SequencerEvent::DecisionLogged` typed payload
     /// + the `sequence_decisions` persistence table.
     decision_tx: crate::decision::DecisionSender,
-    /// Wave 8 Replay Debug — the currently-active `sequence_runs.id` (set
+    /// Replay Debug — the currently-active `sequence_runs.id` (set
     /// from the bridge via [`SequenceExecutor::set_active_sequence_run_id`]
     /// after the Dart side inserts the row). Stamped into every emitted
     /// `DecisionEvent` so the replay screen can filter by run without
     /// joining on a wall-clock window.
     active_sequence_run_id: Arc<StdRwLock<Option<i64>>>,
-    /// Wave 8 Replay Debug — runtime toggle. When `false`, the executor
+    /// Replay Debug — runtime toggle. When `false`, the executor
     /// short-circuits decision emission entirely (no channel send, no
     /// allocation). Wired to the `decisionLoggingEnabled` setting.
     decision_logging_enabled: Arc<AtomicBool>,
-    /// Wave 8 — adaptive sky-conditions swap. Stable Arc slots shared
+    /// adaptive sky-conditions swap. Stable Arc slots shared
     /// between this struct and the per-run `ExecutionContext`. Holding
     /// them on the executor too lets idle-time pushes (`update_conditions_score`
     /// called before `start()`) survive into the next run AND lets the
@@ -1929,7 +1929,7 @@ impl SequenceExecutor {
             shared_adaptive_swap_state: Arc::new(RwLock::new(
                 crate::node::context::AdaptiveSwapRuntimeState::default(),
             )),
-            // Wave 8 Replay Debug — default ON. The Dart settings layer
+            // Replay Debug — default ON. The Dart settings layer
             // calls `set_decision_logging_enabled(false)` when the user
             // opts out; the overhead is negligible (one channel send +
             // one DB row per decision, well under 100 rows/min in real
@@ -2069,7 +2069,7 @@ impl SequenceExecutor {
 
         self.set_state(ExecutorState::Running).await;
 
-        // Wave 1.5 Pack A: if the runtime config has a user-supplied
+        // if the runtime config has a user-supplied
         // autofocus-interval cadence, push it into the seeded standard
         // trigger before the trigger-monitor task picks up its snapshot.
         // Without this, a value set via the equipment-profile UI before
@@ -2129,7 +2129,7 @@ impl SequenceExecutor {
             }
         }
 
-        // Wave 1.5 Pack A: surface trigger-creation-time clamp diagnostics
+        // surface trigger-creation-time clamp diagnostics
         // (e.g. FocusDrift.window_size > FOCUS_DRIFT_WINDOW_MAX) as
         // user-visible errors on the run dashboard. The clamping itself
         // happens silently inside `Trigger::new` during standard-trigger
@@ -2202,7 +2202,7 @@ impl SequenceExecutor {
                     })
                     .collect()
             })
-            // Why (audit-rust §4.3): `self.sequence` is `Option<Sequence>`; None means no
+            // Why: `self.sequence` is `Option<Sequence>`; None means no
             // sequence has been loaded yet (executor in initial state). An empty metadata
             // HashMap is the correct sentinel — there are simply no TakeExposure nodes to
             // index, so the trigger-action-context cannot reference any.
@@ -2215,7 +2215,7 @@ impl SequenceExecutor {
         let sequence_for_custom_recovery = self.sequence.clone();
         let custom_recovery_branches = Arc::new(custom_recovery_branches);
 
-        // Audit §1.8: seed runtime config from the executor's configured
+        // seed runtime config from the executor's configured
         // values so the first read sees what `set_*()` was given before
         // start() was called. The shared Arc is cloned for the spawned task
         // and the command handler so writes propagate to readers.
@@ -2228,7 +2228,7 @@ impl SequenceExecutor {
         }
         let runtime_config = self.runtime_config.clone();
 
-        // Wave 4 Recovery Mode — clone the shared signal + history handles
+        // Recovery Mode — clone the shared signal + history handles
         // for the spawned executor task. The signals atomic is cloned so
         // the operator pressing "Try Now" / "Abort" mid-loop is visible to
         // the trigger-monitor closure that drives the recovery state
@@ -2238,7 +2238,7 @@ impl SequenceExecutor {
         let recovery_signals_clone = self.recovery_signals.clone();
         let current_recovery_clone = self.current_recovery.clone();
         let recovery_history_clone = self.recovery_history.clone();
-        // Wave 8 Replay Debug — clone the decision sender + active run id
+        // Replay Debug — clone the decision sender + active run id
         // handle into the spawned executor task so every instruction
         // node, the trigger-monitor closure, and the recovery driver
         // can publish DecisionEvents.
@@ -2247,7 +2247,7 @@ impl SequenceExecutor {
         let active_run_id_for_ctx = self.active_sequence_run_id.clone();
         let active_run_id_for_decisions = self.active_sequence_run_id.clone();
         let decision_logging_enabled_for_emits = self.decision_logging_enabled.clone();
-        // Wave 8 — pre-clone the shared adaptive-swap Arc slots OUTSIDE
+        // pre-clone the shared adaptive-swap Arc slots OUTSIDE
         // the spawned task so the future doesn't capture `self` (which
         // would bind to the `&mut self` borrow of `start()`).
         let shared_conditions_score_for_ctx = self.shared_conditions_score.clone();
@@ -2259,7 +2259,7 @@ impl SequenceExecutor {
         // one" via the counter.
         self.recovery_signals.arm();
 
-        // Audit §1.16: share the *same* CheckpointManager Arc between the
+        // share the *same* CheckpointManager Arc between the
         // executor and the streaming-checkpoint task so they cannot diverge
         // (info_cache must be consistent for `has_recoverable_checkpoint`).
         let streaming_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
@@ -2283,7 +2283,7 @@ impl SequenceExecutor {
 
         let is_paused = Arc::new(AtomicBool::new(false));
         let skip_to_next_target = Arc::new(AtomicBool::new(false));
-        // Wave 4 Recovery Mode — channel by which the trigger-monitor posts
+        // Recovery Mode — channel by which the trigger-monitor posts
         // recoverable failures to the dedicated recovery-driver task. The
         // monitor sets `is_paused` while a recovery is in flight (so the
         // node tree freezes) and pushes the cause into this channel; the
@@ -2302,7 +2302,7 @@ impl SequenceExecutor {
         let skip_to_node: Arc<StdRwLock<Option<NodeId>>> = Arc::new(StdRwLock::new(None));
         let resume_notify = Arc::new(tokio::sync::Notify::new());
 
-        // Wave 3 Agent 3 — pull the budget snapshot from the most-recently
+        // pull the budget snapshot from the most-recently
         // loaded checkpoint (if any) so the spawned task can apply it
         // after constructing the ExecutionContext. Cloning a snapshot is
         // cheap (it's just Vec<BudgetState>).
@@ -2311,7 +2311,7 @@ impl SequenceExecutor {
             .as_ref()
             .map(|cp| cp.budget_states.clone());
 
-        // Wave 3.5 Pack F — pull the SmartExposure resume map from the
+        // pull the SmartExposure resume map from the
         // most-recently loaded checkpoint. Each entry restores a single
         // SmartExposure node's per-filter completed counts +
         // current_plan_index so a crashed mid-rotation run resumes on the
@@ -2347,7 +2347,7 @@ impl SequenceExecutor {
 
                 let mut context = ExecutionContext::new("root".to_string())
                     .with_device_ops(device_ops)
-                    // Wave 8 Replay Debug — install the broadcast
+                    // Replay Debug — install the broadcast
                     // sender + shared active-run-id slot so every
                     // instruction node, scheduler, recovery driver,
                     // and exposure grader can publish DecisionEvents
@@ -2356,31 +2356,31 @@ impl SequenceExecutor {
                         decision_tx_for_ctx.clone(),
                         active_run_id_for_ctx.clone(),
                     );
-                // Wave 5 Agent 4: clone the shared cloud-motion snapshot handle
+                // clone the shared cloud-motion snapshot handle
                 // so the trigger-monitor task can read it for
                 // `SlewToGapAndContinue` without holding the trigger-state
                 // lock. The Arc<RwLock> inside ExecutionContext is shared with
                 // every parallel branch and with the UpdateCloudMotion command
                 // handler, so reads here see the latest pushed snapshot.
                 let cloud_motion_for_recovery = context.cloud_motion_snapshot.clone();
-                // Wave 5 Agent 2 — pre-clone the adaptive-exposure shared
+                // pre-clone the adaptive-exposure shared
                 // Arc handles so the command-handler closure captures
                 // them by value (avoiding the immutable-borrow-of-
                 // `context` problem that fights `&mut context` in the
                 // parallel root_node.execute below).
                 let sky_brightness_for_cmd = context.current_sky_brightness_mag.clone();
                 let default_adaptive_for_cmd = context.default_adaptive_exposure.clone();
-                // Wave 6 Pack P — share the pending-plugin-node map with
+                // share the pending-plugin-node map with
                 // the command handler so a `PluginNodeFinished` reply can
                 // resolve the matching oneshot without borrowing `context`
                 // (which is exclusively held by `root_node.execute`
                 // below).
                 let plugin_node_pending_for_cmd = context.plugin_node_pending.clone();
-                // Wave 7 Agent 3 — share the defect-map Arc with the
+                // share the defect-map Arc with the
                 // command handler so an `UpdateDefectMap` command can
                 // mutate the live state without re-borrowing `context`.
                 let defect_map_apply_for_cmd = context.defect_map_apply.clone();
-                // Wave 7 Science — pre-clone the transparency-tracking
+                // Science — pre-clone the transparency-tracking
                 // Arc handles so the command handler can push fresh
                 // samples / backup plans into the shared ExecutionContext
                 // without re-borrowing `context` (which is held by the
@@ -2390,7 +2390,7 @@ impl SequenceExecutor {
                 let transparency_for_cmd = context.current_transparency.clone();
                 let transparency_backup_for_cmd = context.transparency_backup_plan.clone();
                 let transparency_backup_for_recovery = context.transparency_backup_plan.clone();
-                // Wave 8 — adaptive sky-conditions swap. The composite
+                // adaptive sky-conditions swap. The composite
                 // ConditionsScore slot is mirrored into the shared
                 // ExecutionContext so the TargetScheduler reads it without
                 // taking the trigger-state lock; `_for_cmd` is the handle
@@ -2439,7 +2439,7 @@ impl SequenceExecutor {
                 // (autofocus, exposures) feed it through the context so triggers can fire.
                 context.trigger_state = Some(trigger_manager.read().await.state());
 
-                // Pack G — seed the session-static FITS-header fields from the
+                // seed the session-static FITS-header fields from the
                 // runtime config. A fresh `session_id` is minted per start()
                 // so `NS-SESID` uniquely identifies the run; ExecutionContext::new
                 // already generates one in tests, but we MUST replace it here so
@@ -2484,7 +2484,7 @@ impl SequenceExecutor {
                     context.default_quality_check = rc.default_quality_check.clone();
                     context.reject_folder_path = rc.reject_folder_path.clone();
                 }
-                // Wave 5 Agent 2 — seed the global adaptive-exposure
+                // seed the global adaptive-exposure
                 // fallback so a node without its own `adaptive_exposure`
                 // block still inherits it. The shared Arc<RwLock> field
                 // is written outside the sync `runtime_config.read()`
@@ -2494,7 +2494,7 @@ impl SequenceExecutor {
                     let mut slot = context.default_adaptive_exposure.write().await;
                     *slot = initial;
                 }
-                // Wave 7 Agent 3 — seed the defect-map application state
+                // seed the defect-map application state
                 // from runtime_config so a sequence started after the
                 // user has already toggled "Apply during capture" on
                 // immediately gets per-frame correction (without waiting
@@ -2505,7 +2505,7 @@ impl SequenceExecutor {
                     let mut slot = context.defect_map_apply.write().await;
                     *slot = initial;
                 }
-                // Wave 7.5 — seed per-target carry-over integration into
+                // seed per-target carry-over integration into
                 // the BudgetRegistry. The map is drained out of the
                 // runtime config (cloned then cleared) so a subsequent
                 // start() without an explicit re-seed begins fresh
@@ -2548,7 +2548,7 @@ impl SequenceExecutor {
                         .map(|c| c.is_active())
                         .unwrap_or(false)
                 );
-                // Wave 8 Replay Debug — emit the "sequence started"
+                // Replay Debug — emit the "sequence started"
                 // lifecycle decision so the replay feed has a stable
                 // anchor for the run.
                 emit_lifecycle_decision(
@@ -2566,7 +2566,7 @@ impl SequenceExecutor {
                     }),
                 );
 
-                // Wave 3 Agent 3 — restore per-target integration-budget
+                // restore per-target integration-budget
                 // accounting from the checkpoint, if any. An empty snapshot
                 // (no checkpoint loaded, or pre-budget checkpoint) is a
                 // no-op which matches the documented backwards-compat
@@ -2577,7 +2577,7 @@ impl SequenceExecutor {
                     context.budget_registry.restore_snapshot(snapshot).await;
                 }
 
-                // Wave 3.5 Pack F — restore the SmartExposure per-node
+                // restore the SmartExposure per-node
                 // resume map from the checkpoint. Each entry seeds the
                 // in-memory `smart_exposure_states` map under
                 // ExecutionContext so the next time a SmartExposure node's
@@ -2739,7 +2739,7 @@ impl SequenceExecutor {
                         prog.completed_integration_secs += exposure_secs;
                     }
 
-                    // Wave 3 Agent 3 — pluck per-target / per-filter
+                    // pluck per-target / per-filter
                     // budget progress out of the structured detail so the
                     // executor's ProgressUpdated event carries enough
                     // information for the dashboard's budget panel
@@ -2797,7 +2797,7 @@ impl SequenceExecutor {
                             percent,
                             detail_text
                         );
-                        // Pack H: the `detail` field stays a string for legacy
+                        // the `detail` field stays a string for legacy
                         // back-compat (older subscribers parse it). The new
                         // `structured_detail` carries the typed payload so the
                         // bridge can dispatch typed `SequencerEvent` variants
@@ -2811,7 +2811,7 @@ impl SequenceExecutor {
                         });
                     }
 
-                    // Pack H: `ProgressUpdated` carries a boxed `SequenceProgress`
+                    // `ProgressUpdated` carries a boxed `SequenceProgress`
                     // so the enum stays small (see `ExecutorEvent` doc-comment).
                     let _ =
                         event_tx_clone.send(ExecutorEvent::ProgressUpdated(Box::new(prog.clone())));
@@ -2823,7 +2823,7 @@ impl SequenceExecutor {
                 // SkipToNode requests into the shared slot.
                 let skip_to_node_cmd = skip_to_node.clone();
                 let resume_notify_cmd = resume_notify.clone();
-                // Wave 4 Recovery Mode — command-handler-side clone so the
+                // Recovery Mode — command-handler-side clone so the
                 // RecoveryTryNow / RecoveryAbort handlers can fire the
                 // signal bus without grabbing the shared executor lock.
                 let recovery_signals_cmd = recovery_signals_clone.clone();
@@ -2907,7 +2907,7 @@ impl SequenceExecutor {
                                 settle_timeout,
                                 ra_only,
                             } => {
-                                // Audit §1.8: write through the shared Arc so the
+                                // write through the shared Arc so the
                                 // change takes effect on the next dither without
                                 // requiring a sequence reload.
                                 {
@@ -2930,7 +2930,7 @@ impl SequenceExecutor {
                                 latitude,
                                 longitude,
                             } => {
-                                // Audit §1.8: write through the Arc and also push
+                                // write through the Arc and also push
                                 // into the trigger state so altitude-aware
                                 // triggers (AltitudeLimit, MeridianFlip hour-angle
                                 // calc) read the new value on their next poll.
@@ -2987,7 +2987,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateFilterOffsets { offsets } => {
-                                // Audit §1.8: write through the Arc so the next
+                                // write through the Arc so the next
                                 // filter change reads the updated offsets.
                                 let count = offsets.len();
                                 {
@@ -3003,7 +3003,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateDefaultQualityCheck { check } => {
-                                // Pack G — write through the shared Arc so the
+                                // write through the shared Arc so the
                                 // next exposure's instruction context sees the
                                 // new default. Pre-existing per-node
                                 // `quality_check` settings still win.
@@ -3020,7 +3020,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateRejectFolderPath { path } => {
-                                // Pack G — write through the shared Arc so the
+                                // write through the shared Arc so the
                                 // next reject lands in the new folder.
                                 {
                                     let mut rc = runtime_config.write();
@@ -3032,7 +3032,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateObserverProfile { profile } => {
-                                // Pack G — write through the shared Arc so the
+                                // write through the shared Arc so the
                                 // next FITS save stamps real keywords.
                                 {
                                     let mut rc = runtime_config.write();
@@ -3048,7 +3048,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateAutofocusInterval { every_n_frames } => {
-                                // Wave 1.5 Pack A: write through runtime_config
+                                // write through runtime_config
                                 // AND patch the live trigger's `every_n_frames`
                                 // so the next AutofocusInterval evaluation sees
                                 // the new cadence without a sequence reload.
@@ -3077,7 +3077,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::RecoveryTryNow => {
-                                // Wave 4 Recovery Mode — flag the signal bus
+                                // Recovery Mode — flag the signal bus
                                 // so the next recovery driver tick fires an
                                 // immediate attempt instead of waiting for
                                 // the retry interval. Safe to issue from any
@@ -3093,7 +3093,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::RecoveryAbort => {
-                                // Wave 4 Recovery Mode — flag the signal bus.
+                                // Recovery Mode — flag the signal bus.
                                 // The recovery driver checks `take_abort()`
                                 // on every tick and exits the loop with a
                                 // GaveUp transition.
@@ -3104,7 +3104,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateSkyBrightness { mag } => {
-                                // Wave 5 Agent 2 — push the latest live
+                                // push the latest live
                                 // sky-brightness reading into the shared
                                 // ExecutionContext field. Uses the
                                 // pre-cloned `sky_brightness_for_cmd`
@@ -3125,7 +3125,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateDefaultAdaptiveExposure { config } => {
-                                // Wave 5 Agent 2 — push the global default
+                                // push the global default
                                 // sky-brightness adaptive-exposure config.
                                 // Per-node `ExposureConfig.adaptive_exposure`
                                 // still wins; this is the fallback consulted
@@ -3155,7 +3155,7 @@ impl SequenceExecutor {
                                 predicted_clear_sky_alt,
                                 predicted_clear_sky_az,
                             } => {
-                                // Wave 5 Agent 4 — feed the trigger state from
+                                // feed the trigger state from
                                 // the Dart-side cloud-motion analyzer. The
                                 // three cloud-aware triggers
                                 // (`CloudArrivingIn`, `CloudOpeningIn`,
@@ -3169,8 +3169,8 @@ impl SequenceExecutor {
                                         (Some(alt), Some(az)) => Some((alt, az)),
                                         // Half-specified directions are
                                         // ambiguous; refuse them rather than
-                                        // making up a default — silent fallback
-                                        // (CLAUDE.md).
+                                        // making up a default — that would be a
+                                        // silent fallback.
                                         _ => None,
                                     };
                                 {
@@ -3223,7 +3223,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateTransparency { transparency } => {
-                                // Wave 7 Science — push the live transparency
+                                // Science — push the live transparency
                                 // reading into BOTH the trigger state (so the
                                 // `TransparencyDropped` evaluator sees it on
                                 // its next tick) AND the shared
@@ -3247,7 +3247,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateTransparencyBackup { plan } => {
-                                // Wave 7 Science — operator-configured
+                                // Science — operator-configured
                                 // backup plan for the
                                 // `SwitchTargetOrFilter` recovery action.
                                 let summary = plan.as_ref().map(|p| {
@@ -3269,7 +3269,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateConditionsScore { score } => {
-                                // Wave 8 — push the live ConditionsScore
+                                // push the live ConditionsScore
                                 // into the shared ExecutionContext so the
                                 // TargetScheduler's adaptive-swap logic
                                 // reads it on its next decision tick. The
@@ -3318,7 +3318,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateRecoveryConfig { config } => {
-                                // Wave 4 Recovery Mode — push the user's
+                                // Recovery Mode — push the user's
                                 // tunable defaults through the shared Arc.
                                 // The next time the trigger monitor enters
                                 // a recovery loop (Running -> Recovering)
@@ -3366,7 +3366,7 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::UpdateDefectMap { state } => {
-                                // Wave 7 Agent 3 — push the active defect
+                                // push the active defect
                                 // map (or clear it). Write through the
                                 // shared RuntimeConfig AND the shared
                                 // ExecutionContext Arc so subsequent
@@ -3417,7 +3417,7 @@ impl SequenceExecutor {
                                 message,
                                 structured_detail_json,
                             } => {
-                                // Wave 6 Pack P — resolve the oneshot the
+                                // resolve the oneshot the
                                 // matching `PluginNodeInstruction::execute`
                                 // is awaiting. A stray finish (no pending
                                 // entry) is logged at warn and dropped;
@@ -3488,12 +3488,12 @@ impl SequenceExecutor {
 
                 let streaming_filter_focus_offsets = context.filter_focus_offsets.clone();
                 let streaming_runtime_config = runtime_config.clone();
-                // Wave 3 Agent 3 — clone the budget registry handle for the
+                // clone the budget registry handle for the
                 // streaming checkpoint task. The registry is `Arc<RwLock<...>>`
                 // internally so the clone shares the same allocation as the
                 // executor's main context.
                 let streaming_budget_registry = context.budget_registry.clone();
-                // Wave 3.5 Pack F — clone the SmartExposure state map handle
+                // clone the SmartExposure state map handle
                 // for the streaming checkpoint task. Same pattern as the
                 // budget registry: the inner Arc is shared so the streaming
                 // task sees the up-to-date per-filter counts the
@@ -3514,7 +3514,7 @@ impl SequenceExecutor {
                 let trigger_manager_for_checkpoint = trigger_manager.clone();
                 let streaming_triggers_enabled = triggers_enabled;
                 let streaming_checkpoint_task = async move {
-                    // Audit §1.16: reuse the executor's Arc<CheckpointManager> so
+                    // reuse the executor's Arc<CheckpointManager> so
                     // info_cache stays consistent. Constructing a second instance
                     // here was the original §1.16 bug.
                     let Some(checkpoint_mgr) = streaming_checkpoint_manager else {
@@ -3536,7 +3536,7 @@ impl SequenceExecutor {
                         }
 
                         let exec_state = *state_for_checkpoint.read().await;
-                        // Wave 4: checkpoint mid-recovery too so a process
+                        // checkpoint mid-recovery too so a process
                         // crash during a long recovery loop doesn't lose the
                         // accepted-frame totals from before the failure.
                         if !matches!(
@@ -3581,12 +3581,12 @@ impl SequenceExecutor {
                             ),
                         );
 
-                        // Wave 3 Agent 3 — snapshot per-target budget
+                        // snapshot per-target budget
                         // accounting so pause/resume preserves completed
                         // integration time per filter.
                         checkpoint.budget_states = streaming_budget_registry.snapshot().await;
 
-                        // Wave 3.5 Pack F — snapshot the SmartExposure map so
+                        // snapshot the SmartExposure map so
                         // a process crash mid-rotation can resume on the
                         // right filter at the right frame index. We clone
                         // the inner HashMap under the lock then drop the
@@ -3610,7 +3610,7 @@ impl SequenceExecutor {
                 };
 
                 // ============================================================
-                // Wave 4 Recovery Mode — driver task
+                // Recovery Mode — driver task
                 // ============================================================
                 //
                 // Runs alongside the trigger monitor and listens on the
@@ -3646,7 +3646,7 @@ impl SequenceExecutor {
                 // Separating them lets the trigger monitor keep watching
                 // while the recovery driver drives its loop on its own
                 // cadence.
-                // P1-13: set when the recovery loop gives up due to a real
+                // set when the recovery loop gives up due to a real
                 // (non-operator-abort) failure. Checked after the main
                 // `select!` so the run reports `Failed` instead of the benign
                 // `Cancelled` the node-tree cancellation would otherwise win.
@@ -3657,7 +3657,7 @@ impl SequenceExecutor {
                 let recovery_driver_progress = progress.clone();
                 let recovery_driver_event_tx = event_tx.clone();
                 let recovery_driver_is_paused = is_paused.clone();
-                // Wave 8 Replay Debug — clone the decision channel + active
+                // Replay Debug — clone the decision channel + active
                 // run id into the recovery driver closure so the
                 // `RecoveryEntered` lifecycle decision fires alongside the
                 // existing `ExecutorEvent::RecoveryStarted` event.
@@ -3671,7 +3671,7 @@ impl SequenceExecutor {
                 let recovery_driver_device_ops = device_ops_for_triggers.clone();
                 let recovery_driver_mount_id = trigger_action_context.mount_id.clone();
                 let recovery_driver_device_ids = trigger_action_context.connected_device_ids();
-                // P1-14/P1-10: ids used to leave hardware safe if recovery
+                // ids used to leave hardware safe if recovery
                 // exhausts on an unattended night (park mount, close cover/dome).
                 let recovery_driver_dome_id = trigger_action_context.dome_id.clone();
                 let recovery_driver_cover_id = trigger_action_context.cover_calibrator_id.clone();
@@ -3728,7 +3728,7 @@ impl SequenceExecutor {
                         let _ = recovery_driver_event_tx.send(ExecutorEvent::RecoveryStarted {
                             context: Box::new(ctx.clone()),
                         });
-                        // Wave 8 Replay Debug — promote recovery entry to
+                        // Replay Debug — promote recovery entry to
                         // a first-class decision so the replay timeline
                         // can render "Recovery entered: GuideStarLost"
                         // (with the cause-kind + countdown context).
@@ -4036,7 +4036,7 @@ impl SequenceExecutor {
                             );
                             *recovery_driver_current.write() = None;
 
-                            // P1-14/P1-10: when recovery exhausts on a real
+                            // when recovery exhausts on a real
                             // failure (NOT an operator abort), the rig is being
                             // abandoned mid-night. Leave hardware in a SAFE
                             // end-state before failing: park the mount (so the
@@ -4495,7 +4495,7 @@ impl SequenceExecutor {
                                     );
                                 }
                                 (Some(_), Some(_), _, _) => {
-                                    // Wave 1.5 Pack A: target known but no
+                                    // target known but no
                                     // location — altitude protection is
                                     // effectively disabled. Previously this
                                     // was a `tracing::warn!` which the user
@@ -4764,7 +4764,7 @@ impl SequenceExecutor {
                                     let trigger_name = manager
                                         .get_trigger(&trigger_id)
                                         .map(|t| t.name.clone())
-                                        // Why (audit-rust §4.3): `get_trigger` returns Option;
+                                        // Why: `get_trigger` returns Option;
                                         // None would only occur if a trigger fired and was
                                         // simultaneously removed via the same manager — race
                                         // tolerated for diagnostic naming. Using the id as the
@@ -4796,7 +4796,7 @@ impl SequenceExecutor {
                                 action: action_str.clone(),
                             });
 
-                            // Wave 8 Replay Debug — capture the trigger
+                            // Replay Debug — capture the trigger
                             // firing as a structured decision so the
                             // replay timeline surfaces "HFR drift fired,
                             // ran Autofocus" without needing to join
@@ -4818,7 +4818,7 @@ impl SequenceExecutor {
 
                             match &action {
                                 RecoveryAction::Pause => {
-                                    // Wave 4 Recovery Mode — promote
+                                    // Recovery Mode — promote
                                     // recovery-eligible Pause triggers to a
                                     // visible recovery loop. Today this is
                                     // `guide_star_lost`,
@@ -4901,7 +4901,7 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::ParkAndAbort => {
-                                    // Audit §1.18: cancellation must be set before
+                                    // cancellation must be set before
                                     // returning, but the actual store now happens
                                     // in `terminate_with` so this code path cannot
                                     // forget it on a future refactor.
@@ -5120,7 +5120,7 @@ impl SequenceExecutor {
                                                     ),
                                                 );
                                                 let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                // Why (audit-rust §4.3): autofocus result's
+                                                // Why: autofocus result's
                                                 // `message` is Option<String> — only populated
                                                 // when the focus pipeline reports a specific
                                                 // diagnostic. The generic fallback message is
@@ -5186,7 +5186,7 @@ impl SequenceExecutor {
                                         (
                                             ts.current_target_name
                                                 .clone()
-                                                // Why (audit-rust §4.3): target name is a
+                                                // Why: target name is a
                                                 // display/log label; the load-bearing trigger
                                                 // outputs are `target_ra` and `target_dec`
                                                 // which propagate as Option below and gate
@@ -5247,7 +5247,7 @@ impl SequenceExecutor {
                                                     );
                                                 }
                                                 crate::FlipFailureAction::AbortAndPark => {
-                                                    // Audit §1.18: cancellation
+                                                    // cancellation
                                                     // is set inside terminate_with
                                                     // so this exit cannot drift
                                                     // out of sync with the
@@ -5315,7 +5315,7 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::Dither(dither_config) => {
-                                    // Audit §1.5: implement the standard
+                                    // implement the standard
                                     // DitherInterval recovery. Build an instruction
                                     // context (the trigger action context already
                                     // carries every device id, save path,
@@ -5325,7 +5325,7 @@ impl SequenceExecutor {
                                     // last_dither_frame on success so the
                                     // DitherInterval cadence stays correct.
                                     //
-                                    // Audit §1.8: prefer the runtime config over
+                                    // prefer the runtime config over
                                     // the trigger-embedded default if the user
                                     // updated it via UpdateDitherConfig. The
                                     // trigger config still wins for `pattern`/
@@ -5401,7 +5401,7 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::Recenter => {
-                                    // Audit §1.11: re-slew to the target and
+                                    // re-slew to the target and
                                     // plate-solve as the DriftLimit recovery. The
                                     // existing `execute_center` instruction
                                     // already does plate-solve + sync + slew loop;
@@ -5470,7 +5470,7 @@ impl SequenceExecutor {
                                             let _ = event_tx_clone2.send(ExecutorEvent::Error {
                                                 message: format!(
                                                     "DriftLimit recenter failed: {}",
-                                                    // Why (audit-rust §4.3): recenter-result
+                                                    // Why: recenter-result
                                                     // message is Option<String>; the failure
                                                     // is already encoded in `result.success`
                                                     // (we are in the `false` branch). Empty
@@ -5483,8 +5483,8 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::PauseAndWaitForClear => {
-                                    // Wave 5 Agent 4: pause the sequence and
-                                    // promote the pause to a Wave 4
+                                    // pause the sequence and
+                                    // promote the pause to a recovery
                                     // RecoveryCause::WeatherUnsafe so the
                                     // dashboard banner, audible alert, and
                                     // recovery driver all light up.
@@ -5531,7 +5531,7 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::SlewToGapAndContinue => {
-                                    // Wave 5 Agent 4: slew the mount to the
+                                    // slew the mount to the
                                     // analyzer-reported clear-sky direction.
                                     // No clear direction reported => fall
                                     // back to PauseAndWaitForClear (we
@@ -5648,13 +5648,13 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::SwitchTargetOrFilter => {
-                                    // Wave 7 Science — transparency-adaptive
+                                    // Science — transparency-adaptive
                                     // recovery. Consult the operator's
                                     // pre-configured backup plan; apply
                                     // filter swap and/or skip-to-target as
                                     // configured. No plan + no fields set
                                     // => fall back to PauseAndWaitForClear
-                                    // (CLAUDE.md "no silent fallbacks":
+                                    // ("no silent fallbacks":
                                     // we tell the operator why we're not
                                     // doing anything).
                                     let plan_snapshot = {
@@ -5776,7 +5776,7 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::Continue => {
-                                    // Audit §1.5: explicit no-op handler so the
+                                    // explicit no-op handler so the
                                     // match is exhaustive on every variant. The
                                     // user wants the trigger logged-and-ignored
                                     // (this is the FilterChange standard trigger's
@@ -5941,7 +5941,7 @@ impl SequenceExecutor {
                     _ = command_handler => NodeStatus::Cancelled,
                     result = execution => result,
                     _ = streaming_checkpoint_task => NodeStatus::Cancelled,
-                    // Wave 4 Recovery Mode — the driver task only ever
+                    // Recovery Mode — the driver task only ever
                     // exits when the recovery_request_tx side is closed
                     // (sequence ending), so a clean exit is a Cancelled
                     // outcome. The driver intentionally holds itself open
@@ -5968,7 +5968,7 @@ impl SequenceExecutor {
                     },
                 };
 
-                // P1-13: when recovery exhausted on a real failure it set
+                // when recovery exhausted on a real failure it set
                 // `is_cancelled` to unwind the node tree, so the `execution`
                 // branch of the select! above resolves to `Cancelled` and would
                 // otherwise overwrite the `Failed` state the recovery driver
@@ -6020,7 +6020,7 @@ impl SequenceExecutor {
                             }
                         }
                         let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
-                        // Wave 8 Replay Debug — terminal lifecycle decision.
+                        // Replay Debug — terminal lifecycle decision.
                         emit_lifecycle_decision(
                             &decision_tx_for_lifecycle,
                             &active_run_id_for_decisions,
@@ -6068,7 +6068,7 @@ impl SequenceExecutor {
 
             // Catch any panic inside the executor future. If the future
             // panics we MUST surface it: a silently-dead sequencer is the
-            // exact "silent fallback" CLAUDE.md forbids. Restarting node
+            // exact "silent fallback" the house rules forbid. Restarting node
             // execution after a panic is not safe (device state is unknown
             // and `root_node` has been consumed by move), so the policy is:
             // log + emit SequenceFailed + move state to Failed.
@@ -6509,7 +6509,7 @@ mod tests {
         assert_eq!(flip_ctx.mount_id, "mount");
     }
 
-    /// Audit §1.18: `terminate_with` must always set the cancellation flag
+    /// `terminate_with` must always set the cancellation flag
     /// before returning. Future RecoveryAction variants that exit through
     /// this helper inherit the invariant by construction.
     #[test]
@@ -6529,7 +6529,7 @@ mod tests {
         assert_eq!(returned[1].0, "trig_b");
     }
 
-    /// Audit §1.8: `update_dither_config` must write through the shared
+    /// `update_dither_config` must write through the shared
     /// `runtime_config` Arc so the next dither uses the new pixel count.
     /// This was the original audit-flagged silent-fallback site (the
     /// previous implementation `let _`'d the parameters).
@@ -6546,7 +6546,7 @@ mod tests {
         assert!(rc.dither.ra_only);
     }
 
-    /// Audit §1.8: `update_location` must update both the executor's own
+    /// `update_location` must update both the executor's own
     /// fields (used by next-start seeding) and the runtime_config Arc (used
     /// mid-flight by trigger actions).
     #[test]
@@ -6628,7 +6628,7 @@ mod tests {
         );
     }
 
-    /// Audit §1.8: `update_filter_offsets` must propagate to runtime_config
+    /// `update_filter_offsets` must propagate to runtime_config
     /// so the next filter change reads the updated map.
     #[test]
     fn update_filter_offsets_writes_through_runtime_config() {
@@ -6643,7 +6643,7 @@ mod tests {
         assert_eq!(rc.filter_focus_offsets.get("OIII"), Some(&-120));
     }
 
-    /// Audit §1.16: a single `Arc<CheckpointManager>` must be shared between
+    /// a single `Arc<CheckpointManager>` must be shared between
     /// the executor public API and the streaming-checkpoint task. Pointer
     /// equality on the Arc is a structural invariant; if `set_checkpoint_dir`
     /// ever drops back to `Box`/owned semantics this test fails immediately.
@@ -6666,7 +6666,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Wave 3.5 Pack F: calculate_totals must recognise SmartExposure.
+    // calculate_totals must recognise SmartExposure.
     // -----------------------------------------------------------------
 
     fn build_smart_exposure_sequence(
@@ -6704,7 +6704,7 @@ mod tests {
     }
 
     /// SmartExposure with no budget cap: totals must sum every plan's count
-    /// and integration time. Before Pack F this was 0 / 0.0 because walk()
+    /// and integration time. Before this was 0 / 0.0 because walk()
     /// only recognised `NodeType::TakeExposure`.
     #[test]
     fn calculate_totals_recognises_smart_exposure_plans_without_budget() {
@@ -6808,7 +6808,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Wave 4 Recovery Mode tests
+    // Recovery Mode tests
     // ------------------------------------------------------------------
 
     #[test]
@@ -7249,7 +7249,7 @@ mod tests {
         }
     }
 
-    /// Wave 6 Pack P — full-loop integration: a sequence containing a
+    /// full-loop integration: a sequence containing a
     /// `NodeType::PluginNode` runs through `SequenceExecutor::start()`,
     /// emits `ExecutorEvent::PluginNodeRequested`, the test sends back
     /// `ExecutorCommand::PluginNodeFinished` via the public

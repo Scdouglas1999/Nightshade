@@ -261,7 +261,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingCompleted) {
       return ('CameraWarmingCompleted', {});
     }
-    // DEV-P3-2: heartbeat events. Rust publishes these from
+    // Heartbeat events. Rust publishes these from
     // `device_manager::heartbeat` so per-device-card health indicators
     // can react in real time. Each variant is mapped to a string event
     // type and a snake_case data map so the Dart-side handler in
@@ -476,11 +476,11 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_FrameAccepted) {
-      // Pack H — Wave 3 typed grading payload. Carries every metric the
+      // Typed grading payload. Carries every metric the
       // dashboard's quality panel needs without parsing the legacy
       // `InstructionProgress.detail` string.
       //
-      // Wave 6 Pack P — `save_path` is now carried alongside the
+      // `save_path` is now carried alongside the
       // metrics so the thumbnail strip can render an inline preview of
       // accepted frames. Mirrors the existing `reject_path` flow on
       // FrameRejected.
@@ -516,7 +516,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_SchedulerDecision) {
-      // Pack H — Wave 3 Agent 1 typed scheduler payload. The score table
+      // Typed scheduler payload. The score table
       // is flattened to a list of plain maps so it survives the
       // `Map<String, dynamic>` data envelope without losing fields.
       return (
@@ -553,7 +553,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeRequested) {
-      // Wave 6 Pack P — surface the plugin-node dispatch request so the
+      // Surface the plugin-node dispatch request so the
       // Dart `SequenceExecutor` can route it to `PluginNodeExecutor`
       // and reply via `sequencerPluginNodeFinished`.
       return (
@@ -568,7 +568,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeProgress) {
-      // Wave 6 Pack P — plugin-authored intermediate progress payload.
+      // Plugin-authored intermediate progress payload.
       // Informational; the sequence executor logs it and the dashboard
       // plugin-node panel can subscribe via its own provider.
       return (
@@ -646,7 +646,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         ),
       );
     }
-    // Wave 8 Replay Debug — `SequencerEvent_DecisionLogged` is the
+    // Replay Debug — `SequencerEvent_DecisionLogged` is the
     // typed payload from the Rust bridge. The Dart class is generated
     // on FRB regen (the Rust side already declares the variant in
     // `bridge/src/event.rs`); until that regen lands, we fall back to

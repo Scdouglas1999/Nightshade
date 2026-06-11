@@ -78,7 +78,7 @@ pub enum ProgressDetail {
         rms_total: Option<f64>,
         is_settled: bool,
     },
-    /// Mosaic panel progress. `panel_row` / `panel_col` (Wave 4.5) are
+    /// Mosaic panel progress. `panel_row` / `panel_col` are
     /// derived from the mosaic grid plan so the Run Dashboard can render
     /// "Panel 5/9 (row 2, col 2)" without crossreferencing the panel
     /// plan. `None` for legacy code paths that emit Mosaic progress
@@ -108,7 +108,7 @@ pub enum ProgressDetail {
     Script { phase: String },
     /// Dome shutter / dome park progress.
     Dome { phase: String },
-    /// Wave 3 Agent 2: SmartExposure progress. Surfaced so the Run
+    /// SmartExposure progress. Surfaced so the Run
     /// Dashboard can show "L: 1h12m / 3h goal"-style per-filter progress
     /// without the UI having to parse free-form text. `frame_in_plan` is
     /// 1-based and tracks the *completed* count for the current filter;
@@ -120,7 +120,7 @@ pub enum ProgressDetail {
         frame_in_plan: u32,
         total_frames: u32,
     },
-    /// Wave 3 Agent 1: TargetScheduler decision payload. Carries the picked
+    /// TargetScheduler decision payload. Carries the picked
     /// target id/name + the full score table so the Run Dashboard's Scheduler
     /// panel can render the ranking without re-running the math.
     ///
@@ -138,7 +138,7 @@ pub enum ProgressDetail {
         /// Sorted score table (runnable first, then by descending total).
         scores: Vec<crate::node::logic::target_scheduler::SchedulerScoreSummary>,
     },
-    /// Wave 3 Agent 3 — per-target integration budget progress.
+    /// per-target integration budget progress.
     /// Emitted by the exposure instruction after every successful burst
     /// when the active target has an integration budget configured.
     ///
@@ -165,7 +165,7 @@ pub enum ProgressDetail {
         /// uses this to surface a green check on the target tile.
         budget_met: bool,
     },
-    /// Wave 3 Image Grading: exposure passed configured quality thresholds
+    /// Image Grading: exposure passed configured quality thresholds
     /// and was saved to the normal output folder. Surfaced so the run
     /// dashboard quality panel can update its accept/reject totals and
     /// recent-frames list without subscribing to a separate event.
@@ -177,21 +177,21 @@ pub enum ProgressDetail {
         star_count: Option<u32>,
         accepted_total: u32,
         rejected_total: u32,
-        /// Wave 6 Pack P: path the accepted frame was saved to on disk.
+        /// path the accepted frame was saved to on disk.
         /// `None` for back-compat with legacy emit sites that did not yet
         /// thread the save path through; new sites in `expose.rs` always
-        /// populate this. The Wave 6 thumbnail strip uses it to render
+        /// populate this. The thumbnail strip uses it to render
         /// inline previews of accepted frames the same way it already
         /// does for `FrameRejected.reject_path`.
         #[serde(default)]
         save_path: Option<String>,
     },
-    /// Wave 3 Image Grading: exposure failed at least one quality threshold
-    /// and was routed to the reject folder. Wave 3 Agent 3's integration
+    /// Image Grading: exposure failed at least one quality threshold
+    /// and was routed to the reject folder. 's integration
     /// budget tracker listens for this and skips counting the exposure
     /// time. The dashboard quality panel surfaces the reason text + metrics.
     ///
-    /// Wave 8 — Frame-Failure Forensics extends this payload with a
+    /// Frame-Failure Forensics extends this payload with a
     /// structured cause + evidence list classified by
     /// [`crate::quality::analyze_rejection`]. The legacy fields stay
     /// non-optional / pre-existing; the new fields are all `Option` so a
@@ -211,12 +211,12 @@ pub enum ProgressDetail {
         reject_path: String,
         /// Running consecutive-rejects counter. When this reaches the
         /// configured `max_consecutive_rejects`, the executor pauses the
-        /// sequence and emits an `ExecutorEvent::Error` (Wave 1.5 Pack C
+        /// sequence and emits an `ExecutorEvent::Error` (
         /// surfaces it as a critical banner).
         consecutive_rejects: u32,
         accepted_total: u32,
         rejected_total: u32,
-        // Wave 8 forensics ----------------------------------------------
+        // forensics ----------------------------------------------
         /// Classified cause. `None` when classification was disabled or
         /// no inputs were available.
         #[serde(default)]
@@ -242,7 +242,7 @@ pub enum ProgressDetail {
         #[serde(default)]
         sensor_temp_at_capture: Option<f64>,
     },
-    /// Wave 5 Agent 2 — sky-brightness adaptive exposure decision.
+    /// sky-brightness adaptive exposure decision.
     /// Emitted by `expose.rs` immediately before a burst starts whenever
     /// the adaptive-exposure adapter has been consulted (regardless of
     /// whether the adapter actually changed the duration). Drives the
@@ -263,7 +263,7 @@ pub enum ProgressDetail {
         /// Mirrors `crate::scheduling::AdaptiveExposureReason::label`.
         reason: String,
     },
-    /// Wave 6 Pack P: live progress payload from a plugin-dispatched
+    /// live progress payload from a plugin-dispatched
     /// `NodeType::PluginNode`. `detail` is an opaque JSON value the
     /// plugin author chose — Rust forwards it verbatim. The bridge
     /// re-serialises it as a string so the FRB wire format stays
@@ -288,7 +288,7 @@ pub enum ProgressDetail {
         #[serde(default)]
         detail: serde_json::Value,
     },
-    /// Wave 7 Science — per-frame photometry payload from the
+    /// Science — per-frame photometry payload from the
     /// `SciencePhotometryInstruction`. The Dart science pipeline
     /// subscribes to this event, writes a row to
     /// `photometry_measurements`, and updates the live light-curve
@@ -312,7 +312,7 @@ pub enum ProgressDetail {
         reduce_live: bool,
         apply_differential: bool,
     },
-    /// Wave 7 Science — cadence violation event emitted whenever the
+    /// Science — cadence violation event emitted whenever the
     /// inter-frame start-to-start gap exceeds the configured ceiling.
     /// Surfaced by the dashboard photometry panel; does NOT abort
     /// the burst.
@@ -324,7 +324,7 @@ pub enum ProgressDetail {
         /// Cumulative cadence breaks for the current node run.
         cadence_breaks: u32,
     },
-    /// Wave 7 Science — end-of-burst summary for the photometry node.
+    /// Science — end-of-burst summary for the photometry node.
     PhotometrySummary {
         target_designation: String,
         filter: String,
@@ -532,7 +532,7 @@ impl ProgressDetail {
                 likely_cause,
                 ..
             } => {
-                // Wave 8 forensics: when a likely cause has been
+                // forensics: when a likely cause has been
                 // classified, surface its label in the legacy detail
                 // text so non-typed subscribers (logs, telemetry
                 // exporters) still see it.
@@ -567,7 +567,7 @@ impl ProgressDetail {
                     adapted_secs, nominal_secs, reason
                 ),
             },
-            // Wave 6 Pack P — plugin nodes carry an opaque JSON detail.
+            // plugin nodes carry an opaque JSON detail.
             // We surface a compact identifier so the legacy
             // `InstructionProgress` text channel still has something to
             // show; the typed `SequencerEvent::PluginNodeProgress` event
@@ -590,7 +590,7 @@ impl ProgressDetail {
                     format!("{}/{}: {}", plugin_id, node_type_id, compact)
                 }
             }
-            // Wave 7 Science — render the photometry payloads as compact
+            // Science — render the photometry payloads as compact
             // status text for the legacy InstructionProgress channel.
             ProgressDetail::PhotometryFrame {
                 target_designation,

@@ -749,7 +749,7 @@ mod tests {
         }
     }
 
-    /// IMG-P0-1 regression: the color-capture path now calls
+    /// IMG-regression: the color-capture path now calls
     /// `auto_stretch_rgb_with_mode` + `apply_stretch_rgb_per_channel`
     /// (i.e. the real MAD-based STF) instead of the old
     /// `shadows = median - 0.1, highlights = median + 0.3, midtones = 0.5`
@@ -878,7 +878,7 @@ mod tests {
         // `StretchParams::default()` for a channel (MAD = 0), the
         // per-channel apply path must emit the input value unchanged
         // (modulo the u16->u8 quantization). Without this guarantee, the
-        // documented IMG-P0-1 fallback ("never to the old heuristic") would
+        // documented IMG-fallback ("never to the old heuristic") would
         // collapse to all-black on constant input.
         let width: u32 = 2;
         let height: u32 = 1;

@@ -121,7 +121,7 @@ class UnifiedDiscoveryState extends Equatable {
   /// Total number of unified (grouped) devices
   int get totalGroupedDevices => groupedDevices.length;
 
-  /// UI-P0-4: newest successful discovery timestamp across backends.
+  /// Newest successful discovery timestamp across backends.
   DateTime? get lastDiscoveryCompletedAt {
     DateTime? newest;
     for (final backendState in backendStates.values) {

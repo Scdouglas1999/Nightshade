@@ -1,4 +1,4 @@
-/// Wave 7A — declarative route table for the WebRTC live-view
+/// declarative route table for the WebRTC live-view
 /// signalling surface. Mirrors the per-domain pattern used elsewhere
 /// in `routes/`; the only oddity is the GET ICE-events route which is
 /// SSE-streaming rather than JSON request/response.

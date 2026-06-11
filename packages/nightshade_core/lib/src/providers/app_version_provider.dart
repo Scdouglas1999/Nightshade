@@ -32,7 +32,7 @@ class AppVersionInfo {
 /// the entire OTA update flow (the server compares against this string to
 /// decide whether to advertise a newer build). A bogus default like
 /// `2.0.0` would cause the app to perpetually offer "updates" to a build
-/// it is already running, or refuse legitimate updates. Per CLAUDE.md
+/// it is already running, or refuse legitimate updates.
 /// "errors are a feature": consumers must override this provider at
 /// startup, and an UnsupportedError here surfaces the configuration bug
 /// loudly.

@@ -209,7 +209,7 @@ void main() {
           : coarseOrder + 5;
 
       // Address the *exact* tile that contains M42 at each order using the same
-      // C1 HEALPix NESTED math the selection layer (C3) uses — not a guessed
+      // C1 HEALPix NESTED math the selection layer uses — not a guessed
       // pixel index. This verifies the live server has imagery at the field we
       // actually frame, through the real addressing code path.
       for (final order in <int>{coarseOrder, deepOrder}) {

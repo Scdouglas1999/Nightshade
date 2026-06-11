@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder: AI Assistant settings panel.
+// Conversational sequence builder: AI Assistant settings panel.
 //
 // Lives in Settings → AI Assistant. Lets the user:
 //   * Pick which LLM provider is active (OpenAI-compatible / Anthropic /

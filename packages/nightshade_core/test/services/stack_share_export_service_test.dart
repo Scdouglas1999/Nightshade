@@ -1,4 +1,4 @@
-// Stack-and-Share Loop — tests for the export + sidecar service (C8).
+// Stack-and-Share Loop — tests for the export + sidecar service.
 //
 // Covers the file-generation contract end-to-end against a real temp directory
 // and a real in-memory database:

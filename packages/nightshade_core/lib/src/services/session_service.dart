@@ -133,7 +133,7 @@ class SessionService {
   /// [nowProvider] lets the desktop wiring supply the user's chosen
   /// [Clock] so session start/end timestamps reflect the operator's
   /// timezone. Defaults to [DateTime.now] for tests and for hosts that
-  /// have not configured a TZ override (audit-handoff §2.1 WIRE-UP #9).
+  /// have not configured a TZ override
   SessionService({
     required ImagingRecordsRepository records,
     this.checkpointsDao,

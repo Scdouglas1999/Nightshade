@@ -17,29 +17,29 @@ class TargetHeaderNode extends SequenceNode {
   final DateTime? endBefore;
   final MosaicPanelInfo? mosaicPanel;
 
-  /// Wave 3 Agent 3 — optional per-target integration budget. `null` =
+  /// Optional per-target integration budget. `null` =
   /// no budget enforcement (current behaviour). When set, the
   /// TargetHeader runtime returns Success the moment the budget is met
   /// and the dashboard shows live per-filter progress bars.
   final IntegrationBudget? integrationBudget;
 
-  /// Wave 4 — wait condition: target waits until this becomes true
+  /// Wait condition: target waits until this becomes true
   /// before imaging children. When `null` *and* none of the legacy
   /// `startAfter` / `minAltitude` fields are set, the target starts
   /// immediately.
   final TargetTrigger? startWhen;
 
-  /// Wave 4 — stop condition: target ends as soon as this becomes true.
+  /// Stop condition: target ends as soon as this becomes true.
   /// When `null` *and* none of the legacy `endBefore` / `maxAltitude`
   /// fields are set, the target runs to natural completion of its
   /// children.
   final TargetTrigger? endWhen;
 
-  /// Wave 4 — how often (seconds) the runtime polls `startWhen` /
+  /// How often (seconds) the runtime polls `startWhen` /
   /// `endWhen`. Default 30s.
   final int triggerPollIntervalSecs;
 
-  /// Wave 8 — brightness tier hint consulted by the TargetScheduler's
+  /// Brightness tier hint consulted by the TargetScheduler's
   /// adaptive-swap logic. `null` lets the scheduler infer the tier (or
   /// default to [BrightnessTier.medium]). Pinned values:
   /// [BrightnessTier.faint] for galaxies / faint nebulae,
@@ -114,17 +114,17 @@ class TargetHeaderNode extends SequenceNode {
   /// Check if this target has altitude constraints
   bool get hasAltitudeConstraints => minAltitude != null || maxAltitude != null;
 
-  /// Wave 3 Agent 3 — true iff the integration budget is configured and
+  /// True iff the integration budget is configured and
   /// will actually enforce a cap. Used by UI to gate the "Budget" panel.
   bool get hasActiveIntegrationBudget =>
       integrationBudget != null && integrationBudget!.isActive;
 
-  /// Wave 4 — true iff this target has an explicit start/end crossing
+  /// True iff this target has an explicit start/end crossing
   /// configured. Used by the Targets tab to render the "Imaging window:
   /// HH:MM – HH:MM" row.
   bool get hasCrossingTriggers => startWhen != null || endWhen != null;
 
-  /// Wave 4 — One-line label describing the imaging window in human
+  /// One-line label describing the imaging window in human
   /// terms ("starts when altitude ≥ 35°, ends when altitude ≤ 30°").
   /// Returns `null` when no triggers are set. The dashboard / Targets
   /// tab uses this to render a friendly row without re-deriving labels.

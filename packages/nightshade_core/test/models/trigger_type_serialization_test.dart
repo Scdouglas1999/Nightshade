@@ -1,4 +1,4 @@
-// Wave 1.5 Pack A: round-trip tests for the expanded `TriggerType` Dart enum
+// Round-trip tests for the expanded `TriggerType` Dart enum
 // against Rust's serde-tagged form. Adding a new variant to either side
 // without updating the other must produce a failing test here.
 //

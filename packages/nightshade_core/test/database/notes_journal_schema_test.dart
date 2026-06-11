@@ -1,5 +1,5 @@
 // Verifies that the notes_journal table is created on fresh installs
-// (Wave 6 Agent 5). Migration coverage from earlier schemas is exercised
+//. Migration coverage from earlier schemas is exercised
 // by the existing database_migration_test.dart suite, which only checks
 // that the version number matches; this test adds a direct PRAGMA-level
 // assertion that the schema lands.

@@ -16,7 +16,7 @@ import 'device_handlers.dart' show requestPrefersLegacyBlocking;
 class ImagingHandlers {
   final ProviderContainer container;
 
-  /// P1-2 / P1-3: optional job manager. When wired, plate-solve returns
+  /// optional job manager. When wired, plate-solve returns
   /// `{jobId, status: queued}` immediately and the actual solve runs in
   /// the background. Null in legacy callers / tests that exercise the
   /// blocking shape.

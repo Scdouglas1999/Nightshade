@@ -18,7 +18,7 @@ List<HeadlessRoute> buildStaticFileRoutes(
   HeadlessRoute(HttpMethod.get, '/dashboard/', h.handleDashboardIndex),
   HeadlessRoute(HttpMethod.get, '/dashboard/<path|.*>', h.handleDashboardFile),
 
-  // Wave 6 — Run-Watch SPA static files. Mirrors the /dashboard
+  // Run-Watch SPA static files. Mirrors the /dashboard
   // resolver but searches `web_run_watch/` next to the executable
   // and in the source tree.
   HeadlessRoute(HttpMethod.get, '/run-watch', h.handleRunWatchIndex),

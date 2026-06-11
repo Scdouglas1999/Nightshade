@@ -1,4 +1,4 @@
-//! Wave 4 Recovery Mode — snapshot accessors and runtime-config push for
+//! Recovery Mode — snapshot accessors and runtime-config push for
 //! the recovery state machine.
 //!
 //! The recovery loop itself runs inside the spawned executor task (see

@@ -19,7 +19,7 @@ part 'device_handlers/rotator_handlers.dart';
 part 'device_handlers/helpers.dart';
 
 /// MIME-style `Accept` header value that opts the caller into the
-/// pre-P1-2 synchronous response shape for autofocus / plate-solve /
+/// pre-synchronous response shape for autofocus / plate-solve /
 /// center-on-target / polar-alignment. New clients should not send this;
 /// the audit's spec keeps the legacy path so pinned mobile builds stay
 /// functional during the rollout.
@@ -40,7 +40,7 @@ bool requestPrefersLegacyBlocking(Request request) {
 class DeviceHandlers {
   final ProviderContainer container;
 
-  /// P1-4: optional command correlator. When set, every action POST
+  /// optional command correlator. When set, every action POST
   /// generates a UUID v4 commandId and includes it in the response. The
   /// later NightshadeEvent that completes the command picks the id back
   /// up via `correlatingCommandId`. Null in unit tests that don't care
@@ -48,7 +48,7 @@ class DeviceHandlers {
   /// shape).
   final CommandCorrelator? commandCorrelator;
 
-  /// P1-2 / P1-3: optional job manager. When set, long-running endpoints
+  /// optional job manager. When set, long-running endpoints
   /// (currently autofocus) return `{jobId, status: queued, commandId}`
   /// immediately and surface progress via the WS event stream. When null
   /// (unit tests / legacy callers), the handler falls back to the

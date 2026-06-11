@@ -45,7 +45,7 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
 ///     for the same device type — each entry holds its own `result`.
 ///   * Backends that errored still respect the TTL, preventing a tight
 ///     hammer-the-broken-backend loop while still surfacing the failure to the
-///     caller (errors are a feature, per CLAUDE.md — they are not silently
+///     caller (errors are a feature, — they are not silently
 ///     swallowed).
 pub(crate) struct DiscoveryCacheEntry {
     /// Outcome of the last discovery scan: either the discovered devices
@@ -93,7 +93,7 @@ pub(crate) fn get_discovery_lock() -> &'static Mutex<()> {
 
 pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
     let counter = TEMP_FITS_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    // Why (audit-rust §4.3): timestamp `unwrap_or_default()` recovers
+    // Why: timestamp `unwrap_or_default()` recovers
     // `Duration::ZERO` on a pre-1970 clock. The atomic `counter` and
     // `process::id()` still guarantee uniqueness — the timestamp is only
     // a secondary disambiguator, so a zero value in that case still
@@ -119,7 +119,7 @@ pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
 /// Note: there is intentionally no separate capability-cache invalidation
 /// here. The `device_capabilities` module re-queries each device per call
 /// rather than caching, so dropping a cache that does not exist would be a
-/// silent no-op — and silent no-ops mask real bugs (`CLAUDE.md`). If a
+/// silent no-op — and silent no-ops mask real bugs. If a
 /// capability cache is added later, invalidate it explicitly here.
 pub async fn api_invalidate_discovery_cache() {
     // Invalidate every per-pair entry.
@@ -131,7 +131,7 @@ pub async fn api_invalidate_discovery_cache() {
 }
 
 // =============================================================================
-// Submodule declarations (CQ-W3-API-RS decomposition — audit-rust §9)
+// Submodule declarations (api.rs decomposition).
 // =============================================================================
 
 pub(crate) mod api_version;

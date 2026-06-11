@@ -308,7 +308,7 @@ class BackupHandlers {
 
       final uploaded = await _writeUploadBody(request, file);
       if (!uploaded) {
-        // §7A.13: cleanup must not silently swallow errors — a partial
+        // Cleanup must not silently swallow errors — a partial
         // upload left on disk after a size-cap breach becomes an orphan
         // file the user has no visibility into. Log at warning and add
         // an `orphanedFile` field to the response body so the caller
@@ -450,7 +450,7 @@ class BackupHandlers {
   /// Delete the file at [file] if it exists.
   ///
   /// Returns null on success (including the no-op "did not exist" path),
-  /// or a sanitized error message if deletion failed. §7A.13: callers must
+  /// or a sanitized error message if deletion failed.: callers must
   /// surface a non-null result instead of swallowing it — a leftover
   /// upload file after a failed restore is an orphan that will
   /// accumulate across attempts and confuse the user.

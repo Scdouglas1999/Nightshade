@@ -1,4 +1,4 @@
-// P0-9 — first-run self-signed certificate provisioning for headless mode.
+// first-run self-signed certificate provisioning for headless mode.
 //
 // Why this exists: shipping TLS-by-default requires a cert/key pair the
 // operator does not have to generate themselves. The pairing code, the

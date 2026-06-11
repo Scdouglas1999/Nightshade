@@ -33,7 +33,7 @@ class RecoveryNode extends SequenceNode {
   /// spikes. Only used when [triggerType] is [TriggerType.hfrDegraded].
   final int hfrConsecutiveFrames;
 
-  // ===== Wave 1.5 Pack A trigger-config fields =====
+  // ===== Trigger-config fields =====
 
   /// Cadence in frames for [TriggerType.autofocusInterval] /
   /// [TriggerType.ditherInterval]. The Rust side rejects 0 (`silently
@@ -57,7 +57,7 @@ class RecoveryNode extends SequenceNode {
   /// before firing.
   final double guidingFailedDurationSecs;
 
-  // ===== Wave 5 Agent 4 cloud-motion trigger config fields =====
+  // ===== Cloud-motion trigger config fields =====
 
   /// [TriggerType.cloudArrivingIn] and [TriggerType.cloudOpeningIn]:
   /// fire when arrival/opening is at or below this many minutes.
@@ -107,7 +107,7 @@ class RecoveryNode extends SequenceNode {
     this.focusDriftMinIncreasingCount = 5,
     this.focusDriftMinTotalIncrease = 0.5,
     this.guidingFailedDurationSecs = 30.0,
-    // Wave 5 Agent 4 — cloud-motion defaults. 10 min lead time + 70%
+    // Cloud-motion defaults. 10 min lead time + 70%
     // coverage matches the SGP-style "act before clouds hit" semantic;
     // the 30 s opening minimum prevents firing on a wisp.
     this.cloudMinutesBefore = 10.0,
@@ -115,7 +115,7 @@ class RecoveryNode extends SequenceNode {
     this.cloudOpeningMinDurationSecs = 300.0,
     this.cloudCoverMaxPercent = 80.0,
     this.cloudCoverDurationSecs = 60.0,
-    // Wave 7 Science — transparency-adaptive trigger defaults. 0.7 +
+    // Science — transparency-adaptive trigger defaults. 0.7 +
     // 60s matches the brief's recommended "swap when transparency
     // drops below 70% for a minute" workflow.
     this.transparencyBelowThreshold = 0.7,
@@ -219,7 +219,7 @@ class RecoveryNode extends SequenceNode {
     transparencyDurationSecs,
   ];
 
-  /// Wave 1.5 Pack A: serialize the configured trigger into the Rust-side
+  /// Serialize the configured trigger into the Rust-side
   /// `TriggerType` JSON form. Mirrors the tagged-enum serde format used by
   /// `nightshade_sequencer::TriggerType`. `null` means "any error" (no
   /// type-specific trigger configured), which matches Rust's
@@ -301,7 +301,7 @@ class RecoveryNode extends SequenceNode {
         return {
           'DriftLimit': {'max_pixels': triggerThreshold ?? 30.0},
         };
-      // Wave 5 Agent 4 — cloud-motion-aware triggers. Field names match
+      // Cloud-motion-aware triggers. Field names match
       // the Rust serde-tagged enum form (`#[serde(...)]` external default).
       case TriggerType.cloudArrivingIn:
         return {
@@ -324,7 +324,7 @@ class RecoveryNode extends SequenceNode {
             'duration_secs': cloudCoverDurationSecs,
           },
         };
-      // Wave 7 Science — transparency-adaptive trigger. Field names
+      // Science — transparency-adaptive trigger. Field names
       // match the Rust serde-tagged enum variant.
       case TriggerType.transparencyDropped:
         return {

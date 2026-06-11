@@ -220,8 +220,7 @@ File an issue at https://github.com/Scodouglas1999/Nightshade/issues with:
    ```
 
 > **Planned for v2.6.** A dedicated `--diagnostic plate-solve <fits>` CLI flag
-> is referenced in `docs/code-quality/audit-observe.md` §9 #2 and
-> `v2.5.x-roadmap.md` W-OBS row CQ-W6-RUNBOOK, but is not implemented in
+> is on the roadmap but is not implemented in
 > v2.5.x. Use the manual ASTAP invocation above until it lands.
 
 **Root cause matrix**
@@ -643,7 +642,7 @@ Attach to the issue:
 6. WebSocket clients use a one-shot ticket flow, not a header. The browser
    cannot send `Authorization:` on the WS upgrade, so it must first POST
    `/api/ws/ticket` with its bearer and present `?ticket=<value>` on
-   `/events` (audit-observe §7d). Browsers blocked by this will show a
+   `/events`. Browsers blocked by this will show a
    missing-ticket 401 in the WS upgrade, not a CORS error.
 
 **Bind-address matrix**
@@ -666,7 +665,7 @@ Source: `apps/desktop/lib/main_headless.dart:49-58, 226-280, 286-294`.
 | `/api/info` returns OK on `127.0.0.1` but `Connection refused` from LAN | Server is in loopback mode (no token configured) | Set `NIGHTSHADE_AUTH_TOKEN` or pass `--require-auth`, restart |
 | `bindMode: lan` reported, but LAN client times out | Windows Firewall / `ufw` blocking the port | See [troubleshooting/firewall.md](troubleshooting/firewall.md); add inbound rule on TCP 8080 |
 | Every authenticated request returns 401 | Wrong scope or expired pairing-issued token | Verify scope with `/api/info → authScopes`; rotate token; reissue from pairing dialog |
-| Browser dashboard works, fetch from a third-party origin fails with CORS | Origin not in allow-list (audit-observe §7c: no wildcard fallback) | Add `--cors-origin=<origin>`; restart |
+| Browser dashboard works, fetch from a third-party origin fails with CORS | Origin not in allow-list | Add `--cors-origin=<origin>`; restart |
 | WS upgrade returns 401 / 426 | Browser sent no ticket; server only accepts `?ticket=` for WS | Re-pair the client (the pairing flow handles the ticket POST automatically) |
 | Mobile auto-discovery silent | Server in loopback mode, so the UDP advertiser at port `45679` never starts (`main_headless.dart:344-358`) | Same fix as bind-mode loopback |
 | `/api/info` itself hangs | Server thread starved; check for sequence-related deadlock | Stop the server, capture the log, file an issue |
@@ -783,5 +782,3 @@ archive.
   DB and profile-storage backup actually contains.
 - [OTA_UPDATE_TESTING.md](OTA_UPDATE_TESTING.md) — what the updater does step
   by step (the source-of-truth for scenario 3).
-- [code-quality/audit-observe.md](code-quality/audit-observe.md) §9 — the
-  audit finding that motivated this runbook.

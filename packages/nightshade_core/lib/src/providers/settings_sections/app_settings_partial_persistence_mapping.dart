@@ -73,7 +73,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'use_native_execution',
     'use_simulation_mode',
     'image_output_path',
-    // Wave 3 Image Grading
+    // Image Grading
     'image_grading_enabled',
     'image_grading_hfr_threshold_px',
     'image_grading_hfr_baseline_percent',
@@ -81,7 +81,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'image_grading_star_count_min',
     'image_grading_max_consecutive_rejects',
     'image_grading_reject_folder_path',
-    // Wave 5 Sky-brightness adaptive exposure
+    // Sky-brightness adaptive exposure
     'adaptive_exposure_enabled',
     'adaptive_exposure_target_snr',
     'adaptive_exposure_reference_mag',
@@ -204,7 +204,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// wire model can't carry. Callers on the local (FFI / Drift) path never
   /// invoke this — every DB key is persistable locally.
   ///
-  /// Per CLAUDE.md "errors are a feature": a silent no-op here would mean a
+  /// Errors are a feature here: a silent no-op here would mean a
   /// user toggling (say) "park on unsafe weather" from their phone believes
   /// it stuck when it never reached the host. Loud failure surfaces the gap.
   void _assertKeysRemotable(Iterable<String> keys) {
@@ -485,7 +485,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.pushCriticalAlerts,
             )
           : null,
-      // Wave 4 Recovery Mode — partial-update path. Each key is only
+      // Recovery Mode — partial-update path. Each key is only
       // honoured if present in the patch, mirroring the rest of this
       // helper.
       recoveryDefaultRetryIntervalMins:
@@ -603,9 +603,9 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       afAutofocusFilterName: settings['af_autofocus_filter_name'],
       afFilterSettingsJson: settings['af_filter_settings'],
-      // Pack G — observer name (FITS OBSERVER).
+      // Observer name (FITS OBSERVER).
       observerName: settings['observer_name'],
-      // Pack G — Wave 3 Image Grading. Nullable double / int fields use
+      // Image Grading. Nullable double / int fields use
       // the `_unset` sentinel for "no change"; an explicit "null" string
       // clears the field.
       enableImageGrading: settings.containsKey('image_grading_enabled')
@@ -655,7 +655,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                 ? null
                 : settings['image_grading_reject_folder_path'])
           : _unset,
-      // Wave 5 Agent 2 — Sky-brightness adaptive exposure partial-update
+      // Sky-brightness adaptive exposure partial-update
       // wire-up. Required so a remote save of an adaptive-exposure knob
       // (which is carried by the wire model) actually reaches state and is
       // then forwarded to the host by `_toRemoteSettings`.
@@ -711,7 +711,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               settings['adaptive_exposure_per_filter_max_secs'],
             )
           : null,
-      // Wave 5 Agent 3 — Pre-flight partial-update wire-up.
+      // Pre-flight partial-update wire-up.
       preflightStrictness: settings.containsKey('preflight_strictness')
           ? _parsePreflightStrictness(settings['preflight_strictness'])
           : null,
@@ -735,7 +735,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.opticalTrainDriftThreshold,
             )
           : null,
-      // Wave 6 Agent 1 — Smart Night partial-update wiring. The nullable
+      // Smart Night partial-update wiring. The nullable
       // session-hours knob uses the `_unset` sentinel so a patch can
       // either leave it alone (omit the key) or clear it back to
       // "use full dark window" (pass the literal string "null").
@@ -791,7 +791,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.smartNightPolarAlignmentStaleAfterDays,
             )
           : null,
-      // Wave 6 Agent 5 — Notes prompt opt-out.
+      // Notes prompt opt-out.
       smartNightSubExposureFloorSecs:
           settings.containsKey('smart_night_sub_exposure_floor_secs')
           ? _parseDouble(
@@ -825,7 +825,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.promptForNotesAfterRun,
             )
           : null,
-      // Wave 7 — Session lifecycle. Each key gates the field so a
+      // Session lifecycle. Each key gates the field so a
       // partial patch can update one knob without resetting the others.
       sessionHandoffAutoPrompt:
           settings.containsKey('session.handoff_auto_prompt')
@@ -850,7 +850,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     );
   }
 
-  /// Pack G — string -> nullable double for the grading settings.
+  /// String -> nullable double for the grading settings.
   /// Empty / "null" string => null (the user cleared the field); a parse
   /// failure falls back to the prior value to avoid silently zeroing a
   /// threshold.

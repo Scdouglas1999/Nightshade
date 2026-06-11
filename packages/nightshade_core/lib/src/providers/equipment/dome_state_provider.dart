@@ -75,14 +75,14 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectDome();
     } catch (_) {
-      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+      // DeviceService logs; notifier always clears connection state.
     } finally {
       setDisconnected();
     }
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
-    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // Preserve `lastError` across Connecting; see camera
     // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,

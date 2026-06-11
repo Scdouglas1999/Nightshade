@@ -14,12 +14,10 @@
 // `FakeNativeBridge` lives at the FFI boundary one layer below `FfiBackend`.
 // A test that wants to exercise the `NightshadeBackend` contract directly
 // (e.g. `dashboardScreen` reading `backend.discoverDevices(...)`) needs a
-// fake at the backend layer, not the bridge layer. After CQ-W5-FAKE-BRIDGE
-// lands, an `FfiBackend(bridge: FakeNativeBridge(...))` construction will
-// also be available as a higher-fidelity alternative, but the cheap
+// fake at the backend layer, not the bridge layer. An
+// `FfiBackend(bridge: FakeNativeBridge(...))` construction is
+// also available as a higher-fidelity alternative, but the cheap
 // MockBackend remains useful for tests that only need a couple of stubs.
-//
-// See: docs/code-quality/audit-tests.md §6.
 
 import 'dart:async';
 

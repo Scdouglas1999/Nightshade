@@ -47,7 +47,7 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 
 pub mod adaptive_polling;
 mod api;
-// P0-5: the per-frame exposure-parameter apply logic (gain/offset/binning) is
+// the per-frame exposure-parameter apply logic (gain/offset/binning) is
 // platform-independent and lives here so it compiles and is regression-tested
 // on every platform; the Windows-only `ascom_wrapper` worker calls into it.
 mod ascom_exposure_apply;
@@ -76,7 +76,7 @@ mod util;
 
 pub use api::*;
 pub use device::*;
-// Wave 7 Agent 3 — `DefectMapCorrectionRecord` is referenced in the
+// `DefectMapCorrectionRecord` is referenced in the
 // FRB-generated impl SseDecode / IntoIntoDart blocks (because it is
 // embedded as an `Option<_>` field on `FitsWriteHeaderRich`). FRB's
 // parser produces unqualified references in those generated impls, so

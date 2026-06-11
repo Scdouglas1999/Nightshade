@@ -1,6 +1,6 @@
 # Plugin Sequence Nodes
 
-Status: v2 — Rust executor dispatch live (Wave 6 Pack P). Plugin nodes
+Status: v2 — Rust executor dispatch live. Plugin nodes
 now run inside the same execution graph as native instructions
 (checkpointing, recovery, parallel branches all apply).
 
@@ -119,7 +119,7 @@ Riverpod providers:
 * `pluginNodeRegistryProvider` — the host's registry.
 * `pluginNodeRegistrationsStreamProvider` — initial snapshot + change stream.
 
-## 3. Execution path (v2 — Wave 6 Pack P)
+## 3. Execution path (v2)
 
 Plugin nodes now run inside the **Rust** executor's behaviour-tree the
 same way every native instruction does. The Rust side reaches a
@@ -285,7 +285,7 @@ and demonstrates a different authoring pattern.
 * Storage keys: `pushover.apiToken`, `pushover.userKey`.
 * External: POST `https://api.pushover.net/1/messages.json`.
 
-Different from the Wave 5 Pack M built-in Pushover transport: this
+Different from the built-in Pushover transport: this
 plugin is **per-node**, so a user can have it fire only on specific
 sequence steps without enabling Pushover as a global transport.
 
@@ -328,9 +328,9 @@ scene to dim room lights to red.
   driven by the Dart-side `SequenceExecutor`. Latency is dominated by
   the plugin's own network I/O.
 * Settings UI for enabling / disabling individual plugins is a future
-  pack (Wave 6 follow-up).
+  pack (follow-up).
 
-### v2 — DONE (Wave 6 Pack P)
+### v2 — DONE
 
 * **Rust executor dispatch** — landed. See "Execution path (v2)" above
   for the full Rust↔Dart roundtrip and the file-by-file map.
@@ -347,14 +347,14 @@ scene to dim room lights to red.
   can enter API keys / connection URLs without code.
 * **Remote backend dispatch**: the `NetworkBackend.sequencerPluginNodeFinished`
   is a faithful forwarder today, but the remote host side needs to
-  dispatch the plugin in the Dart-on-host process. Pack P does not yet
-  ship that side — when the Wave 7 remote-protocol pack lands, the
+  dispatch the plugin in the Dart-on-host process. The host does not yet
+  ship that side — when the remote-protocol pack lands, the
   remote dispatch path can run plugins on the host rig and report
   back to the client.
 
 ## 6. Self-audit
 
-The Wave 6 v1 plugin-nodes wiring was verified by:
+The v1 plugin-nodes wiring was verified by:
 
 * `flutter test packages/nightshade_plugins` — 45/45 pass, including
   17 pre-existing tests and 28 new tests covering registry behavior,
@@ -373,7 +373,7 @@ The Wave 6 v1 plugin-nodes wiring was verified by:
     `discord_webhook_plugin.dart`, `home_assistant_plugin.dart`) all
     extend `SequencePlugin` and ship from the package barrel.
 
-The Wave 6 Pack P v2 (Rust dispatch) layer was verified by:
+The v2 (Rust dispatch) layer was verified by:
 
 * `cargo test --workspace --all-features` clean (376 sequencer tests
   pass; 5 new plugin tests including `plugin_node_e2e_completes_via_executor_round_trip`

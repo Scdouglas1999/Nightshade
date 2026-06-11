@@ -49,7 +49,7 @@ List<HeadlessRoute> buildSessionRoutes(SessionHandlers h) => <HeadlessRoute>[
     '/api/images/standalone',
     h.handleGetStandaloneImages,
   ),
-  // P1-13: registered BEFORE the `<imageId>` patterns so the literal
+  // registered BEFORE the `<imageId>` patterns so the literal
   // `backfill-thumbnails` segment isn't matched as a path param.
   HeadlessRoute(
     HttpMethod.post,

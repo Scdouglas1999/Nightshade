@@ -1,4 +1,4 @@
-// Wave 8 — ConversationalBuilderService tests.
+// ConversationalBuilderService tests.
 //
 // Uses an in-process [_FakeLlmProvider] that yields canned replies in
 // sequence so we can exercise:

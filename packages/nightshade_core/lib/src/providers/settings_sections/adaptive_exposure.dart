@@ -1,4 +1,4 @@
-// Wave 5 Agent 2 — Sky-Brightness Adaptive Exposure defaults. Owns the
+// Sky-Brightness Adaptive Exposure defaults. Owns the
 // global default exposure-scaling config the executor consults when a
 // TakeExposure node has no per-node override. Captures both the scalar
 // reference values and the per-filter override maps.

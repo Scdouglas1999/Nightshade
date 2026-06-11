@@ -143,7 +143,7 @@ class LowAltitudeLimitRule implements SequenceValidator {
   }
 }
 
-/// Wave 3 Agent 3 — error when an integration budget is configured
+/// Error when an integration budget is configured
 /// without any populated total or per-filter caps. The runtime would
 /// silently no-op (every cap is zero), so the user would see "budget
 /// configured" in the UI but no enforcement at run-time — a confusing
@@ -178,7 +178,7 @@ class IntegrationBudgetEmptyRule implements SequenceValidator {
   }
 }
 
-/// Wave 3 Agent 3 — error when every per-filter ratio is zero AND no
+/// Error when every per-filter ratio is zero AND no
 /// absolute cap exists. The runtime cannot normalise zero-sum ratios,
 /// so the budget would never fire — better to fail loudly at validation
 /// time.
@@ -221,7 +221,7 @@ class IntegrationBudgetRatioZeroSumRule implements SequenceValidator {
   }
 }
 
-/// Wave 3 Agent 3 — error when a budget has ratio entries but no
+/// Error when a budget has ratio entries but no
 /// total_secs to normalise against. Ratios without a total are
 /// meaningless ("4 parts of nothing" = 0) and the runtime fails
 /// closed; surface the misconfiguration at edit time.
@@ -259,7 +259,7 @@ class IntegrationBudgetRatioWithoutTotalRule implements SequenceValidator {
   }
 }
 
-/// Wave 4 — error when a `startWhen` / `endWhen` `And` / `Or` compound
+/// Error when a `startWhen` / `endWhen` `And` / `Or` compound
 /// has no children. The runtime treats an empty compound as `false` to
 /// fail closed, which means a "wait forever" target — surface the
 /// misconfiguration at edit time so the user can fix it before running.
@@ -297,13 +297,13 @@ class TargetTriggerEmptyCompoundRule implements SequenceValidator {
   }
 }
 
-/// Wave 4 — error when a target's `startWhen` requires the target to
+/// Error when a target's `startWhen` requires the target to
 /// reach an altitude it can never reach from the user's location.
 /// Formula: at latitude φ, a target with declination δ culminates at
 /// `90° - |φ - δ|`. We flag any `AltitudeAbove(N)` term where
 /// `culmination < N`.
 class TargetTriggerImpossibleAltitudeRule implements SequenceValidator {
-  /// Observer latitude. Pre-Wave-4 validation rules don't get an observer
+  /// Observer latitude. Older validation rules don't get an observer
   /// context wired in, so we accept it via constructor; the registry
   /// passes the active profile latitude when wiring this rule up.
   /// `null` means "skip this rule" (no opinion without an observer).
@@ -373,7 +373,7 @@ class TargetTriggerImpossibleAltitudeRule implements SequenceValidator {
   }
 }
 
-/// Wave 4 — error when `startWhen` and `endWhen` are structurally
+/// Error when `startWhen` and `endWhen` are structurally
 /// guaranteed to contradict each other. `endWhen` is a stop trigger: if it is
 /// already satisfied when the target starts, the runtime skips the target.
 /// The common trap is `startWhen = TimeAfter(t1)` with

@@ -291,7 +291,7 @@ TargetTrigger _defaultForKind(String kind, {required TargetTrigger current}) {
 }
 
 // =============================================================================
-// Wave 3 Agent 3 — Integration budget editor.
+// Integration budget editor.
 //
 // The section is toggle-gated: when the toggle is off, the node has no
 // budget configured. When on, the user can set a total time and add

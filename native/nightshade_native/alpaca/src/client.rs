@@ -184,7 +184,7 @@ impl From<reqwest::Error> for AlpacaError {
                 duration_ms: 30000, // Default timeout - actual tracked in specific methods
             }
         } else if err.is_connect() {
-            // Why (audit-rust §4.3): we are inside `From<reqwest::Error>` and
+            // Why: we are inside `From<reqwest::Error>` and
             // *already* producing an error variant (ConnectionRefused). reqwest
             // sometimes elides the URL on connect failures that originate
             // before name resolution (e.g. invalid scheme); the textual "unknown"
@@ -363,14 +363,14 @@ impl Default for RetryConfig {
 impl RetryConfig {
     /// Calculate the delay for a given attempt number (0-indexed)
     pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
-        // Why (audit-rust §1.4): `initial_delay_ms` and `max_delay_ms` are u64
+        // Why: `initial_delay_ms` and `max_delay_ms` are u64
         // configuration values typically ≤ 5_000 (5s); even at the u64::MAX
         // edge, f64's 53-bit mantissa still represents the value with
         // bounded relative error well below the +/-25% jitter band, so this
         // is a precision-loss-acceptable widening.
         let initial_delay_f = self.initial_delay_ms as f64;
         let max_delay_f = self.max_delay_ms as f64;
-        // Why (audit-rust §1.4): `attempt` is u32; `powi` takes i32. Max
+        // Why: `attempt` is u32; `powi` takes i32. Max
         // retry attempts in practice is `max_attempts` (configured ≤ ~10);
         // `attempt > i32::MAX` would require >2 billion retries, which is
         // outside the retry loop's `attempts < max_attempts` invariant.
@@ -388,7 +388,7 @@ impl RetryConfig {
             capped_delay
         };
 
-        // Why (audit-rust §1.4): `final_delay` is bounded by `max_delay_ms`
+        // Why: `final_delay` is bounded by `max_delay_ms`
         // (u64) * 1.25 jitter ceiling; clamped via `min` above. f64 → u64
         // uses Rust 1.45+ saturating semantics on overflow / NaN, which for
         // a bounded retry delay is the desired behavior.
@@ -413,7 +413,7 @@ impl RetryConfig {
 /// Simple pseudo-random number generator for jitter (0.0 to 1.0)
 fn rand_simple() -> f64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    // Why (audit-rust §4.3): `duration_since(UNIX_EPOCH)` only fails when the
+    // Why: `duration_since(UNIX_EPOCH)` only fails when the
     // system clock is set before 1970-01-01. This jitter source is purely a
     // retry-backoff perturbation (not cryptographic, not security-sensitive),
     // so a pre-epoch clock falling through to `Duration::ZERO` (no jitter on
@@ -422,7 +422,7 @@ fn rand_simple() -> f64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .subsec_nanos();
-    // Why (audit-rust §1.4): `subsec_nanos()` returns u32 in [0, 999_999_999].
+    // Why: `subsec_nanos()` returns u32 in [0, 999_999_999].
     // u32 → f64 is exact (f64 mantissa covers all u32 values). `u32::MAX` →
     // f64 is the literal divisor and is also exact.
     (f64::from(nanos) / f64::from(u32::MAX)).fract()
@@ -585,7 +585,7 @@ impl AlpacaClient {
 
     fn standard_http_client(&self) -> Result<&Client, AlpacaError> {
         self.http_client.as_ref().ok_or_else(|| {
-            // Why (audit-rust §4.3): if `http_client` is None we *must* have
+            // Why: if `http_client` is None we *must* have
             // recorded the construction error in `http_client_error` at
             // `with_config` time (see ~line 459-462 where the two fields are
             // populated as a (Some, None) / (None, Some) pair). The fallback
@@ -1286,7 +1286,7 @@ impl AlpacaClient {
         let _: AlpacaResponse<bool> = response.json().await?;
 
         let elapsed = start.elapsed();
-        // Why (audit-rust §1.4): heartbeat-elapsed `as_millis()` returns
+        // Why: heartbeat-elapsed `as_millis()` returns
         // u128. Heartbeats time out in the seconds-range; u128 → u64
         // saturating fallback covers any pathological never-completing case
         // (which the timeout layer would have already cancelled).

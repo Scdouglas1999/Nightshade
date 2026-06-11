@@ -76,7 +76,7 @@ class RecoveryNodeConfigRule implements SequenceValidator {
   }
 }
 
-/// Wave 5 Agent 4 — validation rules for cloud-motion-aware triggers.
+/// Validation rules for cloud-motion-aware triggers.
 ///
 /// Three failure modes, all surfaced as ERROR because the trigger could
 /// not fire correctly at runtime (or would fire with degenerate config):

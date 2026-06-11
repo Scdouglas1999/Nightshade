@@ -45,8 +45,8 @@ class CollaborationHandlers {
   }
 
   /// `POST /api/collaboration/viewers/join` — register a new viewer.
-  /// The authenticated identity wins over any client-supplied viewerId
-  /// (P2-15); a mismatch is logged at WARNING as a potential
+  /// The authenticated identity wins over any client-supplied viewerId;
+  /// a mismatch is logged at WARNING as a potential
   /// impersonation attempt and the authenticated id is substituted.
   Future<Response> handleCollaborationJoin(Request request) async {
     try {
@@ -57,7 +57,7 @@ class CollaborationHandlers {
       if (name == null || name.isEmpty) {
         return jsonBadRequest({'error': 'Missing name'});
       }
-      // P2-15: the authenticated identity wins over any client-supplied
+      // the authenticated identity wins over any client-supplied
       // viewerId, mirroring the WebSocket-path semantics. When auth is
       // disabled (no tokens configured), fall back to the payload value
       // so existing clients keep working.
@@ -106,7 +106,7 @@ class CollaborationHandlers {
       final payload =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final clientViewerId = payload['viewerId'] as String?;
-      // P2-15: a client cannot remove an arbitrary viewer slot — it can
+      // a client cannot remove an arbitrary viewer slot — it can
       // only release its own. The authenticated identity overrides the
       // payload value. When auth is disabled (test fixtures), we fall
       // back to the payload value.
@@ -164,7 +164,7 @@ class CollaborationHandlers {
   }
 
   /// `POST /api/collaboration/chat` — append a chat line. The viewerId
-  /// of the chat row is forced to the authenticated identity (P2-15) so
+  /// of the chat row is forced to the authenticated identity so
   /// a client cannot put words in another operator's mouth.
   Future<Response> handleCollaborationChat(Request request) async {
     try {

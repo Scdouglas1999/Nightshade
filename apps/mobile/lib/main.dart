@@ -38,7 +38,7 @@ void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Audit §3.13: respect the user's immersive-mode preference. Default is
+  // respect the user's immersive-mode preference. Default is
   // leanBack so the system clock and battery indicator remain visible
   // during long sequences; users who want full-screen can opt in.
   if (Platform.isAndroid) {
@@ -74,7 +74,7 @@ void main() async {
     );
   }
 
-  // Wave 6D / P2-14 — start the battery sampler so the dashboard
+  // start the battery sampler so the dashboard
   // indicator and any throttling consumer (live-preview poller,
   // catalog sync, etc.) see a populated PhoneBatteryState on first
   // build. Failures are non-fatal: the indicator gracefully renders
@@ -92,7 +92,7 @@ void main() async {
     );
   }
 
-  // P1-16a / audit §7 bug 3: request Android POST_NOTIFICATIONS at startup
+  // request Android POST_NOTIFICATIONS at startup
   // *before* runApp() so the system prompt is shown on first launch (and
   // not buried behind a connection screen). Without this, Android 13+
   // silently drops every notification we try to fire. Also wires up the
@@ -166,10 +166,10 @@ void main() async {
         appVersionProvider.overrideWithValue(
           const AppVersionInfo(version: '2.6.0', buildNumber: 6),
         ),
-        // Wave 6 Pack P — wire the plugin-node dispatcher so plugin
+        // wire the plugin-node dispatcher so plugin
         // sequence nodes route through the real PluginNodeExecutor.
         pluginNodeDispatcherOverride(),
-        // Audit §11 — surface plugin-contributed sequence nodes in the
+        // surface plugin-contributed sequence nodes in the
         // sequencer palette.
         pluginNodePaletteBlueprintsOverride(),
         // C4 — honour the user's persisted plugin enable/disable choices
@@ -183,7 +183,7 @@ void main() async {
   );
 }
 
-/// P2-2: identity payload passed to [BackendNotifier.connect] so the
+/// identity payload passed to [BackendNotifier.connect] so the
 /// [NetworkBackend] can populate its `collaboration.join` frame after the
 /// WS handshake succeeds. The values are derived from:
 ///   * `viewerId` — `computeServerFingerprint(authToken)` so the digest
@@ -231,7 +231,7 @@ Future<_CollaborationIdentityBundle> _buildCollaborationIdentity(
       ? 'Android'
       : Platform.operatingSystem;
   // The viewerId MUST match the server's `computeServerFingerprint(token)`
-  // when auth is enabled — otherwise the server's P2-15 override branch
+  // when auth is enabled — otherwise the server's override branch
   // would log every join as an impersonation attempt. When auth is off
   // (no token), use the stable device id so the slot still has a unique
   // identifier — the server's override will not fire in that case.
@@ -303,13 +303,13 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
       // Handle disconnection from Settings — if the backend becomes
       // DisconnectedBackend, return to the connection screen. Listening
       // (instead of watching+addPostFrameCallback in build) avoids the
-      // build-time setState cycle flagged in audit §3.10.
+      // build-time setState cycle flagged
       ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
         if (!mounted) return;
         if (_connectedServer != null &&
             next is DisconnectedBackend &&
             !_skippedConnection) {
-          // Audit P1-18: drop the checkpoint-once latch alongside the
+          // Audit drop the checkpoint-once latch alongside the
           // backend swap. Otherwise a Settings-driven disconnect then
           // reconnect in the same app lifecycle would silently skip the
           // resume dialog even if the server now has a fresh
@@ -372,12 +372,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           // connected companion shell.
           ref.watch(notificationRouterProvider);
 
-          // Wave 5E — wire the iOS Live Activity lifecycle controller. The
+          // wire the iOS Live Activity lifecycle controller. The
           // controller installs its own ref.listen() bindings on construction;
           // on non-iOS platforms it is a no-op so the watch is cheap.
           ref.watch(liveActivityLifecycleProvider);
 
-          // Wave 7D — wire the Apple Watch complication lifecycle
+          // wire the Apple Watch complication lifecycle
           // controller. Same shape as the Live Activity one: on iOS it
           // installs listeners that throttle sequence + weather state
           // changes into App Group writes + `WidgetCenter` reloads at
@@ -385,7 +385,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           // no-op so this watch costs nothing on Android/desktop.
           ref.watch(watchComplicationLifecycleProvider);
 
-          // Wire notification taps into go_router (audit §3.8). The router
+          // Wire notification taps into go_router. The router
           // is created lazily by `appRouterProvider`; reading it here also
           // ensures it exists before a notification can fire.
           final router = ref.watch(appRouterProvider);

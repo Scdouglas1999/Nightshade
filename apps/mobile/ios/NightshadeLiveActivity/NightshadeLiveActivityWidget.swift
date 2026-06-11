@@ -1,6 +1,6 @@
 // NightshadeLiveActivityWidget.swift
 //
-// P1-20 — Widget definition for the Nightshade sequence Live Activity.
+// Widget definition for the Nightshade sequence Live Activity.
 //
 // Three layouts are provided per Apple's `ActivityConfiguration`:
 //

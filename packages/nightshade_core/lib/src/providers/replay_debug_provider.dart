@@ -4,7 +4,7 @@ import '../models/replay_decision.dart';
 import '../services/replay_debug_service.dart';
 import 'database_provider.dart';
 
-/// Wave 8 Replay Debug — Riverpod surface for the structured decision
+/// Replay Debug — Riverpod surface for the structured decision
 /// log feeding the retrospective Replay screen.
 ///
 /// The service-layer types are exposed through thin providers so the UI
@@ -48,14 +48,14 @@ final decisionCountForRunProvider = FutureProvider.family<int, int>((
   return service.countByRun(runId);
 });
 
-/// Wave 8 Replay Debug — settings keys persisted in `app_settings`.
+/// Replay Debug — settings keys persisted in `app_settings`.
 const String replayDebugEnabledKey = 'replay_debug.enabled';
 const String replayDebugRetentionDaysKey = 'replay_debug.retention_days';
 
 /// Default retention window when the setting is unset on first install.
 const int replayDebugDefaultRetentionDays = 90;
 
-/// Wave 8 Replay Debug — runtime-enabled toggle. Reads from the
+/// Replay Debug — runtime-enabled toggle. Reads from the
 /// `app_settings` table via the SettingsDao. Default is `true` (the
 /// migration seeds it on first install).
 ///
@@ -71,7 +71,7 @@ final replayDebugEnabledProvider = FutureProvider<bool>((ref) async {
   return row.value.toLowerCase() != 'false';
 });
 
-/// Wave 8 Replay Debug — retention window in days. Decisions older
+/// Replay Debug — retention window in days. Decisions older
 /// than this are pruned by `ReplayDebugService.pruneOlderThan`. Default
 /// 90 days.
 final replayDebugRetentionDaysProvider = FutureProvider<int>((ref) async {
@@ -83,7 +83,7 @@ final replayDebugRetentionDaysProvider = FutureProvider<int>((ref) async {
   return int.tryParse(row.value) ?? replayDebugDefaultRetentionDays;
 });
 
-/// Wave 8 Replay Debug — write-side controller for the retention
+/// Replay Debug — write-side controller for the retention
 /// settings + the "clear all" affordance. Reads go through the
 /// dedicated FutureProviders above; this notifier centralises mutations
 /// so the Replay Debug settings page can `await` a single notifier per

@@ -1,4 +1,4 @@
-// Wave 8 — Tests for the AdaptiveSwapService score composer + model
+// Tests for the AdaptiveSwapService score composer + model
 // round-trip + Rust↔Dart wire-format parity.
 
 import 'dart:convert';
@@ -191,7 +191,7 @@ void main() {
   });
 
   group('BrightnessTierPreferences', () {
-    test('default thresholds match the Wave 8 brief', () {
+    test('default thresholds match the brief', () {
       const p = BrightnessTierPreferences();
       expect(p.faintMinScore, 70.0);
       expect(p.mediumMinScore, 50.0);

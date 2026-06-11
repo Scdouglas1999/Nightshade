@@ -175,7 +175,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       final deviceTypeName = d['deviceType'] as String?;
       // Server-side schema drift would otherwise silently turn an
       // unknown device class into a Camera. Skip and log loudly per
-      // CLAUDE.md "errors are a feature" — a wrong default here means
+      // Errors are a feature here — a wrong default here means
       // the equipment screen claims a focuser is a camera.
       final deviceType = DeviceType.values
           .where((t) => t.name == deviceTypeName)
@@ -305,7 +305,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
         'deviceId': deviceId,
       });
     } on ServerError catch (e) {
-      // [Wave 6D error parsing] — prefer the machine-readable `code` over
+      // Error parsing: prefer the machine-readable `code` over
       // the substring-match on `message`. The server emits
       // `live_view_unavailable` when the driver doesn't support live
       // view, and the underlying 503 is surfaced via httpStatus.
@@ -352,7 +352,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
         metaHeaderBase64: metaHeader,
       );
     } on ServerError catch (e) {
-      // [Wave 6D error parsing] — treat 404 or the explicit `no_image`
+      // Error parsing: treat 404 or the explicit `no_image`
       // envelope code as "no image cached yet" and return null instead
       // of bubbling an exception. Anything else is a real failure.
       if (e.httpStatus == 404 || e.code == 'no_image') {
@@ -661,7 +661,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     });
   }
 
-  /// P2-7 — fetch the current filter-wheel slot, slot name, and
+  /// Fetch the current filter-wheel slot, slot name, and
   /// in-motion flag from the headless server. Not on
   /// [NightshadeBackend] because the local FfiBackend already exposes
   /// the same data via `filterWheelStateProvider`; the network surface

@@ -10,8 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 // autoDispose: this is a .family provider keyed by TargetHeaderNode — without
 // autoDispose each unique target hovered would leave a permanent
 // FutureProvider instance in the container, growing memory unboundedly.
-// Tooltip lifetime is the natural scope for these computations
-// (audit-dart §1b).
+// Tooltip lifetime is the natural scope for these computations.
 final targetAltitudeProvider = FutureProvider.autoDispose
     .family<TargetAltitudeInfo?, TargetHeaderNode>((ref, target) async {
   final settings = ref.watch(appSettingsProvider).valueOrNull;

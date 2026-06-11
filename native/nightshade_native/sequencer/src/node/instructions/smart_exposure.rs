@@ -1,4 +1,4 @@
-//! Wave 3 Agent 2: SmartExposure instruction node.
+//! SmartExposure instruction node.
 //!
 //! The "one row per filter" automation. The user lists per-filter plans
 //! (count, sub-length, gain, offset, binning, dither cadence) and this node
@@ -64,7 +64,7 @@ impl InstructionNode for SmartExposureInstruction {
             return NodeStatus::Failure;
         };
 
-        // Audit §15 — when a surrounding TargetScheduler has installed a
+        // when a surrounding TargetScheduler has installed a
         // multi-filter cycle override, apply it for this dispatch. The
         // override forces `rotate_filters=true` and clamps `batch_size` to
         // the scheduler-supplied `frames_per_burst`. We construct an
@@ -371,7 +371,7 @@ impl InstructionNode for SmartExposureInstruction {
             // without parsing free-form strings.
             emit_progress(node_id, config, &state, plan, plan_index, context);
 
-            // Wave 3.5 Pack F: advance `current_plan_index` in rotation mode
+            // advance `current_plan_index` in rotation mode
             // so the next iteration's `next_plan()` starts looking AT the
             // next plan, not the one we just finished a batch on.
             //
@@ -903,7 +903,7 @@ mod tests {
         assert!(picked < cfg.plans.len());
     }
 
-    /// Wave 3.5 Pack F: rotation regression test.
+    /// rotation regression test.
     ///
     /// Drives the execute() loop's plan-picking flow manually, mirroring the
     /// exact sequence of operations the body performs:
@@ -966,7 +966,7 @@ mod tests {
         );
     }
 
-    /// Wave 3.5 Pack F: rotation with batch_size > 1 still rotates.
+    /// rotation with batch_size > 1 still rotates.
     ///
     /// With 2 plans of count=4 and batch_size=2, expected order is L,R,L,R —
     /// two batches per filter, alternating. The fix advances

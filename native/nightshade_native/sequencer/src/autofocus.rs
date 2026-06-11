@@ -6,7 +6,7 @@
 //! - Temperature-based focus prediction integration
 //! - Robust error handling and outlier rejection
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! All `unwrap_or` sites here are one of:
 //! - `partial_cmp(...).unwrap_or(Ordering::Equal)` — `f64` is `PartialOrd`,

@@ -12,7 +12,7 @@
 //! WEATHER_CLOUD_COVER, WEATHER_RAIN_RATE, WEATHER_DEWPOINT,
 //! WEATHER_SKY_QUALITY, WEATHER_SKY_TEMPERATURE, WEATHER_SKY_BRIGHTNESS
 //!
-//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//! # `unwrap_or(false)` policy
 //!
 //! Each `has_*_alert` probe (`get_light_state(...).map(|s| s == 3)`) returns
 //! `false` when the INDI driver does not publish that specific weather

@@ -1,4 +1,4 @@
-// Wave 4 Recovery Mode user-tunable defaults. Owns the knobs that
+// Recovery Mode user-tunable defaults. Owns the knobs that
 // configure the executor's automatic-retry loop after a recoverable
 // failure (guide-star loss, dew, wind, weather drift, etc.).
 //
@@ -15,7 +15,7 @@
 //   * Pre-flight checks → see `preflight.dart`.
 part of '../settings_provider.dart';
 
-/// Setters for Wave 4 Recovery Mode defaults.
+/// Setters for Recovery Mode defaults.
 extension RecoverySettingsSection on AppSettingsNotifier {
   /// Minutes between auto-retry attempts during a recovery loop. Clamped
   /// to [1, 240] — a zero/negative interval would spin the executor at

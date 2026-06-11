@@ -1,6 +1,6 @@
 // Widget tests for ImagingScreen.
 //
-// Scope (CQ-W5-WIDGET-TESTS-IMG + CQ-W10-WIDGET-TESTS-IMG-DEEPER):
+// Scope:
 //
 // Layout smoke tests:
 //   1. mobile_layout_renders   — width < 768 picks the stacked column
@@ -53,8 +53,6 @@
 // are tracked cosmetic issues out of scope for this work; we drop only
 // errors whose summary contains "overflowed" and forward everything
 // else so a real layout regression still trips takeException().
-//
-// See: docs/code-quality/audit-tests.md §1.
 
 import 'dart:typed_data';
 
@@ -449,7 +447,7 @@ void main() {
             'so the panel state survives a route push/pop or hot reload.');
   });
 
-  // IMG-P1-4: the "Calibrated" badge surfaces in the upper-right of the
+  // The "Calibrated" badge surfaces in the upper-right of the
   // live preview whenever the published image's file path carries the
   // `_cal.fits` suffix the calibration service writes. Two flavours so
   // the test pins on both the positive case (badge present + text) and

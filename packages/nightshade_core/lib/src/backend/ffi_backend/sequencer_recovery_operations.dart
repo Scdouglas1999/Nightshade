@@ -32,7 +32,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
 
   @override
   Future<void> sequencerSkipToNode(String nodeId) async {
-    // Wave 1.5 Pack A: routes to the new `api_sequencer_skip_to_node` FRB
+    // Routes to the new `api_sequencer_skip_to_node` FRB
     // binding; preceding siblings of `nodeId` are marked Skipped and the
     // executor jumps forward on its next tree-walk step.
     await bridge.NativeBridge.sequencerSkipToNode(nodeId: nodeId);
@@ -45,7 +45,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     String? message,
     String? structuredDetailJson,
   }) async {
-    // Wave 6 Pack P: routes to `api_sequencer_plugin_node_finished`,
+    // Routes to `api_sequencer_plugin_node_finished`,
     // which resolves the matching pending oneshot inside the Rust
     // executor. The awaiting `PluginNodeInstruction::execute` returns
     // Success / Failure based on `success`.
@@ -159,7 +159,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   Future<void> sequencerUpdatePendingIntegrationCarryOver(
     Map<String, Map<String, double>> carryOver,
   ) async {
-    // Wave 7.5 — staged on the executor's RuntimeConfig; consumed once
+    // Staged on the executor's RuntimeConfig; consumed once
     // when the spawned executor task is created at the top of start().
     await bridge.NativeBridge.sequencerUpdatePendingIntegrationCarryOver(
       carryOver: carryOver,
@@ -168,7 +168,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
 
   @override
   Future<void> sequencerUpdateAutofocusInterval(int everyNFrames) async {
-    // Wave 1.5 Pack A: pushes the cadence into the live executor's
+    // Pushes the cadence into the live executor's
     // standard `AutofocusInterval` trigger via the new FRB binding.
     // The bridge rejects 0; pass >= 1.
     await bridge.NativeBridge.sequencerUpdateAutofocusInterval(
@@ -185,7 +185,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     required int maxConsecutiveRejects,
     required bool enabled,
   }) async {
-    // Pack G — pushes the global image-grading thresholds into the
+    // Pushes the global image-grading thresholds into the
     // executor's RuntimeConfig.default_quality_check so the next
     // exposure honours the user's choices. Disabled => None pushed.
     await bridge.NativeBridge.sequencerUpdateDefaultQualityCheck(
@@ -200,7 +200,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
 
   @override
   Future<void> sequencerUpdateRejectFolderPath(String? path) async {
-    // Pack G — pushes the reject-folder override into the executor.
+    // Pushes the reject-folder override into the executor.
     // Empty / null => fall back to <save_path>/Reject/.
     await bridge.NativeBridge.sequencerUpdateRejectFolderPath(path: path);
   }
@@ -215,7 +215,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     double? telescopeFocalLengthMm,
     double? telescopeApertureMm,
   }) async {
-    // Pack G — pushes observer / equipment identification into the
+    // Pushes observer / equipment identification into the
     // executor so the next FITS save stamps OBSERVER, TELESCOP, FOCALLEN,
     // APTDIA, INSTRUME, SITEELEV with real values.
     await bridge.NativeBridge.sequencerUpdateObserverProfile(
@@ -238,7 +238,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     double? predictedClearSkyAlt,
     double? predictedClearSkyAz,
   }) async {
-    // Wave 5 Agent 4 — push the cloud-motion analyzer reading into the
+    // Push the cloud-motion analyzer reading into the
     // Rust trigger state. Drives the CloudArrivingIn / CloudOpeningIn /
     // CloudCoverThreshold triggers in the live executor.
     await bridge_api.apiSequencerUpdateCloudMotion(
@@ -264,7 +264,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
 
   @override
   Future<String?> sequencerGetCloudMotionJson() async {
-    // Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
+    // JSON-serialised cloud-motion snapshot for the run
     // dashboard. Returns null until the first push has been received.
     return await bridge_api.apiSequencerGetCloudMotionJson();
   }
@@ -295,7 +295,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
 
   @override
   Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
-    // Wave 5 Agent 2 — push the live SkyBrightnessTracker reading to the
+    // Push the live SkyBrightnessTracker reading to the
     // executor.
     await bridge_api.apiSequencerUpdateSkyBrightness(mag: mag);
   }
@@ -311,7 +311,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     required Map<String, double> perFilterMinSecs,
     required Map<String, double> perFilterMaxSecs,
   }) async {
-    // Wave 5 Agent 2 — push the global default adaptive exposure config.
+    // Push the global default adaptive exposure config.
     // FRB cannot bridge `Map<String, T>` directly, so we flatten to
     // parallel (keys, values) lists matching the Rust API.
     await bridge_api.apiSequencerUpdateDefaultAdaptiveExposure(
@@ -335,7 +335,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   // =========================================================================
-  // Wave 4 Recovery Mode
+  // Recovery Mode
   // =========================================================================
   //
   // The Rust bridge exposes:
@@ -346,12 +346,12 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   //   * `sequencer_get_recovery_history_json()` -> Result<String, …>
   //
   // These are reachable via the typed FRB-generated `bridge_api.apiSequencer*`
-  // wrappers (Wave 4.5 migration replaced the Wave 4 dynamic-dispatch shims).
+  // wrappers (a later migration replaced the dynamic-dispatch shims).
 
   @override
   Future<void> recoveryTryNow() async {
-    // Wave 4.5: typed FRB binding (apiSequencerRecoveryTryNow) replaces the
-    // Wave 4 dynamic-dispatch shim that intercepted NoSuchMethodError while
+    // Typed FRB binding (apiSequencerRecoveryTryNow) replaces the
+    // Dynamic-dispatch shim that intercepted NoSuchMethodError while
     // bindings were pending.
     await bridge_api.apiSequencerRecoveryTryNow();
   }
@@ -515,7 +515,7 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
         // Why: ip-api.com returns a free-form JSON body. Validate it is a
         // map before indexing, and run each numeric field through
         // [safelyCastOpt] so a malformed payload surfaces a structured
-        // CastFailureException (audit-rust §1.4, CLAUDE.md "errors are a
+        // CastFailureException ("errors are a
         // feature") instead of a bare TypeError or silent 0.0.
         final decoded = jsonDecode(response.body);
         final data = safelyCast<Map<String, dynamic>>(

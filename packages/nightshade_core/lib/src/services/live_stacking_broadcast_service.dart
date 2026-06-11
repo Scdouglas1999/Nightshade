@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — Live-stacking broadcast service.
+// Live-stacking broadcast service.
 //
 // The complement to the Rust `nightshade_sequencer::broadcast` module:
 // once a `LiveStackingNode` executes, the Dart side activates a
@@ -65,7 +65,7 @@ class BroadcastSessionState {
   /// the broadcast is public.
   final String? authToken;
 
-  /// Watermark template (Wave 4 variable interpolation applied at
+  /// Watermark template (variable interpolation applied at
   /// render time).
   final String? watermarkText;
 
@@ -120,7 +120,7 @@ class BroadcastSessionState {
   bool get isPublic => authToken == null || authToken!.isEmpty;
 
   /// Human-readable integration time, e.g. "2h12m" — matches the
-  /// `${integration.hms}` Wave 4 interpolation token.
+  /// `${integration.hms}` interpolation token.
   String get integrationHms {
     final secs = integrationSecs.round();
     final h = secs ~/ 3600;
@@ -221,7 +221,7 @@ class LiveStackingBroadcastService {
       StreamController<BroadcastUpdate>.broadcast();
   BroadcastSessionState _state = const BroadcastSessionState();
 
-  /// Wave 7.5 — master kill switch mirrored from
+  /// Master kill switch mirrored from
   /// `SequencerDefaults.livestackingDisableEverywhere`. When true, every
   /// `activate()` call is a no-op and any currently-active session is
   /// forced into the deactivated state. The user's per-node settings
@@ -251,7 +251,7 @@ class LiveStackingBroadcastService {
   /// every HTTP request.
   BroadcastSessionState get state => _state;
 
-  /// Wave 7.5 — flip the master kill switch. When [enabled] is true,
+  /// Flip the master kill switch. When [enabled] is true,
   /// any active session is force-deactivated and subsequent
   /// `activate()` calls are no-ops until the switch is cleared. The
   /// settings layer calls this whenever
@@ -397,7 +397,7 @@ class LiveStackingBroadcastService {
     return _constantTimeEqual(suppliedToken, _state.authToken ?? '');
   }
 
-  /// Render the watermark template (Wave 4 token syntax) against the
+  /// Render the watermark template against the
   /// live session state. Exposed so callers (HTML page, tests) can
   /// preview the rendered string without forcing a JPEG re-encode.
   String renderWatermark() {
@@ -474,7 +474,7 @@ final liveStackingBroadcastServiceProvider =
       return svc;
     });
 
-/// Wave 7.5 — bridges the "Disable broadcast everywhere" toggle in
+/// Bridges the "Disable broadcast everywhere" toggle in
 /// Sequencer Settings (`SequencerDefaults.livestackingDisableEverywhere`)
 /// into the live broadcast service. Watched once at app start by the
 /// shell so the kill switch:

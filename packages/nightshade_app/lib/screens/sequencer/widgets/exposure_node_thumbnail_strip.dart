@@ -15,12 +15,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'thumbnail_strip_prefs.dart';
 
-/// Wave 6 Thumbnails — inline frame strip rendered beneath each
+/// Inline frame strip rendered beneath each
 /// ExposureNode in the sequence tree.
 ///
 /// Each tile is a square (size driven by [ThumbnailStripPrefs]) with a
 /// coloured border encoding the runtime grade verdict:
-///   * green  — accepted (Wave 3 grader passed all thresholds)
+///   * green  — accepted (grader passed all thresholds)
 ///   * yellow — borderline (HFR above the running baseline but still inside
 ///              the reject threshold — surfaced via `runtimeGrade='pending'`
 ///              or via the FrameQuality advisor's "needsReview" level)
@@ -98,7 +98,7 @@ class _StripBody extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (error, _) {
-        // Per CLAUDE.md: errors are a feature, not a silent fallback. We
+        // Errors are a feature, not a silent fallback. We
         // surface a tiny inline marker so the user knows the strip
         // crashed rather than "showed nothing because of a bug".
         final colors = NightshadeColors.of(context);

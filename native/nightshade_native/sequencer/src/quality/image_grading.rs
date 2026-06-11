@@ -1,4 +1,4 @@
-//! Wave 3 Image Grading: per-frame Pass/Reject decision based on HFR,
+//! Image Grading: per-frame Pass/Reject decision based on HFR,
 //! eccentricity, and star count.
 //!
 //! The pre-existing `frame_quality_assessment_service.dart` is advisory
@@ -8,7 +8,7 @@
 //!
 //! `ImageQualityCheck` adds a real-time gate. When enabled, captures
 //! exceeding the configured thresholds are routed to a `Reject/` subfolder,
-//! excluded from the integration-budget accounting (Wave 3 Agent 3's
+//! excluded from the integration-budget accounting ('s
 //! per-filter budget tracker), and surfaced in the run dashboard's
 //! quality panel.
 //!
@@ -24,7 +24,7 @@
 //!   next night is everyone-pack-up bad — `hfr_baseline_percent: 50` would
 //!   flag it).
 //! * **Consecutive-reject escalation**: 3 in a row triggers a critical
-//!   event banner via the Wave 1.5 Pack C path, because no amount of
+//!   event banner via the path, because no amount of
 //!   averaging will fix a systematic failure (focus walked off, cloud bank
 //!   moved through, dome failed to slave).
 //! * **Honest absence**: when star detection fails entirely (no stars

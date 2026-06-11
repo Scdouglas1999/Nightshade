@@ -1,4 +1,4 @@
-// P1-12 — Tests for /api/catalog/... handlers.
+// Tests for /api/catalog/... handlers.
 //
 // Uses a temp-directory CatalogManager.instance (the manager is a
 // singleton; we re-initialize per test). The download path's network

@@ -10,7 +10,7 @@
 //!
 //! This wrapper provides a unified interface that can work with any of these.
 //!
-//! # `unwrap_or(false)` policy (audit-rust §4.3) — fail-CLOSED
+//! # `unwrap_or(false)` policy — fail-CLOSED
 //!
 //! Every `unwrap_or(false)` in this module evaluates a per-parameter weather
 //! alert probe (`get_light_state(...).map(|s| s == 3)`). `Err`/`None` means

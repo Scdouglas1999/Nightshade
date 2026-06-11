@@ -1,6 +1,6 @@
 //! Notification instruction node.
 //!
-//! Wave 4 — the title and message both flow through the variable
+//! the title and message both flow through the variable
 //! interpolation engine before being shown to the user, so templates like
 //! `"${target.name} done. ${frame.total} frames captured."` render against
 //! the live sequence context.
@@ -62,7 +62,7 @@ impl InstructionNode for NotificationInstruction {
             title,
             message,
             level: config.level,
-            // Wave 5.5 Pack M follow-up — preserve the user's per-node
+            // preserve the user's per-node
             // transport override through interpolation so the bridge event
             // carries it for the Dart NotificationRouter to consume.
             explicit_transports: config.explicit_transports.clone(),

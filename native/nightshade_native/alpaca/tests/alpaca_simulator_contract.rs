@@ -1,6 +1,6 @@
 //! Alpaca simulator contract integration tests.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Every `unwrap_or` site in this file lives inside the *toy HTTP parser*
 //! that the test simulator uses to parse loopback requests. The defaults

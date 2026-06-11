@@ -1,4 +1,4 @@
-// Wave 4 Recovery Mode — widget tests for the Run Dashboard recovery banner
+// Recovery Mode — widget tests for the Run Dashboard recovery banner
 // and the recovery event bridge provider.
 //
 // Verifies:
@@ -154,7 +154,7 @@ void main() {
       ));
       await tester.pump();
 
-      // P1-8: the Abort affordance is wrapped in HoldToConfirmButton so
+      // The Abort affordance is wrapped in HoldToConfirmButton so
       // a stray click cannot kill an overnight run. The destructive call
       // only fires after the configured hold duration (default 1500ms).
       final hold = find.byKey(const Key('recovery_abort_hold'));

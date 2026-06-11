@@ -137,7 +137,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
       targetNodeId: target.id,
     );
 
-    // Wave 3 Agent 3 — render the integration budget panel below the
+    // Render the integration budget panel below the
     // frame-count progress when configured. Same target id so all
     // rows stay aligned visually.
     final budgetPanel = _BudgetProgressPanel(colors: colors);
@@ -186,7 +186,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
   }
 }
 
-/// Wave 3 Agent 3 — per-target integration budget progress card. Renders
+/// Per-target integration budget progress card. Renders
 /// only when the active target has a budget configured. Pulls from
 /// [runDashboardActiveBudgetProvider] so the math stays consistent with
 /// the runtime.

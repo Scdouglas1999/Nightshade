@@ -3,7 +3,7 @@ import 'package:nightshade_app/screens/equipment/utils/equipment_disconnect.dart
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
-  group('equipmentDisconnectShouldSkip — UI-P0-3', () {
+  group('equipmentDisconnectShouldSkip', () {
     test('skips only disconnected state', () {
       expect(
         equipmentDisconnectShouldSkip(DeviceConnectionState.disconnected),

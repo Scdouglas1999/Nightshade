@@ -31,7 +31,7 @@ class _DiscoveryPrefs {
   static const lastServerAuthMode = 'nightshade_last_server_auth_mode';
   static const lastServerPairingSupported =
       'nightshade_last_server_pairing_supported';
-  // P1-19: SHA-256 server fingerprint persisted so the LAN UDP push
+  // SHA-256 server fingerprint persisted so the LAN UDP push
   // receiver can derive the same HMAC key as the broadcaster without a
   // round-trip to /api/info. Stored next to host/port — the fingerprint
   // is NOT a secret (it's also embedded in the pairing QR), so plaintext
@@ -368,7 +368,7 @@ class QrConnectionData {
 /// mDNS name. Public-Internet hosts in a pairing QR almost certainly mean the
 /// QR was tampered with.
 ///
-/// P1-7: the previous implementation rejected Tailscale CGNAT addresses
+/// The previous implementation rejected Tailscale CGNAT addresses
 /// (100.64.0.0/10) and IPv6 ULA addresses (fc00::/7), which made QR pairing
 /// unusable for the common "remote observatory exposed via Tailscale" topology
 /// where the phone never lands on the same LAN as the rig. Both ranges are now
@@ -761,7 +761,7 @@ class EnhancedNightshadeDiscovery {
 
               // Parse service name and TXT records for metadata.
               //
-              // P1-6: the server registers `_nightshade._tcp` with a full TXT
+              // The server registers `_nightshade._tcp` with a full TXT
               // record set (version, scheme, fingerprint, pairingSupported,
               // name). Parsing the extra keys here means a Tailscale / locked-
               // down-Wi-Fi client connecting via mDNS-only (no QR, no UDP

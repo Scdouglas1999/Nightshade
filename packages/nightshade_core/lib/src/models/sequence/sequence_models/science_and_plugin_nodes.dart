@@ -6,7 +6,7 @@ part of '../sequence_models.dart';
 
 /// Per-frame photometric quality gates. Mirrors the Rust
 /// `PhotometryQualityGates` struct one-to-one. Frames failing any gate
-/// are routed to the Wave 3 Image Grading reject folder and their
+/// are routed to the Image Grading reject folder and their
 /// `photometry_measurements` row is marked outlier.
 @Freezed(fromJson: true, toJson: true)
 abstract class PhotometryQualityGates with _$PhotometryQualityGates {
@@ -62,7 +62,7 @@ bool isPhotometricFilterBand(String name) =>
 /// `TakeExposure` pipeline and layers in per-frame photometric
 /// reduction (instrumental + differential magnitude) + cadence
 /// tracking. Frames failing the configured quality gates are routed
-/// to the Wave 3 Image Grading reject path.
+/// to the Image Grading reject path.
 class SciencePhotometryNode extends SequenceNode {
   /// Target object identifier (catalogue ID, e.g. "V0376 Per").
   final String targetDesignation;

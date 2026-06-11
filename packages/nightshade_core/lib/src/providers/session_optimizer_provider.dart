@@ -167,7 +167,7 @@ Future<List<CameraHardwareSpec>> _readCameraHardwareOverrides(
   }
 }
 
-/// Wave 7 — Dismissed insight ids (sticky "Don't suggest this again").
+/// Dismissed insight ids (sticky "Don't suggest this again").
 ///
 /// Persisted under `session_insights.dismissed` as a comma-joined list of
 /// insight ids. The DAO is the same `app_settings` table used elsewhere,
@@ -212,13 +212,13 @@ class _DismissedInsightsNotifier extends AsyncNotifier<Set<String>> {
   }
 }
 
-/// Wave 7 — Operator's "Don't suggest this again" set.
+/// Operator's "Don't suggest this again" set.
 final dismissedSessionInsightsProvider =
     AsyncNotifierProvider<_DismissedInsightsNotifier, Set<String>>(
       _DismissedInsightsNotifier.new,
     );
 
-/// Wave 7 — Retrospective post-session insights for the given session id.
+/// Retrospective post-session insights for the given session id.
 ///
 /// Computes [SessionInsight]s from the persisted [SessionReport] plus any
 /// altitude traces produced at runtime. Today we cannot reliably

@@ -1,4 +1,4 @@
-// Wave 8 — LlmSettingsService secret-storage round-trip tests.
+// LlmSettingsService secret-storage round-trip tests.
 //
 // Spins up an in-memory SQLite + in-memory SecureKeyValueStore so we
 // can assert that secret keys go through the keyring path and never

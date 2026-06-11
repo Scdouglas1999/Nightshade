@@ -15,7 +15,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
     String? authIdentity,
   ) {
     _socketAuthIdentities[socket] = authIdentity;
-    // P1-1: replay on reconnect. Accept `?since=<int>&instance=<uuid>`. If
+    // replay on reconnect. Accept `?since=<int>&instance=<uuid>`. If
     // both are valid AND the instance matches AND the seq is within the
     // ring buffer's covered range, replay the missed events BEFORE
     // attaching the live broadcast stream. Otherwise send a
@@ -178,7 +178,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
     Map<String, dynamic> data,
   ) {
     final type = data['type'] as String?;
-    // P2-15: the authoritative viewer identity for THIS socket is the
+    // the authoritative viewer identity for THIS socket is the
     // digest of the bearer token that authenticated the upgrade. When
     // the socket has no auth identity (auth disabled, or a legacy
     // pre-ticket connection), we fall back to the client-supplied
@@ -234,7 +234,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         _collaborationManager.upsertViewer(effectiveViewerId, name);
         return;
       case 'collaboration.leave':
-        // P2-15: the client cannot remove a viewer slot it does not
+        // the client cannot remove a viewer slot it does not
         // own. We always use the socket's authoritative identity (or
         // the id this socket previously bound to) regardless of what
         // the payload says.
@@ -273,7 +273,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
           );
           return;
         }
-        // P2-15: same impersonation rule as collaboration.join — the
+        // same impersonation rule as collaboration.join — the
         // authenticated identity, not the client-supplied id, signs the
         // chat row so a client cannot put words in someone else's mouth.
         final viewerId = authIdentity ?? clientViewerId;

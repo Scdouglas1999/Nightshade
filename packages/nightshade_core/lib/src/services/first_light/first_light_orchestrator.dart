@@ -195,7 +195,7 @@ class _FirstLightStageError implements Exception {
 /// Chains the existing imaging, auto-stretch, plate-solve and annotation
 /// services into a single guided "first light" flow.
 ///
-/// Design rules (see CLAUDE.md — errors are a feature):
+/// Design rules (errors are a feature here):
 ///  * Every stage either advances the flow or surfaces its real error. There
 ///    are no silent fallbacks that fake success.
 ///  * The only stage allowed to "succeed without doing its work" is plate

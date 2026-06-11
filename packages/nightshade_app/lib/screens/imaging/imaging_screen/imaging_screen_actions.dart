@@ -131,7 +131,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
 
     sessionNotifier.setCapturing(true);
 
-    // IMG-P1-5: flip the button label back to "Snapshot" as soon as the
+    // Flip the button label back to "Snapshot" as soon as the
     // imaging service publishes the preview image, even though FITS
     // save, auto-calibration, and science processing keep running in
     // the background after that. Without this listener the button

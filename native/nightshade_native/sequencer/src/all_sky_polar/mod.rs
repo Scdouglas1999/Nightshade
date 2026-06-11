@@ -428,7 +428,7 @@ where
             .ok_or(PolarAlignError::LocationMissing)?,
     };
 
-    // Why (audit-rust §4.3): `config.binning` is `Option<i32>` — user-supplied
+    // Why: `config.binning` is `Option<i32>` — user-supplied
     // override. `None` means "use the all-sky polar default (2x2 binning)" —
     // the optimal trade-off between SNR and resolution for plate-solving the
     // polar refinement frame. Documented constructor default, not a silent

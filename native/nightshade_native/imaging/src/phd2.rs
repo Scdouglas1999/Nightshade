@@ -549,7 +549,7 @@ impl Phd2Client {
 
     /// Get rolling guide statistics
     pub fn get_rolling_stats(&self) -> GuideStats {
-        // Why: §audit-rust 4.3 — `std::sync::Mutex::lock()` only fails on
+        // Why: `std::sync::Mutex::lock()` only fails on
         // *poison* (a previous holder panicked while the guard was live).
         // The lock holders here (`add_frame`, `get_stats`, `reset`) are pure
         // arithmetic — none can panic in production. If poison ever does
@@ -577,7 +577,7 @@ impl Phd2Client {
 
     /// Get current connection state
     pub fn get_state(&self) -> Phd2State {
-        // Why: §audit-rust 4.3 — Mutex poison here would mean the reader
+        // Why: Mutex poison here would mean the reader
         // thread crashed mid-update. The TCP connection is therefore
         // effectively dead from our side regardless of the device's view;
         // reporting `Disconnected` matches reality. We log so the operator
@@ -1045,7 +1045,7 @@ impl Phd2Client {
             return Err(format!("PHD2 error: {}", error.message));
         }
 
-        // Why: §audit-rust 4.3 — per JSON-RPC 2.0, a response with no `error`
+        // Why: per JSON-RPC 2.0, a response with no `error`
         // is REQUIRED to contain `result`, but PHD2 RPC methods that semantically
         // return void (`set_connected`, `loop`, `stop_capture`, etc.) ship
         // `{"jsonrpc":"2.0","result":0,"id":N}` — or, on older builds, just
@@ -1073,7 +1073,7 @@ impl Phd2Client {
     /// Get connected equipment
     pub fn get_connected(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_connected", None)?;
-        // §audit-rust 4.3 — previously `.as_bool().unwrap_or(false)` silently
+        // previously `.as_bool().unwrap_or(false)` silently
         // reported "not connected" whenever PHD2 returned a non-bool (e.g.
         // protocol corruption, schema drift). Propagate the type mismatch.
         result
@@ -1122,7 +1122,7 @@ impl Phd2Client {
     /// Must be called *before* the `dither`/`guide` RPC is sent so the reader
     /// thread cannot miss an early `SettleDone` (no race window).
     fn arm_settle(&self) -> SettleWaiter {
-        // Why: §audit-rust 4.3 — settle tracking is load-bearing for dither
+        // Why: settle tracking is load-bearing for dither
         // correctness. A poisoned mutex means the reader thread panicked; in
         // that case the connection is already dead and the subsequent settle
         // wait will fail closed (disconnect or timeout), which is correct. We
@@ -1226,7 +1226,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| format!("get_lock_position: expected array, got {}", result))?;
 
-        // §audit-rust 4.3 — PHD2 contract: `[x, y]` floats. A missing element
+        // PHD2 contract: `[x, y]` floats. A missing element
         // or non-numeric value means schema drift or no star locked; surface
         // it instead of silently reporting "guide star at origin (0, 0)".
         let x = arr
@@ -1244,7 +1244,7 @@ impl Phd2Client {
     /// Get exposure time
     pub fn get_exposure(&mut self) -> Result<u32, String> {
         let result = self.send_request("get_exposure", None)?;
-        // §audit-rust 4.3 — PHD2 always returns the exposure as an unsigned
+        // PHD2 always returns the exposure as an unsigned
         // integer (milliseconds). A non-integer or negative value is a
         // protocol violation; surface it rather than silently reporting 0ms
         // which the caller would interpret as "no exposure set".
@@ -1264,7 +1264,7 @@ impl Phd2Client {
     /// Get pixel scale (arcsec/pixel)
     pub fn get_pixel_scale(&mut self) -> Result<f64, String> {
         let result = self.send_request("get_pixel_scale", None)?;
-        // §audit-rust 4.3 — pixel scale of 0 is physically meaningless and
+        // pixel scale of 0 is physically meaningless and
         // would silently break every downstream RA/Dec-to-pixel conversion.
         // Propagate the parse failure so the caller knows the value is
         // unavailable (e.g. PHD2 has no profile loaded).
@@ -1285,7 +1285,7 @@ impl Phd2Client {
         let params = serde_json::json!({ "size": size });
         let result = self.send_request("get_star_image", Some(params))?;
 
-        // §audit-rust 4.3 — `frame`, `width`, and `height` are REQUIRED fields
+        // `frame`, `width`, and `height` are REQUIRED fields
         // per the PHD2 `get_star_image` schema. A missing/non-integer value
         // means the response is malformed (or PHD2 changed schema); previously
         // we silently produced a 0x0 image with frame=0, which downstream star
@@ -1360,7 +1360,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| format!("find_star: expected array, got {}", result))?;
 
-        // §audit-rust 4.3 — PHD2 contract: `[x, y]` floats of the chosen star.
+        // PHD2 contract: `[x, y]` floats of the chosen star.
         // (0, 0) was indistinguishable from "no star found"; surface the parse
         // failure so callers can fall back instead of slewing to the origin.
         let x = arr
@@ -1425,7 +1425,7 @@ impl Phd2Client {
         let result = self.send_request("set_algo_param", Some(params))?;
 
         // Result should be 0 on success
-        // Why: §audit-rust 4.3 — `-1` is a deliberate sentinel meaning "couldn't
+        // Why: `-1` is a deliberate sentinel meaning "couldn't
         // even parse a status code". PHD2 returns `0` on success and a positive
         // error code otherwise, so any non-zero value (including the sentinel)
         // correctly triggers the error branch below. Replacing with `?` would
@@ -1473,7 +1473,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| format!("get_camera_frame_size: expected array, got {}", result))?;
 
-        // §audit-rust 4.3 — width/height of 0 silently produced division-by-zero
+        // width/height of 0 silently produced division-by-zero
         // downstream in pixel-scale and binning logic. Surface the parse error.
         let width = arr
             .first()
@@ -1492,7 +1492,7 @@ impl Phd2Client {
     /// Get guide output enabled status
     pub fn get_guide_output_enabled(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_guide_output_enabled", None)?;
-        // §audit-rust 4.3 — see `get_connected`. A non-bool means protocol
+        // see `get_connected`. A non-bool means protocol
         // corruption; "guide output disabled" is the wrong default to assume
         // because callers may rely on this to gate dither/pulse commands.
         result
@@ -1509,7 +1509,7 @@ impl Phd2Client {
     /// Get current profile name
     pub fn get_profile(&mut self) -> Result<String, String> {
         let result = self.send_request("get_profile", None)?;
-        // §audit-rust 4.3 — the previous `unwrap_or("Unknown")` papered over
+        // the previous `unwrap_or("Unknown")` papered over
         // schema drift (the field used to be `name`; new builds may rename it).
         // Surface the absence so we notice during dev rather than always
         // displaying "Unknown" in the UI.
@@ -1539,7 +1539,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "GuideStep" => {
             let extra = &msg.extra;
 
-            // Why: §audit-rust 4.3 — RA/Dec distance are the LOAD-BEARING
+            // Why: RA/Dec distance are the LOAD-BEARING
             // values of every guide frame. Defaulting them to 0.0 used to
             // mark every malformed/dropped event as "perfect guiding" and
             // poisoned the rolling RMS. If either is missing or non-numeric
@@ -1565,7 +1565,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                 }
             };
 
-            // Why: §audit-rust 4.3 — `Frame` (sequence number) and
+            // Why: `Frame` (sequence number) and
             // `timestamp` may legitimately be absent in older PHD2 builds
             // that predate Event-monitoring schema v1.7; the rolling-stats
             // window keeps its own counter, so 0 here is a recoverable
@@ -1573,7 +1573,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             let frame = extra.get("Frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
             let timestamp = msg.timestamp.unwrap_or(0.0);
 
-            // Why: §audit-rust 4.3 — pulse durations and directions ARE
+            // Why: pulse durations and directions ARE
             // absent in real PHD2 traffic when no correction was issued
             // for the axis (zero-duration step). Defaulting to 0 ms and
             // "" matches PHD2's own "no pulse" semantics; the UI checks
@@ -1597,7 +1597,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                 .unwrap_or("")
                 .to_string();
 
-            // Why: §audit-rust 4.3 — SNR, StarMass, StarX, StarY, AvgDist
+            // Why: SNR, StarMass, StarX, StarY, AvgDist
             // are PHD2 "optional" fields per the EventMonitoring wiki:
             // they may be absent during calibration steps, settling, or
             // very early frames before the rolling stats stabilise. 0.0
@@ -1629,7 +1629,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             }))
         }
         "AppState" => {
-            // Why: §audit-rust 4.3 — an `AppState` event with no `State`
+            // Why: an `AppState` event with no `State`
             // field is malformed; routing it through `parse_phd2_app_state`
             // would yield `Phd2State::Unknown("")` and spam the warn log.
             // Drop the event instead and log once with the offending blob.
@@ -1651,7 +1651,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "LoopingExposuresStopped" => Some(Phd2Event::StateChanged(Phd2State::Connected)),
         "StarLost" => Some(Phd2Event::StarLost),
         "StarSelected" => {
-            // Why: §audit-rust 4.3 — `X` and `Y` are REQUIRED by the
+            // Why: `X` and `Y` are REQUIRED by the
             // PHD2 protocol for `StarSelected`. (0,0) was indistinguishable
             // from a valid lock at the origin; drop the malformed event.
             let Some(x) = msg.extra.get("X").and_then(|v| v.as_f64()) else {
@@ -1709,7 +1709,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                         format!("PHD2 settle failed (status {})", status)
                     }
                 });
-            // Why: §audit-rust 4.3 — `TotalFrames`/`DroppedFrames` may
+            // Why: `TotalFrames`/`DroppedFrames` may
             // legitimately be 0 when settling completes on the first
             // frame; absence (`None`) is also documented as "no frames
             // tracked", so 0 is the protocol-defined fallback rather than
@@ -1733,7 +1733,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             })
         }
         "Alert" => {
-            // Why: §audit-rust 4.3 — an Alert with no `Msg`/`Type` is
+            // Why: an Alert with no `Msg`/`Type` is
             // useless to the operator; surface the malformed event in the
             // log and drop it rather than synthesising an empty alert that
             // would mask whatever PHD2 actually wanted to warn us about.
@@ -1868,7 +1868,7 @@ pub fn is_phd2_installed() -> bool {
         }
 
         // PATH-based check for Linux/macOS.
-        // Why: §audit-rust 4.3 — `is_phd2_installed` returns `bool` and is a
+        // Why: `is_phd2_installed` returns `bool` and is a
         // purely best-effort heuristic before the launcher tries fallbacks.
         // If we cannot even spawn `sh` (sandboxed environment, missing
         // /bin/sh on a stripped container, OS errno EPERM), treating that

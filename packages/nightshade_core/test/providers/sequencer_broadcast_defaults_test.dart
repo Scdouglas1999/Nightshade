@@ -1,4 +1,4 @@
-// Wave 7.5 — round-trip the LiveStacking / broadcast defaults through the
+// Round-trip the LiveStacking / broadcast defaults through the
 // SequencerDefaultsNotifier. Each new field exposed in the
 // "Live Stacking & Broadcast" Settings section must:
 //   * default to its initial value,

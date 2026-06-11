@@ -1,14 +1,14 @@
-// Pack H end-to-end trace: typed `FrameRejected` / `FrameAccepted` payloads
+// End-to-end trace: typed `FrameRejected` / `FrameAccepted` payloads
 // flow from the backend event stream into the run-dashboard quality panel's
 // state notifier without any regex / string parsing. The panel surfaces
 // the running counts, HFR, eccentricity, star count, reject reason, and
 // consecutive-reject counter straight off the typed event.
 //
-// Why a Pack H test (and not a Wave 3 test): pre-Pack-H the same data
+// Why a typed-payload test: previously the same data
 // flowed through `InstructionProgress.detail` strings parsed by
 // `FrameGradeEvent.tryParseDetail`. That regex parser silently dropped
 // HFR / ecc / star count fields when the format string didn't match.
-// Pack H deletes the parser; this test pins the typed contract so a
+// The parser is now deleted; this test pins the typed contract so a
 // future refactor that breaks the typed pipeline fails loudly here.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,7 +96,7 @@ NightshadeEvent _typedFrameAccepted({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('runDashboardQualitySummaryProvider (Pack H typed payloads)', () {
+  group('runDashboardQualitySummaryProvider (typed payloads)', () {
     test(
       'typed FrameRejected updates accepted/rejected/recent/HFR fields '
       'without parsing detail strings',
@@ -115,7 +115,7 @@ void main() {
         expect(initial.total, 0,
             reason: 'panel starts empty before any event arrives');
 
-        // Push a typed FrameRejected event. Pack H: the panel must read
+        // Push a typed FrameRejected event. The panel must read
         // HFR / eccentricity / reason DIRECTLY off `data`, not parse a
         // detail string. We omit the legacy `detail` key entirely to
         // prove the typed path is wired.
@@ -208,7 +208,7 @@ void main() {
 
     test(
       "an InstructionProgress legacy event with the old 'frame N/M REJECTED' "
-      'detail string is IGNORED — Pack H deletes the regex pipeline',
+      'detail string is IGNORED — the regex pipeline is deleted',
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
@@ -219,10 +219,10 @@ void main() {
 
         container.read(runDashboardQualitySummaryProvider);
 
-        // Push a legacy-shaped event. Pre-Pack-H, `tryParseDetail` would
-        // have picked this up; Pack H deliberately drops it on the floor
-        // so the panel can NEVER silently fall back to the lossy regex
-        // path (CLAUDE.md "errors are a feature").
+        // Push a legacy-shaped event. Previously, `tryParseDetail` would
+        // have picked this up; the typed pipeline deliberately drops it on
+        // the floor so the panel can NEVER silently fall back to the lossy
+        // regex path (errors are a feature).
         backend.emitEvent(NightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,
           severity: EventSeverity.info,
@@ -292,7 +292,7 @@ void main() {
     );
   });
 
-  group('FrameGradeEvent.fromTypedData (Pack H typed contract)', () {
+  group('FrameGradeEvent.fromTypedData (typed contract)', () {
     test('round-trips an Accepted payload with every field', () {
       final grade = FrameGradeEvent.fromTypedData('FrameAccepted', {
         'frame': 5,

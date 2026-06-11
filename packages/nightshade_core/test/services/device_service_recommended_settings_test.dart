@@ -1,4 +1,4 @@
-// IMG-P3-2: camera gain/offset auto-detect on connect.
+// Camera gain/offset auto-detect on connect.
 //
 // These tests pin the contract for [DeviceService] auto-detect behavior:
 // - Camera reports a recommendation, profile has no defaultGain  → applied.
@@ -90,7 +90,7 @@ void main() {
 
     test('propagates backend errors instead of swallowing them', () async {
       // The public re-entry MUST surface errors so the UI can show them.
-      // Silent fallbacks would hide SDK failures for months (CLAUDE.md).
+      // Silent fallbacks would hide SDK failures for months.
       // Why `async => throw`: mocktail's `.thenThrow` rethrows synchronously
       // when the stubbed method is called, but the real backend signature
       // returns Future. Using `.thenAnswer((_) async => throw ...)` simulates

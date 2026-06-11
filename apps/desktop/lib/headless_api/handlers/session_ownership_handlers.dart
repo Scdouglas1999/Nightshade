@@ -1,4 +1,4 @@
-// P1-5: REST surface for the SessionOwnershipManager.
+// REST surface for the SessionOwnershipManager.
 //
 // Exposes:
 //   POST /api/session/claim       - claim the operator slot when free

@@ -402,7 +402,7 @@ impl DecodedPanel {
         } else if let Some(u) = panel.image.as_u16() {
             u.into_iter().map(|v| v as f64).collect()
         } else {
-            // Unknown layout: refuse rather than guess (CLAUDE.md — no silent
+            // Unknown layout: refuse rather than guess (the CONTRIBUTING.md house rules — no silent
             // gray buffer). Treat as dimensionless-equivalent bad input.
             return Err(MosaicError::Dimensionless);
         };

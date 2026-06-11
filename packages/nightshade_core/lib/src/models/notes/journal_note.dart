@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-/// Wave 6 Agent 5 — single per-target / per-run journal entry.
+/// Single per-target / per-run journal entry.
 ///
 /// Notes are written by the operator after (or during) a session to record
 /// what worked, what didn't, calibration quirks, equipment oddities, and

@@ -1,4 +1,4 @@
-// Wave 6 Pack P — end-to-end test for the plugin-node dispatcher
+// End-to-end test for the plugin-node dispatcher
 // wiring shipped in `nightshade_app/lib/services/plugin_node_dispatcher_wiring.dart`.
 //
 // The wiring layer plugs the Dart-side `PluginNodeExecutor` (defined in
@@ -132,7 +132,7 @@ class _CapturingPlugin extends SequencePlugin {
   @override
   String get description => 'Captures params + execute calls for tests';
   @override
-  String get author => 'Pack P';
+  String get author => 'Test Author';
 
   @override
   Future<void> onLoad(PluginContext context) async {}
@@ -184,7 +184,7 @@ class _AlwaysFailsPlugin extends SequencePlugin {
   @override
   String get description => 'Returns false from execute() every time';
   @override
-  String get author => 'Pack P';
+  String get author => 'Test Author';
 
   @override
   Future<void> onLoad(PluginContext context) async {}

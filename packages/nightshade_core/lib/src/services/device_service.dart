@@ -103,7 +103,7 @@ class DeviceService {
   final NightshadeBackend _backend;
 
   // Per-channel switch refresh + write logic lives on [SwitchChannelService]
-  // (DEV-P2-1 follow-up, A-10 god-class split). The four `switchBridge*`
+  // (god-class split follow-up). The four `switchBridge*`
   // static hooks and the `switchBridgeBypassBackendCheck` flag now live
   // on that class; tests bind directly via
   // `SwitchChannelService.switchBridge* = ...` and reset with
@@ -132,7 +132,7 @@ class DeviceService {
   /// multiple wheels do not clobber each other's delta calculations.
   final Map<String, int> _lastAppliedFilterOffsetByWheel = {};
 
-  /// In-flight guarded operations — backend swap waits for zero (DV-P0-2).
+  /// In-flight guarded operations — backend swap waits for zero.
   int _inFlightOperations = 0;
   final List<Completer<void>> _quiesceWaiters = [];
 
@@ -249,7 +249,7 @@ class DeviceService {
     );
   }
 
-  /// Wait until all guarded in-flight operations complete (DV-P0-2).
+  /// Wait until all guarded in-flight operations complete.
   Future<void> quiesce({Duration? timeout}) async {
     if (_inFlightOperations == 0) {
       return;
@@ -268,7 +268,7 @@ class DeviceService {
   }
 
   /// Cancel reconnect timers, suppress auto-reconnect, and quiesce before a
-  /// backend swap disposes this service instance (DV-P0-2).
+  /// backend swap disposes this service instance.
   Future<void> prepareForBackendSwap() async {
     _reconnectCoordinator.prepareForBackendSwap();
     cancelWarmCamera();
@@ -542,7 +542,7 @@ final availableSafetyMonitorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
       .discoverDevices(DeviceType.safetyMonitor);
 });
 
-/// Provider for available switch devices (DEV-P2-1).
+/// Provider for available switch devices.
 final availableSwitchesProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.switch_);
 });

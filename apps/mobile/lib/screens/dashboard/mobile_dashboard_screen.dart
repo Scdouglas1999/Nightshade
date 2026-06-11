@@ -74,7 +74,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
     // surface as SnackBars on a phone session.
     ref.watch(errorNotificationBridgeProvider);
 
-    // Wave 6D / P2-12 — first-run-setup gate. The async detection
+    // first-run-setup gate. The async detection
     // provider returns `FirstRunSetupNeeds.none` when the wizard has
     // already been completed (or the server is fully configured); we
     // intercept here so the wizard appears AFTER pairing succeeds and
@@ -117,7 +117,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
           ],
         ),
         actions: [
-          // Wave 6D / P2-14 — phone battery + power-saving badge.
+          // phone battery + power-saving badge.
           // Sits left of the network indicator so the operator sees
           // {battery, network} as a single status cluster. Hidden until
           // the OS delivers the first sample so the layout doesn't flash.
@@ -125,7 +125,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
             padding: EdgeInsets.only(right: 4),
             child: PhoneBatteryIndicator(compact: true),
           ),
-          // Persistent connection-state indicator (audit P1-15 bug 5).
+          // Persistent connection-state indicator (audit bug 5).
           // Renders compact in the AppBar action slot so it stays visible
           // across all 7 dashboard tabs without eating title space. Tap
           // opens the details sheet with the "Reconnect now" button.
@@ -133,7 +133,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
             padding: EdgeInsets.only(right: 8),
             child: NetworkStatusIndicator(compact: true),
           ),
-          // Wave 7E — multi-server roaming entry point. Single overflow
+          // multi-server roaming entry point. Single overflow
           // item rather than a bottom-tab slot because the saved-servers
           // screen is a modal task (open it, switch rig, get back to the
           // dashboard) — not a parallel surface like Devices/Mount.
@@ -150,7 +150,7 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
                   );
                   break;
                 case _OverflowAction.sessionHistory:
-                  // Wave 7B — open the replay picker. Lives behind the
+                  // open the replay picker. Lives behind the
                   // overflow menu because replay is an audit / forensic
                   // action operators reach for occasionally, not a hot
                   // path that deserves a dedicated bottom-tab slot.
@@ -224,9 +224,9 @@ class _DashboardTab {
   });
 }
 
-/// Overflow menu actions surfaced from the dashboard AppBar. Wave 7E
+/// Overflow menu actions surfaced from the dashboard AppBar.
 /// added `savedServers` so the operator can roam between paired rigs.
-/// Wave 7B added `sessionHistory` for replay scrubber access.
+/// added `sessionHistory` for replay scrubber access.
 enum _OverflowAction { savedServers, sessionHistory }
 
 /// Bottom navigation bar tuned for the phone HIG: 48 dp minimum tap height

@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder: settings storage.
+// Conversational sequence builder: settings storage.
 //
 // Splits user-supplied LLM provider config into:
 //   * Non-secret bits (provider kind, base URL, model name, max tokens,
@@ -6,7 +6,7 @@
 //   * Secret bits (API keys) stored via [SecretsStore] / flutter_secure_storage.
 //
 // The split mirrors how the notification subsystem stores transport
-// configs (Wave 5.5 Pack M). The non-secret blob survives backups and
+// configs. The non-secret blob survives backups and
 // the user's preferences-export flow; the secret never leaves the OS
 // keyring.
 

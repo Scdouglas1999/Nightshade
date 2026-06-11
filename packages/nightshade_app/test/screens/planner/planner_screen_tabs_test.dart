@@ -1,8 +1,8 @@
-// Tab-wiring tests for the multi-night planner (component C11).
+// Tab-wiring tests for the multi-night planner.
 //
 // These complement `planner_screen_test.dart` (which covers the pre-existing
 // Recommendation / Target Queue / Progress tabs) by asserting the *new* wiring:
-// the Projects (C9) and This Week (C10) tabs, their `?tab=` deep-links, and the
+// the Projects and This Week tabs, their `?tab=` deep-links, and the
 // structural invariant that the rendered tab list and the IndexedStack child
 // list stay in lockstep with the `PlannerTab` enum (the selected index is
 // `PlannerTab.index`, so any drift mis-routes deep-links and taps).
@@ -64,7 +64,7 @@ List<Override> _allTabOverrides() {
         .overrideWith((ref) async => <IntegrationGoal>[]),
     integrationGoalProgressProvider
         .overrideWith((ref, _) async => <IntegrationGoalProgress>[]),
-    // Projects tab (C9).
+    // Projects tab.
     projectListProvider.overrideWith((ref) => Stream.value(const <Project>[])),
     activeProjectProgressProvider.overrideWith((ref) async => null),
     // This Week tab (C10) — fail-closed forecast double, no HTTP.

@@ -131,7 +131,7 @@ pub async fn execute_temperature_compensation(
     }
 
     // Calculate focus position change
-    // Why (audit-rust §1.4): `temp_delta` is single-digit °C in practice
+    // Why: `temp_delta` is single-digit °C in practice
     // (months between sessions would be outliers), `thermal_coefficient` is
     // configured in [-100, 100] steps/°C for any real focuser; the product
     // is well inside i32 range. Rust 1.45+ saturating f64 → i32 catches
@@ -223,7 +223,7 @@ pub async fn execute_temperature_compensation(
 
     // Wait for focuser to reach position
     let move_start = std::time::Instant::now();
-    // Why (audit-rust §1.4): `timeout_secs` is u32 (default 120, capped in
+    // Why: `timeout_secs` is u32 (default 120, capped in
     // UI); u32 → u64 widening, exact.
     let timeout = std::time::Duration::from_secs(u64::from(config.timeout_secs));
     let mut poll_count: u32 = 0;
@@ -260,7 +260,7 @@ pub async fn execute_temperature_compensation(
                 if poll_count.is_multiple_of(5) {
                     let elapsed_secs = move_start.elapsed().as_secs();
                     // Progress from 70-90% during movement based on configured timeout budget.
-                    // Why (audit-rust §1.4): both `elapsed_secs` (u64) and
+                    // Why: both `elapsed_secs` (u64) and
                     // `timeout_secs` (u32) → f64 are precision-loss-
                     // tolerant: this is a UI progress fraction in [0, 1],
                     // and any f64 precision artifact at the millisecond

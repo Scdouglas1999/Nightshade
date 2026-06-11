@@ -3,7 +3,7 @@ part of '../network_backend.dart';
 mixin _NetworkBackendRemoteCalibrationCatalogOperations
     on _NetworkBackendTransport {
   // =========================================================================
-  // P1-10 — Remote calibration library management.
+  // Remote calibration library management.
   // =========================================================================
 
   /// GET /api/calibration/darks — filtered listing.
@@ -123,7 +123,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
         (response['dark'] as Map).cast<String, dynamic>(),
       );
     } on ServerError catch (e) {
-      // [Wave 6D error parsing] — handler returns 404 + the structured
+      // Error parsing: handler returns 404 + the structured
       // envelope {code: 'no_matching_dark'} when no dark satisfies the
       // requested parameters. Treating it as the legitimate "no match"
       // outcome (null) instead of an exception.
@@ -327,7 +327,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   }
 
   // =========================================================================
-  // P1-12 — Remote catalog management.
+  // Remote catalog management.
   // =========================================================================
 
   /// GET /api/catalog/status. Returns the on-disk state of every known
@@ -425,7 +425,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   }
 
   // =========================================================================
-  // P2-8 — read-only DB endpoints. Each returns a paginated `{items, total}`
+  // Read-only DB endpoints. Each returns a paginated `{items, total}`
   // envelope. Methods live on NetworkBackend (not the NightshadeBackend
   // interface) because the local FfiBackend already exposes these via Drift
   // DAOs; the network path is the only one that needs an explicit GET.

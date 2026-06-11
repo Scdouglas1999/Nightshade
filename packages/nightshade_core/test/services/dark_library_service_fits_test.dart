@@ -1,4 +1,4 @@
-// IMG-P2-2: dark library FITS parser must accept float32 and float64 master
+// Dark library FITS parser must accept float32 and float64 master
 // darks (the formats produced by NINA, PixInsight, and SiriL), in addition to
 // the existing 16-bit path.
 //
@@ -19,7 +19,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('DarkLibraryService FITS parser — IMG-P2-2 float32 / float64 support', () {
+  group('DarkLibraryService FITS parser — float32 / float64 support', () {
     late Directory tempDir;
     late DarkLibraryService service;
     late NightshadeDatabase database;

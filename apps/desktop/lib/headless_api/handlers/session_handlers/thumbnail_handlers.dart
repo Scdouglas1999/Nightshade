@@ -155,7 +155,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     return base64Encode(utf8.encode(jsonEncode(meta)));
   }
 
-  /// P1-13: Force regeneration of the sidecar from the current FITS bytes.
+  /// Force regeneration of the sidecar from the current FITS bytes.
   /// Used by operators when an out-of-band FITS replacement has stale-d
   /// the cached sidecar (the only condition under which the otherwise-
   /// immutable cache becomes incorrect).
@@ -211,7 +211,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     }
   }
 
-  /// P1-13: Backfill thumbnail sidecars for legacy images.
+  /// Backfill thumbnail sidecars for legacy images.
   ///
   /// Returns `{jobId}` immediately. The background job walks every row in
   /// `captured_images` and (a) skips rows whose source FITS is missing
@@ -334,7 +334,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     });
   }
 
-  /// P0-5 — FITS download with HTTP Range support (RFC 7233).
+  /// FITS download with HTTP Range support (RFC 7233).
   ///
   /// Mobile clients on flaky cellular need partial-content resumption;
   /// a 30 MB FITS that dropped at byte 27 MB was previously unrecoverable
@@ -347,7 +347,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
   /// An `etag` of `"<imageId>-<mtime-ms>"` lets the client validate the
   /// resource hasn't changed between resume attempts via `If-Range`.
   /// Multi-range (`bytes=0-499,1000-1499`) is explicitly rejected with
-  /// 416 — out of scope per P0-5.
+  /// 416 — out of scope.
   Future<Response> handleDownloadImage(Request request, String imageId) async {
     final iid = _parsePathId(imageId, 'imageId');
     _logInfo('[API] GET /api/images/$iid/download');
@@ -371,7 +371,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
 
     // Stat the file. A permission-denied here is a 403; a generic I/O
     // error is a 500. We deliberately surface these rather than letting
-    // the middleware turn everything into a 500 (CLAUDE.md: "errors are
+    // the middleware turn everything into a 500 ("errors are
     // a feature" — distinguish real failure modes).
     final int fileLength;
     final DateTime mtime;

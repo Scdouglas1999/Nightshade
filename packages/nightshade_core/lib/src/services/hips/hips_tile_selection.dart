@@ -17,7 +17,7 @@
 //      the frame edge are included) to get the candidate set, then — for each
 //      tile — subdivides its curved HEALPix footprint into an N x N mesh of sky
 //      points and forward-projects every mesh vertex to the canvas through the
-//      shared framing projection (C2). The painter turns those screen meshes
+// shared framing projection. The painter turns those screen meshes
 //      into seam-free textured triangles, so tiles register to the survey
 //      background and the FOV/mosaic overlay to the pixel under any
 //      pan/zoom/rotation.

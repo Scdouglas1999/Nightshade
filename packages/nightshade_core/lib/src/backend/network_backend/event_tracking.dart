@@ -14,7 +14,7 @@ extension _NetworkBackendEventTracking on _NetworkBackendTransport {
     }
   }
 
-  /// P1-1: update the cached seq cursor + server instance after parsing an
+  /// Update the cached seq cursor + server instance after parsing an
   /// event. Detects three conditions:
   ///
   /// 1. A gap (received seq > expected seq + 1) — log a warning so the

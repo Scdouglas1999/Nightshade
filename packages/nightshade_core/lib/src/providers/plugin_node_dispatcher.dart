@@ -1,4 +1,4 @@
-// Wave 6 Pack P — plugin sequence-node dispatcher abstraction.
+// Plugin sequence-node dispatcher abstraction.
 //
 // The Rust executor emits `SequencerEvent::PluginNodeRequested` when it
 // reaches a `NodeType::PluginNode`. The Dart `SequenceExecutor`
@@ -21,7 +21,7 @@
 //     core is a fail-loud stub that NACKs every request so a
 //     mis-wired environment surfaces immediately instead of hanging.
 //
-// This mirrors how Wave 5 wired the sky-brightness tracker: the
+// This mirrors how wired the sky-brightness tracker: the
 // tracker provider lives in `nightshade_core`, but the actual data
 // source plugs in from a higher layer.
 
@@ -136,7 +136,7 @@ final pluginNodeDispatchCoordinatorProvider =
 /// Riverpod provider for the plugin-node dispatcher.
 ///
 /// Default (unwired) implementation fails loudly per
-/// CLAUDE.md "errors are a feature": every plugin-node invocation
+/// Errors are a feature here: every plugin-node invocation
 /// returns a structured failure mentioning that the dispatcher has
 /// not been wired by the host layer. The desktop / mobile app entry
 /// points override this with a real dispatcher in their

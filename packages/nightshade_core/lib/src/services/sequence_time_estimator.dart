@@ -455,7 +455,7 @@ class SequenceTimeEstimator {
                     1000)
                 .round(),
       ),
-      // Wave 3 Agent 2: SmartExposure. Sum of (count * duration) across
+      // SmartExposure. Sum of (count * duration) across
       // all plans + per-frame download overhead + one filter-change penalty
       // per plan + dither-cost for each dither point. When an integration
       // budget is set and is lower than the natural duration, we clamp to
@@ -575,15 +575,15 @@ class SequenceTimeEstimator {
       ConditionalNode() ||
       RecoveryNode() ||
       InstructionSetNode() ||
-      // Wave 3 Agent 1: TargetScheduler — duration is the sum of its
+      // TargetScheduler — duration is the sum of its
       // selected child's runtime, accounted for by the recursive walker.
       TargetSchedulerNode() ||
-      // Wave 7 Agent 2: LiveStacking — side-effect node that arms the
+      // LiveStacking — side-effect node that arms the
       // broadcast service and returns immediately. The actual wall-clock
       // cost is paid by sibling exposure nodes, which are accounted for
       // separately. Zero intrinsic duration.
       LiveStackingNode() => Duration.zero,
-      // Wave 7 Science: SciencePhotometry — count * exposure + per-frame
+      // Science: SciencePhotometry — count * exposure + per-frame
       // download overhead, plus one filter change at the start. No
       // dithering during photometry runs.
       SciencePhotometryNode() => Duration(

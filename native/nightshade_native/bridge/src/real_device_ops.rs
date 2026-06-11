@@ -2,7 +2,7 @@
 //!
 //! Connects the sequencer engine to actual ASCOM/Alpaca devices via the DeviceManager.
 //!
-//! # `as`-cast policy (audit-rust §1.4)
+//! # `as`-cast policy
 //!
 //! Numeric casts in this file cluster into:
 //! - **i32 → u32 sensor/array dim** (lines 1095, 1096, 1107, 1108, 1343,
@@ -31,7 +31,7 @@
 //!
 //! Sites with a local `Why:` comment override the module-level reasoning.
 //!
-//! # `unwrap_or` policy (audit-rust §4.3)
+//! # `unwrap_or` policy
 //!
 //! Six site categories, each mapping to a documented optional-property:
 //!
@@ -2698,7 +2698,7 @@ impl DeviceOps for RealDeviceOps {
                 .map_err(|e| format!("Failed to create directory: {}", e))?;
         }
 
-        // Wave 3 Image Grading: route through the rich-header save path
+        // Image Grading: route through the rich-header save path
         // so every FITS keyword (focuser position, rotator angle, guide
         // RMS, plate-solve, mosaic panel, session ID) ends up in the file.
         let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);

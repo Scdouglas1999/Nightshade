@@ -1,6 +1,6 @@
 //! Mid-flight `update_*` configuration mutators on the [`SequenceExecutor`].
 //!
-//! Audit §1.8 axis: every value the bridge / Dart UI can change WHILE A
+//!8 axis: every value the bridge / Dart UI can change WHILE A
 //! SEQUENCE IS RUNNING lives here. Each method follows the same
 //! contract:
 //!
@@ -48,7 +48,7 @@ use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 impl SequenceExecutor {
-    /// Wave 5 Agent 4 — JSON-serialised snapshot of the current cloud-motion
+    /// JSON-serialised snapshot of the current cloud-motion
     /// reading for the run dashboard.
     ///
     /// Reads from the trigger manager state (the canonical home of
@@ -89,7 +89,7 @@ impl SequenceExecutor {
         Some(snapshot.to_string())
     }
 
-    /// Wave 5 Agent 4 — push the latest cloud-motion analyzer reading.
+    /// push the latest cloud-motion analyzer reading.
     ///
     /// The cloud-aware triggers (`CloudArrivingIn`, `CloudOpeningIn`,
     /// `CloudCoverThreshold`) read these values on their next
@@ -102,7 +102,7 @@ impl SequenceExecutor {
     /// Invariant: `predicted_clear_sky_alt` and `predicted_clear_sky_az`
     /// must be both `Some` or both `None`; a half-specified direction
     /// is silently dropped (the executor refuses to invent a missing
-    /// coordinate — CLAUDE.md "no silent fallbacks", and this one is
+    /// coordinate — "no silent fallbacks", and this one is
     /// explicit-drop with a None mirror, not a fabricated value).
     pub async fn update_cloud_motion(
         &self,
@@ -188,7 +188,7 @@ impl SequenceExecutor {
 
     /// Update dither configuration at runtime.
     ///
-    /// Audit §1.8: writes through `runtime_config` so a running sequence
+    /// writes through `runtime_config` so a running sequence
     /// picks up the new values on its next dither (no sequence reload
     /// required). The trigger-action context reads these on every
     /// dither so a mid-burst change takes effect at the next gap.
@@ -219,7 +219,7 @@ impl SequenceExecutor {
 
     /// Update observer location at runtime.
     ///
-    /// Audit §1.8: writes through `runtime_config` AND updates the
+    /// writes through `runtime_config` AND updates the
     /// executor's own fields so a fresh `start()` and an in-flight
     /// sequence both see the new values. The trigger-monitor task
     /// reads location from the trigger state, which is populated from
@@ -295,7 +295,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 7.5 — stage per-target carry-over integration seconds so the
+    /// stage per-target carry-over integration seconds so the
     /// next `start()` seeds the `BudgetRegistry` with the operator's
     /// "Resume" / "Restart" decision from the session-handoff dialog.
     ///
@@ -329,7 +329,7 @@ impl SequenceExecutor {
 
     /// Update filter focus offsets at runtime.
     ///
-    /// Audit §1.8: writes through `runtime_config` so the next filter
+    /// writes through `runtime_config` so the next filter
     /// change reads the updated offsets. Also updates the executor's
     /// own `filter_focus_offsets` field so a fresh start sees the new
     /// values too.
@@ -345,7 +345,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 1.5 Pack A: update the autofocus-interval cadence at runtime.
+    /// update the autofocus-interval cadence at runtime.
     ///
     /// When a sequence is running the change is forwarded as an
     /// `ExecutorCommand::UpdateAutofocusInterval` so the live trigger
@@ -389,7 +389,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Audit §1.8: read-only handle for the runtime config so callers
+    /// read-only handle for the runtime config so callers
     /// (the bridge layer, tests) can verify the latest values without
     /// constructing their own state. The returned `Arc` shares
     /// storage with the executor; callers see live writes.
@@ -397,7 +397,7 @@ impl SequenceExecutor {
         self.runtime_config.clone()
     }
 
-    /// Pack G — update the global default image-grading thresholds.
+    /// update the global default image-grading thresholds.
     ///
     /// `None` disables grading globally (per-node `quality_check` on
     /// TakeExposure still wins). When a sequence is running the
@@ -427,7 +427,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 7 Agent 3 — update the per-frame defect map applied to
+    /// update the per-frame defect map applied to
     /// lights during capture.
     ///
     /// `None` disables defect correction (the user toggled the apply
@@ -466,7 +466,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Pack G — update the reject-folder override.
+    /// update the reject-folder override.
     ///
     /// `None` => default `<save_path>/Reject/`. The image-grading code
     /// path consults this on each reject; mid-flight changes take
@@ -487,7 +487,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Pack G — push observer / equipment identification so the next
+    /// push observer / equipment identification so the next
     /// FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
     /// APTDIA, INSTRUME, SITEELEV).
     ///
@@ -515,7 +515,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 5 Agent 2 — push the latest sky-brightness reading.
+    /// push the latest sky-brightness reading.
     ///
     /// The next exposure-burst's adaptive-exposure decision reads this
     /// value from the shared `ExecutionContext` field. Idle executors
@@ -533,7 +533,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 8 — push the composite sky-conditions score that the
+    /// push the composite sky-conditions score that the
     /// `TargetScheduler`'s adaptive-swap logic consults.
     ///
     /// The Dart side (`AdaptiveSwapService`) composes the score from
@@ -566,7 +566,7 @@ impl SequenceExecutor {
         });
     }
 
-    /// Wave 8 — JSON-serialised snapshot of the live conditions score
+    /// JSON-serialised snapshot of the live conditions score
     /// plus adaptive-swap accounting (last swap, current tier,
     /// hysteresis countdown) for the Run Dashboard "Adaptive
     /// Conditions" panel.
@@ -590,7 +590,7 @@ impl SequenceExecutor {
         Some(payload.to_string())
     }
 
-    /// Wave 5 Agent 2 — update the global default sky-brightness
+    /// update the global default sky-brightness
     /// adaptive-exposure config.
     ///
     /// Per-node `ExposureConfig.adaptive_exposure` still wins; this is

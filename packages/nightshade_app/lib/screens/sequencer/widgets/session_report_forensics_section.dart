@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: post-session report section.
+/// Frame-Failure Forensics: post-session report section.
 ///
 /// Renders the "Frame Forensics" block inside the post-session report
 /// (and the History tab's per-run drill-down). Aggregates every

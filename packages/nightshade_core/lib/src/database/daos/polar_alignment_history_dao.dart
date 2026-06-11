@@ -175,7 +175,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return (delete(polarAlignmentHistory)..where((t) => t.id.equals(id))).go();
   }
 
-  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// Paginated listing for the remote read API. Newest-first by
   /// `completedAt` to match the other history-style endpoints. Callers
   /// MUST validate / clamp [limit] and [offset].
   Future<List<PolarAlignmentHistoryEntry>> listPaginated({
@@ -192,7 +192,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count matching [listPaginated]'s filters.
+  /// Row count matching [listPaginated]'s filters.
   Future<int> countFiltered({int? equipmentProfileId}) async {
     final countExpr = polarAlignmentHistory.id.count();
     final query = selectOnly(polarAlignmentHistory)..addColumns([countExpr]);

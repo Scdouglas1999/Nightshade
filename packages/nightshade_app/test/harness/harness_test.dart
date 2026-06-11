@@ -3,8 +3,6 @@
 // These verify the harness wires its three providers correctly and that
 // extra overrides propagate. Higher-level screen tests will exercise the
 // harness in anger; here we just guarantee the contract.
-//
-// See: docs/code-quality/audit-tests.md §6 (CQ-W5-WIDGET-HARNESS).
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';

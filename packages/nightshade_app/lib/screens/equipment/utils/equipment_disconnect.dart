@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// UI-P0-3: one row in a bulk-disconnect sweep.
+/// One row in a bulk-disconnect sweep.
 typedef EquipmentDisconnectTarget = ({
   Future<void> Function() disconnect,
   String label,

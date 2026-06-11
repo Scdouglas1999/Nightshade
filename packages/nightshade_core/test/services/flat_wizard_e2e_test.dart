@@ -1,4 +1,4 @@
-// E2E test for the FlatWizardService (AUDIT-FIX-6-E2E §4.4 + §1.1).
+// E2E test for the FlatWizardService.
 //
 // What this exercises end-to-end through the real `FlatWizardService`:
 //   1. Multi-filter calibration via `calibrateMultipleFilters` for L, R, G.

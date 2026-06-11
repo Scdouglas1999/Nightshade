@@ -1146,7 +1146,7 @@ impl NativeCamera for SvbonyCamera {
         let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
 
         // Convert to u16 data.
-        // Why (audit-rust §4.3): odd-byte tail (`chunk.len() == 1`) pads
+        // Why: odd-byte tail (`chunk.len() == 1`) pads
         // the trailing byte with 0 to form a complete u16. SVBony cameras
         // always produce even-length buffers at 16bpp; this `0` pad is
         // unreachable in practice but cheaper than panicking on a

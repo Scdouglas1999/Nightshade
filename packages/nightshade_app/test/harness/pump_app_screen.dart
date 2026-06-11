@@ -19,8 +19,6 @@
 // is no "shared state" between calls — each test builds its own database
 // and mock backend. That's intentional: shared state across pumps is the
 // #1 source of flaky widget tests.
-//
-// See: docs/code-quality/audit-tests.md §6.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -1,10 +1,10 @@
-// P2-8 — read-only API surface for DB tables the phone could not see
+// read-only API surface for DB tables the phone could not see
 // before this wave (sequence_runs, observation_logs (notes journal),
 // guide_rms_history, polar_alignment_history) plus paginated reads on
 // the calibration tables (dark_library, flat_history) that bypass the
-// existing P1-10 "best match" semantics.
+// existing "best match" semantics.
 //
-// Wave 7B — Replay scrubber extensions. Three additional endpoints
+// Replay scrubber extensions. Three additional endpoints
 // support the mobile session-replay surface:
 //
 //   GET /api/sequence-runs/<runId>
@@ -41,7 +41,7 @@
 //         ?filterName=&panelKey=&limit=&offset=
 //
 // The dark/flat reads live under /api/db/ rather than /api/calibration/
-// so we do NOT clash with the existing P1-10 calibration endpoints
+// so we do NOT clash with the existing calibration endpoints
 // (which use different filter shapes — exposure tolerance ratios etc.).
 //
 // All endpoints return a JSON envelope: `{ "items": [...], "total": N }`.
@@ -53,7 +53,7 @@ import 'package:shelf/shelf.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
 
-/// P2-8 — read handlers for tables previously invisible to the phone.
+/// read handlers for tables previously invisible to the phone.
 class DbReadHandlers {
   /// Default page size. Same value as the science / calibration read
   /// surfaces use, so phone callers can apply one batching policy.
@@ -385,7 +385,7 @@ class DbReadHandlers {
   }
 
   // =========================================================================
-  // Wave 7B — Replay scrubber endpoints (single run + per-run events/frames).
+  // Replay scrubber endpoints (single run + per-run events/frames).
   // =========================================================================
 
   /// Parse a path-segment integer with translation to a structured 400.
@@ -674,7 +674,7 @@ class DbReadHandlers {
   ///
   /// Uses [DbCapturedImage] because the nightshade_core barrel hides
   /// the raw drift `CapturedImage` entity to avoid colliding with the
-  /// imaging-domain class of the same name (see CQ-W4-BARREL-EXPOSE).
+  /// imaging-domain class of the same name.
   Map<String, Object?> _capturedImageToJson(DbCapturedImage row) {
     return {
       'id': row.id,

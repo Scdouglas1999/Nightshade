@@ -2,8 +2,8 @@
 ///
 /// Counterpart to `handlers/sequencer_handlers.dart`. Includes the
 /// legacy `/api/sequences/*` aliases (kept for pinned mobile builds),
-/// the canonical `/api/sequencer/*` action surface, the Wave 4 recovery
-/// remote-control endpoints, and the Wave 5 cloud-motion / adaptive-
+/// the canonical `/api/sequencer/*` action surface, the recovery
+/// remote-control endpoints, and the cloud-motion / adaptive-
 /// swap endpoints. CRUD on stored sequence definitions lives in
 /// `sequence_management_routes.dart`.
 library;
@@ -196,7 +196,7 @@ List<HeadlessRoute> buildSequencerRoutes(
     h.handlePerformMeridianFlip,
   ),
 
-  // Wave 4 Recovery Mode — remote-control endpoints used by the
+  // Recovery Mode — remote-control endpoints used by the
   // mobile companion / web dashboard. Wire shape matches
   // NetworkBackend's recovery POSTs/GETs (see
   // packages/nightshade_core/.../network_backend.dart).
@@ -226,7 +226,7 @@ List<HeadlessRoute> buildSequencerRoutes(
     h.handleSequencerGetRecoveryHistory,
   ),
 
-  // Wave 5 Agent 4 — cloud-motion forwarding from a remote controller.
+  // cloud-motion forwarding from a remote controller.
   HeadlessRoute(
     HttpMethod.post,
     '/api/sequencer/update-cloud-motion',

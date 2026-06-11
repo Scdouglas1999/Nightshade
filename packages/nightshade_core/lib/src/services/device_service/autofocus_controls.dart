@@ -114,7 +114,7 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       canCancel: true,
     );
 
-    // Predictive-AF consultation (Wave 8 wire-up). Before running the real
+    // Predictive-AF consultation (wire-up). Before running the real
     // sweep, ask the persisted per-filter model what it would predict for the
     // current temperature/filter. We log the decision and capture the
     // predicted position so that — once the sweep converges — we can feed the
@@ -183,7 +183,7 @@ extension _DeviceServiceAutofocusControls on DeviceService {
             title: 'Autofocus',
           );
 
-      // Feed the persisted predictive-AF model (Wave 8 wire-up): record this
+      // Feed the persisted predictive-AF model (wire-up): record this
       // converged outcome as a training sample and, if we made a prediction
       // before the sweep, record the prediction-vs-actual error for drift
       // tracking. Failures here are logged but never abort the AF run — the

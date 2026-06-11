@@ -1,4 +1,4 @@
-// Wave 8 — Conversational sequence builder: system-prompt composer.
+// Conversational sequence builder: system-prompt composer.
 //
 // Owns the (long, opinionated) system prompt that turns a free-text
 // user request into a JSON Sequence object compatible with

@@ -11,7 +11,7 @@ import '../tables/targets.dart';
 
 part 'images_dao.g.dart';
 
-/// Wave 6 Thumbnails — slim image record returned by
+/// Thumbnail — slim image record returned by
 /// [ImagesDao.watchImagesByProducingNode] and friends. Carries only the
 /// columns the sequence-tree thumbnail strip needs so the watch query
 /// stays narrow and so consumers don't have to depend on the full
@@ -241,7 +241,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   // ============================================================================
-  // P1-13: Thumbnail sidecar bookkeeping.
+  // Thumbnail sidecar bookkeeping.
   //
   // The `thumbnail_path` column lives off-table (raw DDL, see
   // `database.dart::_ensureCapturedImagesThumbnailPathColumn`) so we go
@@ -402,7 +402,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   // ============================================================================
-  // Wave 6 Thumbnails — producing-node provenance
+  // Thumbnail — producing-node provenance
   //
   // The columns producing_node_id / producing_run_id / runtime_grade /
   // eccentricity are stored on captured_images via the v30 raw-DDL migration
@@ -594,7 +594,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     Variable<double> realOrNull(double? v) =>
         v == null ? const Variable<double>(null) : Variable<double>(v);
 
-    // P0-5 #2 — populate file_size so REST clients can pre-size a
+    // Populate file_size so REST clients can pre-size a
     // download. We use the synchronous length() here (the file was just
     // written by Rust and is guaranteed on disk for the
     // FrameAccepted/FrameRejected event path). On a rejected frame that
@@ -614,7 +614,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       }
     }
 
-    // P1-13: pre-populate `thumbnail_path` with the predicted sidecar
+    // Pre-populate `thumbnail_path` with the predicted sidecar
     // location so the GET handler doesn't need to test for the file's
     // existence on every call. The actual JPEG bytes are written
     // asynchronously by `ThumbnailSidecarService` (best-effort,
@@ -664,7 +664,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       updates: {capturedImages},
     );
 
-    // P1-13: schedule fire-and-forget sidecar generation. The row is
+    // Schedule fire-and-forget sidecar generation. The row is
     // persisted regardless of sidecar outcome — a missing sidecar self-
     // heals on the next GET. Errors land in the structured logger via
     // the service (see ThumbnailSidecarService.writeSidecarForRow).
@@ -679,13 +679,13 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     return result;
   }
 
-  /// P0-5 #2 — backfill helper for `file_size IS NULL` rows. Returns a
+  /// Backfill helper for `file_size IS NULL` rows. Returns a
   /// summary `{updated, skipped, errors}` map. `skipped` covers rows whose
   /// on-disk file no longer exists (e.g. the operator deleted it); each
   /// such row is logged at warning severity via [logger] if provided.
   /// `errors` covers permission denied / I/O errors on `File.length()`.
   ///
-  /// Existing databases predating P0-5 will have hundreds or thousands
+  /// Existing databases predating this change will have hundreds or thousands
   /// of rows with NULL file_size; running this once after upgrade brings
   /// them up to par with newly-inserted rows. We deliberately don't
   /// auto-run on schema upgrade — the I/O could be large on a Pi with
@@ -786,7 +786,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     });
   }
 
-  // Wave 7B replay support — Return all captured-image rows produced
+  // Replay support — Return all captured-image rows produced
   // by a given sequence run, ordered by capture time ascending. The
   // session-replay scrubber uses this to enumerate every frame on the
   // run's timeline.

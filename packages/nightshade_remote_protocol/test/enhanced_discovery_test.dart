@@ -44,7 +44,7 @@ void main() {
     });
   });
 
-  group('isLocalNetworkHost — P1-7 Tailscale CGNAT (100.64.0.0/10)', () {
+  group('isLocalNetworkHost — Tailscale CGNAT (100.64.0.0/10)', () {
     // Why these specific bounds: the /10 boundary is precisely 100.64.0.0
     // through 100.127.255.255. The previous implementation accepted neither
     // and made QR pairing unusable on Tailscale tailnets where every node
@@ -105,7 +105,7 @@ void main() {
       expect(isLocalNetworkHost('fe80::1%eth0'), isTrue);
     });
 
-    test('accepts fc00::/7 unique-local (P1-7 Tailscale ULA)', () {
+    test('accepts fc00::/7 unique-local (Tailscale ULA)', () {
       // Tailscale tailnets get a /48 inside fd7a:115c::/32, which lives in
       // the fc00::/7 ULA range. The previous implementation did not accept
       // these and silently rejected Tailscale-over-IPv6 QR payloads.

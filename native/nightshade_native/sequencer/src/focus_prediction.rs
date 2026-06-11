@@ -2,7 +2,7 @@
 //!
 //! Provides temperature-based focus position prediction and filter offset management.
 //!
-//! # Predictive autofocus (Wave 8)
+//! # Predictive autofocus
 //!
 //! In addition to the in-session [`FocusPredictionEngine`] used by the
 //! sequencer, this module exposes a *persistence-oriented* layer
@@ -145,7 +145,7 @@ impl FocusPredictionEngine {
                 .map(|point: &FocusDataPoint| {
                     point.timestamp_secs == self.data_points[idx].timestamp_secs
                 })
-                // Why (audit-rust §4.3): `retained.last()` is None on the first iteration
+                // Why: `retained.last()` is None on the first iteration
                 // (empty Vec). "No prior point" → not a duplicate → `false` is the correct
                 // dedup-test answer.
                 .unwrap_or(false)
@@ -184,7 +184,7 @@ impl FocusPredictionEngine {
             if let Some(best) = points.iter().min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    // Why (audit-rust §4.3): f64 PartialOrd — NaN HFR samples cluster as
+                    // Why: f64 PartialOrd — NaN HFR samples cluster as
                     // Equal; outlier-rejection at the linear-regression layer drops them.
                     .unwrap_or(std::cmp::Ordering::Equal)
             }) {
@@ -410,7 +410,7 @@ pub struct PredictionResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-//  Wave 8 — Predictive AF persistence layer
+//  Predictive AF persistence layer
 // ─────────────────────────────────────────────────────────────────────────
 
 /// A single (temperature, focus position) training sample accumulated across

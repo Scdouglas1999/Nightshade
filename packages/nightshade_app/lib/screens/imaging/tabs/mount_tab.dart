@@ -92,7 +92,7 @@ class _MountTabState extends ConsumerState<MountTab> {
 
     // Watch mount capabilities to gate UI features.
     //
-    // DEV-P3-1: gated through the equipment capability provider which
+    // Gated through the equipment capability provider which
     // returns a fail-closed boolean — a driver that refuses to report
     // `canPark` no longer ships a button that hits a "Not implemented"
     // path. While loading we keep buttons visible (`loadingDefault: true`)
@@ -223,7 +223,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                           label: mountState.isParked ? 'Unpark' : 'Park',
                           icon: LucideIcons.parkingSquare,
                           variant: ButtonVariant.outline,
-                          // DEV-P3-1: gate on canPark/canUnpark with
+                          // Gate on canPark/canUnpark with
                           // fail-closed capability lookup — see
                           // gateCapability above.
                           onPressed: isConnected &&
@@ -249,7 +249,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                           variant: mountState.isTracking
                               ? ButtonVariant.outline
                               : ButtonVariant.primary,
-                          // DEV-P3-1: gate on canSetTracking capability.
+                          // Gate on canSetTracking capability.
                           onPressed: isConnected && canSetTracking
                               ? () => ref
                                       .read(mountCommandServiceProvider)
@@ -271,7 +271,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       label: 'ABORT SLEW',
                       icon: LucideIcons.octagon,
                       variant: ButtonVariant.primary,
-                      // DEV-P3-1: gate on canAbortSlew. Drivers without
+                      // Gate on canAbortSlew. Drivers without
                       // abort support would otherwise stall the user when
                       // a runaway slew demands the panic button.
                       onPressed: isConnected && canAbortSlew

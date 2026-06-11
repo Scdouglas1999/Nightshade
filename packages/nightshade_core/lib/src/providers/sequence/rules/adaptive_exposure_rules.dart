@@ -1,7 +1,7 @@
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-/// Wave 5 Agent 2 — sky-brightness adaptive exposure validation rules.
+/// Sky-brightness adaptive exposure validation rules.
 ///
 /// All three rules below operate on the per-node
 /// [ExposureNode.adaptiveExposure] override. The global default from

@@ -1,4 +1,4 @@
-// Wave 3 Agent 1: Dart side of the Rust↔Dart scoring parity contract.
+// Dart side of the Rust↔Dart scoring parity contract.
 //
 // The Rust port lives at `native/nightshade_native/sequencer/src/scheduling/`.
 // `target_scheduler.rs::tests::rust_dart_scoring_parity_fixture` pins the

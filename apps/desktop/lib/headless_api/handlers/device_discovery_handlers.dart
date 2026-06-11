@@ -3,7 +3,7 @@
 /// Owns the read-only catalog endpoints under `/api/devices/*`:
 ///   * `GET /api/devices` — enumerate every discoverable device, optionally
 ///     filtered by `?deviceType=`. Per-driver discovery errors are surfaced
-///     in the response body (audit §2.26) instead of being silently
+///     in the response body instead of being silently
 ///     swallowed.
 ///   * `GET /api/devices/discover-indi` — point-source discovery against a
 ///     specific INDI server (`?host=...&port=...`).

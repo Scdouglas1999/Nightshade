@@ -76,14 +76,14 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  /// P1-10: remote calibration API — fetch by id.
+  /// Remote calibration API — fetch by id.
   Future<FlatHistoryEntry?> getById(int id) {
     return (select(
       flatHistory,
     )..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  /// P1-10: remote calibration API — filtered listing.
+  /// Remote calibration API — filtered listing.
   ///
   /// Arguments are independent filters; null/missing means "no constraint".
   /// Returns newest-first up to [limit] rows. Callers MUST validate and
@@ -115,13 +115,13 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P1-10: insert a flat-history row from API input. Companion-based so
+  /// Insert a flat-history row from API input. Companion-based so
   /// optional fields preserve their nullability.
   Future<int> insertEntry(FlatHistoryCompanion entry) {
     return into(flatHistory).insert(entry);
   }
 
-  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// Paginated listing for the remote read API. Newest-first by
   /// `timestamp`. The `?panelKey=` query parameter falls onto
   /// `panelBrightness` (no separate panel-id column in this table —
   /// callers can stringify their panel-brightness mapping). Callers MUST
@@ -144,7 +144,7 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
-  /// P2-8: row count matching [listPaginated]'s filters.
+  /// Row count matching [listPaginated]'s filters.
   Future<int> countFiltered({String? filterName, int? panelBrightness}) async {
     final countExpr = flatHistory.id.count();
     final query = selectOnly(flatHistory)..addColumns([countExpr]);
@@ -158,13 +158,13 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return row.read(countExpr) ?? 0;
   }
 
-  /// P1-10: delete a single flat-history row by id. Returns number of
+  /// Delete a single flat-history row by id. Returns number of
   /// rows affected (0 or 1) so the handler can map 0 to 404.
   Future<int> deleteById(int id) {
     return (delete(flatHistory)..where((t) => t.id.equals(id))).go();
   }
 
-  /// P1-10: recommendation source for the headless calibration API.
+  /// Recommendation source for the headless calibration API.
   ///
   /// Searches the most recent matching [FlatHistoryEntry] for the given
   /// filter/profile/gain combination. Returns null when no row matches.

@@ -16,7 +16,7 @@
 //   5. inverted_caps_range_falls_back — degenerate driver data (min >= max)
 //      is treated as missing and falls back to the full-turn window.
 //
-// Note: the Go-To section is itself gated on canMoveAbsolute (DEV-P3-1), so
+// Note: the Go-To section is itself gated on canMoveAbsolute, so
 // every fixture sets canMoveAbsolute=true; the "no bounds" case is modeled by
 // null min/maxAngleDeg, not by fully-absent capabilities.
 //

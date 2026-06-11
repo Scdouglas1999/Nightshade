@@ -12,5 +12,5 @@ pub mod parallel;
 pub mod recovery;
 pub mod sequential;
 pub mod target_header;
-// Wave 3 Agent 1: TargetScheduler — dynamic target picker.
+// TargetScheduler — dynamic target picker.
 pub mod target_scheduler;

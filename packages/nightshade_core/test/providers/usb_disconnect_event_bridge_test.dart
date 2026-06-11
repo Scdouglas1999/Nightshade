@@ -1,4 +1,4 @@
-// Wave 5.5 — integration test for the USB disconnect event bridge.
+// Integration test for the USB disconnect event bridge.
 //
 // Verifies that the `usbDisconnectEventBridgeProvider` correctly
 // subscribes to the backend's event stream and forwards equipment

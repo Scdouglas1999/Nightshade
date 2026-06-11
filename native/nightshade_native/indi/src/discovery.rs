@@ -301,7 +301,7 @@ async fn check_port_open(addr: &str, timeout: Duration) -> bool {
     tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr))
         .await
         .map(|result| result.is_ok())
-        // Why (audit-rust §4.3): timeout-elapsed is the dominant "not open" signal during
+        // Why: timeout-elapsed is the dominant "not open" signal during
         // LAN broadcast scans. The whole point of this probe is "did we get a response
         // before the deadline" — Err(_) (timeout) and Ok(Err(_)) (refused/unreachable)
         // are both legitimate "not open" outcomes; treating them as `false` is the

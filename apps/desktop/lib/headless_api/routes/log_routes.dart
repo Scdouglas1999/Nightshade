@@ -1,4 +1,4 @@
-/// Declarative route table for the P1-14 remote log surface.
+/// Declarative route table for the remote log surface.
 ///
 /// Counterpart to `handlers/log_handlers.dart`. Mobile operators on
 /// headless deployments (Pi / embedded) use these to diagnose without

@@ -13,7 +13,7 @@
 //! All SDK operations that can potentially hang (exposure polling, image download)
 //! have configurable timeouts via `NativeTimeoutConfig`.
 //!
-//! ## `unwrap_or` policy (audit-rust §4.3)
+//! ## `unwrap_or` policy
 //!
 //! POA SDK property reads (`get_control_int`, `get_control_bool`, etc.)
 //! return `Result<T, NativeError>` and may fail with `POA_ERROR_OPERATION_FAILED`

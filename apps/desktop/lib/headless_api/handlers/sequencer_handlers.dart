@@ -13,7 +13,7 @@ import '../validation.dart';
 class SequencerHandlers {
   final ProviderContainer container;
 
-  /// P1-4: optional command correlator. When set, every action POST
+  /// optional command correlator. When set, every action POST
   /// generates a UUID v4 commandId and includes it in the response.
   final CommandCorrelator? commandCorrelator;
 
@@ -182,7 +182,7 @@ class SequencerHandlers {
 
   /// Jump the executor forward to a specific node by id.
   ///
-  /// Why: Pack A's UI lets the operator right-click a node in the tree and say
+  /// Why: 's UI lets the operator right-click a node in the tree and say
   /// "skip directly to this". The Dart NetworkBackend POSTs here; the FRB
   /// binding marks every preceding sibling Skipped so the executor's next
   /// tree-walk lands on `nodeId`. Empty/missing `nodeId` is a structured 400.
@@ -567,7 +567,7 @@ class SequencerHandlers {
   }
 
   // ==========================================================================
-  // Wave 4 Recovery Mode — HTTP handlers
+  // Recovery Mode — HTTP handlers
   // ==========================================================================
   //
   // These mirror the NetworkBackend client calls in
@@ -645,7 +645,7 @@ class SequencerHandlers {
     return jsonOk({'history': history});
   }
 
-  /// Wave 5 Agent 4 — POST /api/sequencer/update-cloud-motion.
+  /// POST /api/sequencer/update-cloud-motion.
   ///
   /// Mirrors `NetworkBackend.sequencerUpdateCloudMotion`. Forwards the
   /// payload into the local executor; remote controllers running the
@@ -695,7 +695,7 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 5 Agent 4 — GET /api/sequencer/cloud-motion.
+  /// GET /api/sequencer/cloud-motion.
   ///
   /// Returns `{"cloud_motion": "<json>"}` (or `null`) so the remote run
   /// dashboard can render the same panel as the local one.
@@ -705,7 +705,7 @@ class SequencerHandlers {
     return jsonOk({'cloud_motion': json});
   }
 
-  /// Wave 8 — POST /api/sequencer/update-conditions-score.
+  /// POST /api/sequencer/update-conditions-score.
   ///
   /// Remote controllers push the same composite sky-conditions score the
   /// local adaptive-swap driver would send through FFI. `score: null`
@@ -730,7 +730,7 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 8 — GET /api/sequencer/adaptive-swap.
+  /// GET /api/sequencer/adaptive-swap.
   ///
   /// Returns a structured snapshot so remote dashboards do not have to parse
   /// the native JSON string format.
@@ -838,7 +838,7 @@ class SequencerHandlers {
     });
   }
 
-  /// Wave 5 Agent 4 — narrow helper: pull an optional double out of the
+  /// narrow helper: pull an optional double out of the
   /// JSON payload, accepting either `num` or `null`. Lives next to the
   /// handler that needs it instead of in the shared helpers because no
   /// other endpoint currently surfaces optional doubles.

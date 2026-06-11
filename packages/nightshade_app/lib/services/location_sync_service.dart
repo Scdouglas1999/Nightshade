@@ -50,7 +50,7 @@ final locationSyncProvider = Provider<void>((ref) {
               elevation: settings.elevation,
             );
 
-        // Wave 1.5 Pack D: bridge effectiveHorizonDeg into the planetarium
+        // Bridge effectiveHorizonDeg into the planetarium
         // package. We can't make planetarium depend on nightshade_core
         // (core already depends on planetarium for catalog access), so the
         // app layer pumps the value across via this sync provider. The

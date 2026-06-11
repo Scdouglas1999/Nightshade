@@ -73,7 +73,7 @@ class ShareExportBufferException implements Exception {
 /// **Why no OS-share call here:** `share_plus` lives in the UI packages'
 /// pubspecs, not `nightshade_core`. To respect the package boundary, this
 /// service only *generates* the file and returns its path; the actual
-/// `Share.shareXFiles(...)` invocation is performed by the screen layer (C9).
+/// `Share.shareXFiles(...)` invocation is performed by the screen layer.
 /// This keeps `nightshade_core` free of a Flutter-plugin dependency it would
 /// otherwise have to take on solely for one call site.
 ///

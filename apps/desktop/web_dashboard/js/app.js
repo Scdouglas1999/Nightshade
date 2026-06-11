@@ -395,7 +395,7 @@
     // devices (§2.12).
     refreshPanelEnablement();
 
-    // §W7E — Wave 7E SPA additions: hash routing + gallery + logs +
+    // §W7E — SPA additions: hash routing + gallery + logs +
     // login overlay. setupHashRouting() is idempotent and survives a
     // reload because the URL is the source of truth; the gallery and
     // logs surfaces are set up unconditionally because they react to
@@ -535,7 +535,7 @@
           } catch (e) {
             // Surface the failure: silent fallback to the bearer path
             // would let the user think they were "remembered" when they
-            // weren't — and CLAUDE.md prohibits silent fallbacks.
+            // weren't — and the house rules prohibit silent fallbacks.
             addLogEntry('error', 'Cookie upgrade failed: ' + (e && e.message ? e.message : String(e)));
             showToast('Remember-me upgrade failed: ' + (e && e.message ? e.message : 'unknown'), 'error');
           }
@@ -2361,7 +2361,7 @@
         'Rotator synced to image PA ' + state.lastImagePositionAngle.toFixed(2) + '°');
       showToast('Rotator synced');
     } catch (e) {
-      // Surface the failure honestly per CLAUDE.md "errors are a feature".
+      // Surface the failure honestly per "errors are a feature".
       showToast('Rotator sync failed: ' + e.message, 'error');
     }
   }

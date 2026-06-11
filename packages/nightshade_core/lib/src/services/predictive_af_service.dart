@@ -1,4 +1,4 @@
-// Wave 8 — Predictive autofocus that learns per-filter slope across sessions.
+// Predictive autofocus that learns per-filter slope across sessions.
 //
 // This service is the Dart side of the persisted predictive-AF subsystem.
 // It mirrors the Rust [`PersistedFocusModel`] schema/math (in

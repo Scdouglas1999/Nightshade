@@ -289,7 +289,7 @@ class SequenceProgressCard extends ConsumerWidget {
       case SequenceExecutionState.failed:
         return colors?.error ?? primaryColor;
       case SequenceExecutionState.recovering:
-        // Wave 4 — recovery shares the error palette so the progress
+        // Recovery shares the error palette so the progress
         // card and the recovery banner agree visually.
         return colors?.error ?? primaryColor;
     }

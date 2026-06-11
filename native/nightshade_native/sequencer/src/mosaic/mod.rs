@@ -4,7 +4,7 @@
 //! the per-panel iteration through the shared [`crate::wizard::Wizard`]
 //! infrastructure.
 //!
-//! ## Architectural decision (Wave 4 Mosaic-Resume)
+//! ## Architectural decision (Mosaic-Resume)
 //!
 //! Today's canonical path for mosaic execution is **Dart-side static
 //! expansion**, not the Rust `Mosaic` instruction node:
@@ -16,7 +16,7 @@
 //! 2. The executor walks those headers like any other targets —
 //!    slewing, centering, exposing — and the `MosaicPanelInfo` flows
 //!    into `ExecutionContext` at target-header entry (see
-//!    `node/logic/target_header.rs` Pack G work).
+//!    `node/logic/target_header.rs` work).
 //! 3. Per-frame FITS save paths read `ExecutionContext.mosaic_panel`
 //!    and stamp `MOSAIC=1`, `PANELIDX`, `PANELROW`, `PANELCOL` plus the
 //!    `NS-MOSNM` / `NS-PIDX` / `NS-PROW` / `NS-PCOL` / `NS-NPAN`
@@ -345,7 +345,7 @@ mod resume_tests {
             default_quality_check: None,
             reject_folder_path: None,
             defect_map_apply: Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 — Forensics test scaffolding.
+            // Forensics test scaffolding.
             forensics_history: Arc::new(
                 tokio::sync::RwLock::new(std::collections::VecDeque::new()),
             ),
@@ -355,7 +355,7 @@ mod resume_tests {
             )),
             current_wind_kph: Arc::new(tokio::sync::RwLock::new(None)),
             current_sensor_temp_c: Arc::new(tokio::sync::RwLock::new(None)),
-            // Wave 8 Replay Debug — test ctx doesn't emit decisions.
+            // Replay Debug — test ctx doesn't emit decisions.
             decision_tx: None,
             active_sequence_run_id: Arc::new(parking_lot::RwLock::new(None)),
             dither_barrier: None,
@@ -457,7 +457,7 @@ mod resume_tests {
         assert_eq!(visited, (0..9_u32).collect::<Vec<_>>());
     }
 
-    /// Wave 4 Mosaic-Resume — end-to-end resume through the production
+    /// Mosaic-Resume — end-to-end resume through the production
     /// checkpoint sink. A `MemoryCheckpointSink` is convenient in unit
     /// tests, but the production path is `SessionWizardCheckpointSink`
     /// which writes through a [`crate::checkpoint::CheckpointManager`]

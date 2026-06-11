@@ -174,7 +174,7 @@ day-to-day development:
 
 ---
 
-## Future work (not required for P0-8)
+## Future work (not required for )
 
 - **Live Activities (`NSSupportsLiveActivities` + Activity implementation)**
   would surface live sequence progress on the lock screen alongside any
