@@ -13,6 +13,9 @@ use crate::event::*;
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::time::interval;
+// Windows: trait must be in scope so ASCOM wrapper guards resolve its methods.
+#[cfg(windows)]
+use nightshade_native::traits::NativeDevice;
 
 /// Error message returned by `connect_device_internal` when an in-flight
 /// reconnect attempt is aborted by a manual disconnect. The string is part

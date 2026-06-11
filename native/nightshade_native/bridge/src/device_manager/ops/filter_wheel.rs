@@ -19,6 +19,9 @@ use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use nightshade_indi::IndiFilterWheel;
+// Windows: trait must be in scope so ASCOM wrapper guards resolve its methods.
+#[cfg(windows)]
+use nightshade_native::traits::NativeFilterWheel;
 
 impl DeviceManager {
     // =========================================================================
