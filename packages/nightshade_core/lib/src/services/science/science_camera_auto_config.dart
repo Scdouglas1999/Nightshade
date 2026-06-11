@@ -57,7 +57,10 @@ class ScienceCameraAutoConfig {
   /// Recompute and persist the science camera settings if auto-management
   /// is enabled and a camera identity can be resolved. Safe to call often;
   /// no-ops when nothing relevant changed.
-  Future<void> maybeSync({String reason = 'unspecified', bool force = false}) async {
+  Future<void> maybeSync({
+    String reason = 'unspecified',
+    bool force = false,
+  }) async {
     try {
       if (_ref.read(backendProvider) is NetworkBackend) {
         return; // The appliance host owns the hardware and these settings.
@@ -74,8 +77,7 @@ class ScienceCameraAutoConfig {
       }
 
       final bitDepth = await _resolveBitDepth(identity.deviceId);
-      if (!force &&
-          _lastApplied == (identity.name, identity.gain, bitDepth)) {
+      if (!force && _lastApplied == (identity.name, identity.gain, bitDepth)) {
         return;
       }
 
