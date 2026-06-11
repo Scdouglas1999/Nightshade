@@ -1,6 +1,19 @@
-use nightshade_ascom::{discover_devices, AscomCamera, AscomDeviceType};
+//! Manual smoke example: enumerate ASCOM camera drivers and try to connect.
+//!
+//! ASCOM is a Windows COM technology; every symbol this example uses is
+//! `#[cfg(windows)]`-gated in the crate, so the example body is gated the
+//! same way. On other platforms it compiles to a stub so `cargo test
+//! --workspace` (which builds examples) stays green on Linux/macOS CI.
 
+#[cfg(not(windows))]
 fn main() {
+    eprintln!("ASCOM COM drivers exist only on Windows; nothing to do here.");
+}
+
+#[cfg(windows)]
+fn main() {
+    use nightshade_ascom::{discover_devices, AscomCamera, AscomDeviceType};
+
     // Initialize COM
     nightshade_ascom::init_com().expect("Failed to init COM");
 
