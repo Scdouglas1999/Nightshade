@@ -67,6 +67,20 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     }
   }
 
+  /// Push externally-changed coordinates (GPS, server sync, IP auto-detect)
+  /// into the text fields. The seed in [_initControllers] only runs once, so
+  /// updates that arrive after the page is built must be written through here
+  /// to be visible without leaving and re-entering the screen.
+  void _syncCoordinateControllers({
+    required double latitude,
+    required double longitude,
+    required double elevation,
+  }) {
+    _latController.text = latitude.toStringAsFixed(6);
+    _lonController.text = longitude.toStringAsFixed(6);
+    _elevController.text = elevation.toStringAsFixed(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
@@ -173,6 +187,16 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                                 longitude: location.longitude,
                                 elevation: location.elevation,
                               );
+                          // Reflect the new values in the visible fields
+                          // immediately — the controllers are seeded once
+                          // (guarded by _initialized) so a provider update
+                          // alone would not refresh them until the page is
+                          // rebuilt from scratch.
+                          _syncCoordinateControllers(
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            elevation: location.elevation,
+                          );
                         }
 
                         if (context.mounted) {
@@ -209,6 +233,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                                 longitude: lon,
                                 elevation: 0,
                               );
+                          _syncCoordinateControllers(
+                            latitude: lat,
+                            longitude: lon,
+                            elevation: 0,
+                          );
                           if (context.mounted) {
                             context
                                 .showSuccessSnackBar('Location updated: $name');
