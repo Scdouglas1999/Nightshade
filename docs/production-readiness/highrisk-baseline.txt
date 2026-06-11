@@ -22,7 +22,7 @@ native/nightshade_native/bridge/src/api/mod.rs:122:/// silent no-op — and sile
 native/nightshade_native/bridge/src/api/post_session.rs:1622:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/post_session.rs:1626:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/post_session.rs:1957:    let data = master.as_f32().unwrap_or_default();
-native/nightshade_native/bridge/src/api/secondary_rig.rs:141:        .unwrap_or_default();
+native/nightshade_native/bridge/src/api/secondary_rig.rs:138:    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy).unwrap_or_default();
 native/nightshade_native/bridge/src/api/sequencer.rs:3084:            auth_token: s.config.auth_token.clone().unwrap_or_default(),
 native/nightshade_native/bridge/src/api/sequencer.rs:3085:            watermark_template: s.config.watermark_text.clone().unwrap_or_default(),
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1178:            .unwrap_or_default()
@@ -104,7 +104,7 @@ native/nightshade_native/bridge/src/real_device_ops.rs:2207:            fw.disco
 native/nightshade_native/bridge/src/real_device_ops.rs:2247:            fw.disconnect().await.ok();
 native/nightshade_native/bridge/src/real_device_ops.rs:2606:                .unwrap_or_default()
 native/nightshade_native/bridge/src/util/supervisor.rs:269:            GLOBAL_WRITER.set(writer.clone()).ok();
-native/nightshade_native/imaging/src/background_extraction.rs:953:        image.as_u16().unwrap_or_default()
+native/nightshade_native/imaging/src/background_extraction.rs:952:        image.as_u16().unwrap_or_default()
 native/nightshade_native/imaging/src/platesolve.rs:2051:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
 native/nightshade_native/imaging/src/raw.rs:13://! * The remaining sites (`user_sat.unwrap_or_default()`,
 native/nightshade_native/imaging/src/raw.rs:15://!   `max_memory_mb.unwrap_or_default()`) are all paired with a
@@ -127,16 +127,16 @@ native/nightshade_native/sequencer/src/executor/mod.rs:2209:            .unwrap_
 native/nightshade_native/sequencer/src/executor/mod.rs:5479:                                                    result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/mod.rs:5641:                                                result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/mod.rs:5767:                                                            .unwrap_or_default()
-native/nightshade_native/sequencer/src/instructions.rs:2686:                        .unwrap_or_default(),
-native/nightshade_native/sequencer/src/instructions.rs:6779:        let msg = result.message.unwrap_or_default();
-native/nightshade_native/sequencer/src/instructions.rs:6888:        let msg = result.message.unwrap_or_default();
+native/nightshade_native/sequencer/src/instructions.rs:2681:                        .unwrap_or_default(),
+native/nightshade_native/sequencer/src/instructions.rs:6772:        let msg = result.message.unwrap_or_default();
+native/nightshade_native/sequencer/src/instructions.rs:6881:        let msg = result.message.unwrap_or_default();
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1017:        let af_config = ctx.autofocus_config.clone().unwrap_or_default();
 native/nightshade_native/sequencer/src/node/instructions/expose.rs:335:                    .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/instructions/science_photometry.rs:572:    states.get(node_id).cloned().unwrap_or_default()
 native/nightshade_native/sequencer/src/node/instructions/smart_exposure.rs:619:    states.get(node_id).cloned().unwrap_or_default()
-native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:1003:            .unwrap_or_default();
-native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:630:                header.brightness_tier_hint.unwrap_or_default(),
-native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:643:                .unwrap_or_default(),
+native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:1005:            .unwrap_or_default();
+native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:632:                header.brightness_tier_hint.unwrap_or_default(),
+native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs:645:                .unwrap_or_default(),
 native/nightshade_native/sequencer/src/node/progress.rs:541:                    .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/progress.rs:640:                    .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/progress.rs:699:                .unwrap_or_default();
@@ -148,7 +148,7 @@ packages/nightshade_bridge/lib/src/api.dart:21:/// silent no-op — and silent n
 packages/nightshade_core/lib/src/backend/network_backend/device_operations.dart:439:          'cameraGetRecommendedSettings not implemented on remote '
 packages/nightshade_core/lib/src/models/sequence/instruction_progress_detail.dart:7:/// newer native emitters do not become silent no-ops on older Dart clients.
 packages/nightshade_core/lib/src/providers/settings_sections/app_settings_partial_persistence_mapping.dart:207:  /// Per CLAUDE.md "errors are a feature": a silent no-op here would mean a
-packages/nightshade_core/lib/src/services/device_service/connections.dart:172:      // instead of a silent no-op so the equipment screen's bulk-disconnect
+packages/nightshade_core/lib/src/services/device_service/connections.dart:178:      // instead of a silent no-op so the equipment screen's bulk-disconnect
 packages/nightshade_core/lib/src/services/notification/transports/email_transport.dart:154:      return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/in_app_transport.dart:50:    return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/notification/transports/mqtt_transport.dart:117:          '[Notifications/MQTT] QoS 2 downgraded to QoS 1 (PUBREC/PUBREL not implemented).',
