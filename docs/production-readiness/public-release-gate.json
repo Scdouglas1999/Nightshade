@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:43:36.888360Z",
+  "generatedAt": "2026-06-16T19:55:32.483020Z",
   "decision": "NOT_READY",
   "ready": false,
   "passedCount": 20,
@@ -129,7 +129,7 @@
       "label": "Full hardware/control smoke",
       "passed": false,
       "evidence": "docs/production-readiness/hardware-availability-probe.json; docs/production-readiness/public-release-external-evidence.json",
-      "detail": "Required real-or-simulator classes missing on this host: filterWheel, rotator, dome, safetyMonitor. Non-simulator gaps: filterWheel, rotator, dome, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON."
+      "detail": "Required real-or-simulator classes missing on this host: dome, weather, safetyMonitor. Non-simulator gaps: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON."
     },
     {
       "id": "synthetic_migration_regression",

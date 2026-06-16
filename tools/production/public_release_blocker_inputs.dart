@@ -268,7 +268,7 @@ _BlockerInput _hardwareBlocker(
     ],
     rerunCommands: [
       'dart run melos run audit:public-release-external-evidence --no-select',
-      'dart run melos run audit:hardware-availability:windows --no-select',
+      'dart run melos run audit:hardware-availability --no-select',
       'dart run melos run audit:public-release-gate --no-select',
     ],
     expectedEvidence: [
@@ -379,7 +379,7 @@ _BlockerInput _realControlBlocker(
     ],
     rerunCommands: [
       'dart run melos run audit:public-release-external-evidence --no-select',
-      'dart run melos run audit:hardware-availability:windows --no-select',
+      'dart run melos run audit:hardware-availability --no-select',
       'dart run melos run audit:public-release-gate --no-select',
     ],
     expectedEvidence: [

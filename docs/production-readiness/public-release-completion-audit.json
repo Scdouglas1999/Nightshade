@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:43:37.629327Z",
+  "generatedAt": "2026-06-16T19:55:38.916539Z",
   "objectiveSource": "goal.txt",
   "objectiveSummary": "Prepare Nightshade for public release with direct evidence for the P0 release gates in goal.txt.",
   "sourceArtifacts": [
@@ -20,9 +20,9 @@
     {
       "path": "docs/production-readiness/public-release-gate.json",
       "exists": true,
-      "sizeBytes": 12384,
-      "fileModifiedAt": "2026-06-16T19:43:36.000Z",
-      "generatedAt": "2026-06-16T19:43:36.888360Z",
+      "sizeBytes": 12404,
+      "fileModifiedAt": "2026-06-16T19:55:32.000Z",
+      "generatedAt": "2026-06-16T19:55:32.483020Z",
       "decision": "NOT_READY",
       "ready": false,
       "entryCount": null,
@@ -34,9 +34,9 @@
     {
       "path": "docs/production-readiness/public-release-blocker-inputs.json",
       "exists": true,
-      "sizeBytes": 11420,
-      "fileModifiedAt": "2026-06-16T19:43:37.000Z",
-      "generatedAt": "2026-06-16T19:43:37.256573Z",
+      "sizeBytes": 11411,
+      "fileModifiedAt": "2026-06-16T19:55:36.000Z",
+      "generatedAt": "2026-06-16T19:55:36.015473Z",
       "decision": "NOT_READY",
       "ready": null,
       "entryCount": null,
@@ -49,8 +49,8 @@
       "path": "docs/production-readiness/public-release-external-evidence.json",
       "exists": true,
       "sizeBytes": 4083,
-      "fileModifiedAt": "2026-06-16T19:40:08.000Z",
-      "generatedAt": "2026-06-16T19:37:25.633073Z",
+      "fileModifiedAt": "2026-06-16T19:55:28.000Z",
+      "generatedAt": "2026-06-16T19:55:28.086493Z",
       "decision": null,
       "ready": false,
       "entryCount": null,
@@ -200,7 +200,7 @@
       "requiredInput": "A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands.",
       "rerunCommands": [
         "dart run melos run audit:public-release-external-evidence --no-select",
-        "dart run melos run audit:hardware-availability:windows --no-select",
+        "dart run melos run audit:hardware-availability --no-select",
         "dart run melos run audit:public-release-gate --no-select"
       ],
       "acceptanceCriteria": [
@@ -270,7 +270,7 @@
         "dart run melos run audit:public-release-external-evidence --no-select",
         "dart run melos run smoke:headless-lan:windows",
         "dart run melos run audit:public-release-gate --no-select",
-        "dart run melos run audit:hardware-availability:windows --no-select"
+        "dart run melos run audit:hardware-availability --no-select"
       ],
       "acceptanceCriteria": [
         "Packaged Windows headless server is reached from the second device over the LAN IP, not localhost or emulator alias.",

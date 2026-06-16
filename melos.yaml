@@ -165,9 +165,13 @@ scripts:
     run: dart run tools/production/dependency_hygiene.dart
     description: Verify workspace packages declare direct dependencies for lib imports
 
+  audit:hardware-availability:
+    run: dart run tools/production/hardware_availability_probe.dart
+    description: Launch the packaged desktop headless app and record discovered hardware classes for release smoke planning
+
   audit:hardware-availability:windows:
     run: dart run tools/production/hardware_availability_probe.dart
-    description: Launch the packaged Windows headless app and record discovered hardware classes for release smoke planning
+    description: Backwards-compatible alias for audit:hardware-availability
 
   audit:linux-environment:
     run: dart run tools/production/linux_environment_probe.dart

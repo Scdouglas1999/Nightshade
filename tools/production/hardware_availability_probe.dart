@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-const _defaultExePath =
-    'apps/desktop/build/windows/x64/runner/Release/nightshade_desktop.exe';
 const _adminToken = 'nightshade-hardware-probe-admin-token';
 const _jsonOutputPath =
     'docs/production-readiness/hardware-availability-probe.json';
@@ -23,15 +21,10 @@ const _requiredDeviceTypes = <String, String>{
 };
 
 void main(List<String> args) async {
-  if (!Platform.isWindows) {
-    stderr.writeln('Hardware availability probe currently targets Windows.');
-    exit(2);
-  }
-
   final requireFull = args.contains('--require-full');
   final exePath =
       args.where((arg) => !arg.startsWith('--')).cast<String?>().firstOrNull ??
-      _defaultExePath;
+      _defaultExePath();
   final exe = File(exePath);
   if (!exe.existsSync()) {
     stderr.writeln('Release executable not found: $exePath');
@@ -177,6 +170,24 @@ void main(List<String> args) async {
   exit(exitCode);
 }
 
+String _defaultExePath() {
+  if (Platform.isWindows) {
+    return 'apps/desktop/build/windows/x64/runner/Release/nightshade_desktop.exe';
+  }
+  if (Platform.isLinux) {
+    return 'apps/desktop/build/linux/x64/release/bundle/nightshade_desktop';
+  }
+  if (Platform.isMacOS) {
+    return 'apps/desktop/build/macos/Build/Products/Release/nightshade_desktop.app/Contents/MacOS/nightshade_desktop';
+  }
+  stderr.writeln(
+    'Unsupported host platform for hardware availability probe: '
+    '${Platform.operatingSystem}. Pass an executable path explicitly if this '
+    'platform can launch a packaged Nightshade desktop binary.',
+  );
+  exit(2);
+}
+
 Future<int> _reservePort() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   final port = socket.port;
@@ -289,9 +300,7 @@ String _renderMarkdown({
     final availability = results[entry.key]!;
     final devices = availability.devices.isEmpty
         ? 'None'
-        : availability.devices
-              .map((device) => '${device.driverType}:${device.id}')
-              .join('<br>');
+        : availability.devices.map(_deviceSummary).join('<br>');
     buffer.writeln(
       '| ${entry.value} | ${availability.nonSimulatorCount} | '
       '${availability.simulatorCount} | $devices |',
@@ -299,6 +308,13 @@ String _renderMarkdown({
   }
 
   return buffer.toString();
+}
+
+String _deviceSummary(_DiscoveredDevice device) {
+  if (device.id.startsWith('${device.driverType}:')) {
+    return device.id;
+  }
+  return '${device.driverType}:${device.id}';
 }
 
 class _HttpResponseBody {

@@ -15,9 +15,9 @@ This audit maps each P0 public-release requirement from `goal.txt` to concrete e
 | Artifact | Generated | Decision | Count |
 | --- | --- | --- | --- |
 | `goal.txt` | `unknown` | `` | `` |
-| `docs/production-readiness/public-release-gate.json` | `2026-06-16T19:43:36.888360Z` | `NOT_READY` | `20` |
-| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-16T19:43:37.256573Z` | `NOT_READY` | `` |
-| `docs/production-readiness/public-release-external-evidence.json` | `2026-06-16T19:37:25.633073Z` | `ready=false` | `1` |
+| `docs/production-readiness/public-release-gate.json` | `2026-06-16T19:55:32.483020Z` | `NOT_READY` | `20` |
+| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-16T19:55:36.015473Z` | `NOT_READY` | `` |
+| `docs/production-readiness/public-release-external-evidence.json` | `2026-06-16T19:55:28.086493Z` | `ready=false` | `1` |
 | `docs/production-readiness/release-staging-audit.json` | `2026-06-16T19:36:20.097609Z` | `` | `0` |
 | `docs/production-readiness/release-pr-split-plan.json` | `2026-06-16T19:35:32.397361Z` | `` | `189` |
 | `docs/production-readiness/release-pr-owner-decision-matrix.json` | `2026-06-16T19:35:32.479571Z` | `` | `189` |
@@ -86,7 +86,7 @@ Evidence:
 
 Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 - `dart run melos run audit:public-release-gate --no-select`
 
 Acceptance criteria:
@@ -152,7 +152,7 @@ Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`
 - `dart run melos run smoke:headless-lan:windows`
 - `dart run melos run audit:public-release-gate --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 
 Acceptance criteria:
 - Packaged Windows headless server is reached from the second device over the LAN IP, not localhost or emulator alias.

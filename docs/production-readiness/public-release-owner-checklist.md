@@ -1,7 +1,7 @@
 # Public Release Owner Checklist
 
 - Source audit: `docs/production-readiness/public-release-completion-audit.json`
-- Completion audit generated at: `2026-06-16T19:43:37.629327Z`
+- Completion audit generated at: `2026-06-16T19:55:38.916539Z`
 - Decision: `NOT_ACHIEVED`
 - Gate decision: `NOT_READY`
 - Completion detail: One or more P0 requirements remain blocked or weakly verified.
@@ -17,9 +17,9 @@ This owner checklist is generated from structured completion-audit fields. Edit 
 | Artifact | Exists | Generated | Decision | Count | Blockers |
 | --- | ---: | --- | --- | ---: | ---: |
 | `goal.txt` | `false` | `unknown` | `` | `` | `` |
-| `docs/production-readiness/public-release-gate.json` | `true` | `2026-06-16T19:43:36.888360Z` | `NOT_READY` | `20` | `5` |
-| `docs/production-readiness/public-release-blocker-inputs.json` | `true` | `2026-06-16T19:43:37.256573Z` | `NOT_READY` | `` | `5` |
-| `docs/production-readiness/public-release-external-evidence.json` | `true` | `2026-06-16T19:37:25.633073Z` | `ready=false` | `1` | `` |
+| `docs/production-readiness/public-release-gate.json` | `true` | `2026-06-16T19:55:32.483020Z` | `NOT_READY` | `20` | `5` |
+| `docs/production-readiness/public-release-blocker-inputs.json` | `true` | `2026-06-16T19:55:36.015473Z` | `NOT_READY` | `` | `5` |
+| `docs/production-readiness/public-release-external-evidence.json` | `true` | `2026-06-16T19:55:28.086493Z` | `ready=false` | `1` | `` |
 | `docs/production-readiness/release-staging-audit.json` | `true` | `2026-06-16T19:36:20.097609Z` | `` | `0` | `` |
 | `docs/production-readiness/release-pr-split-plan.json` | `true` | `2026-06-16T19:35:32.397361Z` | `` | `189` | `` |
 | `docs/production-readiness/release-pr-owner-decision-matrix.json` | `true` | `2026-06-16T19:35:32.479571Z` | `` | `189` | `` |
@@ -129,7 +129,7 @@ Required input:
 Rerun commands:
 
 - `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 - `dart run melos run audit:public-release-gate --no-select`
 Acceptance criteria:
 
@@ -202,7 +202,7 @@ Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`
 - `dart run melos run smoke:headless-lan:windows`
 - `dart run melos run audit:public-release-gate --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 Acceptance criteria:
 
 - Packaged Windows headless server is reached from the second device over the LAN IP, not localhost or emulator alias.

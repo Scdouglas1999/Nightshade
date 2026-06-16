@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:43:37.256573Z",
+  "generatedAt": "2026-06-16T19:55:36.015473Z",
   "sourceGate": "docs/production-readiness/public-release-gate.json",
   "decision": "NOT_READY",
   "blockerCount": 5,
@@ -8,8 +8,8 @@
       "id": "hardware_control_smoke",
       "label": "Full hardware/control smoke",
       "category": "functionality",
-      "currentGateDetail": "Required real-or-simulator classes missing on this host: filterWheel, rotator, dome, safetyMonitor. Non-simulator gaps: filterWheel, rotator, dome, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.",
-      "localStatus": "Real-or-simulator classes available here: camera, mount, focuser, guider, weather. Missing real-or-simulator classes: filterWheel, rotator, dome, safetyMonitor. Non-simulator classes available here: camera, mount, focuser, guider, weather. Missing non-simulator classes: filterWheel, rotator, dome, safetyMonitor. Discovery is not command/control smoke.",
+      "currentGateDetail": "Required real-or-simulator classes missing on this host: dome, weather, safetyMonitor. Non-simulator gaps: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.",
+      "localStatus": "Real-or-simulator classes available here: camera, mount, focuser, filterWheel, rotator, guider. Missing real-or-simulator classes: dome, weather, safetyMonitor. Non-simulator classes available here: guider. Missing non-simulator classes: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Discovery is not command/control smoke.",
       "requiredInput": "A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands.",
       "acceptanceCriteria": [
         "Every required device class is discoverable as real or simulator-backed for the smoke environment.",
@@ -20,7 +20,7 @@
       ],
       "rerunCommands": [
         "dart run melos run audit:public-release-external-evidence --no-select",
-        "dart run melos run audit:hardware-availability:windows --no-select",
+        "dart run melos run audit:hardware-availability --no-select",
         "dart run melos run audit:public-release-gate --no-select"
       ],
       "expectedEvidence": [
@@ -92,7 +92,7 @@
       "label": "Real remote-control actions",
       "category": "functionality",
       "currentGateDetail": "No validated artifact proves actual remote control actions against real or simulator-backed devices. External evidence validator did not pass for docs/production-readiness/real-remote-control-actions-evidence.json. Template: docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json. Evidence file is missing or is not valid JSON.",
-      "localStatus": "No artifact proves remote control commands against real or simulator-backed devices. Current host is also missing filterWheel, rotator, dome, safetyMonitor real-or-simulator classes.",
+      "localStatus": "No artifact proves remote control commands against real or simulator-backed devices. Current host is also missing dome, weather, safetyMonitor real-or-simulator classes.",
       "requiredInput": "Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices.",
       "acceptanceCriteria": [
         "Remote client sends at least one safe command per applicable device class.",
@@ -102,7 +102,7 @@
       ],
       "rerunCommands": [
         "dart run melos run audit:public-release-external-evidence --no-select",
-        "dart run melos run audit:hardware-availability:windows --no-select",
+        "dart run melos run audit:hardware-availability --no-select",
         "dart run melos run audit:public-release-gate --no-select"
       ],
       "expectedEvidence": [

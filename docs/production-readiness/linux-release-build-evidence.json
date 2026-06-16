@@ -10,8 +10,8 @@
   },
   "buildPassed": true,
   "packageArtifactPath": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz",
-  "packageSizeBytes": 47979024,
-  "packageSha256": "f9195e6bb380e6c8b54b5eb2642561e4892b4e1cc051dfc2c479cea869caa220",
+  "packageSizeBytes": 47982077,
+  "packageSha256": "e17f2862ba778eaa5e7cd4e0b58f90536759131dfc67824bf3d9d718734f6d62",
   "packageSha256Path": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz.sha256",
   "metadataPath": "docs/production-readiness/linux-release-package-metadata.json",
   "runtimeSmokePassed": true,
@@ -20,7 +20,7 @@
     {
       "check": "headless_process_started",
       "passed": true,
-      "evidence": "linux-runtime-smoke.log records pid 870757 and successful startup banner on port 18081"
+      "evidence": "linux-runtime-smoke.log records pid 910623 and successful startup banner on port 18081"
     },
     {
       "check": "api_info_ok",

@@ -20,8 +20,8 @@ This artifact lists the exact missing input or evidence needed to clear each cur
 
 - ID: `hardware_control_smoke`
 - Category: `functionality`
-- Current gate detail: Required real-or-simulator classes missing on this host: filterWheel, rotator, dome, safetyMonitor. Non-simulator gaps: filterWheel, rotator, dome, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: Real-or-simulator classes available here: camera, mount, focuser, guider, weather. Missing real-or-simulator classes: filterWheel, rotator, dome, safetyMonitor. Non-simulator classes available here: camera, mount, focuser, guider, weather. Missing non-simulator classes: filterWheel, rotator, dome, safetyMonitor. Discovery is not command/control smoke.
+- Current gate detail: Required real-or-simulator classes missing on this host: dome, weather, safetyMonitor. Non-simulator gaps: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.
+- Local status: Real-or-simulator classes available here: camera, mount, focuser, filterWheel, rotator, guider. Missing real-or-simulator classes: dome, weather, safetyMonitor. Non-simulator classes available here: guider. Missing non-simulator classes: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Discovery is not command/control smoke.
 - Required input: A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands.
 
 Acceptance criteria:
@@ -33,7 +33,7 @@ Acceptance criteria:
 
 Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 - `dart run melos run audit:public-release-gate --no-select`
 
 Expected evidence:
@@ -104,7 +104,7 @@ Expected evidence:
 - ID: `real_remote_control_actions`
 - Category: `functionality`
 - Current gate detail: No validated artifact proves actual remote control actions against real or simulator-backed devices. External evidence validator did not pass for docs/production-readiness/real-remote-control-actions-evidence.json. Template: docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: No artifact proves remote control commands against real or simulator-backed devices. Current host is also missing filterWheel, rotator, dome, safetyMonitor real-or-simulator classes.
+- Local status: No artifact proves remote control commands against real or simulator-backed devices. Current host is also missing dome, weather, safetyMonitor real-or-simulator classes.
 - Required input: Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices.
 
 Acceptance criteria:
@@ -115,7 +115,7 @@ Acceptance criteria:
 
 Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability:windows --no-select`
+- `dart run melos run audit:hardware-availability --no-select`
 - `dart run melos run audit:public-release-gate --no-select`
 
 Expected evidence:

@@ -452,24 +452,28 @@ pub(crate) fn drivers_for_device_type(device_type: DeviceType) -> Vec<DriverType
             DriverType::Alpaca,
             DriverType::Native,
             DriverType::Indi,
+            DriverType::Simulator,
         ],
         DeviceType::Focuser => vec![
             DriverType::Ascom,
             DriverType::Alpaca,
             DriverType::Native,
             DriverType::Indi,
+            DriverType::Simulator,
         ],
         DeviceType::FilterWheel => vec![
             DriverType::Ascom,
             DriverType::Alpaca,
             DriverType::Native,
             DriverType::Indi,
+            DriverType::Simulator,
         ],
         DeviceType::Rotator => vec![
             DriverType::Ascom,
             DriverType::Alpaca,
             DriverType::Native,
             DriverType::Indi,
+            DriverType::Simulator,
         ],
         DeviceType::Dome => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
         DeviceType::Weather => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
@@ -840,24 +844,29 @@ async fn scan_indi_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, 
 }
 
 fn scan_simulator_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
-    if device_type != DeviceType::Camera {
-        return Vec::new();
-    }
-    // The `sim_` prefix is the simulator id convention the entire native
-    // device layer keys off (40+ sites in simulation.rs/camera.rs/imaging.rs/
-    // heartbeat.rs route to the in-process simulator by `id.starts_with`).
-    // The Dart connect guard accepts this legacy form too — see the `sim_`
-    // branch in `device_id.dart`.
+    let (id, name) = match device_type {
+        DeviceType::Camera => ("sim_camera_1", "Simulated Camera"),
+        DeviceType::Mount => ("sim_mount_1", "Simulated Mount"),
+        DeviceType::Focuser => ("sim_focuser_1", "Simulated Focuser"),
+        DeviceType::FilterWheel => ("sim_filterwheel_1", "Simulated Filter Wheel"),
+        DeviceType::Rotator => ("sim_rotator_1", "Simulated Rotator"),
+        _ => return Vec::new(),
+    };
+
+    // The `sim_` prefix is the simulator id convention the native device layer
+    // keys off. Only advertise device types backed by simulation.rs singletons;
+    // dome, weather, safety monitor, switch, and cover calibrator still fail
+    // loudly until they have real simulator implementations.
     vec![DeviceInfo {
-        id: "sim_camera_1".to_string(),
-        name: "Simulated Camera".to_string(),
-        device_type: DeviceType::Camera,
+        id: id.to_string(),
+        name: name.to_string(),
+        device_type,
         driver_type: DriverType::Simulator,
         description: "Internal Simulator".to_string(),
         driver_version: "1.0.0".to_string(),
-        serial_number: Some("SIM-123".to_string()),
-        unique_id: Some("sim_camera_1".to_string()),
-        display_name: "Simulated Camera".to_string(),
+        serial_number: Some(format!("SIM-{}", device_type.as_str())),
+        unique_id: Some(id.to_string()),
+        display_name: name.to_string(),
     }]
 }
 
@@ -1040,14 +1049,48 @@ mod tests {
         // backends to probe for the requested type.
         assert_eq!(camera_drivers.len(), 5);
 
-        // Mounts don't trigger the simulator scan (we only ship a camera sim).
-        assert!(!mount_drivers.contains(&DriverType::Simulator));
+        // Hardware-like simulator singletons are discoverable for the device
+        // types simulation.rs actually implements.
+        assert!(mount_drivers.contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::Focuser).contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::FilterWheel).contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::Rotator).contains(&DriverType::Simulator));
+
+        // Dome/safety/weather have no simulator singleton and must remain
+        // real-driver-only until their operation paths stop failing loudly.
+        assert!(!drivers_for_device_type(DeviceType::Dome).contains(&DriverType::Simulator));
+        assert!(
+            !drivers_for_device_type(DeviceType::SafetyMonitor).contains(&DriverType::Simulator)
+        );
+        assert!(!drivers_for_device_type(DeviceType::Weather).contains(&DriverType::Simulator));
 
         // Guider has its own focused driver set (Native covers the built-in
         // guider + PHD2; INDI covers INDI guiders). It must not request
         // ASCOM/Alpaca scans.
         assert!(!guider_drivers.contains(&DriverType::Ascom));
         assert!(!guider_drivers.contains(&DriverType::Alpaca));
+    }
+
+    #[test]
+    fn simulator_discovery_only_advertises_implemented_singletons() {
+        let filter_wheels = scan_simulator_for_type(DeviceType::FilterWheel);
+        assert_eq!(filter_wheels.len(), 1);
+        assert_eq!(filter_wheels[0].id, "sim_filterwheel_1");
+        assert_eq!(filter_wheels[0].driver_type, DriverType::Simulator);
+
+        let rotators = scan_simulator_for_type(DeviceType::Rotator);
+        assert_eq!(rotators.len(), 1);
+        assert_eq!(rotators[0].id, "sim_rotator_1");
+        assert_eq!(rotators[0].driver_type, DriverType::Simulator);
+
+        assert!(
+            scan_simulator_for_type(DeviceType::Dome).is_empty(),
+            "dome must stay hidden until it has simulator operations",
+        );
+        assert!(
+            scan_simulator_for_type(DeviceType::SafetyMonitor).is_empty(),
+            "safety monitor must stay hidden until it has simulator operations",
+        );
     }
 
     /// A fresh cache entry within TTL must be returned without rescanning the

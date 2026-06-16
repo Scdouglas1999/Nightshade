@@ -1,6 +1,6 @@
 {
   "metadataSchemaVersion": 2,
-  "generatedAt": "2026-06-16T19:22:51.334624Z",
+  "generatedAt": "2026-06-16T19:49:49.405009Z",
   "platform": "linux",
   "buildCommand": "dart run melos run build:desktop:linux --no-select",
   "toolVersions": {
@@ -14,15 +14,15 @@
   "bundleDirectory": "/home/scdouglas/Documents/Nightshade2/apps/desktop/build/linux/x64/release/bundle",
   "artifactPath": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz",
   "artifactName": "nightshade-linux-x64.tar.gz",
-  "artifactSizeBytes": 47979024,
-  "artifactSha256": "f9195e6bb380e6c8b54b5eb2642561e4892b4e1cc051dfc2c479cea869caa220",
+  "artifactSizeBytes": 47982077,
+  "artifactSha256": "e17f2862ba778eaa5e7cd4e0b58f90536759131dfc67824bf3d9d718734f6d62",
   "artifactSha256Path": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz.sha256",
-  "sourceGitHead": "bd4b2544ca4f406cd7cc0886af34624f895d034d",
+  "sourceGitHead": "d8f8f443c1e2a69d88aed10544aa346b88217a72",
   "githubRunId": null,
   "githubRepository": null,
   "githubSha": null,
   "fileCount": 830,
-  "bundleSizeBytes": 128723654,
+  "bundleSizeBytes": 128744022,
   "runtimeSmokePassed": false,
   "runtimeSmokeArtifact": null,
   "nativeLibraryNotes": [
@@ -4141,8 +4141,8 @@
     },
     {
       "path": "lib/libnightshade_bridge.so",
-      "sizeBytes": 37779880,
-      "sha256": "0e1e90d336a3598019de8719e15d5a95b03228ca50c61a84c01923466cb63937"
+      "sizeBytes": 37800248,
+      "sha256": "8e4d9484def1f4efd6e721f7a13e47eb61e4d202ca1da9acda8be48ee526d43b"
     },
     {
       "path": "lib/libscreen_retriever_plugin.so",

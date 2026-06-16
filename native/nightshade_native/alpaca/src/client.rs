@@ -506,10 +506,7 @@ fn decode_put_response<T: for<'de> Deserialize<'de>>(
             message: error_message,
         });
     }
-    let value_json = raw
-        .get("Value")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
+    let value_json = raw.get("Value").cloned().unwrap_or(serde_json::Value::Null);
     serde_json::from_value(value_json).map_err(|e| AlpacaError::RequestFailed(e.to_string()))
 }
 

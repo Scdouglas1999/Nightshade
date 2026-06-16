@@ -408,10 +408,7 @@ impl ParsedDeviceId {
             Self::parse_indi(id)
         } else if id.starts_with("native:") {
             Self::parse_native(id)
-        } else if id.starts_with("simulator:")
-            || id.starts_with("sim:")
-            || id.starts_with("sim_")
-        {
+        } else if id.starts_with("simulator:") || id.starts_with("sim:") || id.starts_with("sim_") {
             Self::parse_simulator(id)
         } else {
             // Try to infer the type from the ID format
@@ -733,19 +730,18 @@ impl ParsedDeviceId {
         //              discovery.rs) and what `device_info_from_id` needs so a
         //              sim mount/focuser/rotator/filter-wheel is connectable by
         //              id, not just the sim camera.
-        let (remainder, sep): (&str, char) =
-            if let Some(r) = id.strip_prefix("simulator:") {
-                (r, ':')
-            } else if let Some(r) = id.strip_prefix("sim:") {
-                (r, ':')
-            } else if let Some(r) = id.strip_prefix("sim_") {
-                (r, '_')
-            } else {
-                return Err(NightshadeError::invalid_device_id(
-                    id,
-                    "Missing simulator prefix",
-                ));
-            };
+        let (remainder, sep): (&str, char) = if let Some(r) = id.strip_prefix("simulator:") {
+            (r, ':')
+        } else if let Some(r) = id.strip_prefix("sim:") {
+            (r, ':')
+        } else if let Some(r) = id.strip_prefix("sim_") {
+            (r, '_')
+        } else {
+            return Err(NightshadeError::invalid_device_id(
+                id,
+                "Missing simulator prefix",
+            ));
+        };
 
         // Format: device_type<sep>instance (instance optional, defaults to 0)
         let parts: Vec<&str> = remainder.split(sep).collect();
