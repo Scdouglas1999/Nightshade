@@ -1,13 +1,7 @@
 {
-  "generatedAt": "2026-06-16T19:42:41.457695Z",
-  "sourceCompletionAudit": "docs/production-readiness/public-release-completion-audit.json",
-  "completionAuditGeneratedAt": "2026-06-16T19:42:41.096101Z",
-  "decision": "NOT_ACHIEVED",
-  "gateDecision": "NOT_READY",
-  "ready": false,
-  "completionDecision": "NOT_ACHIEVED",
-  "completionDetail": "One or more P0 requirements remain blocked or weakly verified.",
-  "goalSectionsObserved": [],
+  "generatedAt": "2026-06-16T19:42:41.096101Z",
+  "objectiveSource": "goal.txt",
+  "objectiveSummary": "Prepare Nightshade for public release with direct evidence for the P0 release gates in goal.txt.",
   "sourceArtifacts": [
     {
       "path": "goal.txt",
@@ -136,11 +130,12 @@
       "checkCount": null
     }
   ],
-  "sourceArtifactBlockerCount": 10,
-  "itemCount": 7,
+  "decision": "NOT_ACHIEVED",
+  "gateDecision": "NOT_READY",
+  "ready": false,
   "completeCount": 3,
   "blockedOrIncompleteCount": 4,
-  "items": [
+  "promptToArtifactChecklist": [
     {
       "id": "clean_release_branch_pr",
       "requirement": "Create a clean release branch/PR from the dirty worktree so the final artifact is reviewable.",
@@ -153,7 +148,7 @@
         "docs/production-readiness/release-pr-pathspecs/*.txt"
       ],
       "verification": "Gate check `release_staging` requires a non-main clean branch with no untracked release-critical entries.",
-      "requiredInput": "",
+      "requiredInput": null,
       "rerunCommands": [],
       "acceptanceCriteria": [],
       "expectedEvidence": [],
@@ -170,7 +165,7 @@
         "docs/production-readiness/release-pr-pathspecs/*.txt"
       ],
       "verification": "Split plan assigns dirty entries into generated, binary/evidence, native/bridge, core, UI, and other buckets with pathspec files; owner matrix separates must_ship, generated_only, binary_evidence, and defer_exclude; validator checks the staged index or branch diff against that matrix.",
-      "requiredInput": "",
+      "requiredInput": null,
       "rerunCommands": [],
       "acceptanceCriteria": [],
       "expectedEvidence": [],
@@ -186,7 +181,7 @@
         "docs/production-readiness/linux-release-build-evidence.json"
       ],
       "verification": "Gate requires the external evidence validator to accept Linux build/package evidence.",
-      "requiredInput": "",
+      "requiredInput": null,
       "rerunCommands": [],
       "acceptanceCriteria": [],
       "expectedEvidence": [],
@@ -340,5 +335,8 @@
       ],
       "gap": "Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=10; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5."
     }
-  ]
+  ],
+  "goalSectionsObserved": [],
+  "completionDecision": "NOT_ACHIEVED",
+  "completionDetail": "One or more P0 requirements remain blocked or weakly verified."
 }

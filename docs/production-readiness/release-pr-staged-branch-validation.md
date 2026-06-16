@@ -1,13 +1,13 @@
 # Release PR Staged Branch Validation
 
-- Generated at: `2026-06-16T19:36:42.170227Z`
+- Generated at: `2026-06-16T19:42:10.192617Z`
 - Matrix: `docs/production-readiness/release-pr-owner-decision-matrix.json`
 - Mode: `branch`
 - Base: `main`
 - Passed: `true`
-- Observed paths: `188`
+- Observed paths: `195`
 - Issues: `0`
-- Warnings: `1`
+- Warnings: `2`
 
 ## Issues
 
@@ -16,6 +16,7 @@ None.
 ## Warnings
 
 - Generated Only paths are not included in this validation.
+- Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`
 
 ## Matrix Integrity
 
@@ -146,8 +147,14 @@ git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-p
 - `docs/production-readiness/linux-release-build-evidence.json`
 - `docs/production-readiness/linux-release-package-metadata.json`
 - `docs/production-readiness/linux-runtime-smoke.log`
+- `docs/production-readiness/public-release-blocker-inputs.json`
+- `docs/production-readiness/public-release-blocker-inputs.md`
+- `docs/production-readiness/public-release-checklist-audit.json`
+- `docs/production-readiness/public-release-checklist-audit.md`
 - `docs/production-readiness/public-release-external-evidence.json`
 - `docs/production-readiness/public-release-external-evidence.md`
+- `docs/production-readiness/public-release-owner-checklist.json`
+- `docs/production-readiness/public-release-owner-checklist.md`
 - `docs/production-readiness/release-pr-drafts/01-binary-and-evidence-artifacts.md`
 - `docs/production-readiness/release-pr-drafts/02-release-infra-evidence.md`
 - `docs/production-readiness/release-pr-drafts/03-headless-remote-api.md`
@@ -198,10 +205,4 @@ git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-p
 - `native/nightshade_native/native/src/vendor/zwo.rs`
 - `package.json`
 - `packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard/star_matching.dart`
-- `packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart`
-- `packages/nightshade_app/lib/screens/equipment/equipment_screen.dart`
-- `packages/nightshade_app/lib/screens/equipment/equipment_screen/progress_dashboard.dart`
-- `packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/actions_and_telemetry.dart`
-- `packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/command_handlers.dart`
-- `packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/dialogs_and_settings.dart`
-- ... 68 more paths omitted.
+- ... 75 more paths omitted.

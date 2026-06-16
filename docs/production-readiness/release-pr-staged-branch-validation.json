@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:36:42.170227Z",
+  "generatedAt": "2026-06-16T19:42:10.192617Z",
   "matrixPath": "docs/production-readiness/release-pr-owner-decision-matrix.json",
   "matrixGeneratedAt": "2026-06-16T19:35:32.479571Z",
   "matrixIntegrity": {
@@ -95,12 +95,13 @@
   "mode": "branch",
   "base": "main",
   "passed": true,
-  "observedPathCount": 188,
+  "observedPathCount": 195,
   "issueCount": 0,
-  "warningCount": 1,
+  "warningCount": 2,
   "issues": [],
   "warnings": [
-    "Generated Only paths are not included in this validation."
+    "Generated Only paths are not included in this validation.",
+    "Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`"
   ],
   "decisionGroupCoverage": [
     {
@@ -244,8 +245,14 @@
     "docs/production-readiness/linux-release-build-evidence.json",
     "docs/production-readiness/linux-release-package-metadata.json",
     "docs/production-readiness/linux-runtime-smoke.log",
+    "docs/production-readiness/public-release-blocker-inputs.json",
+    "docs/production-readiness/public-release-blocker-inputs.md",
+    "docs/production-readiness/public-release-checklist-audit.json",
+    "docs/production-readiness/public-release-checklist-audit.md",
     "docs/production-readiness/public-release-external-evidence.json",
     "docs/production-readiness/public-release-external-evidence.md",
+    "docs/production-readiness/public-release-owner-checklist.json",
+    "docs/production-readiness/public-release-owner-checklist.md",
     "docs/production-readiness/release-pr-drafts/01-binary-and-evidence-artifacts.md",
     "docs/production-readiness/release-pr-drafts/02-release-infra-evidence.md",
     "docs/production-readiness/release-pr-drafts/03-headless-remote-api.md",
@@ -368,6 +375,7 @@
     "packaging/appliance/systemd/uninstall.sh",
     "scripts/dev.sh",
     "scripts/docker_build_linux.sh",
+    "tools/production/public_release_gate.dart",
     "tools/production/release_pr_split_plan.dart",
     "tools/production/release_staging_audit.dart"
   ]

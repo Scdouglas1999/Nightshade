@@ -1,7 +1,7 @@
 # Public Release Owner Checklist
 
 - Source audit: `docs/production-readiness/public-release-completion-audit.json`
-- Completion audit generated at: `2026-06-16T19:39:41.991808Z`
+- Completion audit generated at: `2026-06-16T19:42:41.096101Z`
 - Decision: `NOT_ACHIEVED`
 - Gate decision: `NOT_READY`
 - Completion detail: One or more P0 requirements remain blocked or weakly verified.
@@ -17,13 +17,13 @@ This owner checklist is generated from structured completion-audit fields. Edit 
 | Artifact | Exists | Generated | Decision | Count | Blockers |
 | --- | ---: | --- | --- | ---: | ---: |
 | `goal.txt` | `false` | `unknown` | `` | `` | `` |
-| `docs/production-readiness/public-release-gate.json` | `true` | `2026-06-16T19:39:34.806472Z` | `NOT_READY` | `20` | `5` |
-| `docs/production-readiness/public-release-blocker-inputs.json` | `true` | `2026-06-16T19:39:41.960902Z` | `NOT_READY` | `` | `5` |
-| `docs/production-readiness/public-release-external-evidence.json` | `true` | `2026-06-16T19:39:34.812875Z` | `ready=false` | `1` | `` |
+| `docs/production-readiness/public-release-gate.json` | `true` | `2026-06-16T19:42:40.351441Z` | `NOT_READY` | `20` | `5` |
+| `docs/production-readiness/public-release-blocker-inputs.json` | `true` | `2026-06-16T19:42:40.723775Z` | `NOT_READY` | `` | `5` |
+| `docs/production-readiness/public-release-external-evidence.json` | `true` | `2026-06-16T19:37:25.633073Z` | `ready=false` | `1` | `` |
 | `docs/production-readiness/release-staging-audit.json` | `true` | `2026-06-16T19:36:20.097609Z` | `` | `0` | `` |
 | `docs/production-readiness/release-pr-split-plan.json` | `true` | `2026-06-16T19:35:32.397361Z` | `` | `189` | `` |
 | `docs/production-readiness/release-pr-owner-decision-matrix.json` | `true` | `2026-06-16T19:35:32.479571Z` | `` | `189` | `` |
-| `docs/production-readiness/release-pr-staged-branch-validation.json` | `true` | `2026-06-16T19:36:42.170227Z` | `` | `` | `` |
+| `docs/production-readiness/release-pr-staged-branch-validation.json` | `true` | `2026-06-16T19:42:10.192617Z` | `` | `` | `` |
 | `docs/production-readiness/public-release-checklist-audit.json` | `true` | `2026-06-16T19:39:23.130589Z` | `` | `` | `` |
 
 ## Summary
